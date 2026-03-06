@@ -1,0 +1,128 @@
+{
+  "device_address": "CE:BF:9B:2A:EF:80",
+  "timestamp": "2026-03-06 13:29:34",
+  "services": [
+    {
+      "uuid": "0000180a-0000-1000-8000-00805f9b34fb",
+      "handle": 14,
+      "description": "Device Information",
+      "characteristics": [
+        {
+          "uuid": "00002a29-0000-1000-8000-00805f9b34fb",
+          "handle": 15,
+          "name": "Manufacturer Name",
+          "properties": [
+            "read"
+          ],
+          "descriptors": [],
+          "report_id": null,
+          "report_type": null,
+          "value": "52617a6572"
+        },
+        {
+          "uuid": "00002a50-0000-1000-8000-00805f9b34fb",
+          "handle": 17,
+          "name": "PnP ID",
+          "properties": [
+            "read"
+          ],
+          "descriptors": [],
+          "report_id": null,
+          "report_type": null,
+          "value": "028e06ba000100"
+        }
+      ]
+    },
+    {
+      "uuid": "52401523-f97c-7f90-0e7f-6c6f4e36db1c",
+      "handle": 59,
+      "description": "Unknown",
+      "characteristics": [
+        {
+          "uuid": "52401525-f97c-7f90-0e7f-6c6f4e36db1c",
+          "handle": 62,
+          "name": "Razer Notify 1",
+          "properties": [
+            "read",
+            "notify"
+          ],
+          "descriptors": [],
+          "report_id": null,
+          "report_type": null,
+          "value": "020000000000000371f8bd97b0b6ea496aff8b6b"
+        },
+        {
+          "uuid": "52401524-f97c-7f90-0e7f-6c6f4e36db1c",
+          "handle": 60,
+          "name": "Razer Write",
+          "properties": [
+            "write"
+          ],
+          "descriptors": [],
+          "report_id": null,
+          "report_type": null,
+          "value": null
+        },
+        {
+          "uuid": "52401526-f97c-7f90-0e7f-6c6f4e36db1c",
+          "handle": 65,
+          "name": "Razer Notify 2",
+          "properties": [
+            "read",
+            "notify"
+          ],
+          "descriptors": [],
+          "report_id": null,
+          "report_type": null,
+          "value": "aeff6e16ac274f48"
+        }
+      ]
+    },
+    {
+      "uuid": "0000180f-0000-1000-8000-00805f9b34fb",
+      "handle": 19,
+      "description": "Battery Service",
+      "characteristics": [
+        {
+          "uuid": "00002a19-0000-1000-8000-00805f9b34fb",
+          "handle": 20,
+          "name": "Battery Level",
+          "properties": [
+            "read",
+            "notify"
+          ],
+          "descriptors": [],
+          "report_id": null,
+          "report_type": null,
+          "value": "5e"
+        }
+      ]
+    },
+    {
+      "uuid": "00001801-0000-1000-8000-00805f9b34fb",
+      "handle": 10,
+      "description": "Generic Attribute Profile",
+      "characteristics": [
+        {
+          "uuid": "00002a05-0000-1000-8000-00805f9b34fb",
+          "handle": 11,
+          "name": "Service Changed",
+          "properties": [
+            "indicate"
+          ],
+          "descriptors": [],
+          "report_id": null,
+          "report_type": null,
+          "value": null
+        }
+      ]
+    }
+  ],
+  "hid_reports": {
+    "input": [],
+    "output": [],
+    "feature": []
+  },
+  "report_map": null,
+  "razer_test_results": []
+}
