@@ -1,0 +1,1 @@
+﻿[\0000]  DriverDesc = Razer Control Device  ProviderName = Razer Inc  DriverDateData = [byte[8]] 00 00 78 64 0C F0 D9 01  DriverDate = 9-26-2023  DriverVersion = 10.0.15063.0  InfPath = oem56.inf  InfSection = RzCommon_Device.NT  MatchingDeviceId = RAZER\DeviceContol

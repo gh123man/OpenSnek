@@ -1,0 +1,97 @@
+; Copyright: (c) 2020 Razer Inc. All rights reserved
+;
+; RzDevU_00ba_Dkm.inf
+;
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = HIDClass
+ClassGuid   = {745a17a0-74d3-11d0-b6fe-00a0c90f57da}
+Provider    = %ManufacturerName%
+CatalogFile = rzdev_00ba_dkm.cat
+DriverVer = 01/11/2023,10.0.15063.0
+PnpLockdown=1
+
+;DriverPackageDisplayName="Razer BluetoothLE Endpoint Device"
+
+[DestinationDirs]
+DefaultDestDir = 12
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+RzDev_00ba.sys  = 1,,
+
+;*****************************************
+; Install Section
+;*****************************************
+
+[Manufacturer]
+%ManufacturerName%=Standard,NTamd64
+
+[Standard.NTamd64]
+%RzDev.DeviceDesc%=RzDev_Device, BTHLEDevice\{00001812-0000-1000-8000-00805f9b34fb}_Dev_VID&02068e_PID&00ba
+
+[RzDev_Device.NT]
+Include=hidbthle.inf
+Needs=HidBthLE.NT
+CopyFiles=Drivers_Dir
+AddReg=RzDev_Device.NT.AddReg
+
+[Drivers_Dir]
+RzDev_00ba.sys
+
+[RzDev_Device.NT.AddReg]
+HKR,,"SelectiveSuspendEnabled",0x00000001,0x1   
+
+[RzDev_Device.NT.HW]
+AddReg = RzDev_Device.NT.HW.AddReg
+
+[RzDev_Device.NT.HW.AddReg]  
+HKR,,"LowerFilters",                 0x00010000, "WUDFRd" ; FLG_ADDREG_TYPE_MULTI_SZ | FLG_ADDREG_APPEND
+HKR,,"LowerFilters",                 0x00010008, "RzDev_00ba"
+HKR,,"RetainWWIrpWhenDeviceAbsent",  0x00010001, 1
+HKR,,"HighDutyCycleScanWindow",      0x00010001, 0x12     ;  11.25 ms
+HKR,,"HighDutyCycleScanInterval",    0x00010001, 0x24     ;  22.50 ms
+HKR,,"LowDutyCycleScanWindow",       0x00010001, 0x12     ;  11.25 ms
+HKR,,"LowDutyCycleScanInterval",     0x00010001, 0x400    ; 640.00 ms
+HKR,,"LinkSupervisionTimeout",       0x00010001, 0xC8     ;2000.00 ms 
+HKR,,"ConnectionLatency",            0x00010001, 0x17
+HKR,,"ConnectionIntervalMin",        0x00010001, 0x08
+HKR,,"ConnectionIntervalMax",        0x00010001, 0x08
+HKR,"WUDF","DeviceGroupId",          0x00000000, "26165dc1-09d6-4ecb-935c-e98c5dc11981" 
+HKR,,"DkmKeyDevice",0x00010001,1						; DKM Type
+HKR,,"DkmMouseDevice",0x00010001,1						; DKM Type
+HKR,,"MouseExDevice",0x00010001,1						; Dkm Type
+HKR,,"MouseEx_ReportId",0x00010001,1
+
+[RzDev_Device.NT.Services]
+Include=hidbthle.inf
+Needs=HidBthLE.NT.Services
+AddService = RzDev_00ba,, RzDev_Service_Inst 
+
+; -------------- RzDev driver install sections
+[RzDev_Service_Inst]
+DisplayName    = %RzDev.ServiceDesc%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\RzDev_00ba.sys
+LoadOrderGroup = extended base
+
+;-------------- WDF Coinstaller installation
+
+[RzDev_Device.NT.CoInstallers]
+Include=hidbthle.inf
+Needs=HidBthLE.NT.CoInstallers
+
+[RzDev_Device.NT.Wdf]
+Include=hidbthle.inf
+Needs=HidBthLE.NT.Wdf
+
+[Strings]
+ManufacturerName="Razer Inc"
+DiskName = "Razer 00ba Installation Disk"
+RzDev.ServiceDesc= "Razer 00ba Service"
+RzDev.DeviceDesc = "Bluetooth Low Energy GATT compliant HID device"
