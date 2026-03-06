@@ -1,24 +1,33 @@
 #!/usr/bin/env python3
 """
-BLE HID GATT Enumerator for Razer Mouse - Linux (Steam Deck compatible)
+BLE HID GATT Enumerator for Razer Mouse - Linux
 
 Enumerates ALL GATT characteristics within the BLE HID service (0x1812)
 to find Feature/Output Report characteristics used for Razer's config protocol.
 
-Setup (Steam Deck):
-  sudo steamos-readonly disable
-  sudo pacman -S --needed python python-pip bluez bluez-utils
-  sudo steamos-readonly enable
+Setup (Ubuntu/Debian):
+  sudo apt install python3 python3-venv bluez
   python3 -m venv ~/venv && source ~/venv/bin/activate
   pip install bleak
   python3 enumerate_hid_gatt_linux.py
 
-Setup (other Linux):
+Setup (Steam Deck / Arch):
+  sudo steamos-readonly disable   # Steam Deck only
+  sudo pacman -S --needed python python-pip bluez bluez-utils
+  sudo steamos-readonly enable    # Steam Deck only
+  python3 -m venv ~/venv && source ~/venv/bin/activate
   pip install bleak
   python3 enumerate_hid_gatt_linux.py
 
 If the mouse is already paired, the script will find it automatically.
 If not, pair it first: bluetoothctl -> scan on -> pair XX:XX -> trust XX:XX -> connect XX:XX
+
+Troubleshooting:
+  - "Permission denied": add your user to the bluetooth group:
+      sudo usermod -aG bluetooth $USER  (then log out/in)
+  - "org.bluez.Error.NotReady": bluetooth service not running:
+      sudo systemctl start bluetooth
+  - GATT cache stale: run with --clear-cache
 """
 
 import asyncio
@@ -105,7 +114,7 @@ def build_razer_cmd(tx_id, cmd_class, cmd_id, data_size=0, data=None):
     return bytes(buf)
 
 def check_bluetooth_service():
-    """Check if BlueZ is running."""
+    """Check if BlueZ is running and accessible."""
     try:
         result = subprocess.run(
             ["systemctl", "is-active", "bluetooth"],
@@ -115,11 +124,34 @@ def check_bluetooth_service():
             log("Bluetooth service not running. Starting it...", "WARN")
             subprocess.run(["sudo", "systemctl", "start", "bluetooth"], timeout=10)
             time.sleep(2)
-            return True
-        return True
+    except FileNotFoundError:
+        log("systemctl not found — assuming bluetooth is managed differently", "WARN")
     except Exception as e:
         log(f"Could not check bluetooth service: {e}", "WARN")
-        return True  # Proceed anyway
+
+    # Check D-Bus access (common Ubuntu issue: user not in bluetooth group)
+    try:
+        result = subprocess.run(
+            ["bluetoothctl", "show"],
+            capture_output=True, text=True, timeout=5
+        )
+        if "No default controller" in result.stdout:
+            log("No Bluetooth adapter found!", "ERROR")
+            print("  Check: hciconfig -a")
+            print("  Check: rfkill list bluetooth")
+            sys.exit(1)
+        if result.returncode != 0 and "org.bluez.Error" in result.stderr:
+            log("D-Bus permission error. Add your user to the bluetooth group:", "ERROR")
+            print(f"  sudo usermod -aG bluetooth {os.environ.get('USER', '$USER')}")
+            print("  Then log out and back in.")
+            sys.exit(1)
+    except FileNotFoundError:
+        log("bluetoothctl not found — install bluez:", "ERROR")
+        print("  Ubuntu/Debian: sudo apt install bluez")
+        print("  Arch/Steam Deck: sudo pacman -S bluez bluez-utils")
+        sys.exit(1)
+    except Exception as e:
+        log(f"bluetoothctl check failed: {e}", "WARN")
 
 # ─── Main Logic ──────────────────────────────────────────────────────────────
 
@@ -138,36 +170,24 @@ async def find_razer_device():
         log(f"Scan failed: {e}", "WARN")
 
     # Strategy 2: Check bluetoothctl for paired devices
+    # Try "devices Paired" first (BlueZ 5.65+), fall back to "devices" (older)
     log("Scan didn't find device. Checking paired devices via bluetoothctl...")
-    try:
-        result = subprocess.run(
-            ["bluetoothctl", "devices", "Paired"],
-            capture_output=True, text=True, timeout=5
-        )
-        for line in result.stdout.strip().split("\n"):
-            # Format: "Device XX:XX:XX:XX:XX:XX Name"
-            parts = line.strip().split(" ", 2)
-            if len(parts) >= 3 and is_razer_device(parts[2]):
-                addr = parts[1]
-                log(f"Found paired: {parts[2]} ({addr})")
-                return addr
-    except Exception as e:
-        log(f"bluetoothctl check failed: {e}", "WARN")
-
-    # Strategy 3: Check all bluetoothctl devices
-    try:
-        result = subprocess.run(
-            ["bluetoothctl", "devices"],
-            capture_output=True, text=True, timeout=5
-        )
-        for line in result.stdout.strip().split("\n"):
-            parts = line.strip().split(" ", 2)
-            if len(parts) >= 3 and is_razer_device(parts[2]):
-                addr = parts[1]
-                log(f"Found known: {parts[2]} ({addr})")
-                return addr
-    except Exception as e:
-        log(f"bluetoothctl devices failed: {e}", "WARN")
+    for subcommand in [["bluetoothctl", "devices", "Paired"], ["bluetoothctl", "devices"]]:
+        try:
+            result = subprocess.run(
+                subcommand, capture_output=True, text=True, timeout=5
+            )
+            if result.returncode != 0:
+                continue
+            for line in result.stdout.strip().split("\n"):
+                # Format: "Device XX:XX:XX:XX:XX:XX Name"
+                parts = line.strip().split(" ", 2)
+                if len(parts) >= 3 and is_razer_device(parts[2]):
+                    addr = parts[1]
+                    log(f"Found: {parts[2]} ({addr})")
+                    return addr
+        except Exception as e:
+            log(f"bluetoothctl check failed: {e}", "WARN")
 
     return None
 
