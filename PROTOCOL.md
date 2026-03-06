@@ -10,6 +10,7 @@ This document describes the USB HID protocol used by Razer mice, based on revers
 - [Implemented Commands](#implemented-commands)
 - [Unimplemented Commands](#unimplemented-commands)
 - [Device-Specific Notes](#device-specific-notes)
+- [BLE Protocol](#ble-bluetooth-low-energy-protocol)
 - [References](#references)
 
 ---
@@ -340,6 +341,244 @@ Effects:
 
 ---
 
+## BLE (Bluetooth Low Energy) Protocol
+
+The standard 90-byte USB HID Feature Report protocol does **NOT** work over BLE. Testing with the Basilisk V3 X HyperSpeed (BT PID `0x00BA`) on macOS revealed a completely different transport.
+
+### BLE HID Report Descriptor
+
+The BLE HID descriptor contains **only Input reports** — zero Feature or Output reports. This means the USB feature report protocol cannot be used over BLE.
+
+### GATT Services Discovered
+
+Three services are present on the Basilisk V3 X HyperSpeed over BLE:
+
+| Service | UUID | Purpose |
+|---------|------|---------|
+| Battery Service | `0x180F` | Standard battery level (0-100%) |
+| HID Service | `0x1812` | Mouse input reports (movement, buttons, DPI status) |
+| Vendor Service | `52401523-F97C-7F90-0E7F-6C6F4E36DB1C` | Razer vendor-specific (lighting, config?) |
+
+### Battery Service (0x180F) — Working
+
+The standard BLE Battery Service provides battery level readings:
+
+```
+Service:        0x180F (Battery Service)
+Characteristic: 0x2A19 (Battery Level)
+  Properties:   Read, Notify
+  Value:        uint8 (0-100 percentage)
+```
+
+This is the most reliable way to read battery on BLE-connected Razer devices. It does not require the 90-byte Razer protocol and works directly via GATT.
+
+**Limitation**: No charging status is available — only the level percentage.
+
+### Passive HID Input Reports — Working (Read-Only)
+
+DPI status can be read passively from HID input reports:
+
+```
+Report ID: 0x05
+Format:    05 05 02 XX XX YY YY 00 00
+  Byte 0:    Report ID (0x05)
+  Byte 1:    Length/type (0x05)
+  Byte 2:    Subtype (0x02 = DPI status)
+  Bytes 3-4: DPI X (big-endian)
+  Bytes 5-6: DPI Y (big-endian)
+  Bytes 7-8: Reserved (0x00)
+```
+
+These reports are emitted when DPI changes (e.g., DPI button press). They can be read via `hidapi` on the BLE HID device path.
+
+### Vendor GATT Service
+
+```
+Service:        52401523-F97C-7F90-0E7F-6C6F4E36DB1C
+Characteristics:
+  Write:        52401524-F97C-7F90-0E7F-6C6F4E36DB1C (write-with-response only)
+  Notify 1:     52401525-F97C-7F90-0E7F-6C6F4E36DB1C (read, notify)
+  Notify 2:     52401526-F97C-7F90-0E7F-6C6F4E36DB1C (read, notify)
+```
+
+**Note**: Only 3 GATT services are exposed via CoreBluetooth: 180A (Device Info),
+180F (Battery), and the vendor service. The HID service (0x1812) is **claimed by
+macOS** and NOT accessible via GATT — it's handled entirely by the OS HID stack.
+
+This same vendor service UUID appears on both Razer keyboards (e.g., BlackWidow V3 Mini)
+and mice (e.g., Basilisk V3 X HyperSpeed, Basilisk X HyperSpeed). The only known
+third-party implementation is [JiqiSun/RazerBlackWidowV3MiniBluetoothControllerApp](https://github.com/JiqiSun/RazerBlackWidowV3MiniBluetoothControllerApp) (Swift/macOS, lighting only).
+
+#### Command Protocol
+
+Commands use a **two-write pair**: an 8-byte init followed by a 10-byte payload.
+Both writes go to the write characteristic (`...1524`) using write-with-response.
+The writes must be sent on separate GATT write operations (not batched), with at
+least ~50ms between them (the ATT write response from the first must complete
+before the second is sent).
+
+**Important**: Do NOT use write-without-response for the init — it will be silently
+dropped and the payload will be treated as a standalone (failing) command.
+
+**Init format (8 bytes)**:
+```
+13 0a 00 00 [mode_hi] [mode_lo] 00 00
+
+Init bytes are STRICT:
+  byte[0] = 0x13 (only value that works)
+  byte[1] = 0x0a (only value that works; 20 other values tested, all fail)
+  bytes[2-3] = 0x00 0x00 (padding)
+  bytes[4-5] = mode selector (see below)
+  bytes[6-7] = 0x00 0x00 (padding)
+
+Working modes:
+  10 03  — Lighting control (confirmed: changes scroll wheel LED)
+  10 04  — DANGEROUS: freezes mouse input (still BLE-connected, no movement)
+  10 05  — Unknown (accepts all payloads, no observable effect)
+  10 06  — Unknown (accepts all payloads, no observable effect)
+
+Failing modes (error 0x03):
+  10 00, 10 01, 10 02, 10 07, 10 08, 10 09, 10 0a, 10 0b,
+  10 0c, 10 0d, 10 0e, 10 0f
+
+Parameter error (0x05):
+  20 XX, 04 XX
+```
+
+**Response format (20 bytes, on notify1 / `...1525`)**:
+```
+[echo_byte0] 00 00 00 00 00 00 [status] [12-byte session token]
+
+echo_byte0: First byte of the INIT command (0x13 for valid pairs)
+Status values:
+  0x02 = Success
+  0x03 = Error (unknown command / bad format)
+  0x05 = Parameter error
+
+Session token: Changes on each BT reconnect.
+  Example: 71 f8 b9 97 94 b6 eb 41 6a ff 9b 6b
+```
+
+**Unsolicited notification on subscribe**: `01 00 00 00 00 00 00 03 [token]`
+(Always status 0x03/ERR — this is normal, not an error condition)
+
+**Notify2 read value** (8 bytes): `aa ef 6d 16 2c 27 4f 48`
+(Purpose unknown, possibly device identifier; constant across sessions)
+
+#### Session State and Recovery
+
+The vendor GATT service can enter a **permanent error state** where all commands
+return ERR (status 0x03), including previously working lighting commands. This
+appears to happen after sending many commands (especially failed ones) in rapid
+succession during probing.
+
+**Recovery**: Toggle Bluetooth off and back on on the mouse (physical switch).
+A software disconnect/reconnect via CoreBluetooth is NOT sufficient — the device
+must be power-cycled. After reconnecting, the session token changes and the GATT
+service accepts commands again.
+
+This matches the BlackWidow V3 Mini BLE app's setup instructions: "Toggle the
+keyboard's Bluetooth off, then back on."
+
+#### Payload Validation Behavior
+
+In working modes (10/03, 10/05, 10/06), the device accepts **any** 10-byte payload
+without error. It does NOT validate payload content — only the mode is checked.
+Payloads that don't match a known command format are silently ignored.
+
+This means OK responses do NOT indicate the command had any effect — only that the
+mode was valid.
+
+Mode 10/04 is more selective (rejects byte0=0x00) but still accepts most payloads.
+**WARNING**: Mode 10/04 can freeze mouse input.
+
+#### Lighting Payload (mode 10 03) — Confirmed Working
+
+```
+Payload (10 bytes): [effect] [param1] [param2] [color_count] [R] [G] [B] [R2] [G2] [B2]
+
+Effects:
+  0x01 = Static      e.g., 01 00 00 01 ff ff ff 00 00 00 (white)
+  0x02 = Breathe     e.g., 02 00 00 01 00 ff 00 00 00 00
+  0x03 = Spectrum     e.g., 03 00 00 00 00 00 00 00 00 00
+  0x04 = Wave        e.g., 04 02 28 00 00 00 00 00 00 00
+  0x05 = Reactive    e.g., 05 00 03 01 00 ff 00 00 00 00
+
+LED off: 01 00 00 01 00 00 00 00 00 00 (static black)
+```
+
+**Confirmed on Basilisk V3 X HyperSpeed**: Static and spectrum effects change the
+scroll wheel LED. Sending static black turns LED off. The LED brightness may
+decrease after sending many commands in sequence.
+
+#### DPI Write Testing — Exhaustive Results
+
+Extensive testing confirmed that **DPI cannot be changed** through the vendor GATT
+service on the Basilisk V3 X HyperSpeed. The following approaches were all tried
+with HID DPI sniffing active (monitoring report 0x05 0x05 0x02):
+
+| Approach | Modes Tested | Payloads | DPI Changes |
+|----------|-------------|----------|-------------|
+| byte0=0x08 + DPI X/Y big-endian | 10/03, 04, 05, 06 | 400-3200 DPI | 0 |
+| byte0=0x00-0x05 + DPI data | 10/03, 04, 05 | 800 DPI | 0 |
+| USB class+id (0x04 0x05) as payload | 10/03, 05, 06 | 800 DPI | 0 |
+| USB GET DPI (0x04 0x85) as payload | 10/03, 05, 06 | read | 0 |
+| DPI/100 single byte | 10/03, 05, 06 | 4,8,16,32 | 0 |
+| DPI at various byte positions | 10/06 | 800 DPI | 0 |
+| Full 90-byte USB report | (direct) | various | 0 |
+| Chunked USB report (20, 10 bytes) | (direct) | various | 0 |
+| Raw DPI bytes (2-8 bytes) | (direct) | various | 0 |
+| HID output reports via hidapi | all report IDs | 800 DPI | all return -1 |
+| HID feature reports via hidapi | all report IDs | GET DPI | all return -1 |
+
+**Conclusion**: The vendor GATT service on the Basilisk V3 X HyperSpeed appears
+to be **lighting-only**. DPI configuration over BLE may require access to the HID
+service (0x1812), which macOS claims exclusively. On Linux, this service may be
+accessible.
+
+#### HID Report Limitations on BLE
+
+The BLE HID descriptor contains **only Input reports**:
+- No Feature reports (cannot send/receive USB-style configuration)
+- No Output reports (cannot send commands via HID)
+- All HID output/feature report writes via hidapi return -1
+- All HID feature report reads via hidapi raise OSError
+
+### macOS BLE Discovery
+
+macOS hides paired BLE HID devices from normal BLE scans (`CBCentralManager.scanForPeripherals`). To find them, use:
+
+```objc
+// Objective-C / CoreBluetooth
+[centralManager retrieveConnectedPeripheralsWithServices:@[batteryServiceUUID]];
+```
+
+```python
+# Python via pyobjc
+battery_uuid = CBUUID.UUIDWithString_("180F")
+peripherals = manager.retrieveConnectedPeripheralsWithServices_([battery_uuid])
+```
+
+### Current BLE Capabilities
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Battery read | Working | Via BLE Battery Service (0x180F) |
+| DPI read | Working | Passive HID input reports (report 0x05) |
+| LED/Lighting | Working | Vendor GATT service, mode `10 03` |
+| DPI write | **Not possible on macOS** | Vendor GATT is lighting-only; HID service claimed by OS |
+| Poll rate | Not possible on macOS | No known BLE path |
+| Button remapping | Not possible on macOS | No known BLE path |
+
+### Future Investigation
+
+1. Test on Linux where BLE HID service (0x1812) may be accessible directly
+2. Capture Razer Synapse BLE traffic on Windows to see if DPI uses a different transport
+3. Investigate Android Razer app BLE traffic (Frida/jadx decompilation)
+4. Test whether firmware updates have changed GATT behavior
+
+---
+
 ## Reverse Engineering New Commands
 
 To discover undocumented commands:
@@ -365,4 +604,12 @@ See: [OpenRazer Reverse Engineering Guide](https://github.com/openrazer/openraze
 
 ## Changelog
 
+- **2026-03-06**: Comprehensive BLE vendor GATT protocol documentation:
+  - Confirmed 4 working modes (10/03 lighting, 10/04 dangerous, 10/05 unknown, 10/06 unknown)
+  - Documented session state/recovery behavior (BT power cycle required)
+  - Exhaustive DPI write testing across all modes and payload formats — DPI is NOT configurable via vendor GATT
+  - Documented HID report limitations (no Feature/Output reports over BLE)
+  - Added init byte strictness (only 0x13/0x0a works), payload validation behavior
+  - Updated capabilities table with definitive status
+- **2026-03-06**: Added BLE protocol section (Battery Service, vendor GATT service, passive HID reports)
 - **2024-03-05**: Initial documentation based on OpenRazer and testing with Basilisk V3 X HyperSpeed
