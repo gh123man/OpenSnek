@@ -13,7 +13,8 @@ Should work with most modern Razer mice that use the same USB HID protocol.
 
 - macOS
 - Python 3.8+
-- USB connection (2.4GHz dongle or cable) — **Bluetooth is not supported**
+- USB connection (2.4GHz dongle or cable) recommended
+- Bluetooth HID connection is supported experimentally
 
 ## Installation
 
@@ -38,6 +39,9 @@ source venv/bin/activate
 
 # View current settings
 python razer_poc.py
+
+# Bluetooth: sniff DPI values from passive input reports
+python razer_poc.py --sniff-dpi 10
 
 # Set DPI (temporary, immediate effect)
 python razer_poc.py --dpi 1600
@@ -74,12 +78,39 @@ python razer_poc.py --stages 800,1600,3200 -q
 
 This tool communicates with Razer mice using the same USB HID protocol as Razer Synapse and [OpenRazer](https://github.com/openrazer/openrazer). It sends 90-byte feature reports to configure the mouse.
 
-### Why Bluetooth Doesn't Work
+### Bluetooth Support Notes
 
 When connected via Bluetooth:
-- The mouse uses a different vendor ID (`068e` vs Razer's `1532`)
-- Bluetooth HID doesn't support the feature report protocol used for configuration
-- Configuration requires the USB dongle or wired connection
+- Some mice use a different vendor ID (`068e` vs Razer's `1532`)
+- HID report transport can vary by firmware/stack
+- This tool now tries multiple HID transport modes and transaction IDs
+- If Bluetooth configuration fails, use USB dongle or wired mode
+
+To reverse engineer what Bluetooth reports are actually exposed on your system:
+
+```bash
+python bt_report_sniffer.py --guided --duration 24 --step-seconds 4 --csv /tmp/razer_bt_guided.csv
+```
+
+This runs timed phases (`idle`, `move`, `click`, `scroll`, `dpi_button`) and prints per-phase report/byte deltas.
+
+For quick DPI visibility over Bluetooth without full protocol writes:
+
+```bash
+python razer_poc.py --sniff-dpi 10
+```
+
+This decodes passive `RID 0x05` reports and prints observed DPI values.
+
+To analyze a capture and map report fields:
+
+```bash
+python bt_field_mapper.py /tmp/razer_bt_guided.csv
+```
+
+Current decoded pattern:
+- `05 05 10 00 00 00 00 00 00` -> heartbeat/status idle frame
+- `05 05 02 XX YY XX YY 00 00` -> DPI frame (`XXYY` big-endian), observed values: `400/800/1600/3200/6400`
 
 ## Protocol Reference
 

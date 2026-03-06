@@ -24,9 +24,9 @@ Razer devices communicate via USB HID Feature Reports. The protocol uses 90-byte
 |------------|-----------|------------------|
 | USB Cable | `0x1532` | Full |
 | 2.4GHz Dongle | `0x1532` | Full |
-| Bluetooth | `0x068e` | **None** (input only) |
+| Bluetooth | `0x068e` (some devices) | Partial / transport-dependent |
 
-**Important**: Bluetooth HID does not support feature reports. Configuration requires USB connection.
+**Important**: Bluetooth behavior varies by device/firmware/OS HID stack. Some devices expose configuration over Bluetooth HID, but transport method and transaction ID may differ from USB.
 
 ---
 
@@ -319,7 +319,7 @@ Effects:
 
 **Known Issues**:
 - DPI button stops working when OpenRazer daemon is active ([#2701](https://github.com/openrazer/openrazer/issues/2701))
-- Bluetooth does not support configuration protocol
+- Bluetooth configuration support is device/transport dependent
 
 ### Transaction ID by Device
 
