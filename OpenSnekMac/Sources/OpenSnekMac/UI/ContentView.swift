@@ -15,10 +15,10 @@ struct ContentView: View {
         .onChange(of: appState.selectedDeviceID) { _, _ in
             Task { await appState.refreshState() }
         }
-        .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
+        .onReceive(Timer.publish(every: 2.0, on: .main, in: .common).autoconnect()) { _ in
             Task { await appState.refreshState() }
         }
-        .onReceive(Timer.publish(every: 0.25, on: .main, in: .common).autoconnect()) { _ in
+        .onReceive(Timer.publish(every: 0.20, on: .main, in: .common).autoconnect()) { _ in
             Task { await appState.refreshDpiFast() }
         }
     }
@@ -49,6 +49,16 @@ struct ContentView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(Color(hex: 0x9BEA5D))
                     .controlSize(.small)
+
+                    Button {
+                        NSWorkspace.shared.open(URL(fileURLWithPath: AppLog.path))
+                    } label: {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.system(size: 11, weight: .bold))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Open runtime log file")
                 }
 
                 Text("Devices")
@@ -230,7 +240,10 @@ struct ContentView: View {
                             }
                         ),
                         in: 100...30000,
-                        step: 100
+                        step: 100,
+                        onEditingChanged: { editing in
+                            appState.isEditingDpiControl = editing
+                        }
                     )
                 }
             }

@@ -26,6 +26,7 @@ Target device family in current captures:
 - `razer_ble.py` starts request IDs at `0x30`, increments modulo `0x100`.
 - Success ACK is notify header status `0x02` with matching `req`.
 - Issue commands sequentially per device connection. Parallel in-flight vendor transactions can interleave notifies and corrupt command correlation.
+- Consumer recommendation: reject malformed DPI payload reads (for example `0` DPI stage entries) and retry once before exposing state to UI.
 
 ## 4. Frame Formats
 
@@ -187,6 +188,18 @@ Vendor GATT path in the same environment works when enabled:
 - Button rebinding validated on slots `0x02`, `0x03`, `0x04`, `0x05`.
 - Slot `0x02` default restore is implemented as explicit right-click payload.
 - Layer-clear payload (`layer=0x01`, `action=0x00`) observed on slots `0x04` and `0x05`.
+
+## 9.1 OpenSnekMac Runtime Notes (2026-03)
+
+The Swift app (`OpenSnekMac`) applies additional runtime safety around the same vendor protocol:
+
+- one BLE exchange at a time per connection (serialized request pipeline)
+- coalesced apply queue (latest local edit wins under rapid slider movement)
+- stale-read masking window after DPI set (prevents transient old values from snapping UI state backward)
+- invalid DPI read filtering + immediate retry for transient malformed payloads
+- log-backed diagnostics at `~/Library/Logs/OpenSnekMac/open-snek.log`
+
+These are transport-consumer behaviors and do not change the on-wire packet format.
 
 ## 10. Status Codes
 

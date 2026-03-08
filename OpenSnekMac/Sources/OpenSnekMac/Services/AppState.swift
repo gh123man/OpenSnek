@@ -34,8 +34,13 @@ final class AppState {
     private var buttonApplyTask: Task<Void, Never>?
     private var activeStageApplyTask: Task<Void, Never>?
     private var hasPendingLocalEdits = false
+    private var pendingPatch: DevicePatch?
+    private var applyDrainTask: Task<Void, Never>?
     private var stateCacheByDeviceID: [String: MouseState] = [:]
     private var isRefreshingDpiFast = false
+    private var stateRevision: UInt64 = 0
+    var isEditingDpiControl = false
+    private var lastLocalEditAt: Date?
 
     var selectedDevice: MouseDevice? {
         guard let selectedDeviceID else { return nil }
@@ -43,12 +48,15 @@ final class AppState {
     }
 
     func refreshDevices() async {
+        let start = Date()
+        AppLog.event("AppState", "refreshDevices start")
         isLoading = true
         defer { isLoading = false }
 
         do {
             let listed = try await client.listDevices()
             devices = listed
+            AppLog.event("AppState", "refreshDevices found=\(listed.count)")
             if selectedDeviceID == nil {
                 selectedDeviceID = listed.first?.id
             }
@@ -60,10 +68,12 @@ final class AppState {
             }
             errorMessage = nil
         } catch {
+            AppLog.error("AppState", "refreshDevices failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
 
         await refreshState()
+        AppLog.event("AppState", "refreshDevices end elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s")
     }
 
     func refreshState() async {
@@ -71,7 +81,13 @@ final class AppState {
             state = nil
             return
         }
-        guard !isRefreshingState, !isApplying else { return }
+        guard !isRefreshingState, !isApplying, !hasPendingLocalEdits else {
+            AppLog.debug(
+                "AppState",
+                "refreshState skipped refreshing=\(isRefreshingState) applying=\(isApplying) pendingEdits=\(hasPendingLocalEdits)"
+            )
+            return
+        }
 
         if let cached = stateCacheByDeviceID[selectedDevice.id] {
             state = cached
@@ -79,24 +95,38 @@ final class AppState {
 
         isRefreshingState = true
         defer { isRefreshingState = false }
+        let refreshRevision = stateRevision
 
+        let start = Date()
         do {
             let fetched = try await client.readState(device: selectedDevice)
+            guard refreshRevision == stateRevision else {
+                AppLog.debug("AppState", "refreshState stale-drop rev=\(refreshRevision) current=\(stateRevision)")
+                return
+            }
             let merged = fetched.merged(with: stateCacheByDeviceID[selectedDevice.id])
             stateCacheByDeviceID[selectedDevice.id] = merged
             if state != merged {
                 state = merged
             }
             lastUpdated = Date()
-            if !hasPendingLocalEdits && !isApplying {
+            if shouldHydrateEditable {
                 hydrateEditable(from: merged)
             }
             errorMessage = nil
+            AppLog.debug(
+                "AppState",
+                "refreshState ok device=\(selectedDevice.id) active=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
+                "values=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
+                "elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
+            )
         } catch {
             if stateCacheByDeviceID[selectedDevice.id] == nil {
+                AppLog.error("AppState", "refreshState failed no-cache: \(error.localizedDescription)")
                 errorMessage = error.localizedDescription
             } else {
                 // Keep last known-good UI stable on transient polling failures.
+                AppLog.debug("AppState", "refreshState transient-failure masked: \(error.localizedDescription)")
                 errorMessage = nil
             }
         }
@@ -117,15 +147,21 @@ final class AppState {
         let values = Array(editableStageValues.prefix(count)).map { max(100, min(30000, $0)) }
         let active = singleStageMode ? 0 : max(0, min(count - 1, editableActiveStage - 1))
 
-        await apply(patch: DevicePatch(dpiStages: values, activeStage: active))
+        enqueueApply(DevicePatch(dpiStages: values, activeStage: active))
     }
 
     func scheduleAutoApplyDpi() {
         guard !isHydrating else { return }
         hasPendingLocalEdits = true
+        lastLocalEditAt = Date()
         dpiApplyTask?.cancel()
         dpiApplyTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 450_000_000)
+            do {
+                try await Task.sleep(nanoseconds: 220_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
             await self?.applyDpiStages()
         }
     }
@@ -133,57 +169,81 @@ final class AppState {
     func applyActiveStageOnly() async {
         let count = singleStageMode ? 1 : max(1, min(5, editableStageCount))
         let active = singleStageMode ? 0 : max(0, min(count - 1, editableActiveStage - 1))
-        await apply(patch: DevicePatch(activeStage: active))
+        enqueueApply(DevicePatch(activeStage: active))
     }
 
     func scheduleAutoApplyActiveStage() {
         guard !isHydrating else { return }
         hasPendingLocalEdits = true
+        lastLocalEditAt = Date()
         activeStageApplyTask?.cancel()
         activeStageApplyTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 80_000_000)
+            do {
+                try await Task.sleep(nanoseconds: 80_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
             await self?.applyActiveStageOnly()
         }
     }
 
     func applyPollRate() async {
-        await apply(patch: DevicePatch(pollRate: editablePollRate))
+        enqueueApply(DevicePatch(pollRate: editablePollRate))
     }
 
     func scheduleAutoApplyPollRate() {
         guard !isHydrating else { return }
         hasPendingLocalEdits = true
+        lastLocalEditAt = Date()
         pollApplyTask?.cancel()
         pollApplyTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 250_000_000)
+            do {
+                try await Task.sleep(nanoseconds: 250_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
             await self?.applyPollRate()
         }
     }
 
     func applyLedBrightness() async {
-        await apply(patch: DevicePatch(ledBrightness: editableLedBrightness))
+        enqueueApply(DevicePatch(ledBrightness: editableLedBrightness))
     }
 
     func scheduleAutoApplyLedBrightness() {
         guard !isHydrating else { return }
         hasPendingLocalEdits = true
+        lastLocalEditAt = Date()
         ledApplyTask?.cancel()
         ledApplyTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 180_000_000)
+            do {
+                try await Task.sleep(nanoseconds: 180_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
             await self?.applyLedBrightness()
         }
     }
 
     func applyLedColor() async {
-        await apply(patch: DevicePatch(ledRGB: RGBPatch(r: editableColor.r, g: editableColor.g, b: editableColor.b)))
+        enqueueApply(DevicePatch(ledRGB: RGBPatch(r: editableColor.r, g: editableColor.g, b: editableColor.b)))
     }
 
     func scheduleAutoApplyLedColor() {
         guard !isHydrating else { return }
         hasPendingLocalEdits = true
+        lastLocalEditAt = Date()
         colorApplyTask?.cancel()
         colorApplyTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            do {
+                try await Task.sleep(nanoseconds: 200_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
             await self?.applyLedColor()
         }
     }
@@ -194,29 +254,40 @@ final class AppState {
             kind: editableButtonKind,
             hidKey: editableButtonKind == .keyboardSimple ? editableHidKey : nil
         )
-        await apply(patch: DevicePatch(buttonBinding: binding))
+        enqueueApply(DevicePatch(buttonBinding: binding))
     }
 
     func scheduleAutoApplyButton() {
         guard !isHydrating else { return }
         hasPendingLocalEdits = true
+        lastLocalEditAt = Date()
         buttonApplyTask?.cancel()
         buttonApplyTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 260_000_000)
+            do {
+                try await Task.sleep(nanoseconds: 260_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
             await self?.applyButtonBinding()
         }
     }
 
     func refreshDpiFast() async {
         guard let selectedDevice, selectedDevice.transport == "bluetooth" else { return }
-        guard !isRefreshingDpiFast, !isApplying else { return }
+        guard !isRefreshingDpiFast, !isRefreshingState, !isApplying else { return }
         guard !hasPendingLocalEdits else { return }
 
         isRefreshingDpiFast = true
         defer { isRefreshingDpiFast = false }
+        let fastRevision = stateRevision
 
         do {
             guard let fast = try await client.readDpiStagesFast(device: selectedDevice) else { return }
+            guard fastRevision == stateRevision else {
+                AppLog.debug("AppState", "refreshDpiFast stale-drop rev=\(fastRevision) current=\(stateRevision)")
+                return
+            }
             let previous = stateCacheByDeviceID[selectedDevice.id] ?? state
             guard let previous else { return }
 
@@ -239,7 +310,7 @@ final class AppState {
             if state != updated {
                 state = updated
             }
-            if !isApplying {
+            if shouldHydrateEditable {
                 hydrateEditable(from: updated)
             }
         } catch {
@@ -247,15 +318,45 @@ final class AppState {
         }
     }
 
-    private func apply(patch: DevicePatch) async {
+    private func enqueueApply(_ patch: DevicePatch) {
+        if let pendingPatch {
+            self.pendingPatch = pendingPatch.merged(with: patch)
+        } else {
+            pendingPatch = patch
+        }
+        hasPendingLocalEdits = true
+        lastLocalEditAt = Date()
+        stateRevision &+= 1
+
+        if applyDrainTask == nil {
+            applyDrainTask = Task { [weak self] in
+                await self?.drainApplyQueue()
+            }
+        }
+    }
+
+    private func drainApplyQueue() async {
+        while let patch = pendingPatch {
+            pendingPatch = nil
+            await applyNow(patch: patch)
+            hasPendingLocalEdits = pendingPatch != nil
+        }
+        hasPendingLocalEdits = false
+        applyDrainTask = nil
+    }
+
+    private func applyNow(patch: DevicePatch) async {
         guard let selectedDevice else {
             errorMessage = "No device selected"
             return
         }
 
+        stateRevision &+= 1
+        AppLog.event("AppState", "apply start device=\(selectedDevice.id) patch=\(patch.describe)")
         isApplying = true
         defer { isApplying = false }
 
+        let start = Date()
         do {
             let next = try await client.apply(device: selectedDevice, patch: patch)
             let merged = next.merged(with: stateCacheByDeviceID[selectedDevice.id])
@@ -264,13 +365,25 @@ final class AppState {
                 state = merged
             }
             lastUpdated = Date()
-            hasPendingLocalEdits = false
+            lastLocalEditAt = nil
             hydrateEditable(from: merged)
             errorMessage = nil
+            AppLog.event(
+                "AppState",
+                "apply ok device=\(selectedDevice.id) active=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
+                "values=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
+                "elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
+            )
         } catch {
-            hasPendingLocalEdits = false
+            AppLog.error("AppState", "apply failed device=\(selectedDevice.id): \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
+    }
+
+    private var shouldHydrateEditable: Bool {
+        guard !isApplying, !isEditingDpiControl, !hasPendingLocalEdits else { return false }
+        guard let lastLocalEditAt else { return true }
+        return Date().timeIntervalSince(lastLocalEditAt) > 0.8
     }
 
     private func hydrateEditable(from state: MouseState) {
@@ -298,6 +411,19 @@ final class AppState {
         if let led = state.led_value {
             editableLedBrightness = led
         }
+    }
+}
+
+private extension DevicePatch {
+    var describe: String {
+        var parts: [String] = []
+        if let pollRate { parts.append("poll=\(pollRate)") }
+        if let dpiStages { parts.append("stages=\(dpiStages)") }
+        if let activeStage { parts.append("active=\(activeStage)") }
+        if let ledBrightness { parts.append("led=\(ledBrightness)") }
+        if let ledRGB { parts.append("rgb=(\(ledRGB.r),\(ledRGB.g),\(ledRGB.b))") }
+        if let buttonBinding { parts.append("button(slot=\(buttonBinding.slot),kind=\(buttonBinding.kind.rawValue))") }
+        return parts.isEmpty ? "empty" : parts.joined(separator: " ")
     }
 }
 

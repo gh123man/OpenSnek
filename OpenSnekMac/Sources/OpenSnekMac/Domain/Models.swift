@@ -126,6 +126,19 @@ struct DevicePatch: Sendable {
     var buttonBinding: ButtonBindingPatch? = nil
 }
 
+extension DevicePatch {
+    func merged(with newer: DevicePatch) -> DevicePatch {
+        DevicePatch(
+            pollRate: newer.pollRate ?? pollRate,
+            dpiStages: newer.dpiStages ?? dpiStages,
+            activeStage: newer.activeStage ?? activeStage,
+            ledBrightness: newer.ledBrightness ?? ledBrightness,
+            ledRGB: newer.ledRGB ?? ledRGB,
+            buttonBinding: newer.buttonBinding ?? buttonBinding
+        )
+    }
+}
+
 enum ButtonBindingKind: String, CaseIterable, Identifiable {
     case `default`
     case leftClick = "left_click"

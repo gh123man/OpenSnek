@@ -7,12 +7,17 @@ let package = Package(
         .macOS(.v14)
     ],
     products: [
-        .executable(name: "OpenSnekMac", targets: ["OpenSnekMac"])
+        .executable(name: "OpenSnekMac", targets: ["OpenSnekMac"]),
+        .executable(name: "OpenSnekProbe", targets: ["OpenSnekProbe"])
     ],
     targets: [
         .executableTarget(
             name: "OpenSnekMac",
             path: "Sources/OpenSnekMac"
+        ),
+        .executableTarget(
+            name: "OpenSnekProbe",
+            path: "Sources/OpenSnekProbe"
         ),
         .testTarget(
             name: "OpenSnekMacTests",

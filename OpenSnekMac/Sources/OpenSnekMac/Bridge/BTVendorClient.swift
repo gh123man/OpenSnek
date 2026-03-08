@@ -11,18 +11,21 @@ final class BTVendorClient: NSObject, @unchecked Sendable {
 
     private var notifications: [Data] = []
     private var writeQueue: [Data] = []
-    private var completion: ((Result<[Data], Error>) -> Void)?
+    private var completion: ((Result<[Data], any Error>) -> Void)?
     private var finishWorkItem: DispatchWorkItem?
     private var timeoutWorkItem: DispatchWorkItem?
     private var isNotifyReady = false
 
     func run(writes: [Data], timeout: TimeInterval = 2.2) async throws -> [Data] {
-        try await withCheckedThrowingContinuation { continuation in
+        let start = Date()
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[Data], any Error>) in
             queue.async {
                 guard self.completion == nil else {
+                    AppLog.error("BTVendor", "run rejected busy writes=\(writes.count)")
                     continuation.resume(throwing: BridgeError.commandFailed("BT vendor busy"))
                     return
                 }
+                AppLog.debug("BTVendor", "run start writes=\(writes.count) timeout=\(String(format: "%.2f", timeout))s")
                 self.notifications = []
                 self.writeQueue = writes
                 self.finishWorkItem?.cancel()
@@ -31,6 +34,7 @@ final class BTVendorClient: NSObject, @unchecked Sendable {
                 self.timeoutWorkItem = nil
 
                 self.completion = { output in
+                    AppLog.debug("BTVendor", "run finish elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s")
                     continuation.resume(with: output)
                 }
 
@@ -41,6 +45,7 @@ final class BTVendorClient: NSObject, @unchecked Sendable {
                 }
 
                 let timeoutItem = DispatchWorkItem { [weak self] in
+                    AppLog.error("BTVendor", "run timeout")
                     self?.finish(.failure(BridgeError.commandFailed("BT vendor timeout")))
                 }
                 self.timeoutWorkItem = timeoutItem
@@ -72,6 +77,7 @@ final class BTVendorClient: NSObject, @unchecked Sendable {
     }
 
     private func fail(_ message: String) {
+        AppLog.error("BTVendor", message)
         finish(.failure(BridgeError.commandFailed("BT vendor: \(message)")))
     }
 

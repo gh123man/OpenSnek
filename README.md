@@ -5,6 +5,7 @@ Configure Razer mice without Razer Synapse.
 - USB / 2.4GHz dongle: full config path (`razer_usb.py`)
 - Bluetooth: partial but expanding support (`razer_ble.py`)
 - Wrapper CLI: `razer_poc.py` auto-selects transport
+- Native macOS app: `OpenSnekMac` (SwiftUI + CoreBluetooth + IOKit HID)
 
 ## Supported Device
 
@@ -28,6 +29,48 @@ For Bluetooth battery and vendor GATT features on macOS:
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+```
+
+## macOS App (`OpenSnekMac`)
+
+`OpenSnekMac` is a pure Swift macOS app that provides:
+- device discovery (USB / Bluetooth)
+- live state polling
+- auto-apply settings (DPI stages, active stage, lighting, button remap)
+- state-safe apply behavior (coalesced writes + stale-read protection)
+- runtime logging
+
+Build and run:
+
+```bash
+swift run --package-path OpenSnekMac OpenSnekMac
+```
+
+Run tests:
+
+```bash
+swift test --package-path OpenSnekMac
+```
+
+Runtime log file:
+
+```bash
+~/Library/Logs/OpenSnekMac/open-snek.log
+```
+
+### BLE Probe CLI (`OpenSnekProbe`)
+
+For deterministic protocol verification and stress testing without UI interaction:
+
+```bash
+# Read current BLE DPI table
+swift run --package-path OpenSnekMac OpenSnekProbe dpi-read
+
+# Set single-stage DPI and verify readback
+swift run --package-path OpenSnekMac OpenSnekProbe dpi-set --values 1600 --active 1
+
+# Cycle through values with readback verification
+swift run --package-path OpenSnekMac OpenSnekProbe dpi-cycle --sequence '1200;2600;3200' --loops 12 --active 1
 ```
 
 ## Usage
@@ -62,16 +105,16 @@ python razer_ble.py --vendor-key-get 00810000
 
 ## Feature Matrix
 
-| Feature | USB | BLE | Notes |
+| Feature | USB | BLE | OpenSnekMac | Notes |
 |---|---|---|---|
-| Read/Set DPI | Yes | Partial | BLE supports staged table writes via vendor GATT; direct HID set may fail per stack |
-| Read/Set DPI Stages | Yes | Yes | BLE via vendor keys `0B 84` / `0B 04` |
-| Set Active DPI Stage | Yes | Yes | BLE implemented via stage-table rewrite |
-| Read/Set Poll Rate | Yes | Partial | Implemented with HID command path; BLE stack dependent |
-| Read Battery | Yes | Yes | BLE fallback via Battery Service `0x180F` |
-| Scroll LED Brightness/Effects | Yes | Partial | USB validated (`0x0F:0x84/0x04` + `0x0F:0x02`); BLE has capture-backed vendor scalar/frame paths |
-| Idle/Threshold/Lighting (raw) | No | Yes | BLE vendor scalar read/write keys |
-| Button Rebinding | Partial | Yes | BLE vendor header+10-byte payload; USB has experimental raw writer |
+| Read/Set DPI | Yes | Partial | Yes | BLE uses staged table writes via vendor GATT; HID direct set may fail per stack |
+| Read/Set DPI Stages | Yes | Yes | Yes | BLE via vendor keys `0B 84` / `0B 04` |
+| Set Active DPI Stage | Yes | Yes | Yes | BLE implemented via stage-table rewrite |
+| Read/Set Poll Rate | Yes | Partial | Partial | BLE stack dependent |
+| Read Battery | Yes | Yes | Yes | BLE fallback via Battery Service `0x180F` |
+| Scroll LED Brightness/Effects | Yes | Partial | Partial | USB validated; BLE scalar/frame paths available |
+| Idle/Threshold/Lighting (raw) | No | Yes | Partial | Raw vendor keys are script-first interfaces |
+| Button Rebinding | Partial | Yes | Yes | BLE vendor header + 10-byte payload; USB has experimental raw writer |
 
 ## Repository Structure
 
@@ -85,6 +128,7 @@ python razer_ble.py --vendor-key-get 00810000
 | `enumerate_hid_gatt.py` | HID-over-GATT enumeration helper |
 | `enumerate_hid_gatt_linux.py` | Linux HID-over-GATT probing helper |
 | `discover_bt_vendor_keys.py` | Safe BLE vendor key discovery and writeback validator |
+| `OpenSnekMac/` | Swift package containing `OpenSnekMac` app and `OpenSnekProbe` CLI |
 | `captures/` | BLE capture corpus and index |
 | `PROTOCOL.md` | Protocol documentation index |
 | `USB_PROTOCOL.md` | USB transport protocol |
@@ -99,6 +143,7 @@ python razer_ble.py --vendor-key-get 00810000
 - [USB/BLE Parity](PARITY.md)
 - [BLE Reverse Engineering Notes](BLE_REVERSE_ENGINEERING.md)
 - [Capture Corpus](captures/README.md)
+- [OpenSnekMac App/Probe Guide](OpenSnekMac/README.md)
 
 ## License
 
