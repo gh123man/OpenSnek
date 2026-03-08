@@ -97,7 +97,7 @@ TxnID:    0xFF
 
 #### Get Firmware Version
 ```
-Command:  Class 0x00, ID 0x81, Size 0x04
+Command:  Class 0x00, ID 0x81, Size 0x02
 Args:     (none)
 Response: args[0] = major, args[1] = minor
 TxnID:    0xFF
@@ -235,6 +235,9 @@ TxnID:    0x1F
 Command:  Class 0x07, ID 0x83 (get) / 0x03 (set), Size 0x02
 Args:     [0-1] = idle time in seconds (big-endian)
 TxnID:    0x1F
+
+OpenRazer bounds:
+  60..900 seconds
 ```
 
 #### Get/Set Low Battery Threshold
@@ -242,6 +245,34 @@ TxnID:    0x1F
 Command:  Class 0x07, ID 0x81 (get) / 0x01 (set), Size 0x01
 Args:     [0] = threshold percentage
 TxnID:    0x1F
+
+OpenRazer raw threshold clamp:
+  0x0C..0x3F
+Examples:
+  0x0C ~= 5%
+  0x26 ~= 15%
+  0x3F ~= 25%
+```
+
+### Class 0x02 - Scroll Wheel Controls
+
+#### Get/Set Scroll Mode
+```
+Command:  Class 0x02, ID 0x94 (get) / 0x14 (set), Size 0x02
+Args:     [0] = VARSTORE (0x01), [1] = mode
+Modes:    0x00=tactile, 0x01=freespin
+```
+
+#### Get/Set Scroll Acceleration
+```
+Command:  Class 0x02, ID 0x96 (get) / 0x16 (set), Size 0x02
+Args:     [0] = VARSTORE (0x01), [1] = enabled (0x00/0x01)
+```
+
+#### Get/Set Scroll Smart Reel
+```
+Command:  Class 0x02, ID 0x97 (get) / 0x17 (set), Size 0x02
+Args:     [0] = VARSTORE (0x01), [1] = enabled (0x00/0x01)
 ```
 
 ---
@@ -301,6 +332,27 @@ Effects:
   0x05 = Custom Frame
   0x06 = Static
 ```
+
+---
+
+## USB/BLE Parity Matrix
+
+| Feature (User-Level) | USB (this spec) | BLE Vendor Spec | Script Status (`razer_usb.py` / `razer_ble.py`) | Gap |
+|---|---|---|---|---|
+| Serial read | `00:82` | Observed key `01 83 00 00` (read only) | Implemented in both scripts via HID path | Need stable BLE vendor mapping support across stacks |
+| Firmware read | `00:81` | Not mapped in BLE vendor keys | Implemented in both scripts via HID path | Need BLE vendor command mapping |
+| Device mode | `00:84/04` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor command mapping |
+| DPI XY | `04:85/05` | HID fallback + staged vendor path | Implemented in both scripts | BLE direct set still stack-dependent outside vendor staged path |
+| DPI stages | `04:86/06` | `0B84` / `0B04` + op `0x26` | Implemented in both scripts | Mostly covered |
+| Poll rate | `00:85/05` | No stable vendor mapping yet | Implemented in both scripts via HID path | Need BLE vendor mapping for reliable parity |
+| Battery | `07:80` | Battery Service + observed vendor read key | Implemented in both scripts | Need unified source preference and charging semantics on BLE |
+| Idle time | `07:83/03` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
+| Low battery threshold | `07:81/01` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
+| Scroll mode | `02:94/14` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
+| Scroll acceleration | `02:96/16` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
+| Scroll smart reel | `02:97/17` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
+| Button remap | Partial USB docs only | Vendor write path documented and implemented | BLE implemented, USB not implemented | Need USB implementation and full action taxonomy |
+| RGB / matrix effects | OpenRazer-documented classes | Partial BLE raw lighting scalar only | Not implemented end-to-end in scripts | Need cross-transport effect model and commands |
 
 ---
 

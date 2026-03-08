@@ -12,17 +12,17 @@ Reverse engineer the Razer BLE configuration path used by Synapse and implement 
 
 ## Capture Timeline
 
-- `fitleredcap.pcapng`
+- `captures/ble/filteredcap.pcapng`
   - First full Synapse BLE config capture
   - Established vendor write/notify path and request/response framing
   - Identified command-key model in bytes `4..7`
-- `power-lighting.pcapng`
+- `captures/ble/power-lighting.pcapng`
   - Isolated power timeout, sleep timeout, lighting changes
   - Confirmed raw get/set scalar key pairs
-- `basic-rebind.pcapng`
+- `captures/ble/basic-rebind.pcapng`
   - Isolated button rebind operations for multiple slots
   - Confirmed two-step slot-select + payload write for button bindings
-- `right-click-bind.pcapng`
+- `captures/ble/right-click-bind.pcapng`
   - Focused right-click slot transitions
   - Confirmed slot `0x02` payloads for default, left-click remap, keyboard `F`, and restore
 
@@ -97,29 +97,29 @@ Reverse engineer the Razer BLE configuration path used by Synapse and implement 
 
 - 2024-03-05: Initial BLE notes and OpenRazer-based assumptions recorded.
 - 2026-03-06: Broad BLE transport exploration on macOS + Windows driver stack analysis.
-- 2026-03-07: `fitleredcap.pcapng` decoded enough to establish Synapse vendor-GATT frame model.
+- 2026-03-07: `captures/ble/filteredcap.pcapng` decoded enough to establish Synapse vendor-GATT frame model.
 - 2026-03-08: Live write/readback validation for scalar keys and DPI stages.
-- 2026-03-08: Added focused captures for power/lighting and button rebinding (`power-lighting.pcapng`, `basic-rebind.pcapng`, `right-click-bind.pcapng`).
+- 2026-03-08: Added focused captures for power/lighting and button rebinding (`captures/ble/power-lighting.pcapng`, `captures/ble/basic-rebind.pcapng`, `captures/ble/right-click-bind.pcapng`).
 
 ### Changelog
 
-- **2026-03-08**: Added right-click remap mapping from `right-click-bind.pcapng`:
+- **2026-03-08**: Added right-click remap mapping from `captures/ble/right-click-bind.pcapng`:
   - Confirmed slot `0x02` payloads for left-click, keyboard `F`, and right-click restore
   - Refined action `0x01` semantics to mouse-button action with observed `p0` values:
     `0x0101` (left click), `0x0201` (right click)
   - Implemented convenience helpers:
     `set_button_mouse_button`, `set_button_left_click`, `set_button_right_click`
   - Updated `set_button_default(2)` to restore right-click explicitly
-- **2026-03-08**: Added power/lighting mapping from `power-lighting.pcapng`:
+- **2026-03-08**: Added power/lighting mapping from `captures/ble/power-lighting.pcapng`:
   - `05 84`/`05 04` raw u16 power-timeout path (2-byte LE payload writes)
   - `05 82`/`05 02` raw u8 sleep-timeout path
   - `10 85`/`10 05` raw u8 lighting-value path
   - Added capture-backed examples and `razer_ble.py` implementations
-- **2026-03-08**: Added button-rebind mapping from `basic-rebind.pcapng`:
+- **2026-03-08**: Added button-rebind mapping from `captures/ble/basic-rebind.pcapng`:
   - Header key `08 04 01 <slot>` with op `0x0a` and 10-byte payload writes
   - Documented observed payload families for default mouse, keyboard, and extended remap
   - Added raw and convenience rebind helpers to `razer_ble.py`
-- **2026-03-08**: Decoded Synapse vendor GATT frame structure from `fitleredcap.pcapng`:
+- **2026-03-08**: Decoded Synapse vendor GATT frame structure from `captures/ble/filteredcap.pcapng`:
   - Identified dominant 8-byte request frame format (203/217 writes) with echoed request ID
   - Documented 20-byte response header format on notify handle 0x3F:
     request echo, data length, status (`0x02`/`0x03`/`0x05`), payload bytes
@@ -131,7 +131,7 @@ Reverse engineer the Razer BLE configuration path used by Synapse and implement 
   - `05 84` stable 16-bit scalar (`0x012C`) confirmed readable
   - Confirmed DPI stage write path:
     `0B 04 01 00` + 38-byte payload (20+18) successfully updates slot DPI
-- **2026-03-07**: Analysis of Windows BLE GATT capture (`fitleredcap.pcapng`):
+- **2026-03-07**: Analysis of Windows BLE GATT capture (`captures/ble/filteredcap.pcapng`):
   - Confirmed handle mapping: `0x3D` write, `0x3F` notify, `0x40` CCCD
   - Revised earlier conclusion: vendor GATT is used for BLE config traffic (not lighting-only)
   - Confirmed ATT Write Requests (0x12) and request/notify correlation model

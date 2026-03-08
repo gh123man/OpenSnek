@@ -43,9 +43,12 @@ RAZER_STATUS_BUSY = 0x01
 
 # Commands
 CMD_CLASS_STANDARD = 0x00
+CMD_CLASS_CONFIG = 0x02
 CMD_CLASS_DPI = 0x04
 CMD_CLASS_MISC = 0x07
 
+CMD_GET_DEVICE_MODE = 0x84
+CMD_SET_DEVICE_MODE = 0x04
 CMD_GET_SERIAL = 0x82
 CMD_GET_FIRMWARE = 0x81
 CMD_GET_DPI_XY = 0x85
@@ -55,6 +58,16 @@ CMD_SET_DPI_STAGES = 0x06
 CMD_GET_POLL_RATE = 0x85
 CMD_SET_POLL_RATE = 0x05
 CMD_GET_BATTERY = 0x80
+CMD_GET_IDLE_TIME = 0x83
+CMD_SET_IDLE_TIME = 0x03
+CMD_GET_LOW_BATTERY_THRESHOLD = 0x81
+CMD_SET_LOW_BATTERY_THRESHOLD = 0x01
+CMD_GET_SCROLL_MODE = 0x94
+CMD_SET_SCROLL_MODE = 0x14
+CMD_GET_SCROLL_ACCELERATION = 0x96
+CMD_SET_SCROLL_ACCELERATION = 0x16
+CMD_GET_SCROLL_SMART_REEL = 0x97
+CMD_SET_SCROLL_SMART_REEL = 0x17
 
 NOSTORE = 0x00
 VARSTORE = 0x01
@@ -870,6 +883,110 @@ class RazerMouse:
         response = self._send_command(request)
         return response is not None and response[0] == STATUS_SUCCESS
 
+    # --- Device Identity / Mode ---
+
+    def get_serial(self) -> Optional[str]:
+        request = self._create_report(CMD_CLASS_STANDARD, CMD_GET_SERIAL, 0x16)
+        response = self._send_command(request)
+        if response and response[0] == STATUS_SUCCESS and len(response) >= 30:
+            raw = bytes(response[8:30]).split(b"\x00", 1)[0]
+            serial = raw.decode("ascii", errors="ignore").strip()
+            return serial or None
+        return None
+
+    def get_firmware(self) -> Optional[Tuple[int, int]]:
+        request = self._create_report(CMD_CLASS_STANDARD, CMD_GET_FIRMWARE, 0x02)
+        response = self._send_command(request)
+        if response and response[0] == STATUS_SUCCESS and len(response) >= 10:
+            return (response[8], response[9])
+        return None
+
+    def get_device_mode(self) -> Optional[Tuple[int, int]]:
+        request = self._create_report(CMD_CLASS_STANDARD, CMD_GET_DEVICE_MODE, 0x02)
+        response = self._send_command(request)
+        if response and response[0] == STATUS_SUCCESS and len(response) >= 10:
+            return (response[8], response[9])
+        return None
+
+    def set_device_mode(self, mode: int, param: int = 0x00) -> bool:
+        mode = int(mode)
+        param = int(param) & 0xFF
+        if mode not in (0x00, 0x03):
+            return False
+        request = self._create_report(CMD_CLASS_STANDARD, CMD_SET_DEVICE_MODE, 0x02, bytes([mode, param]))
+        response = self._send_command(request)
+        return response is not None and response[0] == STATUS_SUCCESS
+
+    # --- Power / Battery Threshold ---
+
+    def get_idle_time(self) -> Optional[int]:
+        request = self._create_report(CMD_CLASS_MISC, CMD_GET_IDLE_TIME, 0x02)
+        response = self._send_command(request)
+        if response and response[0] == STATUS_SUCCESS and len(response) >= 10:
+            return (response[8] << 8) | response[9]
+        return None
+
+    def set_idle_time(self, seconds: int) -> bool:
+        seconds = max(60, min(900, int(seconds)))
+        args = bytes([(seconds >> 8) & 0xFF, seconds & 0xFF])
+        request = self._create_report(CMD_CLASS_MISC, CMD_SET_IDLE_TIME, 0x02, args)
+        response = self._send_command(request)
+        return response is not None and response[0] == STATUS_SUCCESS
+
+    def get_low_battery_threshold(self) -> Optional[int]:
+        request = self._create_report(CMD_CLASS_MISC, CMD_GET_LOW_BATTERY_THRESHOLD, 0x01)
+        response = self._send_command(request)
+        if response and response[0] == STATUS_SUCCESS and len(response) >= 9:
+            return response[8]
+        return None
+
+    def set_low_battery_threshold(self, threshold_raw: int) -> bool:
+        threshold = max(0x0C, min(0x3F, int(threshold_raw)))
+        request = self._create_report(CMD_CLASS_MISC, CMD_SET_LOW_BATTERY_THRESHOLD, 0x01, bytes([threshold]))
+        response = self._send_command(request)
+        return response is not None and response[0] == STATUS_SUCCESS
+
+    # --- Scroll Wheel Controls ---
+
+    def get_scroll_mode(self) -> Optional[int]:
+        request = self._create_report(CMD_CLASS_CONFIG, CMD_GET_SCROLL_MODE, 0x02, bytes([VARSTORE, 0x00]))
+        response = self._send_command(request)
+        if response and response[0] == STATUS_SUCCESS and len(response) >= 10:
+            return response[9]
+        return None
+
+    def set_scroll_mode(self, mode: int) -> bool:
+        mode = 1 if int(mode) else 0
+        request = self._create_report(CMD_CLASS_CONFIG, CMD_SET_SCROLL_MODE, 0x02, bytes([VARSTORE, mode]))
+        response = self._send_command(request)
+        return response is not None and response[0] == STATUS_SUCCESS
+
+    def get_scroll_acceleration(self) -> Optional[bool]:
+        request = self._create_report(CMD_CLASS_CONFIG, CMD_GET_SCROLL_ACCELERATION, 0x02, bytes([VARSTORE, 0x00]))
+        response = self._send_command(request)
+        if response and response[0] == STATUS_SUCCESS and len(response) >= 10:
+            return bool(response[9])
+        return None
+
+    def set_scroll_acceleration(self, enabled: bool) -> bool:
+        val = 1 if enabled else 0
+        request = self._create_report(CMD_CLASS_CONFIG, CMD_SET_SCROLL_ACCELERATION, 0x02, bytes([VARSTORE, val]))
+        response = self._send_command(request)
+        return response is not None and response[0] == STATUS_SUCCESS
+
+    def get_scroll_smart_reel(self) -> Optional[bool]:
+        request = self._create_report(CMD_CLASS_CONFIG, CMD_GET_SCROLL_SMART_REEL, 0x02, bytes([VARSTORE, 0x00]))
+        response = self._send_command(request)
+        if response and response[0] == STATUS_SUCCESS and len(response) >= 10:
+            return bool(response[9])
+        return None
+
+    def set_scroll_smart_reel(self, enabled: bool) -> bool:
+        val = 1 if enabled else 0
+        request = self._create_report(CMD_CLASS_CONFIG, CMD_SET_SCROLL_SMART_REEL, 0x02, bytes([VARSTORE, val]))
+        response = self._send_command(request)
+        return response is not None and response[0] == STATUS_SUCCESS
+
     # --- Battery ---
 
     def get_battery(self) -> Optional[Tuple[int, bool]]:
@@ -1007,6 +1124,14 @@ def print_status(mouse: RazerMouse):
     print("  Current Settings")
     print("=" * 50)
 
+    serial = mouse.get_serial()
+    if serial:
+        print(f"\n  Serial:         {serial}")
+
+    fw = mouse.get_firmware()
+    if fw:
+        print(f"\n  Firmware:       v{fw[0]}.{fw[1]}")
+
     # DPI
     dpi = mouse.get_dpi()
     if dpi:
@@ -1025,6 +1150,33 @@ def print_status(mouse: RazerMouse):
     poll = mouse.get_poll_rate()
     if poll:
         print(f"\n  Poll Rate:      {poll} Hz")
+
+    mode = mouse.get_device_mode()
+    if mode is not None:
+        mode_name = "driver" if mode[0] == 0x03 else "normal"
+        print(f"\n  Device Mode:    {mode_name} ({mode[0]}:{mode[1]})")
+
+    idle = mouse.get_idle_time()
+    if idle is not None:
+        print(f"\n  Idle Time:      {idle}s")
+
+    low_batt = mouse.get_low_battery_threshold()
+    if low_batt is not None:
+        pct = int((low_batt / 255.0) * 100)
+        print(f"\n  Low Battery:    raw {low_batt} (~{pct}%)")
+
+    smode = mouse.get_scroll_mode()
+    if smode is not None:
+        smode_name = "freespin" if smode == 1 else "tactile"
+        print(f"\n  Scroll Mode:    {smode_name} ({smode})")
+
+    sacc = mouse.get_scroll_acceleration()
+    if sacc is not None:
+        print(f"\n  Scroll Accel:   {'on' if sacc else 'off'}")
+
+    ssr = mouse.get_scroll_smart_reel()
+    if ssr is not None:
+        print(f"\n  Smart Reel:     {'on' if ssr else 'off'}")
 
     # Battery
     battery = mouse.get_battery()
@@ -1076,6 +1228,18 @@ Note: This script targets Bluetooth transport.
                         help='Set single fixed DPI mode (1 stage)')
     parser.add_argument('--poll-rate', type=int, choices=[125, 500, 1000],
                         metavar='HZ', help='Set polling rate (125/500/1000 Hz)')
+    parser.add_argument('--device-mode', choices=['normal', 'driver'],
+                        help='Set device mode')
+    parser.add_argument('--idle-time', type=int, metavar='SECONDS',
+                        help='Set idle timeout seconds (60-900)')
+    parser.add_argument('--low-battery-threshold', type=int, metavar='RAW',
+                        help='Set low battery threshold raw value (0x0c-0x3f)')
+    parser.add_argument('--scroll-mode', choices=['tactile', 'freespin'],
+                        help='Set scroll wheel mode')
+    parser.add_argument('--scroll-acceleration', choices=['on', 'off'],
+                        help='Set scroll acceleration')
+    parser.add_argument('--scroll-smart-reel', choices=['on', 'off'],
+                        help='Set scroll smart reel')
     parser.add_argument('--power-timeout-raw', type=int, metavar='N',
                         help='BLE raw u16 write (key 0504/0584)')
     parser.add_argument('--sleep-timeout-raw', type=int, metavar='N',
@@ -1184,6 +1348,64 @@ Note: This script targets Bluetooth transport.
     if args.poll_rate:
         print(f"\nSetting poll rate to: {args.poll_rate} Hz")
         if mouse.set_poll_rate(args.poll_rate):
+            print("  Success!")
+            made_changes = True
+        else:
+            print("  Failed!")
+            return 1
+
+    if args.device_mode:
+        mode = 0x03 if args.device_mode == "driver" else 0x00
+        print(f"\nSetting device mode to: {args.device_mode}")
+        if mouse.set_device_mode(mode, 0x00):
+            print("  Success!")
+            made_changes = True
+        else:
+            print("  Failed!")
+            return 1
+
+    if args.idle_time is not None:
+        print(f"\nSetting idle time to: {args.idle_time}s")
+        if mouse.set_idle_time(args.idle_time):
+            print("  Success!")
+            made_changes = True
+        else:
+            print("  Failed!")
+            return 1
+
+    if args.low_battery_threshold is not None:
+        print(f"\nSetting low battery threshold raw to: {args.low_battery_threshold}")
+        if mouse.set_low_battery_threshold(args.low_battery_threshold):
+            print("  Success!")
+            made_changes = True
+        else:
+            print("  Failed!")
+            return 1
+
+    if args.scroll_mode:
+        mode = 1 if args.scroll_mode == "freespin" else 0
+        print(f"\nSetting scroll mode to: {args.scroll_mode}")
+        if mouse.set_scroll_mode(mode):
+            print("  Success!")
+            made_changes = True
+        else:
+            print("  Failed!")
+            return 1
+
+    if args.scroll_acceleration:
+        enabled = args.scroll_acceleration == "on"
+        print(f"\nSetting scroll acceleration: {args.scroll_acceleration}")
+        if mouse.set_scroll_acceleration(enabled):
+            print("  Success!")
+            made_changes = True
+        else:
+            print("  Failed!")
+            return 1
+
+    if args.scroll_smart_reel:
+        enabled = args.scroll_smart_reel == "on"
+        print(f"\nSetting scroll smart reel: {args.scroll_smart_reel}")
+        if mouse.set_scroll_smart_reel(enabled):
             print("  Success!")
             made_changes = True
         else:

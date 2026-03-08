@@ -1,20 +1,26 @@
 # open-snek
 
-Configure Razer mice without Razer Synapse. Works over USB (full control) and Bluetooth (partial — actively being reverse engineered).
+Configure Razer mice without Razer Synapse.
 
-## Supported Devices
+- USB / 2.4GHz dongle: full config path (`razer_usb.py`)
+- Bluetooth: partial but expanding support (`razer_ble.py`)
+- Wrapper CLI: `razer_poc.py` auto-selects transport
 
-Tested with:
-- Razer Basilisk V3 X HyperSpeed (USB PID `0x00B9`, BT PID `0x00BA`)
+## Supported Device
 
-Should work with most modern Razer mice that use the same 90-byte USB HID protocol.
+Validated on:
+- Razer Basilisk V3 X HyperSpeed
+  - USB PID `0x00B9`
+  - Bluetooth PID `0x00BA` (VID `0x068E`)
 
 ## Requirements
 
 - Python 3.8+
 - macOS or Linux
-- USB connection (2.4GHz dongle or cable) for full config
-- Bluetooth connection for battery, DPI read, and lighting
+- `hidapi` backend available to `hid` Python package
+
+For Bluetooth battery and vendor GATT features on macOS:
+- `pyobjc-framework-CoreBluetooth`
 
 ## Installation
 
@@ -27,69 +33,62 @@ pip install -r requirements.txt
 ## Usage
 
 ```bash
-# View current settings (USB)
+# Auto transport (prefers USB if both are present)
 python razer_poc.py
 
-# Set DPI
-python razer_poc.py --dpi 1600
+# Force transport
+python razer_poc.py --force-usb
+python razer_poc.py --force-ble
 
-# Configure DPI stages (persisted to device memory)
-python razer_poc.py --stages 400,800,1600,3200,6400
+# USB examples
+python razer_usb.py --dpi 1600
+python razer_usb.py --stages 400,800,1600,3200,6400
+python razer_usb.py --poll-rate 1000
 
-# Set polling rate
-python razer_poc.py --poll-rate 1000
-
-# Sniff DPI changes over Bluetooth (passive, read-only)
-python razer_poc.py --sniff-dpi 10
+# BLE examples
+python razer_ble.py --single-dpi 1600
+python razer_ble.py --button-right-click 2
+python razer_ble.py --lighting-value-raw 1
 ```
 
-## Features
+## Feature Matrix
 
-| Feature | USB | Bluetooth | Notes |
-|---------|-----|-----------|-------|
-| Read/Set DPI | Yes | Read only | BT reads via passive HID input reports |
-| Read/Set DPI Stages | Yes | No | |
-| Read/Set Poll Rate | Yes | No | |
-| Read Battery | Yes | Yes | BT uses BLE Battery Service (0x180F) |
-| LED/Lighting | No | Yes | BT via vendor GATT service |
-| Button Mapping | No | No | Protocol partially documented |
+| Feature | USB | BLE | Notes |
+|---|---|---|---|
+| Read/Set DPI | Yes | Partial | BLE supports staged table writes via vendor GATT; direct HID set may fail per stack |
+| Read/Set DPI Stages | Yes | Yes | BLE via vendor keys `0B 84` / `0B 04` |
+| Set Active DPI Stage | Yes | Yes | BLE implemented via stage-table rewrite |
+| Read/Set Poll Rate | Yes | Partial | Implemented with HID command path; BLE stack dependent |
+| Read Battery | Yes | Yes | BLE fallback via Battery Service `0x180F` |
+| Power/Sleep/Lighting (raw) | No | Yes | BLE vendor scalar read/write keys |
+| Button Rebinding | No | Yes | BLE vendor header+10-byte payload path |
 
-## Bluetooth Status
+## Repository Structure
 
-The USB 90-byte HID Feature Report protocol does **not** work over BLE as-is. The BLE HID Report Descriptor exposes only Input reports. On Windows, Razer's kernel driver (`RzDev_00ba.sys`) bridges HID commands to GATT writes at the driver level.
-
-We've confirmed:
-- **Battery**: Reads via standard BLE Battery Service
-- **DPI read**: Via passive HID input reports (report ID 0x05)
-- **Lighting**: Via vendor GATT service (`52401523-F97C-7F90-0E7F-6C6F4E36DB1C`)
-- **DPI/config writes**: Not yet possible — requires discovering Feature Report GATT characteristics inside the HID service (0x1812), which macOS hides from applications
-
-**Next step**: Run `enumerate_hid_gatt_linux.py` on Linux (e.g. Steam Deck) to enumerate the HID service's GATT characteristics and find the Feature Report handles that carry the 90-byte protocol.
-
-See [PROTOCOL.md](PROTOCOL.md) for full protocol documentation and architecture details.
-
-## Repo Structure
-
-| File | Purpose |
-|------|---------|
-| `razer_poc.py` | Main CLI tool |
-| `ble_battery.py` | BLE battery reading via CoreBluetooth (macOS) |
-| `explore_ble.py` | BLE GATT service explorer (macOS) |
-| `enumerate_hid_gatt.py` | HID service GATT enumeration (Windows/bleak) |
-| `enumerate_hid_gatt_linux.py` | HID service GATT enumeration (Linux/Steam Deck) |
-| `collect_razer_bt.ps1` | Windows driver/device data collector |
-| `razer_bt_dump/` | Collected Windows driver data (INFs, handles, registry) |
+| Path | Purpose |
+|---|---|
+| `razer_poc.py` | Transport wrapper (`razer_usb.py` / `razer_ble.py`) |
+| `razer_usb.py` | USB/2.4GHz implementation |
+| `razer_ble.py` | Bluetooth implementation (vendor GATT + HID fallback) |
+| `ble_battery.py` | BLE Battery Service read helper (macOS) |
+| `explore_ble.py` | BLE service/characteristic exploration tool (macOS) |
+| `enumerate_hid_gatt.py` | HID-over-GATT enumeration helper |
+| `enumerate_hid_gatt_linux.py` | Linux HID-over-GATT probing helper |
+| `captures/` | BLE capture corpus and index |
 | `PROTOCOL.md` | Protocol documentation index |
-| `USB_PROTOCOL.md` | USB protocol specification |
-| `BLE_PROTOCOL.md` | BLE protocol specification |
-| `BLE_REVERSE_ENGINEERING.md` | BLE reverse engineering timeline and notes |
+| `USB_PROTOCOL.md` | USB transport protocol |
+| `BLE_PROTOCOL.md` | BLE protocol + implementation mapping |
+| `BLE_REVERSE_ENGINEERING.md` | Reverse-engineering notes and timeline |
+
+## Documentation
+
+- [Protocol Index](PROTOCOL.md)
+- [USB Protocol](USB_PROTOCOL.md)
+- [BLE Protocol](BLE_PROTOCOL.md)
+- [USB/BLE Parity](PARITY.md)
+- [BLE Reverse Engineering Notes](BLE_REVERSE_ENGINEERING.md)
+- [Capture Corpus](captures/README.md)
 
 ## License
 
 MIT
-
-## Acknowledgments
-
-- [OpenRazer](https://github.com/openrazer/openrazer) — Protocol documentation and Linux driver
-- [razer-macos](https://github.com/1kc/razer-macos) — macOS IOKit reference
-- [RazerBlackWidowV3MiniBluetoothControllerApp](https://github.com/JiqiSun/RazerBlackWidowV3MiniBluetoothControllerApp) — BLE vendor GATT reference
