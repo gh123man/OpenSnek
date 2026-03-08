@@ -23,6 +23,7 @@ final class AppState {
     var editableColor = RGBColor(r: 0, g: 255, b: 0)
     let buttonSlots = ButtonSlotDescriptor.defaults
     var editableButtonBindings: [Int: ButtonBindingDraft] = [:]
+    var keyboardTextDraftBySlot: [Int: String] = [:]
 
     private let client = BridgeClient()
     private var isHydrating = false
@@ -43,6 +44,7 @@ final class AppState {
     var isEditingDpiControl = false
     private var lastLocalEditAt: Date?
     private var hydratedLightingColorByDeviceID: Set<String> = []
+    private var keyboardDraftApplyTaskBySlot: [Int: Task<Void, Never>] = [:]
 
     var selectedDevice: MouseDevice? {
         guard let selectedDeviceID else { return nil }
@@ -305,20 +307,17 @@ final class AppState {
         editableButtonBindings[slot]?.hidKey ?? defaultButtonBinding(for: slot).hidKey
     }
 
-    func buttonBindingSummary(for slot: Int) -> String {
-        let binding = editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
-        if binding.kind == .keyboardSimple {
-            return "\(binding.kind.label) (\(binding.hidKey))"
-        }
-        return binding.kind.label
-    }
-
     func updateButtonBindingKind(slot: Int, kind: ButtonBindingKind) {
         guard buttonSlots.contains(where: { $0.slot == slot }) else { return }
         var next = editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
         next.kind = kind
         if kind != .keyboardSimple {
+            keyboardDraftApplyTaskBySlot[slot]?.cancel()
+            keyboardDraftApplyTaskBySlot[slot] = nil
             next.hidKey = 4
+            keyboardTextDraftBySlot[slot] = nil
+        } else {
+            keyboardTextDraftBySlot[slot] = AppState.keyboardText(forHidKey: next.hidKey) ?? ""
         }
         editableButtonBindings[slot] = next
         scheduleAutoApplyButton(slot: slot)
@@ -330,7 +329,31 @@ final class AppState {
         next.kind = .keyboardSimple
         next.hidKey = max(4, min(231, hidKey))
         editableButtonBindings[slot] = next
+        keyboardTextDraftBySlot[slot] = AppState.keyboardText(forHidKey: next.hidKey) ?? ""
         scheduleAutoApplyButton(slot: slot)
+    }
+
+    func keyboardTextDraft(for slot: Int) -> String {
+        if let draft = keyboardTextDraftBySlot[slot] {
+            return draft
+        }
+        let hidKey = buttonBindingHidKey(for: slot)
+        return AppState.keyboardText(forHidKey: hidKey) ?? ""
+    }
+
+    func updateKeyboardTextDraft(slot: Int, text: String) {
+        guard buttonSlots.contains(where: { $0.slot == slot }) else { return }
+        keyboardTextDraftBySlot[slot] = text
+        keyboardDraftApplyTaskBySlot[slot]?.cancel()
+        keyboardDraftApplyTaskBySlot[slot] = Task { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: 320_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            self?.applyKeyboardTextDraft(slot: slot)
+        }
     }
 
     func refreshDpiFast() async {
@@ -537,6 +560,87 @@ final class AppState {
         let fallback = ButtonBindingDraft(kind: .default, hidKey: 4)
         guard let descriptor = buttonSlots.first(where: { $0.slot == slot }) else { return fallback }
         return ButtonBindingDraft(kind: descriptor.defaultKind, hidKey: 4)
+    }
+
+    private func applyKeyboardTextDraft(slot: Int) {
+        guard let text = keyboardTextDraftBySlot[slot] else { return }
+        guard let hidKey = AppState.hidKey(fromKeyboardText: text) else { return }
+        updateButtonBindingHidKey(slot: slot, hidKey: hidKey)
+    }
+
+    private static func hidKey(fromKeyboardText text: String) -> Int? {
+        guard !text.isEmpty else { return nil }
+        if text == " " { return 44 }
+        let normalized = text.trimmingCharacters(in: .newlines).lowercased()
+        switch normalized {
+        case "enter", "return":
+            return 40
+        case "esc", "escape":
+            return 41
+        case "tab":
+            return 43
+        case "space":
+            return 44
+        default:
+            break
+        }
+
+        guard let scalar = normalized.unicodeScalars.first else { return nil }
+        let value = scalar.value
+
+        if value >= 97 && value <= 122 { // a-z
+            return 4 + Int(value - 97)
+        }
+        if value >= 49 && value <= 57 { // 1-9
+            return 30 + Int(value - 49)
+        }
+        if value == 48 { // 0
+            return 39
+        }
+
+        switch Character(scalar) {
+        case "-": return 45
+        case "=": return 46
+        case "[": return 47
+        case "]": return 48
+        case "\\": return 49
+        case ";": return 51
+        case "'": return 52
+        case "`": return 53
+        case ",": return 54
+        case ".": return 55
+        case "/": return 56
+        default: return nil
+        }
+    }
+
+    private static func keyboardText(forHidKey hidKey: Int) -> String? {
+        if hidKey >= 4 && hidKey <= 29 {
+            return String(UnicodeScalar(hidKey - 4 + 97)!)
+        }
+        if hidKey >= 30 && hidKey <= 38 {
+            return String(hidKey - 30 + 1)
+        }
+        if hidKey == 39 { return "0" }
+
+        switch hidKey {
+        case 40: return "enter"
+        case 41: return "esc"
+        case 43: return "tab"
+        case 44: return "space"
+        case 45: return "-"
+        case 46: return "="
+        case 47: return "["
+        case 48: return "]"
+        case 49: return "\\"
+        case 51: return ";"
+        case 52: return "'"
+        case 53: return "`"
+        case 54: return ","
+        case 55: return "."
+        case 56: return "/"
+        default: return nil
+        }
     }
 }
 

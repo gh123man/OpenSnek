@@ -9,6 +9,8 @@ All notable changes to this project are documented in this file.
 - Active-stage selection now maps correctly to the stage actually selected on-device during mouse-button stage cycling.
 - Removed unstable BLE active-stage nudge/toggle write behavior that caused stage-value collapse in some multi-stage transitions.
 - Poll-rate telemetry/control visibility now respects capability detection (hidden for Bluetooth when unavailable).
+- App activation now promotes the process to a regular foreground app on launch/reopen so windows reliably come frontmost.
+- Keyboard button-binding text entry now applies with a short debounce instead of normalizing on each keystroke, allowing stable direct typing.
 
 ### Changed
 - `OpenSnekMac` and `OpenSnekProbe` now decode BLE active stage using stage-id mapping from the current payload entries.
@@ -30,3 +32,4 @@ All notable changes to this project are documented in this file.
 - Regression-focused validation workflow in `README.md`, `OpenSnekMac/README.md`, and `AGENTS.md` including CLI, hardware, and log-based checks.
 - Sleep-timeout power-management control in UI plus USB (`07:83/03`) and BLE (`05 84/05 04`) bridge read/write plumbing.
 - BLE lighting-frame color hydration path on startup (`10 84 00 00`) plus persisted per-device fallback when firmware does not return payload for this read.
+- macOS app-bundle build scripts: `OpenSnekMac/scripts/build_macos_app.sh` and `OpenSnekMac/scripts/run_macos_app.sh` for dock/icon/focus-correct launches outside `swift run`.

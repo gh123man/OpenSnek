@@ -465,15 +465,29 @@ struct ButtonMappingTableCard: View {
                     if appState.buttonBindingKind(for: slot.slot) == .keyboardSimple {
                         HStack {
                             Spacer()
-                            Stepper(
-                                "Keyboard HID \(appState.buttonBindingHidKey(for: slot.slot))",
-                                value: Binding(
-                                    get: { appState.buttonBindingHidKey(for: slot.slot) },
-                                    set: { appState.updateButtonBindingHidKey(slot: slot.slot, hidKey: $0) }
-                                ),
-                                in: 4...231
-                            )
+                            HStack(spacing: 8) {
+                                Text("Key")
+                                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.white.opacity(0.72))
+                                TextField(
+                                    "a",
+                                    text: Binding(
+                                        get: { appState.keyboardTextDraft(for: slot.slot) },
+                                        set: { appState.updateKeyboardTextDraft(slot: slot.slot, text: $0) }
+                                    )
+                                )
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 120)
+                                .multilineTextAlignment(.center)
+                            }
                             .frame(width: 300, alignment: .trailing)
+                        }
+
+                        HStack {
+                            Spacer()
+                            Text("Type: a-z, 0-9, punctuation, enter, tab, space, esc")
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.58))
                         }
                     }
                 }

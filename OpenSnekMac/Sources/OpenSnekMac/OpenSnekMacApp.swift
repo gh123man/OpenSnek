@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct OpenSnekMacApp: App {
+    @NSApplicationDelegateAdaptor(AppLifecycleDelegate.self) private var appLifecycle
     @State private var appState = AppState()
 
     var body: some Scene {

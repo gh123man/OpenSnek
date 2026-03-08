@@ -35,6 +35,24 @@ Pure Swift macOS frontend for `open-snek`.
 swift run --package-path OpenSnekMac OpenSnekMac
 ```
 
+For full app behavior (dock icon, proper activation/focus, keyboard text-entry reliability), run the app bundle path:
+
+```bash
+./OpenSnekMac/scripts/run_macos_app.sh
+```
+
+Bundle build only:
+
+```bash
+./OpenSnekMac/scripts/build_macos_app.sh --configuration release
+```
+
+Output:
+
+```text
+OpenSnekMac/.dist/Open Snek.app
+```
+
 ```bash
 swift test --package-path OpenSnekMac
 ```

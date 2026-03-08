@@ -73,7 +73,12 @@ python razer_poc.py --force-ble
 ```bash
 swift test --package-path OpenSnekMac
 swift run --package-path OpenSnekMac OpenSnekMac
+./OpenSnekMac/scripts/run_macos_app.sh
 ```
+
+Notes:
+- Use `swift run` for quick local iteration.
+- Use `./OpenSnekMac/scripts/run_macos_app.sh` when validating UI/input behavior (dock icon, foreground activation, text-entry/keybinding interactions).
 
 ### Swift Hardware Reliability Gate (required for BLE DPI/stage changes)
 

@@ -40,10 +40,34 @@ pip install -r requirements.txt
 - state-safe apply behavior (coalesced writes + stale-read protection)
 - runtime logging
 
-Build and run:
+Run in-place during development:
 
 ```bash
 swift run --package-path OpenSnekMac OpenSnekMac
+```
+
+Build and launch as a proper macOS app bundle (recommended for reliable focus, dock icon, and keyboard text-entry behavior):
+
+```bash
+./OpenSnekMac/scripts/run_macos_app.sh
+```
+
+Bundle-only build (no launch):
+
+```bash
+./OpenSnekMac/scripts/build_macos_app.sh --configuration release
+```
+
+Default output:
+
+```text
+OpenSnekMac/.dist/Open Snek.app
+```
+
+Optional custom icon:
+
+```bash
+./OpenSnekMac/scripts/build_macos_app.sh --icon /absolute/path/to/AppIcon.png
 ```
 
 Run tests:
