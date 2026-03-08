@@ -603,6 +603,16 @@ class RazerMouse:
         """Vendor key 05 80 00 01 (u8 status flag; semantics still being mapped)."""
         return self._bt_get_scalar(bytes([0x05, 0x80, 0x00, 0x01]), 1)
 
+    def get_vendor_key_blob(self, key4_hex: str) -> Optional[bytes]:
+        """Read arbitrary vendor key (8 hex chars, e.g. '05840000')."""
+        try:
+            key = bytes.fromhex(key4_hex.strip())
+        except Exception:
+            return None
+        if len(key) != 4:
+            return None
+        return self._bt_get_blob(key)
+
     def set_button_binding_raw(self, slot: int, payload10: bytes) -> bool:
         """
         Set button binding entry via vendor key 08 04 01 <slot>.
@@ -1480,6 +1490,8 @@ Note: This script targets Bluetooth transport.
                         help='Set button slot to extended keyboard action (capture-backed action 0x0d)')
     parser.add_argument('--button-action-u16', type=str, metavar='SLOT:TYPE:P0:P1:P2',
                         help='Generic action payload using 3x u16 params')
+    parser.add_argument('--vendor-key-get', type=str, metavar='KEY4HEX',
+                        help='Read arbitrary BLE vendor key (8 hex chars, read-only)')
     parser.add_argument('--quiet', '-q', action='store_true',
                         help='Minimal output')
     parser.add_argument('--debug-hid', action='store_true',
@@ -1938,6 +1950,18 @@ Note: This script targets Bluetooth transport.
                 print("  Vendor GATT is disabled; rerun without --disable-vendor-gatt.")
         if status is not None:
             print(f"  Battery status (vendor raw): {status} (0x{status:02x})")
+
+    if args.vendor_key_get:
+        key = args.vendor_key_get.strip().lower().replace(" ", "")
+        if len(key) != 8:
+            print("\nInvalid --vendor-key-get. Use exactly 8 hex characters (e.g. 05840000).")
+            return 1
+        print(f"\nReading BLE vendor key: {key}")
+        blob = mouse.get_vendor_key_blob(key)
+        if blob is None:
+            print("  Read failed or no payload.")
+        else:
+            print(f"  len={len(blob)} payload={blob.hex()}")
 
     if args.sniff_dpi is not None:
         if mouse.vendor_id != BT_VENDOR_ID_RAZER:

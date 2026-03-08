@@ -216,6 +216,7 @@ Vendor GATT path in the same environment works when enabled:
 | Button bind raw + helpers (`set_button_*`) | Sections 5.3, 7.2 |
 | Raw idle/threshold/lighting APIs | Section 6 |
 | Vendor battery raw/status APIs + `get_battery()` fallback | Sections 6, 8.3 |
+| Generic vendor key reader (`--vendor-key-get`) | Sections 4-6 |
 | Scroll LED HID helpers (`get/set_scroll_led_*`) | Sections 8.3, 12 |
 | BLE Battery Service fallback (`get_battery_ble`, `get_battery`) | Section 8.1 |
 | Passive DPI fallback/sniff (`get_dpi`, `sniff_bt_dpi_values`) | Section 8.2 |

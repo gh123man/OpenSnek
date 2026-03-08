@@ -53,6 +53,7 @@ python razer_ble.py --single-dpi 1600
 python razer_ble.py --button-right-click 2
 python razer_ble.py --lighting-value-raw 1
 python razer_ble.py --battery-vendor
+python razer_ble.py --vendor-key-get 00810000
 ```
 
 ## Feature Matrix
