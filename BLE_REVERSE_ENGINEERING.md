@@ -90,3 +90,57 @@ Reverse engineer the Razer BLE configuration path used by Synapse and implement 
 - Include explicit restore-to-default actions in the same capture.
 - For rebind captures, include: default -> target mapping -> alternate mapping -> default.
 - Keep timestamps/action logs while capturing to improve correlation speed.
+
+## Historical Timeline and Changelog
+
+### Timeline
+
+- 2024-03-05: Initial BLE notes and OpenRazer-based assumptions recorded.
+- 2026-03-06: Broad BLE transport exploration on macOS + Windows driver stack analysis.
+- 2026-03-07: `fitleredcap.pcapng` decoded enough to establish Synapse vendor-GATT frame model.
+- 2026-03-08: Live write/readback validation for scalar keys and DPI stages.
+- 2026-03-08: Added focused captures for power/lighting and button rebinding (`power-lighting.pcapng`, `basic-rebind.pcapng`, `right-click-bind.pcapng`).
+
+### Changelog
+
+- **2026-03-08**: Added right-click remap mapping from `right-click-bind.pcapng`:
+  - Confirmed slot `0x02` payloads for left-click, keyboard `F`, and right-click restore
+  - Refined action `0x01` semantics to mouse-button action with observed `p0` values:
+    `0x0101` (left click), `0x0201` (right click)
+  - Implemented convenience helpers:
+    `set_button_mouse_button`, `set_button_left_click`, `set_button_right_click`
+  - Updated `set_button_default(2)` to restore right-click explicitly
+- **2026-03-08**: Added power/lighting mapping from `power-lighting.pcapng`:
+  - `05 84`/`05 04` raw u16 power-timeout path (2-byte LE payload writes)
+  - `05 82`/`05 02` raw u8 sleep-timeout path
+  - `10 85`/`10 05` raw u8 lighting-value path
+  - Added capture-backed examples and `razer_ble.py` implementations
+- **2026-03-08**: Added button-rebind mapping from `basic-rebind.pcapng`:
+  - Header key `08 04 01 <slot>` with op `0x0a` and 10-byte payload writes
+  - Documented observed payload families for default mouse, keyboard, and extended remap
+  - Added raw and convenience rebind helpers to `razer_ble.py`
+- **2026-03-08**: Decoded Synapse vendor GATT frame structure from `fitleredcap.pcapng`:
+  - Identified dominant 8-byte request frame format (203/217 writes) with echoed request ID
+  - Documented 20-byte response header format on notify handle 0x3F:
+    request echo, data length, status (`0x02`/`0x03`/`0x05`), payload bytes
+  - Confirmed long responses use additional notifications when `length > 12`
+  - Live CoreBluetooth validation on connected BSK V3 X HS:
+    confirmed writable `05 82` path and writable `10 85/10 05` 1-byte setting path
+  - Additional live mapping: `05 81` raw battery (`0xF2` ~= 94.9%) matches Battery Service 94%
+  - `05 80` identified as a companion 1-byte status flag (observed `0x01`)
+  - `05 84` stable 16-bit scalar (`0x012C`) confirmed readable
+  - Confirmed DPI stage write path:
+    `0B 04 01 00` + 38-byte payload (20+18) successfully updates slot DPI
+- **2026-03-07**: Analysis of Windows BLE GATT capture (`fitleredcap.pcapng`):
+  - Confirmed handle mapping: `0x3D` write, `0x3F` notify, `0x40` CCCD
+  - Revised earlier conclusion: vendor GATT is used for BLE config traffic (not lighting-only)
+  - Confirmed ATT Write Requests (0x12) and request/notify correlation model
+  - Serial and DPI-related response patterns identified from capture
+- **2026-03-06**: Added Windows BLE driver architecture findings:
+  - Documented `RzDev_00ba.sys`, `RZCONTROL`, and `HidOverGatt` stack relationships
+  - Mapped services/handles from Windows enumeration and descriptor artifacts
+- **2026-03-06**: Early comprehensive BLE vendor-GATT experiments:
+  - Documented working/non-working command families and recovery behavior
+  - Recorded HID report limitations over BLE for direct feature/output paths
+- **2026-03-06**: Added initial BLE protocol section (Battery Service, vendor GATT service, passive HID reports).
+- **2024-03-05**: Initial documentation based on OpenRazer and Basilisk V3 X HyperSpeed testing.
