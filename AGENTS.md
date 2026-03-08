@@ -57,6 +57,7 @@ Validated device family:
    - resolve active stage via stage-id mapping from payload entries
    - preserve stage IDs on writes
    - do not reintroduce stage “nudge/toggle” write sequences
+7. Keep `CHANGELOG.md` up to date for user-visible behavior changes, protocol handling changes, and reliability workflow changes.
 
 ## Validation Workflow
 

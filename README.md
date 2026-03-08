@@ -192,6 +192,7 @@ python razer_ble.py --vendor-key-get 00810000
 ## Documentation
 
 - [Protocol Index](PROTOCOL.md)
+- [Changelog](CHANGELOG.md)
 - [USB Protocol](USB_PROTOCOL.md)
 - [BLE Protocol](BLE_PROTOCOL.md)
 - [USB/BLE Parity](PARITY.md)
