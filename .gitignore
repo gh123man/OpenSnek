@@ -47,3 +47,4 @@ gatt_enumeration_results.json
 
 # SwiftPM build artifacts
 OpenSnekMac/.build/
+.build/
