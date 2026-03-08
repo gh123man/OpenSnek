@@ -16,6 +16,7 @@ All notable changes to this project are documented in this file.
 - BLE runtime errors now report explicit CoreBluetooth state failures (unauthorized/powered-off/unsupported) instead of generic timeouts.
 
 ### Changed
+- Replaced the macOS app icon artwork in `AppIcon.appiconset` with the new Open Snek icon and cropped out the black background letterboxing from the source image.
 - `OpenSnekMac` and `OpenSnekProbe` now decode BLE active stage using stage-id mapping from the current payload entries.
 - BLE stage-table writes in Swift now preserve stage IDs from the current snapshot to keep UI stage selection aligned with hardware cycling.
 - BLE protocol documentation now distinguishes protocol observations from per-client implementation behavior.
