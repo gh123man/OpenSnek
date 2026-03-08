@@ -8,5 +8,5 @@ The USB and BLE protocols are related at the **setting semantics** level (DPI st
 For clarity, documentation is now split:
 
 - [USB Protocol](./USB_PROTOCOL.md)
-- [BLE Protocol](./BLE_PROTOCOL.md)
-
+- [BLE Protocol Spec](./BLE_PROTOCOL.md)
+- [BLE Reverse Engineering Notes](./BLE_REVERSE_ENGINEERING.md)

@@ -79,7 +79,10 @@ See [PROTOCOL.md](PROTOCOL.md) for full protocol documentation and architecture 
 | `enumerate_hid_gatt_linux.py` | HID service GATT enumeration (Linux/Steam Deck) |
 | `collect_razer_bt.ps1` | Windows driver/device data collector |
 | `razer_bt_dump/` | Collected Windows driver data (INFs, handles, registry) |
-| `PROTOCOL.md` | Full protocol documentation |
+| `PROTOCOL.md` | Protocol documentation index |
+| `USB_PROTOCOL.md` | USB protocol specification |
+| `BLE_PROTOCOL.md` | BLE protocol specification |
+| `BLE_REVERSE_ENGINEERING.md` | BLE reverse engineering timeline and notes |
 
 ## License
 
