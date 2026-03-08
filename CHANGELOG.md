@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [2026-03-08]
 
 ### Fixed
+- Closing the main window with the macOS close button now terminates the app instead of leaving a background process running.
 - BLE DPI stage value parsing no longer drops the last stage when read payload length is short by one byte.
 - Active-stage selection now maps correctly to the stage actually selected on-device during mouse-button stage cycling.
 - Removed unstable BLE active-stage nudge/toggle write behavior that caused stage-value collapse in some multi-stage transitions.
@@ -16,6 +17,8 @@ All notable changes to this project are documented in this file.
 - BLE runtime errors now report explicit CoreBluetooth state failures (unauthorized/powered-off/unsupported) instead of generic timeouts.
 
 ### Changed
+- Replaced the macOS app icon artwork in `AppIcon.appiconset` with the new Open Snek icon and cropped out the black background letterboxing from the source image.
+- `OpenSnekMac/scripts/build_macos_app.sh` now automatically uses `AppIcon.appiconset/icon_512x512@2x.png` as the default app icon source instead of falling back to the generic macOS icon.
 - `OpenSnekMac` and `OpenSnekProbe` now decode BLE active stage using stage-id mapping from the current payload entries.
 - BLE stage-table writes in Swift now preserve stage IDs from the current snapshot to keep UI stage selection aligned with hardware cycling.
 - BLE protocol documentation now distinguishes protocol observations from per-client implementation behavior.
