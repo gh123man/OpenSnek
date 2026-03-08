@@ -64,3 +64,38 @@ swift run --package-path OpenSnekMac OpenSnekProbe dpi-set --values 1600,6400 --
 swift run --package-path OpenSnekMac OpenSnekProbe dpi-cycle --sequence '1200,6400;2600,6400;3200,6400' --loops 20 --active 2
 ```
 
+## Hardware Reliability Loop (CLI)
+
+Run the app bridge path in a repeatable CLI test loop (skips unless enabled):
+
+```bash
+OPEN_SNEK_HW=1 swift test --package-path OpenSnekMac --filter HardwareDpiReliabilityTests
+```
+
+This exercises repeated BLE DPI stage apply/readback and requires stable convergence
+across multiple consecutive reads for each step.
+
+## Stage Selection Validation (Manual + CLI)
+
+Use this when debugging UI-stage selection mismatch against mouse stage-button cycling.
+
+```bash
+swift run --package-path OpenSnekMac OpenSnekProbe dpi-set --values 1000,2000,3000 --active 1 --verify-retries 8 --verify-delay-ms 120
+swift run --package-path OpenSnekMac OpenSnekProbe dpi-set --values 1000,2000,3000 --active 3 --verify-retries 8 --verify-delay-ms 120
+swift run --package-path OpenSnekMac OpenSnekProbe dpi-read
+```
+
+Expected final readback: `active=3 count=3 values=[1000, 2000, 3000]`.
+
+Then validate in app:
+- set 3 unique stage values
+- press mouse stage button repeatedly
+- verify highlighted stage in UI matches the stage value currently applied on mouse
+- verify wraparound stage 3 -> stage 1 is correct
+
+## BLE DPI Guardrails
+
+- parse stage reads by declared count even if payload length is short by one byte
+- decode active stage via payload stage-id mapping
+- preserve stage IDs on writes to keep hardware stage-button cycling aligned with UI
+- avoid active-stage “nudge/toggle” write sequences

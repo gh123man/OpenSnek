@@ -38,6 +38,7 @@ final class AppState {
     private var applyDrainTask: Task<Void, Never>?
     private var stateCacheByDeviceID: [String: MouseState] = [:]
     private var isRefreshingDpiFast = false
+    private var suppressFastDpiUntil: Date?
     private var stateRevision: UInt64 = 0
     var isEditingDpiControl = false
     private var lastLocalEditAt: Date?
@@ -277,6 +278,10 @@ final class AppState {
         guard let selectedDevice, selectedDevice.transport == "bluetooth" else { return }
         guard !isRefreshingDpiFast, !isRefreshingState, !isApplying else { return }
         guard !hasPendingLocalEdits else { return }
+        if let until = suppressFastDpiUntil {
+            if Date() < until { return }
+            suppressFastDpiUntil = nil
+        }
 
         isRefreshingDpiFast = true
         defer { isRefreshingDpiFast = false }
@@ -364,6 +369,11 @@ final class AppState {
             if state != merged {
                 state = merged
             }
+            if patch.dpiStages != nil || patch.activeStage != nil {
+                // Avoid showing transient in-flight stage states from fast polling
+                // while BLE latching settles after a write.
+                suppressFastDpiUntil = Date().addingTimeInterval(0.9)
+            }
             lastUpdated = Date()
             lastLocalEditAt = nil
             hydrateEditable(from: merged)
@@ -401,7 +411,8 @@ final class AppState {
         }
 
         if let active = state.dpi_stages.active_stage {
-            editableActiveStage = max(1, min(5, active + 1))
+            let maxStage = max(1, editableStageCount)
+            editableActiveStage = max(1, min(maxStage, active + 1))
         }
 
         if let poll = state.poll_rate {

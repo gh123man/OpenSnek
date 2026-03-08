@@ -69,4 +69,67 @@ final class BLEVendorProtocolTests: XCTestCase {
         XCTAssertEqual(parsed?.count, 2)
         XCTAssertEqual(parsed?.values, [800, 6400])
     }
+
+    func testParseVariableLengthDpiBlobPreservesWireEntryOrder() {
+        // [active=1][count=3]
+        // entries are intentionally out of order by stage id:
+        // stage2 -> 3200, stage0 -> 800, stage1 -> 1600
+        let blob = Data([
+            0x01, 0x03,
+            0x02, 0x80, 0x0C, 0x80, 0x0C, 0x00, 0x00,
+            0x00, 0x20, 0x03, 0x20, 0x03, 0x00, 0x00,
+            0x01, 0x40, 0x06, 0x40, 0x06, 0x00, 0x03,
+        ])
+        let parsed = BLEVendorProtocol.parseDpiStages(blob: blob)
+        XCTAssertNotNil(parsed)
+        XCTAssertEqual(parsed?.active, 2)
+        XCTAssertEqual(parsed?.count, 3)
+        XCTAssertEqual(parsed?.values, [3200, 800, 1600])
+    }
+
+    func testParseVariableLengthDpiBlobPadsFromLastWireEntry() {
+        // [active=2][count=3]
+        // stage entries present: 800 then 3200.
+        // Parser should preserve wire order and pad the missing trailing entry.
+        let blob = Data([
+            0x02, 0x03,
+            0x00, 0x20, 0x03, 0x20, 0x03, 0x00, 0x00,
+            0x02, 0x80, 0x0C, 0x80, 0x0C, 0x00, 0x03,
+        ])
+        let parsed = BLEVendorProtocol.parseDpiStages(blob: blob)
+        XCTAssertNotNil(parsed)
+        XCTAssertEqual(parsed?.count, 3)
+        XCTAssertEqual(parsed?.values, [800, 3200, 3200])
+        XCTAssertEqual(parsed?.active, 1)
+    }
+
+    func testParseDpiBlobLengthShortByOneStillParsesTwoStages() {
+        // Some capture-backed read headers report payload length one byte short.
+        // Here count=2 with second entry marker omitted (15 bytes total).
+        let blob = Data([
+            0x01, 0x02,
+            0x01, 0x20, 0x03, 0x20, 0x03, 0x00, 0x00,
+            0x02, 0x00, 0x19, 0x00, 0x19, 0x00,
+        ])
+        let parsed = BLEVendorProtocol.parseDpiStages(blob: blob)
+        XCTAssertNotNil(parsed)
+        XCTAssertEqual(parsed?.active, 0)
+        XCTAssertEqual(parsed?.count, 2)
+        XCTAssertEqual(parsed?.values, [800, 6400])
+    }
+
+    func testParseDpiBlobLengthShortByOneStillParsesThreeStages() {
+        // count=3 with final entry marker omitted (22 bytes total).
+        let blob = Data([
+            0x02, 0x03,
+            0x01, 0x20, 0x03, 0x20, 0x03, 0x00, 0x00,
+            0x02, 0x40, 0x06, 0x40, 0x06, 0x00, 0x00,
+            0x03, 0x80, 0x0C, 0x80, 0x0C, 0x00,
+        ])
+        let parsed = BLEVendorProtocol.parseDpiStages(blob: blob)
+        XCTAssertNotNil(parsed)
+        XCTAssertEqual(parsed?.active, 1)
+        XCTAssertEqual(parsed?.count, 3)
+        XCTAssertEqual(parsed?.values, [800, 1600, 3200])
+    }
 }

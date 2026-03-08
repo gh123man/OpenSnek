@@ -58,6 +58,53 @@ Runtime log file:
 ~/Library/Logs/OpenSnekMac/open-snek.log
 ```
 
+### DPI Stage Reliability Workflow (Required Before Merge)
+
+Use this exact workflow for any change touching BLE DPI/stage code, UI stage selection,
+or apply scheduling.
+
+1. Run fast protocol/unit checks:
+
+```bash
+swift test --package-path OpenSnekMac
+```
+
+2. Run hardware reliability loop (real mouse required):
+
+```bash
+OPEN_SNEK_HW=1 swift test --package-path OpenSnekMac --filter HardwareDpiReliabilityTests
+```
+
+3. Validate deterministic CLI readback path:
+
+```bash
+swift run --package-path OpenSnekMac OpenSnekProbe dpi-set --values 1000,2000,3000 --active 1 --verify-retries 8 --verify-delay-ms 120
+swift run --package-path OpenSnekMac OpenSnekProbe dpi-set --values 1000,2000,3000 --active 3 --verify-retries 8 --verify-delay-ms 120
+swift run --package-path OpenSnekMac OpenSnekProbe dpi-read
+```
+
+Expected: final read reports `active=3` with `values=[1000, 2000, 3000]`.
+
+4. Validate UI/mouse-button stage sync manually:
+- Set 3 unique stage values in app (example: 1000/2000/3000).
+- Press mouse stage button repeatedly.
+- Confirm applied DPI matches the stage highlighted in UI each step.
+- Confirm cycle wraps correctly (stage 3 -> stage 1).
+
+5. Check logs for known bad signatures:
+
+```bash
+tail -n 300 ~/Library/Logs/OpenSnekMac/open-snek.log | rg "btSetDpiStages|btGetDpiStages|stale-read masked|values=\\["
+```
+
+Regression indicators:
+- repeated mirrored last-slot values after multi-stage write (for example `[800,1600,1600]`)
+- persistent stale-read masking without convergence
+
+Pass indicators:
+- `btSetDpiStages ... ok=true` followed by stable `btGetDpiStages ... values=[...]` matching requested slots
+- active stage in logs matches expected selected stage
+
 ### BLE Probe CLI (`OpenSnekProbe`)
 
 For deterministic protocol verification and stress testing without UI interaction:
@@ -72,6 +119,13 @@ swift run --package-path OpenSnekMac OpenSnekProbe dpi-set --values 1600 --activ
 # Cycle through values with readback verification
 swift run --package-path OpenSnekMac OpenSnekProbe dpi-cycle --sequence '1200;2600;3200' --loops 12 --active 1
 ```
+
+### BLE DPI Protocol Notes (Regression-Critical)
+
+- BLE read payload length can be short by one byte (`15/22/36` for `2/3/5` stages). Parse by declared stage count while DPI bytes are present.
+- Active stage byte must be resolved via stage-id mapping from current read entries, not assumed fixed 0-index/1-index.
+- Preserve stage IDs when writing stage tables so mouse hardware stage-button cycling stays in sync with UI.
+- Do not reintroduce active-stage “nudge/toggle” writes as a latching workaround; use single write + readback verification.
 
 ## Usage
 

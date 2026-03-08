@@ -5,8 +5,8 @@ actor BridgeClient {
     private var deviceHandles: [String: IOHIDDevice] = [:]
     private var txnByDeviceID: [String: UInt8] = [:]
     private var btReqID: UInt8 = 0x30
-    private var btDpiSnapshotByDeviceID: [String: (active: Int, count: Int, slots: [Int], marker: UInt8)] = [:]
-    private var btExpectedDpiByDeviceID: [String: (active: Int, values: [Int], expiresAt: Date)] = [:]
+    private var btDpiSnapshotByDeviceID: [String: (active: Int, count: Int, slots: [Int], stageIDs: [UInt8], marker: UInt8)] = [:]
+    private var btExpectedDpiByDeviceID: [String: (active: Int, values: [Int], expiresAt: Date, remainingMasks: Int)] = [:]
     private let btVendorClient = BTVendorClient()
     private var btExchangeLocked = false
     private var btExchangeWaiters: [CheckedContinuation<Void, Never>] = []
@@ -95,7 +95,7 @@ actor BridgeClient {
             let changedLighting = patch.ledBrightness != nil || patch.ledRGB != nil
 
             if patch.dpiStages != nil || patch.activeStage != nil {
-                let current: (active: Int, count: Int, slots: [Int], marker: UInt8)?
+                let current: (active: Int, count: Int, slots: [Int], stageIDs: [UInt8], marker: UInt8)?
                 if let cached = btDpiSnapshotByDeviceID[device.id] {
                     current = cached
                 } else {
@@ -144,11 +144,19 @@ actor BridgeClient {
                 }
             }
 
-            if let stages = patch.dpiStages {
-                let active = patch.activeStage ?? 0
+            if patch.dpiStages != nil || patch.activeStage != nil {
+                let current = try getDPIStages(handle, device)
+                let stages = patch.dpiStages ?? current?.1
+                let active = patch.activeStage ?? current?.0 ?? 0
+                guard let stages, !stages.isEmpty else {
+                    throw BridgeError.commandFailed("Failed to resolve current DPI stages")
+                }
                 guard try setDPIStages(handle, device, stages: stages, activeStage: active) else {
                     throw BridgeError.commandFailed("Failed to set DPI stages")
                 }
+                let activeClamped = max(0, min(stages.count - 1, active))
+                let liveDpi = stages[activeClamped]
+                _ = try? setDPI(handle, device, dpiX: liveDpi, dpiY: liveDpi, store: false)
             }
 
             if let brightness = patch.ledBrightness {
@@ -397,15 +405,17 @@ actor BridgeClient {
                 return nil
             }
 
-            if let expected = btExpectedDpiByDeviceID[deviceID] {
+            if var expected = btExpectedDpiByDeviceID[deviceID] {
                 let parsedValues = Array(parsed.values.prefix(expected.values.count))
                 if parsed.active == expected.active && parsedValues == expected.values {
                     btExpectedDpiByDeviceID[deviceID] = nil
-                } else if Date() < expected.expiresAt {
+                } else if Date() < expected.expiresAt, expected.remainingMasks > 0 {
+                    expected.remainingMasks -= 1
+                    btExpectedDpiByDeviceID[deviceID] = expected
                     AppLog.debug(
                         "Bridge",
                         "btGetDpiStages stale-read masked device=\(deviceID) expectedActive=\(expected.active) expectedValues=\(expected.values) " +
-                        "actualActive=\(parsed.active) actualValues=\(parsed.values)"
+                        "actualActive=\(parsed.active) actualValues=\(parsed.values) remainingMasks=\(expected.remainingMasks)"
                     )
                     return (active: expected.active, values: expected.values, marker: parsed.marker)
                 } else {
@@ -422,7 +432,7 @@ actor BridgeClient {
         return nil
     }
 
-    private func btGetDpiStageSnapshot(deviceID: String) async throws -> (active: Int, count: Int, slots: [Int], marker: UInt8)? {
+    private func btGetDpiStageSnapshot(deviceID: String) async throws -> (active: Int, count: Int, slots: [Int], stageIDs: [UInt8], marker: UInt8)? {
         let req = nextBTReq()
         let header = BLEVendorProtocol.buildReadHeader(req: req, key: .dpiStagesGet)
         let notifies = try await btExchange([header], timeout: 0.6)
@@ -435,7 +445,7 @@ actor BridgeClient {
     }
 
     private func btSetDpiStages(deviceID: String, active: Int, values: [Int]) async throws -> Bool {
-        let current: (active: Int, count: Int, slots: [Int], marker: UInt8)?
+        let current: (active: Int, count: Int, slots: [Int], stageIDs: [UInt8], marker: UInt8)?
         if let cached = btDpiSnapshotByDeviceID[deviceID] {
             current = cached
         } else {
@@ -444,6 +454,7 @@ actor BridgeClient {
         let marker = current?.marker ?? 0x03
         let count = max(1, min(5, values.count))
         let currentSlots = current?.slots ?? [800, 1600, 2400, 3200, 6400]
+        let currentStageIDs = Array((current?.stageIDs ?? [1, 2, 3, 4, 5]).prefix(5))
         let mergedSlots = BLEVendorProtocol.mergedStageSlots(
             currentSlots: currentSlots,
             requestedCount: count,
@@ -454,7 +465,8 @@ actor BridgeClient {
             active: active,
             count: count,
             slots: mergedSlots,
-            marker: marker
+            marker: marker,
+            stageIDs: currentStageIDs
         )
         let req = nextBTReq()
         let header = BLEVendorProtocol.buildWriteHeader(req: req, payloadLength: 0x26, key: .dpiStagesSet)
@@ -468,12 +480,14 @@ actor BridgeClient {
                 active: expectedActive,
                 count: count,
                 slots: mergedSlots,
+                stageIDs: currentStageIDs,
                 marker: marker
             )
             btExpectedDpiByDeviceID[deviceID] = (
                 active: expectedActive,
                 values: expectedValues,
-                expiresAt: Date().addingTimeInterval(5.0)
+                expiresAt: Date().addingTimeInterval(1.2),
+                remainingMasks: 4
             )
         }
         return ok
@@ -586,16 +600,41 @@ actor BridgeClient {
         return (Int(r[9]) << 8 | Int(r[10]), Int(r[11]) << 8 | Int(r[12]))
     }
 
+    private func setDPI(_ handle: IOHIDDevice, _ device: MouseDevice, dpiX: Int, dpiY: Int, store: Bool) throws -> Bool {
+        let x = max(100, min(30_000, dpiX))
+        let y = max(100, min(30_000, dpiY))
+        let storage: UInt8 = store ? 0x01 : 0x00
+        let args: [UInt8] = [
+            storage,
+            UInt8((x >> 8) & 0xFF),
+            UInt8(x & 0xFF),
+            UInt8((y >> 8) & 0xFF),
+            UInt8(y & 0xFF),
+            0x00,
+            0x00,
+        ]
+        guard let r = try perform(device, handle, classID: 0x04, cmdID: 0x05, size: 0x07, args: args) else { return false }
+        return r[0] == 0x02
+    }
+
     private func getDPIStages(_ handle: IOHIDDevice, _ device: MouseDevice) throws -> (Int, [Int])? {
         guard let r = try perform(device, handle, classID: 0x04, cmdID: 0x86, size: 0x26, args: [0x01]), r[0] == 0x02 else { return nil }
-        let active = Int(r[9])
+        let activeRaw = Int(r[9])
         let count = max(1, min(5, Int(r[10])))
         var values: [Int] = []
         for i in 0..<count {
             let off = 11 + (i * 7)
             if off + 4 >= r.count { break }
-            values.append((Int(r[off + 1]) << 8) | Int(r[off + 2]))
+            let value = (Int(r[off + 1]) << 8) | Int(r[off + 2])
+            values.append(value)
         }
+
+        guard !values.isEmpty else { return nil }
+        while values.count < count {
+            values.append(values.last ?? 800)
+        }
+
+        let active = max(0, min(count - 1, activeRaw))
         return (active, values)
     }
 

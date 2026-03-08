@@ -68,40 +68,76 @@ enum BLEVendorProtocol {
         return payload.prefix(header.payloadLength)
     }
 
-    static func parseDpiStageSnapshot(blob: Data) -> (active: Int, count: Int, slots: [Int], marker: UInt8)? {
+    static func parseDpiStageSnapshot(blob: Data) -> (active: Int, count: Int, slots: [Int], stageIDs: [UInt8], marker: UInt8)? {
         // Variable-length staged blob:
         // [active][count] + count*7-byte stage entries
         // each entry: [stage_id][dpi_x_le16][dpi_y_le16][reserved][marker_or_reserved]
         if blob.count >= 9 {
-            let active = Int(blob[0])
-            let count = max(1, min(5, Int(blob[1])))
+            let activeRaw = Int(blob[0])
+            let declaredCount = max(1, min(5, Int(blob[1])))
             var slots: [Int] = []
+            var stageIDs: [UInt8] = []
             var marker: UInt8 = 0x03
 
-            for i in 0..<count {
+            for i in 0..<declaredCount {
                 let off = 2 + (i * 7)
+                // Capture-backed reads can report payload length one byte short,
+                // dropping the last entry marker. Parse as long as DPI X/Y bytes exist.
                 guard off + 4 < blob.count else { break }
                 let value = Int(blob[off + 1]) | (Int(blob[off + 2]) << 8)
+                // On validated firmware, stage_id bytes are not a stable user-stage ordinal
+                // across all count modes. Preserve wire entry order for stage semantics.
                 slots.append(value)
+                stageIDs.append(blob[off])
                 if off + 6 < blob.count {
                     marker = blob[off + 6]
                 }
             }
 
-            if !slots.isEmpty {
-                let fill = slots.last ?? 800
-                while slots.count < 5 {
-                    slots.append(fill)
-                }
-                return (active: max(0, min(count - 1, active)), count: count, slots: Array(slots.prefix(5)), marker: marker)
+            if slots.isEmpty {
+                return nil
             }
+            while slots.count < declaredCount {
+                slots.append(slots.last ?? 800)
+                stageIDs.append(stageIDs.last.map { $0 &+ 1 } ?? UInt8(stageIDs.count))
+            }
+            while slots.count < 5 {
+                slots.append(slots.last ?? 800)
+                stageIDs.append(stageIDs.last.map { $0 &+ 1 } ?? UInt8(stageIDs.count))
+            }
+
+            let count = min(declaredCount, slots.count)
+            let visibleIDs = Array(stageIDs.prefix(count))
+            let active: Int
+            if let mapped = visibleIDs.firstIndex(of: UInt8(activeRaw & 0xFF)) {
+                active = mapped
+            } else if activeRaw >= 1, activeRaw <= count {
+                active = activeRaw - 1
+            } else {
+                active = max(0, min(count - 1, activeRaw))
+            }
+            return (
+                active: active,
+                count: count,
+                slots: Array(slots.prefix(5)),
+                stageIDs: Array(stageIDs.prefix(5)),
+                marker: marker
+            )
         }
 
         if blob.count >= 7 {
-            let active = Int(blob[0])
+            let activeRaw = Int(blob[0])
             let count = max(1, min(5, Int(blob[1])))
             let value = Int(blob[3]) | (Int(blob[4]) << 8)
-            return (active: max(0, min(count - 1, active)), count: count, slots: Array(repeating: value, count: 5), marker: 0x03)
+            let active = activeRaw >= 1 ? max(0, min(count - 1, activeRaw - 1)) : 0
+            let sid = blob.count > 2 ? blob[2] : 0
+            return (
+                active: active,
+                count: count,
+                slots: Array(repeating: value, count: 5),
+                stageIDs: Array(repeating: sid, count: 5),
+                marker: 0x03
+            )
         }
 
         return nil
@@ -138,15 +174,21 @@ enum BLEVendorProtocol {
         return Array(slots.prefix(5))
     }
 
-    static func buildDpiStagePayload(active: Int, count: Int, slots: [Int], marker: UInt8) -> Data {
-        var out = Data([UInt8(max(0, min(4, active))), UInt8(max(1, min(5, count)))])
+    static func buildDpiStagePayload(active: Int, count: Int, slots: [Int], marker: UInt8, stageIDs: [UInt8]? = nil) -> Data {
+        let clippedCount = max(1, min(5, count))
+        var ids = Array((stageIDs ?? [0, 1, 2, 3, 4]).prefix(5))
+        while ids.count < 5 {
+            ids.append(ids.last.map { $0 &+ 1 } ?? UInt8(ids.count))
+        }
+        let activeIndex = max(0, min(clippedCount - 1, active))
+        var out = Data([ids[activeIndex], UInt8(clippedCount)])
         let clamped = slots.map { max(100, min(30000, $0)) }
 
         for i in 0..<5 {
             let value = clamped[min(i, max(0, clamped.count - 1))]
             let lo = UInt8(value & 0xFF)
             let hi = UInt8((value >> 8) & 0xFF)
-            out.append(UInt8(i))
+            out.append(ids[i])
             out.append(lo)
             out.append(hi)
             out.append(lo)

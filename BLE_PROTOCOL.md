@@ -115,16 +115,29 @@ repeat 5x:
 [tail]
 ```
 
-Conventions in current implementation:
-- `stage_id`: `0..4`
-- marker on stage 4 only (others `0x00`)
-- trailing tail byte `0x00`
+Protocol observations:
+- `stage_id` is present per entry and should be treated as device-provided metadata.
+- capture-backed reads commonly use `stage_id` values like `1..N`.
+- active byte in read blobs often matches one of the entry `stage_id` bytes
+  (do not assume fixed 0-index or 1-index semantics across all states).
+- marker is commonly observed on final entry and may be omitted when read payload length is short by one.
+- trailing tail byte is present on 38-byte set payloads.
+
+Implementation behavior (current code):
+
+| Consumer | Active decode | Stage IDs on set payload |
+|---|---|---|
+| `razer_ble.py` | raw `active` clamped into `0..count-1` | emits `0..4` |
+| `OpenSnekMac` / `OpenSnekProbe` | maps active byte to entry stage IDs (with fallback normalization) | preserves IDs from current snapshot |
 
 Read-side parsing in `razer_ble.py` accepts:
 - variable-length staged blob (`2 + count*7` bytes), commonly:
   - `16` bytes for 2 stages
   - `23` bytes for 3 stages
   - `37` bytes for 5 stages
+- capture-backed reads can report `payload_length` one byte short
+  (`15/22/36` for `2/3/5` stages), omitting the final entry marker byte;
+  consumers should parse by declared `count` as long as DPI X/Y bytes are present
 - short single-stage blob (`>=7` bytes), then mirrors to 5 internal slots
 
 Observed 2-stage example (active 0, values 800/6400):
@@ -168,8 +181,8 @@ This powers:
 
 ### 8.3 HID Command Path on Bluetooth Interfaces
 
-`get/set_poll_rate` and direct `get/set_dpi` still use the 90-byte HID command path.
-Behavior is backend/OS dependent for BT HID interfaces.
+`razer_ble.py` still exposes `get/set_poll_rate` and direct `get/set_dpi` via the
+90-byte HID command path, but behavior is backend/OS dependent for BT HID interfaces.
 
 Latest validation (macOS, Basilisk V3 X `0x00BA`, 2026-03-08):
 - transport probe succeeds
@@ -177,6 +190,7 @@ Latest validation (macOS, Basilisk V3 X `0x00BA`, 2026-03-08):
 - command-path writes return `False`
 
 This includes poll rate, idle/threshold, and scroll LED HID controls.
+It also includes direct HID `set_dpi`; BT HID DPI apply is not reliable on this stack.
 
 Vendor GATT path in the same environment works when enabled:
 - raw idle-time/threshold/lighting read/write
@@ -195,7 +209,9 @@ The Swift app (`OpenSnekMac`) applies additional runtime safety around the same 
 
 - one BLE exchange at a time per connection (serialized request pipeline)
 - coalesced apply queue (latest local edit wins under rapid slider movement)
-- stale-read masking window after DPI set (prevents transient old values from snapping UI state backward)
+- stale-read masking after DPI set is short and bounded (few polls / ~1s) to avoid hiding real hardware stage changes
+- BT DPI apply uses a single vendor stage-table write (no active-stage nudge/toggle sequence)
+- BT writer preserves stage-id bytes from the current snapshot so hardware stage-button cycling stays in sync with UI selection
 - invalid DPI read filtering + immediate retry for transient malformed payloads
 - log-backed diagnostics at `~/Library/Logs/OpenSnekMac/open-snek.log`
 
@@ -223,7 +239,7 @@ These are transport-consumer behaviors and do not change the on-wire packet form
 | Serial read | `00:82` | `01 83 00 00` | Implemented in both scripts (BT vendor fallback) | Covered |
 | Firmware read | `00:81` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
 | Device mode | `00:84/04` | `01 82 00 00` (read fallback) | Implemented in both scripts | BT write fallback intentionally disabled pending further decoding |
-| DPI XY | `04:85/05` | Passive HID read + HID set fallback | Implemented in both scripts | Need fully reliable BLE set path |
+| DPI XY | `04:85/05` | Passive HID read; live apply via vendor stage writes | Implemented in both scripts | No reliable direct BT HID `set_dpi` on validated stack |
 | DPI stages | `04:86/06` | `0B84` / `0B04` + `op=0x26` | Implemented in both scripts | Mostly covered |
 | Poll rate | `00:85/05` | HID fallback only | Implemented in both scripts | Need vendor mapping for reliability |
 | Battery | `07:80` | Battery Service + observed `05 81 00 01` | Implemented in both scripts | Need charging-state mapping on vendor path |

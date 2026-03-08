@@ -42,7 +42,7 @@ Tools used:
 
 - Lighting scalar:
   - get: `10 85 01 01` (`u8`)
-  - set: `10 05 01 01` same-value writeback validated
+  - set: `10 05 01 00` same-value writeback validated
   - observed value: `120`
 
 ## Candidate Keys (Not Yet Semantically Mapped)

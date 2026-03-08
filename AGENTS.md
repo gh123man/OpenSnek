@@ -52,6 +52,11 @@ Validated device family:
 3. Prefer coalesced/latest-wins apply semantics for rapid UI edits.
 4. Treat malformed BLE DPI payloads as transient; ignore/retry instead of applying invalid state.
 5. Update docs and tests in the same change for behavior changes.
+6. For BLE DPI stages:
+   - parse by declared stage count even when read payload is short by one byte
+   - resolve active stage via stage-id mapping from payload entries
+   - preserve stage IDs on writes
+   - do not reintroduce stage “nudge/toggle” write sequences
 
 ## Validation Workflow
 
@@ -69,6 +74,12 @@ swift test --package-path OpenSnekMac
 swift run --package-path OpenSnekMac OpenSnekMac
 ```
 
+### Swift Hardware Reliability Gate (required for BLE DPI/stage changes)
+
+```bash
+OPEN_SNEK_HW=1 swift test --package-path OpenSnekMac --filter HardwareDpiReliabilityTests
+```
+
 ### Swift Probe CLI (preferred for fast BLE DPI iteration)
 
 ```bash
@@ -77,6 +88,16 @@ swift run --package-path OpenSnekMac OpenSnekProbe dpi-set --values 1600,6400 --
 swift run --package-path OpenSnekMac OpenSnekProbe dpi-cycle --sequence '1200,6400;2600,6400' --loops 10 --active 2
 ```
 
+For stage-selection regressions, run this exact check:
+
+```bash
+swift run --package-path OpenSnekMac OpenSnekProbe dpi-set --values 1000,2000,3000 --active 1 --verify-retries 8 --verify-delay-ms 120
+swift run --package-path OpenSnekMac OpenSnekProbe dpi-set --values 1000,2000,3000 --active 3 --verify-retries 8 --verify-delay-ms 120
+swift run --package-path OpenSnekMac OpenSnekProbe dpi-read
+```
+
+Expected final output: `active=3 count=3 values=[1000, 2000, 3000]`.
+
 ### Runtime Logs
 
 App log path:
@@ -84,6 +105,19 @@ App log path:
 ```text
 ~/Library/Logs/OpenSnekMac/open-snek.log
 ```
+
+Useful regression grep:
+
+```bash
+tail -n 300 ~/Library/Logs/OpenSnekMac/open-snek.log | rg "btSetDpiStages|btGetDpiStages|stale-read masked|values=\\["
+```
+
+Fail patterns:
+- `btGetDpiStages` repeatedly returning mirrored last-slot values after multi-stage writes
+- stale-read masking persisting without convergence
+
+Pass pattern:
+- write ack followed by stable readback matching requested values and active stage
 
 ## References
 

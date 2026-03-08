@@ -19,6 +19,7 @@ private struct DpiSnapshot: Equatable {
     let active: Int
     let count: Int
     let slots: [Int]
+    let stageIDs: [UInt8]
     let marker: UInt8
 
     var values: [Int] { Array(slots.prefix(count)) }
@@ -75,26 +76,38 @@ private enum VendorProtocol {
 
     static func parseDpiSnapshot(_ payload: Data) -> DpiSnapshot? {
         guard payload.count >= 2 else { return nil }
-        let active = Int(payload[0])
+        let activeRaw = Int(payload[0])
         let count = max(1, min(5, Int(payload[1])))
 
         var slots: [Int] = [800, 1600, 2400, 3200, 6400]
+        var stageIDs: [UInt8] = [1, 2, 3, 4, 5]
         var marker: UInt8 = 0x03
 
         if payload.count >= 37 {
             for i in 0..<5 {
                 let off = 2 + (i * 7)
                 guard off + 6 < payload.count else { break }
+                stageIDs[i] = payload[off]
                 let dpi = Int(payload[off + 1]) | (Int(payload[off + 2]) << 8)
                 slots[i] = dpi
                 marker = payload[off + 6]
             }
         } else {
+            var seenIDs: [UInt8] = []
             for i in 0..<count {
                 let off = 2 + (i * 7)
                 guard off + 4 < payload.count else { break }
+                seenIDs.append(payload[off])
                 let dpi = Int(payload[off + 1]) | (Int(payload[off + 2]) << 8)
                 slots[i] = dpi
+            }
+            if !seenIDs.isEmpty {
+                for i in 0..<min(5, seenIDs.count) {
+                    stageIDs[i] = seenIDs[i]
+                }
+                for i in seenIDs.count..<5 {
+                    stageIDs[i] = stageIDs[i - 1] &+ 1
+                }
             }
             if count == 1 {
                 slots = Array(repeating: slots[0], count: 5)
@@ -104,18 +117,33 @@ private enum VendorProtocol {
             }
         }
 
-        return DpiSnapshot(active: max(0, min(count - 1, active)), count: count, slots: slots, marker: marker)
+        let visibleIDs = Array(stageIDs.prefix(count))
+        let active: Int
+        if let idx = visibleIDs.firstIndex(of: UInt8(activeRaw & 0xFF)) {
+            active = idx
+        } else if activeRaw >= 1, activeRaw <= count {
+            active = activeRaw - 1
+        } else {
+            active = max(0, min(count - 1, activeRaw))
+        }
+
+        return DpiSnapshot(active: active, count: count, slots: slots, stageIDs: stageIDs, marker: marker)
     }
 
-    static func buildDpiPayload(active: Int, count: Int, slots: [Int], marker: UInt8) -> Data {
+    static func buildDpiPayload(active: Int, count: Int, slots: [Int], marker: UInt8, stageIDs: [UInt8]) -> Data {
         let clippedCount = max(1, min(5, count))
         var payload = [UInt8](repeating: 0, count: 38)
-        payload[0] = UInt8(max(0, min(clippedCount - 1, active)))
+        var ids = Array(stageIDs.prefix(5))
+        while ids.count < 5 {
+            ids.append(ids.last.map { $0 &+ 1 } ?? UInt8(ids.count))
+        }
+        let activeIndex = max(0, min(clippedCount - 1, active))
+        payload[0] = ids[activeIndex]
         payload[1] = UInt8(clippedCount)
         var off = 2
         for i in 0..<5 {
             let dpi = max(100, min(30_000, slots[i]))
-            payload[off] = UInt8(i)
+            payload[off] = ids[i]
             payload[off + 1] = UInt8(dpi & 0xFF)
             payload[off + 2] = UInt8((dpi >> 8) & 0xFF)
             payload[off + 3] = UInt8(dpi & 0xFF)
@@ -354,13 +382,15 @@ private actor ProbeBridge {
             active: max(0, min(count - 1, active)),
             count: count,
             slots: mergedSlots,
+            stageIDs: current.stageIDs,
             marker: current.marker
         )
         let payload = VendorProtocol.buildDpiPayload(
             active: expected.active,
             count: expected.count,
             slots: expected.slots,
-            marker: expected.marker
+            marker: expected.marker,
+            stageIDs: expected.stageIDs
         )
 
         let req = nextReq()

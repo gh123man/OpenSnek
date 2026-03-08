@@ -92,7 +92,12 @@ final class BTVendorClient: NSObject, @unchecked Sendable {
 
         let peripherals = central.retrieveConnectedPeripherals(withServices: [CBUUID(nsuuid: BLEVendorProtocol.serviceUUID)])
         guard let connected = peripherals.first else {
-            fail("No connected peripheral with Razer vendor service")
+            // CoreBluetooth can transiently return an empty set right after reconnects.
+            // Keep retrying within the run timeout window instead of failing immediately.
+            queue.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+                guard let self, self.completion != nil else { return }
+                self.ensureConnectedAndReady()
+            }
             return
         }
 

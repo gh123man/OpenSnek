@@ -205,15 +205,27 @@ struct ContentView: View {
                         appState.editableActiveStage = min(appState.editableActiveStage, appState.editableStageCount)
                         appState.scheduleAutoApplyDpi()
                     }
-
-                Stepper("Active stage: \(appState.editableActiveStage)", value: $appState.editableActiveStage, in: 1...appState.editableStageCount)
-                    .onChange(of: appState.editableActiveStage) { _, _ in appState.scheduleAutoApplyActiveStage() }
             }
 
             ForEach(0..<(appState.singleStageMode ? 1 : appState.editableStageCount), id: \.self) { idx in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text(appState.singleStageMode ? "DPI" : "Stage \(idx + 1)")
+                        if appState.singleStageMode {
+                            Text("DPI")
+                        } else {
+                            Button {
+                                let selected = idx + 1
+                                if appState.editableActiveStage != selected {
+                                    appState.editableActiveStage = selected
+                                    appState.scheduleAutoApplyActiveStage()
+                                }
+                            } label: {
+                                Label("Stage \(idx + 1)", systemImage: appState.editableActiveStage == (idx + 1) ? "checkmark.circle.fill" : "circle")
+                                    .labelStyle(.titleAndIcon)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(appState.editableActiveStage == (idx + 1) ? Color(hex: 0xA8F46A) : .white)
+                        }
                         Spacer()
                         TextField(
                             "DPI",
