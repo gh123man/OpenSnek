@@ -65,7 +65,7 @@ python razer_ble.py --battery-vendor
 | Read/Set Poll Rate | Yes | Partial | Implemented with HID command path; BLE stack dependent |
 | Read Battery | Yes | Yes | BLE fallback via Battery Service `0x180F` |
 | Scroll LED Brightness/Effects | Yes | Partial | USB validated (`0x0F:0x84/0x04` + `0x0F:0x02`); BLE via HID path only |
-| Power/Sleep/Lighting (raw) | No | Yes | BLE vendor scalar read/write keys |
+| Idle/Threshold/Lighting (raw) | No | Yes | BLE vendor scalar read/write keys |
 | Button Rebinding | Partial | Yes | BLE vendor header+10-byte payload; USB has experimental raw writer |
 
 ## Repository Structure
@@ -79,6 +79,7 @@ python razer_ble.py --battery-vendor
 | `explore_ble.py` | BLE service/characteristic exploration tool (macOS) |
 | `enumerate_hid_gatt.py` | HID-over-GATT enumeration helper |
 | `enumerate_hid_gatt_linux.py` | Linux HID-over-GATT probing helper |
+| `discover_bt_vendor_keys.py` | Safe BLE vendor key discovery and writeback validator |
 | `captures/` | BLE capture corpus and index |
 | `PROTOCOL.md` | Protocol documentation index |
 | `USB_PROTOCOL.md` | USB transport protocol |

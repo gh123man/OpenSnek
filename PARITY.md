@@ -22,15 +22,15 @@ Legend:
 
 | Feature | USB Protocol | BLE Protocol | Script Support | Status | Notes |
 |---|---|---|---|---|---|
-| Serial read | `00:82` | observed key `01 83 00 00` | `razer_usb.py` + `razer_ble.py` (HID path) | PARTIAL | Need stable BLE vendor mapping |
+| Serial read | `00:82` | key `01 83 00 00` | `razer_usb.py` + `razer_ble.py` (USB HID + BT vendor fallback) | DONE | BT vendor fallback implemented |
 | Firmware read | `00:81` | unknown vendor key | `razer_usb.py` + `razer_ble.py` (HID path) | PARTIAL | HID over BT may fail on some stacks |
-| Device mode | `00:84/04` | unknown vendor key | `razer_usb.py` + `razer_ble.py` (HID path) | PARTIAL | Mode semantics known on USB only |
+| Device mode | `00:84/04` | `01 82 00 00` (read), `01 02 00 00` (write candidate) | `razer_usb.py` + `razer_ble.py` | PARTIAL | BT read fallback enabled; BT write path disabled for safety |
 | DPI XY | `04:85/05` | passive HID read, HID set fallback | both scripts | PARTIAL | BLE vendor set path not fully mapped |
 | DPI stages + active stage | `04:86/06` | `0B84`/`0B04`, `op=0x26` | both scripts | DONE | Fully implemented in BLE vendor path |
 | Poll rate | `00:85/05` | HID fallback only | both scripts | PARTIAL | Need BLE vendor equivalent |
 | Battery level | `07:80` | Battery Service + observed vendor read | both scripts | PARTIAL | Charging-state parity still incomplete on BLE |
-| Idle time | `07:83/03` | unknown vendor key | both scripts (HID path) | PARTIAL | USB clamps 60..900s |
-| Low battery threshold | `07:81/01` | unknown vendor key | both scripts (HID path) | PARTIAL | USB raw clamp `0x0C..0x3F` |
+| Idle time | `07:83/03` | `05 84 00 00` / `05 04 00 00` | both scripts | DONE | BT vendor fallback implemented |
+| Low battery threshold | `07:81/01` | `05 82 00 00` / `05 02 00 00` | both scripts | DONE | BT vendor fallback implemented |
 | Scroll mode | `02:94/14` | unknown vendor key | both scripts (HID path) | PARTIAL | USB semantics validated via OpenRazer |
 | Scroll acceleration | `02:96/16` | unknown vendor key | both scripts (HID path) | PARTIAL | BLE vendor mapping missing |
 | Scroll smart reel | `02:97/17` | unknown vendor key | both scripts (HID path) | PARTIAL | BLE vendor mapping missing |
@@ -42,12 +42,10 @@ Legend:
 
 ## Current Priorities
 
-1. Decode BLE vendor keys for USB-equivalent controls:
+1. Decode remaining BLE vendor keys for USB-equivalent controls:
 - poll rate
-- idle time
-- low battery threshold
 - scroll mode / acceleration / smart reel
-- device mode / firmware / serial
+- firmware
 
 2. Implement USB button remapping path:
 - class `0x02` command family (`0x0D`/`0x12`), capture-backed payloads
@@ -72,10 +70,14 @@ CLI behavior has been updated to skip unsupported scroll controls with warnings 
 Validated in-session over Bluetooth:
 - HID path (`--disable-vendor-gatt`): probe works, config command reads return `None`, writes return `False`
 - Vendor GATT path (default-on): working for
-  - power timeout raw read/write/readback
-  - sleep timeout raw read/write/readback
+  - idle-time raw read/write/readback
+  - low-battery-threshold raw read/write/readback
   - lighting raw read/write/readback
   - battery vendor raw keys (`05 81 00 01`, `05 80 00 01`)
+  - serial fallback (`01 83 00 00`)
+  - device mode read fallback (`01 82 00 00`)
+  - idle time fallback (`05 84 00 00` / `05 04 00 00`)
+  - low battery threshold fallback (`05 82 00 00` / `05 02 00 00`)
 
 `razer_ble.py` now uses vendor battery raw as BT fallback in `get_battery()` when vendor GATT is enabled.
 

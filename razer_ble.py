@@ -523,7 +523,7 @@ class RazerMouse:
                 return True
         return False
 
-    def _bt_get_scalar(self, key4: bytes, size: int) -> Optional[int]:
+    def _bt_get_blob(self, key4: bytes) -> Optional[bytes]:
         if self.vendor_id != BT_VENDOR_ID_RAZER or len(key4) != 4:
             return None
         req = self._next_bt_req()
@@ -542,11 +542,17 @@ class RazerMouse:
         if header is None or header[7] != 0x02:
             return None
 
-        for n in notifs[header_idx + 1:]:
-            if len(n) == 20:
-                raw = bytes(n[:size])
-                return int.from_bytes(raw, 'little')
-        return None
+        expected_len = int(header[1])
+        payload = b"".join(bytes(n) for n in notifs[header_idx + 1:] if len(n) == 20)
+        if expected_len > 0:
+            payload = payload[:expected_len]
+        return payload
+
+    def _bt_get_scalar(self, key4: bytes, size: int) -> Optional[int]:
+        blob = self._bt_get_blob(key4)
+        if blob is None or len(blob) < size:
+            return None
+        return int.from_bytes(blob[:size], 'little')
 
     def _bt_set_scalar(self, key4: bytes, op: int, value: int, size: int) -> bool:
         if self.vendor_id != BT_VENDOR_ID_RAZER or len(key4) != 4:
@@ -912,6 +918,12 @@ class RazerMouse:
             raw = bytes(response[8:30]).split(b"\x00", 1)[0]
             serial = raw.decode("ascii", errors="ignore").strip()
             return serial or None
+        if self.vendor_id == BT_VENDOR_ID_RAZER:
+            blob = self._bt_get_blob(bytes([0x01, 0x83, 0x00, 0x00]))
+            if blob:
+                raw = blob.split(b"\x00", 1)[0]
+                serial = raw.decode("ascii", errors="ignore").strip()
+                return serial or None
         return None
 
     def get_firmware(self) -> Optional[Tuple[int, int]]:
@@ -926,6 +938,11 @@ class RazerMouse:
         response = self._send_command(request)
         if response and response[0] == STATUS_SUCCESS and len(response) >= 10:
             return (response[8], response[9])
+        if self.vendor_id == BT_VENDOR_ID_RAZER:
+            # Vendor key 01 82 00 00 (u16 LE) validated as mode tuple.
+            val = self._bt_get_scalar(bytes([0x01, 0x82, 0x00, 0x00]), 2)
+            if val is not None:
+                return (val & 0xFF, (val >> 8) & 0xFF)
         return None
 
     def set_device_mode(self, mode: int, param: int = 0x00) -> bool:
@@ -935,7 +952,14 @@ class RazerMouse:
             return False
         request = self._create_report(CMD_CLASS_STANDARD, CMD_SET_DEVICE_MODE, 0x02, bytes([mode, param]))
         response = self._send_command(request)
-        return response is not None and response[0] == STATUS_SUCCESS
+        if response is not None and response[0] == STATUS_SUCCESS:
+            return True
+        if self.vendor_id == BT_VENDOR_ID_RAZER:
+            # BT vendor key 01 02 00 00 appears writable, but toggling this on
+            # current firmware can trigger unstable/blinking radio state.
+            # Keep BT device-mode path read-only until semantics are fully decoded.
+            self._dbg("bt device mode write disabled for safety")
+        return False
 
     # --- Power / Battery Threshold ---
 
@@ -944,6 +968,9 @@ class RazerMouse:
         response = self._send_command(request)
         if response and response[0] == STATUS_SUCCESS and len(response) >= 10:
             return (response[8] << 8) | response[9]
+        if self.vendor_id == BT_VENDOR_ID_RAZER:
+            # Vendor key 05 84 00 00 (u16 LE) aligns with idle-time value.
+            return self._bt_get_scalar(bytes([0x05, 0x84, 0x00, 0x00]), 2)
         return None
 
     def set_idle_time(self, seconds: int) -> bool:
@@ -951,20 +978,31 @@ class RazerMouse:
         args = bytes([(seconds >> 8) & 0xFF, seconds & 0xFF])
         request = self._create_report(CMD_CLASS_MISC, CMD_SET_IDLE_TIME, 0x02, args)
         response = self._send_command(request)
-        return response is not None and response[0] == STATUS_SUCCESS
+        if response is not None and response[0] == STATUS_SUCCESS:
+            return True
+        if self.vendor_id == BT_VENDOR_ID_RAZER:
+            return self._bt_set_scalar(bytes([0x05, 0x04, 0x00, 0x00]), 0x02, seconds, 2)
+        return False
 
     def get_low_battery_threshold(self) -> Optional[int]:
         request = self._create_report(CMD_CLASS_MISC, CMD_GET_LOW_BATTERY_THRESHOLD, 0x01)
         response = self._send_command(request)
         if response and response[0] == STATUS_SUCCESS and len(response) >= 9:
             return response[8]
+        if self.vendor_id == BT_VENDOR_ID_RAZER:
+            # Vendor key 05 82 00 00 (u8) aligns with low-battery threshold raw.
+            return self._bt_get_scalar(bytes([0x05, 0x82, 0x00, 0x00]), 1)
         return None
 
     def set_low_battery_threshold(self, threshold_raw: int) -> bool:
         threshold = max(0x0C, min(0x3F, int(threshold_raw)))
         request = self._create_report(CMD_CLASS_MISC, CMD_SET_LOW_BATTERY_THRESHOLD, 0x01, bytes([threshold]))
         response = self._send_command(request)
-        return response is not None and response[0] == STATUS_SUCCESS
+        if response is not None and response[0] == STATUS_SUCCESS:
+            return True
+        if self.vendor_id == BT_VENDOR_ID_RAZER:
+            return self._bt_set_scalar(bytes([0x05, 0x02, 0x00, 0x00]), 0x01, threshold, 1)
+        return False
 
     # --- Scroll Wheel Controls ---
 

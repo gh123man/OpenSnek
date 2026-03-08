@@ -86,11 +86,12 @@ Two-write sequence:
 | Feature | Get key (`byte4..7`) | Set key (`byte4..7`) | Set op | Payload |
 |---|---|---|---:|---|
 | DPI stage table | `0B 84 01 00` | `0B 04 01 00` | `0x26` | 38 bytes |
-| Power timeout raw | `05 84 00 00` | `05 04 00 00` | `0x02` | `u16 LE` |
-| Sleep timeout raw | `05 82 00 00` | `05 02 00 00` | `0x01` | `u8` |
+| Idle time raw | `05 84 00 00` | `05 04 00 00` | `0x02` | `u16 LE` |
+| Low battery threshold raw | `05 82 00 00` | `05 02 00 00` | `0x01` | `u8` |
 | Lighting raw | `10 85 01 01` | `10 05 01 00` | `0x01` | `u8` |
 | Battery raw | `05 81 00 01` | n/a | n/a | `u8` |
 | Battery status raw | `05 80 00 01` | n/a | n/a | `u8` |
+| Device mode raw (read fallback) | `01 82 00 00` | `01 02 00 00` (candidate) | `0x02` | `u16 LE` |
 | Button bind (slot) | n/a | `08 04 01 <slot>` | `0x0A` | 10 bytes |
 
 Observed extra read key (capture-backed, not full API in code):
@@ -160,7 +161,7 @@ Latest validation (macOS, Basilisk V3 X `0x00BA`, 2026-03-08):
 This includes poll rate, idle/threshold, and scroll LED HID controls.
 
 Vendor GATT path in the same environment works when enabled:
-- raw power/sleep/lighting read/write
+- raw idle-time/threshold/lighting read/write
 - battery raw/status read keys
 
 ## 9. Slot and Feature Coverage
@@ -188,15 +189,15 @@ Vendor GATT path in the same environment works when enabled:
 
 | Feature (User-Level) | USB Command(s) | BLE Mapping | Script Status (`razer_usb.py` / `razer_ble.py`) | Gap |
 |---|---|---|---|---|
-| Serial read | `00:82` | Observed read key `01 83 00 00` (read-only observed) | Implemented in both scripts via HID path | Need stable vendor-path mapping |
+| Serial read | `00:82` | `01 83 00 00` | Implemented in both scripts (BT vendor fallback) | Covered |
 | Firmware read | `00:81` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
-| Device mode | `00:84/04` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
+| Device mode | `00:84/04` | `01 82 00 00` (read fallback) | Implemented in both scripts | BT write fallback intentionally disabled pending further decoding |
 | DPI XY | `04:85/05` | Passive HID read + HID set fallback | Implemented in both scripts | Need fully reliable BLE set path |
 | DPI stages | `04:86/06` | `0B84` / `0B04` + `op=0x26` | Implemented in both scripts | Mostly covered |
 | Poll rate | `00:85/05` | HID fallback only | Implemented in both scripts | Need vendor mapping for reliability |
 | Battery | `07:80` | Battery Service + observed `05 81 00 01` | Implemented in both scripts | Need charging-state mapping on vendor path |
-| Idle time | `07:83/03` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
-| Low battery threshold | `07:81/01` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
+| Idle time | `07:83/03` | `05 84 00 00` / `05 04 00 00` | Implemented in both scripts | Covered via BT vendor fallback |
+| Low battery threshold | `07:81/01` | `05 82 00 00` / `05 02 00 00` | Implemented in both scripts | Covered via BT vendor fallback |
 | Scroll mode | `02:94/14` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
 | Scroll acceleration | `02:96/16` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
 | Scroll smart reel | `02:97/17` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
@@ -213,7 +214,7 @@ Vendor GATT path in the same environment works when enabled:
 | DPI stage table get/set (`_bt_get_dpi_stages_blob`, `_bt_set_dpi_stages_blob`) | Sections 5.4, 7.1 |
 | Stage payload parse/build (`_parse_bt_stage_table`, `_build_bt_stage_payload`) | Section 7.1 |
 | Button bind raw + helpers (`set_button_*`) | Sections 5.3, 7.2 |
-| Raw power/sleep/lighting APIs | Section 6 |
+| Raw idle/threshold/lighting APIs | Section 6 |
 | Vendor battery raw/status APIs + `get_battery()` fallback | Sections 6, 8.3 |
 | Scroll LED HID helpers (`get/set_scroll_led_*`) | Sections 8.3, 12 |
 | BLE Battery Service fallback (`get_battery_ble`, `get_battery`) | Section 8.1 |

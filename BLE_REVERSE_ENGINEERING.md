@@ -103,6 +103,18 @@ Reverse engineer the Razer BLE configuration path used by Synapse and implement 
 
 ### Changelog
 
+- **2026-03-08**: Added automated vendor-key discovery (`discover_bt_vendor_keys.py`) and live validation:
+  - Validated key-space scanner with read-only and same-value writeback modes
+  - Confirmed scalar mappings:
+    - `05 84`/`05 04` (`u16`) aligned with idle-time value
+    - `05 82`/`05 02` (`u8`) aligned with low-battery-threshold value
+  - Confirmed read fallbacks:
+    - `01 83 00 00` serial payload
+    - `01 82 00 00` mode tuple read
+  - Safety note:
+    - Candidate mode write key `01 02 00 00` can trigger unstable/blinking radio state on current firmware.
+    - BT device-mode write fallback is intentionally disabled in `razer_ble.py`.
+
 - **2026-03-08**: Added right-click remap mapping from `captures/ble/right-click-bind.pcapng`:
   - Confirmed slot `0x02` payloads for left-click, keyboard `F`, and right-click restore
   - Refined action `0x01` semantics to mouse-button action with observed `p0` values:
