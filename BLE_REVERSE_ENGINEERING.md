@@ -130,6 +130,12 @@ Reverse engineer the Razer BLE configuration path used by Synapse and implement 
   - `10 04` 8-byte lighting frame stream path (`04 00 00 00 [M][R][G][B]`) used by Synapse during color/effect updates
   - Clarified read response structure: header notify (length/status) followed by payload notify for scalar values
   - Added capture-backed examples and `razer_ble.py` implementations
+- **2026-03-08**: Added all-lighting-modes mapping from `captures/ble/all-lighting-modes.pcapng`:
+  - Confirmed mode selector key `10 03` (`u32`, observed value `0x00000008`)
+  - Confirmed heavy frame stream key `10 04` for effect/color playback (`04 00 00 00 [M][R][G][B]`)
+  - Added `razer_ble.py` APIs/CLI:
+    - `set_lighting_mode_raw` / `--lighting-mode-raw`
+    - `set_lighting_frame_raw`, `set_lighting_rgb`, `stream_lighting_spectrum`
 - **2026-03-08**: Added button-rebind mapping from `captures/ble/basic-rebind.pcapng`:
   - Header key `08 04 01 <slot>` with op `0x0a` and 10-byte payload writes
   - Documented observed payload families for default mouse, keyboard, and extended remap

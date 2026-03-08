@@ -92,6 +92,7 @@ Two-write sequence:
 | Idle time raw | `05 84 00 00` | `05 04 00 00` | `0x02` | `u16 LE` |
 | Low battery threshold raw | `05 82 00 00` | `05 02 00 00` | `0x01` | `u8` |
 | Lighting raw | `10 85 01 01` | `10 05 01 00` | `0x01` | `u8` |
+| Lighting mode raw | n/a | `10 03 00 00` | `0x04` | `u32 LE` (capture value: `08`) |
 | Lighting frame stream | n/a | `10 04 00 00` | `0x08` | `04 00 00 00 [M][R][G][B]` |
 | Battery raw | `05 81 00 01` | n/a | n/a | `u8` |
 | Battery status raw | `05 80 00 01` | n/a | n/a | `u8` |
@@ -220,6 +221,7 @@ Vendor GATT path in the same environment works when enabled:
 | Button bind raw + helpers (`set_button_*`) | Sections 5.3, 7.2 |
 | Raw idle/threshold/lighting APIs | Section 6 |
 | BLE frame lighting APIs (`set_lighting_frame_raw`, `set_lighting_rgb`, `stream_lighting_spectrum`) | Sections 5.2, 6 |
+| BLE lighting mode raw API (`set_lighting_mode_raw`) | Sections 5.2, 6 |
 | Vendor battery raw/status APIs + `get_battery()` fallback | Sections 6, 8.3 |
 | Generic vendor key reader (`--vendor-key-get`) | Sections 4-6 |
 | Scroll LED HID helpers (`get/set_scroll_led_*`) | Sections 8.3, 12 |

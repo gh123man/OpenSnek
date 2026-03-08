@@ -626,9 +626,15 @@ class RazerMouse:
         marker = max(0, min(0xFF, int(marker)))
         return self.set_lighting_frame_raw(bytes([marker, r, g, b]))
 
+    def set_lighting_mode_raw(self, value_u32: int = 8) -> bool:
+        """Vendor key 10 03 00 00 (u32 LE), capture-backed from all-lighting-modes."""
+        value_u32 = max(0, min(0xFFFFFFFF, int(value_u32)))
+        payload = int(value_u32).to_bytes(4, 'little', signed=False)
+        return self._bt_set_blob(bytes([0x10, 0x03, 0x00, 0x00]), payload)
+
     def stream_lighting_spectrum(self, seconds: float, steps_per_cycle: int = 96, marker: int = 0x00) -> bool:
         seconds = max(0.1, float(seconds))
-        steps_per_cycle = max(12, int(steps_per_cycle))
+        steps_per_cycle = max(12, min(int(steps_per_cycle), max(12, int(seconds * 12))))
         step_delay = seconds / steps_per_cycle
         ok = True
         for i in range(steps_per_cycle):
@@ -1526,6 +1532,8 @@ Note: This script targets Bluetooth transport.
                         help='BLE vendor key 1004 color frame write (capture-backed)')
     parser.add_argument('--lighting-frame-raw', type=str, metavar='MMRRGGBB',
                         help='BLE vendor key 1004 raw 4-byte frame (marker+RGB)')
+    parser.add_argument('--lighting-mode-raw', type=int, metavar='N',
+                        help='BLE raw u32 write (key 1003), capture-backed mode selector')
     parser.add_argument('--lighting-spectrum-seconds', type=float, metavar='N',
                         help='BLE vendor key 1004 stream: run one spectrum cycle over N seconds')
     parser.add_argument('--button-bind-raw', type=str, metavar='SLOT:HEX',
@@ -1895,6 +1903,16 @@ Note: This script targets Bluetooth transport.
             print("  Failed!")
             return 1
 
+    if args.lighting_mode_raw is not None:
+        val = max(0, min(0xFFFFFFFF, int(args.lighting_mode_raw)))
+        print(f"\nSetting BLE lighting mode raw to: {val} (0x{val:08x})")
+        if mouse.set_lighting_mode_raw(val):
+            print("  Success!")
+            made_changes = True
+        else:
+            print("  Failed!")
+            return 1
+
     if args.lighting_spectrum_seconds is not None:
         secs = max(0.1, float(args.lighting_spectrum_seconds))
         print(f"\nStreaming BLE spectrum frame sequence for {secs:.2f}s")
@@ -2071,7 +2089,7 @@ Note: This script targets Bluetooth transport.
             print("No DPI report observed. Move mouse and press DPI button, then retry.")
 
     # Show status
-    if not args.quiet:
+    if not args.quiet and args.lighting_spectrum_seconds is None:
         print_status(mouse)
 
     return 0

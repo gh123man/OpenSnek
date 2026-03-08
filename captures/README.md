@@ -23,6 +23,13 @@ This directory stores BLE protocol captures used to derive and validate `razer_b
     - notify header (length/status), then
     - payload notify carrying scalar bytes.
 
+- `ble/all-lighting-modes.pcapng`
+  - Full Synapse lighting-mode walkthrough (effects + color changes).
+  - Confirms:
+    - dominant frame stream key `10 04` with `04 00 00 00 [M][R][G][B]`
+    - mode selector write key `10 03` with payload `08 00 00 00`
+  - Used to add BT frame-color and mode-raw APIs in `razer_ble.py`.
+
 - `ble/basic-rebind.pcapng`
   - Button remap workflow across multiple slots.
   - Confirms two-step write flow:
