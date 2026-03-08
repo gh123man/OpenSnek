@@ -259,7 +259,7 @@ struct DpiStagesCard: View {
     var body: some View {
         Card(title: "DPI Stages") {
             HStack {
-                Text("Enabled stages: \(appState.editableStageCount)")
+                Text("Enabled stages: \(appState.editableStageCount) / 5")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.82))
                 Spacer()
