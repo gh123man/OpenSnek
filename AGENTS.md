@@ -74,11 +74,17 @@ python razer_poc.py --force-ble
 swift test --package-path OpenSnekMac
 swift run --package-path OpenSnekMac OpenSnekMac
 ./OpenSnekMac/scripts/run_macos_app.sh
+./OpenSnekMac/scripts/generate_xcodeproj.sh
+xcodebuild -project OpenSnekMac/OpenSnekMac.xcodeproj -scheme OpenSnekMac -destination 'platform=macOS' build
+xcodebuild -project OpenSnekMac/OpenSnekMac.xcodeproj -scheme OpenSnekMac -destination 'platform=macOS' test
+xcodebuild -project OpenSnekMac/OpenSnekMac.xcodeproj -scheme OpenSnekProbe -destination 'platform=macOS' build
 ```
 
 Notes:
 - Use `swift run` for quick local iteration.
 - Use `./OpenSnekMac/scripts/run_macos_app.sh` when validating UI/input behavior (dock icon, foreground activation, text-entry/keybinding interactions).
+- Use Xcode project flows for signing/archive/distribution validation.
+- After changing `OpenSnekMac/project.yml`, regenerate `OpenSnekMac/OpenSnekMac.xcodeproj` via `./OpenSnekMac/scripts/generate_xcodeproj.sh`.
 
 ### Swift Hardware Reliability Gate (required for BLE DPI/stage changes)
 

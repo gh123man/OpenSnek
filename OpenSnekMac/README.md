@@ -21,6 +21,10 @@ Pure Swift macOS frontend for `open-snek`.
   - `DeviceSidebarView`: device list and app utility actions
   - `DeviceDetailView`: hero card, DPI/poll/power cards, and button mapping table
   - `UIPrimitives`: shared cards, pills, stat blocks, and color helpers
+- `App/`
+  - `Info.plist`: app metadata/permissions for Xcode builds
+  - `Resources/Assets.xcassets`: app icon catalog
+- `project.yml`: XcodeGen spec for reproducible `OpenSnekMac.xcodeproj`
 
 ## Runtime Guarantees
 
@@ -39,6 +43,26 @@ For full app behavior (dock icon, proper activation/focus, keyboard text-entry r
 
 ```bash
 ./OpenSnekMac/scripts/run_macos_app.sh
+```
+
+For distribution/signing workflows, use the generated Xcode project:
+
+```bash
+./OpenSnekMac/scripts/generate_xcodeproj.sh --open
+```
+
+Regenerate app icon assets (if branding changes):
+
+```bash
+./OpenSnekMac/scripts/generate_appiconset.sh
+```
+
+CLI Xcode validation:
+
+```bash
+xcodebuild -project OpenSnekMac/OpenSnekMac.xcodeproj -scheme OpenSnekMac -destination 'platform=macOS' build
+xcodebuild -project OpenSnekMac/OpenSnekMac.xcodeproj -scheme OpenSnekMac -destination 'platform=macOS' test
+xcodebuild -project OpenSnekMac/OpenSnekMac.xcodeproj -scheme OpenSnekProbe -destination 'platform=macOS' build
 ```
 
 Bundle build only:

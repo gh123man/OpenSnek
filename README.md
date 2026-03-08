@@ -52,6 +52,31 @@ Build and launch as a proper macOS app bundle (recommended for reliable focus, d
 ./OpenSnekMac/scripts/run_macos_app.sh
 ```
 
+Generate and use the native Xcode project (recommended for signing/archive/distribution):
+
+```bash
+./OpenSnekMac/scripts/generate_xcodeproj.sh --open
+```
+
+Regenerate app icon assets:
+
+```bash
+./OpenSnekMac/scripts/generate_appiconset.sh
+```
+
+Headless Xcode build/test:
+
+```bash
+xcodebuild -project OpenSnekMac/OpenSnekMac.xcodeproj -scheme OpenSnekMac -destination 'platform=macOS' build
+xcodebuild -project OpenSnekMac/OpenSnekMac.xcodeproj -scheme OpenSnekMac -destination 'platform=macOS' test
+```
+
+Xcode build for probe CLI:
+
+```bash
+xcodebuild -project OpenSnekMac/OpenSnekMac.xcodeproj -scheme OpenSnekProbe -destination 'platform=macOS' build
+```
+
 Bundle-only build (no launch):
 
 ```bash
@@ -207,6 +232,8 @@ python razer_ble.py --vendor-key-get 00810000
 | `enumerate_hid_gatt_linux.py` | Linux HID-over-GATT probing helper |
 | `discover_bt_vendor_keys.py` | Safe BLE vendor key discovery and writeback validator |
 | `OpenSnekMac/` | Swift package containing `OpenSnekMac` app and `OpenSnekProbe` CLI |
+| `OpenSnekMac/OpenSnekMac.xcodeproj` | Native macOS Xcode project for signing/archive/distribution |
+| `OpenSnekMac/project.yml` | XcodeGen source-of-truth used to regenerate the Xcode project |
 | `captures/` | BLE capture corpus and index |
 | `PROTOCOL.md` | Protocol documentation index |
 | `USB_PROTOCOL.md` | USB transport protocol |

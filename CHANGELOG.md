@@ -33,3 +33,6 @@ All notable changes to this project are documented in this file.
 - Sleep-timeout power-management control in UI plus USB (`07:83/03`) and BLE (`05 84/05 04`) bridge read/write plumbing.
 - BLE lighting-frame color hydration path on startup (`10 84 00 00`) plus persisted per-device fallback when firmware does not return payload for this read.
 - macOS app-bundle build scripts: `OpenSnekMac/scripts/build_macos_app.sh` and `OpenSnekMac/scripts/run_macos_app.sh` for dock/icon/focus-correct launches outside `swift run`.
+- Xcode-distribution scaffold for macOS: `OpenSnekMac/project.yml` (XcodeGen spec), generated `OpenSnekMac/OpenSnekMac.xcodeproj`, and `OpenSnekMac/scripts/generate_xcodeproj.sh`.
+- Native app asset catalog + AppIcon set under `OpenSnekMac/App/Resources/Assets.xcassets`.
+- `OpenSnekMac/scripts/generate_appiconset.sh` to reproducibly regenerate all macOS app icon sizes from a single generated source.
