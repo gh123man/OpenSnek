@@ -286,6 +286,10 @@ Set:      Class 0x0F, ID 0x04, Size 0x03
 Args:     [0] = VARSTORE (0x01), [1] = LED ID (0x01 scroll wheel), [2] = brightness (0..255)
 ```
 
+Validated LED IDs on `0x00B9`:
+- `0x01`: supported for brightness read/write
+- other tested IDs (`0x00`, `0x02..0x08`): failure status on brightness get
+
 #### Set Scroll LED Effects
 ```
 Command:  Class 0x0F, ID 0x02, Size varies

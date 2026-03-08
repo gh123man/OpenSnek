@@ -63,6 +63,7 @@ Validated in-session over USB:
 - working: serial, firmware, device mode read/write, poll-rate read/write, idle-time read/write, low-battery-threshold read/write, DPI/stages, battery
 - working: scroll LED brightness + effects (none/spectrum/wave/static/reactive/breath single/dual/random)
 - unsupported (returns `None`): scroll mode, scroll acceleration, scroll smart reel
+- USB remap probes (`0x02:0x0D`) still return `not_supported` on this model with tested payloads
 
 CLI behavior has been updated to skip unsupported scroll controls with warnings instead of failing runs.
 
