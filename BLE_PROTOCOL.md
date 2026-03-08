@@ -129,6 +129,7 @@ Read-side parsing in `razer_ble.py` accepts:
 ```
 
 Action families exposed by helpers:
+- `0x00`: clear/default layer entry (observed with `layer=0x01`)
 - `0x01`: mouse-button action
 - `0x02`: simple keyboard action
 - `0x0D`: extended keyboard/action variant
@@ -136,6 +137,10 @@ Action families exposed by helpers:
 Observed mouse mapping (`action_type=0x01`):
 - `p0=0x0101` left click
 - `p0=0x0201` right click
+
+Observed layer-clear mapping (`all-key-binding-functions.pcapng`):
+- `01 <slot> 01 00 0000 0000 0000`
+- interpreted as clearing layer-1 override for that slot.
 
 ## 8. Non-Vendor BLE Paths Used by `razer_ble.py`
 
@@ -174,6 +179,7 @@ Vendor GATT path in the same environment works when enabled:
 - DPI stage table: read/write with active-stage handling.
 - Button rebinding validated on slots `0x02`, `0x03`, `0x04`, `0x05`.
 - Slot `0x02` default restore is implemented as explicit right-click payload.
+- Layer-clear payload (`layer=0x01`, `action=0x00`) observed on slots `0x04` and `0x05`.
 
 ## 10. Status Codes
 
@@ -218,7 +224,7 @@ Vendor GATT path in the same environment works when enabled:
 | Generic scalar get/set helpers (`_bt_get_scalar`, `_bt_set_scalar`) | Sections 5.1, 5.2, 6 |
 | DPI stage table get/set (`_bt_get_dpi_stages_blob`, `_bt_set_dpi_stages_blob`) | Sections 5.4, 7.1 |
 | Stage payload parse/build (`_parse_bt_stage_table`, `_build_bt_stage_payload`) | Section 7.1 |
-| Button bind raw + helpers (`set_button_*`) | Sections 5.3, 7.2 |
+| Button bind raw + helpers (`set_button_*`, `set_button_clear_layer`) | Sections 5.3, 7.2 |
 | Raw idle/threshold/lighting APIs | Section 6 |
 | BLE frame lighting APIs (`set_lighting_frame_raw`, `set_lighting_rgb`, `stream_lighting_spectrum`) | Sections 5.2, 6 |
 | BLE lighting mode raw API (`set_lighting_mode_raw`) | Sections 5.2, 6 |

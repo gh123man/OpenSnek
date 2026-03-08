@@ -51,6 +51,7 @@ python razer_usb.py --scroll-led-effect spectrum
 # BLE examples
 python razer_ble.py --single-dpi 1600
 python razer_ble.py --button-right-click 2
+python razer_ble.py --button-clear-layer 5:1
 python razer_ble.py --lighting-value-raw 1
 python razer_ble.py --lighting-mode-raw 8
 python razer_ble.py --lighting-rgb ff0000

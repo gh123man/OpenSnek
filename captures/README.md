@@ -30,6 +30,14 @@ This directory stores BLE protocol captures used to derive and validate `razer_b
     - mode selector write key `10 03` with payload `08 00 00 00`
   - Used to add BT frame-color and mode-raw APIs in `razer_ble.py`.
 
+- `ble/all-key-binding-functions.pcapng`
+  - Attempted full single-button binding walkthrough in Synapse.
+  - Observed repeated writes for slots `0x05` and `0x04` only:
+    - header: `08 04 01 <slot>`, len `0x0a`
+    - payload: `01 <slot> 01 00 0000 0000 0000`
+  - This adds capture-backed evidence for layer-specific clear/default entries (`layer=0x01`, `action=0x00`).
+  - No distinct turbo/media/macro payload variants were present in this trace.
+
 - `ble/basic-rebind.pcapng`
   - Button remap workflow across multiple slots.
   - Confirms two-step write flow:

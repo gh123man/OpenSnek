@@ -693,12 +693,19 @@ class RazerMouse:
         return False
 
     @staticmethod
-    def _build_button_payload_action(slot: int, action_type: int, param0_u16: int, param1_u16: int, param2_u16: int) -> bytes:
-        # Capture-backed layout: [profile=01][slot][layer=00][action][p0_le16][p1_le16][p2_le16]
+    def _build_button_payload_action(
+        slot: int,
+        action_type: int,
+        param0_u16: int,
+        param1_u16: int,
+        param2_u16: int,
+        layer: int = 0x00,
+    ) -> bytes:
+        # Capture-backed layout: [profile=01][slot][layer][action][p0_le16][p1_le16][p2_le16]
         return bytes([
             0x01,
             slot & 0xFF,
-            0x00,
+            layer & 0xFF,
             action_type & 0xFF,
             param0_u16 & 0xFF, (param0_u16 >> 8) & 0xFF,
             param1_u16 & 0xFF, (param1_u16 >> 8) & 0xFF,
@@ -708,24 +715,31 @@ class RazerMouse:
     @staticmethod
     def _build_button_payload_default(slot: int) -> bytes:
         # Observed pattern: 01 <slot> 00 01 0000 0000 0000
-        return RazerMouse._build_button_payload_action(slot, 0x01, 0x0000, 0x0000, 0x0000)
+        return RazerMouse._build_button_payload_action(slot, 0x01, 0x0000, 0x0000, 0x0000, layer=0x00)
+
+    @staticmethod
+    def _build_button_payload_clear_layer(slot: int, layer: int) -> bytes:
+        # all-key-binding-functions.pcapng observed:
+        #   01 <slot> 01 00 0000 0000 0000
+        # interpreted as clearing layer override entry.
+        return RazerMouse._build_button_payload_action(slot, 0x00, 0x0000, 0x0000, 0x0000, layer=int(layer))
 
     @staticmethod
     def _build_button_payload_keyboard_simple(slot: int, hid_key: int) -> bytes:
         # Observed pattern: 01 <slot> 00 02 0200 <hid_key> 0000
-        return RazerMouse._build_button_payload_action(slot, 0x02, 0x0002, hid_key & 0xFFFF, 0x0000)
+        return RazerMouse._build_button_payload_action(slot, 0x02, 0x0002, hid_key & 0xFFFF, 0x0000, layer=0x00)
 
     @staticmethod
     def _build_button_payload_keyboard_extended(slot: int, primary_u16: int, secondary_u16: int) -> bytes:
         # Observed variant: action 0x0d with params like 0400 0800 8e00
-        return RazerMouse._build_button_payload_action(slot, 0x0D, 0x0004, primary_u16 & 0xFFFF, secondary_u16 & 0xFFFF)
+        return RazerMouse._build_button_payload_action(slot, 0x0D, 0x0004, primary_u16 & 0xFFFF, secondary_u16 & 0xFFFF, layer=0x00)
 
     @staticmethod
     def _build_button_payload_mouse_button(slot: int, mouse_button_id: int) -> bytes:
         # right-click-bind.pcapng confirms slot 0x02:
         # left click => action 0x01, p0=0x0101 ; right click => action 0x01, p0=0x0201.
         p0 = ((int(mouse_button_id) & 0xFF) << 8) | 0x01
-        return RazerMouse._build_button_payload_action(slot, 0x01, p0, 0x0000, 0x0000)
+        return RazerMouse._build_button_payload_action(slot, 0x01, p0, 0x0000, 0x0000, layer=0x00)
 
     def set_button_default(self, slot: int) -> bool:
         slot = int(slot)
@@ -733,6 +747,10 @@ class RazerMouse:
         if slot == 0x02:
             return self.set_button_binding_raw(slot, self._build_button_payload_mouse_button(slot, 0x02))
         return self.set_button_binding_raw(slot, self._build_button_payload_default(slot))
+
+    def set_button_clear_layer(self, slot: int, layer: int = 0x01) -> bool:
+        slot = int(slot)
+        return self.set_button_binding_raw(slot, self._build_button_payload_clear_layer(slot, int(layer)))
 
     def set_button_mouse_button(self, slot: int, mouse_button_id: int) -> bool:
         slot = int(slot)
@@ -1552,6 +1570,8 @@ Note: This script targets Bluetooth transport.
                         help='Set button slot to extended keyboard action (capture-backed action 0x0d)')
     parser.add_argument('--button-action-u16', type=str, metavar='SLOT:TYPE:P0:P1:P2',
                         help='Generic action payload using 3x u16 params')
+    parser.add_argument('--button-clear-layer', type=str, metavar='SLOT:LAYER',
+                        help='Clear button override entry on a layer (capture-backed action 0x00)')
     parser.add_argument('--vendor-key-get', type=str, metavar='KEY4HEX',
                         help='Read arbitrary BLE vendor key (8 hex chars, read-only)')
     parser.add_argument('--quiet', '-q', action='store_true',
@@ -2031,6 +2051,22 @@ Note: This script targets Bluetooth transport.
             return 1
         print(f"\nSetting button slot {slot} action=0x{typ:02x} params=({p0:#06x},{p1:#06x},{p2:#06x})")
         if mouse.set_button_action_u16(slot, typ, p0, p1, p2):
+            print("  Success!")
+            made_changes = True
+        else:
+            print("  Failed!")
+            return 1
+
+    if args.button_clear_layer:
+        try:
+            slot_s, layer_s = args.button_clear_layer.split(':', 1)
+            slot = int(slot_s, 0)
+            layer = int(layer_s, 0)
+        except Exception:
+            print("\nInvalid --button-clear-layer format. Use SLOT:LAYER.")
+            return 1
+        print(f"\nClearing button slot {slot} layer {layer} override entry")
+        if mouse.set_button_clear_layer(slot, layer):
             print("  Success!")
             made_changes = True
         else:

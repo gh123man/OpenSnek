@@ -136,6 +136,15 @@ Reverse engineer the Razer BLE configuration path used by Synapse and implement 
   - Added `razer_ble.py` APIs/CLI:
     - `set_lighting_mode_raw` / `--lighting-mode-raw`
     - `set_lighting_frame_raw`, `set_lighting_rgb`, `stream_lighting_spectrum`
+- **2026-03-08**: Parsed `captures/ble/all-key-binding-functions.pcapng`:
+  - Observed repeated button writes only for slots `0x04`/`0x05`:
+    - header `08 04 01 <slot>` with len `0x0a`
+    - payload `01 <slot> 01 00 0000 0000 0000`
+  - Added mapping for layer-clear/default entry (`layer=0x01`, `action=0x00`)
+    and implemented helper/CLI in `razer_ble.py`:
+    - `set_button_clear_layer`
+    - `--button-clear-layer SLOT:LAYER`
+  - No unique turbo/media/macro payloads were present in this capture.
 - **2026-03-08**: Added button-rebind mapping from `captures/ble/basic-rebind.pcapng`:
   - Header key `08 04 01 <slot>` with op `0x0a` and 10-byte payload writes
   - Documented observed payload families for default mouse, keyboard, and extended remap
