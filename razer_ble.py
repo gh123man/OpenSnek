@@ -2089,7 +2089,14 @@ Note: This script targets Bluetooth transport.
             print("No DPI report observed. Move mouse and press DPI button, then retry.")
 
     # Show status
-    if not args.quiet and args.lighting_spectrum_seconds is None:
+    did_lighting_write = (
+        args.lighting_value_raw is not None
+        or bool(args.lighting_rgb)
+        or bool(args.lighting_frame_raw)
+        or args.lighting_mode_raw is not None
+        or args.lighting_spectrum_seconds is not None
+    )
+    if not args.quiet and not did_lighting_write:
         print_status(mouse)
 
     return 0
