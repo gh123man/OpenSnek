@@ -82,7 +82,9 @@ final class AppState {
             let fetched = try await client.readState(device: selectedDevice)
             let merged = fetched.merged(with: stateCacheByDeviceID[selectedDevice.id])
             stateCacheByDeviceID[selectedDevice.id] = merged
-            state = merged
+            if state != merged {
+                state = merged
+            }
             lastUpdated = Date()
             if !hasPendingLocalEdits && !isApplying {
                 hydrateEditable(from: merged)
@@ -200,12 +202,15 @@ final class AppState {
             let next = try await client.apply(device: selectedDevice, patch: patch)
             let merged = next.merged(with: stateCacheByDeviceID[selectedDevice.id])
             stateCacheByDeviceID[selectedDevice.id] = merged
-            state = merged
+            if state != merged {
+                state = merged
+            }
             lastUpdated = Date()
             hasPendingLocalEdits = false
             hydrateEditable(from: merged)
             errorMessage = nil
         } catch {
+            hasPendingLocalEdits = false
             errorMessage = error.localizedDescription
         }
     }

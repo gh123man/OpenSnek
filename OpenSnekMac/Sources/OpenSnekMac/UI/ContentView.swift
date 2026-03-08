@@ -15,7 +15,7 @@ struct ContentView: View {
         .onChange(of: appState.selectedDeviceID) { _, _ in
             Task { await appState.refreshState() }
         }
-        .onReceive(Timer.publish(every: 4.0, on: .main, in: .common).autoconnect()) { _ in
+        .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
             Task { await appState.refreshState() }
         }
     }

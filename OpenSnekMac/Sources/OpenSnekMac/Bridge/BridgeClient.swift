@@ -6,6 +6,7 @@ actor BridgeClient {
     private var txnByDeviceID: [String: UInt8] = [:]
     private var btReqID: UInt8 = 0x30
     private var btDpiSnapshotByDeviceID: [String: (active: Int, count: Int, slots: [Int], marker: UInt8)] = [:]
+    private let btVendorClient = BTVendorClient()
 
     private let usbVID = 0x1532
     private let btVID = 0x068E
@@ -224,16 +225,14 @@ actor BridgeClient {
         return btReqID
     }
 
-    private func btExchange(_ writes: [Data], timeout: TimeInterval = 2.2) async throws -> [Data] {
-        // Use a fresh transaction client per exchange to avoid overlapping-call continuation leaks.
-        let client = BTVendorClient()
-        return try await client.run(writes: writes, timeout: timeout)
+    private func btExchange(_ writes: [Data], timeout: TimeInterval = 0.8) async throws -> [Data] {
+        return try await btVendorClient.run(writes: writes, timeout: timeout)
     }
 
     private func btGetScalar(key: BLEVendorProtocol.Key, size: Int) async throws -> Int? {
         let req = nextBTReq()
         let header = BLEVendorProtocol.buildReadHeader(req: req, key: key)
-        let notifies = try await btExchange([header])
+        let notifies = try await btExchange([header], timeout: 0.5)
         guard let payload = BLEVendorProtocol.parsePayloadFrames(notifies: notifies, req: req), payload.count >= size else {
             return nil
         }
@@ -246,7 +245,7 @@ actor BridgeClient {
         let req = nextBTReq()
         let header = BLEVendorProtocol.buildWriteHeader(req: req, payloadLength: payloadLength, key: key)
         let payload = Data((0..<size).map { idx in UInt8((value >> (8 * idx)) & 0xFF) })
-        let notifies = try await btExchange([header, payload])
+        let notifies = try await btExchange([header, payload], timeout: 0.9)
         return btAckSuccess(notifies: notifies, req: req)
     }
 
@@ -263,7 +262,7 @@ actor BridgeClient {
     private func btGetDpiStages(deviceID: String) async throws -> (active: Int, values: [Int], marker: UInt8)? {
         let req = nextBTReq()
         let header = BLEVendorProtocol.buildReadHeader(req: req, key: .dpiStagesGet)
-        let notifies = try await btExchange([header])
+        let notifies = try await btExchange([header], timeout: 0.6)
         guard let payload = BLEVendorProtocol.parsePayloadFrames(notifies: notifies, req: req),
               let parsed = BLEVendorProtocol.parseDpiStages(blob: payload) else {
             return nil
@@ -277,7 +276,7 @@ actor BridgeClient {
     private func btGetDpiStageSnapshot(deviceID: String) async throws -> (active: Int, count: Int, slots: [Int], marker: UInt8)? {
         let req = nextBTReq()
         let header = BLEVendorProtocol.buildReadHeader(req: req, key: .dpiStagesGet)
-        let notifies = try await btExchange([header])
+        let notifies = try await btExchange([header], timeout: 0.6)
         guard let payload = BLEVendorProtocol.parsePayloadFrames(notifies: notifies, req: req),
               let parsed = BLEVendorProtocol.parseDpiStageSnapshot(blob: payload) else {
             return nil
@@ -310,7 +309,7 @@ actor BridgeClient {
         )
         let req = nextBTReq()
         let header = BLEVendorProtocol.buildWriteHeader(req: req, payloadLength: 0x26, key: .dpiStagesSet)
-        let notifies = try await btExchange([header, payload.prefix(20), payload.suffix(from: 20)])
+        let notifies = try await btExchange([header, payload.prefix(20), payload.suffix(from: 20)], timeout: 0.9)
         let ok = btAckSuccess(notifies: notifies, req: req)
         if ok {
             btDpiSnapshotByDeviceID[deviceID] = (
@@ -337,7 +336,7 @@ actor BridgeClient {
         ])
         let req = nextBTReq()
         let header = BLEVendorProtocol.buildWriteHeader(req: req, payloadLength: 0x08, key: .lightingFrameSet)
-        let notifies = try await btExchange([header, payload])
+        let notifies = try await btExchange([header, payload], timeout: 0.9)
         return btAckSuccess(notifies: notifies, req: req)
     }
 
@@ -345,7 +344,7 @@ actor BridgeClient {
         let payload = BLEVendorProtocol.buildButtonPayload(slot: slot, kind: kind, hidKey: hidKey)
         let req = nextBTReq()
         let header = BLEVendorProtocol.buildWriteHeader(req: req, payloadLength: 0x0A, key: .buttonBind(slot: slot))
-        let notifies = try await btExchange([header, payload])
+        let notifies = try await btExchange([header, payload], timeout: 0.9)
         return btAckSuccess(notifies: notifies, req: req)
     }
 
