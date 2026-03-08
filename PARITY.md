@@ -70,8 +70,8 @@ CLI behavior has been updated to skip unsupported scroll controls with warnings 
 ## Validated BT Profile (Basilisk V3 X HyperSpeed BT PID `0x00BA`, macOS stack)
 
 Validated in-session over Bluetooth:
-- HID path (vendor GATT disabled): probe works, config command reads return `None`, writes return `False`
-- Vendor GATT path (`--enable-vendor-gatt`): working for
+- HID path (`--disable-vendor-gatt`): probe works, config command reads return `None`, writes return `False`
+- Vendor GATT path (default-on): working for
   - power timeout raw read/write/readback
   - sleep timeout raw read/write/readback
   - lighting raw read/write/readback

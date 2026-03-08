@@ -13,7 +13,7 @@ def find_mouse(transport: str, debug: bool = False):
         return transport_mod.find_razer_mouse(debug_hid=debug)
     else:
         import razer_ble as transport_mod
-        return transport_mod.find_razer_mouse(debug_hid=debug, enable_vendor_gatt=False)
+        return transport_mod.find_razer_mouse(debug_hid=debug, enable_vendor_gatt=True)
 
 
 def run_probe(mouse, transport: str, include_vendor: bool = False) -> Dict[str, Any]:

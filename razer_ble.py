@@ -256,7 +256,7 @@ class RazerMouse:
         product_id: int,
         product_name: str = "",
         debug_hid: bool = False,
-        enable_vendor_gatt: bool = False,
+        enable_vendor_gatt: bool = True,
     ):
         self.device_path = device_path
         self.vendor_id = vendor_id
@@ -468,8 +468,8 @@ class RazerMouse:
         return req
 
     def _bt_vendor_exchange(self, writes: List[bytes], timeout_s: float = 2.0) -> Optional[List[bytes]]:
-        # CoreBluetooth vendor GATT path is unstable on some macOS stacks.
-        # Keep it opt-in to avoid hard crashes.
+        # Vendor GATT is the primary BT config path. Allow explicit disable
+        # via CLI for troubleshooting problematic CoreBluetooth stacks.
         if not self.enable_vendor_gatt:
             return None
         if self.vendor_id != BT_VENDOR_ID_RAZER or not HAS_CB_VENDOR:
@@ -1206,7 +1206,7 @@ class RazerMouse:
         return sorted(values)
 
 
-def find_razer_mouse(debug_hid: bool = False, enable_vendor_gatt: bool = False) -> Optional[RazerMouse]:
+def find_razer_mouse(debug_hid: bool = False, enable_vendor_gatt: bool = True) -> Optional[RazerMouse]:
     """Find and return a connected Bluetooth Razer mouse."""
     devices = hid.enumerate()
 
@@ -1446,12 +1446,12 @@ Note: This script targets Bluetooth transport.
                         help='Minimal output')
     parser.add_argument('--debug-hid', action='store_true',
                         help='Enable verbose HID transport debug output')
-    parser.add_argument('--enable-vendor-gatt', action='store_true',
-                        help='Enable BLE vendor GATT path (may be unstable on some macOS setups)')
+    parser.add_argument('--disable-vendor-gatt', action='store_true',
+                        help='Disable BLE vendor GATT path (enabled by default)')
     parser.add_argument('--battery-ble', action='store_true',
                         help='Read battery level via BLE Battery Service (macOS only)')
     parser.add_argument('--battery-vendor', action='store_true',
-                        help='Read battery via BLE vendor keys (requires --enable-vendor-gatt)')
+                        help='Read battery via BLE vendor keys')
     parser.add_argument('--sniff-dpi', nargs='?', const=8.0, type=float, metavar='SECONDS',
                         help='Bluetooth: sniff passive DPI reports for N seconds (default: 8)')
 
@@ -1461,7 +1461,7 @@ Note: This script targets Bluetooth transport.
     if not args.quiet:
         print("\nSearching for Razer mouse...")
 
-    mouse = find_razer_mouse(debug_hid=args.debug_hid, enable_vendor_gatt=args.enable_vendor_gatt)
+    mouse = find_razer_mouse(debug_hid=args.debug_hid, enable_vendor_gatt=not args.disable_vendor_gatt)
 
     if mouse is None:
         print("\nNo Razer mouse found!")
@@ -1896,7 +1896,8 @@ Note: This script targets Bluetooth transport.
             print(f"  Battery (vendor raw): {raw} (0x{raw:02x}) ~{pct}%")
         else:
             print("  Could not read vendor battery raw key.")
-            print("  Try again with --enable-vendor-gatt.")
+            if args.disable_vendor_gatt:
+                print("  Vendor GATT is disabled; rerun without --disable-vendor-gatt.")
         if status is not None:
             print(f"  Battery status (vendor raw): {status} (0x{status:02x})")
 
