@@ -33,6 +33,7 @@ final class AppState {
     private var colorApplyTask: Task<Void, Never>?
     private var buttonApplyTask: Task<Void, Never>?
     private var hasPendingLocalEdits = false
+    private var stateCacheByDeviceID: [String: MouseState] = [:]
 
     var selectedDevice: MouseDevice? {
         guard let selectedDeviceID else { return nil }
@@ -52,6 +53,9 @@ final class AppState {
             if let selected = selectedDevice, !listed.contains(selected) {
                 selectedDeviceID = listed.first?.id
             }
+            if let selectedDeviceID, let cached = stateCacheByDeviceID[selectedDeviceID] {
+                state = cached
+            }
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -67,19 +71,30 @@ final class AppState {
         }
         guard !isRefreshingState, !isApplying else { return }
 
+        if let cached = stateCacheByDeviceID[selectedDevice.id] {
+            state = cached
+        }
+
         isRefreshingState = true
         defer { isRefreshingState = false }
 
         do {
             let fetched = try await client.readState(device: selectedDevice)
-            state = fetched
+            let merged = fetched.merged(with: stateCacheByDeviceID[selectedDevice.id])
+            stateCacheByDeviceID[selectedDevice.id] = merged
+            state = merged
             lastUpdated = Date()
             if !hasPendingLocalEdits && !isApplying {
-                hydrateEditable(from: fetched)
+                hydrateEditable(from: merged)
             }
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            if stateCacheByDeviceID[selectedDevice.id] == nil {
+                errorMessage = error.localizedDescription
+            } else {
+                // Keep last known-good UI stable on transient polling failures.
+                errorMessage = nil
+            }
         }
     }
 
@@ -183,10 +198,12 @@ final class AppState {
 
         do {
             let next = try await client.apply(device: selectedDevice, patch: patch)
-            state = next
+            let merged = next.merged(with: stateCacheByDeviceID[selectedDevice.id])
+            stateCacheByDeviceID[selectedDevice.id] = merged
+            state = merged
             lastUpdated = Date()
             hasPendingLocalEdits = false
-            hydrateEditable(from: next)
+            hydrateEditable(from: merged)
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription

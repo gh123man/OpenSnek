@@ -50,12 +50,50 @@ struct MouseState: Codable, Hashable {
     let capabilities: Capabilities
 }
 
+extension MouseState {
+    func merged(with previous: MouseState?) -> MouseState {
+        guard let previous else { return self }
+        return MouseState(
+            device: device.merged(with: previous.device),
+            connection: connection,
+            battery_percent: battery_percent ?? previous.battery_percent,
+            charging: charging ?? previous.charging,
+            dpi: dpi ?? previous.dpi,
+            dpi_stages: DpiStages(
+                active_stage: dpi_stages.active_stage ?? previous.dpi_stages.active_stage,
+                values: dpi_stages.values ?? previous.dpi_stages.values
+            ),
+            poll_rate: poll_rate ?? previous.poll_rate,
+            device_mode: device_mode ?? previous.device_mode,
+            led_value: led_value ?? previous.led_value,
+            capabilities: Capabilities(
+                dpi_stages: capabilities.dpi_stages || previous.capabilities.dpi_stages,
+                poll_rate: capabilities.poll_rate || previous.capabilities.poll_rate,
+                button_remap: capabilities.button_remap || previous.capabilities.button_remap,
+                lighting: capabilities.lighting || previous.capabilities.lighting
+            )
+        )
+    }
+}
+
 struct DeviceSummary: Codable, Hashable {
     let id: String?
     let product_name: String?
     let serial: String?
     let transport: String?
     let firmware: String?
+}
+
+extension DeviceSummary {
+    func merged(with previous: DeviceSummary) -> DeviceSummary {
+        DeviceSummary(
+            id: id ?? previous.id,
+            product_name: product_name ?? previous.product_name,
+            serial: serial ?? previous.serial,
+            transport: transport ?? previous.transport,
+            firmware: firmware ?? previous.firmware
+        )
+    }
 }
 
 struct BridgeEnvelope: Codable {

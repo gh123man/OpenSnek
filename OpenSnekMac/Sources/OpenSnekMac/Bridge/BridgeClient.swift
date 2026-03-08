@@ -170,7 +170,10 @@ actor BridgeClient {
     }
 
     private func readBluetoothState(device: MouseDevice, handle: IOHIDDevice) async throws -> MouseState {
-        let btStages = (try? await btGetDpiStages(deviceID: device.id)) ?? nil
+        let btStages = (try? await btGetDpiStages(deviceID: device.id))
+            ?? btDpiSnapshotByDeviceID[device.id].map { snapshot in
+                (active: snapshot.active, values: Array(snapshot.slots.prefix(snapshot.count)), marker: snapshot.marker)
+            }
         let batteryRaw = (try? await btGetScalar(key: .batteryRaw, size: 1)) ?? nil
         let batteryStatus = (try? await btGetScalar(key: .batteryStatus, size: 1)) ?? nil
         let lighting = (try? await btGetScalar(key: .lightingGet, size: 1)) ?? nil
@@ -208,7 +211,7 @@ actor BridgeClient {
             device_mode: nil,
             led_value: lighting,
             capabilities: Capabilities(
-                dpi_stages: btStages != nil,
+                dpi_stages: true,
                 poll_rate: false,
                 button_remap: true,
                 lighting: true
