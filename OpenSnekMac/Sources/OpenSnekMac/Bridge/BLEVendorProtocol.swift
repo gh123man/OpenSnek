@@ -1,0 +1,137 @@
+import Foundation
+
+enum BLEVendorProtocol {
+    static let serviceUUID = UUID(uuidString: "52401523-F97C-7F90-0E7F-6C6F4E36DB1C")!
+    static let writeUUID = UUID(uuidString: "52401524-F97C-7F90-0E7F-6C6F4E36DB1C")!
+    static let notifyUUID = UUID(uuidString: "52401525-F97C-7F90-0E7F-6C6F4E36DB1C")!
+
+    struct Key: Equatable {
+        let b0: UInt8
+        let b1: UInt8
+        let b2: UInt8
+        let b3: UInt8
+
+        var bytes: [UInt8] { [b0, b1, b2, b3] }
+
+        static let dpiStagesGet = Key(b0: 0x0B, b1: 0x84, b2: 0x01, b3: 0x00)
+        static let dpiStagesSet = Key(b0: 0x0B, b1: 0x04, b2: 0x01, b3: 0x00)
+        static let lightingGet = Key(b0: 0x10, b1: 0x85, b2: 0x01, b3: 0x01)
+        static let lightingSet = Key(b0: 0x10, b1: 0x05, b2: 0x01, b3: 0x00)
+        static let lightingFrameSet = Key(b0: 0x10, b1: 0x04, b2: 0x00, b3: 0x00)
+        static let batteryRaw = Key(b0: 0x05, b1: 0x81, b2: 0x00, b3: 0x01)
+        static let batteryStatus = Key(b0: 0x05, b1: 0x80, b2: 0x00, b3: 0x01)
+
+        static func buttonBind(slot: UInt8) -> Key {
+            Key(b0: 0x08, b1: 0x04, b2: 0x01, b3: slot)
+        }
+    }
+
+    struct NotifyHeader: Equatable {
+        let req: UInt8
+        let payloadLength: Int
+        let status: UInt8
+
+        init?(data: Data) {
+            guard data.count == 20 else { return nil }
+            req = data[0]
+            payloadLength = Int(data[1])
+            status = data[7]
+        }
+    }
+
+    static func buildReadHeader(req: UInt8, key: Key) -> Data {
+        Data([req, 0x00, 0x00, 0x00] + key.bytes)
+    }
+
+    static func buildWriteHeader(req: UInt8, payloadLength: UInt8, key: Key) -> Data {
+        Data([req, payloadLength, 0x00, 0x00] + key.bytes)
+    }
+
+    static func parsePayloadFrames(notifies: [Data], req: UInt8) -> Data? {
+        guard let headerIndex = notifies.firstIndex(where: { frame in
+            guard let hdr = NotifyHeader(data: frame) else { return false }
+            return hdr.req == req && [0x02, 0x03, 0x05].contains(hdr.status)
+        }), let header = NotifyHeader(data: notifies[headerIndex]), header.status == 0x02 else {
+            return nil
+        }
+
+        let continuation: [Data]
+        if headerIndex + 1 < notifies.count {
+            continuation = Array(notifies[(headerIndex + 1)...]).filter { $0.count == 20 }
+        } else {
+            continuation = []
+        }
+        let payload = continuation.reduce(into: Data()) { partialResult, frame in
+            partialResult.append(frame)
+        }
+        if header.payloadLength == 0 { return Data() }
+        return payload.prefix(header.payloadLength)
+    }
+
+    static func parseDpiStages(blob: Data) -> (active: Int, count: Int, values: [Int], marker: UInt8)? {
+        if blob.count >= 37 {
+            let active = Int(blob[0])
+            let count = max(1, min(5, Int(blob[1])))
+            let offsets = [2, 9, 16, 23, 30]
+            var values: [Int] = []
+            for off in offsets.prefix(count) {
+                guard off + 4 < blob.count else { return nil }
+                let value = Int(blob[off + 1]) | (Int(blob[off + 2]) << 8)
+                values.append(value)
+            }
+            let marker = blob.count > 36 ? blob[36] : 0x03
+            return (active: max(0, min(count - 1, active)), count: count, values: values, marker: marker)
+        }
+
+        if blob.count >= 7 {
+            let active = Int(blob[0])
+            let count = max(1, min(5, Int(blob[1])))
+            let value = Int(blob[3]) | (Int(blob[4]) << 8)
+            return (active: max(0, min(count - 1, active)), count: count, values: Array(repeating: value, count: count), marker: 0x03)
+        }
+
+        return nil
+    }
+
+    static func buildDpiStagePayload(active: Int, count: Int, values: [Int], marker: UInt8) -> Data {
+        var out = Data([UInt8(max(0, min(4, active))), UInt8(max(1, min(5, count)))])
+        let clamped = values.map { max(100, min(30000, $0)) }
+
+        for i in 0..<5 {
+            let value = clamped[min(i, max(0, clamped.count - 1))]
+            let lo = UInt8(value & 0xFF)
+            let hi = UInt8((value >> 8) & 0xFF)
+            out.append(UInt8(i))
+            out.append(lo)
+            out.append(hi)
+            out.append(lo)
+            out.append(hi)
+            out.append(0x00)
+            out.append(i == 4 ? marker : 0x00)
+        }
+        out.append(0x00)
+        return out
+    }
+
+    static func buildButtonPayload(slot: UInt8, kind: ButtonBindingKind, hidKey: UInt8?) -> Data {
+        switch kind {
+        case .default:
+            return Data([0x01, slot, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+        case .leftClick:
+            return Data([0x01, slot, 0x00, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00])
+        case .rightClick:
+            return Data([0x01, slot, 0x00, 0x01, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00])
+        case .middleClick:
+            return Data([0x01, slot, 0x00, 0x01, 0x01, 0x03, 0x00, 0x00, 0x00, 0x00])
+        case .mouseBack:
+            return Data([0x01, slot, 0x00, 0x01, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00])
+        case .mouseForward:
+            return Data([0x01, slot, 0x00, 0x01, 0x01, 0x05, 0x00, 0x00, 0x00, 0x00])
+        case .keyboardSimple:
+            let key = hidKey ?? 0x04
+            return Data([0x01, slot, 0x00, 0x02, 0x02, 0x00, key, 0x00, 0x00, 0x00])
+        case .clearLayer:
+            return Data([0x01, slot, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+        }
+    }
+}
