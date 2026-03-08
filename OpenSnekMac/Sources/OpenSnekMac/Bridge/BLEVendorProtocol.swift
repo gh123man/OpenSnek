@@ -68,34 +68,65 @@ enum BLEVendorProtocol {
         return payload.prefix(header.payloadLength)
     }
 
-    static func parseDpiStages(blob: Data) -> (active: Int, count: Int, values: [Int], marker: UInt8)? {
+    static func parseDpiStageSnapshot(blob: Data) -> (active: Int, count: Int, slots: [Int], marker: UInt8)? {
         if blob.count >= 37 {
             let active = Int(blob[0])
             let count = max(1, min(5, Int(blob[1])))
             let offsets = [2, 9, 16, 23, 30]
-            var values: [Int] = []
-            for off in offsets.prefix(count) {
+            var slots: [Int] = []
+            for off in offsets {
                 guard off + 4 < blob.count else { return nil }
                 let value = Int(blob[off + 1]) | (Int(blob[off + 2]) << 8)
-                values.append(value)
+                slots.append(value)
             }
             let marker = blob.count > 36 ? blob[36] : 0x03
-            return (active: max(0, min(count - 1, active)), count: count, values: values, marker: marker)
+            return (active: max(0, min(count - 1, active)), count: count, slots: slots, marker: marker)
         }
 
         if blob.count >= 7 {
             let active = Int(blob[0])
             let count = max(1, min(5, Int(blob[1])))
             let value = Int(blob[3]) | (Int(blob[4]) << 8)
-            return (active: max(0, min(count - 1, active)), count: count, values: Array(repeating: value, count: count), marker: 0x03)
+            return (active: max(0, min(count - 1, active)), count: count, slots: Array(repeating: value, count: 5), marker: 0x03)
         }
 
         return nil
     }
 
-    static func buildDpiStagePayload(active: Int, count: Int, values: [Int], marker: UInt8) -> Data {
+    static func parseDpiStages(blob: Data) -> (active: Int, count: Int, values: [Int], marker: UInt8)? {
+        guard let snapshot = parseDpiStageSnapshot(blob: blob) else { return nil }
+        return (
+            active: snapshot.active,
+            count: snapshot.count,
+            values: Array(snapshot.slots.prefix(snapshot.count)),
+            marker: snapshot.marker
+        )
+    }
+
+    static func mergedStageSlots(currentSlots: [Int], requestedCount: Int, requestedValues: [Int]) -> [Int] {
+        let count = max(1, min(5, requestedCount))
+        let clamped = requestedValues.map { max(100, min(30000, $0)) }
+        var slots = Array(currentSlots.prefix(5))
+        if slots.count < 5 {
+            slots += Array(repeating: clamped.first ?? 800, count: 5 - slots.count)
+        }
+
+        if count == 1 {
+            let single = clamped.first ?? slots[0]
+            return Array(repeating: single, count: 5)
+        }
+
+        for i in 0..<count {
+            if i < clamped.count {
+                slots[i] = clamped[i]
+            }
+        }
+        return Array(slots.prefix(5))
+    }
+
+    static func buildDpiStagePayload(active: Int, count: Int, slots: [Int], marker: UInt8) -> Data {
         var out = Data([UInt8(max(0, min(4, active))), UInt8(max(1, min(5, count)))])
-        let clamped = values.map { max(100, min(30000, $0)) }
+        let clamped = slots.map { max(100, min(30000, $0)) }
 
         for i in 0..<5 {
             let value = clamped[min(i, max(0, clamped.count - 1))]

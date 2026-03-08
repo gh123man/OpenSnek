@@ -62,7 +62,7 @@ final class BTVendorClient: NSObject, @unchecked Sendable {
             self.finish(.success(self.notifications))
         }
         finishWorkItem = item
-        queue.asyncAfter(deadline: .now() + 0.55, execute: item)
+        queue.asyncAfter(deadline: .now() + 0.12, execute: item)
     }
 
     private func fail(_ message: String) {

@@ -269,16 +269,32 @@ actor BridgeClient {
         return (active: parsed.active, values: parsed.values, marker: parsed.marker)
     }
 
+    private func btGetDpiStageSnapshot() async throws -> (active: Int, count: Int, slots: [Int], marker: UInt8)? {
+        let req = nextBTReq()
+        let header = BLEVendorProtocol.buildReadHeader(req: req, key: .dpiStagesGet)
+        let notifies = try await btExchange([header])
+        guard let payload = BLEVendorProtocol.parsePayloadFrames(notifies: notifies, req: req),
+              let parsed = BLEVendorProtocol.parseDpiStageSnapshot(blob: payload) else {
+            return nil
+        }
+        return parsed
+    }
+
     private func btSetDpiStages(active: Int, values: [Int]) async throws -> Bool {
-        let current = try await btGetDpiStages()
+        let current = try await btGetDpiStageSnapshot()
         let marker = current?.marker ?? 0x03
-        let clamped = Array(values.prefix(5)).map { max(100, min(30000, $0)) }
-        guard !clamped.isEmpty else { return false }
+        let count = max(1, min(5, values.count))
+        let currentSlots = current?.slots ?? [800, 1600, 2400, 3200, 6400]
+        let mergedSlots = BLEVendorProtocol.mergedStageSlots(
+            currentSlots: currentSlots,
+            requestedCount: count,
+            requestedValues: values
+        )
 
         let payload = BLEVendorProtocol.buildDpiStagePayload(
             active: active,
-            count: clamped.count,
-            values: clamped,
+            count: count,
+            slots: mergedSlots,
             marker: marker
         )
         let req = nextBTReq()

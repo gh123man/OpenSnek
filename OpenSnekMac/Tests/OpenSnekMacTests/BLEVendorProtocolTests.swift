@@ -27,12 +27,30 @@ final class BLEVendorProtocolTests: XCTestCase {
     }
 
     func testParseAndBuildDpiStagesRoundTrip() {
-        let payload = BLEVendorProtocol.buildDpiStagePayload(active: 1, count: 3, values: [800, 1600, 3200], marker: 0x03)
+        let payload = BLEVendorProtocol.buildDpiStagePayload(active: 1, count: 3, slots: [800, 1600, 3200, 6400, 12000], marker: 0x03)
         let parsed = BLEVendorProtocol.parseDpiStages(blob: payload)
         XCTAssertNotNil(parsed)
         XCTAssertEqual(parsed?.active, 1)
         XCTAssertEqual(parsed?.count, 3)
         XCTAssertEqual(parsed?.values.prefix(3), [800, 1600, 3200])
+    }
+
+    func testMergedStageSlotsSingleModeMirrors() {
+        let merged = BLEVendorProtocol.mergedStageSlots(
+            currentSlots: [400, 800, 1600, 3200, 6400],
+            requestedCount: 1,
+            requestedValues: [1800]
+        )
+        XCTAssertEqual(merged, [1800, 1800, 1800, 1800, 1800])
+    }
+
+    func testMergedStageSlotsMultiModePreservesTail() {
+        let merged = BLEVendorProtocol.mergedStageSlots(
+            currentSlots: [400, 800, 1600, 3200, 6400],
+            requestedCount: 3,
+            requestedValues: [500, 900, 1700]
+        )
+        XCTAssertEqual(merged, [500, 900, 1700, 3200, 6400])
     }
 
     func testButtonPayloadKeyboardSimple() {
