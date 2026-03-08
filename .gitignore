@@ -44,3 +44,6 @@ Thumbs.db
 *.PNF
 *.exe
 gatt_enumeration_results.json
+
+# SwiftPM build artifacts
+OpenSnekMac/.build/
