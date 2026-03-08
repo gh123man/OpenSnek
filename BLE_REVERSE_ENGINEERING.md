@@ -127,6 +127,8 @@ Reverse engineer the Razer BLE configuration path used by Synapse and implement 
   - `05 84`/`05 04` raw u16 power-timeout path (2-byte LE payload writes)
   - `05 82`/`05 02` raw u8 sleep-timeout path
   - `10 85`/`10 05` raw u8 lighting-value path
+  - `10 04` 8-byte lighting frame stream path (`04 00 00 00 [M][R][G][B]`) used by Synapse during color/effect updates
+  - Clarified read response structure: header notify (length/status) followed by payload notify for scalar values
   - Added capture-backed examples and `razer_ble.py` implementations
 - **2026-03-08**: Added button-rebind mapping from `captures/ble/basic-rebind.pcapng`:
   - Header key `08 04 01 <slot>` with op `0x0a` and 10-byte payload writes

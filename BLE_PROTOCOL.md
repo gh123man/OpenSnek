@@ -32,7 +32,7 @@ Target device family in current captures:
 
 ```text
 byte0  req_id
-byte1  op
+byte1  payload_length_for_followup_write (0x00 for reads)
 byte2  0x00
 byte3  0x00
 byte4  key0
@@ -55,6 +55,9 @@ byte8-19 session/aux bytes
 
 - Payload frames follow the header notify.
 - `razer_ble.py` concatenates continuation frames in arrival order.
+- In capture-backed reads (`power-lighting.pcapng`), short scalar reads use:
+  - notify header (req echo + payload length), then
+  - one data notify where first `payload_length` bytes are the scalar payload.
 
 ## 5. Generic Operations
 
@@ -65,7 +68,7 @@ byte8-19 session/aux bytes
 
 ### 5.2 Generic Scalar Write
 
-- Header: `[req, op, 0x00, 0x00, key0, key1, key2, key3]`
+- Header: `[req, payload_len, 0x00, 0x00, key0, key1, key2, key3]`
 - Follow-up payload write: scalar bytes (`u8` or `u16` LE).
 - Success: ACK notify with matching `req` and status `0x02`.
 
@@ -83,12 +86,13 @@ Two-write sequence:
 
 ## 6. Command Key Map (Implemented)
 
-| Feature | Get key (`byte4..7`) | Set key (`byte4..7`) | Set op | Payload |
+| Feature | Get key (`byte4..7`) | Set key (`byte4..7`) | Set len (byte1) | Payload |
 |---|---|---|---:|---|
 | DPI stage table | `0B 84 01 00` | `0B 04 01 00` | `0x26` | 38 bytes |
 | Idle time raw | `05 84 00 00` | `05 04 00 00` | `0x02` | `u16 LE` |
 | Low battery threshold raw | `05 82 00 00` | `05 02 00 00` | `0x01` | `u8` |
 | Lighting raw | `10 85 01 01` | `10 05 01 00` | `0x01` | `u8` |
+| Lighting frame stream | n/a | `10 04 00 00` | `0x08` | `04 00 00 00 [M][R][G][B]` |
 | Battery raw | `05 81 00 01` | n/a | n/a | `u8` |
 | Battery status raw | `05 80 00 01` | n/a | n/a | `u8` |
 | Device mode raw (read fallback) | `01 82 00 00` | `01 02 00 00` (candidate) | `0x02` | `u16 LE` |
@@ -203,7 +207,7 @@ Vendor GATT path in the same environment works when enabled:
 | Scroll smart reel | `02:97/17` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
 | Scroll LED brightness/effects | `0F:84/04`, `0F:02` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping for non-HID parity |
 | Button remap | USB experimental raw writer only | `08 04 01 <slot>` + payload | BLE implemented + USB experimental writer | Need USB action taxonomy + shared safe helpers |
-| Lighting / matrix | USB class `0x0F` partly implemented (scroll LED) | Raw scalar lighting key only (`10 85` / `10 05`) | USB scroll LED + partial BLE scalar | Need full effect model on both transports |
+| Lighting / matrix | USB class `0x0F` partly implemented (scroll LED) | Scalar key (`10 85` / `10 05`) + frame stream key (`10 04`) | USB scroll LED + BLE scalar + BLE frame writes | Need full effect model + persistence on both transports |
 
 ## 13. `razer_ble.py` Feature Overlap Checklist
 
@@ -215,6 +219,7 @@ Vendor GATT path in the same environment works when enabled:
 | Stage payload parse/build (`_parse_bt_stage_table`, `_build_bt_stage_payload`) | Section 7.1 |
 | Button bind raw + helpers (`set_button_*`) | Sections 5.3, 7.2 |
 | Raw idle/threshold/lighting APIs | Section 6 |
+| BLE frame lighting APIs (`set_lighting_frame_raw`, `set_lighting_rgb`, `stream_lighting_spectrum`) | Sections 5.2, 6 |
 | Vendor battery raw/status APIs + `get_battery()` fallback | Sections 6, 8.3 |
 | Generic vendor key reader (`--vendor-key-get`) | Sections 4-6 |
 | Scroll LED HID helpers (`get/set_scroll_led_*`) | Sections 8.3, 12 |

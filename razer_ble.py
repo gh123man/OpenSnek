@@ -13,6 +13,7 @@ Usage:
 """
 
 import argparse
+import colorsys
 import hid
 import time
 import sys
@@ -555,12 +556,24 @@ class RazerMouse:
         return int.from_bytes(blob[:size], 'little')
 
     def _bt_set_scalar(self, key4: bytes, op: int, value: int, size: int) -> bool:
+        # `op` here is payload length for this key family.
+        # Kept as `op` to avoid touching existing call sites.
+        return self._bt_set_blob(
+            key4,
+            int(value).to_bytes(size, 'little', signed=False),
+            payload_len_override=(op & 0xFF),
+        )
+
+    def _bt_set_blob(self, key4: bytes, payload: bytes, payload_len_override: Optional[int] = None) -> bool:
         if self.vendor_id != BT_VENDOR_ID_RAZER or len(key4) != 4:
             return False
         req = self._next_bt_req()
-        header = bytes([req, op & 0xFF, 0x00, 0x00]) + key4
-        payload = int(value).to_bytes(size, 'little', signed=False)
-        notifs = self._bt_vendor_exchange([header, payload], timeout_s=1.8)
+        payload_len = len(payload) if payload_len_override is None else int(payload_len_override) & 0xFF
+        header = bytes([req, payload_len, 0x00, 0x00]) + key4
+        writes = [header]
+        if payload:
+            writes.append(bytes(payload))
+        notifs = self._bt_vendor_exchange(writes, timeout_s=1.8)
         if not notifs:
             return False
         for n in notifs:
@@ -594,6 +607,41 @@ class RazerMouse:
         """Vendor key 10 05 01 00 (u8)."""
         value = max(0, min(0xFF, int(value)))
         return self._bt_set_scalar(bytes([0x10, 0x05, 0x01, 0x00]), 0x01, value, 1)
+
+    def set_lighting_frame_raw(self, frame4: bytes) -> bool:
+        """
+        Vendor key 10 04 00 00 (8-byte payload):
+          04 00 00 00 [M][R][G][B]
+        `M` is a mode/marker byte observed as 0x00 in captures.
+        """
+        if len(frame4) != 4:
+            return False
+        payload = bytes([0x04, 0x00, 0x00, 0x00]) + frame4
+        return self._bt_set_blob(bytes([0x10, 0x04, 0x00, 0x00]), payload)
+
+    def set_lighting_rgb(self, r: int, g: int, b: int, marker: int = 0x00) -> bool:
+        r = max(0, min(0xFF, int(r)))
+        g = max(0, min(0xFF, int(g)))
+        b = max(0, min(0xFF, int(b)))
+        marker = max(0, min(0xFF, int(marker)))
+        return self.set_lighting_frame_raw(bytes([marker, r, g, b]))
+
+    def stream_lighting_spectrum(self, seconds: float, steps_per_cycle: int = 96, marker: int = 0x00) -> bool:
+        seconds = max(0.1, float(seconds))
+        steps_per_cycle = max(12, int(steps_per_cycle))
+        step_delay = seconds / steps_per_cycle
+        ok = True
+        for i in range(steps_per_cycle):
+            h = (i % steps_per_cycle) / float(steps_per_cycle)
+            r_f, g_f, b_f = colorsys.hsv_to_rgb(h, 1.0, 1.0)
+            r = int(round(r_f * 255.0))
+            g = int(round(g_f * 255.0))
+            b = int(round(b_f * 255.0))
+            if not self.set_lighting_rgb(r, g, b, marker=marker):
+                ok = False
+                break
+            time.sleep(step_delay)
+        return ok
 
     def get_battery_vendor_raw(self) -> Optional[int]:
         """Vendor key 05 81 00 01 (u8 raw battery level)."""
@@ -1474,6 +1522,12 @@ Note: This script targets Bluetooth transport.
                         help='BLE raw u8 write (key 0502/0582)')
     parser.add_argument('--lighting-value-raw', type=int, metavar='N',
                         help='BLE raw u8 write (key 1005/1085)')
+    parser.add_argument('--lighting-rgb', type=str, metavar='RRGGBB',
+                        help='BLE vendor key 1004 color frame write (capture-backed)')
+    parser.add_argument('--lighting-frame-raw', type=str, metavar='MMRRGGBB',
+                        help='BLE vendor key 1004 raw 4-byte frame (marker+RGB)')
+    parser.add_argument('--lighting-spectrum-seconds', type=float, metavar='N',
+                        help='BLE vendor key 1004 stream: run one spectrum cycle over N seconds')
     parser.add_argument('--button-bind-raw', type=str, metavar='SLOT:HEX',
                         help='BLE raw button bind write (10-byte payload hex)')
     parser.add_argument('--button-default', type=int, metavar='SLOT',
@@ -1804,6 +1858,47 @@ Note: This script targets Bluetooth transport.
         val = max(0, min(0xFF, int(args.lighting_value_raw)))
         print(f"\nSetting BLE lighting raw value to: {val} (0x{val:02x})")
         if mouse.set_lighting_value_raw(val):
+            print("  Success!")
+            made_changes = True
+        else:
+            print("  Failed!")
+            return 1
+
+    if args.lighting_rgb:
+        rgb = _parse_rgb_hex(args.lighting_rgb)
+        if rgb is None:
+            print("\nInvalid --lighting-rgb; expected RRGGBB.")
+            return 1
+        print(f"\nSetting BLE lighting frame RGB to: #{args.lighting_rgb.strip().lstrip('#')}")
+        if mouse.set_lighting_rgb(*rgb, marker=0x00):
+            print("  Success!")
+            made_changes = True
+        else:
+            print("  Failed!")
+            return 1
+
+    if args.lighting_frame_raw:
+        s = args.lighting_frame_raw.strip().lower().replace("#", "")
+        if len(s) != 8:
+            print("\nInvalid --lighting-frame-raw; expected exactly 8 hex chars (MMRRGGBB).")
+            return 1
+        try:
+            frame = bytes.fromhex(s)
+        except Exception:
+            print("\nInvalid --lighting-frame-raw hex.")
+            return 1
+        print(f"\nSetting BLE lighting frame raw to: {frame.hex()}")
+        if mouse.set_lighting_frame_raw(frame):
+            print("  Success!")
+            made_changes = True
+        else:
+            print("  Failed!")
+            return 1
+
+    if args.lighting_spectrum_seconds is not None:
+        secs = max(0.1, float(args.lighting_spectrum_seconds))
+        print(f"\nStreaming BLE spectrum frame sequence for {secs:.2f}s")
+        if mouse.stream_lighting_spectrum(secs, steps_per_cycle=96, marker=0x00):
             print("  Success!")
             made_changes = True
         else:

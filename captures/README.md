@@ -18,6 +18,10 @@ This directory stores BLE protocol captures used to derive and validate `razer_b
     - power timeout: `05 84` / `05 04` (u16)
     - sleep timeout: `05 82` / `05 02` (u8)
     - lighting value: `10 85` / `10 05` (u8)
+    - lighting frame stream: `10 04` with 8-byte payload `04 00 00 00 [M][R][G][B]`
+  - Confirms two-stage scalar read response pattern:
+    - notify header (length/status), then
+    - payload notify carrying scalar bytes.
 
 - `ble/basic-rebind.pcapng`
   - Button remap workflow across multiple slots.

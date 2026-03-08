@@ -52,6 +52,8 @@ python razer_usb.py --scroll-led-effect spectrum
 python razer_ble.py --single-dpi 1600
 python razer_ble.py --button-right-click 2
 python razer_ble.py --lighting-value-raw 1
+python razer_ble.py --lighting-rgb ff0000
+python razer_ble.py --lighting-spectrum-seconds 3
 python razer_ble.py --battery-vendor
 python razer_ble.py --vendor-key-get 00810000
 ```
@@ -65,7 +67,7 @@ python razer_ble.py --vendor-key-get 00810000
 | Set Active DPI Stage | Yes | Yes | BLE implemented via stage-table rewrite |
 | Read/Set Poll Rate | Yes | Partial | Implemented with HID command path; BLE stack dependent |
 | Read Battery | Yes | Yes | BLE fallback via Battery Service `0x180F` |
-| Scroll LED Brightness/Effects | Yes | Partial | USB validated (`0x0F:0x84/0x04` + `0x0F:0x02`); BLE via HID path only |
+| Scroll LED Brightness/Effects | Yes | Partial | USB validated (`0x0F:0x84/0x04` + `0x0F:0x02`); BLE has capture-backed vendor scalar/frame paths |
 | Idle/Threshold/Lighting (raw) | No | Yes | BLE vendor scalar read/write keys |
 | Button Rebinding | Partial | Yes | BLE vendor header+10-byte payload; USB has experimental raw writer |
 

@@ -37,7 +37,7 @@ Legend:
 | Scroll LED brightness | `0F:84/04` (`VARSTORE`, `LED=0x01`) | unknown vendor key | both scripts (HID path) | PARTIAL | USB validated; BLE vendor key not mapped |
 | Scroll LED effects | `0F:02` (none/spectrum/wave/static/reactive/breath) | unknown vendor key | both scripts (HID path) | PARTIAL | USB validated on Basilisk V3 X |
 | Button remapping | class `0x02`, `0x0D/0x12` family | vendor `08 04 01 <slot>` + 10-byte payload | BLE implemented + USB experimental raw writer | PARTIAL | Need validated USB action catalog and safe helpers |
-| Lighting/effects | class `0x0F` (OpenRazer documented) | raw scalar lighting (`10 85`/`10 05`) | USB scroll LED effects + BLE raw scalar | PARTIAL | No full cross-transport effect abstraction yet |
+| Lighting/effects | class `0x0F` (OpenRazer documented) | scalar (`10 85`/`10 05`) + frame stream (`10 04`) | USB scroll LED effects + BLE scalar/frame writes | PARTIAL | No full cross-transport effect abstraction/persistence yet |
 | Profiles | partially documented in ecosystem | unknown | none | UNKNOWN | Needs capture-backed mapping |
 
 ## Current Priorities
