@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [2026-03-08]
 
 ### Fixed
+- Closing the main window with the macOS close button now terminates the app instead of leaving a background process running.
 - BLE DPI stage value parsing no longer drops the last stage when read payload length is short by one byte.
 - Active-stage selection now maps correctly to the stage actually selected on-device during mouse-button stage cycling.
 - Removed unstable BLE active-stage nudge/toggle write behavior that caused stage-value collapse in some multi-stage transitions.

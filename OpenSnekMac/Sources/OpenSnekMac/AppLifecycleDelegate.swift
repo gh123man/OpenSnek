@@ -17,4 +17,8 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
         }
         return true
     }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        true
+    }
 }
