@@ -2,18 +2,19 @@
 """
 Razer Mouse macOS Configuration Tool
 
-Configure BLE settings for Razer mice on macOS.
-Bluetooth transport only.
+Configure DPI, DPI stages, poll rate, and more for Razer mice on macOS.
+USB/2.4GHz dongle transport only.
 
 Usage:
-    python razer_ble.py                          # Show current settings
-    python razer_ble.py --single-dpi 1600        # Set one fixed DPI stage
-    python razer_ble.py --stages 800,1600,3200   # Set staged DPI profile
-    python razer_ble.py --active-stage 2         # Set active stage (1-5)
+    python3 tools/python/razer_usb.py --help
+    python3 tools/python/razer_usb.py            # Show current settings
+    python3 tools/python/razer_usb.py --dpi 1600               # Set current DPI
+    python3 tools/python/razer_usb.py --stages 400,800,1600    # Set DPI stages
+    python3 tools/python/razer_usb.py --active-stage 2         # Set active stage (1-5)
+    python3 tools/python/razer_usb.py --poll-rate 1000         # Set poll rate (125/500/1000)
 """
 
 import argparse
-import colorsys
 import hid
 import time
 import sys
@@ -257,14 +258,12 @@ class RazerMouse:
         product_id: int,
         product_name: str = "",
         debug_hid: bool = False,
-        enable_vendor_gatt: bool = True,
     ):
         self.device_path = device_path
         self.vendor_id = vendor_id
         self.product_id = product_id
         self.product_name = product_name
         self.debug_hid = debug_hid
-        self.enable_vendor_gatt = enable_vendor_gatt
         self.txn_id = 0x1F  # Most modern mice use this
         self.txn_candidates = TRANSACTION_ID_CANDIDATES.get(product_id, [0x1F, 0x3F, 0xFF])
         self.bt_cached_dpi: Optional[Tuple[int, int]] = None
@@ -469,10 +468,6 @@ class RazerMouse:
         return req
 
     def _bt_vendor_exchange(self, writes: List[bytes], timeout_s: float = 2.0) -> Optional[List[bytes]]:
-        # Vendor GATT is the primary BT config path. Allow explicit disable
-        # via CLI for troubleshooting problematic CoreBluetooth stacks.
-        if not self.enable_vendor_gatt:
-            return None
         if self.vendor_id != BT_VENDOR_ID_RAZER or not HAS_CB_VENDOR:
             return None
         try:
@@ -524,337 +519,22 @@ class RazerMouse:
                 return True
         return False
 
-    def _bt_get_blob(self, key4: bytes) -> Optional[bytes]:
-        if self.vendor_id != BT_VENDOR_ID_RAZER or len(key4) != 4:
-            return None
-        req = self._next_bt_req()
-        cmd = bytes([req, 0x00, 0x00, 0x00]) + key4
-        notifs = self._bt_vendor_exchange([cmd], timeout_s=1.8)
-        if not notifs:
-            return None
-
-        header_idx = -1
-        header = None
-        for i, n in enumerate(notifs):
-            if len(n) == 20 and n[0] == req and n[7] in (0x02, 0x03, 0x05):
-                header_idx = i
-                header = n
-                break
-        if header is None or header[7] != 0x02:
-            return None
-
-        expected_len = int(header[1])
-        payload = b"".join(bytes(n) for n in notifs[header_idx + 1:] if len(n) == 20)
-        if expected_len > 0:
-            payload = payload[:expected_len]
-        return payload
-
-    def _bt_get_scalar(self, key4: bytes, size: int) -> Optional[int]:
-        blob = self._bt_get_blob(key4)
-        if blob is None or len(blob) < size:
-            return None
-        return int.from_bytes(blob[:size], 'little')
-
-    def _bt_set_scalar(self, key4: bytes, op: int, value: int, size: int) -> bool:
-        # `op` here is payload length for this key family.
-        # Kept as `op` to avoid touching existing call sites.
-        return self._bt_set_blob(
-            key4,
-            int(value).to_bytes(size, 'little', signed=False),
-            payload_len_override=(op & 0xFF),
-        )
-
-    def _bt_set_blob(self, key4: bytes, payload: bytes, payload_len_override: Optional[int] = None) -> bool:
-        if self.vendor_id != BT_VENDOR_ID_RAZER or len(key4) != 4:
-            return False
-        req = self._next_bt_req()
-        payload_len = len(payload) if payload_len_override is None else int(payload_len_override) & 0xFF
-        header = bytes([req, payload_len, 0x00, 0x00]) + key4
-        writes = [header]
-        if payload:
-            writes.append(bytes(payload))
-        notifs = self._bt_vendor_exchange(writes, timeout_s=1.8)
-        if not notifs:
-            return False
-        for n in notifs:
-            if len(n) == 20 and n[0] == req and n[7] == 0x02:
-                return True
-        return False
-
-    def get_power_timeout_raw(self) -> Optional[int]:
-        """Vendor key 05 84 00 00 (u16 LE)."""
-        return self._bt_get_scalar(bytes([0x05, 0x84, 0x00, 0x00]), 2)
-
-    def set_power_timeout_raw(self, value: int) -> bool:
-        """Vendor key 05 04 00 00 (u16 LE)."""
-        value = max(0, min(0xFFFF, int(value)))
-        return self._bt_set_scalar(bytes([0x05, 0x04, 0x00, 0x00]), 0x02, value, 2)
-
-    def get_sleep_timeout_raw(self) -> Optional[int]:
-        """Vendor key 05 82 00 00 (u8)."""
-        return self._bt_get_scalar(bytes([0x05, 0x82, 0x00, 0x00]), 1)
-
-    def set_sleep_timeout_raw(self, value: int) -> bool:
-        """Vendor key 05 02 00 00 (u8)."""
-        value = max(0, min(0xFF, int(value)))
-        return self._bt_set_scalar(bytes([0x05, 0x02, 0x00, 0x00]), 0x01, value, 1)
-
-    def get_lighting_value_raw(self) -> Optional[int]:
-        """Vendor key 10 85 01 01 (u8)."""
-        return self._bt_get_scalar(bytes([0x10, 0x85, 0x01, 0x01]), 1)
-
-    def set_lighting_value_raw(self, value: int) -> bool:
-        """Vendor key 10 05 01 00 (u8)."""
-        value = max(0, min(0xFF, int(value)))
-        return self._bt_set_scalar(bytes([0x10, 0x05, 0x01, 0x00]), 0x01, value, 1)
-
-    def set_lighting_frame_raw(self, frame4: bytes) -> bool:
-        """
-        Vendor key 10 04 00 00 (8-byte payload):
-          04 00 00 00 [M][R][G][B]
-        `M` is a mode/marker byte observed as 0x00 in captures.
-        """
-        if len(frame4) != 4:
-            return False
-        payload = bytes([0x04, 0x00, 0x00, 0x00]) + frame4
-        return self._bt_set_blob(bytes([0x10, 0x04, 0x00, 0x00]), payload)
-
-    def set_lighting_rgb(self, r: int, g: int, b: int, marker: int = 0x00) -> bool:
-        r = max(0, min(0xFF, int(r)))
-        g = max(0, min(0xFF, int(g)))
-        b = max(0, min(0xFF, int(b)))
-        marker = max(0, min(0xFF, int(marker)))
-        return self.set_lighting_frame_raw(bytes([marker, r, g, b]))
-
-    def set_lighting_mode_raw(self, value_u32: int = 8) -> bool:
-        """Vendor key 10 03 00 00 (u32 LE), capture-backed from all-lighting-modes."""
-        value_u32 = max(0, min(0xFFFFFFFF, int(value_u32)))
-        payload = int(value_u32).to_bytes(4, 'little', signed=False)
-        return self._bt_set_blob(bytes([0x10, 0x03, 0x00, 0x00]), payload)
-
-    def stream_lighting_spectrum(self, seconds: float, steps_per_cycle: int = 96, marker: int = 0x00) -> bool:
-        seconds = max(0.1, float(seconds))
-        steps_per_cycle = max(12, min(int(steps_per_cycle), max(12, int(seconds * 12))))
-        step_delay = seconds / steps_per_cycle
-        ok = True
-        for i in range(steps_per_cycle):
-            h = (i % steps_per_cycle) / float(steps_per_cycle)
-            r_f, g_f, b_f = colorsys.hsv_to_rgb(h, 1.0, 1.0)
-            r = int(round(r_f * 255.0))
-            g = int(round(g_f * 255.0))
-            b = int(round(b_f * 255.0))
-            if not self.set_lighting_rgb(r, g, b, marker=marker):
-                ok = False
-                break
-            time.sleep(step_delay)
-        return ok
-
-    def get_battery_vendor_raw(self) -> Optional[int]:
-        """Vendor key 05 81 00 01 (u8 raw battery level)."""
-        return self._bt_get_scalar(bytes([0x05, 0x81, 0x00, 0x01]), 1)
-
-    def get_battery_status_vendor_raw(self) -> Optional[int]:
-        """Vendor key 05 80 00 01 (u8 status flag; semantics still being mapped)."""
-        return self._bt_get_scalar(bytes([0x05, 0x80, 0x00, 0x01]), 1)
-
-    def get_vendor_key_blob(self, key4_hex: str) -> Optional[bytes]:
-        """Read arbitrary vendor key (8 hex chars, e.g. '05840000')."""
-        try:
-            key = bytes.fromhex(key4_hex.strip())
-        except Exception:
-            return None
-        if len(key) != 4:
-            return None
-        return self._bt_get_blob(key)
-
-    def set_button_binding_raw(self, slot: int, payload10: bytes) -> bool:
-        """
-        Set button binding entry via vendor key 08 04 01 <slot>.
-
-        Capture-backed framing:
-          header: [req] 0a 00 00 08 04 01 <slot>
-          payload: 10 bytes
-        """
-        if self.vendor_id != BT_VENDOR_ID_RAZER:
-            return False
-        if not (0 <= int(slot) <= 0xFF):
-            return False
-        if len(payload10) != 10:
-            return False
-
-        req = self._next_bt_req()
-        header = bytes([req, 0x0A, 0x00, 0x00, 0x08, 0x04, 0x01, int(slot) & 0xFF])
-        notifs = self._bt_vendor_exchange([header, payload10], timeout_s=2.0)
-        if not notifs:
-            return False
-        for n in notifs:
-            if len(n) == 20 and n[0] == req and n[7] == 0x02:
-                return True
-        return False
-
-    @staticmethod
-    def _build_button_payload_action(
-        slot: int,
-        action_type: int,
-        param0_u16: int,
-        param1_u16: int,
-        param2_u16: int,
-        layer: int = 0x00,
-    ) -> bytes:
-        # Capture-backed layout: [profile=01][slot][layer][action][p0_le16][p1_le16][p2_le16]
-        return bytes([
-            0x01,
-            slot & 0xFF,
-            layer & 0xFF,
-            action_type & 0xFF,
-            param0_u16 & 0xFF, (param0_u16 >> 8) & 0xFF,
-            param1_u16 & 0xFF, (param1_u16 >> 8) & 0xFF,
-            param2_u16 & 0xFF, (param2_u16 >> 8) & 0xFF,
-        ])
-
-    @staticmethod
-    def _build_button_payload_default(slot: int) -> bytes:
-        # Capture-backed defaults:
-        # - Slot-specific default mouse actions
-        # - DPI cycle button (slot 0x60): 01 60 00 06 0106 0000 0000
-        slot_i = int(slot)
-        if slot_i == 0x60:
-            return RazerMouse._build_button_payload_action(slot, 0x06, 0x0601, 0x0000, 0x0000, layer=0x00)
-        default_mouse_map = {
-            0x01: 0x01,  # left
-            0x02: 0x02,  # right
-            0x03: 0x03,  # middle
-            0x04: 0x04,  # back
-            0x05: 0x05,  # forward
-            0x09: 0x09,  # scroll up
-            0x0A: 0x0A,  # scroll down
-        }
-        if slot_i in default_mouse_map:
-            return RazerMouse._build_button_payload_mouse_button(slot, default_mouse_map[slot_i])
-        return RazerMouse._build_button_payload_action(slot, 0x01, 0x0000, 0x0000, 0x0000, layer=0x00)
-
-    @staticmethod
-    def _build_button_payload_clear_layer(slot: int, layer: int) -> bytes:
-        # all-key-binding-functions.pcapng observed:
-        #   01 <slot> 01 00 0000 0000 0000
-        # interpreted as clearing layer override entry.
-        return RazerMouse._build_button_payload_action(slot, 0x00, 0x0000, 0x0000, 0x0000, layer=int(layer))
-
-    @staticmethod
-    def _build_button_payload_keyboard_simple(slot: int, hid_key: int) -> bytes:
-        # Observed pattern: 01 <slot> 00 02 0200 <hid_key> 0000
-        return RazerMouse._build_button_payload_action(slot, 0x02, 0x0002, hid_key & 0xFFFF, 0x0000, layer=0x00)
-
-    @staticmethod
-    def _build_button_payload_keyboard_extended(slot: int, primary_u16: int, secondary_u16: int) -> bytes:
-        # Observed variant: action 0x0d with params like 0400 0800 8e00
-        return RazerMouse._build_button_payload_action(slot, 0x0D, 0x0004, primary_u16 & 0xFFFF, secondary_u16 & 0xFFFF, layer=0x00)
-
-    @staticmethod
-    def _build_button_payload_mouse_button(slot: int, mouse_button_id: int) -> bytes:
-        # right-click-bind.pcapng confirms slot 0x02:
-        # left click => action 0x01, p0=0x0101 ; right click => action 0x01, p0=0x0201.
-        p0 = ((int(mouse_button_id) & 0xFF) << 8) | 0x01
-        return RazerMouse._build_button_payload_action(slot, 0x01, p0, 0x0000, 0x0000, layer=0x00)
-
-    @staticmethod
-    def _build_button_payload_mouse_turbo(slot: int, mouse_button_id: int, turbo_rate_u16: int) -> bytes:
-        # right-click-turbo.pcapng confirms:
-        #   action=0x0e, p0=0x0103 for right click (button id 0x02), p1=rate, p2=0x0000.
-        btn = int(mouse_button_id) & 0xFF
-        rate = max(1, min(0x00FF, int(turbo_rate_u16)))
-        idx = max(0, btn - 1) & 0xFF
-        p0 = (idx << 8) | 0x03
-        return RazerMouse._build_button_payload_action(slot, 0x0E, p0, rate, 0x0000, layer=0x00)
-
-    @staticmethod
-    def _build_button_payload_keyboard_turbo(slot: int, hid_key: int, turbo_rate_u16: int) -> bytes:
-        # basic-rebind.pcapng includes keyboard-turbo-like payload:
-        #   action=0x0d, p0=0x0004, p1=hid key, p2=rate.
-        key = int(hid_key) & 0xFF
-        rate = max(1, min(0x00FF, int(turbo_rate_u16)))
-        return RazerMouse._build_button_payload_action(slot, 0x0D, 0x0004, key, rate, layer=0x00)
-
-    def set_button_default(self, slot: int) -> bool:
-        slot = int(slot)
-        return self.set_button_binding_raw(slot, self._build_button_payload_default(slot))
-
-    def set_button_clear_layer(self, slot: int, layer: int = 0x01) -> bool:
-        slot = int(slot)
-        return self.set_button_binding_raw(slot, self._build_button_payload_clear_layer(slot, int(layer)))
-
-    def set_button_mouse_button(self, slot: int, mouse_button_id: int) -> bool:
-        slot = int(slot)
-        return self.set_button_binding_raw(slot, self._build_button_payload_mouse_button(slot, int(mouse_button_id)))
-
-    def set_button_left_click(self, slot: int) -> bool:
-        return self.set_button_mouse_button(slot, 0x01)
-
-    def set_button_right_click(self, slot: int) -> bool:
-        return self.set_button_mouse_button(slot, 0x02)
-
-    def set_button_middle_click(self, slot: int) -> bool:
-        return self.set_button_mouse_button(slot, 0x03)
-
-    def set_button_scroll_up(self, slot: int) -> bool:
-        # capture-backed on slot 0x09: p0=0x0901
-        return self.set_button_mouse_button(slot, 0x09)
-
-    def set_button_scroll_down(self, slot: int) -> bool:
-        # capture-backed on slot 0x0a: p0=0x0a01
-        return self.set_button_mouse_button(slot, 0x0A)
-
-    def set_button_mouse_turbo(self, slot: int, mouse_button_id: int, turbo_rate_u16: int) -> bool:
-        slot = int(slot)
-        payload = self._build_button_payload_mouse_turbo(slot, int(mouse_button_id), int(turbo_rate_u16))
-        return self.set_button_binding_raw(slot, payload)
-
-    def set_button_keyboard_turbo(self, slot: int, hid_key: int, turbo_rate_u16: int) -> bool:
-        slot = int(slot)
-        payload = self._build_button_payload_keyboard_turbo(slot, int(hid_key), int(turbo_rate_u16))
-        return self.set_button_binding_raw(slot, payload)
-
-    def set_button_keyboard_simple(self, slot: int, hid_key: int) -> bool:
-        slot = int(slot)
-        return self.set_button_binding_raw(slot, self._build_button_payload_keyboard_simple(slot, int(hid_key)))
-
-    def set_button_keyboard_extended(self, slot: int, primary_u16: int, secondary_u16: int) -> bool:
-        slot = int(slot)
-        return self.set_button_binding_raw(slot, self._build_button_payload_keyboard_extended(slot, int(primary_u16), int(secondary_u16)))
-
-    def set_button_action_u16(self, slot: int, action_type: int, param0_u16: int, param1_u16: int, param2_u16: int) -> bool:
-        slot = int(slot)
-        payload = self._build_button_payload_action(slot, int(action_type), int(param0_u16), int(param1_u16), int(param2_u16))
-        return self.set_button_binding_raw(slot, payload)
-
     @staticmethod
     def _parse_bt_stage_table(blob: bytes) -> Optional[Tuple[int, int, List[Tuple[int, int]], int]]:
-        # Variable-length staged blob:
-        # [active][count] + count*7-byte stage entries (or up to 5 entries on full blobs)
-        # where each entry begins at offset (2 + i*7):
-        #   [stage_id][dpi_x_le16][dpi_y_le16][reserved][marker_or_reserved]
-        if len(blob) >= 9:
+        # Full staged blob observed as 40 bytes.
+        if len(blob) >= 37:
             active = blob[0]
-            count = max(1, min(5, int(blob[1])))
-            stages: List[Tuple[int, int]] = []
-            marker = 0x03
-
-            for i in range(count):
-                off = 2 + (i * 7)
+            count = blob[1]
+            offsets = [2, 9, 16, 23, 30]
+            stages = []
+            for off in offsets:
                 if off + 5 > len(blob):
-                    break
+                    return None
                 dpi_x = int.from_bytes(blob[off + 1:off + 3], 'little')
                 dpi_y = int.from_bytes(blob[off + 3:off + 5], 'little')
                 stages.append((dpi_x, dpi_y))
-                if off + 6 < len(blob):
-                    marker = blob[off + 6]
-
-            if stages:
-                # Normalize to 5 internal slots for callers that expect fixed-size arrays.
-                fill = stages[-1]
-                while len(stages) < 5:
-                    stages.append(fill)
-                return (active, count, stages, marker)
+            marker = blob[36] if len(blob) > 36 else 0x03
+            return (active, count, stages, marker)
 
         # Single-stage mode can present as 8-byte blob: [active][count][sid][x][y][reserved]
         if len(blob) >= 7:
@@ -1064,12 +744,6 @@ class RazerMouse:
             raw = bytes(response[8:30]).split(b"\x00", 1)[0]
             serial = raw.decode("ascii", errors="ignore").strip()
             return serial or None
-        if self.vendor_id == BT_VENDOR_ID_RAZER:
-            blob = self._bt_get_blob(bytes([0x01, 0x83, 0x00, 0x00]))
-            if blob:
-                raw = blob.split(b"\x00", 1)[0]
-                serial = raw.decode("ascii", errors="ignore").strip()
-                return serial or None
         return None
 
     def get_firmware(self) -> Optional[Tuple[int, int]]:
@@ -1084,11 +758,6 @@ class RazerMouse:
         response = self._send_command(request)
         if response and response[0] == STATUS_SUCCESS and len(response) >= 10:
             return (response[8], response[9])
-        if self.vendor_id == BT_VENDOR_ID_RAZER:
-            # Vendor key 01 82 00 00 (u16 LE) validated as mode tuple.
-            val = self._bt_get_scalar(bytes([0x01, 0x82, 0x00, 0x00]), 2)
-            if val is not None:
-                return (val & 0xFF, (val >> 8) & 0xFF)
         return None
 
     def set_device_mode(self, mode: int, param: int = 0x00) -> bool:
@@ -1098,14 +767,7 @@ class RazerMouse:
             return False
         request = self._create_report(CMD_CLASS_STANDARD, CMD_SET_DEVICE_MODE, 0x02, bytes([mode, param]))
         response = self._send_command(request)
-        if response is not None and response[0] == STATUS_SUCCESS:
-            return True
-        if self.vendor_id == BT_VENDOR_ID_RAZER:
-            # BT vendor key 01 02 00 00 appears writable, but toggling this on
-            # current firmware can trigger unstable/blinking radio state.
-            # Keep BT device-mode path read-only until semantics are fully decoded.
-            self._dbg("bt device mode write disabled for safety")
-        return False
+        return response is not None and response[0] == STATUS_SUCCESS
 
     # --- Power / Battery Threshold ---
 
@@ -1114,9 +776,6 @@ class RazerMouse:
         response = self._send_command(request)
         if response and response[0] == STATUS_SUCCESS and len(response) >= 10:
             return (response[8] << 8) | response[9]
-        if self.vendor_id == BT_VENDOR_ID_RAZER:
-            # Vendor key 05 84 00 00 (u16 LE) aligns with idle-time value.
-            return self._bt_get_scalar(bytes([0x05, 0x84, 0x00, 0x00]), 2)
         return None
 
     def set_idle_time(self, seconds: int) -> bool:
@@ -1124,31 +783,20 @@ class RazerMouse:
         args = bytes([(seconds >> 8) & 0xFF, seconds & 0xFF])
         request = self._create_report(CMD_CLASS_MISC, CMD_SET_IDLE_TIME, 0x02, args)
         response = self._send_command(request)
-        if response is not None and response[0] == STATUS_SUCCESS:
-            return True
-        if self.vendor_id == BT_VENDOR_ID_RAZER:
-            return self._bt_set_scalar(bytes([0x05, 0x04, 0x00, 0x00]), 0x02, seconds, 2)
-        return False
+        return response is not None and response[0] == STATUS_SUCCESS
 
     def get_low_battery_threshold(self) -> Optional[int]:
         request = self._create_report(CMD_CLASS_MISC, CMD_GET_LOW_BATTERY_THRESHOLD, 0x01)
         response = self._send_command(request)
         if response and response[0] == STATUS_SUCCESS and len(response) >= 9:
             return response[8]
-        if self.vendor_id == BT_VENDOR_ID_RAZER:
-            # Vendor key 05 82 00 00 (u8) aligns with low-battery threshold raw.
-            return self._bt_get_scalar(bytes([0x05, 0x82, 0x00, 0x00]), 1)
         return None
 
     def set_low_battery_threshold(self, threshold_raw: int) -> bool:
         threshold = max(0x0C, min(0x3F, int(threshold_raw)))
         request = self._create_report(CMD_CLASS_MISC, CMD_SET_LOW_BATTERY_THRESHOLD, 0x01, bytes([threshold]))
         response = self._send_command(request)
-        if response is not None and response[0] == STATUS_SUCCESS:
-            return True
-        if self.vendor_id == BT_VENDOR_ID_RAZER:
-            return self._bt_set_scalar(bytes([0x05, 0x02, 0x00, 0x00]), 0x01, threshold, 1)
-        return False
+        return response is not None and response[0] == STATUS_SUCCESS
 
     # --- Scroll Wheel Controls ---
 
@@ -1316,8 +964,7 @@ class RazerMouse:
         """Get battery level (0-100) and charging status.
 
         Tries USB HID feature report first. If that fails and the device
-        is connected via Bluetooth, falls back to vendor GATT battery key
-        (when enabled), then BLE Battery Service.
+        is connected via Bluetooth, falls back to BLE Battery Service.
         """
         request = self._create_report(CMD_CLASS_MISC, CMD_GET_BATTERY, 0x02)
         response = self._send_command(request)
@@ -1326,13 +973,8 @@ class RazerMouse:
             level = int((response[9] / 255.0) * 100)
             return (level, charging)
 
-        # BLE fallbacks for Bluetooth devices
+        # BLE fallback for Bluetooth devices
         if self.vendor_id == BT_VENDOR_ID_RAZER:
-            self._dbg("USB battery read failed, trying vendor battery key fallback")
-            raw_level = self.get_battery_vendor_raw()
-            if raw_level is not None:
-                level = int((raw_level / 255.0) * 100)
-                return (level, False)
             self._dbg("USB battery read failed, trying BLE Battery Service fallback")
             ble_level = self.get_battery_ble()
             if ble_level is not None:
@@ -1390,8 +1032,8 @@ class RazerMouse:
         return sorted(values)
 
 
-def find_razer_mouse(debug_hid: bool = False, enable_vendor_gatt: bool = True) -> Optional[RazerMouse]:
-    """Find and return a connected Bluetooth Razer mouse."""
+def find_razer_mouse(debug_hid: bool = False) -> Optional[RazerMouse]:
+    """Find and return a connected USB/dongle Razer mouse."""
     devices = hid.enumerate()
 
     # Group by VID:PID
@@ -1400,7 +1042,7 @@ def find_razer_mouse(debug_hid: bool = False, enable_vendor_gatt: bool = True) -
         vid = d['vendor_id']
         pid = d['product_id']
 
-        if vid == BT_VENDOR_ID_RAZER:
+        if vid == USB_VENDOR_ID_RAZER:
             key = (vid, pid)
             if key not in razer_devices:
                 razer_devices[key] = []
@@ -1424,9 +1066,6 @@ def find_razer_mouse(debug_hid: bool = False, enable_vendor_gatt: bool = True) -
 
     # Find a working interface
     for (vid, pid), interfaces in razer_devices.items():
-        if vid == BT_VENDOR_ID_RAZER:
-            print("Bluetooth device detected; using BLE/HID transport.\n")
-
         seen_paths = set()
         for interface in interfaces:
             path = interface.get('path')
@@ -1439,7 +1078,6 @@ def find_razer_mouse(debug_hid: bool = False, enable_vendor_gatt: bool = True) -
                 pid,
                 interface.get('product_string') or "",
                 debug_hid=debug_hid,
-                enable_vendor_gatt=enable_vendor_gatt,
             )
             # Test communication
             if mouse.probe_connection():
@@ -1519,25 +1157,6 @@ def print_status(mouse: RazerMouse):
         status = " (charging)" if charging else ""
         print(f"\n  Battery:        {level}%{status}")
 
-    if mouse.vendor_id == BT_VENDOR_ID_RAZER:
-        power16 = mouse.get_power_timeout_raw()
-        sleep8 = mouse.get_sleep_timeout_raw()
-        light8 = mouse.get_lighting_value_raw()
-        batt_raw = mouse.get_battery_vendor_raw()
-        batt_status = mouse.get_battery_status_vendor_raw()
-        if power16 is not None or sleep8 is not None or light8 is not None or batt_raw is not None or batt_status is not None:
-            print("\n  BLE Raw:")
-            if power16 is not None:
-                print(f"    Power Timeout (u16): {power16} (0x{power16:04x})")
-            if sleep8 is not None:
-                print(f"    Sleep Timeout (u8):  {sleep8} (0x{sleep8:02x})")
-            if light8 is not None:
-                print(f"    Lighting Value (u8): {light8} (0x{light8:02x})")
-            if batt_raw is not None:
-                print(f"    Battery Raw (u8):    {batt_raw} (0x{batt_raw:02x})")
-            if batt_status is not None:
-                print(f"    Battery Status (u8): {batt_status} (0x{batt_status:02x})")
-
     print()
 
 
@@ -1565,7 +1184,7 @@ Examples:
   %(prog)s --single-dpi 1600            Use one fixed DPI stage
   %(prog)s --poll-rate 1000             Set polling rate to 1000 Hz
 
-Note: This script targets Bluetooth transport.
+Note: This script targets USB and 2.4GHz dongle transport.
         """
     )
     parser.add_argument('--dpi', type=int, metavar='DPI',
@@ -1604,62 +1223,10 @@ Note: This script targets Bluetooth transport.
                         help='Set breathing dual-color scroll LED')
     parser.add_argument('--usb-button-action', type=str, metavar='PROFILE:BTN:TYPE:PARAMHEX[:FN]',
                         help='Experimental USB button action write (class 0x02 id 0x0D)')
-    parser.add_argument('--power-timeout-raw', type=int, metavar='N',
-                        help='BLE raw u16 write (key 0504/0584)')
-    parser.add_argument('--sleep-timeout-raw', type=int, metavar='N',
-                        help='BLE raw u8 write (key 0502/0582)')
-    parser.add_argument('--lighting-value-raw', type=int, metavar='N',
-                        help='BLE raw u8 write (key 1005/1085)')
-    parser.add_argument('--lighting-rgb', type=str, metavar='RRGGBB',
-                        help='BLE vendor key 1004 color frame write (capture-backed)')
-    parser.add_argument('--lighting-frame-raw', type=str, metavar='MMRRGGBB',
-                        help='BLE vendor key 1004 raw 4-byte frame (marker+RGB)')
-    parser.add_argument('--lighting-mode-raw', type=int, metavar='N',
-                        help='BLE raw u32 write (key 1003), capture-backed mode selector')
-    parser.add_argument('--lighting-spectrum-seconds', type=float, metavar='N',
-                        help='BLE vendor key 1004 stream: run one spectrum cycle over N seconds')
-    parser.add_argument('--button-bind-raw', type=str, metavar='SLOT:HEX',
-                        help='BLE raw button bind write (10-byte payload hex)')
-    parser.add_argument('--button-default', type=int, metavar='SLOT',
-                        help='Set button slot to default mouse action (capture-backed)')
-    parser.add_argument('--button-mouse', type=str, metavar='SLOT:BTN',
-                        help='Set button slot to mouse-button action (BTN id; 1=left, 2=right, 3=middle, 9=scroll up, 10=scroll down)')
-    parser.add_argument('--button-left-click', type=int, metavar='SLOT',
-                        help='Set button slot to left-click mouse action')
-    parser.add_argument('--button-right-click', type=int, metavar='SLOT',
-                        help='Set button slot to right-click mouse action')
-    parser.add_argument('--button-middle-click', type=int, metavar='SLOT',
-                        help='Set button slot to middle-click mouse action')
-    parser.add_argument('--button-scroll-up', type=int, metavar='SLOT',
-                        help='Set button slot to scroll-up mouse action (capture-backed id 0x09)')
-    parser.add_argument('--button-scroll-down', type=int, metavar='SLOT',
-                        help='Set button slot to scroll-down mouse action (capture-backed id 0x0A)')
-    parser.add_argument('--button-mouse-turbo', type=str, metavar='SLOT:BTN:RATE',
-                        help='Set button slot to turbo mouse action (BTN id + turbo rate 1-255)')
-    parser.add_argument('--button-keyboard', type=str, metavar='SLOT:KEY',
-                        help='Set button slot to simple keyboard action (hid key code)')
-    parser.add_argument('--button-keyboard-turbo', type=str, metavar='SLOT:KEY:RATE',
-                        help='Set button slot to turbo keyboard action (hid key + turbo rate 1-255)')
-    parser.add_argument('--button-keyboard-ext', type=str, metavar='SLOT:K1:K2',
-                        help='Set button slot to extended keyboard action (capture-backed action 0x0d)')
-    parser.add_argument('--button-action-u16', type=str, metavar='SLOT:TYPE:P0:P1:P2',
-                        help='Generic action payload using 3x u16 params')
-    parser.add_argument('--button-clear-layer', type=str, metavar='SLOT:LAYER',
-                        help='Clear button override entry on a layer (capture-backed action 0x00)')
-    parser.add_argument('--vendor-key-get', type=str, metavar='KEY4HEX',
-                        help='Read arbitrary BLE vendor key (8 hex chars, read-only)')
     parser.add_argument('--quiet', '-q', action='store_true',
                         help='Minimal output')
     parser.add_argument('--debug-hid', action='store_true',
                         help='Enable verbose HID transport debug output')
-    parser.add_argument('--disable-vendor-gatt', action='store_true',
-                        help='Disable BLE vendor GATT path (enabled by default)')
-    parser.add_argument('--battery-ble', action='store_true',
-                        help='Read battery level via BLE Battery Service (macOS only)')
-    parser.add_argument('--battery-vendor', action='store_true',
-                        help='Read battery via BLE vendor keys')
-    parser.add_argument('--sniff-dpi', nargs='?', const=8.0, type=float, metavar='SECONDS',
-                        help='Bluetooth: sniff passive DPI reports for N seconds (default: 8)')
 
     args = parser.parse_args()
 
@@ -1667,14 +1234,13 @@ Note: This script targets Bluetooth transport.
     if not args.quiet:
         print("\nSearching for Razer mouse...")
 
-    mouse = find_razer_mouse(debug_hid=args.debug_hid, enable_vendor_gatt=not args.disable_vendor_gatt)
+    mouse = find_razer_mouse(debug_hid=args.debug_hid)
 
     if mouse is None:
         print("\nNo Razer mouse found!")
         print("\nMake sure:")
         print("  - USB dongle is plugged in, OR")
         print("  - Mouse is connected via USB cable")
-        print("  - Bluetooth mouse is connected and exposing a HID config interface")
         return 1
 
     if not args.quiet:
@@ -1936,341 +1502,8 @@ Note: This script targets Bluetooth transport.
             print("  Failed!")
             return 1
 
-    if args.power_timeout_raw is not None:
-        val = max(0, min(0xFFFF, int(args.power_timeout_raw)))
-        print(f"\nSetting BLE power-timeout raw to: {val} (0x{val:04x})")
-        if mouse.set_power_timeout_raw(val):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.sleep_timeout_raw is not None:
-        val = max(0, min(0xFF, int(args.sleep_timeout_raw)))
-        print(f"\nSetting BLE sleep-timeout raw to: {val} (0x{val:02x})")
-        if mouse.set_sleep_timeout_raw(val):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.lighting_value_raw is not None:
-        val = max(0, min(0xFF, int(args.lighting_value_raw)))
-        print(f"\nSetting BLE lighting raw value to: {val} (0x{val:02x})")
-        if mouse.set_lighting_value_raw(val):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.lighting_rgb:
-        rgb = _parse_rgb_hex(args.lighting_rgb)
-        if rgb is None:
-            print("\nInvalid --lighting-rgb; expected RRGGBB.")
-            return 1
-        print(f"\nSetting BLE lighting frame RGB to: #{args.lighting_rgb.strip().lstrip('#')}")
-        if mouse.set_lighting_rgb(*rgb, marker=0x00):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.lighting_frame_raw:
-        s = args.lighting_frame_raw.strip().lower().replace("#", "")
-        if len(s) != 8:
-            print("\nInvalid --lighting-frame-raw; expected exactly 8 hex chars (MMRRGGBB).")
-            return 1
-        try:
-            frame = bytes.fromhex(s)
-        except Exception:
-            print("\nInvalid --lighting-frame-raw hex.")
-            return 1
-        print(f"\nSetting BLE lighting frame raw to: {frame.hex()}")
-        if mouse.set_lighting_frame_raw(frame):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.lighting_mode_raw is not None:
-        val = max(0, min(0xFFFFFFFF, int(args.lighting_mode_raw)))
-        print(f"\nSetting BLE lighting mode raw to: {val} (0x{val:08x})")
-        if mouse.set_lighting_mode_raw(val):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.lighting_spectrum_seconds is not None:
-        secs = max(0.1, float(args.lighting_spectrum_seconds))
-        print(f"\nStreaming BLE spectrum frame sequence for {secs:.2f}s")
-        if mouse.stream_lighting_spectrum(secs, steps_per_cycle=96, marker=0x00):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.button_bind_raw:
-        try:
-            slot_s, payload_hex = args.button_bind_raw.split(':', 1)
-            slot = int(slot_s, 0)
-            payload = bytes.fromhex(payload_hex.strip())
-        except Exception:
-            print("\nInvalid --button-bind-raw format. Use SLOT:HEX (10-byte hex payload).")
-            return 1
-        print(f"\nSetting raw button binding slot {slot} payload {payload.hex()}")
-        if mouse.set_button_binding_raw(slot, payload):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.button_default is not None:
-        slot = int(args.button_default)
-        print(f"\nSetting button slot {slot} to default mouse action")
-        if mouse.set_button_default(slot):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.button_mouse:
-        try:
-            slot_s, btn_s = args.button_mouse.split(':', 1)
-            slot = int(slot_s, 0)
-            btn = int(btn_s, 0)
-        except Exception:
-            print("\nInvalid --button-mouse format. Use SLOT:BTN.")
-            return 1
-        print(f"\nSetting button slot {slot} to mouse-button id {btn}")
-        if mouse.set_button_mouse_button(slot, btn):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.button_left_click is not None:
-        slot = int(args.button_left_click)
-        print(f"\nSetting button slot {slot} to left-click action")
-        if mouse.set_button_left_click(slot):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.button_right_click is not None:
-        slot = int(args.button_right_click)
-        print(f"\nSetting button slot {slot} to right-click action")
-        if mouse.set_button_right_click(slot):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.button_middle_click is not None:
-        slot = int(args.button_middle_click)
-        print(f"\nSetting button slot {slot} to middle-click action")
-        if mouse.set_button_middle_click(slot):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.button_scroll_up is not None:
-        slot = int(args.button_scroll_up)
-        print(f"\nSetting button slot {slot} to scroll-up action")
-        if mouse.set_button_scroll_up(slot):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.button_scroll_down is not None:
-        slot = int(args.button_scroll_down)
-        print(f"\nSetting button slot {slot} to scroll-down action")
-        if mouse.set_button_scroll_down(slot):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.button_mouse_turbo:
-        try:
-            slot_s, btn_s, rate_s = args.button_mouse_turbo.split(':', 2)
-            slot = int(slot_s, 0)
-            btn = int(btn_s, 0)
-            rate = int(rate_s, 0)
-        except Exception:
-            print("\nInvalid --button-mouse-turbo format. Use SLOT:BTN:RATE.")
-            return 1
-        print(f"\nSetting button slot {slot} to turbo mouse-button id {btn} (rate {rate})")
-        if mouse.set_button_mouse_turbo(slot, btn, rate):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.button_keyboard:
-        try:
-            slot_s, key_s = args.button_keyboard.split(':', 1)
-            slot = int(slot_s, 0)
-            hid_key = int(key_s, 0)
-        except Exception:
-            print("\nInvalid --button-keyboard format. Use SLOT:KEY.")
-            return 1
-        print(f"\nSetting button slot {slot} to keyboard HID key 0x{hid_key:02x}")
-        if mouse.set_button_keyboard_simple(slot, hid_key):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.button_keyboard_turbo:
-        try:
-            slot_s, key_s, rate_s = args.button_keyboard_turbo.split(':', 2)
-            slot = int(slot_s, 0)
-            hid_key = int(key_s, 0)
-            rate = int(rate_s, 0)
-        except Exception:
-            print("\nInvalid --button-keyboard-turbo format. Use SLOT:KEY:RATE.")
-            return 1
-        print(f"\nSetting button slot {slot} to turbo keyboard HID key 0x{hid_key:02x} (rate {rate})")
-        if mouse.set_button_keyboard_turbo(slot, hid_key, rate):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.button_keyboard_ext:
-        try:
-            slot_s, k1_s, k2_s = args.button_keyboard_ext.split(':', 2)
-            slot = int(slot_s, 0)
-            k1 = int(k1_s, 0)
-            k2 = int(k2_s, 0)
-        except Exception:
-            print("\nInvalid --button-keyboard-ext format. Use SLOT:K1:K2.")
-            return 1
-        print(f"\nSetting button slot {slot} to extended keyboard action ({k1:#06x}, {k2:#06x})")
-        if mouse.set_button_keyboard_extended(slot, k1, k2):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.button_action_u16:
-        try:
-            slot_s, typ_s, p0_s, p1_s, p2_s = args.button_action_u16.split(':', 4)
-            slot = int(slot_s, 0)
-            typ = int(typ_s, 0)
-            p0 = int(p0_s, 0)
-            p1 = int(p1_s, 0)
-            p2 = int(p2_s, 0)
-        except Exception:
-            print("\nInvalid --button-action-u16 format. Use SLOT:TYPE:P0:P1:P2.")
-            return 1
-        print(f"\nSetting button slot {slot} action=0x{typ:02x} params=({p0:#06x},{p1:#06x},{p2:#06x})")
-        if mouse.set_button_action_u16(slot, typ, p0, p1, p2):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.button_clear_layer:
-        try:
-            slot_s, layer_s = args.button_clear_layer.split(':', 1)
-            slot = int(slot_s, 0)
-            layer = int(layer_s, 0)
-        except Exception:
-            print("\nInvalid --button-clear-layer format. Use SLOT:LAYER.")
-            return 1
-        print(f"\nClearing button slot {slot} layer {layer} override entry")
-        if mouse.set_button_clear_layer(slot, layer):
-            print("  Success!")
-            made_changes = True
-        else:
-            print("  Failed!")
-            return 1
-
-    if args.battery_ble:
-        if not HAS_COREBLUETOOTH:
-            print("\n--battery-ble requires pyobjc-framework-CoreBluetooth.")
-            print("Install with: pip install pyobjc-framework-CoreBluetooth")
-            return 1
-        print("\nReading battery via BLE Battery Service...")
-        level = mouse.get_battery_ble()
-        if level is not None:
-            print(f"  Battery: {level}%")
-        else:
-            print("  Could not read battery via BLE.")
-            print("  Make sure the mouse is connected via Bluetooth.")
-
-    if args.battery_vendor:
-        print("\nReading battery via BLE vendor keys...")
-        raw = mouse.get_battery_vendor_raw()
-        status = mouse.get_battery_status_vendor_raw()
-        if raw is not None:
-            pct = int((raw / 255.0) * 100)
-            print(f"  Battery (vendor raw): {raw} (0x{raw:02x}) ~{pct}%")
-        else:
-            print("  Could not read vendor battery raw key.")
-            if args.disable_vendor_gatt:
-                print("  Vendor GATT is disabled; rerun without --disable-vendor-gatt.")
-        if status is not None:
-            print(f"  Battery status (vendor raw): {status} (0x{status:02x})")
-
-    if args.vendor_key_get:
-        key = args.vendor_key_get.strip().lower().replace(" ", "")
-        if len(key) != 8:
-            print("\nInvalid --vendor-key-get. Use exactly 8 hex characters (e.g. 05840000).")
-            return 1
-        print(f"\nReading BLE vendor key: {key}")
-        blob = mouse.get_vendor_key_blob(key)
-        if blob is None:
-            print("  Read failed or no payload.")
-        else:
-            print(f"  len={len(blob)} payload={blob.hex()}")
-
-    if args.sniff_dpi is not None:
-        if mouse.vendor_id != BT_VENDOR_ID_RAZER:
-            print("\n--sniff-dpi is only supported for Bluetooth devices.")
-            return 1
-        secs = max(1.0, float(args.sniff_dpi))
-        print(f"\nSniffing Bluetooth DPI reports for {secs:.1f}s...")
-        values = mouse.sniff_bt_dpi_values(timeout_s=secs)
-        if values:
-            print("Observed DPI values:", ", ".join(str(v) for v in values))
-        else:
-            print("No DPI report observed. Move mouse and press DPI button, then retry.")
-
     # Show status
-    did_lighting_write = (
-        args.lighting_value_raw is not None
-        or bool(args.lighting_rgb)
-        or bool(args.lighting_frame_raw)
-        or args.lighting_mode_raw is not None
-        or args.lighting_spectrum_seconds is not None
-    )
-    if not args.quiet and not did_lighting_write:
+    if not args.quiet:
         print_status(mouse)
 
     return 0

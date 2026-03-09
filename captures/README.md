@@ -1,6 +1,6 @@
 # Capture Corpus
 
-This directory stores BLE protocol captures used to derive and validate `razer_ble.py` behavior.
+This directory stores BLE protocol captures used to derive and validate `tools/python/razer_ble.py` behavior.
 
 ## Layout
 
@@ -28,7 +28,7 @@ This directory stores BLE protocol captures used to derive and validate `razer_b
   - Confirms:
     - dominant frame stream key `10 04` with `04 00 00 00 [M][R][G][B]`
     - mode selector write key `10 03` with payload `08 00 00 00`
-  - Used to add BT frame-color and mode-raw APIs in `razer_ble.py`.
+  - Used to add BT frame-color and mode-raw APIs in `tools/python/razer_ble.py`.
 
 - `ble/all-key-binding-functions.pcapng`
   - Attempted full single-button binding walkthrough in Synapse.

@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [2026-03-09]
 
 ### Changed
+- Reorganized the repo around the macOS app: protocol/reference docs now live under `docs/`, supported Python tooling now lives under `tools/python/`, and the root entry point is now a zero-arg `./run.sh`.
 - Split the Swift package into shared targets: `OpenSnekCore`, `OpenSnekProtocols`, `OpenSnekHardware`, and `OpenSnekAppSupport`, with the app and probe consuming those shared layers incrementally instead of keeping all architecture in the app target.
 - Moved shared Swift domain models, device-profile metadata, button/turbo helpers, persistence key generation, BLE vendor framing, and USB HID report helpers out of `OpenSnek` local sources and into shared library targets.
 - Device discovery in the macOS app now attaches resolved profile metadata to `MouseDevice`, including per-transport button layout and advanced-lighting support, so UI/app-state logic can rely on device capabilities instead of raw transport string branches.

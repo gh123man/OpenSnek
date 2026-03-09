@@ -51,6 +51,14 @@ Pure Swift macOS frontend for `open-snek`.
 
 ## Build / Run
 
+From the repo root, the shortest path is:
+
+```bash
+./run.sh
+```
+
+Direct app-package workflows:
+
 ```bash
 swift run --package-path OpenSnek OpenSnek
 ```

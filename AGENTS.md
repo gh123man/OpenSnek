@@ -5,16 +5,16 @@
 **open-snek** configures supported Razer mice without Razer Synapse.
 
 Current project scope includes:
-- Python tooling (`razer_usb.py`, `razer_ble.py`, `razer_poc.py`)
+- Python tooling (`tools/python/razer_usb.py`, `tools/python/razer_ble.py`, `tools/python/razer_poc.py`)
 - Swift macOS app (`OpenSnek`) and Swift BLE probe CLI (`OpenSnekProbe`)
 
 ## Canonical Documentation
 
 Always read protocol docs before protocol changes:
-- `PROTOCOL.md` (index)
-- `USB_PROTOCOL.md`
-- `BLE_PROTOCOL.md`
-- `PARITY.md`
+- `docs/protocol/PROTOCOL.md` (index)
+- `docs/protocol/USB_PROTOCOL.md`
+- `docs/protocol/BLE_PROTOCOL.md`
+- `docs/protocol/PARITY.md`
 
 When protocol behavior changes, update docs in the same change.
 
@@ -22,12 +22,12 @@ When protocol behavior changes, update docs in the same change.
 
 | Path | Purpose |
 |---|---|
-| `razer_poc.py` | Transport wrapper CLI |
-| `razer_usb.py` | USB HID implementation |
-| `razer_ble.py` | BLE vendor + fallback implementation |
+| `tools/python/razer_poc.py` | Transport wrapper CLI |
+| `tools/python/razer_usb.py` | USB HID implementation |
+| `tools/python/razer_ble.py` | BLE vendor + fallback implementation |
 | `OpenSnek/Sources/OpenSnek/Bridge/BridgeClient.swift` | Swift transport bridge actor |
 | `OpenSnek/Sources/OpenSnek/Bridge/BTVendorClient.swift` | CoreBluetooth vendor session manager |
-| `OpenSnek/Sources/OpenSnek/Bridge/BLEVendorProtocol.swift` | BLE framing and payload helpers |
+| `OpenSnek/Sources/OpenSnekProtocols/BLEVendorProtocol.swift` | BLE framing and payload helpers |
 | `OpenSnek/Sources/OpenSnek/Services/AppState.swift` | SwiftUI state model + apply scheduling |
 | `OpenSnek/Sources/OpenSnek/Services/AppLog.swift` | Runtime app logs |
 | `OpenSnek/Sources/OpenSnekProbe/main.swift` | BLE probe CLI (read/set/cycle + verify) |
@@ -64,13 +64,14 @@ Validated device family:
 ### Python
 
 ```bash
-python razer_poc.py --force-usb
-python razer_poc.py --force-ble
+python3 tools/python/razer_poc.py --force-usb
+python3 tools/python/razer_poc.py --force-ble
 ```
 
 ### Swift App / Tests
 
 ```bash
+./run.sh
 swift test --package-path OpenSnek
 swift run --package-path OpenSnek OpenSnek
 ./OpenSnek/scripts/run_macos_app.sh
@@ -82,6 +83,7 @@ xcodebuild -project OpenSnek/OpenSnek.xcodeproj -scheme OpenSnekProbe -destinati
 
 Notes:
 - Use `swift run` for quick local iteration.
+- Use `./run.sh` for the simplest root-level build-and-launch flow.
 - Use `./OpenSnek/scripts/run_macos_app.sh` when validating UI/input behavior (dock icon, foreground activation, text-entry/keybinding interactions).
 - Use Xcode project flows for signing/archive/distribution validation.
 - After changing `OpenSnek/project.yml`, regenerate `OpenSnek/OpenSnek.xcodeproj` via `./OpenSnek/scripts/generate_xcodeproj.sh`.

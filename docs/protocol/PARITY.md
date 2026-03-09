@@ -97,7 +97,7 @@ Per feature validation should include:
 
 ## References
 
-- `USB_PROTOCOL.md`
-- `BLE_PROTOCOL.md`
-- `BLE_REVERSE_ENGINEERING.md`
+- [USB Protocol](./USB_PROTOCOL.md)
+- [BLE Protocol](./BLE_PROTOCOL.md)
+- [BLE Reverse Engineering Notes](../research/BLE_REVERSE_ENGINEERING.md)
 - OpenRazer driver protocol builders (`driver/razerchromacommon.c/.h`)

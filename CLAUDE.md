@@ -4,29 +4,29 @@
 
 **open-snek** configures Razer mice without Synapse.
 
-- USB/2.4GHz: strong coverage (`razer_usb.py`)
-- BLE: vendor GATT + HID fallback path (`razer_ble.py`)
+- USB/2.4GHz: strong coverage (`tools/python/razer_usb.py`)
+- BLE: vendor GATT + HID fallback path (`tools/python/razer_ble.py`)
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `razer_poc.py` | Transport wrapper CLI (auto USB/BLE selection) |
-| `razer_usb.py` | USB/2.4GHz configuration path |
-| `razer_ble.py` | BLE configuration path and helpers |
-| `ble_battery.py` | BLE Battery Service reader (macOS CoreBluetooth) |
-| `explore_ble.py` | BLE service/characteristic exploration |
-| `enumerate_hid_gatt.py` | HID-over-GATT enumeration helper |
-| `enumerate_hid_gatt_linux.py` | Linux HID-over-GATT probing helper |
+| `tools/python/razer_poc.py` | Transport wrapper CLI (auto USB/BLE selection) |
+| `tools/python/razer_usb.py` | USB/2.4GHz configuration path |
+| `tools/python/razer_ble.py` | BLE configuration path and helpers |
+| `tools/python/ble_battery.py` | BLE Battery Service reader (macOS CoreBluetooth) |
+| `tools/python/explore_ble.py` | BLE service/characteristic exploration |
+| `tools/python/enumerate_hid_gatt.py` | HID-over-GATT enumeration helper |
+| `tools/python/enumerate_hid_gatt_linux.py` | Linux HID-over-GATT probing helper |
 | `captures/` | BLE capture corpus and index |
-| `PROTOCOL.md` | Protocol documentation index |
-| `USB_PROTOCOL.md` | USB protocol details |
-| `BLE_PROTOCOL.md` | BLE protocol + implementation mapping |
-| `BLE_REVERSE_ENGINEERING.md` | Reverse engineering notes and timeline |
+| `docs/protocol/PROTOCOL.md` | Protocol documentation index |
+| `docs/protocol/USB_PROTOCOL.md` | USB protocol details |
+| `docs/protocol/BLE_PROTOCOL.md` | BLE protocol + implementation mapping |
+| `docs/research/BLE_REVERSE_ENGINEERING.md` | Reverse engineering notes and timeline |
 
 ## Important: Protocol Documentation
 
-Read `PROTOCOL.md` first for links to USB and BLE protocol specs.
+Read `docs/protocol/PROTOCOL.md` first for links to USB and BLE protocol specs.
 
 ## Current State
 
@@ -40,7 +40,7 @@ Read `PROTOCOL.md` first for links to USB and BLE protocol specs.
 
 ## Development Guidelines
 
-1. Read `PROTOCOL.md` before protocol changes.
+1. Read `docs/protocol/PROTOCOL.md` before protocol changes.
 2. Document newly decoded commands before broad API changes.
 3. Validate changes on real hardware; BLE can require power-cycle recovery.
 4. USB path uses 90-byte HID reports.
