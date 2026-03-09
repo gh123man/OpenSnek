@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Bindable var appState: AppState
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationSplitView {
@@ -18,8 +19,16 @@ struct ContentView: View {
         .onReceive(Timer.publish(every: 2.0, on: .main, in: .common).autoconnect()) { _ in
             Task { await appState.refreshState() }
         }
+        .onReceive(Timer.publish(every: 1.2, on: .main, in: .common).autoconnect()) { _ in
+            Task { await appState.pollDevicePresence() }
+        }
         .onReceive(Timer.publish(every: 0.20, on: .main, in: .common).autoconnect()) { _ in
             Task { await appState.refreshDpiFast() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await appState.refreshDevices() }
+            }
         }
     }
 

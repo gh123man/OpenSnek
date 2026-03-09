@@ -51,7 +51,7 @@ final class AppState {
     private var hydratedLightingStateByDeviceID: Set<String> = []
     private var hydratedButtonBindingsDeviceID: String?
     private var keyboardDraftApplyTaskBySlot: [Int: Task<Void, Never>] = [:]
-    private var knownDeviceIDs: Set<String> = []
+    private var isPollingDevices = false
 
     var selectedDevice: MouseDevice? {
         guard let selectedDeviceID else { return nil }
@@ -89,26 +89,7 @@ final class AppState {
 
         do {
             let listed = try await client.listDevices()
-            devices = listed
-            let currentIDs = Set(listed.map(\.id))
-            let removedIDs = knownDeviceIDs.subtracting(currentIDs)
-            if !removedIDs.isEmpty {
-                hydratedLightingStateByDeviceID.subtract(removedIDs)
-                if let hydratedButtonBindingsDeviceID, removedIDs.contains(hydratedButtonBindingsDeviceID) {
-                    self.hydratedButtonBindingsDeviceID = nil
-                }
-            }
-            knownDeviceIDs = currentIDs
-            AppLog.event("AppState", "refreshDevices found=\(listed.count)")
-            if selectedDeviceID == nil {
-                selectedDeviceID = listed.first?.id
-            }
-            if let selected = selectedDevice, !listed.contains(selected) {
-                selectedDeviceID = listed.first?.id
-            }
-            if let selectedDeviceID, let cached = stateCacheByDeviceID[selectedDeviceID] {
-                state = cached
-            }
+            _ = applyDeviceList(listed, source: "refresh")
             errorMessage = nil
         } catch {
             AppLog.error("AppState", "refreshDevices failed: \(error.localizedDescription)")
@@ -117,6 +98,83 @@ final class AppState {
 
         await refreshState()
         AppLog.event("AppState", "refreshDevices end elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s")
+    }
+
+    func pollDevicePresence() async {
+        guard !isPollingDevices, !isLoading else { return }
+        isPollingDevices = true
+        defer { isPollingDevices = false }
+
+        do {
+            let listed = try await client.listDevices()
+            let changed = applyDeviceList(listed, source: "poll")
+            if changed {
+                errorMessage = nil
+                await refreshState()
+            } else if selectedDevice != nil, state == nil {
+                await refreshState()
+            }
+        } catch {
+            AppLog.debug("AppState", "pollDevicePresence failed: \(error.localizedDescription)")
+        }
+    }
+
+    @discardableResult
+    private func applyDeviceList(_ listed: [MouseDevice], source: String) -> Bool {
+        let sorted = listed.sorted { $0.product_name < $1.product_name }
+        let previousDevices = devices
+        let previousIDs = Set(previousDevices.map(\.id))
+        let previousSelectedID = selectedDeviceID
+        let previousSelectedDevice = previousDevices.first(where: { $0.id == previousSelectedID })
+        let previousSelectedIdentity = previousSelectedDevice.map { deviceIdentityKey($0) }
+
+        let newIDs = Set(sorted.map(\.id))
+        let removedIDs = previousIDs.subtracting(newIDs)
+        if !removedIDs.isEmpty {
+            hydratedLightingStateByDeviceID.subtract(removedIDs)
+            if let hydratedButtonBindingsDeviceID, removedIDs.contains(hydratedButtonBindingsDeviceID) {
+                self.hydratedButtonBindingsDeviceID = nil
+            }
+        }
+
+        devices = sorted
+        if let previousSelectedID, newIDs.contains(previousSelectedID) {
+            selectedDeviceID = previousSelectedID
+        } else if let previousSelectedIdentity,
+                  let match = sorted.first(where: { deviceIdentityKey($0) == previousSelectedIdentity }) {
+            selectedDeviceID = match.id
+        } else {
+            selectedDeviceID = sorted.first?.id
+        }
+
+        if let selectedDeviceID, let cached = stateCacheByDeviceID[selectedDeviceID] {
+            state = cached
+        } else if selectedDeviceID == nil {
+            state = nil
+        }
+
+        let changed = previousIDs != newIDs || previousSelectedID != selectedDeviceID
+        if changed {
+            AppLog.event(
+                "AppState",
+                "applyDeviceList source=\(source) count=\(sorted.count) selected=\(selectedDeviceID ?? "nil")"
+            )
+        }
+        return changed
+    }
+
+    private func deviceIdentityKey(_ device: MouseDevice) -> String {
+        if let serial = device.serial?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !serial.isEmpty {
+            return "serial:\(serial.lowercased())"
+        }
+        return String(
+            format: "vp:%04x:%04x:%@",
+            device.vendor_id,
+            device.product_id,
+            device.transport.lowercased()
+        )
     }
 
     func refreshState() async {
