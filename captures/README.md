@@ -48,6 +48,13 @@ This directory stores BLE protocol captures used to derive and validate `razer_b
   - Focused slot `0x02` (right-click) transitions.
   - Confirms payloads for left-click remap, keyboard remap, and explicit right-click restore.
 
+- `ble/right-click-turbo.pcapng`
+  - Focused slot `0x02` turbo workflow for right-click.
+  - Confirms turbo action payload family on BLE:
+    - `01 02 00 0E 0301 8E00 0000`
+    - `01 02 00 0E 0301 3E00 0000`
+  - Synapse also emits slot `0x05`/`0x04` layer-clear housekeeping writes in the same apply sequence.
+
 - `ble/hyper-shift-left-click-defualt.pcapng`
   - Additional remap workflow capture targeting hypershift-related UI flow.
   - Reconfirms Synapse writes for slots `0x04` and `0x05` using:

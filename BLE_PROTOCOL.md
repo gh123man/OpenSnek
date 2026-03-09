@@ -160,7 +160,8 @@ Action families exposed by helpers:
 - `0x00`: clear/default layer entry (observed with `layer=0x01`)
 - `0x01`: mouse-button action
 - `0x02`: simple keyboard action
-- `0x0D`: extended keyboard/action variant
+- `0x0D`: keyboard turbo/action variant (`basic-rebind.pcapng`)
+- `0x0E`: mouse turbo action (`right-click-turbo.pcapng`)
 
 Observed mouse mapping (`action_type=0x01`):
 - `p0=0x0101` left click
@@ -169,6 +170,20 @@ Observed mouse mapping (`action_type=0x01`):
 - `p0=0x0901` scroll up (`scroll-up-down-rebind.pcapng`, slot `0x09`)
 - `p0=0x0A01` scroll down (`scroll-up-down-rebind.pcapng`, slot `0x0A`)
 - slot `0x02` default restore is wire-identical to right click (`01 02 00 01 0102 0000 0000`).
+
+Observed keyboard mapping:
+- simple key: `01 <slot> 00 02 0200 <hid_key_le16> 0000`
+  (`right-click-bind.pcapng`, `basic-rebind.pcapng`)
+- turbo key: `01 <slot> 00 0D 0400 <hid_key_le16> <rate_le16>`
+  (`basic-rebind.pcapng`, inferred as keyboard turbo from matching key+rate shape)
+
+Observed turbo mapping:
+- mouse turbo right-click (`right-click-turbo.pcapng`, slot `0x02`):
+  - `01 02 00 0E 0301 8E00 0000`
+  - `01 02 00 0E 0301 3E00 0000`
+  - `p1` behaves as turbo-rate scalar changed by Synapse slider.
+- keyboard turbo (`basic-rebind.pcapng`, slot `0x03`):
+  - `01 03 00 0D 0400 0800 8E00`
 
 Observed layer-clear mapping (`all-key-binding-functions.pcapng`):
 - `01 <slot> 01 00 0000 0000 0000`
@@ -225,6 +240,8 @@ Vendor GATT path in the same environment works when enabled:
 - `scroll-up-down-rebind.pcapng` confirms wheel-button slot rebinding on BLE:
   - slot `0x09`: left click (`p0=0x0101`) and scroll up (`p0=0x0901`)
   - slot `0x0A`: left click (`p0=0x0101`) and scroll down (`p0=0x0A01`)
+- `right-click-turbo.pcapng` confirms turbo mouse payload family (`action=0x0E`) and rate-field changes (`0x008E` <-> `0x003E`) on slot `0x02`.
+- `basic-rebind.pcapng` includes a keyboard turbo-form payload (`action=0x0D`, `p0=0x0004`, `p2=0x008E`).
 - No button-bind selector for slot `0x06` appears in those captures.
 - Direct runtime probes on Basilisk V3 X BT reject slot `0x06` writes on this key family with status `0x03` (error), while slot `0x60` ACKs with `0x02` (success).
 - Practical implication: the Hypershift/Boss clutch button is not currently rebindable via vendor key `08 04 01 <slot>` in this implementation path.
@@ -254,7 +271,7 @@ These are transport-consumer behaviors and do not change the on-wire packet form
 ## 11. Current Gaps
 
 - Full semantic catalog for all remaining key bytes (`byte4..7`).
-- Complete action taxonomy for button payloads (media/macro/system families).
+- Complete action taxonomy for remaining button payloads (media/macro/system families).
 - Hypershift/Boss clutch remap command path (outside currently mapped `08 04 01 <slot>` family).
 - Synapse UI-unit mapping for raw scalar fields.
 - More cross-device validation beyond PID `0x00BA`.
@@ -276,7 +293,7 @@ These are transport-consumer behaviors and do not change the on-wire packet form
 | Scroll acceleration | `02:96/16` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
 | Scroll smart reel | `02:97/17` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
 | Scroll LED brightness/effects | `0F:84/04`, `0F:02` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping for non-HID parity |
-| Button remap | USB experimental raw writer only | `08 04 01 <slot>` + payload | BLE implemented + USB experimental writer | Need USB action taxonomy + shared safe helpers |
+| Button remap | USB experimental raw writer only | `08 04 01 <slot>` + payload | BLE implemented + USB experimental writer | Mouse + keyboard turbo payloads are mapped on BLE; USB taxonomy still incomplete |
 | Lighting / matrix | USB class `0x0F` partly implemented (scroll LED) | Scalar key (`10 85` / `10 05`) + frame stream key (`10 04`) | USB scroll LED + BLE scalar + BLE frame writes | Need full effect model + persistence on both transports |
 
 ## 13. `razer_ble.py` Feature Overlap Checklist

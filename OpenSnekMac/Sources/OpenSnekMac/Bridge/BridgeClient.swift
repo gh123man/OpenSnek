@@ -186,7 +186,15 @@ actor BridgeClient {
                 let slot = UInt8(max(0, min(255, binding.slot)))
                 let kind = binding.kind
                 let hidKey = UInt8(max(0, min(255, binding.hidKey ?? 4)))
-                guard try await btSetButtonBinding(slot: slot, kind: kind, hidKey: hidKey) else {
+                let turboEnabled = kind.supportsTurbo && binding.turboEnabled
+                let turboRate = UInt16(max(1, min(255, binding.turboRate ?? 0x8E)))
+                guard try await btSetButtonBinding(
+                    slot: slot,
+                    kind: kind,
+                    hidKey: hidKey,
+                    turboEnabled: turboEnabled,
+                    turboRate: turboRate
+                ) else {
                     throw BridgeError.commandFailed("Failed to set Bluetooth button binding")
                 }
             }
@@ -628,8 +636,20 @@ actor BridgeClient {
         return nil
     }
 
-    private func btSetButtonBinding(slot: UInt8, kind: ButtonBindingKind, hidKey: UInt8) async throws -> Bool {
-        let payload = BLEVendorProtocol.buildButtonPayload(slot: slot, kind: kind, hidKey: hidKey)
+    private func btSetButtonBinding(
+        slot: UInt8,
+        kind: ButtonBindingKind,
+        hidKey: UInt8,
+        turboEnabled: Bool,
+        turboRate: UInt16
+    ) async throws -> Bool {
+        let payload = BLEVendorProtocol.buildButtonPayload(
+            slot: slot,
+            kind: kind,
+            hidKey: hidKey,
+            turboEnabled: turboEnabled,
+            turboRate: turboRate
+        )
         let req = nextBTReq()
         let header = BLEVendorProtocol.buildWriteHeader(req: req, payloadLength: 0x0A, key: .buttonBind(slot: slot))
         let notifies = try await btExchange([header, payload], timeout: 0.9)

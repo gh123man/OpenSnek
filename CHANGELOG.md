@@ -39,6 +39,7 @@ All notable changes to this project are documented in this file.
 - BLE button UI now shows capture-backed writable slots (`1..5` + `0x60`) and labels slot `0x60` as `DPI Cycle / Side Button 3`.
 - Slot `6` (`Hypershift/Boss key`) support attempt on BLE was reverted after capture/runtime validation; the UI now hides slot `6` pending a decoded writable command path.
 - BLE button remap now includes wheel-button slots `0x09`/`0x0A` (Scroll Up/Down) and exposes capture-backed scroll-up/scroll-down action mappings in both CLI and app payload builders.
+- BLE button remap now supports turbo payload encoding on Bluetooth for mouse actions (`action 0x0E`) and keyboard bindings (`action 0x0D`) with UI toggle + rate control.
 - Button remap rows now display friendly names without numeric slot prefixes.
 - Button remap action label `Clear Layer` is now user-facing `Disabled`.
 - Lighting brightness slider now uses a `0..100%` UI scale (mapped to the same raw `0..255` transport values).

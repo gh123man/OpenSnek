@@ -153,6 +153,16 @@ struct ButtonBindingPatch: Sendable {
     let slot: Int
     let kind: ButtonBindingKind
     let hidKey: Int?
+    let turboEnabled: Bool
+    let turboRate: Int?
+
+    init(slot: Int, kind: ButtonBindingKind, hidKey: Int?, turboEnabled: Bool = false, turboRate: Int? = nil) {
+        self.slot = slot
+        self.kind = kind
+        self.hidKey = hidKey
+        self.turboEnabled = turboEnabled
+        self.turboRate = turboRate
+    }
 }
 
 struct DevicePatch: Sendable {
@@ -205,6 +215,15 @@ enum ButtonBindingKind: String, CaseIterable, Identifiable {
         case .mouseForward: return "Mouse Forward"
         case .keyboardSimple: return "Keyboard Key"
         case .clearLayer: return "Disabled"
+        }
+    }
+
+    var supportsTurbo: Bool {
+        switch self {
+        case .leftClick, .rightClick, .middleClick, .scrollUp, .scrollDown, .mouseBack, .mouseForward, .keyboardSimple:
+            return true
+        case .default, .clearLayer:
+            return false
         }
     }
 }

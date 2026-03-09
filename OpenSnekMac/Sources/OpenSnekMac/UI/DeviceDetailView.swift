@@ -496,6 +496,47 @@ struct ButtonMappingTableCard: View {
                         }
                     }
 
+                    let turboEligible = (appState.selectedDevice?.transport == "bluetooth") && appState.buttonBindingKind(for: slot.slot).supportsTurbo
+                    if turboEligible {
+                        HStack(spacing: 8) {
+                            Spacer()
+                            Toggle(
+                                "Turbo",
+                                isOn: Binding(
+                                    get: { appState.buttonBindingTurboEnabled(for: slot.slot) },
+                                    set: { appState.updateButtonBindingTurboEnabled(slot: slot.slot, enabled: $0) }
+                                )
+                            )
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                            Text("Turbo")
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.76))
+                                .frame(width: 54, alignment: .leading)
+
+                            if appState.buttonBindingTurboEnabled(for: slot.slot) {
+                                Text("Rate")
+                                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.white.opacity(0.62))
+
+                                Slider(
+                                    value: Binding(
+                                        get: { Double(appState.buttonBindingTurboRate(for: slot.slot)) },
+                                        set: { appState.updateButtonBindingTurboRate(slot: slot.slot, rate: Int(round($0))) }
+                                    ),
+                                    in: 1...255
+                                )
+                                .frame(width: 140)
+
+                                Text("\(appState.buttonBindingTurboRate(for: slot.slot))")
+                                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(.white.opacity(0.78))
+                                    .frame(width: 34, alignment: .trailing)
+                            }
+                        }
+                        .disabled(!isEditable)
+                    }
+
                     if let notice = appState.buttonSlotNotice(slot.slot) {
                         HStack {
                             Spacer()

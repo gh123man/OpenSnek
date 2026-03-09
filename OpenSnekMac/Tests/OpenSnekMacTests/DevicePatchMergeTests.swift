@@ -9,7 +9,7 @@ final class DevicePatchMergeTests: XCTestCase {
             activeStage: 0,
             ledBrightness: 120,
             ledRGB: RGBPatch(r: 10, g: 20, b: 30),
-            buttonBinding: ButtonBindingPatch(slot: 2, kind: .rightClick, hidKey: nil)
+            buttonBinding: ButtonBindingPatch(slot: 2, kind: .rightClick, hidKey: nil, turboEnabled: true, turboRate: 142)
         )
         let newer = DevicePatch(
             pollRate: 1000,
@@ -17,7 +17,7 @@ final class DevicePatchMergeTests: XCTestCase {
             activeStage: 1,
             ledBrightness: 200,
             ledRGB: RGBPatch(r: 1, g: 2, b: 3),
-            buttonBinding: ButtonBindingPatch(slot: 3, kind: .keyboardSimple, hidKey: 40)
+            buttonBinding: ButtonBindingPatch(slot: 3, kind: .keyboardSimple, hidKey: 40, turboEnabled: false, turboRate: nil)
         )
 
         let merged = older.merged(with: newer)
@@ -28,6 +28,7 @@ final class DevicePatchMergeTests: XCTestCase {
         XCTAssertEqual(merged.ledRGB?.r, 1)
         XCTAssertEqual(merged.buttonBinding?.slot, 3)
         XCTAssertEqual(merged.buttonBinding?.kind, .keyboardSimple)
+        XCTAssertEqual(merged.buttonBinding?.turboEnabled, false)
     }
 
     func testMergedKeepsExistingFieldsWhenNewestPatchPartial() {
@@ -37,7 +38,7 @@ final class DevicePatchMergeTests: XCTestCase {
             activeStage: 1,
             ledBrightness: 150,
             ledRGB: RGBPatch(r: 100, g: 120, b: 140),
-            buttonBinding: ButtonBindingPatch(slot: 4, kind: .mouseBack, hidKey: nil)
+            buttonBinding: ButtonBindingPatch(slot: 4, kind: .mouseBack, hidKey: nil, turboEnabled: true, turboRate: 62)
         )
         let newer = DevicePatch(activeStage: 0)
 
@@ -48,5 +49,7 @@ final class DevicePatchMergeTests: XCTestCase {
         XCTAssertEqual(merged.ledBrightness, 150)
         XCTAssertEqual(merged.ledRGB?.g, 120)
         XCTAssertEqual(merged.buttonBinding?.kind, .mouseBack)
+        XCTAssertEqual(merged.buttonBinding?.turboEnabled, true)
+        XCTAssertEqual(merged.buttonBinding?.turboRate, 62)
     }
 }

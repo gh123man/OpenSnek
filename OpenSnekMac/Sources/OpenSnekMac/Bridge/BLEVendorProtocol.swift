@@ -210,7 +210,30 @@ enum BLEVendorProtocol {
         return out
     }
 
-    static func buildButtonPayload(slot: UInt8, kind: ButtonBindingKind, hidKey: UInt8?) -> Data {
+    static func buildButtonPayload(
+        slot: UInt8,
+        kind: ButtonBindingKind,
+        hidKey: UInt8?,
+        turboEnabled: Bool = false,
+        turboRate: UInt16? = nil
+    ) -> Data {
+        let clampedTurboRate = max(UInt16(1), min(UInt16(0x00FF), turboRate ?? 0x008E))
+        if turboEnabled {
+            if kind == .keyboardSimple {
+                let key = hidKey ?? 0x04
+                // Capture-backed inference:
+                // action 0x0D with p0=0x0004, p1=hid key, p2=turbo rate.
+                return Data([0x01, slot, 0x00, 0x0D, 0x04, 0x00, key, 0x00, UInt8(clampedTurboRate & 0xFF), UInt8((clampedTurboRate >> 8) & 0xFF)])
+            }
+            if let buttonID = mouseButtonID(for: kind) {
+                // Capture-backed for right-click turbo:
+                // action 0x0E with p0=0x0103 for button id 0x02.
+                let index = UInt16(max(0, Int(buttonID) - 1))
+                let p0 = UInt16((index << 8) | 0x0003)
+                return Data([0x01, slot, 0x00, 0x0E, UInt8(p0 & 0xFF), UInt8((p0 >> 8) & 0xFF), UInt8(clampedTurboRate & 0xFF), UInt8((clampedTurboRate >> 8) & 0xFF), 0x00, 0x00])
+            }
+        }
+
         switch kind {
         case .default:
             // Capture-backed default restore variants:
@@ -244,6 +267,20 @@ enum BLEVendorProtocol {
             return Data([0x01, slot, 0x00, 0x02, 0x02, 0x00, key, 0x00, 0x00, 0x00])
         case .clearLayer:
             return Data([0x01, slot, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+        }
+    }
+
+    private static func mouseButtonID(for kind: ButtonBindingKind) -> UInt8? {
+        switch kind {
+        case .leftClick: return 0x01
+        case .rightClick: return 0x02
+        case .middleClick: return 0x03
+        case .mouseBack: return 0x04
+        case .mouseForward: return 0x05
+        case .scrollUp: return 0x09
+        case .scrollDown: return 0x0A
+        case .default, .keyboardSimple, .clearLayer:
+            return nil
         }
     }
 }

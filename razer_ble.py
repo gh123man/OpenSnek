@@ -745,6 +745,24 @@ class RazerMouse:
         p0 = ((int(mouse_button_id) & 0xFF) << 8) | 0x01
         return RazerMouse._build_button_payload_action(slot, 0x01, p0, 0x0000, 0x0000, layer=0x00)
 
+    @staticmethod
+    def _build_button_payload_mouse_turbo(slot: int, mouse_button_id: int, turbo_rate_u16: int) -> bytes:
+        # right-click-turbo.pcapng confirms:
+        #   action=0x0e, p0=0x0103 for right click (button id 0x02), p1=rate, p2=0x0000.
+        btn = int(mouse_button_id) & 0xFF
+        rate = max(1, min(0x00FF, int(turbo_rate_u16)))
+        idx = max(0, btn - 1) & 0xFF
+        p0 = (idx << 8) | 0x03
+        return RazerMouse._build_button_payload_action(slot, 0x0E, p0, rate, 0x0000, layer=0x00)
+
+    @staticmethod
+    def _build_button_payload_keyboard_turbo(slot: int, hid_key: int, turbo_rate_u16: int) -> bytes:
+        # basic-rebind.pcapng includes keyboard-turbo-like payload:
+        #   action=0x0d, p0=0x0004, p1=hid key, p2=rate.
+        key = int(hid_key) & 0xFF
+        rate = max(1, min(0x00FF, int(turbo_rate_u16)))
+        return RazerMouse._build_button_payload_action(slot, 0x0D, 0x0004, key, rate, layer=0x00)
+
     def set_button_default(self, slot: int) -> bool:
         slot = int(slot)
         # Capture-backed special case: slot 0x02 default is explicit right-click action.
@@ -776,6 +794,16 @@ class RazerMouse:
     def set_button_scroll_down(self, slot: int) -> bool:
         # capture-backed on slot 0x0a: p0=0x0a01
         return self.set_button_mouse_button(slot, 0x0A)
+
+    def set_button_mouse_turbo(self, slot: int, mouse_button_id: int, turbo_rate_u16: int) -> bool:
+        slot = int(slot)
+        payload = self._build_button_payload_mouse_turbo(slot, int(mouse_button_id), int(turbo_rate_u16))
+        return self.set_button_binding_raw(slot, payload)
+
+    def set_button_keyboard_turbo(self, slot: int, hid_key: int, turbo_rate_u16: int) -> bool:
+        slot = int(slot)
+        payload = self._build_button_payload_keyboard_turbo(slot, int(hid_key), int(turbo_rate_u16))
+        return self.set_button_binding_raw(slot, payload)
 
     def set_button_keyboard_simple(self, slot: int, hid_key: int) -> bool:
         slot = int(slot)
@@ -1597,8 +1625,12 @@ Note: This script targets Bluetooth transport.
                         help='Set button slot to scroll-up mouse action (capture-backed id 0x09)')
     parser.add_argument('--button-scroll-down', type=int, metavar='SLOT',
                         help='Set button slot to scroll-down mouse action (capture-backed id 0x0A)')
+    parser.add_argument('--button-mouse-turbo', type=str, metavar='SLOT:BTN:RATE',
+                        help='Set button slot to turbo mouse action (BTN id + turbo rate 1-255)')
     parser.add_argument('--button-keyboard', type=str, metavar='SLOT:KEY',
                         help='Set button slot to simple keyboard action (hid key code)')
+    parser.add_argument('--button-keyboard-turbo', type=str, metavar='SLOT:KEY:RATE',
+                        help='Set button slot to turbo keyboard action (hid key + turbo rate 1-255)')
     parser.add_argument('--button-keyboard-ext', type=str, metavar='SLOT:K1:K2',
                         help='Set button slot to extended keyboard action (capture-backed action 0x0d)')
     parser.add_argument('--button-action-u16', type=str, metavar='SLOT:TYPE:P0:P1:P2',
@@ -2068,6 +2100,23 @@ Note: This script targets Bluetooth transport.
             print("  Failed!")
             return 1
 
+    if args.button_mouse_turbo:
+        try:
+            slot_s, btn_s, rate_s = args.button_mouse_turbo.split(':', 2)
+            slot = int(slot_s, 0)
+            btn = int(btn_s, 0)
+            rate = int(rate_s, 0)
+        except Exception:
+            print("\nInvalid --button-mouse-turbo format. Use SLOT:BTN:RATE.")
+            return 1
+        print(f"\nSetting button slot {slot} to turbo mouse-button id {btn} (rate {rate})")
+        if mouse.set_button_mouse_turbo(slot, btn, rate):
+            print("  Success!")
+            made_changes = True
+        else:
+            print("  Failed!")
+            return 1
+
     if args.button_keyboard:
         try:
             slot_s, key_s = args.button_keyboard.split(':', 1)
@@ -2078,6 +2127,23 @@ Note: This script targets Bluetooth transport.
             return 1
         print(f"\nSetting button slot {slot} to keyboard HID key 0x{hid_key:02x}")
         if mouse.set_button_keyboard_simple(slot, hid_key):
+            print("  Success!")
+            made_changes = True
+        else:
+            print("  Failed!")
+            return 1
+
+    if args.button_keyboard_turbo:
+        try:
+            slot_s, key_s, rate_s = args.button_keyboard_turbo.split(':', 2)
+            slot = int(slot_s, 0)
+            hid_key = int(key_s, 0)
+            rate = int(rate_s, 0)
+        except Exception:
+            print("\nInvalid --button-keyboard-turbo format. Use SLOT:KEY:RATE.")
+            return 1
+        print(f"\nSetting button slot {slot} to turbo keyboard HID key 0x{hid_key:02x} (rate {rate})")
+        if mouse.set_button_keyboard_turbo(slot, hid_key, rate):
             print("  Success!")
             made_changes = True
         else:

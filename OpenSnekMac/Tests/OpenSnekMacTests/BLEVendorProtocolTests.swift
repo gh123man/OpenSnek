@@ -58,6 +58,17 @@ final class BLEVendorProtocolTests: XCTestCase {
         XCTAssertEqual(Array(payload), [0x01, 0x02, 0x00, 0x02, 0x02, 0x00, 0x2C, 0x00, 0x00, 0x00])
     }
 
+    func testButtonPayloadKeyboardTurbo() {
+        let payload = BLEVendorProtocol.buildButtonPayload(
+            slot: 0x03,
+            kind: .keyboardSimple,
+            hidKey: 0x08,
+            turboEnabled: true,
+            turboRate: 0x008E
+        )
+        XCTAssertEqual(Array(payload), [0x01, 0x03, 0x00, 0x0D, 0x04, 0x00, 0x08, 0x00, 0x8E, 0x00])
+    }
+
     func testButtonPayloadMiddleClick() {
         let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x03, kind: .middleClick, hidKey: nil)
         XCTAssertEqual(Array(payload), [0x01, 0x03, 0x00, 0x01, 0x01, 0x03, 0x00, 0x00, 0x00, 0x00])
@@ -71,6 +82,17 @@ final class BLEVendorProtocolTests: XCTestCase {
     func testButtonPayloadScrollDown() {
         let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x0A, kind: .scrollDown, hidKey: nil)
         XCTAssertEqual(Array(payload), [0x01, 0x0A, 0x00, 0x01, 0x01, 0x0A, 0x00, 0x00, 0x00, 0x00])
+    }
+
+    func testButtonPayloadRightClickTurbo() {
+        let payload = BLEVendorProtocol.buildButtonPayload(
+            slot: 0x02,
+            kind: .rightClick,
+            hidKey: nil,
+            turboEnabled: true,
+            turboRate: 0x003E
+        )
+        XCTAssertEqual(Array(payload), [0x01, 0x02, 0x00, 0x0E, 0x03, 0x01, 0x3E, 0x00, 0x00, 0x00])
     }
 
     func testButtonPayloadDefaultSlot2UsesExplicitRightClickRestore() {

@@ -301,7 +301,9 @@ final class AppState {
         let binding = ButtonBindingPatch(
             slot: slot,
             kind: resolved.kind,
-            hidKey: resolved.kind == .keyboardSimple ? resolved.hidKey : nil
+            hidKey: resolved.kind == .keyboardSimple ? resolved.hidKey : nil,
+            turboEnabled: resolved.kind.supportsTurbo ? resolved.turboEnabled : false,
+            turboRate: resolved.kind.supportsTurbo && resolved.turboEnabled ? resolved.turboRate : nil
         )
         enqueueApply(DevicePatch(buttonBinding: binding))
     }
@@ -330,6 +332,14 @@ final class AppState {
         editableButtonBindings[slot]?.hidKey ?? defaultButtonBinding(for: slot).hidKey
     }
 
+    func buttonBindingTurboEnabled(for slot: Int) -> Bool {
+        editableButtonBindings[slot]?.turboEnabled ?? defaultButtonBinding(for: slot).turboEnabled
+    }
+
+    func buttonBindingTurboRate(for slot: Int) -> Int {
+        editableButtonBindings[slot]?.turboRate ?? defaultButtonBinding(for: slot).turboRate
+    }
+
     func updateButtonBindingKind(slot: Int, kind: ButtonBindingKind) {
         guard buttonSlots.contains(where: { $0.slot == slot }) else { return }
         var next = editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
@@ -342,6 +352,9 @@ final class AppState {
         } else {
             keyboardTextDraftBySlot[slot] = AppState.keyboardText(forHidKey: next.hidKey) ?? ""
         }
+        if !kind.supportsTurbo {
+            next.turboEnabled = false
+        }
         editableButtonBindings[slot] = next
         scheduleAutoApplyButton(slot: slot)
     }
@@ -353,6 +366,24 @@ final class AppState {
         next.hidKey = max(4, min(231, hidKey))
         editableButtonBindings[slot] = next
         keyboardTextDraftBySlot[slot] = AppState.keyboardText(forHidKey: next.hidKey) ?? ""
+        scheduleAutoApplyButton(slot: slot)
+    }
+
+    func updateButtonBindingTurboEnabled(slot: Int, enabled: Bool) {
+        guard buttonSlots.contains(where: { $0.slot == slot }) else { return }
+        var next = editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
+        guard next.kind.supportsTurbo else { return }
+        next.turboEnabled = enabled
+        editableButtonBindings[slot] = next
+        scheduleAutoApplyButton(slot: slot)
+    }
+
+    func updateButtonBindingTurboRate(slot: Int, rate: Int) {
+        guard buttonSlots.contains(where: { $0.slot == slot }) else { return }
+        var next = editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
+        guard next.kind.supportsTurbo else { return }
+        next.turboRate = max(1, min(255, rate))
+        editableButtonBindings[slot] = next
         scheduleAutoApplyButton(slot: slot)
     }
 
@@ -580,9 +611,9 @@ final class AppState {
     }
 
     private func defaultButtonBinding(for slot: Int) -> ButtonBindingDraft {
-        let fallback = ButtonBindingDraft(kind: .default, hidKey: 4)
+        let fallback = ButtonBindingDraft(kind: .default, hidKey: 4, turboEnabled: false, turboRate: 0x8E)
         guard let descriptor = buttonSlots.first(where: { $0.slot == slot }) else { return fallback }
-        return ButtonBindingDraft(kind: descriptor.defaultKind, hidKey: 4)
+        return ButtonBindingDraft(kind: descriptor.defaultKind, hidKey: 4, turboEnabled: false, turboRate: 0x8E)
     }
 
     private func applyKeyboardTextDraft(slot: Int) {
@@ -676,7 +707,14 @@ private extension DevicePatch {
         if let activeStage { parts.append("active=\(activeStage)") }
         if let ledBrightness { parts.append("led=\(ledBrightness)") }
         if let ledRGB { parts.append("rgb=(\(ledRGB.r),\(ledRGB.g),\(ledRGB.b))") }
-        if let buttonBinding { parts.append("button(slot=\(buttonBinding.slot),kind=\(buttonBinding.kind.rawValue))") }
+        if let buttonBinding {
+            var detail = "button(slot=\(buttonBinding.slot),kind=\(buttonBinding.kind.rawValue)"
+            if buttonBinding.turboEnabled {
+                detail += ",turbo=on,rate=\(buttonBinding.turboRate ?? 0x8E)"
+            }
+            detail += ")"
+            parts.append(detail)
+        }
         return parts.isEmpty ? "empty" : parts.joined(separator: " ")
     }
 }
@@ -709,4 +747,6 @@ struct ButtonSlotDescriptor: Identifiable, Hashable {
 struct ButtonBindingDraft: Hashable {
     var kind: ButtonBindingKind
     var hidKey: Int
+    var turboEnabled: Bool
+    var turboRate: Int
 }

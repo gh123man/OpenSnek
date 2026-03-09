@@ -25,6 +25,9 @@ Reverse engineer the Razer BLE configuration path used by Synapse and implement 
 - `captures/ble/right-click-bind.pcapng`
   - Focused right-click slot transitions
   - Confirmed slot `0x02` payloads for default, left-click remap, keyboard `F`, and restore
+- `captures/ble/right-click-turbo.pcapng`
+  - Focused right-click turbo workflow
+  - Confirmed turbo payload family (`action 0x0E`) and rate-field changes
 
 ## Reverse Engineering Strategy
 
@@ -57,6 +60,7 @@ Reverse engineer the Razer BLE configuration path used by Synapse and implement 
   - raw payload writer
   - default helper
   - keyboard helpers
+  - turbo helpers (mouse + keyboard)
   - generic action helper
   - mouse-button helpers (left/right click)
 
@@ -123,6 +127,10 @@ Reverse engineer the Razer BLE configuration path used by Synapse and implement 
   - Implemented convenience helpers:
     `set_button_mouse_button`, `set_button_left_click`, `set_button_right_click`
   - Updated `set_button_default(2)` to restore right-click explicitly
+- **2026-03-08**: Added turbo mapping from `captures/ble/right-click-turbo.pcapng` and `captures/ble/basic-rebind.pcapng`:
+  - confirmed mouse turbo payload family (`action 0x0E`) with mutable rate field
+  - inferred keyboard turbo shape (`action 0x0D`, `p0=0x0004`, key + rate fields)
+  - added `razer_ble.py` helpers/CLI for mouse-turbo and keyboard-turbo button writes
 - **2026-03-08**: Added power/lighting mapping from `captures/ble/power-lighting.pcapng`:
   - `05 84`/`05 04` raw u16 power-timeout path (2-byte LE payload writes)
   - `05 82`/`05 02` raw u8 sleep-timeout path
