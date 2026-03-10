@@ -83,7 +83,8 @@ actor BridgeClient {
                 location_id: location,
                 profile_id: profile?.id,
                 button_layout: profile?.buttonLayout,
-                supports_advanced_lighting_effects: profile?.supportsAdvancedLightingEffects ?? false
+                supports_advanced_lighting_effects: profile?.supportsAdvancedLightingEffects ?? false,
+                onboard_profile_count: profile?.onboardProfileCount ?? 1
             )
             if modelsByID[id] == nil {
                 modelsByID[id] = model
@@ -127,7 +128,8 @@ actor BridgeClient {
                     location_id: 0,
                     profile_id: profile?.id,
                     button_layout: profile?.buttonLayout,
-                    supports_advanced_lighting_effects: profile?.supportsAdvancedLightingEffects ?? false
+                    supports_advanced_lighting_effects: profile?.supportsAdvancedLightingEffects ?? false,
+                    onboard_profile_count: profile?.onboardProfileCount ?? 1
                 )
                 result.append(fallback)
                 AppLog.event("Bridge", "listDevices added Bluetooth fallback device after HID permission denial")
@@ -635,7 +637,9 @@ actor BridgeClient {
                         kind: kind,
                         hidKey: hidKey,
                         turboEnabled: turboEnabled,
-                        turboRate: turboRate
+                        turboRate: turboRate,
+                        persistentProfile: binding.persistentProfile,
+                        writeDirectLayer: binding.writeDirectLayer
                     )
                 }) else {
                     throw BridgeError.commandFailed("Failed to set button binding")

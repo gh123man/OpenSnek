@@ -37,6 +37,7 @@ final class AppState {
     var editableLedBrightness = 64
     var editableLightingEffect: LightingEffectKind = .staticColor
     var editableUSBLightingZoneID: String = "all"
+    var editableUSBButtonProfile = 1
     var editableLightingWaveDirection: LightingWaveDirection = .left
     var editableLightingReactiveSpeed = 2
     var editableColor = RGBColor(r: 0, g: 255, b: 0)
@@ -72,7 +73,8 @@ final class AppState {
     var isEditingDpiControl = false
     private var lastLocalEditAt: Date?
     private var hydratedLightingStateByDeviceID: Set<String> = []
-    private var hydratedButtonBindingsDeviceID: String?
+    private var hydratedButtonBindingsKey: String?
+    private var manualUSBButtonProfileSelectionByDeviceID: Set<String> = []
     private var keyboardDraftApplyTaskBySlot: [Int: Task<Void, Never>] = [:]
     private var isPollingDevices = false
     private var refreshFailureCountByDeviceID: [String: Int] = [:]
@@ -107,6 +109,20 @@ final class AppState {
             return profile.supportedLightingEffects
         }
         return [.staticColor]
+    }
+
+    var visibleOnboardProfileCount: Int {
+        let deviceCount = selectedDevice?.onboard_profile_count ?? 1
+        let stateCount = state?.onboard_profile_count ?? 1
+        return max(1, max(deviceCount, stateCount))
+    }
+
+    var activeOnboardProfile: Int {
+        max(1, min(visibleOnboardProfileCount, state?.active_onboard_profile ?? 1))
+    }
+
+    var supportsMultipleOnboardProfiles: Bool {
+        selectedDevice?.transport == .usb && visibleOnboardProfileCount > 1
     }
 
     var currentDeviceStatusIndicator: DeviceStatusIndicator {
@@ -223,11 +239,14 @@ final class AppState {
         let removedIDs = previousIDs.subtracting(newIDs)
         if !removedIDs.isEmpty {
             hydratedLightingStateByDeviceID.subtract(removedIDs)
-            if let hydratedButtonBindingsDeviceID, removedIDs.contains(hydratedButtonBindingsDeviceID) {
-                self.hydratedButtonBindingsDeviceID = nil
+            if let hydratedButtonBindingsKey,
+               let hydratedDeviceID = hydratedButtonBindingsKey.split(separator: "#").first,
+               removedIDs.contains(String(hydratedDeviceID)) {
+                self.hydratedButtonBindingsKey = nil
             }
             for id in removedIDs {
                 refreshFailureCountByDeviceID[id] = nil
+                manualUSBButtonProfileSelectionByDeviceID.remove(id)
             }
         }
 
@@ -653,6 +672,17 @@ final class AppState {
         editableUSBLightingZoneID = zoneID
     }
 
+    func updateUSBButtonProfile(_ profile: Int) {
+        guard let selectedDevice, supportsMultipleOnboardProfiles else { return }
+        let clamped = max(1, min(visibleOnboardProfileCount, profile))
+        editableUSBButtonProfile = clamped
+        manualUSBButtonProfileSelectionByDeviceID.insert(selectedDevice.id)
+        hydratedButtonBindingsKey = nil
+        Task { [weak self] in
+            await self?.hydrateButtonBindingsIfNeeded(device: selectedDevice)
+        }
+    }
+
     func updateLightingWaveDirection(_ direction: LightingWaveDirection) {
         editableLightingWaveDirection = direction
     }
@@ -668,7 +698,9 @@ final class AppState {
             kind: resolved.kind,
             hidKey: resolved.kind == .keyboardSimple ? resolved.hidKey : nil,
             turboEnabled: resolved.kind.supportsTurbo ? resolved.turboEnabled : false,
-            turboRate: resolved.kind.supportsTurbo && resolved.turboEnabled ? resolved.turboRate : nil
+            turboRate: resolved.kind.supportsTurbo && resolved.turboEnabled ? resolved.turboRate : nil,
+            persistentProfile: editableUSBButtonProfile,
+            writeDirectLayer: !supportsMultipleOnboardProfiles || editableUSBButtonProfile == activeOnboardProfile
         )
         enqueueApply(DevicePatch(buttonBinding: binding))
     }
@@ -922,8 +954,8 @@ final class AppState {
                 hydratedLightingStateByDeviceID.insert(selectedDevice.id)
             }
             if let buttonBinding = patch.buttonBinding {
-                persistButtonBinding(buttonBinding, device: selectedDevice)
-                hydratedButtonBindingsDeviceID = selectedDevice.id
+                persistButtonBinding(buttonBinding, device: selectedDevice, profile: buttonBinding.persistentProfile)
+                hydratedButtonBindingsKey = buttonBindingsHydrationKey(device: selectedDevice)
             }
             errorMessage = nil
             setTelemetryWarning(telemetryWarning(for: merged, device: selectedDevice), device: selectedDevice)
@@ -1011,6 +1043,8 @@ final class AppState {
         if let led = state.led_value {
             editableLedBrightness = led
         }
+
+        syncUSBButtonProfileSelection(from: state)
     }
 
     private func hydrateLightingStateIfNeeded(device: MouseDevice) async {
@@ -1090,20 +1124,21 @@ final class AppState {
     }
 
     private func hydrateButtonBindingsIfNeeded(device: MouseDevice) async {
-        guard hydratedButtonBindingsDeviceID != device.id else { return }
+        let hydrationKey = buttonBindingsHydrationKey(device: device)
+        guard hydratedButtonBindingsKey != hydrationKey else { return }
 
-        var hydrated = loadPersistedButtonBindings(device: device)
+        var hydrated = loadPersistedButtonBindings(device: device, profile: editableUSBButtonProfile)
         if device.transport == .usb, let fromDevice = await loadUSBButtonBindingsFromDevice(device: device) {
             hydrated.merge(fromDevice) { _, fromDevice in fromDevice }
-            savePersistedButtonBindings(device: device, bindings: hydrated)
+            savePersistedButtonBindings(device: device, bindings: hydrated, profile: editableUSBButtonProfile)
             AppLog.debug(
                 "AppState",
-                "hydrated button bindings from USB readback id=\(device.id) slots=\(fromDevice.keys.sorted())"
+                "hydrated button bindings from USB readback id=\(device.id) profile=\(editableUSBButtonProfile) slots=\(fromDevice.keys.sorted())"
             )
         } else {
             AppLog.debug(
                 "AppState",
-                "hydrated button bindings from persisted cache id=\(device.id) slots=\(hydrated.keys.sorted())"
+                "hydrated button bindings from persisted cache id=\(device.id) profile=\(editableUSBButtonProfile) slots=\(hydrated.keys.sorted())"
             )
         }
 
@@ -1115,7 +1150,7 @@ final class AppState {
                 partialResult[slot] = AppState.keyboardText(forHidKey: draft.hidKey) ?? ""
             }
         }
-        hydratedButtonBindingsDeviceID = device.id
+        hydratedButtonBindingsKey = hydrationKey
     }
 
     private func loadUSBButtonBindingsFromDevice(device: MouseDevice) async -> [Int: ButtonBindingDraft]? {
@@ -1124,11 +1159,19 @@ final class AppState {
             .filter { $0 != 6 }
         var bindings: [Int: ButtonBindingDraft] = [:]
         var readAnyBlock = false
+        let persistentProfile = max(1, min(visibleOnboardProfileCount, editableUSBButtonProfile))
+        let shouldReadDirect = !supportsMultipleOnboardProfiles || persistentProfile == activeOnboardProfile
 
         for slot in slots {
             do {
-                let persistentBlock = try await client.debugUSBReadButtonBinding(device: device, slot: slot, profile: 0x01)
-                let directBlock = try await client.debugUSBReadButtonBinding(device: device, slot: slot, profile: 0x00)
+                let persistentBlock = try await client.debugUSBReadButtonBinding(
+                    device: device,
+                    slot: slot,
+                    profile: persistentProfile
+                )
+                let directBlock = shouldReadDirect
+                    ? try await client.debugUSBReadButtonBinding(device: device, slot: slot, profile: 0x00)
+                    : nil
                 let block = directBlock ?? persistentBlock
                 if let block {
                     readAnyBlock = true
@@ -1152,16 +1195,16 @@ final class AppState {
         return bindings
     }
 
-    private func persistButtonBinding(_ binding: ButtonBindingPatch, device: MouseDevice) {
-        preferenceStore.persistButtonBinding(binding, device: device)
+    private func persistButtonBinding(_ binding: ButtonBindingPatch, device: MouseDevice, profile: Int) {
+        preferenceStore.persistButtonBinding(binding, device: device, profile: profile)
     }
 
-    private func savePersistedButtonBindings(device: MouseDevice, bindings: [Int: ButtonBindingDraft]) {
-        preferenceStore.savePersistedButtonBindings(device: device, bindings: bindings)
+    private func savePersistedButtonBindings(device: MouseDevice, bindings: [Int: ButtonBindingDraft], profile: Int) {
+        preferenceStore.savePersistedButtonBindings(device: device, bindings: bindings, profile: profile)
     }
 
-    private func loadPersistedButtonBindings(device: MouseDevice) -> [Int: ButtonBindingDraft] {
-        preferenceStore.loadPersistedButtonBindings(device: device)
+    private func loadPersistedButtonBindings(device: MouseDevice, profile: Int) -> [Int: ButtonBindingDraft] {
+        preferenceStore.loadPersistedButtonBindings(device: device, profile: profile)
     }
 
     private func defaultButtonBinding(for slot: Int) -> ButtonBindingDraft {
@@ -1182,6 +1225,26 @@ final class AppState {
         guard editableLightingEffect == .staticColor else { return nil }
         guard editableUSBLightingZoneID != "all" else { return nil }
         return visibleUSBLightingZones.first(where: { $0.id == editableUSBLightingZoneID })?.ledIDs
+    }
+
+    private func syncUSBButtonProfileSelection(from state: MouseState) {
+        guard let selectedDevice else { return }
+        let count = max(1, max(selectedDevice.onboard_profile_count, state.onboard_profile_count ?? 1))
+        let active = max(1, min(count, state.active_onboard_profile ?? 1))
+        let selected: Int
+        if manualUSBButtonProfileSelectionByDeviceID.contains(selectedDevice.id) {
+            selected = max(1, min(count, editableUSBButtonProfile))
+        } else {
+            selected = active
+        }
+        if editableUSBButtonProfile != selected {
+            editableUSBButtonProfile = selected
+            hydratedButtonBindingsKey = nil
+        }
+    }
+
+    private func buttonBindingsHydrationKey(device: MouseDevice) -> String {
+        "\(device.id)#\(editableUSBButtonProfile)"
     }
 
     private func applyKeyboardTextDraft(slot: Int) {

@@ -107,6 +107,7 @@ extension BridgeClient {
         let scrollMode = try getScrollMode(session, device)
         let scrollAcceleration = try getScrollAcceleration(session, device)
         let scrollSmartReel = try getScrollSmartReel(session, device)
+        let onboardProfile = try getOnboardProfileInfo(session, device)
         let led = try getScrollLEDBrightness(session, device)
 
         let active = stages?.0 ?? 0
@@ -132,6 +133,8 @@ extension BridgeClient {
             scroll_mode: scrollMode,
             scroll_acceleration: scrollAcceleration,
             scroll_smart_reel: scrollSmartReel,
+            active_onboard_profile: onboardProfile?.active,
+            onboard_profile_count: onboardProfile?.count ?? max(1, device.onboard_profile_count),
             led_value: led,
             capabilities: Capabilities(dpi_stages: true, poll_rate: true, power_management: true, button_remap: true, lighting: true)
         )
@@ -417,6 +420,16 @@ extension BridgeClient {
         return r[9] != 0
     }
 
+    func getOnboardProfileInfo(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> (active: Int, count: Int)? {
+        guard device.onboard_profile_count > 1 else { return (active: 1, count: 1) }
+        guard let r = try perform(session, device, classID: 0x00, cmdID: 0x87, size: 0x00), r[0] == 0x02 else {
+            return nil
+        }
+        let active = max(1, Int(r[8]))
+        let count = max(1, Int(r[10]))
+        return (active: active, count: count)
+    }
+
     func setScrollSmartReel(_ session: USBHIDControlSession, _ device: MouseDevice, enabled: Bool) throws -> Bool {
         let args: [UInt8] = [0x01, enabled ? 0x01 : 0x00]
         guard let r = try perform(session, device, classID: 0x02, cmdID: 0x17, size: 0x02, args: args) else { return false }
@@ -512,7 +525,9 @@ extension BridgeClient {
         kind: String,
         hidKey: Int,
         turboEnabled: Bool,
-        turboRate: Int
+        turboRate: Int,
+        persistentProfile: Int,
+        writeDirectLayer: Bool
     ) throws -> Bool {
         guard let bindingKind = ButtonBindingKind(rawValue: kind) else { return false }
         let functionBlock = ButtonBindingSupport.buildUSBFunctionBlock(
@@ -525,22 +540,29 @@ extension BridgeClient {
         )
         let clampedSlot = UInt8(max(0, min(255, slot)))
 
+        let clampedPersistentProfile = UInt8(max(1, min(5, persistentProfile)))
+
         let wrotePersistent = try setButtonBindingUSBRaw(
             session,
             device,
-            profile: 0x01,
+            profile: clampedPersistentProfile,
             slot: clampedSlot,
             hypershift: 0x00,
             functionBlock: functionBlock
         )
-        let wroteDirect = try setButtonBindingUSBRaw(
-            session,
-            device,
-            profile: 0x00,
-            slot: clampedSlot,
-            hypershift: 0x00,
-            functionBlock: functionBlock
-        )
+        let wroteDirect: Bool
+        if writeDirectLayer {
+            wroteDirect = try setButtonBindingUSBRaw(
+                session,
+                device,
+                profile: 0x00,
+                slot: clampedSlot,
+                hypershift: 0x00,
+                functionBlock: functionBlock
+            )
+        } else {
+            wroteDirect = false
+        }
         return wrotePersistent || wroteDirect
     }
 

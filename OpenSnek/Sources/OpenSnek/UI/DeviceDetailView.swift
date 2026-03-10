@@ -51,6 +51,9 @@ struct DeviceDetailView: View {
 
     private var detailSections: [DetailSection] {
         var sections: [DetailSection] = []
+        if selected.transport == .usb, max(selected.onboard_profile_count, state.onboard_profile_count ?? 1) > 1 {
+            sections.append(.onboardProfiles)
+        }
         if state.capabilities.dpi_stages {
             sections.append(.dpiStages)
         }
@@ -83,6 +86,8 @@ struct DeviceDetailView: View {
     @ViewBuilder
     private func detailCard(for section: DetailSection) -> some View {
         switch section {
+        case .onboardProfiles:
+            OnboardProfilesCard(appState: appState, selected: selected, state: state)
         case .dpiStages:
             DpiStagesCard(appState: appState)
         case .lighting:
@@ -110,6 +115,7 @@ struct DeviceDetailView: View {
 }
 
 private enum DetailSection: Hashable {
+    case onboardProfiles
     case dpiStages
     case lighting
     case pollRate
@@ -135,6 +141,62 @@ struct LightingSwatch: Identifiable, Hashable {
     }
 
     var id: UInt32 { hex }
+}
+
+struct OnboardProfilesCard: View {
+    @Bindable var appState: AppState
+    let selected: MouseDevice
+    let state: MouseState
+
+    private var profileCount: Int {
+        max(selected.onboard_profile_count, state.onboard_profile_count ?? 1)
+    }
+
+    private var activeProfile: Int {
+        max(1, min(profileCount, state.active_onboard_profile ?? 1))
+    }
+
+    var body: some View {
+        Card(title: "Onboard Profiles") {
+            HStack {
+                Text("Active Hardware Profile")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.82))
+                Spacer()
+                Text("Profile \(activeProfile) of \(profileCount)")
+                    .font(.system(size: 13, weight: .black, design: .monospaced))
+                    .foregroundStyle(.white)
+            }
+
+            if selected.transport == .usb {
+                HStack {
+                    Text("Button Remap Profile")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.82))
+                    Spacer()
+                    Picker(
+                        "",
+                        selection: Binding(
+                            get: { appState.editableUSBButtonProfile },
+                            set: { appState.updateUSBButtonProfile($0) }
+                        )
+                    ) {
+                        ForEach(1...profileCount, id: \.self) { profile in
+                            let label = profile == activeProfile ? "Profile \(profile) (Active)" : "Profile \(profile)"
+                            Text(label).tag(profile)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(width: 220, alignment: .trailing)
+                }
+
+                Text("Button remaps are stored per onboard profile. DPI and lighting reflect the currently active hardware profile.")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.62))
+            }
+        }
+    }
 }
 
 private struct PreferredDetailColumnLayoutKey: LayoutValueKey {
@@ -322,7 +384,8 @@ struct LightingCard: View {
     private var zoneGradientColors: [Color] {
         guard selected.transport == .usb,
               appState.editableLightingEffect == .staticColor,
-              appState.visibleUSBLightingZones.count > 1
+              appState.visibleUSBLightingZones.count > 1,
+              appState.editableUSBLightingZoneID != "all"
         else {
             return [
                 accentBase.opacity(accentOpacity),
@@ -335,13 +398,7 @@ struct LightingCard: View {
             "logo": Color(hex: 0x7FF2A5),
             "underglow": Color(hex: 0xFFD36B),
         ]
-
-        let zones: [USBLightingZoneDescriptor]
-        if appState.editableUSBLightingZoneID == "all" {
-            zones = appState.visibleUSBLightingZones
-        } else {
-            zones = appState.visibleUSBLightingZones.filter { $0.id == appState.editableUSBLightingZoneID }
-        }
+        let zones = appState.visibleUSBLightingZones.filter { $0.id == appState.editableUSBLightingZoneID }
 
         let overlayOpacity = max(0.10, accentOpacity * 0.9)
         let zoneColors = zones.map { zone in

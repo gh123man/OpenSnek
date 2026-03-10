@@ -79,6 +79,7 @@ public struct DeviceProfile: Hashable, Sendable {
     public let supportedLightingEffects: [LightingEffectKind]
     public let usbLightingLEDIDs: [UInt8]
     public let usbLightingZones: [USBLightingZoneDescriptor]
+    public let onboardProfileCount: Int
 
     public init(
         id: DeviceProfileID,
@@ -89,7 +90,8 @@ public struct DeviceProfile: Hashable, Sendable {
         supportsAdvancedLightingEffects: Bool,
         supportedLightingEffects: [LightingEffectKind] = LightingEffectKind.allCases,
         usbLightingLEDIDs: [UInt8] = [],
-        usbLightingZones: [USBLightingZoneDescriptor] = []
+        usbLightingZones: [USBLightingZoneDescriptor] = [],
+        onboardProfileCount: Int = 1
     ) {
         self.id = id
         self.productName = productName
@@ -100,6 +102,7 @@ public struct DeviceProfile: Hashable, Sendable {
         self.supportedLightingEffects = supportedLightingEffects
         self.usbLightingLEDIDs = usbLightingLEDIDs
         self.usbLightingZones = usbLightingZones
+        self.onboardProfileCount = max(1, onboardProfileCount)
     }
 
     public func matches(vendorID: Int, productID: Int, transport: DeviceTransportKind) -> Bool {
@@ -164,7 +167,8 @@ public enum DeviceProfiles {
         supportsAdvancedLightingEffects: true,
         supportedLightingEffects: basiliskV3XUSBLightingEffects,
         usbLightingLEDIDs: [0x01],
-        usbLightingZones: basiliskV3XUSBLightingZones
+        usbLightingZones: basiliskV3XUSBLightingZones,
+        onboardProfileCount: 1
     )
 
     public static let basiliskV335KUSB = DeviceProfile(
@@ -179,7 +183,8 @@ public enum DeviceProfiles {
         supportsAdvancedLightingEffects: true,
         supportedLightingEffects: basiliskV335KUSBLightingEffects,
         usbLightingLEDIDs: [0x01, 0x04, 0x0A],
-        usbLightingZones: basiliskV335KUSBLightingZones
+        usbLightingZones: basiliskV335KUSBLightingZones,
+        onboardProfileCount: 5
     )
 
     public static let basiliskV3XBluetooth = DeviceProfile(
@@ -193,7 +198,8 @@ public enum DeviceProfiles {
         ),
         supportsAdvancedLightingEffects: false,
         supportedLightingEffects: [.staticColor],
-        usbLightingZones: basiliskV3XUSBLightingZones
+        usbLightingZones: basiliskV3XUSBLightingZones,
+        onboardProfileCount: 1
     )
 
     public static let all: [DeviceProfile] = [

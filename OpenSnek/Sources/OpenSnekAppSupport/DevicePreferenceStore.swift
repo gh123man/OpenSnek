@@ -72,19 +72,19 @@ public final class DevicePreferenceStore: @unchecked Sendable {
         return (kind: kind, waveDirection: direction, reactiveSpeed: speed, secondaryColor: color)
     }
 
-    public func persistButtonBinding(_ binding: ButtonBindingPatch, device: MouseDevice) {
-        var persisted = loadPersistedButtonBindings(device: device)
+    public func persistButtonBinding(_ binding: ButtonBindingPatch, device: MouseDevice, profile: Int? = nil) {
+        var persisted = loadPersistedButtonBindings(device: device, profile: profile)
         persisted[binding.slot] = ButtonBindingDraft(
             kind: binding.kind,
             hidKey: binding.kind == .keyboardSimple ? max(4, min(231, binding.hidKey ?? 4)) : 4,
             turboEnabled: binding.kind.supportsTurbo ? binding.turboEnabled : false,
             turboRate: max(1, min(255, binding.turboRate ?? 0x8E))
         )
-        savePersistedButtonBindings(device: device, bindings: persisted)
+        savePersistedButtonBindings(device: device, bindings: persisted, profile: profile)
     }
 
-    public func savePersistedButtonBindings(device: MouseDevice, bindings: [Int: ButtonBindingDraft]) {
-        let key = "buttonBindings.\(DevicePersistenceKeys.key(for: device))"
+    public func savePersistedButtonBindings(device: MouseDevice, bindings: [Int: ButtonBindingDraft], profile: Int? = nil) {
+        let key = buttonBindingsKey(device: device, profile: profile)
         let encoded = bindings.reduce(into: [String: PersistedButtonBinding]()) { partialResult, pair in
             partialResult[String(pair.key)] = PersistedButtonBinding(
                 kindRaw: pair.value.kind.rawValue,
@@ -97,10 +97,10 @@ public final class DevicePreferenceStore: @unchecked Sendable {
         defaults.set(data, forKey: key)
     }
 
-    public func loadPersistedButtonBindings(device: MouseDevice) -> [Int: ButtonBindingDraft] {
-        let key = "buttonBindings.\(DevicePersistenceKeys.key(for: device))"
-        let legacyKey = "buttonBindings.\(DevicePersistenceKeys.legacyKey(for: device))"
-        let data = defaults.data(forKey: key) ?? defaults.data(forKey: legacyKey)
+    public func loadPersistedButtonBindings(device: MouseDevice, profile: Int? = nil) -> [Int: ButtonBindingDraft] {
+        let key = buttonBindingsKey(device: device, profile: profile)
+        let legacyKey = buttonBindingsLegacyKey(device: device, profile: profile)
+        let data = defaults.data(forKey: key) ?? legacyKey.flatMap { defaults.data(forKey: $0) }
         guard
             let data,
             let decoded = try? JSONDecoder().decode([String: PersistedButtonBinding].self, from: data)
@@ -108,11 +108,12 @@ public final class DevicePreferenceStore: @unchecked Sendable {
             return [:]
         }
 
+        let allowedSlots = Set((device.button_layout?.visibleSlots ?? ButtonSlotDescriptor.defaults).map(\.slot))
         return decoded.reduce(into: [Int: ButtonBindingDraft]()) { partialResult, pair in
             guard
                 let slot = Int(pair.key),
                 let kind = ButtonBindingKind(rawValue: pair.value.kindRaw),
-                ButtonSlotDescriptor.defaults.contains(where: { $0.slot == slot })
+                allowedSlots.contains(slot)
             else {
                 return
             }
@@ -123,6 +124,21 @@ public final class DevicePreferenceStore: @unchecked Sendable {
                 turboRate: max(1, min(255, pair.value.turboRate))
             )
         }
+    }
+
+    private func buttonBindingsKey(device: MouseDevice, profile: Int?) -> String {
+        let base = "buttonBindings.\(DevicePersistenceKeys.key(for: device))"
+        guard let profile else { return base }
+        return "\(base).profile\(max(1, profile))"
+    }
+
+    private func buttonBindingsLegacyKey(device: MouseDevice, profile: Int?) -> String? {
+        let legacyBase = "buttonBindings.\(DevicePersistenceKeys.legacyKey(for: device))"
+        let currentBase = "buttonBindings.\(DevicePersistenceKeys.key(for: device))"
+        if let profile, profile > 1 {
+            return nil
+        }
+        return defaults.data(forKey: currentBase) == nil ? legacyBase : currentBase
     }
 }
 

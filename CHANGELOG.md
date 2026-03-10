@@ -15,7 +15,8 @@ All notable changes to this project are documented in this file.
 - USB button support now preserves and restores the Basilisk V3 35K top DPI-button default payload on slot `0x60`, and the app exposes the extra 35K-only USB slots for the wheel-tilt and DPI-button controls while keeping fixed-only special buttons labeled separately.
 - Basilisk V3 35K button-slot hydration now rejects stale `0x02:0x8C` replies for the wrong echoed slot, and the shared 35K button layout now includes the validated wheel-tilt slots (`0x34`, `0x35`) with cleaned-up control labels.
 - The button-binding UI now hides fixed-only 35K controls, and USB button bindings expose an explicit `DPI Cycle` action that can be assigned to any writable button while the 35K DPI button restores to a working DPI-cycle default.
-- The USB lighting card now filters effect choices per device capability and uses a multi-zone static gradient when a USB mouse exposes more than one independently addressable zone.
+- The USB lighting card now filters effect choices per device capability, keeps the original background treatment for `All Zones`, and only uses the multi-zone accent gradient when a specific static USB zone is selected.
+- Open Snek now reads the Basilisk V3 35K onboard profile summary on USB, exposes multi-profile UI only on devices that actually advertise multiple onboard profiles, and scopes USB button remap reads/writes to the selected stored profile instead of hard-coding profile 1.
 - Python USB tooling now recognizes Basilisk V3 35K (`0x00CB`) and mirrors multi-zone USB lighting writes across all validated LED IDs.
 
 ## [2026-03-09]

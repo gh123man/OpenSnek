@@ -16,6 +16,8 @@ final class MouseStateMergeTests: XCTestCase {
             scroll_mode: 1,
             scroll_acceleration: true,
             scroll_smart_reel: false,
+            active_onboard_profile: 2,
+            onboard_profile_count: 5,
             led_value: 200,
             capabilities: Capabilities(dpi_stages: true, poll_rate: false, button_remap: true, lighting: true)
         )
@@ -33,6 +35,8 @@ final class MouseStateMergeTests: XCTestCase {
             scroll_mode: nil,
             scroll_acceleration: nil,
             scroll_smart_reel: nil,
+            active_onboard_profile: nil,
+            onboard_profile_count: nil,
             led_value: nil,
             capabilities: Capabilities(dpi_stages: false, poll_rate: false, button_remap: true, lighting: false)
         )
@@ -45,6 +49,8 @@ final class MouseStateMergeTests: XCTestCase {
         XCTAssertEqual(merged.scroll_mode, 1)
         XCTAssertEqual(merged.scroll_acceleration, true)
         XCTAssertEqual(merged.scroll_smart_reel, false)
+        XCTAssertEqual(merged.active_onboard_profile, 2)
+        XCTAssertEqual(merged.onboard_profile_count, 5)
         XCTAssertEqual(merged.led_value, 200)
         XCTAssertTrue(merged.capabilities.dpi_stages)
         XCTAssertTrue(merged.capabilities.lighting)
@@ -64,6 +70,8 @@ final class MouseStateMergeTests: XCTestCase {
             scroll_mode: 0,
             scroll_acceleration: false,
             scroll_smart_reel: false,
+            active_onboard_profile: 1,
+            onboard_profile_count: 5,
             led_value: 200,
             capabilities: Capabilities(dpi_stages: true, poll_rate: false, button_remap: true, lighting: true)
         )
@@ -81,6 +89,8 @@ final class MouseStateMergeTests: XCTestCase {
             scroll_mode: 1,
             scroll_acceleration: true,
             scroll_smart_reel: true,
+            active_onboard_profile: 3,
+            onboard_profile_count: 5,
             led_value: 180,
             capabilities: Capabilities(dpi_stages: true, poll_rate: false, button_remap: true, lighting: true)
         )
@@ -93,6 +103,8 @@ final class MouseStateMergeTests: XCTestCase {
         XCTAssertEqual(merged.scroll_mode, 1)
         XCTAssertEqual(merged.scroll_acceleration, true)
         XCTAssertEqual(merged.scroll_smart_reel, true)
+        XCTAssertEqual(merged.active_onboard_profile, 3)
+        XCTAssertEqual(merged.onboard_profile_count, 5)
         XCTAssertEqual(merged.led_value, 180)
         XCTAssertEqual(merged.device.firmware, "1.3")
     }

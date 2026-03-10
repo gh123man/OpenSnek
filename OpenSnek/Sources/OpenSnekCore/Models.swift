@@ -51,6 +51,7 @@ public struct MouseDevice: Codable, Identifiable, Hashable, Sendable {
     public let profile_id: DeviceProfileID?
     public let button_layout: ButtonSlotLayout?
     public let supports_advanced_lighting_effects: Bool
+    public let onboard_profile_count: Int
 
     public init(
         id: String,
@@ -64,7 +65,8 @@ public struct MouseDevice: Codable, Identifiable, Hashable, Sendable {
         location_id: Int = 0,
         profile_id: DeviceProfileID? = nil,
         button_layout: ButtonSlotLayout? = nil,
-        supports_advanced_lighting_effects: Bool = false
+        supports_advanced_lighting_effects: Bool = false,
+        onboard_profile_count: Int = 1
     ) {
         self.id = id
         self.vendor_id = vendor_id
@@ -78,6 +80,7 @@ public struct MouseDevice: Codable, Identifiable, Hashable, Sendable {
         self.profile_id = profile_id
         self.button_layout = button_layout
         self.supports_advanced_lighting_effects = supports_advanced_lighting_effects
+        self.onboard_profile_count = max(1, onboard_profile_count)
     }
 
     public var connectionLabel: String {
@@ -154,6 +157,8 @@ public struct MouseState: Codable, Hashable, Sendable {
     public let scroll_mode: Int?
     public let scroll_acceleration: Bool?
     public let scroll_smart_reel: Bool?
+    public let active_onboard_profile: Int?
+    public let onboard_profile_count: Int?
     public let led_value: Int?
     public let capabilities: Capabilities
 
@@ -171,6 +176,8 @@ public struct MouseState: Codable, Hashable, Sendable {
         scroll_mode: Int? = nil,
         scroll_acceleration: Bool? = nil,
         scroll_smart_reel: Bool? = nil,
+        active_onboard_profile: Int? = nil,
+        onboard_profile_count: Int? = nil,
         led_value: Int?,
         capabilities: Capabilities
     ) {
@@ -187,6 +194,8 @@ public struct MouseState: Codable, Hashable, Sendable {
         self.scroll_mode = scroll_mode
         self.scroll_acceleration = scroll_acceleration
         self.scroll_smart_reel = scroll_smart_reel
+        self.active_onboard_profile = active_onboard_profile
+        self.onboard_profile_count = onboard_profile_count
         self.led_value = led_value
         self.capabilities = capabilities
     }
@@ -212,6 +221,8 @@ public extension MouseState {
             scroll_mode: scroll_mode ?? previous.scroll_mode,
             scroll_acceleration: scroll_acceleration ?? previous.scroll_acceleration,
             scroll_smart_reel: scroll_smart_reel ?? previous.scroll_smart_reel,
+            active_onboard_profile: active_onboard_profile ?? previous.active_onboard_profile,
+            onboard_profile_count: onboard_profile_count ?? previous.onboard_profile_count,
             led_value: led_value ?? previous.led_value,
             capabilities: Capabilities(
                 dpi_stages: capabilities.dpi_stages || previous.capabilities.dpi_stages,
@@ -383,13 +394,25 @@ public struct ButtonBindingPatch: Sendable, Hashable, Codable {
     public let hidKey: Int?
     public let turboEnabled: Bool
     public let turboRate: Int?
+    public let persistentProfile: Int
+    public let writeDirectLayer: Bool
 
-    public init(slot: Int, kind: ButtonBindingKind, hidKey: Int?, turboEnabled: Bool = false, turboRate: Int? = nil) {
+    public init(
+        slot: Int,
+        kind: ButtonBindingKind,
+        hidKey: Int?,
+        turboEnabled: Bool = false,
+        turboRate: Int? = nil,
+        persistentProfile: Int = 1,
+        writeDirectLayer: Bool = true
+    ) {
         self.slot = slot
         self.kind = kind
         self.hidKey = hidKey
         self.turboEnabled = turboEnabled
         self.turboRate = turboRate
+        self.persistentProfile = max(1, min(5, persistentProfile))
+        self.writeDirectLayer = writeDirectLayer
     }
 }
 

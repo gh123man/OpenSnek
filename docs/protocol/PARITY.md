@@ -76,6 +76,7 @@ Validated in-session over USB:
 - observed alternate USB DPI-button payload on slot `0x60`: `04 02 0F 7B 00 00 00`
 - shipped client behavior: normalize `0x60` to a user-facing `DPI Cycle` action and allow binding `DPI Cycle` to any writable USB slot
 - client note: `0x02:0x8C` response layout is not identical to `0x00B9`; clients must validate echoed `profile`/`slot` bytes before choosing the 35K function-block offset
+- observed profile summary getter on `0x00CB`: `0x00:0x87` -> `<active,0x00,count>`; active-profile write path remains unresolved
 
 ## Validated BT Profile (Basilisk V3 X HyperSpeed BT PID `0x00BA`, macOS stack)
 

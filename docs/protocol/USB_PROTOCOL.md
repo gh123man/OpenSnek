@@ -170,7 +170,8 @@ TxnID:    0x1F
 ```
 Get:      Class 0x02, ID 0x8C, Size 0x0A
 Set:      Class 0x02, ID 0x0C, Size 0x0A
-Args:     [0] = profile (0x00 direct, 0x01 persistent/default)
+Args:     [0] = profile (`0x00` direct/effective layer, `0x01` persistent slot 1;
+                        Basilisk V3 35K also validates persistent slots `0x02..0x05`)
           [1] = button slot
           [2] = hypershift flag (0x00 normal, 0x01 hypershift layer)
           [3] = function class
@@ -207,6 +208,19 @@ Client note:
 - Basilisk V3 35K (`0x00CB`) `0x02:0x8C` reads do not use one fixed payload offset for every slot. Observed 35K slots decode from `response[11..<18]`; treating `response[10...]` as the block causes false positives and mislabels on extra buttons such as `0x60` and `0x6A`.
 - Always validate the echoed `profile` and `slot` bytes before decoding a `0x02:0x8C` read. This device will otherwise yield stale-looking success frames that can be mistaken for additional slots.
 - Open Snek normalizes both `06 01 06 00 00 00 00` and the observed `0x60` variant `04 02 0F 7B 00 00 00` as the user-facing `DPI Cycle` action.
+
+#### Get Onboard Profile Summary
+```
+Command:  Class 0x00, ID 0x87, Size 0x00
+Response: args[0] = active onboard profile (1-based)
+          args[1] = reserved / zero in current captures
+          args[2] = onboard profile count
+TxnID:    0x1F
+```
+
+Observed on Basilisk V3 35K (`0x00CB`):
+- response payload `01 00 05` on USB, indicating active profile `1` and `5` onboard profiles
+- the corresponding low-bit write candidate (`0x00:0x07`) is not yet validated for active-profile switching
 
 ---
 

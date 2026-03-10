@@ -10,6 +10,7 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual])
         XCTAssertEqual(profile?.usbLightingLEDIDs, [0x01])
         XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel"])
+        XCTAssertEqual(profile?.onboardProfileCount, 1)
     }
 
     func testResolveUSBProfileForBasiliskV335K() {
@@ -21,6 +22,7 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .spectrum, .wave])
         XCTAssertEqual(profile?.usbLightingLEDIDs, [0x01, 0x04, 0x0A])
         XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel", "logo", "underglow"])
+        XCTAssertEqual(profile?.onboardProfileCount, 5)
     }
 
     func testResolveBluetoothProfileForBasiliskV3X() {
@@ -28,6 +30,7 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.id, .basiliskV3XHyperspeed)
         XCTAssertEqual(profile?.buttonLayout.writableSlots, [1, 2, 3, 4, 5, 9, 10, 96])
         XCTAssertEqual(profile?.supportsAdvancedLightingEffects, false)
+        XCTAssertEqual(profile?.onboardProfileCount, 1)
     }
 
     func testPersistenceKeysPreferSerial() {
