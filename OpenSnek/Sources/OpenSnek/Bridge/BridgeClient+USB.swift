@@ -177,7 +177,7 @@ extension BridgeClient {
                 hidAccessDenied = true
                 let now = Date()
                 if lastOpenDeniedLogAt == nil || now.timeIntervalSince(lastOpenDeniedLogAt!) > 2.0 {
-                    AppLog.debug("Bridge", "USB HID access denied device=\(device.id)")
+                    AppLog.warning("Bridge", "USB HID access denied device=\(device.id); Input Monitoring is required")
                     lastOpenDeniedLogAt = now
                 }
             }

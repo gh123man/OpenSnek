@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 import OpenSnekCore
 
@@ -24,26 +23,12 @@ struct DeviceSidebarView: View {
 
                     Spacer(minLength: 8)
 
-                    HStack(spacing: 6) {
-                        Button {
-                            Task { await appState.refreshDevices() }
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 11, weight: .bold))
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-
-                        Button {
-                            NSWorkspace.shared.open(URL(fileURLWithPath: AppLog.path))
-                        } label: {
-                            Image(systemName: "doc.text.magnifyingglass")
-                                .font(.system(size: 11, weight: .bold))
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .help("Open runtime log file")
+                    SettingsLink {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 11, weight: .bold))
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
 
                 Text("Devices")

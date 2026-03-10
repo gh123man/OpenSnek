@@ -173,7 +173,17 @@ final class AppState {
                 await refreshState()
             }
         } catch {
-            AppLog.debug("AppState", "pollDevicePresence failed: \(error.localizedDescription)")
+            if devices.isEmpty {
+                let lowered = error.localizedDescription.lowercased()
+                if lowered.contains("no device") || lowered.contains("no supported device") || lowered.contains("not found") {
+                    errorMessage = nil
+                } else {
+                    AppLog.warning("AppState", "pollDevicePresence failed with no visible devices: \(error.localizedDescription)")
+                    errorMessage = error.localizedDescription
+                }
+            } else {
+                AppLog.debug("AppState", "pollDevicePresence failed: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -212,6 +222,9 @@ final class AppState {
             state = cached
         } else if selectedDeviceID == nil {
             state = nil
+            errorMessage = nil
+            warningMessage = nil
+            lastUpdated = nil
         }
 
         let changed = previousIDs != newIDs || previousSelectedID != selectedDeviceID
@@ -222,6 +235,13 @@ final class AppState {
             )
         }
         return changed
+    }
+
+    private func setTelemetryWarning(_ newValue: String?, device: MouseDevice) {
+        if warningMessage != newValue, let newValue {
+            AppLog.warning("AppState", "telemetry degraded device=\(device.id) transport=\(device.transport.rawValue): \(newValue)")
+        }
+        warningMessage = newValue
     }
 
     private func deviceIdentityKey(_ device: MouseDevice) -> String {
@@ -241,6 +261,9 @@ final class AppState {
     func refreshState() async {
         guard let selectedDevice else {
             state = nil
+            errorMessage = nil
+            warningMessage = nil
+            lastUpdated = nil
             return
         }
         guard !isRefreshingState, !isApplying, !hasPendingLocalEdits else {
@@ -279,7 +302,7 @@ final class AppState {
                 await hydrateButtonBindingsIfNeeded(device: selectedDevice)
             }
             errorMessage = nil
-            warningMessage = telemetryWarning(for: merged, device: selectedDevice)
+            setTelemetryWarning(telemetryWarning(for: merged, device: selectedDevice), device: selectedDevice)
             AppLog.debug(
                 "AppState",
                 "refreshState ok device=\(selectedDevice.id) active=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
@@ -290,13 +313,22 @@ final class AppState {
             let failures = (refreshFailureCountByDeviceID[selectedDevice.id] ?? 0) + 1
             refreshFailureCountByDeviceID[selectedDevice.id] = failures
             if stateCacheByDeviceID[selectedDevice.id] == nil {
-                AppLog.error("AppState", "refreshState failed no-cache: \(error.localizedDescription)")
+                AppLog.error(
+                    "AppState",
+                    "refreshState failed device=\(selectedDevice.id) transport=\(selectedDevice.transport.rawValue) no-cache: \(error.localizedDescription)"
+                )
                 errorMessage = error.localizedDescription
                 warningMessage = nil
             } else {
                 // Keep last known-good UI stable on transient polling failures.
                 AppLog.debug("AppState", "refreshState transient-failure masked: \(error.localizedDescription)")
                 if failures >= 3 {
+                    if failures == 3 {
+                        AppLog.warning(
+                            "AppState",
+                            "device read unstable device=\(selectedDevice.id) failures=\(failures): \(error.localizedDescription)"
+                        )
+                    }
                     errorMessage = "Device read is failing repeatedly (\(failures)x): \(error.localizedDescription)"
                 } else {
                     errorMessage = nil
@@ -796,6 +828,7 @@ final class AppState {
 
     private func applyNow(patch: DevicePatch) async {
         guard let selectedDevice else {
+            AppLog.warning("AppState", "apply skipped with no selected device patch=\(patch.describe)")
             errorMessage = "No device selected"
             return
         }
@@ -851,7 +884,7 @@ final class AppState {
                 hydratedButtonBindingsDeviceID = selectedDevice.id
             }
             errorMessage = nil
-            warningMessage = telemetryWarning(for: merged, device: selectedDevice)
+            setTelemetryWarning(telemetryWarning(for: merged, device: selectedDevice), device: selectedDevice)
             AppLog.event(
                 "AppState",
                 "apply ok device=\(selectedDevice.id) active=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +

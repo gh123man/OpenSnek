@@ -5,63 +5,38 @@ struct DeviceDetailView: View {
     @Bindable var appState: AppState
     let selected: MouseDevice
     let state: MouseState
-    @State private var usesTwoColumns = false
     private let cardSpacing: CGFloat = 14
     private let detailTwoColumnMinWidth: CGFloat = 360
     private let twoColumnBreakpointPadding: CGFloat = 100
-    private let twoColumnBreakpointHysteresis: CGFloat = 90
     private let detailCardMaxWidth: CGFloat = 560
     private let detailContentMaxWidth: CGFloat = 1400
     private let horizontalPadding: CGFloat = 20
     private let verticalPadding: CGFloat = 18
 
-    private let swatches: [Color] = [
-        Color(hex: 0xFF3B30), Color(hex: 0xFF9500), Color(hex: 0xFFCC00), Color(hex: 0x34C759),
-        Color(hex: 0x00C7BE), Color(hex: 0x0A84FF), Color(hex: 0xBF5AF2), Color(hex: 0xFFFFFF),
+    private let swatches: [LightingSwatch] = [
+        LightingSwatch(hex: 0xFF3B30), LightingSwatch(hex: 0xFF9500), LightingSwatch(hex: 0xFFCC00), LightingSwatch(hex: 0x34C759),
+        LightingSwatch(hex: 0x00C7BE), LightingSwatch(hex: 0x0A84FF), LightingSwatch(hex: 0xBF5AF2), LightingSwatch(hex: 0xFFFFFF),
     ]
 
     var body: some View {
         GeometryReader { proxy in
             let sections = detailSections
-            let leftSections = leftColumnSections(from: sections)
-            let rightSections = rightColumnSections(from: sections)
             let contentWidth = detailContentWidth(for: proxy.size.width)
 
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 18) {
                     DeviceOverviewBar(appState: appState, selected: selected, state: state)
-
-                    if usesTwoColumns {
-                        let columnWidth = twoColumnCardWidth(for: contentWidth)
-                        HStack(alignment: .top, spacing: cardSpacing) {
-                            VStack(alignment: .leading, spacing: cardSpacing) {
-                                ForEach(leftSections, id: \.self) { section in
-                                    detailCardCell(maxWidth: columnWidth) {
-                                        detailCard(for: section)
-                                    }
-                                }
-                            }
-                            .frame(width: columnWidth, alignment: .leading)
-
-                            VStack(alignment: .leading, spacing: cardSpacing) {
-                                ForEach(rightSections, id: \.self) { section in
-                                    detailCardCell(maxWidth: columnWidth) {
-                                        detailCard(for: section)
-                                    }
-                                }
-                            }
-                            .frame(width: columnWidth, alignment: .leading)
+                    DetailColumnsLayout(
+                        minTwoColumnCardWidth: detailTwoColumnMinWidth,
+                        twoColumnBreakpointPadding: twoColumnBreakpointPadding,
+                        spacing: cardSpacing,
+                        maxCardWidth: detailCardMaxWidth
+                    ) {
+                        ForEach(sections, id: \.self) { section in
+                            detailCard(for: section)
+                                .layoutValue(key: PreferredDetailColumnLayoutKey.self, value: preferredColumn(for: section))
+                                .layoutValue(key: DetailCardMaxWidthLayoutKey.self, value: section == .buttonRemap ? detailContentMaxWidth : detailCardMaxWidth)
                         }
-                        .frame(maxWidth: .infinity, alignment: .center)
-                    } else {
-                        VStack(alignment: .leading, spacing: cardSpacing) {
-                            ForEach(sections, id: \.self) { section in
-                                detailCardCell(maxWidth: contentWidth) {
-                                    detailCard(for: section)
-                                }
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .center)
                     }
                 }
                 .frame(width: contentWidth, alignment: .leading)
@@ -71,12 +46,6 @@ struct DeviceDetailView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(WindowDragBlocker())
-            .onAppear {
-                updateColumnMode(for: proxy.size.width)
-            }
-            .onChange(of: proxy.size.width) { _, newWidth in
-                updateColumnMode(for: newWidth)
-            }
         }
     }
 
@@ -111,38 +80,6 @@ struct DeviceDetailView: View {
         (detailTwoColumnMinWidth * 2) + cardSpacing + twoColumnBreakpointPadding
     }
 
-    private func leftColumnSections(from sections: [DetailSection]) -> [DetailSection] {
-        let balanced = sections.filter { $0 != .buttonRemap }
-        return balanced.enumerated().compactMap { index, section in
-            index.isMultiple(of: 2) ? section : nil
-        }
-    }
-
-    private func rightColumnSections(from sections: [DetailSection]) -> [DetailSection] {
-        let balanced = sections.filter { $0 != .buttonRemap }
-        var right = balanced.enumerated().compactMap { index, section in
-            index.isMultiple(of: 2) ? nil : section
-        }
-        if sections.contains(.buttonRemap) {
-            right.append(.buttonRemap)
-        }
-        return right
-    }
-
-    private func updateColumnMode(for availableWidth: CGFloat) {
-        let contentWidth = detailContentWidth(for: availableWidth)
-        let enterThreshold = twoColumnActivationWidth()
-        let exitThreshold = enterThreshold - twoColumnBreakpointHysteresis
-
-        if usesTwoColumns {
-            if contentWidth < exitThreshold {
-                usesTwoColumns = false
-            }
-        } else if contentWidth >= enterThreshold {
-            usesTwoColumns = true
-        }
-    }
-
     @ViewBuilder
     private func detailCard(for section: DetailSection) -> some View {
         switch section {
@@ -167,13 +104,8 @@ struct DeviceDetailView: View {
         min(max(availableWidth - (horizontalPadding * 2), 0), detailContentMaxWidth)
     }
 
-    private func twoColumnCardWidth(for contentWidth: CGFloat) -> CGFloat {
-        min(detailCardMaxWidth, floor((contentWidth - cardSpacing) / 2))
-    }
-
-    private func detailCardCell<Content: View>(maxWidth: CGFloat, @ViewBuilder content: () -> Content) -> some View {
-        content()
-            .frame(maxWidth: maxWidth, alignment: .leading)
+    private func preferredColumn(for section: DetailSection) -> Int {
+        section == .buttonRemap ? 1 : -1
     }
 }
 
@@ -185,6 +117,112 @@ private enum DetailSection: Hashable {
     case lowBatteryThreshold
     case scrollControls
     case buttonRemap
+}
+
+struct LightingSwatch: Identifiable, Hashable {
+    let hex: UInt32
+    let color: Color
+    let rgb: OpenSnekCore.RGBColor
+
+    init(hex: UInt32) {
+        self.hex = hex
+        self.color = Color(hex: hex)
+        self.rgb = OpenSnekCore.RGBColor(
+            r: Int((hex >> 16) & 0xFF),
+            g: Int((hex >> 8) & 0xFF),
+            b: Int(hex & 0xFF)
+        )
+    }
+
+    var id: UInt32 { hex }
+}
+
+private struct PreferredDetailColumnLayoutKey: LayoutValueKey {
+    static let defaultValue = -1
+}
+
+private struct DetailCardMaxWidthLayoutKey: LayoutValueKey {
+    static let defaultValue: CGFloat = .greatestFiniteMagnitude
+}
+
+private struct DetailColumnsLayout: Layout {
+    let minTwoColumnCardWidth: CGFloat
+    let twoColumnBreakpointPadding: CGFloat
+    let spacing: CGFloat
+    let maxCardWidth: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let frames = frames(for: proposal, subviews: subviews)
+        let width = proposal.width ?? frames.map(\.maxX).max() ?? 0
+        let height = frames.map(\.maxY).max() ?? 0
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let frames = frames(for: ProposedViewSize(width: bounds.width, height: proposal.height), subviews: subviews)
+        for (index, frame) in frames.enumerated() {
+            let placed = CGRect(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY, width: frame.width, height: frame.height)
+            subviews[index].place(
+                at: placed.origin,
+                proposal: ProposedViewSize(width: placed.width, height: placed.height)
+            )
+        }
+    }
+
+    private func frames(for proposal: ProposedViewSize, subviews: Subviews) -> [CGRect] {
+        let availableWidth = proposal.width ?? 0
+        let useTwoColumns = availableWidth >= ((minTwoColumnCardWidth * 2) + spacing + twoColumnBreakpointPadding)
+
+        if !useTwoColumns {
+            return singleColumnFrames(for: availableWidth, subviews: subviews)
+        }
+
+        return twoColumnFrames(for: availableWidth, subviews: subviews)
+    }
+
+    private func singleColumnFrames(for width: CGFloat, subviews: Subviews) -> [CGRect] {
+        let resolvedWidth = max(width, 0)
+        var y: CGFloat = 0
+        var frames: [CGRect] = []
+
+        for subview in subviews {
+            let proposedWidth = resolvedWidth
+            let size = subview.sizeThatFits(ProposedViewSize(width: proposedWidth, height: nil))
+            let x = (resolvedWidth - proposedWidth) / 2
+            frames.append(CGRect(x: x, y: y, width: proposedWidth, height: size.height))
+            y += size.height + spacing
+        }
+
+        return frames
+    }
+
+    private func twoColumnFrames(for width: CGFloat, subviews: Subviews) -> [CGRect] {
+        let totalWidth = max(width, 0)
+        let nominalColumnWidth = min(maxCardWidth, floor((totalWidth - spacing) / 2))
+        let contentWidth = (nominalColumnWidth * 2) + spacing
+        let originX = max((totalWidth - contentWidth) / 2, 0)
+        var columnHeights: [CGFloat] = [0, 0]
+        var balancedColumn = 0
+        var frames: [CGRect] = Array(repeating: .zero, count: subviews.count)
+
+        for (index, subview) in subviews.enumerated() {
+            let preferredColumn = subview[PreferredDetailColumnLayoutKey.self]
+            let column = preferredColumn == 0 || preferredColumn == 1 ? preferredColumn : balancedColumn
+            if preferredColumn != 0 && preferredColumn != 1 {
+                balancedColumn = (balancedColumn + 1) % 2
+            }
+
+            let cardMaxWidth = min(subview[DetailCardMaxWidthLayoutKey.self], nominalColumnWidth)
+            let proposedWidth = min(nominalColumnWidth, cardMaxWidth)
+            let size = subview.sizeThatFits(ProposedViewSize(width: proposedWidth, height: nil))
+            let x = originX + CGFloat(column) * (nominalColumnWidth + spacing) + ((nominalColumnWidth - proposedWidth) / 2)
+            let y = columnHeights[column]
+            frames[index] = CGRect(x: x, y: y, width: proposedWidth, height: size.height)
+            columnHeights[column] += size.height + spacing
+        }
+
+        return frames
+    }
 }
 
 struct DeviceOverviewBar: View {
@@ -270,7 +308,7 @@ struct DeviceStatusBadge: View {
 struct LightingCard: View {
     @Bindable var appState: AppState
     let selected: MouseDevice
-    let swatches: [Color]
+    let swatches: [LightingSwatch]
 
     private var accentBase: Color {
         Color(rgb: appState.editableColor)
@@ -446,7 +484,7 @@ struct LightingCard: View {
 struct LightingColorEditor: View {
     let title: String
     @Binding var color: OpenSnekCore.RGBColor
-    let swatches: [Color]
+    let swatches: [LightingSwatch]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -455,12 +493,11 @@ struct LightingColorEditor: View {
                 .foregroundStyle(.white.opacity(0.74))
 
             HStack(spacing: 8) {
-                ForEach(Array(swatches.enumerated()), id: \.offset) { _, swatch in
-                    let swatchColor = OpenSnekCore.RGBColor.fromColor(swatch)
+                ForEach(swatches) { swatch in
                     ColorSwatchButton(
-                        color: swatch,
-                        isSelected: swatchColor == color,
-                        action: { color = swatchColor }
+                        color: swatch.color,
+                        isSelected: swatch.rgb == color,
+                        action: { color = swatch.rgb }
                     )
                 }
             }
@@ -827,139 +864,180 @@ struct ButtonMappingTableCard: View {
     @Bindable var appState: AppState
     let title: String
 
+    private var rows: [ButtonBindingRowModel] {
+        appState.visibleButtonSlots.map { slot in
+            let kind = appState.buttonBindingKind(for: slot.slot)
+            let turboEnabled = appState.buttonBindingTurboEnabled(for: slot.slot)
+            let turboRate = appState.buttonBindingTurboRatePressesPerSecond(for: slot.slot)
+            return ButtonBindingRowModel(
+                slot: slot.slot,
+                friendlyName: slot.friendlyName,
+                isEditable: appState.isButtonSlotEditable(slot.slot),
+                selectedKind: kind,
+                turboEligible: kind != .default && kind.supportsTurbo,
+                keyboardDraft: kind == .keyboardSimple ? appState.keyboardTextDraft(for: slot.slot) : "",
+                turboEnabled: turboEnabled,
+                turboRatePressesPerSecond: turboRate,
+                notice: appState.buttonSlotNotice(slot.slot)
+            )
+        }
+    }
+
     var body: some View {
         Card(title: title) {
-            ForEach(appState.visibleButtonSlots) { slot in
-                let isEditable = appState.isButtonSlotEditable(slot.slot)
-                let selectedKind = appState.buttonBindingKind(for: slot.slot)
-                let turboEligible = selectedKind != .default && selectedKind.supportsTurbo
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .center, spacing: 12) {
-                        Text(slot.friendlyName)
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-
-                        Spacer(minLength: 12)
-
-                        Picker(
-                            "",
-                            selection: Binding(
-                                get: { appState.buttonBindingKind(for: slot.slot) },
-                                set: { appState.updateButtonBindingKind(slot: slot.slot, kind: $0) }
-                            )
-                        ) {
-                            ForEach(ButtonBindingKind.allCases) { kind in
-                                Text(kind.label).tag(kind)
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .frame(width: 220, alignment: .trailing)
-                        .disabled(!isEditable)
-                    }
-
-                    if appState.buttonBindingKind(for: slot.slot) == .keyboardSimple {
-                        HStack {
-                            Spacer()
-                            HStack(spacing: 8) {
-                                Text("Key")
-                                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                                    .foregroundStyle(.white.opacity(0.72))
-                                TextField(
-                                    "a",
-                                    text: Binding(
-                                        get: { appState.keyboardTextDraft(for: slot.slot) },
-                                        set: { appState.updateKeyboardTextDraft(slot: slot.slot, text: $0) }
-                                    )
-                                )
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 120)
-                                .multilineTextAlignment(.center)
-                                .disabled(!isEditable)
-                            }
-                            .frame(width: 300, alignment: .trailing)
-                        }
-
-                        HStack {
-                            Spacer()
-                            Text("Type: a-z, 0-9, punctuation, enter, tab, space, esc")
-                                .font(.system(size: 11, weight: .medium, design: .rounded))
-                                .foregroundStyle(.white.opacity(0.58))
-                        }
-                    }
-
-                    if turboEligible {
-                        HStack(spacing: 8) {
-                            Spacer()
-                            Toggle(
-                                "Turbo",
-                                isOn: Binding(
-                                    get: { appState.buttonBindingTurboEnabled(for: slot.slot) },
-                                    set: { appState.updateButtonBindingTurboEnabled(slot: slot.slot, enabled: $0) }
-                                )
-                            )
-                            .toggleStyle(.switch)
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.76))
-                            .disabled(!isEditable)
-
-                            if appState.buttonBindingTurboEnabled(for: slot.slot) {
-                                Text("Slow")
-                                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                                    .foregroundStyle(.white.opacity(0.62))
-
-                                Slider(
-                                    value: Binding(
-                                        get: { Double(appState.buttonBindingTurboRatePressesPerSecond(for: slot.slot)) },
-                                        set: { appState.updateButtonBindingTurboPressesPerSecond(slot: slot.slot, pressesPerSecond: Int(round($0))) }
-                                    ),
-                                    in: 1...20
-                                )
-                                .frame(width: 140)
-                                .disabled(!isEditable)
-
-                                Text("Fast")
-                                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                                    .foregroundStyle(.white.opacity(0.62))
-
-                                Text("\(appState.buttonBindingTurboRatePressesPerSecond(for: slot.slot))/s")
-                                    .font(.system(size: 12, weight: .bold, design: .monospaced))
-                                    .foregroundStyle(.white.opacity(0.78))
-                                    .frame(width: 54, alignment: .trailing)
-                            }
-                        }
-                        .disabled(!isEditable)
-
-                        if appState.buttonBindingTurboEnabled(for: slot.slot) {
-                            HStack {
-                                Spacer()
-                                Text("Turbo rate: 1..20 presses per second")
-                                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                                    .foregroundStyle(.white.opacity(0.58))
-                            }
-                        }
-                    }
-
-                    if let notice = appState.buttonSlotNotice(slot.slot) {
-                        HStack {
-                            Spacer()
-                            Text(notice)
-                                .font(.system(size: 11, weight: .medium, design: .rounded))
-                                .foregroundStyle(.white.opacity(0.58))
-                        }
-                    }
+            LazyVStack(alignment: .leading, spacing: 10) {
+                ForEach(rows) { row in
+                    ButtonBindingRow(appState: appState, row: row)
                 }
-                .padding(8)
-                .opacity(isEditable ? 1.0 : 0.75)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.white.opacity(0.04))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                        )
-                )
             }
         }
+    }
+}
+
+private struct ButtonBindingRowModel: Identifiable, Equatable {
+    let slot: Int
+    let friendlyName: String
+    let isEditable: Bool
+    let selectedKind: ButtonBindingKind
+    let turboEligible: Bool
+    let keyboardDraft: String
+    let turboEnabled: Bool
+    let turboRatePressesPerSecond: Int
+    let notice: String?
+
+    var id: Int { slot }
+}
+
+private struct ButtonBindingRow: View {
+    @Bindable var appState: AppState
+    let row: ButtonBindingRowModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 12) {
+                Text(row.friendlyName)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+
+                Spacer(minLength: 12)
+
+                Picker(
+                    "",
+                    selection: Binding(
+                        get: { appState.buttonBindingKind(for: row.slot) },
+                        set: { appState.updateButtonBindingKind(slot: row.slot, kind: $0) }
+                    )
+                ) {
+                    ForEach(ButtonBindingKind.allCases) { kind in
+                        Text(kind.label).tag(kind)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 220, alignment: .trailing)
+                .disabled(!row.isEditable)
+            }
+
+            if row.selectedKind == .keyboardSimple {
+                HStack {
+                    Spacer()
+                    HStack(spacing: 8) {
+                        Text("Key")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.72))
+                        TextField(
+                            "a",
+                            text: Binding(
+                                get: { appState.keyboardTextDraft(for: row.slot) },
+                                set: { appState.updateKeyboardTextDraft(slot: row.slot, text: $0) }
+                            )
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 120)
+                        .multilineTextAlignment(.center)
+                        .disabled(!row.isEditable)
+                    }
+                    .frame(width: 300, alignment: .trailing)
+                }
+
+                HStack {
+                    Spacer()
+                    Text("Type: a-z, 0-9, punctuation, enter, tab, space, esc")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.58))
+                }
+            }
+
+            if row.turboEligible {
+                HStack(spacing: 8) {
+                    Spacer()
+                    Toggle(
+                        "Turbo",
+                        isOn: Binding(
+                            get: { appState.buttonBindingTurboEnabled(for: row.slot) },
+                            set: { appState.updateButtonBindingTurboEnabled(slot: row.slot, enabled: $0) }
+                        )
+                    )
+                    .toggleStyle(.switch)
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.76))
+                    .disabled(!row.isEditable)
+
+                    if row.turboEnabled {
+                        Text("Slow")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.62))
+
+                        Slider(
+                            value: Binding(
+                                get: { Double(appState.buttonBindingTurboRatePressesPerSecond(for: row.slot)) },
+                                set: { appState.updateButtonBindingTurboPressesPerSecond(slot: row.slot, pressesPerSecond: Int(round($0))) }
+                            ),
+                            in: 1...20
+                        )
+                        .frame(width: 140)
+                        .disabled(!row.isEditable)
+
+                        Text("Fast")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.62))
+
+                        Text("\(row.turboRatePressesPerSecond)/s")
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.78))
+                            .frame(width: 54, alignment: .trailing)
+                    }
+                }
+                .disabled(!row.isEditable)
+
+                if row.turboEnabled {
+                    HStack {
+                        Spacer()
+                        Text("Turbo rate: 1..20 presses per second")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.58))
+                    }
+                }
+            }
+
+            if let notice = row.notice {
+                HStack {
+                    Spacer()
+                    Text(notice)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.58))
+                }
+            }
+        }
+        .padding(8)
+        .opacity(row.isEditable ? 1.0 : 0.75)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.white.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+        )
     }
 }

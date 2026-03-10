@@ -250,13 +250,25 @@ struct ContentView: View {
 
 private struct EmptyDeviceState: View {
     let rows: [SupportedDeviceRow]
+    @State private var showsWaitingState = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Connect a device")
-                    .font(.system(size: 28, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
+                if showsWaitingState {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                            .controlSize(.regular)
+                            .tint(.white.opacity(0.9))
+                        Text("Waiting for devices")
+                            .font(.system(size: 28, weight: .black, design: .rounded))
+                            .foregroundStyle(.white)
+                    }
+                } else {
+                    Text("Connect a device")
+                        .font(.system(size: 28, weight: .black, design: .rounded))
+                        .foregroundStyle(.white)
+                }
                 Text("Supported devices")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.72))
@@ -278,6 +290,17 @@ private struct EmptyDeviceState: View {
                         .stroke(Color.white.opacity(0.10), lineWidth: 1)
                 )
         )
+        .task {
+            guard showsWaitingState else { return }
+            do {
+                try await Task.sleep(nanoseconds: 10_000_000_000)
+            } catch {
+                return
+            }
+            withAnimation(.easeInOut(duration: 0.18)) {
+                showsWaitingState = false
+            }
+        }
     }
 }
 

@@ -11,5 +11,9 @@ struct OpenSnekApp: App {
                 .frame(minWidth: 900, minHeight: 600)
                 .background(WindowChromeConfigurator().frame(width: 0, height: 0))
         }
+
+        Settings {
+            SettingsView()
+        }
     }
 }

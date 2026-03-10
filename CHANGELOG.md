@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 - Official app builds and GitHub macOS CI/release jobs now use the latest Xcode/macOS SDK while keeping the app deployment target at macOS 14 for backward compatibility on older supported systems.
+- Runtime logging now has user-selectable levels with a macOS Settings page; the default level is now `Warning` to keep normal logs concise, while `Info` and `Debug` remain available for reproducing bug reports.
 - Reorganized the repo around the macOS app: protocol/reference docs now live under `docs/`, supported Python tooling now lives under `tools/python/`, and the root entry point is now a zero-arg `./run.sh`.
 - Split the Swift package into shared targets: `OpenSnekCore`, `OpenSnekProtocols`, `OpenSnekHardware`, and `OpenSnekAppSupport`, with the app and probe consuming those shared layers incrementally instead of keeping all architecture in the app target.
 - Moved shared Swift domain models, device-profile metadata, button/turbo helpers, persistence key generation, BLE vendor framing, and USB HID report helpers out of `OpenSnek` local sources and into shared library targets.
