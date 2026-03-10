@@ -10,6 +10,7 @@ actor BridgeClient {
     var deviceSessions: [String: USBHIDControlSession] = [:]
     var deviceSessionCandidates: [String: [USBHIDControlSession]] = [:]
     var lastStateByDeviceID: [String: MouseState] = [:]
+    var cachedDeviceMetadataByID: [String: (serial: String?, firmware: String?)] = [:]
     var btReqID: UInt8 = 0x30
     var btDpiSnapshotByDeviceID: [String: (active: Int, count: Int, slots: [Int], stageIDs: [UInt8], marker: UInt8)] = [:]
     var btExpectedDpiByDeviceID: [String: (active: Int, values: [Int], expiresAt: Date, remainingMasks: Int)] = [:]
@@ -152,12 +153,24 @@ actor BridgeClient {
 
     func readState(device: MouseDevice) async throws -> MouseState {
         let start = Date()
+        let core = try await readCoreState(device: device)
+        let merged: MouseState
+        do {
+            let slow = try await readSlowTelemetry(device: device)
+            merged = slow.merged(with: core)
+        } catch {
+            AppLog.debug("Bridge", "readState slow telemetry unavailable device=\(device.id): \(error.localizedDescription)")
+            merged = core
+        }
+        lastStateByDeviceID[device.id] = merged
+        AppLog.debug("Bridge", "readState device=\(device.id) elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s")
+        return merged
+    }
+
+    func readCoreState(device: MouseDevice) async throws -> MouseState {
         if device.transport == .bluetooth {
             let session = sessionFor(device: device)
-            let state = try await readBluetoothState(device: device, session: session)
-            lastStateByDeviceID[device.id] = state
-            AppLog.debug("Bridge", "readState bt device=\(device.id) elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s")
-            return state
+            return try await readBluetoothCoreState(device: device, session: session)
         }
 
         let sessions = sessionsFor(device: device)
@@ -170,24 +183,23 @@ actor BridgeClient {
             }
             throw BridgeError.commandFailed("Device not available")
         }
+
         var firstError: Error?
         for scanAttempt in 0..<2 {
             firstError = nil
             for (index, session) in sessions.enumerated() {
                 do {
-                    let state = try await readUSBState(device: device, session: session)
+                    let state = try await readUSBCoreState(device: device, session: session)
                     if index > 0 {
                         deviceSessions[device.id] = session
-                        AppLog.debug("Bridge", "readState usb switched to alternate session index=\(index) device=\(device.id)")
+                        AppLog.debug("Bridge", "readCoreState usb switched to alternate session index=\(index) device=\(device.id)")
                     }
-                    lastStateByDeviceID[device.id] = state
-                    AppLog.debug("Bridge", "readState usb device=\(device.id) elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s")
                     return state
                 } catch {
                     if firstError == nil {
                         firstError = error
                     }
-                    AppLog.debug("Bridge", "readState usb candidate index=\(index) failed: \(error.localizedDescription)")
+                    AppLog.debug("Bridge", "readCoreState usb candidate index=\(index) failed: \(error.localizedDescription)")
                 }
             }
             if scanAttempt == 0 {
@@ -196,6 +208,45 @@ actor BridgeClient {
         }
 
         deviceSessions[device.id]?.invalidateCachedTransaction()
+        if let firstError {
+            throw firstError
+        }
+        throw BridgeError.commandFailed("USB device telemetry unavailable")
+    }
+
+    func readSlowTelemetry(device: MouseDevice) async throws -> MouseState {
+        if device.transport == .bluetooth {
+            let session = sessionFor(device: device)
+            return try await readBluetoothSlowState(device: device, session: session)
+        }
+
+        let sessions = sessionsFor(device: device)
+        guard !sessions.isEmpty else {
+            if hidAccessDenied || managerAccessDenied {
+                throw BridgeError.commandFailed(
+                    "USB HID access denied by macOS. Enable Input Monitoring for Open Snek " +
+                    "(or Terminal/Xcode when running via swift run/Xcode), then relaunch."
+                )
+            }
+            throw BridgeError.commandFailed("Device not available")
+        }
+
+        var firstError: Error?
+        for (index, session) in sessions.enumerated() {
+            do {
+                let state = try await readUSBSlowState(device: device, session: session)
+                if index > 0 {
+                    deviceSessions[device.id] = session
+                }
+                return state
+            } catch {
+                if firstError == nil {
+                    firstError = error
+                }
+                AppLog.debug("Bridge", "readSlowTelemetry usb failed: \(error.localizedDescription)")
+            }
+        }
+
         if let firstError {
             throw firstError
         }

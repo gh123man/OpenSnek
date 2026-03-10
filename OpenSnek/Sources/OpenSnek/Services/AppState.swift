@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import OpenSnekAppSupport
 import OpenSnekCore
+import OpenSnekHardware
 import SwiftUI
 
 struct DeviceStatusIndicator {
@@ -50,6 +51,7 @@ final class AppState {
     private let applyCoordinator = ApplyCoordinator()
     private let preferenceStore = DevicePreferenceStore()
     private let releaseUpdateChecker = ReleaseUpdateChecker()
+    private let presenceMonitor = HIDDevicePresenceMonitor(vendorIDs: [0x1532, 0x068E])
     private var isHydrating = false
     private var dpiApplyTask: Task<Void, Never>?
     private var pollApplyTask: Task<Void, Never>?
@@ -79,10 +81,30 @@ final class AppState {
     private var isPollingDevices = false
     private var refreshFailureCountByDeviceID: [String: Int] = [:]
     private var hasCheckedForUpdates = false
+    private var isSceneActive = true
+    private var adaptiveRefreshTasks: [AdaptiveRefreshLane: Task<Void, Never>] = [:]
+    private var adaptiveRefreshFailureCounts: [AdaptiveRefreshLane: Int] = [:]
+    private var adaptiveRefreshBackoffSteps: [AdaptiveRefreshLane: Int] = [:]
+    private var fastDpiBurstTask: Task<Void, Never>?
+    private var fastDpiBurstUntil: Date?
+    private var isRefreshingCoreState = false
+    private var isRefreshingSlowTelemetry = false
+
+    init() {
+        presenceMonitor.onDevicesChanged = { [weak self] in
+            self?.handlePresenceMonitorEvent()
+        }
+        presenceMonitor.start()
+    }
 
     var selectedDevice: MouseDevice? {
         guard let selectedDeviceID else { return nil }
         return devices.first(where: { $0.id == selectedDeviceID })
+    }
+
+    var selectedStateMatchesSelectedDevice: Bool {
+        guard let selectedDevice, let state else { return false }
+        return state.device.id == selectedDevice.id
     }
 
     var visibleButtonSlots: [ButtonSlotDescriptor] {
@@ -186,7 +208,57 @@ final class AppState {
         }
 
         await refreshState()
+        rebuildAdaptiveRefreshTasks()
         AppLog.event("AppState", "refreshDevices end elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s")
+    }
+
+    func handleSelectedDeviceChanged() {
+        guard let selectedDeviceID else {
+            state = nil
+            errorMessage = nil
+            warningMessage = nil
+            lastUpdated = nil
+            fastDpiBurstUntil = nil
+            rebuildAdaptiveRefreshTasks()
+            return
+        }
+
+        if let cached = stateCacheByDeviceID[selectedDeviceID] {
+            state = cached
+        } else {
+            state = nil
+            lastUpdated = nil
+        }
+
+        errorMessage = nil
+        warningMessage = nil
+        resetAdaptiveRefreshBackoff(for: .selectedCore)
+        resetAdaptiveRefreshBackoff(for: .selectedSlow)
+        kickFastDpiBurst()
+        rebuildAdaptiveRefreshTasks()
+    }
+
+    func selectDevice(id: String) {
+        guard selectedDeviceID != id else { return }
+        selectedDeviceID = id
+        handleSelectedDeviceChanged()
+    }
+
+    func setSceneActive(_ active: Bool) {
+        guard isSceneActive != active else { return }
+        isSceneActive = active
+        if active {
+            presenceMonitor.start()
+            Task { await pollDevicePresence() }
+        } else {
+            presenceMonitor.stop()
+            fastDpiBurstUntil = nil
+        }
+        rebuildAdaptiveRefreshTasks()
+    }
+
+    func startAdaptiveRefresh() {
+        rebuildAdaptiveRefreshTasks()
     }
 
     func checkForUpdates(force: Bool = false) async {
@@ -205,8 +277,9 @@ final class AppState {
         }
     }
 
-    func pollDevicePresence() async {
-        guard !isPollingDevices, !isLoading else { return }
+    @discardableResult
+    func pollDevicePresence() async -> Bool {
+        guard !isPollingDevices, !isLoading else { return true }
         isPollingDevices = true
         defer { isPollingDevices = false }
 
@@ -219,6 +292,7 @@ final class AppState {
             } else if selectedDevice != nil, state == nil {
                 await refreshState()
             }
+            return true
         } catch {
             if devices.isEmpty {
                 let lowered = error.localizedDescription.lowercased()
@@ -231,6 +305,7 @@ final class AppState {
             } else {
                 AppLog.debug("AppState", "pollDevicePresence failed: \(error.localizedDescription)")
             }
+            return false
         }
     }
 
@@ -270,6 +345,9 @@ final class AppState {
 
         if let selectedDeviceID, let cached = stateCacheByDeviceID[selectedDeviceID] {
             state = cached
+        } else if selectedDeviceID != nil {
+            state = nil
+            lastUpdated = nil
         } else if selectedDeviceID == nil {
             state = nil
             errorMessage = nil
@@ -316,29 +394,51 @@ final class AppState {
             lastUpdated = nil
             return
         }
-        guard !isRefreshingState, !isApplying, !hasPendingLocalEdits else {
+        if let cached = stateCacheByDeviceID[selectedDevice.id] {
+            state = cached
+        }
+
+        _ = await refreshCoreState()
+        if selectedDeviceID == selectedDevice.id {
+            _ = await refreshSlowTelemetry()
+        }
+    }
+
+    @discardableResult
+    func refreshCoreState() async -> Bool {
+        guard let selectedDevice else { return true }
+        guard !isRefreshingCoreState, !isApplying, !hasPendingLocalEdits else {
             AppLog.debug(
                 "AppState",
-                "refreshState skipped refreshing=\(isRefreshingState) applying=\(isApplying) pendingEdits=\(hasPendingLocalEdits)"
+                "refreshCoreState skipped refreshing=\(isRefreshingCoreState) applying=\(isApplying) pendingEdits=\(hasPendingLocalEdits)"
             )
-            return
+            return true
         }
 
         if let cached = stateCacheByDeviceID[selectedDevice.id] {
             state = cached
         }
 
-        isRefreshingState = true
-        defer { isRefreshingState = false }
-        let refreshRevision = applyCoordinator.stateRevision
+        isRefreshingCoreState = true
+        updateRefreshingStateFlag()
+        defer {
+            isRefreshingCoreState = false
+            updateRefreshingStateFlag()
+        }
 
+        let refreshRevision = applyCoordinator.stateRevision
         let start = Date()
         do {
-            let fetched = try await client.readState(device: selectedDevice)
+            let fetched = try await client.readCoreState(device: selectedDevice)
             guard refreshRevision == applyCoordinator.stateRevision else {
-                AppLog.debug("AppState", "refreshState stale-drop rev=\(refreshRevision) current=\(applyCoordinator.stateRevision)")
-                return
+                AppLog.debug("AppState", "refreshCoreState stale-drop rev=\(refreshRevision) current=\(applyCoordinator.stateRevision)")
+                return false
             }
+            guard selectedDeviceID == selectedDevice.id else {
+                AppLog.debug("AppState", "refreshCoreState stale-drop selection changed from \(selectedDevice.id) to \(selectedDeviceID ?? "nil")")
+                return false
+            }
+
             let merged = fetched.merged(with: stateCacheByDeviceID[selectedDevice.id])
             stateCacheByDeviceID[selectedDevice.id] = merged
             refreshFailureCountByDeviceID[selectedDevice.id] = 0
@@ -355,23 +455,23 @@ final class AppState {
             setTelemetryWarning(telemetryWarning(for: merged, device: selectedDevice), device: selectedDevice)
             AppLog.debug(
                 "AppState",
-                "refreshState ok device=\(selectedDevice.id) active=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
+                "refreshCoreState ok device=\(selectedDevice.id) active=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
                 "values=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
                 "elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
             )
+            return true
         } catch {
             let failures = (refreshFailureCountByDeviceID[selectedDevice.id] ?? 0) + 1
             refreshFailureCountByDeviceID[selectedDevice.id] = failures
             if stateCacheByDeviceID[selectedDevice.id] == nil {
                 AppLog.error(
                     "AppState",
-                    "refreshState failed device=\(selectedDevice.id) transport=\(selectedDevice.transport.rawValue) no-cache: \(error.localizedDescription)"
+                    "refreshCoreState failed device=\(selectedDevice.id) transport=\(selectedDevice.transport.rawValue) no-cache: \(error.localizedDescription)"
                 )
                 errorMessage = error.localizedDescription
                 warningMessage = nil
             } else {
-                // Keep last known-good UI stable on transient polling failures.
-                AppLog.debug("AppState", "refreshState transient-failure masked: \(error.localizedDescription)")
+                AppLog.debug("AppState", "refreshCoreState transient-failure masked: \(error.localizedDescription)")
                 if failures >= 3 {
                     if failures == 3 {
                         AppLog.warning(
@@ -384,6 +484,181 @@ final class AppState {
                     errorMessage = nil
                 }
                 warningMessage = "Using the last known values while live telemetry settles."
+            }
+            return false
+        }
+    }
+
+    @discardableResult
+    func refreshSlowTelemetry() async -> Bool {
+        guard let selectedDevice else { return true }
+        guard !isRefreshingSlowTelemetry, !isApplying else { return true }
+
+        isRefreshingSlowTelemetry = true
+        updateRefreshingStateFlag()
+        defer {
+            isRefreshingSlowTelemetry = false
+            updateRefreshingStateFlag()
+        }
+
+        let refreshRevision = applyCoordinator.stateRevision
+        do {
+            let fetched = try await client.readSlowTelemetry(device: selectedDevice)
+            guard refreshRevision == applyCoordinator.stateRevision else {
+                AppLog.debug("AppState", "refreshSlowTelemetry stale-drop rev=\(refreshRevision) current=\(applyCoordinator.stateRevision)")
+                return false
+            }
+            guard selectedDeviceID == selectedDevice.id else {
+                AppLog.debug("AppState", "refreshSlowTelemetry stale-drop selection changed from \(selectedDevice.id) to \(selectedDeviceID ?? "nil")")
+                return false
+            }
+
+            let merged = fetched.merged(with: stateCacheByDeviceID[selectedDevice.id] ?? state)
+            stateCacheByDeviceID[selectedDevice.id] = merged
+            if state != merged {
+                state = merged
+            }
+            lastUpdated = Date()
+            errorMessage = nil
+            setTelemetryWarning(telemetryWarning(for: merged, device: selectedDevice), device: selectedDevice)
+            return true
+        } catch {
+            AppLog.debug("AppState", "refreshSlowTelemetry skipped device=\(selectedDevice.id): \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    private func updateRefreshingStateFlag() {
+        isRefreshingState = isRefreshingCoreState || isRefreshingSlowTelemetry
+    }
+
+    private func handlePresenceMonitorEvent() {
+        guard isSceneActive else { return }
+        Task { await pollDevicePresence() }
+    }
+
+    private func rebuildAdaptiveRefreshTasks() {
+        scheduleAdaptiveRefreshLane(.presence, enabled: true)
+        let hasSelectedDevice = selectedDevice != nil
+        scheduleAdaptiveRefreshLane(.selectedCore, enabled: hasSelectedDevice)
+        scheduleAdaptiveRefreshLane(.selectedSlow, enabled: hasSelectedDevice)
+
+        if shouldRunFastDpiBurst {
+            ensureFastDpiBurstTask()
+        } else {
+            fastDpiBurstTask?.cancel()
+            fastDpiBurstTask = nil
+        }
+    }
+
+    private func scheduleAdaptiveRefreshLane(_ lane: AdaptiveRefreshLane, enabled: Bool) {
+        adaptiveRefreshTasks[lane]?.cancel()
+        adaptiveRefreshTasks[lane] = nil
+        guard enabled else { return }
+
+        adaptiveRefreshTasks[lane] = Task { [weak self] in
+            await self?.runAdaptiveRefreshLaneLoop(lane)
+        }
+    }
+
+    private func runAdaptiveRefreshLaneLoop(_ lane: AdaptiveRefreshLane) async {
+        while !Task.isCancelled {
+            let success = await runAdaptiveRefreshLane(lane)
+            updateAdaptiveRefreshBackoff(for: lane, success: success)
+
+            let interval = AdaptiveRefreshPolicy.interval(
+                for: lane,
+                isSceneActive: isSceneActive,
+                backoffStep: adaptiveRefreshBackoffSteps[lane] ?? 0
+            )
+            do {
+                try await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+            } catch {
+                return
+            }
+        }
+    }
+
+    private func runAdaptiveRefreshLane(_ lane: AdaptiveRefreshLane) async -> Bool {
+        switch lane {
+        case .presence:
+            return await pollDevicePresence()
+        case .selectedCore:
+            return await refreshCoreState()
+        case .selectedSlow:
+            return await refreshSlowTelemetry()
+        }
+    }
+
+    private func updateAdaptiveRefreshBackoff(for lane: AdaptiveRefreshLane, success: Bool) {
+        if success {
+            adaptiveRefreshFailureCounts[lane] = 0
+            let current = adaptiveRefreshBackoffSteps[lane] ?? 0
+            adaptiveRefreshBackoffSteps[lane] = max(0, current - 1)
+            return
+        }
+
+        let failures = (adaptiveRefreshFailureCounts[lane] ?? 0) + 1
+        if failures >= AdaptiveRefreshPolicy.failureThreshold {
+            adaptiveRefreshFailureCounts[lane] = 0
+            adaptiveRefreshBackoffSteps[lane] = min(
+                AdaptiveRefreshPolicy.maxBackoffStep,
+                (adaptiveRefreshBackoffSteps[lane] ?? 0) + 1
+            )
+        } else {
+            adaptiveRefreshFailureCounts[lane] = failures
+        }
+    }
+
+    private func resetAdaptiveRefreshBackoff(for lane: AdaptiveRefreshLane) {
+        adaptiveRefreshFailureCounts[lane] = 0
+        adaptiveRefreshBackoffSteps[lane] = 0
+    }
+
+    private var shouldRunFastDpiBurst: Bool {
+        guard isSceneActive, let selectedDevice else { return false }
+        guard selectedDevice.transport == .usb || selectedDevice.transport == .bluetooth else { return false }
+        guard let fastDpiBurstUntil else { return false }
+        return Date() < fastDpiBurstUntil
+    }
+
+    private func kickFastDpiBurst() {
+        guard isSceneActive else { return }
+        let candidate = Date().addingTimeInterval(AdaptiveRefreshPolicy.fastDpiBurstDuration)
+        if let current = fastDpiBurstUntil, current > candidate {
+            return
+        }
+        fastDpiBurstUntil = candidate
+        ensureFastDpiBurstTask()
+    }
+
+    private func extendFastDpiBurst() {
+        guard let current = fastDpiBurstUntil else { return }
+        fastDpiBurstUntil = max(current, Date()).addingTimeInterval(AdaptiveRefreshPolicy.fastDpiBurstExtension)
+    }
+
+    private func ensureFastDpiBurstTask() {
+        guard fastDpiBurstTask == nil else { return }
+        guard let deviceID = selectedDeviceID else { return }
+        fastDpiBurstTask = Task { [weak self] in
+            await self?.runFastDpiBurstLoop(deviceID: deviceID)
+        }
+    }
+
+    private func runFastDpiBurstLoop(deviceID: String) async {
+        defer { fastDpiBurstTask = nil }
+
+        while !Task.isCancelled {
+            guard selectedDeviceID == deviceID, let selectedDevice else { return }
+            guard shouldRunFastDpiBurst else { return }
+
+            _ = await refreshDpiFast()
+
+            let interval = AdaptiveRefreshPolicy.fastDpiInterval(for: selectedDevice.transport)
+            do {
+                try await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+            } catch {
+                return
             }
         }
     }
@@ -824,39 +1099,44 @@ final class AppState {
         }
     }
 
-    func refreshDpiFast() async {
-        guard let selectedDevice else { return }
-        guard selectedDevice.transport == .bluetooth || selectedDevice.transport == .usb else { return }
-        guard !isRefreshingDpiFast, !isRefreshingState, !isApplying else { return }
-        guard !hasPendingLocalEdits else { return }
+    @discardableResult
+    func refreshDpiFast() async -> Bool {
+        guard let selectedDevice else { return false }
+        guard selectedDevice.transport == .bluetooth || selectedDevice.transport == .usb else { return false }
+        guard !isRefreshingDpiFast, !isRefreshingCoreState, !isApplying else { return false }
+        guard !hasPendingLocalEdits else { return false }
+        guard let fastDpiBurstUntil, Date() < fastDpiBurstUntil else { return false }
         if selectedDevice.transport == .usb,
            let lastUSBFastDpiAt,
            Date().timeIntervalSince(lastUSBFastDpiAt) < 0.55 {
-            return
+            return false
         }
         if let until = suppressFastDpiUntil {
-            if Date() < until { return }
+            if Date() < until { return false }
             suppressFastDpiUntil = nil
         }
 
         isRefreshingDpiFast = true
         defer { isRefreshingDpiFast = false }
-            let fastRevision = applyCoordinator.stateRevision
+        let fastRevision = applyCoordinator.stateRevision
 
         do {
-            guard let fast = try await client.readDpiStagesFast(device: selectedDevice) else { return }
+            guard let fast = try await client.readDpiStagesFast(device: selectedDevice) else { return false }
             if selectedDevice.transport == .usb {
                 lastUSBFastDpiAt = Date()
             }
             guard fastRevision == applyCoordinator.stateRevision else {
                 AppLog.debug("AppState", "refreshDpiFast stale-drop rev=\(fastRevision) current=\(applyCoordinator.stateRevision)")
-                return
+                return false
             }
             let previous = stateCacheByDeviceID[selectedDevice.id] ?? state
-            guard let previous else { return }
+            guard let previous else { return false }
 
             let active = max(0, min(fast.values.count - 1, fast.active))
             let currentDpiValue = fast.values[active]
+            let didChange = previous.dpi?.x != currentDpiValue ||
+                previous.dpi_stages.active_stage != active ||
+                previous.dpi_stages.values != fast.values
             let updated = MouseState(
                 device: previous.device,
                 connection: previous.connection,
@@ -882,8 +1162,13 @@ final class AppState {
             if shouldHydrateEditable {
                 hydrateEditable(from: updated)
             }
+            if didChange {
+                extendFastDpiBurst()
+            }
+            return true
         } catch {
             // Ignore fast-poll transient failures to keep UI stable.
+            return false
         }
     }
 
@@ -934,6 +1219,7 @@ final class AppState {
                 // Avoid showing transient in-flight stage states from fast polling
                 // while BLE latching settles after a write.
                 suppressFastDpiUntil = Date().addingTimeInterval(0.9)
+                kickFastDpiBurst()
             }
             lastUpdated = Date()
             if shouldHydrateEditableState {
@@ -1132,6 +1418,12 @@ final class AppState {
     }
 
     private func hydrateButtonBindingsIfNeeded(device: MouseDevice) async {
+        guard device.button_layout != nil else {
+            editableButtonBindings = [:]
+            keyboardTextDraftBySlot = [:]
+            hydratedButtonBindingsKey = buttonBindingsHydrationKey(device: device)
+            return
+        }
         let hydrationKey = buttonBindingsHydrationKey(device: device)
         guard hydratedButtonBindingsKey != hydrationKey else { return }
 

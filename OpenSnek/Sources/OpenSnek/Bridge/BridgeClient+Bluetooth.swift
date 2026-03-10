@@ -5,23 +5,24 @@ import OpenSnekProtocols
 
 extension BridgeClient {
     func readBluetoothState(device: MouseDevice, session: USBHIDControlSession?) async throws -> MouseState {
+        let core = try await readBluetoothCoreState(device: device, session: session)
+        let slow = try await readBluetoothSlowState(device: device, session: session)
+        return slow.merged(with: core)
+    }
+
+    func readBluetoothCoreState(device: MouseDevice, session: USBHIDControlSession?) async throws -> MouseState {
         let btStages = (try? await btGetDpiStages(deviceID: device.id))
             ?? btDpiSnapshotByDeviceID[device.id].map { snapshot in
                 (active: snapshot.active, values: Array(snapshot.slots.prefix(snapshot.count)), marker: snapshot.marker)
             }
-        let batteryRaw = (try? await btGetScalar(key: .batteryRaw, size: 1)) ?? nil
-        let batteryStatus = (try? await btGetScalar(key: .batteryStatus, size: 1)) ?? nil
         let lighting = (try? await btGetScalar(key: .lightingGet, size: 1)) ?? nil
-        let sleepTimeout = (try? await btGetScalar(key: .powerTimeoutGet, size: 2)) ?? nil
-
-        let batteryPct: Int?
-        if let batteryRaw {
-            batteryPct = batteryRaw <= 100 ? batteryRaw : Int((Double(batteryRaw) / 255.0) * 100.0)
-        } else if let session {
-            batteryPct = (try? getBattery(session, device))??.0
-        } else {
-            batteryPct = nil
-        }
+        let capabilities = device.usesBestEffortSupport
+            ? Capabilities.bestEffortBluetooth(
+                dpi_stages: !(btStages?.values.isEmpty ?? true),
+                power_management: false,
+                lighting: lighting != nil
+            )
+            : .supportedBluetoothProfile
 
         return MouseState(
             device: DeviceSummary(
@@ -32,8 +33,8 @@ extension BridgeClient {
                 firmware: nil
             ),
             connection: "Bluetooth",
-            battery_percent: batteryPct,
-            charging: batteryStatus == 1,
+            battery_percent: nil,
+            charging: nil,
             dpi: {
                 guard
                     let active = btStages?.active,
@@ -46,16 +47,54 @@ extension BridgeClient {
             }(),
             dpi_stages: DpiStages(active_stage: btStages?.active, values: btStages?.values),
             poll_rate: nil,
+            sleep_timeout: nil,
+            device_mode: nil,
+            led_value: lighting,
+            capabilities: capabilities
+        )
+    }
+
+    func readBluetoothSlowState(device: MouseDevice, session: USBHIDControlSession?) async throws -> MouseState {
+        let batteryRaw = (try? await btGetScalar(key: .batteryRaw, size: 1)) ?? nil
+        let batteryStatus = (try? await btGetScalar(key: .batteryStatus, size: 1)) ?? nil
+        let sleepTimeout = (try? await btGetScalar(key: .powerTimeoutGet, size: 2)) ?? nil
+        let lighting = (try? await btGetScalar(key: .lightingGet, size: 1)) ?? nil
+
+        let batteryPct: Int?
+        if let batteryRaw {
+            batteryPct = batteryRaw <= 100 ? batteryRaw : Int((Double(batteryRaw) / 255.0) * 100.0)
+        } else if let session {
+            batteryPct = (try? getBattery(session, device))??.0
+        } else {
+            batteryPct = nil
+        }
+
+        let capabilities = device.usesBestEffortSupport
+            ? Capabilities.bestEffortBluetooth(
+                dpi_stages: false,
+                power_management: sleepTimeout != nil,
+                lighting: lighting != nil
+            )
+            : .supportedBluetoothProfile
+
+        return MouseState(
+            device: DeviceSummary(
+                id: device.id,
+                product_name: device.product_name,
+                serial: device.serial,
+                transport: device.transport,
+                firmware: nil
+            ),
+            connection: "Bluetooth",
+            battery_percent: batteryPct,
+            charging: batteryStatus == 1,
+            dpi: nil,
+            dpi_stages: DpiStages(active_stage: nil, values: nil),
+            poll_rate: nil,
             sleep_timeout: sleepTimeout,
             device_mode: nil,
             led_value: lighting,
-            capabilities: Capabilities(
-                dpi_stages: true,
-                poll_rate: false,
-                power_management: true,
-                button_remap: true,
-                lighting: true
-            )
+            capabilities: capabilities
         )
     }
 
@@ -96,6 +135,13 @@ extension BridgeClient {
             let value = values[active]
             return DpiPair(x: value, y: value)
         }()
+        let capabilities = device.usesBestEffortSupport
+            ? Capabilities.bestEffortBluetooth(
+                dpi_stages: !(btStages?.values.isEmpty ?? true),
+                power_management: sleepTimeout != nil,
+                lighting: lighting != nil
+            )
+            : .supportedBluetoothProfile
 
         return MouseState(
             device: DeviceSummary(
@@ -114,13 +160,7 @@ extension BridgeClient {
             sleep_timeout: sleepTimeout,
             device_mode: nil,
             led_value: lighting,
-            capabilities: Capabilities(
-                dpi_stages: true,
-                poll_rate: false,
-                power_management: true,
-                button_remap: true,
-                lighting: true
-            )
+            capabilities: capabilities
         )
     }
 

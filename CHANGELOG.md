@@ -28,6 +28,8 @@ All notable changes to this project are documented in this file.
 - Unsupported-button footnotes now use plain-language UI copy instead of protocol jargon, including the Basilisk V3 X HyperSpeed sniper/Hypershift note.
 - The polling-rate and scroll-control cards now align labels on the left and controls on the right to match the rest of the app.
 - The empty-state supported-devices list now uses smaller inline USB/BT pills so more devices fit cleanly in one row.
+- Unsupported Razer mice now use a best-effort fallback path: Open Snek only shows controls that actually respond during probing, hides button remap until a real slot map exists, and shows a light in-header notice that the device is not fully supported yet.
+- Adaptive refresh now replaces the old fixed timer polling loop: selected devices refresh on lane-specific schedules with backoff, DPI fast-polling runs only in short bursts, USB presence changes can trigger immediate refresh via HID callbacks, and the app uses split core/slow telemetry reads to reduce background transport traffic.
 
 ## [2026-03-09]
 

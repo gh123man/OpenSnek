@@ -55,4 +55,51 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(DevicePersistenceKeys.key(for: device), "serial:abc123")
         XCTAssertEqual(DevicePersistenceKeys.legacyKey(for: device), "dev")
     }
+
+    func testBestEffortSupportNoticeForUnknownUSBMouse() {
+        let device = MouseDevice(
+            id: "unknown",
+            vendor_id: 0x1532,
+            product_id: 0x1234,
+            product_name: "Razer Mouse",
+            transport: .usb,
+            path_b64: "",
+            serial: nil,
+            firmware: nil
+        )
+
+        XCTAssertTrue(device.usesBestEffortSupport)
+        XCTAssertEqual(
+            device.supportNotice,
+            "Best-effort support. Open Snek only shows controls that responded on this mouse, so some features may be unavailable."
+        )
+    }
+
+    func testBestEffortUSBCapabilitiesHideButtonRemapUntilMapped() {
+        let capabilities = Capabilities.bestEffortUSB(
+            poll_rate: true,
+            power_management: false,
+            lighting: true
+        )
+
+        XCTAssertTrue(capabilities.dpi_stages)
+        XCTAssertTrue(capabilities.poll_rate)
+        XCTAssertFalse(capabilities.power_management)
+        XCTAssertFalse(capabilities.button_remap)
+        XCTAssertTrue(capabilities.lighting)
+    }
+
+    func testBestEffortBluetoothCapabilitiesHideUnprovenControls() {
+        let capabilities = Capabilities.bestEffortBluetooth(
+            dpi_stages: false,
+            power_management: true,
+            lighting: false
+        )
+
+        XCTAssertFalse(capabilities.dpi_stages)
+        XCTAssertFalse(capabilities.poll_rate)
+        XCTAssertTrue(capabilities.power_management)
+        XCTAssertFalse(capabilities.button_remap)
+        XCTAssertFalse(capabilities.lighting)
+    }
 }

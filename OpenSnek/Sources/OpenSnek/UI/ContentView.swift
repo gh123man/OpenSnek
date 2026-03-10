@@ -18,21 +18,16 @@ struct ContentView: View {
             async let deviceRefresh: Void = appState.refreshDevices()
             async let updateCheck: Void = appState.checkForUpdates()
             _ = await (deviceRefresh, updateCheck)
+            appState.startAdaptiveRefresh()
         }
         .onChange(of: appState.selectedDeviceID) { _, _ in
+            appState.handleSelectedDeviceChanged()
             Task { await appState.refreshState() }
-        }
-        .onReceive(Timer.publish(every: 2.0, on: .main, in: .common).autoconnect()) { _ in
-            Task { await appState.refreshState() }
-        }
-        .onReceive(Timer.publish(every: 1.2, on: .main, in: .common).autoconnect()) { _ in
-            Task { await appState.pollDevicePresence() }
-        }
-        .onReceive(Timer.publish(every: 0.20, on: .main, in: .common).autoconnect()) { _ in
-            Task { await appState.refreshDpiFast() }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active {
+            let isActive = phase == .active
+            appState.setSceneActive(isActive)
+            if isActive {
                 Task { await appState.refreshDevices() }
             }
         }
@@ -47,8 +42,10 @@ struct ContentView: View {
             )
             .ignoresSafeArea()
 
-            if let selected = appState.selectedDevice, let state = appState.state {
+            if let selected = appState.selectedDevice, let state = appState.state, appState.selectedStateMatchesSelectedDevice {
                 DeviceDetailView(appState: appState, selected: selected, state: state)
+            } else if let selected = appState.selectedDevice {
+                DeviceLoadingState(device: selected)
             } else {
                 emptyState
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -245,6 +242,43 @@ struct ContentView: View {
 
     private var emptyState: some View {
         EmptyDeviceState(rows: supportedDeviceRows)
+    }
+}
+
+private struct DeviceLoadingState: View {
+    let device: MouseDevice
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(device.product_name)
+                .font(.system(size: 28, weight: .black, design: .rounded))
+                .foregroundStyle(.white)
+
+            HStack(spacing: 10) {
+                ProgressView()
+                    .controlSize(.regular)
+                    .tint(.white.opacity(0.9))
+
+                Text("Loading device data")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.82))
+            }
+
+            Text("Open Snek is refreshing the latest values for this mouse.")
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.62))
+        }
+        .frame(maxWidth: 420, alignment: .leading)
+        .padding(24)
+        .background(
+            RoundedRectangle(cornerRadius: 22)
+                .fill(Color.white.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22)
+                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                )
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 }
 

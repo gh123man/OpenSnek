@@ -87,6 +87,15 @@ public struct MouseDevice: Codable, Identifiable, Hashable, Sendable {
         transport.connectionLabel
     }
 
+    public var usesBestEffortSupport: Bool {
+        profile_id == nil
+    }
+
+    public var supportNotice: String? {
+        guard usesBestEffortSupport else { return nil }
+        return "Best-effort support. Open Snek only shows controls that responded on this mouse, so some features may be unavailable."
+    }
+
     public var identity: DeviceIdentity {
         DeviceIdentity(
             vendorID: vendor_id,
@@ -140,6 +149,42 @@ public struct Capabilities: Codable, Hashable, Sendable {
         self.power_management = power_management
         self.button_remap = button_remap
         self.lighting = lighting
+    }
+
+    public static var supportedUSBProfile: Capabilities {
+        Capabilities(dpi_stages: true, poll_rate: true, power_management: true, button_remap: true, lighting: true)
+    }
+
+    public static var supportedBluetoothProfile: Capabilities {
+        Capabilities(dpi_stages: true, poll_rate: false, power_management: true, button_remap: true, lighting: true)
+    }
+
+    public static func bestEffortUSB(
+        poll_rate: Bool,
+        power_management: Bool,
+        lighting: Bool
+    ) -> Capabilities {
+        Capabilities(
+            dpi_stages: true,
+            poll_rate: poll_rate,
+            power_management: power_management,
+            button_remap: false,
+            lighting: lighting
+        )
+    }
+
+    public static func bestEffortBluetooth(
+        dpi_stages: Bool,
+        power_management: Bool,
+        lighting: Bool
+    ) -> Capabilities {
+        Capabilities(
+            dpi_stages: dpi_stages,
+            poll_rate: false,
+            power_management: power_management,
+            button_remap: false,
+            lighting: lighting
+        )
     }
 }
 

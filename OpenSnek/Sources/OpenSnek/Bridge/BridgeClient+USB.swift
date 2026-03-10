@@ -5,6 +5,12 @@ import OpenSnekHardware
 import OpenSnekProtocols
 
 extension BridgeClient {
+    func readUSBState(device: MouseDevice, session: USBHIDControlSession) async throws -> MouseState {
+        let core = try await readUSBCoreState(device: device, session: session)
+        let slow = try await readUSBSlowState(device: device, session: session)
+        return slow.merged(with: core)
+    }
+
     func debugUSBReadButtonBinding(
         device: MouseDevice,
         slot: Int,
@@ -70,7 +76,7 @@ extension BridgeClient {
         return false
     }
 
-    func readUSBState(device: MouseDevice, session: USBHIDControlSession) async throws -> MouseState {
+    func readUSBCoreState(device: MouseDevice, session: USBHIDControlSession) async throws -> MouseState {
         if hidAccessDenied {
             throw BridgeError.commandFailed(
                 "USB HID feature reports are blocked by macOS permissions. " +
@@ -90,28 +96,81 @@ extension BridgeClient {
             )
         }
 
-        let serial = try getSerial(session, device)
-        if hidAccessDenied {
-            throw BridgeError.commandFailed(
-                "USB HID feature reports are blocked by macOS permissions. " +
-                "Enable Input Monitoring for this app host and relaunch."
-            )
-        }
-        let fw = try getFirmware(session, device)
         let mode = try getDeviceMode(session, device)
-        let battery = try getBattery(session, device)
         let stages = try getDPIStages(session, device)
         let poll = try getPollRate(session, device)
-        let sleepTimeout = try getIdleTime(session, device)
         let lowBatteryThreshold = try getLowBatteryThreshold(session, device)
         let scrollMode = try getScrollMode(session, device)
         let scrollAcceleration = try getScrollAcceleration(session, device)
         let scrollSmartReel = try getScrollSmartReel(session, device)
-        let onboardProfile = try getOnboardProfileInfo(session, device)
         let led = try getScrollLEDBrightness(session, device)
+        let metadata = cachedDeviceMetadataByID[device.id]
 
         let active = stages?.0 ?? 0
         let values = stages?.1 ?? [dpi.0]
+        let capabilities = device.usesBestEffortSupport
+            ? Capabilities.bestEffortUSB(
+                poll_rate: poll != nil,
+                power_management: false,
+                lighting: led != nil
+            )
+            : .supportedUSBProfile
+
+        return MouseState(
+            device: DeviceSummary(
+                id: device.id,
+                product_name: device.product_name,
+                serial: metadata?.serial ?? device.serial,
+                transport: device.transport,
+                firmware: metadata?.firmware ?? device.firmware
+            ),
+            connection: "USB",
+            battery_percent: nil,
+            charging: nil,
+            dpi: DpiPair(x: dpi.0, y: dpi.1),
+            dpi_stages: DpiStages(active_stage: active, values: values),
+            poll_rate: poll,
+            sleep_timeout: nil,
+            device_mode: mode.map { DeviceMode(mode: $0.0, param: $0.1) },
+            low_battery_threshold_raw: lowBatteryThreshold,
+            scroll_mode: scrollMode,
+            scroll_acceleration: scrollAcceleration,
+            scroll_smart_reel: scrollSmartReel,
+            active_onboard_profile: nil,
+            onboard_profile_count: max(1, device.onboard_profile_count),
+            led_value: led,
+            capabilities: capabilities
+        )
+    }
+
+    func readUSBSlowState(device: MouseDevice, session: USBHIDControlSession) async throws -> MouseState {
+        let serial: String?
+        let firmware: String?
+        if let cached = cachedDeviceMetadataByID[device.id] {
+            serial = cached.serial
+            firmware = cached.firmware
+        } else {
+            serial = try getSerial(session, device)
+            if hidAccessDenied {
+                throw BridgeError.commandFailed(
+                    "USB HID feature reports are blocked by macOS permissions. " +
+                    "Enable Input Monitoring for this app host and relaunch."
+                )
+            }
+            firmware = try getFirmware(session, device)
+            cachedDeviceMetadataByID[device.id] = (serial: serial, firmware: firmware)
+        }
+
+        let battery = try getBattery(session, device)
+        let sleepTimeout = try getIdleTime(session, device)
+        let onboardProfile = try getOnboardProfileInfo(session, device)
+        let capabilities = device.usesBestEffortSupport
+            ? Capabilities.bestEffortUSB(
+                poll_rate: false,
+                power_management: sleepTimeout != nil,
+                lighting: false
+            )
+            : .supportedUSBProfile
 
         return MouseState(
             device: DeviceSummary(
@@ -119,24 +178,24 @@ extension BridgeClient {
                 product_name: device.product_name,
                 serial: serial ?? device.serial,
                 transport: device.transport,
-                firmware: fw ?? device.firmware
+                firmware: firmware ?? device.firmware
             ),
             connection: "USB",
             battery_percent: battery?.0,
             charging: battery?.1,
-            dpi: DpiPair(x: dpi.0, y: dpi.1),
-            dpi_stages: DpiStages(active_stage: active, values: values),
-            poll_rate: poll,
+            dpi: nil,
+            dpi_stages: DpiStages(active_stage: nil, values: nil),
+            poll_rate: nil,
             sleep_timeout: sleepTimeout,
-            device_mode: mode.map { DeviceMode(mode: $0.0, param: $0.1) },
-            low_battery_threshold_raw: lowBatteryThreshold,
-            scroll_mode: scrollMode,
-            scroll_acceleration: scrollAcceleration,
-            scroll_smart_reel: scrollSmartReel,
+            device_mode: nil,
+            low_battery_threshold_raw: nil,
+            scroll_mode: nil,
+            scroll_acceleration: nil,
+            scroll_smart_reel: nil,
             active_onboard_profile: onboardProfile?.active,
             onboard_profile_count: onboardProfile?.count ?? max(1, device.onboard_profile_count),
-            led_value: led,
-            capabilities: Capabilities(dpi_stages: true, poll_rate: true, power_management: true, button_remap: true, lighting: true)
+            led_value: nil,
+            capabilities: capabilities
         )
     }
 

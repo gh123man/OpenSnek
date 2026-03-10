@@ -271,6 +271,29 @@ struct DeviceOverviewBar: View {
                 DeviceStatusBadge(indicator: appState.currentDeviceStatusIndicator)
             }
 
+            if let supportNotice = selected.supportNotice {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "info.circle.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Color(hex: 0xF4C65D))
+
+                    Text(supportNotice)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color(hex: 0x8A6A00).opacity(0.20))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color(hex: 0xF4C65D).opacity(0.25), lineWidth: 1)
+                        )
+                )
+            }
+
             Rectangle()
                 .fill(Color.white.opacity(0.14))
                 .frame(height: 1)
