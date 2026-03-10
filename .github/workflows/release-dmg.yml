@@ -11,10 +11,6 @@ permissions:
 jobs:
   release-dmg:
     runs-on: macos-latest
-    env:
-      CERT_PATH: ${{ runner.temp }}/developer-id-application.p12
-      KEYCHAIN_PATH: ${{ runner.temp }}/open-snek-release.keychain-db
-      NOTARY_KEY_PATH: ${{ runner.temp }}/AuthKey-${{ secrets.APPLE_NOTARY_KEY_ID }}.p8
 
     steps:
       - name: Checkout
@@ -25,8 +21,21 @@ jobs:
 
       - name: Decode signing assets
         shell: bash
+        env:
+          APPLE_CERT_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_APP_CERT_BASE64 }}
+          APPLE_NOTARY_API_KEY_P8: ${{ secrets.APPLE_NOTARY_API_KEY_P8 }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
         run: |
           set -euo pipefail
+          CERT_PATH="$RUNNER_TEMP/developer-id-application.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/open-snek-release.keychain-db"
+          NOTARY_KEY_PATH="$RUNNER_TEMP/AuthKey-$APPLE_NOTARY_KEY_ID.p8"
+          export CERT_PATH
+          {
+            echo "CERT_PATH=$CERT_PATH"
+            echo "KEYCHAIN_PATH=$KEYCHAIN_PATH"
+            echo "NOTARY_KEY_PATH=$NOTARY_KEY_PATH"
+          } >> "$GITHUB_ENV"
           python3 - <<'PY'
           import base64
           import os
@@ -35,11 +44,7 @@ jobs:
           cert_data = base64.b64decode(os.environ["APPLE_CERT_BASE64"])
           pathlib.Path(os.environ["CERT_PATH"]).write_bytes(cert_data)
           PY
-          cat <<'KEY' > "$NOTARY_KEY_PATH"
-          ${{ secrets.APPLE_NOTARY_API_KEY_P8 }}
-          KEY
-        env:
-          APPLE_CERT_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_APP_CERT_BASE64 }}
+          printf '%s\n' "$APPLE_NOTARY_API_KEY_P8" > "$NOTARY_KEY_PATH"
 
       - name: Create temporary keychain
         shell: bash
