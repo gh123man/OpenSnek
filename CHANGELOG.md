@@ -17,6 +17,7 @@ All notable changes to this project are documented in this file.
 ### Added
 - Shared device-profile registry for the validated Basilisk V3 X HyperSpeed family (`0x00B9` USB / `0x00BA` BLE) with explicit button-layout metadata.
 - Unit tests for shared device-profile resolution/persistence keys and extracted apply coordination.
+- GitHub Release DMG automation: tag-driven macOS workflow, Xcode archive/export release script, notarization/stapling path, and release credential setup docs.
 
 ### Fixed
 - USB apply flows no longer fail immediately on transient post-write telemetry drops; readback now retries with short backoff and falls back to projected cached state when writes succeeded but immediate readback is temporarily unavailable.

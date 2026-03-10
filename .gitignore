@@ -48,6 +48,7 @@ gatt_enumeration_results.json
 # SwiftPM build artifacts
 OpenSnek/.build/
 OpenSnek/.dist/
+OpenSnek/.release/
 OpenSnek/.xcode-dd/
 .build/
 

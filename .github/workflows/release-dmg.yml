@@ -1,0 +1,97 @@
+name: Release DMG
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release-dmg:
+    runs-on: macos-latest
+    env:
+      CERT_PATH: ${{ runner.temp }}/developer-id-application.p12
+      KEYCHAIN_PATH: ${{ runner.temp }}/open-snek-release.keychain-db
+      NOTARY_KEY_PATH: ${{ runner.temp }}/AuthKey-${{ secrets.APPLE_NOTARY_KEY_ID }}.p8
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Decode signing assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          import os
+          import pathlib
+
+          cert_data = base64.b64decode(os.environ["APPLE_CERT_BASE64"])
+          pathlib.Path(os.environ["CERT_PATH"]).write_bytes(cert_data)
+          PY
+          cat <<'KEY' > "$NOTARY_KEY_PATH"
+          ${{ secrets.APPLE_NOTARY_API_KEY_P8 }}
+          KEY
+        env:
+          APPLE_CERT_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_APP_CERT_BASE64 }}
+
+      - name: Create temporary keychain
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -k "$KEYCHAIN_PATH" -P "${{ secrets.APPLE_DEVELOPER_ID_APP_CERT_PASSWORD }}" -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/xcodebuild
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security default-keychain -d user -s "$KEYCHAIN_PATH"
+
+      - name: Build notarized DMG
+        shell: bash
+        env:
+          OPEN_SNEK_APPLE_TEAM_ID: ${{ secrets.APPLE_DEVELOPER_TEAM_ID }}
+          OPEN_SNEK_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          OPEN_SNEK_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+          OPEN_SNEK_NOTARY_KEY_PATH: ${{ env.NOTARY_KEY_PATH }}
+          OPEN_SNEK_CODESIGN_KEYCHAIN: ${{ env.KEYCHAIN_PATH }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
+          chmod +x OpenSnek/scripts/build_release_dmg.sh
+          ./OpenSnek/scripts/build_release_dmg.sh \
+            --version "$VERSION" \
+            --build-number "$BUILD_NUMBER" \
+            --team-id "$OPEN_SNEK_APPLE_TEAM_ID" \
+            --notary-key-path "$OPEN_SNEK_NOTARY_KEY_PATH" \
+            --notary-key-id "$OPEN_SNEK_NOTARY_KEY_ID" \
+            --notary-issuer-id "$OPEN_SNEK_NOTARY_ISSUER_ID"
+
+      - name: Upload release artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenSnek-release-${{ github.ref_name }}
+          path: OpenSnek/.release
+          if-no-files-found: error
+
+      - name: Publish GitHub Release asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          DMG_PATH="OpenSnek/.release/artifacts/OpenSnek-${VERSION}.dmg"
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
+            gh release create "$GITHUB_REF_NAME" --title "OpenSnek ${VERSION}" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" "$DMG_PATH" --clobber

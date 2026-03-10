@@ -22,12 +22,14 @@ Pure Swift macOS frontend for `open-snek`.
   - `USBHIDProtocol`: shared HID report encoding/CRC/response validation
 - `Sources/OpenSnekHardware/`
   - shared repository/driver abstractions for bridge migration
+  - shared `USBHIDControlSession` and `BLEVendorTransportClient` transport clients
 - `Sources/OpenSnekAppSupport/`
   - `ApplyCoordinator`: latest-wins patch coalescing helper
   - `DevicePreferenceStore`: extracted `UserDefaults` persistence for lighting/button state
 - `Sources/OpenSnek/Bridge/`
-  - `BridgeClient`: current compatibility bridge actor while hardware code is migrated behind shared abstractions
-  - `BTVendorClient`: CoreBluetooth session manager for vendor write/notify path
+  - `BridgeClient`: repository-compatible bridge shell and discovery/orchestration
+  - `BridgeClient+USB`: USB HID state/apply path
+  - `BridgeClient+Bluetooth`: BLE vendor state/apply path
 - `Sources/OpenSnek/Services/`
   - `AppState`: top-level UI state model composed with extracted apply/persistence helpers
   - `AppLog`: runtime file + OSLog logger
@@ -99,6 +101,18 @@ Bundle build only:
 
 ```bash
 ./OpenSnek/scripts/build_macos_app.sh --configuration release
+```
+
+DMG release build and notarization:
+
+```bash
+./OpenSnek/scripts/build_release_dmg.sh --version 0.1.0 --build-number 1 --team-id '<APPLE_TEAM_ID>' --notary-key-path /path/to/AuthKey_XXXX.p8 --notary-key-id '<KEY_ID>' --notary-issuer-id '<ISSUER_ID>'
+```
+
+Release automation and GitHub secret setup:
+
+```text
+docs/release/DMG_RELEASE.md
 ```
 
 Run the existing `.dist` app bundle without rebuilding (preserves signature/TCC grants by default):

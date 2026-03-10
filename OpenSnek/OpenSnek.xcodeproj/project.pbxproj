@@ -11,6 +11,7 @@
 		00DE2343FDDE669556D49298 /* OpenSnekHardware.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3B4A9C2329D2DC93E67914B4 /* OpenSnekHardware.framework */; };
 		0459A5CCC2005B1F83DF853A /* HardwareUSBButtonRemapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCCAD6424718FF2C6A9559B1 /* HardwareUSBButtonRemapTests.swift */; };
 		06DC24C2C800F481E99FBA81 /* AppLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B405B510FA38B3476E32D86 /* AppLog.swift */; };
+		0B4BB8DAF84F4166B7DDEE44 /* BridgeClient+Bluetooth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CC6FAA3C44729C3700FE4E1 /* BridgeClient+Bluetooth.swift */; };
 		0EB6806B3FB527AF093FD1E0 /* OpenSnekCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A565F79B7A11FE5BE25FD3DF /* OpenSnekCore.framework */; };
 		115C434E7B9D1D2EF63C2D27 /* OpenSnekProtocols.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FFCAF5468D311043044792E4 /* OpenSnekProtocols.framework */; };
 		14A60F78987BD7E62A05435A /* CoreAliases.swift in Sources */ = {isa = PBXBuildFile; fileRef = E07B7A5FA7CA43DA87EB0B12 /* CoreAliases.swift */; };
@@ -18,6 +19,7 @@
 		18491D13A6D5D9CC78B32213 /* OpenSnekApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E144EB40DC4F591DAC286AB6 /* OpenSnekApp.swift */; };
 		1AA1E4CD629A2965A403454A /* OpenSnekCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A565F79B7A11FE5BE25FD3DF /* OpenSnekCore.framework */; };
 		1B499589D1A3924EE8EC73CD /* DevicePersistenceKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A6ADBEE22224C38D8A53A44 /* DevicePersistenceKeys.swift */; };
+		200944B7C8C6BED8FCF73533 /* ProbeTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70039EC5F73B83363C073BFA /* ProbeTransport.swift */; };
 		2242B31EE029F2AFB1A919B2 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDA718BC3E1313AA4A1B31D1 /* Models.swift */; };
 		2360FB8F07702B82B069C641 /* OpenSnekCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A565F79B7A11FE5BE25FD3DF /* OpenSnekCore.framework */; };
 		2AD6CE479E23A6FFC950DDC5 /* DevicePatchMergeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D49AFD14532949E1EAA5C87 /* DevicePatchMergeTests.swift */; };
@@ -26,7 +28,6 @@
 		3D194E6374934F820EC9B433 /* OpenSnekProtocols.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FFCAF5468D311043044792E4 /* OpenSnekProtocols.framework */; };
 		3F529556C5591DC4432C7191 /* DeviceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2C86152E946DFAA738332A /* DeviceDetailView.swift */; };
 		409F70802161DBBE0DFD8E38 /* OpenSnekHardware.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 3B4A9C2329D2DC93E67914B4 /* OpenSnekHardware.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		4313CD5EE9019D3F86B3975B /* BTVendorClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49D56937FA59FB830936B7DE /* BTVendorClient.swift */; };
 		47B0BBF5EE46942D1050269D /* OpenSnekProtocols.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FFCAF5468D311043044792E4 /* OpenSnekProtocols.framework */; };
 		4A0D20ED73A014DD5D657BD4 /* OpenSnekCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A565F79B7A11FE5BE25FD3DF /* OpenSnekCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		4C80A52F40B43A2F7768AE59 /* OpenSnekAppSupport.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 58FFF2733703D2A6B60589C9 /* OpenSnekAppSupport.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -34,6 +35,7 @@
 		559EB8BCEBB4DCF52A71604A /* UIPrimitives.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BCEF8C7599D184534E311E7 /* UIPrimitives.swift */; };
 		65A3C3533EE37EEE2635E5F2 /* HardwareUSBStartupHydrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8C1E4D323A2F1E6CF892093 /* HardwareUSBStartupHydrationTests.swift */; };
 		700626CFEA8F72D2A73DE42C /* BLEVendorProtocolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3290EDBE39717C1D8F46AE15 /* BLEVendorProtocolTests.swift */; };
+		718667DBF9C415590D20A2B0 /* BLEVendorTransportClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE2CEEB636DB1FEE68464AA /* BLEVendorTransportClient.swift */; };
 		74C94B86ED36EA7ABD8DE360 /* USBButtonHydrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B10AF66929E89F9C77E8F0 /* USBButtonHydrationTests.swift */; };
 		76E4CEB57DE4D41FC5E4E4C6 /* HardwareModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE627F1E0EBDBA7BE3E897CC /* HardwareModule.swift */; };
 		7B24D57EBFA951B9AE503677 /* BridgeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4B8CFD064274DAA8855BC03 /* BridgeClient.swift */; };
@@ -42,9 +44,11 @@
 		8C48CAC00B058083534C228C /* Abstractions.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5AFD15E4A5E43403A377E62 /* Abstractions.swift */; };
 		96925611E343BBA733E39D68 /* OpenSnekHardware.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3B4A9C2329D2DC93E67914B4 /* OpenSnekHardware.framework */; };
 		96D56FD27BF056283672F337 /* BLEVendorProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 405CA41EDB38DB20E5C0EF58 /* BLEVendorProtocol.swift */; };
+		9C87E8DF80036227689BA964 /* USBHIDControlSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D0EE520F4843E13CD7214F8 /* USBHIDControlSession.swift */; };
 		A15B5AC390DECBF25CF396DA /* OpenSnekCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A565F79B7A11FE5BE25FD3DF /* OpenSnekCore.framework */; };
 		A633796EEE25F6072B9E73FF /* ApplyCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A4224D8E997DD977430D6F8 /* ApplyCoordinator.swift */; };
 		AA2F2F51D1E7955ADAFB17F7 /* WindowChromeConfigurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CE5899BC2B523D0AEB68A87 /* WindowChromeConfigurator.swift */; };
+		AC9E372D1224D2BFFCBC5CF3 /* BridgeClient+USB.swift in Sources */ = {isa = PBXBuildFile; fileRef = D058524CB1C51701F550EDD3 /* BridgeClient+USB.swift */; };
 		AD54CC81DD15471E7E9578C5 /* HardwareDpiReliabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6559F1E140B59BC3EB70141 /* HardwareDpiReliabilityTests.swift */; };
 		B47DA503DDAA413B55C33459 /* OpenSnekProtocols.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = FFCAF5468D311043044792E4 /* OpenSnekProtocols.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B601683BCF8CF86905DE4AC8 /* OpenSnekAppSupport.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 58FFF2733703D2A6B60589C9 /* OpenSnekAppSupport.framework */; };
@@ -225,6 +229,7 @@
 		0182D1ED4655878220DF1DD3 /* DeviceSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceSidebarView.swift; sourceTree = "<group>"; };
 		0A4224D8E997DD977430D6F8 /* ApplyCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplyCoordinator.swift; sourceTree = "<group>"; };
 		0B405B510FA38B3476E32D86 /* AppLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLog.swift; sourceTree = "<group>"; };
+		0CC6FAA3C44729C3700FE4E1 /* BridgeClient+Bluetooth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BridgeClient+Bluetooth.swift"; sourceTree = "<group>"; };
 		203712F6B3D0B0983DBF8A0A /* OpenSnekTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OpenSnekTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		25B6F1DCF3F2DE7078B44903 /* OpenSnekProbe */ = {isa = PBXFileReference; includeInIndex = 0; path = OpenSnekProbe; sourceTree = BUILT_PRODUCTS_DIR; };
 		26F671E435B37F3E0DFE2986 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
@@ -235,18 +240,19 @@
 		3C98641E73FF554937C29AA1 /* ButtonBindingSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtonBindingSupport.swift; sourceTree = "<group>"; };
 		405CA41EDB38DB20E5C0EF58 /* BLEVendorProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLEVendorProtocol.swift; sourceTree = "<group>"; };
 		47B10AF66929E89F9C77E8F0 /* USBButtonHydrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = USBButtonHydrationTests.swift; sourceTree = "<group>"; };
-		49D56937FA59FB830936B7DE /* BTVendorClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BTVendorClient.swift; sourceTree = "<group>"; };
 		4A6ADBEE22224C38D8A53A44 /* DevicePersistenceKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevicePersistenceKeys.swift; sourceTree = "<group>"; };
 		4D49AFD14532949E1EAA5C87 /* DevicePatchMergeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevicePatchMergeTests.swift; sourceTree = "<group>"; };
 		506D4945F189649ED91BA3F1 /* DeviceSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceSupport.swift; sourceTree = "<group>"; };
 		58FFF2733703D2A6B60589C9 /* OpenSnekAppSupport.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = OpenSnekAppSupport.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		677440F9B6CCD5E1657F6B07 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		6CE5899BC2B523D0AEB68A87 /* WindowChromeConfigurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowChromeConfigurator.swift; sourceTree = "<group>"; };
+		70039EC5F73B83363C073BFA /* ProbeTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProbeTransport.swift; sourceTree = "<group>"; };
 		720B5E0ADD6C78C56C74FCAC /* OpenSnek.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenSnek.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		799DCE2031A8BABF4A66A412 /* DeviceProfilesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceProfilesTests.swift; sourceTree = "<group>"; };
 		7E565DA45A51754437348FAC /* TurboRateMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurboRateMappingTests.swift; sourceTree = "<group>"; };
 		91C4490720E613CB77D916C5 /* DevicePreferenceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevicePreferenceStore.swift; sourceTree = "<group>"; };
 		9BCEF8C7599D184534E311E7 /* UIPrimitives.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIPrimitives.swift; sourceTree = "<group>"; };
+		9D0EE520F4843E13CD7214F8 /* USBHIDControlSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = USBHIDControlSession.swift; sourceTree = "<group>"; };
 		A565F79B7A11FE5BE25FD3DF /* OpenSnekCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = OpenSnekCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		A67697881015ADD1872E3CE7 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		A9AFFFBCAA819E69A117EC74 /* ApplyCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplyCoordinatorTests.swift; sourceTree = "<group>"; };
@@ -255,6 +261,7 @@
 		BDA718BC3E1313AA4A1B31D1 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		C37022E80FDE686B1649F633 /* MouseStateMergeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MouseStateMergeTests.swift; sourceTree = "<group>"; };
 		CCCAD6424718FF2C6A9559B1 /* HardwareUSBButtonRemapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareUSBButtonRemapTests.swift; sourceTree = "<group>"; };
+		D058524CB1C51701F550EDD3 /* BridgeClient+USB.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BridgeClient+USB.swift"; sourceTree = "<group>"; };
 		D5AFD15E4A5E43403A377E62 /* Abstractions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Abstractions.swift; sourceTree = "<group>"; };
 		D8C1E4D323A2F1E6CF892093 /* HardwareUSBStartupHydrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareUSBStartupHydrationTests.swift; sourceTree = "<group>"; };
 		E07B7A5FA7CA43DA87EB0B12 /* CoreAliases.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreAliases.swift; sourceTree = "<group>"; };
@@ -263,6 +270,7 @@
 		F2ADF25A2E6CA190CF211C22 /* USBHIDProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = USBHIDProtocol.swift; sourceTree = "<group>"; };
 		F4B8CFD064274DAA8855BC03 /* BridgeClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeClient.swift; sourceTree = "<group>"; };
 		F6559F1E140B59BC3EB70141 /* HardwareDpiReliabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareDpiReliabilityTests.swift; sourceTree = "<group>"; };
+		FCE2CEEB636DB1FEE68464AA /* BLEVendorTransportClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLEVendorTransportClient.swift; sourceTree = "<group>"; };
 		FFCAF5468D311043044792E4 /* OpenSnekProtocols.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = OpenSnekProtocols.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -402,7 +410,8 @@
 			isa = PBXGroup;
 			children = (
 				F4B8CFD064274DAA8855BC03 /* BridgeClient.swift */,
-				49D56937FA59FB830936B7DE /* BTVendorClient.swift */,
+				0CC6FAA3C44729C3700FE4E1 /* BridgeClient+Bluetooth.swift */,
+				D058524CB1C51701F550EDD3 /* BridgeClient+USB.swift */,
 			);
 			path = Bridge;
 			sourceTree = "<group>";
@@ -411,7 +420,9 @@
 			isa = PBXGroup;
 			children = (
 				D5AFD15E4A5E43403A377E62 /* Abstractions.swift */,
+				FCE2CEEB636DB1FEE68464AA /* BLEVendorTransportClient.swift */,
 				AE627F1E0EBDBA7BE3E897CC /* HardwareModule.swift */,
+				9D0EE520F4843E13CD7214F8 /* USBHIDControlSession.swift */,
 			);
 			name = OpenSnekHardware;
 			path = Sources/OpenSnekHardware;
@@ -448,6 +459,7 @@
 			isa = PBXGroup;
 			children = (
 				26F671E435B37F3E0DFE2986 /* main.swift */,
+				70039EC5F73B83363C073BFA /* ProbeTransport.swift */,
 			);
 			name = OpenSnekProbe;
 			path = Sources/OpenSnekProbe;
@@ -682,7 +694,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				8C48CAC00B058083534C228C /* Abstractions.swift in Sources */,
+				718667DBF9C415590D20A2B0 /* BLEVendorTransportClient.swift in Sources */,
 				76E4CEB57DE4D41FC5E4E4C6 /* HardwareModule.swift in Sources */,
+				9C87E8DF80036227689BA964 /* USBHIDControlSession.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -693,7 +707,8 @@
 				D9B071514E644B1273EC5D87 /* AppLifecycleDelegate.swift in Sources */,
 				06DC24C2C800F481E99FBA81 /* AppLog.swift in Sources */,
 				87D375FF8B65833DD56F2BC7 /* AppState.swift in Sources */,
-				4313CD5EE9019D3F86B3975B /* BTVendorClient.swift in Sources */,
+				0B4BB8DAF84F4166B7DDEE44 /* BridgeClient+Bluetooth.swift in Sources */,
+				AC9E372D1224D2BFFCBC5CF3 /* BridgeClient+USB.swift in Sources */,
 				7B24D57EBFA951B9AE503677 /* BridgeClient.swift in Sources */,
 				FF133C876B9199B351CCB4EC /* ContentView.swift in Sources */,
 				14A60F78987BD7E62A05435A /* CoreAliases.swift in Sources */,
@@ -728,6 +743,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				200944B7C8C6BED8FCF73533 /* ProbeTransport.swift in Sources */,
 				009FCCD5E27D073602F25559 /* main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

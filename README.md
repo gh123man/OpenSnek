@@ -50,6 +50,7 @@ Validated on:
 ## More
 
 - App build, run, probe, and validation details: [OpenSnek/README.md](OpenSnek/README.md)
+- DMG release and notarization setup: [docs/release/DMG_RELEASE.md](docs/release/DMG_RELEASE.md)
 - Protocol documentation: [docs/protocol/PROTOCOL.md](docs/protocol/PROTOCOL.md)
 - Supported Python tooling: [tools/python/README.md](tools/python/README.md)
 - BLE capture corpus: [captures/README.md](captures/README.md)
