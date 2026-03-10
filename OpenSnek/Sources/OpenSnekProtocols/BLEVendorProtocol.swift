@@ -233,6 +233,8 @@ public enum BLEVendorProtocol {
                 return Data([0x01, slot, 0x00, 0x01, 0x01, buttonID, 0x00, 0x00, 0x00, 0x00])
             }
             return Data([0x01, slot, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+        case .dpiCycle:
+            return Data([0x01, slot, 0x00, 0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00])
         case .leftClick:
             return Data([0x01, slot, 0x00, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00])
         case .rightClick:
@@ -254,24 +256,24 @@ public enum BLEVendorProtocol {
         }
     }
 
-    public static func buildScrollLEDEffectArgs(effect: LightingEffectPatch) -> [UInt8] {
+    public static func buildScrollLEDEffectArgs(effect: LightingEffectPatch, ledID: UInt8 = 0x01) -> [UInt8] {
         switch effect.kind {
         case .off:
-            return [0x01, 0x01, 0x00]
+            return [0x01, ledID, 0x00, 0x00, 0x00, 0x00]
         case .staticColor:
-            return [0x01, 0x01, 0x01, 0x00, 0x00, 0x01, UInt8(effect.primary.r), UInt8(effect.primary.g), UInt8(effect.primary.b)]
+            return [0x01, ledID, 0x01, 0x00, 0x00, 0x01, UInt8(effect.primary.r), UInt8(effect.primary.g), UInt8(effect.primary.b)]
         case .spectrum:
-            return [0x01, 0x01, 0x04]
+            return [0x01, ledID, 0x03, 0x00, 0x00, 0x00]
         case .wave:
-            return [0x01, 0x01, 0x03, 0x00, UInt8(effect.waveDirection.rawValue)]
+            return [0x01, ledID, 0x04, UInt8(effect.waveDirection.rawValue), 0x28, 0x00]
         case .reactive:
-            return [0x01, 0x01, 0x05, 0x00, UInt8(max(1, min(4, effect.reactiveSpeed))), 0x01, UInt8(effect.primary.r), UInt8(effect.primary.g), UInt8(effect.primary.b)]
+            return [0x01, ledID, 0x05, 0x00, UInt8(max(1, min(4, effect.reactiveSpeed))), 0x01, UInt8(effect.primary.r), UInt8(effect.primary.g), UInt8(effect.primary.b)]
         case .pulseRandom:
-            return [0x01, 0x01, 0x02, 0x01, 0x00]
+            return [0x01, ledID, 0x02, 0x00, 0x00, 0x00]
         case .pulseSingle:
-            return [0x01, 0x01, 0x02, 0x00, 0x00, 0x01, UInt8(effect.primary.r), UInt8(effect.primary.g), UInt8(effect.primary.b)]
+            return [0x01, ledID, 0x02, 0x01, 0x00, 0x01, UInt8(effect.primary.r), UInt8(effect.primary.g), UInt8(effect.primary.b)]
         case .pulseDual:
-            return [0x01, 0x01, 0x02, 0x02, 0x00, 0x02, UInt8(effect.primary.r), UInt8(effect.primary.g), UInt8(effect.primary.b), UInt8(effect.secondary.r), UInt8(effect.secondary.g), UInt8(effect.secondary.b)]
+            return [0x01, ledID, 0x02, 0x02, 0x00, 0x02, UInt8(effect.primary.r), UInt8(effect.primary.g), UInt8(effect.primary.b), UInt8(effect.secondary.r), UInt8(effect.secondary.g), UInt8(effect.secondary.b)]
         }
     }
 

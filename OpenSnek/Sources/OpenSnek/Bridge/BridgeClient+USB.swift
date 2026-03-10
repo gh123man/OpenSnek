@@ -120,7 +120,7 @@ extension BridgeClient {
                 transport: device.transport,
                 firmware: fw ?? device.firmware
             ),
-            connection: "usb",
+            connection: "USB",
             battery_percent: battery?.0,
             charging: battery?.1,
             dpi: DpiPair(x: dpi.0, y: dpi.1),
@@ -423,30 +423,62 @@ extension BridgeClient {
         return r[0] == 0x02
     }
 
+    func usbDeviceProfile(for device: MouseDevice) -> DeviceProfile? {
+        DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)
+    }
+
+    func usbLightingLEDIDs(for device: MouseDevice, override: [UInt8]? = nil) -> [UInt8] {
+        let ids = override ?? usbDeviceProfile(for: device)?.usbLightingLEDIDs ?? [0x01]
+        return ids.isEmpty ? [0x01] : ids
+    }
+
     func getScrollLEDBrightness(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> Int? {
-        let args: [UInt8] = [0x01, 0x01]
-        guard let r = try perform(session, device, classID: 0x0F, cmdID: 0x84, size: 0x03, args: args), r[0] == 0x02 else { return nil }
-        return Int(r[10])
+        var values: [Int] = []
+        for ledID in usbLightingLEDIDs(for: device) {
+            let args: [UInt8] = [0x01, ledID]
+            guard let r = try perform(session, device, classID: 0x0F, cmdID: 0x84, size: 0x03, args: args), r[0] == 0x02 else {
+                continue
+            }
+            values.append(Int(r[10]))
+        }
+        return values.max()
     }
 
     func setScrollLEDBrightness(_ session: USBHIDControlSession, _ device: MouseDevice, value: Int) throws -> Bool {
         let v = UInt8(max(0, min(255, value)))
-        let args: [UInt8] = [0x01, 0x01, v]
-        guard let r = try perform(session, device, classID: 0x0F, cmdID: 0x04, size: 0x03, args: args) else { return false }
-        return r[0] == 0x02
+        var wroteAny = false
+        for ledID in usbLightingLEDIDs(for: device) {
+            let args: [UInt8] = [0x01, ledID, v]
+            guard let r = try perform(session, device, classID: 0x0F, cmdID: 0x04, size: 0x03, args: args), r[0] == 0x02 else {
+                return false
+            }
+            wroteAny = true
+        }
+        return wroteAny
     }
 
-    func setScrollLEDEffect(_ session: USBHIDControlSession, _ device: MouseDevice, effect: LightingEffectPatch) throws -> Bool {
-        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(effect: effect)
-        guard let r = try perform(
-            session,
-            device,
-            classID: 0x0F,
-            cmdID: 0x02,
-            size: UInt8(max(0, min(255, args.count))),
-            args: args
-        ) else { return false }
-        return r[0] == 0x02
+    func setScrollLEDEffect(
+        _ session: USBHIDControlSession,
+        _ device: MouseDevice,
+        effect: LightingEffectPatch,
+        ledIDs: [UInt8]? = nil
+    ) throws -> Bool {
+        var wroteAny = false
+        for ledID in usbLightingLEDIDs(for: device, override: ledIDs) {
+            let args = BLEVendorProtocol.buildScrollLEDEffectArgs(effect: effect, ledID: ledID)
+            guard let r = try perform(
+                session,
+                device,
+                classID: 0x0F,
+                cmdID: 0x02,
+                size: UInt8(max(0, min(255, args.count))),
+                args: args
+            ), r[0] == 0x02 else {
+                return false
+            }
+            wroteAny = true
+        }
+        return wroteAny
     }
 
     func setButtonBindingUSBRaw(
@@ -488,15 +520,20 @@ extension BridgeClient {
             kind: bindingKind,
             hidKey: hidKey,
             turboEnabled: turboEnabled && bindingKind.supportsTurbo,
-            turboRate: turboRate
+            turboRate: turboRate,
+            profileID: device.profile_id
         )
         let clampedSlot = UInt8(max(0, min(255, slot)))
 
-        if try setButtonBindingUSBRaw(session, device, profile: 0x01, slot: clampedSlot, hypershift: 0x00, functionBlock: functionBlock) {
-            return true
-        }
-
-        return try setButtonBindingUSBRaw(
+        let wrotePersistent = try setButtonBindingUSBRaw(
+            session,
+            device,
+            profile: 0x01,
+            slot: clampedSlot,
+            hypershift: 0x00,
+            functionBlock: functionBlock
+        )
+        let wroteDirect = try setButtonBindingUSBRaw(
             session,
             device,
             profile: 0x00,
@@ -504,6 +541,7 @@ extension BridgeClient {
             hypershift: 0x00,
             functionBlock: functionBlock
         )
+        return wrotePersistent || wroteDirect
     }
 
     func getButtonBindingUSBRaw(
@@ -529,15 +567,12 @@ extension BridgeClient {
             return nil
         }
 
-        if response.count >= 18,
-           response[8] == profile,
-           response[9] == slot,
-           response[10] == hypershift {
-            return Array(response[11..<18])
-        }
-        if response.count >= 15 {
-            return Array(response[8..<15])
-        }
-        return nil
+        return ButtonBindingSupport.extractUSBFunctionBlock(
+            response: response,
+            profile: profile,
+            slot: slot,
+            hypershift: hypershift,
+            profileID: device.profile_id
+        )
     }
 }

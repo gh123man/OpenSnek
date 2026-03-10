@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented in this file.
 
+## [2026-03-10]
+
+### Added
+- USB device-profile support for Razer Basilisk V3 35K (`0x00CB`) in the macOS app and shared Swift support layers, including its own button layout metadata and three-zone USB lighting IDs.
+- `OpenSnekProbe usb-raw`, a generic USB HID feature-report inspector for new-device bring-up and protocol verification.
+
+### Fixed
+- USB lighting apply/readback on Basilisk V3 35K now targets all three validated matrix LED zones (`0x01` scroll wheel, `0x04` logo, and `0x0A` underglow) instead of only the wheel zone.
+- USB lighting effect encoding now matches the OpenRazer-documented matrix payloads for `off`, `spectrum`, `wave`, `reactive`, and breathing variants, fixing broken USB profile selections and removing an incorrect wave/spectrum mapping.
+- USB button readback normalization now handles the Basilisk V3 35K `0x02:0x8C` response layout, which differs from the Basilisk V3 X slot echo shape and caused clutch/default blocks to be misparsed.
+- USB button support now preserves and restores the Basilisk V3 35K top DPI-button default payload on slot `0x60`, and the app exposes the extra 35K-only USB slots for the wheel-tilt and DPI-button controls while keeping fixed-only special buttons labeled separately.
+- Basilisk V3 35K button-slot hydration now rejects stale `0x02:0x8C` replies for the wrong echoed slot, and the shared 35K button layout now includes the validated wheel-tilt slots (`0x34`, `0x35`) with cleaned-up control labels.
+- The button-binding UI now hides fixed-only 35K controls, and USB button bindings expose an explicit `DPI Cycle` action that can be assigned to any writable button while the 35K DPI button restores to a working DPI-cycle default.
+- The USB lighting card now filters effect choices per device capability and uses a multi-zone static gradient when a USB mouse exposes more than one independently addressable zone.
+- Python USB tooling now recognizes Basilisk V3 35K (`0x00CB`) and mirrors multi-zone USB lighting writes across all validated LED IDs.
+
 ## [2026-03-09]
 
 ### Changed

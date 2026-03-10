@@ -7,6 +7,20 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.id, .basiliskV3XHyperspeed)
         XCTAssertEqual(profile?.buttonLayout.writableSlots, [1, 2, 3, 4, 5, 9, 10, 96])
         XCTAssertEqual(profile?.supportsAdvancedLightingEffects, true)
+        XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual])
+        XCTAssertEqual(profile?.usbLightingLEDIDs, [0x01])
+        XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel"])
+    }
+
+    func testResolveUSBProfileForBasiliskV335K() {
+        let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00CB, transport: .usb)
+        XCTAssertEqual(profile?.id, .basiliskV335K)
+        XCTAssertEqual(profile?.buttonLayout.writableSlots, [1, 2, 3, 4, 5, 9, 10, 52, 53, 96])
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots.map(\.slot), [1, 2, 3, 4, 5, 9, 10, 52, 53, 96])
+        XCTAssertEqual(profile?.supportsAdvancedLightingEffects, true)
+        XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .spectrum, .wave])
+        XCTAssertEqual(profile?.usbLightingLEDIDs, [0x01, 0x04, 0x0A])
+        XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel", "logo", "underglow"])
     }
 
     func testResolveBluetoothProfileForBasiliskV3X() {

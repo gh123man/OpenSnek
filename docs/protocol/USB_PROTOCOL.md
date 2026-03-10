@@ -181,16 +181,32 @@ TxnID:    0x1F
 
 Validated slot ids on Basilisk V3 X HyperSpeed (`0x00B9`): `0x01..0x05`, `0x09`, `0x0A`, `0x60`.
 
+Validated slot ids on Basilisk V3 35K (`0x00CB`): `0x01..0x05`, `0x09`, `0x0A`, `0x0E`, `0x0F`, `0x34`, `0x35`, `0x60`, `0x6A`.
+Observed control labels on `0x00CB`:
+- `0x0E`: scroll-mode toggle
+- `0x0F`: sensitivity clutch (readback only; remap not validated)
+- `0x34`: wheel tilt left
+- `0x35`: wheel tilt right
+- `0x60`: top DPI button
+- `0x6A`: profile button (readback only; remap not validated)
+
 Validated function block examples:
 - right click: `01 01 02 00 00 00 00`
 - back button (default for slot `0x04`): `01 01 04 00 00 00 00`
 - keyboard key `A` (HID `0x04`): `02 02 00 04 00 00 00`
 - disable: `00 00 00 00 00 00 00`
-- DPI cycle (default for slot `0x60`): `06 01 06 00 00 00 00`
+- DPI cycle action: `06 01 06 00 00 00 00`
+- Basilisk V3 35K wheel-tilt defaults (`0x34`, `0x35`): `01 01 02 00 00 00 00`
+- Basilisk V3 35K sensitivity-clutch default (`0x0F`): `02 02 00 09 00 00 00`
+- Basilisk V3 35K observed alternate DPI-button block (`0x60`): `04 02 0F 7B 00 00 00`
+- Basilisk V3 35K profile-button default (`0x6A`): `12 01 01 00 00 00 00`
 
 Client note:
 - USB function blocks are not BLE `p0/p1/p2` payloads. Use `class,len,data[]` encoding directly.
 - Legacy non-analog write command `0x02:0x0D` is still observed in ecosystem notes but is fallback-only on this device.
+- Basilisk V3 35K (`0x00CB`) `0x02:0x8C` reads do not use one fixed payload offset for every slot. Observed 35K slots decode from `response[11..<18]`; treating `response[10...]` as the block causes false positives and mislabels on extra buttons such as `0x60` and `0x6A`.
+- Always validate the echoed `profile` and `slot` bytes before decoding a `0x02:0x8C` read. This device will otherwise yield stale-looking success frames that can be mistaken for additional slots.
+- Open Snek normalizes both `06 01 06 00 00 00 00` and the observed `0x60` variant `04 02 0F 7B 00 00 00` as the user-facing `DPI Cycle` action.
 
 ---
 
@@ -305,7 +321,7 @@ Args:     [0] = VARSTORE (0x01), [1] = enabled (0x00/0x01)
 
 ### Class 0x0F - Scroll LED Brightness and Effects
 
-Validated on Basilisk V3 X HyperSpeed (`0x00B9`) over USB.
+Validated on Basilisk V3 X HyperSpeed (`0x00B9`) and Basilisk V3 35K (`0x00CB`) over USB.
 
 #### Get/Set Scroll LED Brightness
 ```
@@ -317,6 +333,14 @@ Args:     [0] = VARSTORE (0x01), [1] = LED ID (0x01 scroll wheel), [2] = brightn
 Validated LED IDs on `0x00B9`:
 - `0x01`: supported for brightness read/write
 - other tested IDs (`0x00`, `0x02..0x08`): failure status on brightness get
+
+Validated LED IDs on `0x00CB`:
+- `0x01`: scroll wheel
+- `0x04`: logo
+- `0x0A`: underglow
+
+Client note:
+- For whole-device USB lighting on Basilisk V3 35K, apply brightness/effect writes to all validated LED IDs (`0x01`, `0x04`, and `0x0A`).
 
 #### Set Scroll LED Effects
 ```
@@ -416,6 +440,18 @@ Effects:
 **Known Issues**:
 - DPI button stops working when OpenRazer daemon is active ([#2701](https://github.com/openrazer/openrazer/issues/2701))
 - Bluetooth configuration support is device/transport dependent
+
+### Razer Basilisk V3 35K (0x00CB)
+
+| Setting | Value |
+|---------|-------|
+| USB VID:PID | `1532:00CB` |
+| Transaction ID | `0x1F` |
+| Max DPI | 35000 |
+| DPI Stages | 5 |
+| Poll Rates | 125, 500, 1000 Hz |
+| Validated matrix LEDs | `0x01` scroll wheel, `0x04` logo, `0x0A` underglow |
+| Extra validated button slots | `0x0E` scroll mode (fixed), `0x0F` sensitivity clutch (fixed), `0x34` wheel tilt left, `0x35` wheel tilt right, `0x60` DPI button, `0x6A` profile button (fixed) |
 
 ### Transaction ID by Device
 

@@ -34,6 +34,7 @@ final class USBProbeClient {
     private let session: USBHIDControlSession
     private let deviceID: String
     private let productID: Int
+    private let profileID: DeviceProfileID?
 
     init() throws {
         let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
@@ -75,6 +76,7 @@ final class USBProbeClient {
         self.session = USBHIDControlSession(device: best.device, deviceID: best.id)
         self.deviceID = best.id
         self.productID = best.pid
+        self.profileID = DeviceProfiles.resolve(vendorID: usbVID, productID: best.pid, transport: .usb)?.id
     }
 
     func describe() -> String {
@@ -96,16 +98,13 @@ final class USBProbeClient {
             return nil
         }
 
-        if response.count >= 18,
-           response[8] == profile,
-           response[9] == slot,
-           response[10] == hypershift {
-            return Array(response[11..<18])
-        }
-        if response.count >= 15 {
-            return Array(response[8..<15])
-        }
-        return nil
+        return ButtonBindingSupport.extractUSBFunctionBlock(
+            response: response,
+            profile: profile,
+            slot: slot,
+            hypershift: hypershift,
+            profileID: profileID
+        )
     }
 
     func writeButtonFunction(profile: UInt8, slot: UInt8, hypershift: UInt8 = 0x00, functionBlock: [UInt8]) throws -> Bool {
@@ -143,7 +142,8 @@ final class USBProbeClient {
             kind: bindingKind,
             hidKey: hidKey,
             turboEnabled: turboEnabled && bindingKind.supportsTurbo,
-            turboRate: turboRate
+            turboRate: turboRate,
+            profileID: profileID
         )
         let clampedSlot = UInt8(max(0, min(255, slot)))
         var wroteAny = false
@@ -153,6 +153,26 @@ final class USBProbeClient {
             }
         }
         return wroteAny
+    }
+
+    func rawCommand(
+        classID: UInt8,
+        cmdID: UInt8,
+        size: UInt8,
+        args: [UInt8],
+        allowTxnRescan: Bool = true,
+        responseAttempts: Int = 12,
+        responseDelayUs: useconds_t = 40_000
+    ) throws -> [UInt8]? {
+        try session.perform(
+            classID: classID,
+            cmdID: cmdID,
+            size: size,
+            args: args,
+            allowTxnRescan: allowTxnRescan,
+            responseAttempts: responseAttempts,
+            responseDelayUs: responseDelayUs
+        )
     }
 }
 

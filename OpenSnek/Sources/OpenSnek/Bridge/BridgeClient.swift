@@ -608,13 +608,15 @@ actor BridgeClient {
                     kind: .staticColor,
                     primary: RGBPatch(r: rgb.r, g: rgb.g, b: rgb.b)
                 )
-                guard try runUSBWrite({ try setScrollLEDEffect($0, device, effect: effect) }) else {
+                let ledIDs = effect.kind == .staticColor ? patch.usbLightingZoneLEDIDs : nil
+                guard try runUSBWrite({ try setScrollLEDEffect($0, device, effect: effect, ledIDs: ledIDs) }) else {
                     throw BridgeError.commandFailed("Failed to set LED color")
                 }
             }
 
             if let effect = patch.lightingEffect {
-                guard try runUSBWrite({ try setScrollLEDEffect($0, device, effect: effect) }) else {
+                let ledIDs = effect.kind == .staticColor ? patch.usbLightingZoneLEDIDs : nil
+                guard try runUSBWrite({ try setScrollLEDEffect($0, device, effect: effect, ledIDs: ledIDs) }) else {
                     throw BridgeError.commandFailed("Failed to set lighting effect")
                 }
             }

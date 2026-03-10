@@ -21,6 +21,7 @@ public enum DeviceTransportKind: String, CaseIterable, Codable, Hashable, Sendab
 
 public enum DeviceProfileID: String, Codable, Hashable, Sendable {
     case basiliskV3XHyperspeed = "basilisk_v3_x_hyperspeed"
+    case basiliskV335K = "basilisk_v3_35k"
 }
 
 public struct DeviceIdentity: Codable, Hashable, Sendable {
@@ -405,6 +406,7 @@ public struct DevicePatch: Sendable, Hashable, Codable {
     public var ledBrightness: Int? = nil
     public var ledRGB: RGBPatch? = nil
     public var lightingEffect: LightingEffectPatch? = nil
+    public var usbLightingZoneLEDIDs: [UInt8]? = nil
     public var buttonBinding: ButtonBindingPatch? = nil
 
     public init(
@@ -420,6 +422,7 @@ public struct DevicePatch: Sendable, Hashable, Codable {
         ledBrightness: Int? = nil,
         ledRGB: RGBPatch? = nil,
         lightingEffect: LightingEffectPatch? = nil,
+        usbLightingZoneLEDIDs: [UInt8]? = nil,
         buttonBinding: ButtonBindingPatch? = nil
     ) {
         self.pollRate = pollRate
@@ -434,6 +437,7 @@ public struct DevicePatch: Sendable, Hashable, Codable {
         self.ledBrightness = ledBrightness
         self.ledRGB = ledRGB
         self.lightingEffect = lightingEffect
+        self.usbLightingZoneLEDIDs = usbLightingZoneLEDIDs
         self.buttonBinding = buttonBinding
     }
 }
@@ -453,6 +457,7 @@ public extension DevicePatch {
             ledBrightness: newer.ledBrightness ?? ledBrightness,
             ledRGB: newer.ledRGB ?? ledRGB,
             lightingEffect: newer.lightingEffect ?? lightingEffect,
+            usbLightingZoneLEDIDs: newer.usbLightingZoneLEDIDs ?? usbLightingZoneLEDIDs,
             buttonBinding: newer.buttonBinding ?? buttonBinding
         )
     }
@@ -460,6 +465,7 @@ public extension DevicePatch {
 
 public enum ButtonBindingKind: String, CaseIterable, Identifiable, Codable, Sendable {
     case `default`
+    case dpiCycle = "dpi_cycle"
     case leftClick = "left_click"
     case rightClick = "right_click"
     case middleClick = "middle_click"
@@ -475,6 +481,7 @@ public enum ButtonBindingKind: String, CaseIterable, Identifiable, Codable, Send
     public var label: String {
         switch self {
         case .default: return "Default"
+        case .dpiCycle: return "DPI Cycle"
         case .leftClick: return "Left Click"
         case .rightClick: return "Right Click"
         case .middleClick: return "Middle Click"
@@ -491,7 +498,7 @@ public enum ButtonBindingKind: String, CaseIterable, Identifiable, Codable, Send
         switch self {
         case .leftClick, .rightClick, .middleClick, .scrollUp, .scrollDown, .mouseBack, .mouseForward, .keyboardSimple:
             return true
-        case .default, .clearLayer:
+        case .default, .dpiCycle, .clearLayer:
             return false
         }
     }

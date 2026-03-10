@@ -126,6 +126,11 @@ final class BLEVendorProtocolTests: XCTestCase {
         XCTAssertEqual(Array(payload), [0x01, 0x60, 0x00, 0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00])
     }
 
+    func testButtonPayloadDPICycleUsesCaptureBackedAction() {
+        let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x04, kind: .dpiCycle, hidKey: nil)
+        XCTAssertEqual(Array(payload), [0x01, 0x04, 0x00, 0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00])
+    }
+
     func testScrollLEDEffectStaticArgs() {
         let args = BLEVendorProtocol.buildScrollLEDEffectArgs(
             effect: LightingEffectPatch(
@@ -134,6 +139,30 @@ final class BLEVendorProtocolTests: XCTestCase {
             )
         )
         XCTAssertEqual(args, [0x01, 0x01, 0x01, 0x00, 0x00, 0x01, 0x12, 0x34, 0x56])
+    }
+
+    func testScrollLEDEffectOffArgs() {
+        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(
+            effect: LightingEffectPatch(kind: .off)
+        )
+        XCTAssertEqual(args, [0x01, 0x01, 0x00, 0x00, 0x00, 0x00])
+    }
+
+    func testScrollLEDEffectSpectrumArgs() {
+        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(
+            effect: LightingEffectPatch(kind: .spectrum)
+        )
+        XCTAssertEqual(args, [0x01, 0x01, 0x03, 0x00, 0x00, 0x00])
+    }
+
+    func testScrollLEDEffectWaveArgs() {
+        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(
+            effect: LightingEffectPatch(
+                kind: .wave,
+                waveDirection: .right
+            )
+        )
+        XCTAssertEqual(args, [0x01, 0x01, 0x04, 0x02, 0x28, 0x00])
     }
 
     func testScrollLEDEffectReactiveArgsClampSpeed() {
@@ -145,6 +174,23 @@ final class BLEVendorProtocolTests: XCTestCase {
             )
         )
         XCTAssertEqual(args, [0x01, 0x01, 0x05, 0x00, 0x04, 0x01, 0xAA, 0xBB, 0xCC])
+    }
+
+    func testScrollLEDEffectPulseRandomArgs() {
+        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(
+            effect: LightingEffectPatch(kind: .pulseRandom)
+        )
+        XCTAssertEqual(args, [0x01, 0x01, 0x02, 0x00, 0x00, 0x00])
+    }
+
+    func testScrollLEDEffectPulseSingleArgs() {
+        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(
+            effect: LightingEffectPatch(
+                kind: .pulseSingle,
+                primary: RGBPatch(r: 0x11, g: 0x22, b: 0x33)
+            )
+        )
+        XCTAssertEqual(args, [0x01, 0x01, 0x02, 0x01, 0x00, 0x01, 0x11, 0x22, 0x33])
     }
 
     func testScrollLEDEffectPulseDualArgs() {

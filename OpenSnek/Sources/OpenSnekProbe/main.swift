@@ -94,6 +94,25 @@ enum OpenSnekProbe {
                     print("readback profile=\(profile) slot=\(parsed.slot) \(describeUSBFunctionBlock(block))")
                 }
             }
+        case "usb-raw":
+            let parsed = try parseUSBRawArgs(Array(args.dropFirst()))
+            let usb = try USBProbeClient()
+            print("usb \(usb.describe())")
+            let response = try usb.rawCommand(
+                classID: parsed.classID,
+                cmdID: parsed.cmdID,
+                size: parsed.size,
+                args: parsed.args,
+                allowTxnRescan: !parsed.noTxnRescan,
+                responseAttempts: parsed.responseAttempts,
+                responseDelayUs: parsed.responseDelayUs
+            )
+            if let response {
+                let hex = response.map { String(format: "%02x", $0) }.joined(separator: " ")
+                print("response[\(response.count)]: \(hex)")
+            } else {
+                print("response: nil")
+            }
         default:
             throw ProbeError.usage(usageText)
         }
@@ -109,6 +128,7 @@ enum OpenSnekProbe {
           OpenSnekProbe usb-button-read --slot 4 [--profile default|direct|both]
           OpenSnekProbe usb-button-set --slot 4 --kind right_click [--profile both] [--hid-key 4] [--turbo on|off] [--turbo-rate 142]
           OpenSnekProbe usb-button-set-raw --slot 4 --hex 01010200000000 [--profile default|direct|both]
+          OpenSnekProbe usb-raw --class 0x02 --cmd 0x8C --size 0x0A [--args 01,04,00,00,00,00,00,00,00,00]
 
         USB button kinds:
           default left_click right_click middle_click scroll_up scroll_down mouse_back mouse_forward keyboard_simple clear_layer
@@ -192,6 +212,22 @@ enum OpenSnekProbe {
         return (slot, functionBlock, profiles)
     }
 
+    private static func parseUSBRawArgs(_ args: [String]) throws -> (classID: UInt8, cmdID: UInt8, size: UInt8, args: [UInt8], noTxnRescan: Bool, responseAttempts: Int, responseDelayUs: useconds_t) {
+        let flags = parseFlags(args)
+        guard let classRaw = flags["--class"], let classID = parseUInt8(classRaw) else {
+            throw ProbeError.usage("Missing or invalid --class\n\(usageText)")
+        }
+        guard let cmdRaw = flags["--cmd"], let cmdID = parseUInt8(cmdRaw) else {
+            throw ProbeError.usage("Missing or invalid --cmd\n\(usageText)")
+        }
+        let parsedArgs = try parseCSVBytes(flags["--args"] ?? "")
+        let size = parseUInt8(flags["--size"] ?? "") ?? UInt8(parsedArgs.count)
+        let noTxnRescan = parseBoolean(flags["--no-txn-rescan"] ?? "off")
+        let responseAttempts = max(1, Int(flags["--response-attempts"] ?? "12") ?? 12)
+        let responseDelayUs = useconds_t(max(1_000, Int(flags["--response-delay-us"] ?? "40000") ?? 40_000))
+        return (classID, cmdID, size, parsedArgs, noTxnRescan, responseAttempts, responseDelayUs)
+    }
+
     private static func parseUSBProfiles(_ raw: String?, defaultProfiles: [UInt8]) throws -> [UInt8] {
         guard let raw else { return defaultProfiles }
         let normalized = raw.lowercased()
@@ -261,6 +297,29 @@ enum OpenSnekProbe {
             idx = next
         }
         return bytes
+    }
+
+    private static func parseCSVBytes(_ raw: String) throws -> [UInt8] {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        return try trimmed
+            .split(separator: ",")
+            .map { chunk in
+                let token = chunk.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard let value = parseUInt8(token) else {
+                    throw ProbeError.usage("Invalid byte value '\(token)'")
+                }
+                return value
+            }
+    }
+
+    private static func parseUInt8(_ raw: String) -> UInt8? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.lowercased().hasPrefix("0x") {
+            return UInt8(trimmed.dropFirst(2), radix: 16)
+        }
+        return UInt8(trimmed, radix: 10)
     }
 
     private static func describeUSBFunctionBlock(_ block: [UInt8]) -> String {

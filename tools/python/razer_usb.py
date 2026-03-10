@@ -96,9 +96,14 @@ RAZER_VENDOR_NOTIFY_UUID = "52401525-F97C-7F90-0E7F-6C6F4E36DB1C"
 # Device info
 KNOWN_MICE = {
     0x00B9: ("Razer Basilisk V3 X HyperSpeed", 18000),
+    0x00CB: ("Razer Basilisk V3 35K", 35000),
     0x0083: ("Razer Basilisk V3", 26000),
     0x0084: ("Razer Basilisk V3", 26000),
     0x00BA: ("Razer Basilisk V3 X HyperSpeed (BT)", 18000),
+}
+
+LIGHTING_LED_IDS_BY_PID = {
+    0x00CB: [0x01, 0x04, 0x0A],
 }
 
 TRANSACTION_ID_CANDIDATES = {
@@ -841,33 +846,62 @@ class RazerMouse:
 
     # --- Scroll LED Controls (OpenRazer-derived, class 0x0F) ---
 
-    def get_scroll_led_brightness(self) -> Optional[int]:
+    def _matrix_led_ids(self) -> List[int]:
+        return LIGHTING_LED_IDS_BY_PID.get(self.product_id, [LED_SCROLL_WHEEL])
+
+    def _get_matrix_brightness(self, led_id: int) -> Optional[int]:
         request = self._create_report(
             CMD_CLASS_MATRIX,
             CMD_GET_MATRIX_BRIGHTNESS,
             0x03,
-            bytes([VARSTORE, LED_SCROLL_WHEEL, 0x00]),
+            bytes([VARSTORE, led_id & 0xFF, 0x00]),
         )
         response = self._send_command(request)
         if response and response[0] == STATUS_SUCCESS and len(response) >= 11:
             return response[10]
         return None
 
-    def set_scroll_led_brightness(self, brightness: int) -> bool:
-        brightness = max(0, min(255, int(brightness)))
+    def _set_matrix_brightness(self, led_id: int, brightness: int) -> bool:
         request = self._create_report(
             CMD_CLASS_MATRIX,
             CMD_SET_MATRIX_BRIGHTNESS,
             0x03,
-            bytes([VARSTORE, LED_SCROLL_WHEEL, brightness]),
+            bytes([VARSTORE, led_id & 0xFF, brightness & 0xFF]),
         )
         response = self._send_command(request)
         return response is not None and response[0] == STATUS_SUCCESS
 
+    def _set_matrix_effect_for_leds(self, payload_builder) -> bool:
+        wrote_any = False
+        for led_id in self._matrix_led_ids():
+            args = payload_builder(led_id & 0xFF)
+            request = self._create_report(CMD_CLASS_MATRIX, CMD_SET_MATRIX_EFFECT, len(args), args)
+            response = self._send_command(request)
+            if response is None or response[0] != STATUS_SUCCESS:
+                return False
+            wrote_any = True
+        return wrote_any
+
+    def get_scroll_led_brightness(self) -> Optional[int]:
+        values = [value for led_id in self._matrix_led_ids() if (value := self._get_matrix_brightness(led_id)) is not None]
+        return max(values) if values else None
+
+    def set_scroll_led_brightness(self, brightness: int) -> bool:
+        brightness = max(0, min(255, int(brightness)))
+        wrote_any = False
+        for led_id in self._matrix_led_ids():
+            if not self._set_matrix_brightness(led_id, brightness):
+                return False
+            wrote_any = True
+        return wrote_any
+
     def _set_scroll_led_effect_raw(self, args: bytes) -> bool:
-        request = self._create_report(CMD_CLASS_MATRIX, CMD_SET_MATRIX_EFFECT, len(args), args)
-        response = self._send_command(request)
-        return response is not None and response[0] == STATUS_SUCCESS
+        base = bytes(args)
+        if len(base) < 2:
+            return False
+        return self._set_matrix_effect_for_leds(
+            lambda led_id: bytes([base[0], led_id]) + base[2:]
+        )
 
     def set_scroll_led_effect_none(self) -> bool:
         return self._set_scroll_led_effect_raw(bytes([VARSTORE, LED_SCROLL_WHEEL, 0x00, 0x00, 0x00, 0x00]))

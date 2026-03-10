@@ -96,6 +96,7 @@ RAZER_VENDOR_NOTIFY_UUID = "52401525-F97C-7F90-0E7F-6C6F4E36DB1C"
 # Device info
 KNOWN_MICE = {
     0x00B9: ("Razer Basilisk V3 X HyperSpeed", 18000),
+    0x00CB: ("Razer Basilisk V3 35K", 35000),
     0x0083: ("Razer Basilisk V3", 26000),
     0x0084: ("Razer Basilisk V3", 26000),
     0x00BA: ("Razer Basilisk V3 X HyperSpeed (BT)", 18000),

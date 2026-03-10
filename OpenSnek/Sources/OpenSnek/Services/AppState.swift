@@ -36,6 +36,7 @@ final class AppState {
     var editableScrollSmartReel = false
     var editableLedBrightness = 64
     var editableLightingEffect: LightingEffectKind = .staticColor
+    var editableUSBLightingZoneID: String = "all"
     var editableLightingWaveDirection: LightingWaveDirection = .left
     var editableLightingReactiveSpeed = 2
     var editableColor = RGBColor(r: 0, g: 255, b: 0)
@@ -84,6 +85,28 @@ final class AppState {
 
     var visibleButtonSlots: [ButtonSlotDescriptor] {
         selectedDevice?.button_layout?.visibleSlots ?? buttonSlots
+    }
+
+    var visibleUSBLightingZones: [USBLightingZoneDescriptor] {
+        guard let selectedDevice else { return [] }
+        return DeviceProfiles
+            .resolve(vendorID: selectedDevice.vendor_id, productID: selectedDevice.product_id, transport: selectedDevice.transport)?
+            .usbLightingZones ?? []
+    }
+
+    var visibleLightingEffects: [LightingEffectKind] {
+        guard let selectedDevice else { return [.staticColor] }
+        guard let profile = DeviceProfiles.resolve(
+            vendorID: selectedDevice.vendor_id,
+            productID: selectedDevice.product_id,
+            transport: selectedDevice.transport
+        ) else {
+            return selectedDevice.supports_advanced_lighting_effects ? LightingEffectKind.allCases : [.staticColor]
+        }
+        if selectedDevice.supports_advanced_lighting_effects {
+            return profile.supportedLightingEffects
+        }
+        return [.staticColor]
     }
 
     var currentDeviceStatusIndicator: DeviceStatusIndicator {
@@ -558,7 +581,12 @@ final class AppState {
     }
 
     func applyLedColor() async {
-        enqueueApply(DevicePatch(ledRGB: RGBPatch(r: editableColor.r, g: editableColor.g, b: editableColor.b)))
+        enqueueApply(
+            DevicePatch(
+                ledRGB: RGBPatch(r: editableColor.r, g: editableColor.g, b: editableColor.b),
+                usbLightingZoneLEDIDs: currentUSBLightingZoneLEDIDs()
+            )
+        )
     }
 
     func scheduleAutoApplyLedColor() {
@@ -584,7 +612,12 @@ final class AppState {
             enqueueApply(DevicePatch(ledRGB: RGBPatch(r: editableColor.r, g: editableColor.g, b: editableColor.b)))
             return
         }
-        enqueueApply(DevicePatch(lightingEffect: currentLightingEffectPatch()))
+        enqueueApply(
+            DevicePatch(
+                lightingEffect: currentLightingEffectPatch(),
+                usbLightingZoneLEDIDs: currentUSBLightingZoneLEDIDs()
+            )
+        )
     }
 
     func scheduleAutoApplyLightingEffect() {
@@ -606,9 +639,18 @@ final class AppState {
     func updateLightingEffect(_ kind: LightingEffectKind) {
         guard selectedDevice?.supports_advanced_lighting_effects == true else {
             editableLightingEffect = .staticColor
+            editableUSBLightingZoneID = "all"
             return
         }
-        editableLightingEffect = kind
+        let supportedEffects = visibleLightingEffects
+        editableLightingEffect = supportedEffects.contains(kind) ? kind : (supportedEffects.first ?? .staticColor)
+        if kind != .staticColor {
+            editableUSBLightingZoneID = "all"
+        }
+    }
+
+    func updateUSBLightingZoneID(_ zoneID: String) {
+        editableUSBLightingZoneID = zoneID
     }
 
     func updateLightingWaveDirection(_ direction: LightingWaveDirection) {
@@ -668,7 +710,7 @@ final class AppState {
     }
 
     func updateButtonBindingKind(slot: Int, kind: ButtonBindingKind) {
-        guard buttonSlots.contains(where: { $0.slot == slot }) else { return }
+        guard visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
         var next = editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
         next.kind = kind
         if kind != .keyboardSimple {
@@ -687,7 +729,7 @@ final class AppState {
     }
 
     func updateButtonBindingHidKey(slot: Int, hidKey: Int) {
-        guard buttonSlots.contains(where: { $0.slot == slot }) else { return }
+        guard visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
         var next = editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
         next.kind = .keyboardSimple
         next.hidKey = max(4, min(231, hidKey))
@@ -697,7 +739,7 @@ final class AppState {
     }
 
     func updateButtonBindingTurboEnabled(slot: Int, enabled: Bool) {
-        guard buttonSlots.contains(where: { $0.slot == slot }) else { return }
+        guard visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
         var next = editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
         guard next.kind.supportsTurbo else { return }
         next.turboEnabled = enabled
@@ -706,7 +748,7 @@ final class AppState {
     }
 
     func updateButtonBindingTurboRate(slot: Int, rate: Int) {
-        guard buttonSlots.contains(where: { $0.slot == slot }) else { return }
+        guard visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
         var next = editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
         guard next.kind.supportsTurbo else { return }
         next.turboRate = max(1, min(255, rate))
@@ -728,7 +770,7 @@ final class AppState {
     }
 
     func updateKeyboardTextDraft(slot: Int, text: String) {
-        guard buttonSlots.contains(where: { $0.slot == slot }) else { return }
+        guard visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
         keyboardTextDraftBySlot[slot] = text
         keyboardDraftApplyTaskBySlot[slot]?.cancel()
         keyboardDraftApplyTaskBySlot[slot] = Task { [weak self] in
@@ -974,6 +1016,7 @@ final class AppState {
     private func hydrateLightingStateIfNeeded(device: MouseDevice) async {
         guard !hydratedLightingStateByDeviceID.contains(device.id) else { return }
         var loadedPersistedColor = false
+        editableUSBLightingZoneID = "all"
 
         if device.transport == .bluetooth,
            let persisted = loadPersistedLightingColor(device: device) {
@@ -1000,7 +1043,12 @@ final class AppState {
         }
 
         if device.supports_advanced_lighting_effects, let persistedEffect = loadPersistedLightingEffect(device: device) {
-            editableLightingEffect = persistedEffect.kind
+            let supportedEffects = DeviceProfiles
+                .resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?
+                .supportedLightingEffects ?? LightingEffectKind.allCases
+            editableLightingEffect = supportedEffects.contains(persistedEffect.kind)
+                ? persistedEffect.kind
+                : (supportedEffects.first ?? .staticColor)
             editableLightingWaveDirection = persistedEffect.waveDirection
             editableLightingReactiveSpeed = persistedEffect.reactiveSpeed
             editableSecondaryColor = persistedEffect.secondaryColor
@@ -1071,7 +1119,7 @@ final class AppState {
     }
 
     private func loadUSBButtonBindingsFromDevice(device: MouseDevice) async -> [Int: ButtonBindingDraft]? {
-        let slots = buttonSlots
+        let slots = (device.button_layout?.visibleSlots ?? buttonSlots)
             .map(\.slot)
             .filter { $0 != 6 }
         var bindings: [Int: ButtonBindingDraft] = [:]
@@ -1080,16 +1128,15 @@ final class AppState {
         for slot in slots {
             do {
                 let persistentBlock = try await client.debugUSBReadButtonBinding(device: device, slot: slot, profile: 0x01)
-                let directBlock: [UInt8]?
-                if persistentBlock == nil {
-                    directBlock = try await client.debugUSBReadButtonBinding(device: device, slot: slot, profile: 0x00)
-                } else {
-                    directBlock = nil
-                }
-                let block = persistentBlock ?? directBlock
+                let directBlock = try await client.debugUSBReadButtonBinding(device: device, slot: slot, profile: 0x00)
+                let block = directBlock ?? persistentBlock
                 if let block {
                     readAnyBlock = true
-                    if let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: slot, functionBlock: block) {
+                    if let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
+                        slot: slot,
+                        functionBlock: block,
+                        profileID: device.profile_id
+                    ) {
                         bindings[slot] = draft
                     }
                 }
@@ -1118,7 +1165,7 @@ final class AppState {
     }
 
     private func defaultButtonBinding(for slot: Int) -> ButtonBindingDraft {
-        ButtonBindingSupport.defaultButtonBinding(for: slot)
+        ButtonBindingSupport.defaultButtonBinding(for: slot, profileID: selectedDevice?.profile_id)
     }
 
     private func currentLightingEffectPatch() -> LightingEffectPatch {
@@ -1129,6 +1176,12 @@ final class AppState {
             waveDirection: editableLightingWaveDirection,
             reactiveSpeed: editableLightingReactiveSpeed
         )
+    }
+
+    private func currentUSBLightingZoneLEDIDs() -> [UInt8]? {
+        guard editableLightingEffect == .staticColor else { return nil }
+        guard editableUSBLightingZoneID != "all" else { return nil }
+        return visibleUSBLightingZones.first(where: { $0.id == editableUSBLightingZoneID })?.ledIDs
     }
 
     private func applyKeyboardTextDraft(slot: Int) {

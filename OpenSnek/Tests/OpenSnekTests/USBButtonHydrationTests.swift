@@ -47,4 +47,81 @@ final class USBButtonHydrationTests: XCTestCase {
         XCTAssertEqual(draft?.kind, .clearLayer)
         XCTAssertEqual(draft?.turboEnabled, false)
     }
+
+    func testBasiliskV335KDefaultClutchBlockMapsToDefaultKind() {
+        let block: [UInt8] = [0x04, 0x02, 0x0F, 0x7B, 0x00, 0x00, 0x00]
+        let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
+            slot: 96,
+            functionBlock: block,
+            profileID: .basiliskV335K
+        )
+        XCTAssertEqual(draft?.kind, .dpiCycle)
+    }
+
+    func testExtractUSBFunctionBlockHandlesBasiliskV335KStandardSlotLayout() {
+        let response: [UInt8] = [
+            0x02, 0x1F, 0x00, 0x00, 0x00, 0x0A, 0x02, 0x8C,
+            0x01, 0x04, 0x00, 0x01, 0x01, 0x04, 0x00, 0x00, 0x00,
+        ] + Array(repeating: 0x00, count: 73)
+
+        let block = ButtonBindingSupport.extractUSBFunctionBlock(
+            response: response,
+            profile: 0x01,
+            slot: 0x04,
+            hypershift: 0x00,
+            profileID: .basiliskV335K
+        )
+        XCTAssertEqual(block, [0x01, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00])
+    }
+
+    func testExtractUSBFunctionBlockHandlesBasiliskV335KClutchSlotLayout() {
+        let response: [UInt8] = [
+            0x02, 0x1F, 0x00, 0x00, 0x00, 0x0A, 0x02, 0x8C,
+            0x01, 0x60, 0x00, 0x04, 0x02, 0x0F, 0x7B, 0x00, 0x00,
+        ] + Array(repeating: 0x00, count: 73)
+
+        let block = ButtonBindingSupport.extractUSBFunctionBlock(
+            response: response,
+            profile: 0x01,
+            slot: 0x60,
+            hypershift: 0x00,
+            profileID: .basiliskV335K
+        )
+        XCTAssertEqual(block, [0x04, 0x02, 0x0F, 0x7B, 0x00, 0x00, 0x00])
+    }
+
+    func testBasiliskV335KWheelTiltDefaultBlockMapsToDefaultKind() {
+        let block: [UInt8] = [0x01, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00]
+        let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
+            slot: 52,
+            functionBlock: block,
+            profileID: .basiliskV335K
+        )
+        XCTAssertEqual(draft?.kind, .default)
+    }
+
+    func testExtractUSBFunctionBlockRejectsMismatchedEchoedSlot() {
+        let response: [UInt8] = [
+            0x02, 0x1F, 0x00, 0x00, 0x00, 0x0A, 0x02, 0x8C,
+            0x01, 0x35, 0x00, 0x01, 0x01, 0x02, 0x00, 0x00, 0x00,
+        ] + Array(repeating: 0x00, count: 73)
+
+        let block = ButtonBindingSupport.extractUSBFunctionBlock(
+            response: response,
+            profile: 0x01,
+            slot: 0x60,
+            hypershift: 0x00,
+            profileID: .basiliskV335K
+        )
+        XCTAssertNil(block)
+    }
+
+    func testDPICycleBlockMapsToDPICycleKind() {
+        let block: [UInt8] = [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
+        let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
+            slot: 4,
+            functionBlock: block
+        )
+        XCTAssertEqual(draft?.kind, .dpiCycle)
+    }
 }

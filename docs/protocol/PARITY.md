@@ -66,6 +66,17 @@ Validated in-session over USB:
 
 CLI behavior has been updated to skip unsupported scroll controls with warnings instead of failing runs.
 
+## Validated Device Profile (Basilisk V3 35K, USB PID `0x00CB`)
+
+Validated in-session over USB:
+- working: serial, firmware, device mode read/write, poll-rate read/write, DPI/stages, battery, core USB telemetry
+- working: matrix brightness/effect writes on all validated LED IDs (`0x01` scroll wheel, `0x04` logo, `0x0A` underglow)
+- working: button remap read/write/readback on standard slots plus the additional wheel-tilt (`0x34`, `0x35`) and top DPI-button (`0x60`) slots
+- observed fixed-special defaults on `0x00CB`: scroll-mode (`0x0E`), sensitivity clutch (`0x0F`), profile button (`0x6A`)
+- observed alternate USB DPI-button payload on slot `0x60`: `04 02 0F 7B 00 00 00`
+- shipped client behavior: normalize `0x60` to a user-facing `DPI Cycle` action and allow binding `DPI Cycle` to any writable USB slot
+- client note: `0x02:0x8C` response layout is not identical to `0x00B9`; clients must validate echoed `profile`/`slot` bytes before choosing the 35K function-block offset
+
 ## Validated BT Profile (Basilisk V3 X HyperSpeed BT PID `0x00BA`, macOS stack)
 
 Validated in-session over Bluetooth:

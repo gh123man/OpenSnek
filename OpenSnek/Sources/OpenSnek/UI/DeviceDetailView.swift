@@ -319,6 +319,39 @@ struct LightingCard: View {
         return 0.10 + (brightness * 0.22)
     }
 
+    private var zoneGradientColors: [Color] {
+        guard selected.transport == .usb,
+              appState.editableLightingEffect == .staticColor,
+              appState.visibleUSBLightingZones.count > 1
+        else {
+            return [
+                accentBase.opacity(accentOpacity),
+                Color.white.opacity(0.05),
+            ]
+        }
+
+        let zonePalette: [String: Color] = [
+            "scroll_wheel": Color(hex: 0x61D9FF),
+            "logo": Color(hex: 0x7FF2A5),
+            "underglow": Color(hex: 0xFFD36B),
+        ]
+
+        let zones: [USBLightingZoneDescriptor]
+        if appState.editableUSBLightingZoneID == "all" {
+            zones = appState.visibleUSBLightingZones
+        } else {
+            zones = appState.visibleUSBLightingZones.filter { $0.id == appState.editableUSBLightingZoneID }
+        }
+
+        let overlayOpacity = max(0.10, accentOpacity * 0.9)
+        let zoneColors = zones.map { zone in
+            (zonePalette[zone.id] ?? accentBase)
+                .opacity(0.16)
+        }
+
+        return [accentBase.opacity(overlayOpacity)] + zoneColors + [Color.white.opacity(0.05)]
+    }
+
     private var brightnessPercent: Int {
         Int(round((Double(max(0, min(255, appState.editableLedBrightness))) / 255.0) * 100.0))
     }
@@ -377,7 +410,7 @@ struct LightingCard: View {
                             }
                         )
                     ) {
-                        ForEach(LightingEffectKind.allCases) { kind in
+                        ForEach(appState.visibleLightingEffects) { kind in
                             Text(kind.label).tag(kind)
                         }
                     }
@@ -437,6 +470,35 @@ struct LightingCard: View {
                 }
 
                 if appState.editableLightingEffect.usesPrimaryColor {
+                    if selected.transport == .usb,
+                       appState.editableLightingEffect == .staticColor,
+                       appState.visibleUSBLightingZones.count > 1 {
+                        HStack {
+                            Text("Static Zone")
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.82))
+                            Spacer()
+                            Picker(
+                                "",
+                                selection: Binding(
+                                    get: { appState.editableUSBLightingZoneID },
+                                    set: {
+                                        appState.updateUSBLightingZoneID($0)
+                                        appState.scheduleAutoApplyLightingEffect()
+                                    }
+                                )
+                            ) {
+                                Text("All Zones").tag("all")
+                                ForEach(appState.visibleUSBLightingZones) { zone in
+                                    Text(zone.label).tag(zone.id)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(width: 220, alignment: .trailing)
+                        }
+                    }
+
                     LightingColorEditor(
                         title: "Primary Color",
                         color: Binding(
@@ -469,10 +531,7 @@ struct LightingCard: View {
             RoundedRectangle(cornerRadius: 14)
                 .fill(
                     LinearGradient(
-                        colors: [
-                            accentBase.opacity(accentOpacity),
-                            Color.white.opacity(0.05),
-                        ],
+                        colors: zoneGradientColors,
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )

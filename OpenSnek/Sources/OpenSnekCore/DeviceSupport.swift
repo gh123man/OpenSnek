@@ -43,6 +43,18 @@ public struct ButtonSlotLayout: Codable, Hashable, Sendable {
     }
 }
 
+public struct USBLightingZoneDescriptor: Identifiable, Hashable, Codable, Sendable {
+    public let id: String
+    public let label: String
+    public let ledIDs: [UInt8]
+
+    public init(id: String, label: String, ledIDs: [UInt8]) {
+        self.id = id
+        self.label = label
+        self.ledIDs = ledIDs
+    }
+}
+
 public struct ButtonBindingDraft: Hashable, Codable, Sendable {
     public var kind: ButtonBindingKind
     public var hidKey: Int
@@ -64,6 +76,9 @@ public struct DeviceProfile: Hashable, Sendable {
     public let supportedProducts: Set<Int>
     public let buttonLayout: ButtonSlotLayout
     public let supportsAdvancedLightingEffects: Bool
+    public let supportedLightingEffects: [LightingEffectKind]
+    public let usbLightingLEDIDs: [UInt8]
+    public let usbLightingZones: [USBLightingZoneDescriptor]
 
     public init(
         id: DeviceProfileID,
@@ -71,7 +86,10 @@ public struct DeviceProfile: Hashable, Sendable {
         transport: DeviceTransportKind,
         supportedProducts: Set<Int>,
         buttonLayout: ButtonSlotLayout,
-        supportsAdvancedLightingEffects: Bool
+        supportsAdvancedLightingEffects: Bool,
+        supportedLightingEffects: [LightingEffectKind] = LightingEffectKind.allCases,
+        usbLightingLEDIDs: [UInt8] = [],
+        usbLightingZones: [USBLightingZoneDescriptor] = []
     ) {
         self.id = id
         self.productName = productName
@@ -79,6 +97,9 @@ public struct DeviceProfile: Hashable, Sendable {
         self.supportedProducts = supportedProducts
         self.buttonLayout = buttonLayout
         self.supportsAdvancedLightingEffects = supportsAdvancedLightingEffects
+        self.supportedLightingEffects = supportedLightingEffects
+        self.usbLightingLEDIDs = usbLightingLEDIDs
+        self.usbLightingZones = usbLightingZones
     }
 
     public func matches(vendorID: Int, productID: Int, transport: DeviceTransportKind) -> Bool {
@@ -89,16 +110,76 @@ public struct DeviceProfile: Hashable, Sendable {
 }
 
 public enum DeviceProfiles {
+    public static let basiliskV3XUSBLightingEffects: [LightingEffectKind] = [
+        .off, .staticColor, .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual,
+    ]
+
+    public static let basiliskV335KUSBLightingEffects: [LightingEffectKind] = [
+        .off, .staticColor, .spectrum, .wave,
+    ]
+
+    public static let basiliskV3XButtonSlots: [ButtonSlotDescriptor] = [
+        ButtonSlotDescriptor(slot: 1, friendlyName: "Left Click", defaultKind: .leftClick),
+        ButtonSlotDescriptor(slot: 2, friendlyName: "Right Click", defaultKind: .rightClick),
+        ButtonSlotDescriptor(slot: 3, friendlyName: "Middle Click", defaultKind: .middleClick),
+        ButtonSlotDescriptor(slot: 4, friendlyName: "Back Button", defaultKind: .mouseBack),
+        ButtonSlotDescriptor(slot: 5, friendlyName: "Forward Button", defaultKind: .mouseForward),
+        ButtonSlotDescriptor(slot: 9, friendlyName: "Scroll Up", defaultKind: .scrollUp),
+        ButtonSlotDescriptor(slot: 10, friendlyName: "Scroll Down", defaultKind: .scrollDown),
+        ButtonSlotDescriptor(slot: 96, friendlyName: "DPI Cycle", defaultKind: .default),
+    ]
+
+    public static let basiliskV3XUSBLightingZones: [USBLightingZoneDescriptor] = [
+        USBLightingZoneDescriptor(id: "scroll_wheel", label: "Scroll Wheel", ledIDs: [0x01]),
+    ]
+
+    public static let basiliskV335KUSBButtonSlots: [ButtonSlotDescriptor] = [
+        ButtonSlotDescriptor(slot: 1, friendlyName: "Left Click", defaultKind: .leftClick),
+        ButtonSlotDescriptor(slot: 2, friendlyName: "Right Click", defaultKind: .rightClick),
+        ButtonSlotDescriptor(slot: 3, friendlyName: "Middle Click", defaultKind: .middleClick),
+        ButtonSlotDescriptor(slot: 4, friendlyName: "Back Button", defaultKind: .mouseBack),
+        ButtonSlotDescriptor(slot: 5, friendlyName: "Forward Button", defaultKind: .mouseForward),
+        ButtonSlotDescriptor(slot: 9, friendlyName: "Scroll Up", defaultKind: .scrollUp),
+        ButtonSlotDescriptor(slot: 10, friendlyName: "Scroll Down", defaultKind: .scrollDown),
+        ButtonSlotDescriptor(slot: 52, friendlyName: "Wheel Tilt Left", defaultKind: .default),
+        ButtonSlotDescriptor(slot: 53, friendlyName: "Wheel Tilt Right", defaultKind: .default),
+        ButtonSlotDescriptor(slot: 96, friendlyName: "DPI Button", defaultKind: .default),
+    ]
+
+    public static let basiliskV335KUSBLightingZones: [USBLightingZoneDescriptor] = [
+        USBLightingZoneDescriptor(id: "scroll_wheel", label: "Scroll Wheel", ledIDs: [0x01]),
+        USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x04]),
+        USBLightingZoneDescriptor(id: "underglow", label: "Underglow", ledIDs: [0x0A]),
+    ]
+
     public static let basiliskV3XUSB = DeviceProfile(
         id: .basiliskV3XHyperspeed,
         productName: "Basilisk V3 X HyperSpeed",
         transport: .usb,
         supportedProducts: [0x00B9],
         buttonLayout: ButtonSlotLayout(
-            visibleSlots: ButtonSlotDescriptor.defaults,
-            writableSlots: ButtonSlotDescriptor.defaults.map(\.slot)
+            visibleSlots: basiliskV3XButtonSlots,
+            writableSlots: basiliskV3XButtonSlots.map(\.slot)
         ),
-        supportsAdvancedLightingEffects: true
+        supportsAdvancedLightingEffects: true,
+        supportedLightingEffects: basiliskV3XUSBLightingEffects,
+        usbLightingLEDIDs: [0x01],
+        usbLightingZones: basiliskV3XUSBLightingZones
+    )
+
+    public static let basiliskV335KUSB = DeviceProfile(
+        id: .basiliskV335K,
+        productName: "Basilisk V3 35K",
+        transport: .usb,
+        supportedProducts: [0x00CB],
+        buttonLayout: ButtonSlotLayout(
+            visibleSlots: basiliskV335KUSBButtonSlots,
+            writableSlots: [1, 2, 3, 4, 5, 9, 10, 52, 53, 96]
+        ),
+        supportsAdvancedLightingEffects: true,
+        supportedLightingEffects: basiliskV335KUSBLightingEffects,
+        usbLightingLEDIDs: [0x01, 0x04, 0x0A],
+        usbLightingZones: basiliskV335KUSBLightingZones
     )
 
     public static let basiliskV3XBluetooth = DeviceProfile(
@@ -107,14 +188,17 @@ public enum DeviceProfiles {
         transport: .bluetooth,
         supportedProducts: [0x00BA],
         buttonLayout: ButtonSlotLayout(
-            visibleSlots: ButtonSlotDescriptor.defaults,
+            visibleSlots: basiliskV3XButtonSlots,
             writableSlots: [1, 2, 3, 4, 5, 9, 10, 96]
         ),
-        supportsAdvancedLightingEffects: false
+        supportsAdvancedLightingEffects: false,
+        supportedLightingEffects: [.staticColor],
+        usbLightingZones: basiliskV3XUSBLightingZones
     )
 
     public static let all: [DeviceProfile] = [
         basiliskV3XUSB,
+        basiliskV335KUSB,
         basiliskV3XBluetooth,
     ]
 
