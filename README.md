@@ -56,3 +56,7 @@ swift test --package-path OpenSnek
 - Protocol documentation: [docs/protocol/PROTOCOL.md](docs/protocol/PROTOCOL.md)
 - Supported Python tooling: [tools/python/README.md](tools/python/README.md)
 - BLE capture corpus: [captures/README.md](captures/README.md)
+
+## License
+
+This repository is licensed under the Apache License 2.0. See [LICENSE](LICENSE).
