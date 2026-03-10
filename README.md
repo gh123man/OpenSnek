@@ -12,6 +12,14 @@
 
 Open Snek is an open source native macOS app for configuring supported Razer mice over USB or Bluetooth.
 
+## Motivation
+
+Razer does not support the Basilisk V3 X HyperSpeed on macOS at all, so this project started by reverse engineering the BLE protocol from Windows traffic between the mouse and Synapse.
+
+The goal is simple: make supported Razer mice configurable on macOS without needing Synapse, Windows, or a second machine just to change settings.
+
+More device support is welcome, whether that comes from new hardware captures or pull requests. For USB protocol reference work, this project also builds on the excellent documentation and reverse-engineering effort from [OpenRazer](https://github.com/openrazer/openrazer).
+
 ## Features
 
 - Change DPI, stage count, and active stage
@@ -35,12 +43,6 @@ If macOS asks for permissions:
 - For Bluetooth control, allow Bluetooth access when prompted.
 
 ## Supported Devices
-
-- Razer Basilisk V3 X HyperSpeed
-  - USB PID `0x00B9`
-  - Bluetooth PID `0x00BA` (VID `0x068E`)
-- Razer Basilisk V3 35K
-  - USB PID `0x00CB`
 
 Support is transport-specific. A mouse may be supported over USB, Bluetooth, or both, depending on what has been captured, tested, and validated in the app.
 
