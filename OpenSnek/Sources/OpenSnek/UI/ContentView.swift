@@ -50,14 +50,7 @@ struct ContentView: View {
             if let selected = appState.selectedDevice, let state = appState.state {
                 DeviceDetailView(appState: appState, selected: selected, state: state)
             } else {
-                VStack(spacing: 10) {
-                    Text("Choose a device")
-                        .font(.system(size: 26, weight: .black, design: .rounded))
-                        .foregroundStyle(.white)
-                    Text("Telemetry and controls appear here when read succeeds.")
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.72))
-                }
+                emptyState
             }
         }
         .overlay(alignment: .topLeading) {
@@ -220,6 +213,109 @@ struct ContentView: View {
         }
         return "Notice"
     }
+
+    private var supportedDeviceRows: [SupportedDeviceRow] {
+        let grouped = Dictionary(grouping: DeviceProfiles.all, by: \.id)
+        return grouped.values
+            .compactMap { profiles in
+                guard let first = profiles.first else { return nil }
+                let transports = profiles
+                    .map(\.transport)
+                    .sorted { lhs, rhs in
+                        transportSortKey(lhs) < transportSortKey(rhs)
+                    }
+                return SupportedDeviceRow(
+                    id: first.id.rawValue,
+                    name: first.productName,
+                    transports: transports
+                )
+            }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private func transportSortKey(_ transport: DeviceTransportKind) -> Int {
+        switch transport {
+        case .usb:
+            0
+        case .bluetooth:
+            1
+        }
+    }
+
+    private var emptyState: some View {
+        EmptyDeviceState(rows: supportedDeviceRows)
+    }
+}
+
+private struct EmptyDeviceState: View {
+    let rows: [SupportedDeviceRow]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Connect a device")
+                    .font(.system(size: 28, weight: .black, design: .rounded))
+                    .foregroundStyle(.white)
+                Text("Supported devices")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.72))
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(rows) { row in
+                    SupportedDeviceRowView(row: row)
+                }
+            }
+        }
+        .frame(maxWidth: 560, alignment: .leading)
+        .padding(24)
+        .background(
+            RoundedRectangle(cornerRadius: 22)
+                .fill(Color.white.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22)
+                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct SupportedDeviceRowView: View {
+    let row: SupportedDeviceRow
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Text(row.name)
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 8) {
+                ForEach(row.transports, id: \.self) { transport in
+                    Pill(
+                        text: transport.shortLabel,
+                        color: transport == .bluetooth ? Color(hex: 0x66D9FF) : Color(hex: 0xA8F46A)
+                    )
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.white.opacity(0.06))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct SupportedDeviceRow: Identifiable {
+    let id: String
+    let name: String
+    let transports: [DeviceTransportKind]
 }
 
 private struct NoticeItem {
