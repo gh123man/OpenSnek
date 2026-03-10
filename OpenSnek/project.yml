@@ -1,6 +1,6 @@
 name: OpenSnek
 options:
-  minimumXcodeGenVersion: 2.45.0
+  minimumXcodeGenVersion: 2.44.1
   deploymentTarget:
     macOS: "14.0"
 configs:
