@@ -12,6 +12,8 @@ struct DeviceDetailView: View {
     private let twoColumnBreakpointHysteresis: CGFloat = 90
     private let detailCardMaxWidth: CGFloat = 560
     private let detailContentMaxWidth: CGFloat = 1400
+    private let horizontalPadding: CGFloat = 20
+    private let verticalPadding: CGFloat = 18
 
     private let swatches: [Color] = [
         Color(hex: 0xFF3B30), Color(hex: 0xFF9500), Color(hex: 0xFFCC00), Color(hex: 0x34C759),
@@ -20,15 +22,20 @@ struct DeviceDetailView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            ScrollView {
+            let sections = detailSections
+            let leftSections = leftColumnSections(from: sections)
+            let rightSections = rightColumnSections(from: sections)
+            let contentWidth = detailContentWidth(for: proxy.size.width)
+
+            ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 18) {
                     DeviceOverviewBar(appState: appState, selected: selected, state: state)
 
                     if usesTwoColumns {
-                        let columnWidth = twoColumnCardWidth(for: proxy.size.width)
+                        let columnWidth = twoColumnCardWidth(for: contentWidth)
                         HStack(alignment: .top, spacing: cardSpacing) {
                             VStack(alignment: .leading, spacing: cardSpacing) {
-                                ForEach(leftColumnSections, id: \.self) { section in
+                                ForEach(leftSections, id: \.self) { section in
                                     detailCardCell(maxWidth: columnWidth) {
                                         detailCard(for: section)
                                     }
@@ -37,7 +44,7 @@ struct DeviceDetailView: View {
                             .frame(width: columnWidth, alignment: .leading)
 
                             VStack(alignment: .leading, spacing: cardSpacing) {
-                                ForEach(rightColumnSections, id: \.self) { section in
+                                ForEach(rightSections, id: \.self) { section in
                                     detailCardCell(maxWidth: columnWidth) {
                                         detailCard(for: section)
                                     }
@@ -48,8 +55,8 @@ struct DeviceDetailView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                     } else {
                         VStack(alignment: .leading, spacing: cardSpacing) {
-                            ForEach(detailSections, id: \.self) { section in
-                                detailCardCell(maxWidth: singleColumnCardWidth(for: proxy.size.width)) {
+                            ForEach(sections, id: \.self) { section in
+                                detailCardCell(maxWidth: contentWidth) {
                                     detailCard(for: section)
                                 }
                             }
@@ -57,12 +64,13 @@ struct DeviceDetailView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                     }
                 }
-                .frame(maxWidth: detailContentMaxWidth, alignment: .leading)
+                .frame(width: contentWidth, alignment: .leading)
+                .padding(.horizontal, horizontalPadding)
+                .padding(.vertical, verticalPadding)
                 .frame(maxWidth: .infinity, alignment: .top)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 18)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(WindowDragBlocker())
             .onAppear {
                 updateColumnMode(for: proxy.size.width)
             }
@@ -99,32 +107,30 @@ struct DeviceDetailView: View {
         return sections
     }
 
-    private var leftColumnSections: [DetailSection] {
-        balancedSections.enumerated().compactMap { index, section in
-            index.isMultiple(of: 2) ? section : nil
-        }
-    }
-
-    private var rightColumnSections: [DetailSection] {
-        var sections = balancedSections.enumerated().compactMap { index, section in
-            index.isMultiple(of: 2) ? nil : section
-        }
-        if detailSections.contains(.buttonRemap) {
-            sections.append(.buttonRemap)
-        }
-        return sections
-    }
-
-    private var balancedSections: [DetailSection] {
-        detailSections.filter { $0 != .buttonRemap }
-    }
-
     private func twoColumnActivationWidth() -> CGFloat {
         (detailTwoColumnMinWidth * 2) + cardSpacing + twoColumnBreakpointPadding
     }
 
+    private func leftColumnSections(from sections: [DetailSection]) -> [DetailSection] {
+        let balanced = sections.filter { $0 != .buttonRemap }
+        return balanced.enumerated().compactMap { index, section in
+            index.isMultiple(of: 2) ? section : nil
+        }
+    }
+
+    private func rightColumnSections(from sections: [DetailSection]) -> [DetailSection] {
+        let balanced = sections.filter { $0 != .buttonRemap }
+        var right = balanced.enumerated().compactMap { index, section in
+            index.isMultiple(of: 2) ? nil : section
+        }
+        if sections.contains(.buttonRemap) {
+            right.append(.buttonRemap)
+        }
+        return right
+    }
+
     private func updateColumnMode(for availableWidth: CGFloat) {
-        let contentWidth = min(max(availableWidth - 40, 0), detailContentMaxWidth)
+        let contentWidth = detailContentWidth(for: availableWidth)
         let enterThreshold = twoColumnActivationWidth()
         let exitThreshold = enterThreshold - twoColumnBreakpointHysteresis
 
@@ -135,11 +141,6 @@ struct DeviceDetailView: View {
         } else if contentWidth >= enterThreshold {
             usesTwoColumns = true
         }
-    }
-
-    private func twoColumnCardWidth(for availableWidth: CGFloat) -> CGFloat {
-        let contentWidth = min(max(availableWidth - 40, 0), detailContentMaxWidth)
-        return min(detailCardMaxWidth, floor((contentWidth - cardSpacing) / 2))
     }
 
     @ViewBuilder
@@ -162,8 +163,12 @@ struct DeviceDetailView: View {
         }
     }
 
-    private func singleColumnCardWidth(for availableWidth: CGFloat) -> CGFloat {
-        min(max(availableWidth - 40, 0), detailContentMaxWidth)
+    private func detailContentWidth(for availableWidth: CGFloat) -> CGFloat {
+        min(max(availableWidth - (horizontalPadding * 2), 0), detailContentMaxWidth)
+    }
+
+    private func twoColumnCardWidth(for contentWidth: CGFloat) -> CGFloat {
+        min(detailCardMaxWidth, floor((contentWidth - cardSpacing) / 2))
     }
 
     private func detailCardCell<Content: View>(maxWidth: CGFloat, @ViewBuilder content: () -> Content) -> some View {

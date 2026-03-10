@@ -40,7 +40,6 @@ struct StatCard: View {
                 .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.15), lineWidth: 1))
         )
         .contentShape(RoundedRectangle(cornerRadius: 14))
-        .background(WindowDragBlocker())
     }
 }
 
@@ -63,7 +62,6 @@ struct Card<Content: View>: View {
                 .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.18), lineWidth: 1))
         )
         .contentShape(RoundedRectangle(cornerRadius: 14))
-        .background(WindowDragBlocker())
     }
 }
 
@@ -102,6 +100,7 @@ struct WindowDragBlocker: NSViewRepresentable {
 
 final class WindowDragBlockingView: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
+    override var acceptsFirstResponder: Bool { false }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -113,8 +112,13 @@ final class WindowDragBlockingView: NSView {
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
-        nil
+        self
     }
+
+    override func mouseDown(with event: NSEvent) {}
+    override func mouseDragged(with event: NSEvent) {}
+    override func rightMouseDown(with event: NSEvent) {}
+    override func otherMouseDown(with event: NSEvent) {}
 }
 
 private struct HintTextModifier: ViewModifier {
