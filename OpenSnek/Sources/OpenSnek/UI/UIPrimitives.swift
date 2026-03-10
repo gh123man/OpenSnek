@@ -39,6 +39,8 @@ struct StatCard: View {
                 .fill(Color.white.opacity(0.06))
                 .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.15), lineWidth: 1))
         )
+        .contentShape(RoundedRectangle(cornerRadius: 14))
+        .background(WindowDragBlocker())
     }
 }
 
@@ -60,6 +62,8 @@ struct Card<Content: View>: View {
                 .fill(Color.white.opacity(0.07))
                 .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.18), lineWidth: 1))
         )
+        .contentShape(RoundedRectangle(cornerRadius: 14))
+        .background(WindowDragBlocker())
     }
 }
 
@@ -85,6 +89,31 @@ struct ColorSwatchButton: View {
 extension View {
     func hintTextStyle() -> some View {
         modifier(HintTextModifier())
+    }
+}
+
+struct WindowDragBlocker: NSViewRepresentable {
+    func makeNSView(context: Context) -> WindowDragBlockingView {
+        WindowDragBlockingView(frame: .zero)
+    }
+
+    func updateNSView(_ nsView: WindowDragBlockingView, context: Context) {}
+}
+
+final class WindowDragBlockingView: NSView {
+    override var mouseDownCanMoveWindow: Bool { false }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
     }
 }
 
