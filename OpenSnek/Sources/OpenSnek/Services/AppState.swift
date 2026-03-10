@@ -924,10 +924,18 @@ final class AppState {
         var loadedPersistedColor = false
 
         if device.transport == .bluetooth,
-           let rgb = try? await client.readLightingColor(device: device) {
+           let persisted = loadPersistedLightingColor(device: device) {
+            editableColor = persisted
+            loadedPersistedColor = true
+            AppLog.debug(
+                "AppState",
+                "hydrated Bluetooth lighting color from persisted cache id=\(device.id) rgb=(\(persisted.r),\(persisted.g),\(persisted.b))"
+            )
+        } else if device.transport == .bluetooth,
+                  let rgb = try? await client.readLightingColor(device: device) {
             editableColor = RGBColor(r: rgb.r, g: rgb.g, b: rgb.b)
             persistLightingColor(editableColor, device: device)
-            AppLog.debug("AppState", "hydrated lighting color from device id=\(device.id) rgb=(\(rgb.r),\(rgb.g),\(rgb.b))")
+            AppLog.debug("AppState", "hydrated Bluetooth lighting color from device id=\(device.id) rgb=(\(rgb.r),\(rgb.g),\(rgb.b))")
         } else if let persisted = loadPersistedLightingColor(device: device) {
             editableColor = persisted
             loadedPersistedColor = true

@@ -257,7 +257,6 @@ actor BridgeClient {
 
     func apply(device: MouseDevice, patch: DevicePatch) async throws -> MouseState {
         if device.transport == .bluetooth {
-            let handle = handleFor(device: device)
             let changedDpi = patch.dpiStages != nil || patch.activeStage != nil
             let changedLighting = patch.ledBrightness != nil || patch.ledRGB != nil || patch.lightingEffect != nil
             let changedPower = patch.sleepTimeout != nil
@@ -292,13 +291,7 @@ actor BridgeClient {
             }
 
             if let effect = patch.lightingEffect {
-                var applied = false
-                if let handle {
-                    applied = try setScrollLEDEffect(handle, device, effect: effect)
-                }
-                if !applied {
-                    applied = try await btApplyLightingEffectFallback(effect: effect)
-                }
+                let applied = try await btApplyLightingEffectFallback(effect: effect)
                 if !applied {
                     AppLog.debug(
                         "Bridge",
@@ -1175,28 +1168,13 @@ actor BridgeClient {
         return btAckSuccess(notifies: notifies, req: req)
     }
 
-    private func btSetLightingModeRaw(value: UInt32) async throws -> Bool {
-        try await btSetScalar(
-            key: .lightingModeSet,
-            value: Int(value),
-            size: 4,
-            payloadLength: 0x04
-        )
-    }
-
     private func btApplyLightingEffectFallback(effect: LightingEffectPatch) async throws -> Bool {
         switch effect.kind {
         case .off:
-            // On BLE-only paths, emulate "off" via brightness scalar.
             return try await btSetLightingValue(value: 0)
         case .staticColor:
             return try await btSetLightingRGB(r: effect.primary.r, g: effect.primary.g, b: effect.primary.b)
-        case .spectrum:
-            // Capture-backed selector key from all-lighting-modes.pcapng.
-            return try await btSetLightingModeRaw(value: 0x00000008)
-        case .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual:
-            // No capture-backed BLE vendor selector values for these profile families yet.
-            // Keep UI/app-state consistent without throwing hard errors.
+        case .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual:
             return false
         }
     }

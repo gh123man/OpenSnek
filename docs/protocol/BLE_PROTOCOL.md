@@ -101,7 +101,7 @@ Transport note (capture-backed):
 | Idle time raw | `05 84 00 00` | `05 04 00 00` | `0x02` | `u16 LE` |
 | Low battery threshold raw | `05 82 00 00` | `05 02 00 00` | `0x01` | `u8` |
 | Lighting raw | `10 85 01 01` | `10 05 01 00` | `0x01` | `u8` |
-| Lighting mode raw | n/a | `10 03 00 00` | `0x04` | `u32 LE` (capture value: `08`) |
+| Lighting mode raw | n/a | `10 03 00 00` | `0x04` | `u32 LE` selector (capture value: `08`, observed before advanced effect frame streams) |
 | Lighting frame stream | n/a | `10 04 00 00` | `0x08` | `04 00 00 00 [M][R][G][B]` |
 | Battery raw | `05 81 00 01` | n/a | n/a | `u8` |
 | Battery status raw | `05 80 00 01` | n/a | n/a | `u8` |
@@ -266,7 +266,11 @@ The Swift app (`OpenSnek`) applies additional runtime safety around the same ven
 - BT writer preserves stage-id bytes from the current snapshot so hardware stage-button cycling stays in sync with UI selection
 - invalid DPI read filtering + immediate retry for transient malformed payloads
 - `razer_ble.py` includes HID scroll LED effect families (`0x0F:0x02`), but on current macOS BT stack these HID writes are commonly unsupported (`send result=-1`).
-- OpenSnek currently treats lighting as static-only in UI (brightness + RGB frame write) until a reliable cross-transport effect path is validated.
+- `all-lighting-modes.pcapng` and `power-lighting.pcapng` both show Synapse using a shared BLE lighting stream path for advanced effects:
+  - selector write `10 03 00 00` with payload `08 00 00 00`
+  - repeated frame writes on `10 04 00 00` with payload `04 00 00 00 [M][R][G][B]`
+- Important scope note: the captures do not expose distinct native BLE mode IDs for `wave`, `reactive`, or `pulse*`.
+- OpenSnek keeps Bluetooth lighting static-only in the app for now, because the shared stream path is software-driven and is not yet validated to produce acceptable per-profile behavior on-device.
 - persisted lighting settings are keyed by stable device identity and replayed on reconnect/discovery
 - log-backed diagnostics at `~/Library/Logs/OpenSnek/open-snek.log`
 
@@ -304,9 +308,9 @@ These are transport-consumer behaviors and do not change the on-wire packet form
 | Scroll mode | `02:94/14` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
 | Scroll acceleration | `02:96/16` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
 | Scroll smart reel | `02:97/17` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
-| Scroll LED brightness/effects | `0F:84/04`, `0F:02` | Not mapped | Implemented in both scripts and OpenSnek via HID path | Need BLE vendor mapping for non-HID parity |
+| Scroll LED brightness/effects | `0F:84/04`, `0F:02` | Selector `10 03` + frame stream `10 04` + scalar `10 05` | Scripts expose raw BLE frame/selector helpers; OpenSnek app stays static-only on Bluetooth | Native BLE mode enum catalog is still incomplete; advanced modes appear software-driven in captures |
 | Button remap | USB experimental raw writer only | `08 04 01 <slot>` + payload | BLE implemented + USB experimental writer | Mouse + keyboard turbo payloads are mapped on BLE; USB taxonomy still incomplete |
-| Lighting / matrix | USB class `0x0F` partly implemented (scroll LED) | Scalar key (`10 85` / `10 05`) + frame stream key (`10 04`) | USB/BLE HID scroll LED profiles + BLE scalar/frame writes | Need vendor-key parity for non-HID BLE effect writes |
+| Lighting / matrix | USB class `0x0F` partly implemented (scroll LED) | Scalar key (`10 85` / `10 05`) + selector `10 03` + frame stream `10 04` | OpenSnek keeps Bluetooth app controls static-only; raw BLE stream path remains documented | Distinct native BLE per-mode selectors remain unconfirmed in captures |
 
 ## 13. `razer_ble.py` Feature Overlap Checklist
 

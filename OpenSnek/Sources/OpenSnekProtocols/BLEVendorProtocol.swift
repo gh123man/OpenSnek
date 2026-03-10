@@ -311,4 +311,5 @@ public enum BLEVendorProtocol {
         default: return nil
         }
     }
+
 }

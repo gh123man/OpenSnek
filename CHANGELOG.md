@@ -11,6 +11,7 @@ All notable changes to this project are documented in this file.
 - Device discovery in the macOS app now attaches resolved profile metadata to `MouseDevice`, including per-transport button layout and advanced-lighting support, so UI/app-state logic can rely on device capabilities instead of raw transport string branches.
 - `AppState` now delegates patch coalescing and preference persistence to extracted support services (`ApplyCoordinator`, `DevicePreferenceStore`) instead of owning that logic directly.
 - `OpenSnekProbe` now reuses shared BLE vendor and USB HID protocol helpers instead of maintaining fully separate copies of those framing/report builders.
+- Bluetooth capture review now documents the shared BLE selector/frame lighting path (`10 03 = 0x00000008`, then repeated `10 04` frames), but OpenSnek keeps Bluetooth app lighting static-only for now because those advanced profiles appear to require software-driven streaming and are not yet shippable.
 
 ### Added
 - Shared device-profile registry for the validated Basilisk V3 X HyperSpeed family (`0x00B9` USB / `0x00BA` BLE) with explicit button-layout metadata.

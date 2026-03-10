@@ -1,4 +1,6 @@
 import XCTest
+import OpenSnekCore
+import OpenSnekHardware
 @testable import OpenSnek
 
 final class HardwareUSBStateSmokeTests: XCTestCase {

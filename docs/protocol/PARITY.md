@@ -37,7 +37,7 @@ Legend:
 | Scroll LED brightness | `0F:84/04` (`VARSTORE`, `LED=0x01`) | unknown vendor key | both scripts (HID path) | PARTIAL | USB validated; BLE vendor key not mapped |
 | Scroll LED effects | `0F:02` (none/spectrum/wave/static/reactive/breath) | unknown vendor key | both scripts (HID path) | PARTIAL | USB validated on Basilisk V3 X |
 | Button remapping | class `0x02`, `0x8C/0x0C` button-function block | vendor `08 04 01 <slot>` + 10-byte payload | BLE implemented + USB validated (`OpenSnek` + `OpenSnekProbe`) | PARTIAL | USB uses `profile,slot,hypershift` + 7-byte function block (`class,len,data[5]`); mouse + simple keyboard remaps validate on `0x00B9`, including default restore behavior and readback. BLE slot `0x06` remains rejected (`status 0x03`); macro/media catalogs still pending on both paths. |
-| Lighting/effects | class `0x0F` (OpenRazer documented) | mode (`10 03`) + scalar (`10 85`/`10 05`) + frame stream (`10 04`) | USB scroll LED effects + BLE mode/scalar/frame writes | PARTIAL | OpenSnek is transport-scoped: USB exposes full profile/effect controls; BLE remains static-only (brightness + color). |
+| Lighting/effects | class `0x0F` (OpenRazer documented) | mode (`10 03`) + scalar (`10 85`/`10 05`) + frame stream (`10 04`) | USB scroll LED effects + BLE mode/scalar/frame writes | PARTIAL | Capture review shows a shared BLE stream path for advanced effects, but OpenSnek keeps Bluetooth app controls static-only for now because the streamed profiles are software-driven and not yet good enough to ship. |
 | Profiles | partially documented in ecosystem | unknown | none | UNKNOWN | Needs capture-backed mapping |
 
 ## Current Priorities

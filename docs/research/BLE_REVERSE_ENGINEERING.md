@@ -141,6 +141,7 @@ Reverse engineer the Razer BLE configuration path used by Synapse and implement 
 - **2026-03-08**: Added all-lighting-modes mapping from `captures/ble/all-lighting-modes.pcapng`:
   - Confirmed mode selector key `10 03` (`u32`, observed value `0x00000008`)
   - Confirmed heavy frame stream key `10 04` for effect/color playback (`04 00 00 00 [M][R][G][B]`)
+  - Capture review indicates Synapse reuses selector `0x00000008` as a shared advanced-lighting stream mode, then differentiates profiles by the sequence of `10 04` frames rather than distinct per-mode selector values
   - Added `razer_ble.py` APIs/CLI:
     - `set_lighting_mode_raw` / `--lighting-mode-raw`
     - `set_lighting_frame_raw`, `set_lighting_rgb`, `stream_lighting_spectrum`

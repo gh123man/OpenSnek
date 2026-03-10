@@ -1,4 +1,5 @@
 import XCTest
+import OpenSnekCore
 @testable import OpenSnek
 
 final class HardwareDpiReliabilityTests: XCTestCase {
