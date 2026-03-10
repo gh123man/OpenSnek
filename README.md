@@ -2,9 +2,17 @@
   <img src="OpenSnek/App/Resources/Assets.xcassets/AppIcon.appiconset/icon_512x512@2x.png" alt="open-snek app icon" width="200">
 </p>
 
-<h1 align="center">open-snek</h1>
+<h1 align="center">Open Snek</h1>
 
-`OpenSnek` is a native macOS app for configuring supported Razer mice without Synapse.
+`OpenSnek` is a native macOS app for configuring supported Razer mice without Synapse over USB or Bluetooth.
+
+![Screenshot](/docs/media/screenshot.png)
+
+## Supported Device
+
+- Razer Basilisk V3 X HyperSpeed
+  - USB PID `0x00B9`
+  - Bluetooth PID `0x00BA` (VID `0x068E`)
 
 ## Quick Start
 
@@ -39,13 +47,6 @@ swift test --package-path OpenSnek
 ```bash
 ./OpenSnek/scripts/generate_xcodeproj.sh --open
 ```
-
-## Supported Device
-
-Validated on:
-- Razer Basilisk V3 X HyperSpeed
-  - USB PID `0x00B9`
-  - Bluetooth PID `0x00BA` (VID `0x068E`)
 
 ## More
 
