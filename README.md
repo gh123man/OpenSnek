@@ -10,7 +10,7 @@
 
 ![Screenshot](/docs/media/screenshot.png)
 
-`OpenSnek` is a native macOS app for configuring supported Razer mice over USB or Bluetooth.
+`Open Snek` is a native macOS app for configuring supported Razer mice over USB or Bluetooth.
 
 If your mouse has little or no official Razer support on macOS, this is the point of the project: direct device configuration, a real Mac app, and no need to keep a Windows machine around just to change DPI, lighting, or button mappings.
 
@@ -34,11 +34,15 @@ If macOS asks for permissions:
 - For USB control, grant `Input Monitoring` to `Open Snek` in `System Settings > Privacy & Security`.
 - For Bluetooth control, allow Bluetooth access when prompted.
 
-## Supported Device
+## Supported Devices
 
 - Razer Basilisk V3 X HyperSpeed
   - USB PID `0x00B9`
   - Bluetooth PID `0x00BA` (VID `0x068E`)
+
+This is the only supported device today because it has essentially no useful official Razer configuration support on macOS, and it was the original target for the project.
+
+Support for more devices is welcome. New device support can land either through outside contributors or as more hardware becomes available for capture, testing, and validation.
 
 ## Build From Source
 
