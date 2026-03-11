@@ -41,6 +41,17 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.onboardProfileCount, 1)
     }
 
+    func testResolveBluetoothFallbackProfileByName() {
+        let exact = DeviceProfiles.resolveBluetoothFallback(name: "Basilisk V3 X HyperSpeed")
+        XCTAssertEqual(exact?.id, .basiliskV3XHyperspeed)
+
+        let prefixed = DeviceProfiles.resolveBluetoothFallback(name: "Razer Basilisk V3 X HyperSpeed")
+        XCTAssertEqual(prefixed?.id, .basiliskV3XHyperspeed)
+
+        let unknown = DeviceProfiles.resolveBluetoothFallback(name: "Razer Cobra Pro")
+        XCTAssertNil(unknown)
+    }
+
     func testPersistenceKeysPreferSerial() {
         let device = MouseDevice(
             id: "dev",

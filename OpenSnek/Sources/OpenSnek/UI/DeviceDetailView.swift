@@ -239,6 +239,9 @@ struct DeviceOverviewBar: View {
                     Text(selected.product_name)
                         .font(.system(size: 32, weight: .black, design: .rounded))
                         .foregroundStyle(.white)
+                    if showsUnsupportedUSBMarker {
+                        UnsupportedUSBInlineBanner()
+                    }
                     if let serial = state.device.serial {
                         Text("Serial \(serial)")
                             .font(.system(size: 11, weight: .medium, design: .monospaced))
@@ -277,6 +280,10 @@ struct DeviceOverviewBar: View {
                 .fill(Color.white.opacity(0.14))
                 .frame(height: 1)
         }
+    }
+
+    private var showsUnsupportedUSBMarker: Bool {
+        appState.selectedDeviceIsUnsupportedUSB && appState.selectedDeviceID == selected.id
     }
 }
 
@@ -365,6 +372,9 @@ struct GenericDeviceOverviewBar: View {
                     Text(selected.product_name)
                         .font(.system(size: 32, weight: .black, design: .rounded))
                         .foregroundStyle(.white)
+                    if showsUnsupportedUSBMarker {
+                        UnsupportedUSBInlineBanner()
+                    }
                     if let serial = selected.serial {
                         Text("Serial \(serial)")
                             .font(.system(size: 11, weight: .medium, design: .monospaced))
@@ -387,6 +397,35 @@ struct GenericDeviceOverviewBar: View {
                 .fill(Color.white.opacity(0.14))
                 .frame(height: 1)
         }
+    }
+
+    private var showsUnsupportedUSBMarker: Bool {
+        appState.selectedDeviceIsUnsupportedUSB && appState.selectedDeviceID == selected.id
+    }
+}
+
+private struct UnsupportedUSBInlineBanner: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("⚠️")
+                .font(.system(size: 12))
+            Text("Unsupported USB device. Only verified controls are shown.")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.88))
+                .lineLimit(2)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            Capsule()
+                .fill(Color(hex: 0xFF9F0A).opacity(0.18))
+                .overlay(
+                    Capsule()
+                        .stroke(Color(hex: 0xFF9F0A).opacity(0.42), lineWidth: 1)
+                )
+        )
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

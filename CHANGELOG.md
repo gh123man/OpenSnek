@@ -12,6 +12,10 @@ All notable changes to this project are documented in this file.
 - A GitHub-ready diagnostics payload flow in Settings, plus a bug-report issue template that tells users how to generate and paste that payload.
 
 ### Fixed
+- Bluetooth fallback discovery no longer aliases every connected Razer BLE peripheral to the supported Basilisk V3 X HyperSpeed profile when HID permission is denied; unsupported BLE devices now stay generic/unsupported until an exact Bluetooth profile match is added.
+- Unsupported Razer USB devices no longer get hidden behind the generic unsupported screen; Open Snek now allows USB probing on unknown Razer mice, shows a warning that support is partial, and only exposes USB controls that responded during live capability probing. Unsupported Bluetooth devices remain gated to the explicit supported-device list.
+- Bluetooth vendor exchanges now target the selected device by peripheral name instead of whichever connected Razer BLE peripheral CoreBluetooth returns first, fixing supported-device failures when a supported and unsupported Bluetooth device are connected at the same time.
+- Device switching now swaps immediately to the selected device's cached state and ignores stale async refresh/apply results from the previously selected device, reducing DPI/control lag when multiple mice are connected.
 - USB lighting apply/readback on Basilisk V3 35K now targets all three validated matrix LED zones (`0x01` scroll wheel, `0x04` logo, and `0x0A` underglow) instead of only the wheel zone.
 - USB lighting effect encoding now matches the OpenRazer-documented matrix payloads for `off`, `spectrum`, `wave`, `reactive`, and breathing variants, fixing broken USB profile selections and removing an incorrect wave/spectrum mapping.
 - USB button readback normalization now handles the Basilisk V3 35K `0x02:0x8C` response layout, which differs from the Basilisk V3 X slot echo shape and caused clutch/default blocks to be misparsed.

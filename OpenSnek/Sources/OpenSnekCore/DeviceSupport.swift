@@ -301,4 +301,33 @@ public enum DeviceProfiles {
     public static func resolve(vendorID: Int, productID: Int, transport: DeviceTransportKind) -> DeviceProfile? {
         all.first(where: { $0.matches(vendorID: vendorID, productID: productID, transport: transport) })
     }
+
+    public static func resolveBluetoothFallback(name: String?) -> DeviceProfile? {
+        guard let normalizedName = normalizedBluetoothFallbackName(name) else { return nil }
+        return all.first { profile in
+            guard profile.transport == .bluetooth else { return false }
+            let normalizedProduct = normalizedBluetoothFallbackName(profile.productName) ?? ""
+            return normalizedName == normalizedProduct ||
+                normalizedName.contains(normalizedProduct) ||
+                normalizedProduct.contains(normalizedName)
+        }
+    }
+
+    private static func normalizedBluetoothFallbackName(_ name: String?) -> String? {
+        guard let name else { return nil }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let lowered = trimmed.lowercased()
+        let withoutRazerPrefix: String
+        if lowered.hasPrefix("razer ") {
+            withoutRazerPrefix = String(trimmed.dropFirst(6))
+        } else {
+            withoutRazerPrefix = trimmed
+        }
+
+        let pieces = withoutRazerPrefix.lowercased().split { !$0.isLetter && !$0.isNumber }
+        let normalized = pieces.joined(separator: " ")
+        return normalized.isEmpty ? nil : normalized
+    }
 }

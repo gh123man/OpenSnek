@@ -67,6 +67,7 @@ final class AppState {
     private var hasPendingLocalEdits = false
     private var applyDrainTask: Task<Void, Never>?
     private var stateCacheByDeviceID: [String: MouseState] = [:]
+    private var lastUpdatedByDeviceID: [String: Date] = [:]
     private var isRefreshingDpiFast = false
     private var suppressFastDpiUntil: Date?
     private var lastUSBFastDpiAt: Date?
@@ -88,6 +89,19 @@ final class AppState {
     var selectedDeviceProfile: DeviceProfile? {
         guard let selectedDevice else { return nil }
         return resolvedProfile(for: selectedDevice)
+    }
+
+    var selectedDeviceIsStrictlyUnsupported: Bool {
+        guard let selectedDevice else { return false }
+        if resolvedProfile(for: selectedDevice) != nil {
+            return false
+        }
+        return selectedDevice.transport == .bluetooth
+    }
+
+    var selectedDeviceIsUnsupportedUSB: Bool {
+        guard let selectedDevice else { return false }
+        return selectedDevice.transport == .usb && resolvedProfile(for: selectedDevice) == nil
     }
 
     var visibleButtonSlots: [ButtonSlotDescriptor] {
@@ -141,6 +155,10 @@ final class AppState {
     var currentDeviceStatusIndicator: DeviceStatusIndicator {
         if selectedDevice == nil {
             return DeviceStatusIndicator(label: "Disconnected", color: Color(hex: 0xFF453A))
+        }
+
+        if selectedDeviceIsStrictlyUnsupported {
+            return DeviceStatusIndicator(label: "Unsupported", color: Color(hex: 0xFFD60A))
         }
 
         if let errorMessage, !errorMessage.isEmpty {
@@ -320,6 +338,7 @@ final class AppState {
             for id in removedIDs {
                 refreshFailureCountByDeviceID[id] = nil
                 manualUSBButtonProfileSelectionByDeviceID.remove(id)
+                lastUpdatedByDeviceID[id] = nil
             }
         }
 
@@ -333,9 +352,9 @@ final class AppState {
             selectedDeviceID = sorted.first?.id
         }
 
-        if let selectedDeviceID, let cached = stateCacheByDeviceID[selectedDeviceID] {
-            state = cached
-        } else if selectedDeviceID == nil {
+        if let selectedDeviceID {
+            syncSelectedDevicePresentation(deviceID: selectedDeviceID)
+        } else {
             state = nil
             errorMessage = nil
             warningMessage = nil
@@ -350,6 +369,36 @@ final class AppState {
             )
         }
         return changed
+    }
+
+    func selectDevice(_ deviceID: String) {
+        guard selectedDeviceID != deviceID else { return }
+        selectedDeviceID = deviceID
+        syncSelectedDevicePresentation(deviceID: deviceID)
+    }
+
+    private func syncSelectedDevicePresentation(deviceID: String) {
+        guard let device = devices.first(where: { $0.id == deviceID }) else {
+            state = nil
+            errorMessage = nil
+            warningMessage = nil
+            lastUpdated = nil
+            return
+        }
+
+        if let cached = stateCacheByDeviceID[deviceID] {
+            state = cached
+            lastUpdated = lastUpdatedByDeviceID[deviceID]
+            warningMessage = telemetryWarning(for: cached, device: device)
+            if shouldHydrateEditable {
+                hydrateEditable(from: cached)
+            }
+        } else {
+            state = nil
+            lastUpdated = nil
+            warningMessage = nil
+        }
+        errorMessage = nil
     }
 
     private func setTelemetryWarning(_ newValue: String?, device: MouseDevice) {
@@ -389,6 +438,13 @@ final class AppState {
             lastUpdated = nil
             return
         }
+        guard !selectedDeviceIsStrictlyUnsupported else {
+            state = nil
+            warningMessage = nil
+            errorMessage = nil
+            lastUpdated = nil
+            return
+        }
         guard !isRefreshingState, !isApplying, !hasPendingLocalEdits else {
             AppLog.debug(
                 "AppState",
@@ -404,6 +460,7 @@ final class AppState {
         isRefreshingState = true
         defer { isRefreshingState = false }
         let refreshRevision = applyCoordinator.stateRevision
+        let refreshDeviceID = selectedDevice.id
 
         let start = Date()
         do {
@@ -412,13 +469,18 @@ final class AppState {
                 AppLog.debug("AppState", "refreshState stale-drop rev=\(refreshRevision) current=\(applyCoordinator.stateRevision)")
                 return
             }
+            guard selectedDeviceID == refreshDeviceID else {
+                AppLog.debug("AppState", "refreshState drop switched-device result device=\(refreshDeviceID) selected=\(selectedDeviceID ?? "nil")")
+                return
+            }
             let merged = fetched.merged(with: stateCacheByDeviceID[selectedDevice.id])
             stateCacheByDeviceID[selectedDevice.id] = merged
             refreshFailureCountByDeviceID[selectedDevice.id] = 0
+            lastUpdatedByDeviceID[selectedDevice.id] = Date()
             if state != merged {
                 state = merged
             }
-            lastUpdated = Date()
+            lastUpdated = lastUpdatedByDeviceID[selectedDevice.id]
             if shouldHydrateEditable {
                 hydrateEditable(from: merged)
                 await hydrateLightingStateIfNeeded(device: selectedDevice)
@@ -900,6 +962,7 @@ final class AppState {
     func refreshDpiFast() async {
         guard let selectedDevice else { return }
         guard selectedDevice.transport == .bluetooth || selectedDevice.transport == .usb else { return }
+        guard !selectedDeviceIsStrictlyUnsupported else { return }
         guard !isRefreshingDpiFast, !isRefreshingState, !isApplying else { return }
         guard !hasPendingLocalEdits else { return }
         if selectedDevice.transport == .usb,
@@ -918,6 +981,7 @@ final class AppState {
 
         do {
             guard let fast = try await client.readDpiStagesFast(device: selectedDevice) else { return }
+            guard selectedDeviceID == selectedDevice.id else { return }
             if selectedDevice.transport == .usb {
                 lastUSBFastDpiAt = Date()
             }
@@ -949,9 +1013,11 @@ final class AppState {
             )
 
             stateCacheByDeviceID[selectedDevice.id] = updated
+            lastUpdatedByDeviceID[selectedDevice.id] = Date()
             if state != updated {
                 state = updated
             }
+            lastUpdated = lastUpdatedByDeviceID[selectedDevice.id]
             if shouldHydrateEditable {
                 hydrateEditable(from: updated)
             }
@@ -994,8 +1060,16 @@ final class AppState {
         defer { isApplying = false }
 
         let start = Date()
+        let applyDeviceID = selectedDevice.id
         do {
             let next = try await client.apply(device: selectedDevice, patch: patch)
+            guard selectedDeviceID == applyDeviceID else {
+                let merged = next.merged(with: stateCacheByDeviceID[applyDeviceID])
+                stateCacheByDeviceID[applyDeviceID] = merged
+                lastUpdatedByDeviceID[applyDeviceID] = Date()
+                AppLog.debug("AppState", "apply result cached for non-selected device device=\(applyDeviceID)")
+                return
+            }
             let merged = next.merged(with: stateCacheByDeviceID[selectedDevice.id])
             stateCacheByDeviceID[selectedDevice.id] = merged
             if state != merged {
@@ -1008,7 +1082,8 @@ final class AppState {
                 // while BLE latching settles after a write.
                 suppressFastDpiUntil = Date().addingTimeInterval(0.9)
             }
-            lastUpdated = Date()
+            lastUpdatedByDeviceID[selectedDevice.id] = Date()
+            lastUpdated = lastUpdatedByDeviceID[selectedDevice.id]
             if shouldHydrateEditableState {
                 lastLocalEditAt = nil
                 hydrateEditable(from: merged)
