@@ -57,6 +57,8 @@ public final class USBHIDControlSession {
         cmdID: UInt8,
         size: UInt8,
         args: [UInt8],
+        expectedResponseArgsPrefix: [UInt8]? = nil,
+        expectedResponseArgsOffset: Int = 8,
         allowTxnRescan: Bool = true,
         responseAttempts: Int = 6,
         responseDelayUs: useconds_t = 35_000
@@ -65,8 +67,11 @@ public final class USBHIDControlSession {
             let report = USBHIDProtocol.createReport(txn: txn, classID: classID, cmdID: cmdID, size: size, args: args)
             guard let response = try exchange(
                 report: report,
+                expectedTxn: txn,
                 expectedClassID: classID,
                 expectedCmdID: cmdID,
+                expectedArgsPrefix: expectedResponseArgsPrefix ?? [],
+                expectedArgsOffset: expectedResponseArgsOffset,
                 responseAttempts: responseAttempts,
                 responseDelayUs: responseDelayUs
             ) else {
@@ -91,8 +96,11 @@ public final class USBHIDControlSession {
 
     private func exchange(
         report: [UInt8],
+        expectedTxn: UInt8,
         expectedClassID: UInt8,
         expectedCmdID: UInt8,
+        expectedArgsPrefix: [UInt8],
+        expectedArgsOffset: Int,
         responseAttempts: Int,
         responseDelayUs: useconds_t
     ) throws -> [UInt8]? {
@@ -139,7 +147,16 @@ public final class USBHIDControlSession {
             }
 
             if candidate[0] == 0x00 { continue }
-            if !USBHIDProtocol.isValidResponse(candidate, classID: expectedClassID, cmdID: expectedCmdID) { continue }
+            if !USBHIDProtocol.isValidResponse(
+                candidate,
+                txn: expectedTxn,
+                classID: expectedClassID,
+                cmdID: expectedCmdID,
+                expectedArgsPrefix: expectedArgsPrefix,
+                expectedArgsOffset: expectedArgsOffset
+            ) {
+                continue
+            }
             return candidate
         }
         return nil

@@ -262,7 +262,7 @@ public enum DeviceProfiles {
         DocumentedButtonSlot(
             descriptor: ButtonSlotDescriptor(slot: 106, friendlyName: "Profile Button", defaultKind: .default),
             access: .protocolReadOnly,
-            note: "Observed remap writes can land on this button, but the V3 Pro's USB ACK/readback path is not stable enough to ship in Open Snek yet."
+            note: "Observed USB remap/readback works when replies are matched by echoed args, but Open Snek keeps this button out of the UI until Profile Cycle is a supported user-facing action."
         ),
     ]
 

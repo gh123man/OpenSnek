@@ -162,6 +162,16 @@ final class USBButtonHydrationTests: XCTestCase {
         XCTAssertEqual(draft?.clutchDPI, 800)
     }
 
+    func testBasiliskV3ProProfileButtonDefaultBlockMapsToDefaultKind() {
+        let block: [UInt8] = [0x12, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00]
+        let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
+            slot: 106,
+            functionBlock: block,
+            profileID: .basiliskV3Pro
+        )
+        XCTAssertEqual(draft?.kind, .default)
+    }
+
     func testBuildUSBFunctionBlockSupportsV3ProDPIClutchBinding() {
         let block = ButtonBindingSupport.buildUSBFunctionBlock(
             slot: 4,
@@ -191,6 +201,16 @@ final class USBButtonHydrationTests: XCTestCase {
     func testBasiliskV3ProDoesNotExpose35KTopDPIButtonDefault() {
         let block = ButtonBindingSupport.defaultUSBFunctionBlock(for: 96, profileID: .basiliskV3Pro)
         XCTAssertNil(block)
+    }
+
+    func testBasiliskV3ProProfileButtonDefaultBlockIsPreservedForRestore() {
+        let block = ButtonBindingSupport.defaultUSBFunctionBlock(for: 106, profileID: .basiliskV3Pro)
+        XCTAssertEqual(block, [0x12, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00])
+    }
+
+    func testDescribeUSBFunctionBlockRecognizesProfileCycleBlock() {
+        let text = ButtonBindingSupport.describeUSBFunctionBlock([0x12, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00])
+        XCTAssertTrue(text.contains("profile_cycle"))
     }
 
     func testExtractUSBFunctionBlockRejectsMismatchedEchoedSlot() {

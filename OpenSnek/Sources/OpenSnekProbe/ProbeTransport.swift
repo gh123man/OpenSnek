@@ -92,25 +92,30 @@ final class USBProbeClient {
     func readButtonFunction(profile: UInt8, slot: UInt8, hypershift: UInt8 = 0x00) throws -> [UInt8]? {
         var args: [UInt8] = [profile, slot, hypershift]
         args.append(contentsOf: [UInt8](repeating: 0x00, count: 7))
-        guard let response = try session.perform(
-            classID: 0x02,
-            cmdID: 0x8C,
-            size: UInt8(args.count),
-            args: args,
-            allowTxnRescan: true,
-            responseAttempts: 12,
-            responseDelayUs: 40_000
-        ), response[0] == 0x02 else {
-            return nil
+        for attempt in 0..<3 {
+            if let response = try session.perform(
+                classID: 0x02,
+                cmdID: 0x8C,
+                size: UInt8(args.count),
+                args: args,
+                expectedResponseArgsPrefix: Array(args.prefix(3)),
+                allowTxnRescan: true,
+                responseAttempts: 12,
+                responseDelayUs: 40_000
+            ), response[0] == 0x02 {
+                return ButtonBindingSupport.extractUSBFunctionBlock(
+                    response: response,
+                    profile: profile,
+                    slot: slot,
+                    hypershift: hypershift,
+                    profileID: profileID
+                )
+            }
+            if attempt < 2 {
+                usleep(50_000)
+            }
         }
-
-        return ButtonBindingSupport.extractUSBFunctionBlock(
-            response: response,
-            profile: profile,
-            slot: slot,
-            hypershift: hypershift,
-            profileID: profileID
-        )
+        return nil
     }
 
     func writeButtonFunction(profile: UInt8, slot: UInt8, hypershift: UInt8 = 0x00, functionBlock: [UInt8]) throws -> Bool {
@@ -118,18 +123,33 @@ final class USBProbeClient {
             throw ProbeError.usage("Function block must be exactly 7 bytes")
         }
         let args = [profile, slot, hypershift] + functionBlock
-        guard let response = try session.perform(
-            classID: 0x02,
-            cmdID: 0x0C,
-            size: UInt8(args.count),
-            args: args,
-            allowTxnRescan: true,
-            responseAttempts: 12,
-            responseDelayUs: 40_000
-        ) else {
-            return false
+        for attempt in 0..<3 {
+            if let response = try session.perform(
+                classID: 0x02,
+                cmdID: 0x0C,
+                size: UInt8(args.count),
+                args: args,
+                expectedResponseArgsPrefix: args,
+                allowTxnRescan: true,
+                responseAttempts: 12,
+                responseDelayUs: 40_000
+            ) {
+                return response[0] == 0x02
+            }
+            if attempt < 2 {
+                usleep(50_000)
+            }
         }
-        return response[0] == 0x02
+        for verifyAttempt in 0..<3 {
+            if verifyAttempt > 0 {
+                usleep(75_000)
+            }
+            if let readback = try readButtonFunction(profile: profile, slot: slot, hypershift: hypershift),
+               readback == functionBlock {
+                return true
+            }
+        }
+        return false
     }
 
     func writeButtonBinding(

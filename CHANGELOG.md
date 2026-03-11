@@ -12,7 +12,8 @@ All notable changes to this project are documented in this file.
 - The Basilisk V3 Pro USB profile now exposes the validated clutch / DPI-clutch slot (`0x0F`) as an editable button with its observed native restore block (`06 05 05 01 90 01 90`).
 - The button-binding UI now exposes `DPI Clutch` as a V3 Pro-only USB remap option after probe validation showed the clutch payload can be assigned to other writable buttons, not just the native clutch slot.
 - `DPI Clutch` is now a configurable V3 Pro-only USB action in the app and probe CLI, with the held DPI value encoded into the clutch payload instead of being fixed at the observed 400-DPI default.
-- Basilisk V3 Pro profile-button probing now documents the observed remap path on slot `0x6A` but keeps it hidden in the shipped UI because repeated USB write/readback cycles were not yet stable enough to trust.
+- USB button read/write reply matching now validates transaction ID plus echoed button args for `0x02:0x8C` / `0x02:0x0C`, and button writes now fall back to verified readback when the device drops the ACK frame. This fixes the stale cross-slot frames that made V3 Pro profile-button probing look uniquely unstable.
+- Basilisk V3 Pro profile-button probing now documents slot `0x6A` as the native `Profile Cycle` block (`12 01 01 00 00 00 00`), confirms that the same action can be assigned to other writable buttons, and still keeps it hidden in the shipped UI until `Profile Cycle` is a supported user-facing action.
 - Extended Basilisk USB button hydration now treats Basilisk V3 Pro `0x02:0x8C` reads like the other 35K-style offset layout while keeping unsupported V3 Pro slots out of the shipped visible/writable profile.
 - Restoring the Basilisk V3 35K top DPI button now preserves its observed default USB payload (`04 02 0F 7B 00 00 00`) instead of falling back to the generic DPI-cycle block.
 

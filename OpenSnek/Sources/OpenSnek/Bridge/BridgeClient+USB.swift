@@ -195,6 +195,8 @@ extension BridgeClient {
         cmdID: UInt8,
         size: UInt8,
         args: [UInt8] = [],
+        expectedResponseArgsPrefix: [UInt8]? = nil,
+        expectedResponseArgsOffset: Int = 8,
         allowTxnRescan: Bool = false,
         responseAttempts: Int = 6,
         responseDelayUs: useconds_t = 30_000
@@ -205,6 +207,8 @@ extension BridgeClient {
                 cmdID: cmdID,
                 size: size,
                 args: args,
+                expectedResponseArgsPrefix: expectedResponseArgsPrefix,
+                expectedResponseArgsOffset: expectedResponseArgsOffset,
                 allowTxnRescan: allowTxnRescan,
                 responseAttempts: responseAttempts,
                 responseDelayUs: responseDelayUs
@@ -540,18 +544,40 @@ extension BridgeClient {
     ) throws -> Bool {
         guard functionBlock.count == 7 else { return false }
         let args = [profile, slot, hypershift] + functionBlock
-        guard let r = try perform(
-            session,
-            device,
-            classID: 0x02,
-            cmdID: 0x0C,
-            size: UInt8(args.count),
-            args: args,
-            allowTxnRescan: true,
-            responseAttempts: 12,
-            responseDelayUs: 40_000
-        ) else { return false }
-        return r[0] == 0x02
+        for attempt in 0..<3 {
+            if let r = try perform(
+                session,
+                device,
+                classID: 0x02,
+                cmdID: 0x0C,
+                size: UInt8(args.count),
+                args: args,
+                expectedResponseArgsPrefix: args,
+                allowTxnRescan: true,
+                responseAttempts: 12,
+                responseDelayUs: 40_000
+            ) {
+                return r[0] == 0x02
+            }
+            if attempt < 2 {
+                usleep(50_000)
+            }
+        }
+        for verifyAttempt in 0..<3 {
+            if verifyAttempt > 0 {
+                usleep(75_000)
+            }
+            if let readback = try getButtonBindingUSBRaw(
+                session,
+                device,
+                profile: profile,
+                slot: slot,
+                hypershift: hypershift
+            ), readback == functionBlock {
+                return true
+            }
+        }
+        return false
     }
 
     func setButtonBindingUSB(
@@ -613,26 +639,31 @@ extension BridgeClient {
     ) throws -> [UInt8]? {
         var args: [UInt8] = [profile, slot, hypershift]
         args.append(contentsOf: [UInt8](repeating: 0x00, count: 7))
-        guard let response = try perform(
-            session,
-            device,
-            classID: 0x02,
-            cmdID: 0x8C,
-            size: UInt8(args.count),
-            args: args,
-            allowTxnRescan: true,
-            responseAttempts: 12,
-            responseDelayUs: 40_000
-        ), response[0] == 0x02 else {
-            return nil
+        for attempt in 0..<3 {
+            if let response = try perform(
+                session,
+                device,
+                classID: 0x02,
+                cmdID: 0x8C,
+                size: UInt8(args.count),
+                args: args,
+                expectedResponseArgsPrefix: Array(args.prefix(3)),
+                allowTxnRescan: true,
+                responseAttempts: 12,
+                responseDelayUs: 40_000
+            ), response[0] == 0x02 {
+                return ButtonBindingSupport.extractUSBFunctionBlock(
+                    response: response,
+                    profile: profile,
+                    slot: slot,
+                    hypershift: hypershift,
+                    profileID: device.profile_id
+                )
+            }
+            if attempt < 2 {
+                usleep(50_000)
+            }
         }
-
-        return ButtonBindingSupport.extractUSBFunctionBlock(
-            response: response,
-            profile: profile,
-            slot: slot,
-            hypershift: hypershift,
-            profileID: device.profile_id
-        )
+        return nil
     }
 }

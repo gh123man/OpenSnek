@@ -90,7 +90,10 @@ Validated in-session over USB:
 - observed V3 Pro clutch DPI parameterization: writing `06 05 05 03 20 03 20` read back cleanly as an 800-DPI clutch payload on slot `0x04`
 - observed V3 Pro clutch remap portability: the same block was written/read back successfully on slot `0x04`, so Open Snek treats `DPI Clutch` as a V3 Pro USB remap action and not only as the native clutch button's default
 - observed profile-button default block on `0x6A`: `12 01 01 00 00 00 00`
-- observed profile-button remap behavior on `0x6A`: right-click writes/readback can succeed, but repeated write/readback cycles later returned timeout/no-response frames; Open Snek keeps this slot hidden until the USB ACK/readback path is reliable
+- observed profile-button action portability: the same `12 01 01 00 00 00 00` profile-cycle block was written/read back successfully on slot `0x04`, so the function itself is remappable on the V3 Pro USB path
+- observed profile-button instability root cause: stale CRC-valid `0x02:0x8C` / `0x02:0x0C` frames from other slots can surface during repeated button probes, so clients must validate transaction ID plus echoed args instead of trusting class/cmd/CRC alone
+- observed button-write ACK behavior: some remap writes apply without a clean `0x02:0x0C` success frame, so verified readback is the safest success criterion for V3 Pro button probing
+- shipped client behavior: keep slot `0x6A` hidden until Open Snek grows a user-facing `Profile Cycle` action, even though the underlying USB remap path is now understood
 - observed non-match on `0x60`: it does not read back like the 35K top DPI-button block and is not exposed as a validated V3 Pro slot
 - client note: `0x02:0x8C` response layout on the observed extended slots matches the 35K-style offset (`response[11..<18]`) rather than the Basilisk V3 X shape
 - observed profile summary getter on `0x00AB`: `0x00:0x87` -> `<active,0x00,count=3>`; active-profile write path remains unresolved

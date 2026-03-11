@@ -37,10 +37,22 @@ public enum USBHIDProtocol {
         return nil
     }
 
-    public static func isValidResponse(_ response: [UInt8], classID: UInt8, cmdID: UInt8) -> Bool {
+    public static func isValidResponse(
+        _ response: [UInt8],
+        txn: UInt8,
+        classID: UInt8,
+        cmdID: UInt8,
+        expectedArgsPrefix: [UInt8] = [],
+        expectedArgsOffset: Int = 8
+    ) -> Bool {
         guard response.count >= 90 else { return false }
+        guard response[1] == txn else { return false }
         guard response[6] == classID else { return false }
         guard (response[7] & 0x7F) == (cmdID & 0x7F) else { return false }
-        return response[88] == crc(for: response)
+        guard response[88] == crc(for: response) else { return false }
+        guard !expectedArgsPrefix.isEmpty else { return true }
+        let upperBound = expectedArgsOffset + expectedArgsPrefix.count
+        guard response.count >= upperBound else { return false }
+        return Array(response[expectedArgsOffset..<upperBound]) == expectedArgsPrefix
     }
 }

@@ -3,6 +3,8 @@ import Foundation
 public enum ButtonBindingSupport {
     public static let defaultV3ProDPIClutchDPI = 400
 
+    private static let profileCycleBlock: [UInt8] = [0x12, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00]
+
     private static func basiliskV3ProDPIClutchBlock(dpi: Int = defaultV3ProDPIClutchDPI) -> [UInt8] {
         let clamped = UInt16(max(100, min(30_000, dpi)))
         let hi = UInt8((clamped >> 8) & 0xFF)
@@ -234,6 +236,8 @@ public enum ButtonBindingSupport {
         switch slot {
         case 15 where profileID == .basiliskV3Pro:
             return basiliskV3ProDPIClutchBlock()
+        case 106 where usesExtendedBasiliskUSBReadLayout(profileID):
+            return profileCycleBlock
         case 52 where usesExtendedBasiliskUSBReadLayout(profileID),
              53 where usesExtendedBasiliskUSBReadLayout(profileID):
             return [0x01, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00]
@@ -271,6 +275,9 @@ public enum ButtonBindingSupport {
         let dataHex = data.map { String(format: "%02x", $0) }.joined()
         if let clutchDPI = v3ProDPIClutchDPI(from: block) {
             return "block=\(hex) class=0x\(String(format: "%02x", classID)) len=\(length) data=\(dataHex) dpi_clutch=\(clutchDPI)"
+        }
+        if block == profileCycleBlock {
+            return "block=\(hex) class=0x\(String(format: "%02x", classID)) len=\(length) data=\(dataHex) profile_cycle"
         }
         return "block=\(hex) class=0x\(String(format: "%02x", classID)) len=\(length) data=\(dataHex)"
     }
