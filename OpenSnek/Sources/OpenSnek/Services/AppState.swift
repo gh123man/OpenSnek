@@ -842,6 +842,7 @@ final class AppState {
             hidKey: resolved.kind == .keyboardSimple ? resolved.hidKey : nil,
             turboEnabled: resolved.kind.supportsTurbo ? resolved.turboEnabled : false,
             turboRate: resolved.kind.supportsTurbo && resolved.turboEnabled ? resolved.turboRate : nil,
+            clutchDPI: resolved.kind == .dpiClutch ? resolved.clutchDPI ?? ButtonBindingSupport.defaultDPIClutchDPI(for: selectedDevice?.profile_id) : nil,
             persistentProfile: editableUSBButtonProfile,
             writeDirectLayer: !supportsMultipleOnboardProfiles || editableUSBButtonProfile == activeOnboardProfile
         )
@@ -884,6 +885,12 @@ final class AppState {
         Self.turboRawToPressesPerSecond(buttonBindingTurboRate(for: slot))
     }
 
+    func buttonBindingClutchDPI(for slot: Int) -> Int {
+        editableButtonBindings[slot]?.clutchDPI
+            ?? ButtonBindingSupport.defaultDPIClutchDPI(for: selectedDevice?.profile_id)
+            ?? 400
+    }
+
     func updateButtonBindingKind(slot: Int, kind: ButtonBindingKind) {
         guard visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
         var next = editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
@@ -895,6 +902,9 @@ final class AppState {
             keyboardTextDraftBySlot[slot] = nil
         } else {
             keyboardTextDraftBySlot[slot] = AppState.keyboardText(forHidKey: next.hidKey) ?? ""
+        }
+        if kind == .dpiClutch {
+            next.clutchDPI = next.clutchDPI ?? ButtonBindingSupport.defaultDPIClutchDPI(for: selectedDevice?.profile_id)
         }
         if !kind.supportsTurbo {
             next.turboEnabled = false
@@ -934,6 +944,15 @@ final class AppState {
     func updateButtonBindingTurboPressesPerSecond(slot: Int, pressesPerSecond: Int) {
         let pps = max(1, min(20, pressesPerSecond))
         updateButtonBindingTurboRate(slot: slot, rate: Self.turboPressesPerSecondToRaw(pps))
+    }
+
+    func updateButtonBindingClutchDPI(slot: Int, dpi: Int) {
+        guard visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
+        var next = editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
+        guard next.kind == .dpiClutch else { return }
+        next.clutchDPI = max(100, min(30_000, dpi))
+        editableButtonBindings[slot] = next
+        scheduleAutoApplyButton(slot: slot)
     }
 
     func keyboardTextDraft(for slot: Int) -> String {
@@ -1537,6 +1556,9 @@ private extension DevicePatch {
             var detail = "button(slot=\(buttonBinding.slot),kind=\(buttonBinding.kind.rawValue)"
             if buttonBinding.turboEnabled {
                 detail += ",turbo=on,rate=\(buttonBinding.turboRate ?? 0x8E)"
+            }
+            if buttonBinding.kind == .dpiClutch {
+                detail += ",dpi=\(buttonBinding.clutchDPI ?? ButtonBindingSupport.defaultV3ProDPIClutchDPI)"
             }
             detail += ")"
             parts.append(detail)

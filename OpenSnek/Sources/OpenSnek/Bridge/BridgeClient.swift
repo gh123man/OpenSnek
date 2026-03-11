@@ -650,6 +650,7 @@ actor BridgeClient {
                 let hidKey = binding.hidKey ?? 4
                 let turboEnabled = binding.kind.supportsTurbo && binding.turboEnabled
                 let turboRate = max(1, min(255, binding.turboRate ?? 0x8E))
+                let clutchDPI = binding.kind == .dpiClutch ? max(100, min(30_000, binding.clutchDPI ?? ButtonBindingSupport.defaultV3ProDPIClutchDPI)) : nil
                 guard try runUSBWrite({
                     try setButtonBindingUSB(
                         $0,
@@ -659,6 +660,7 @@ actor BridgeClient {
                         hidKey: hidKey,
                         turboEnabled: turboEnabled,
                         turboRate: turboRate,
+                        clutchDPI: clutchDPI,
                         persistentProfile: binding.persistentProfile,
                         writeDirectLayer: binding.writeDirectLayer
                     )
