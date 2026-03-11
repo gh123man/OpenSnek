@@ -23,7 +23,7 @@ Device onboarding and capture interpretation live in:
 
 - `Sources/OpenSnekCore/`
   - shared device/state models
-  - hybrid device-profile registry (`Basilisk V3 X` USB + BLE today)
+  - hybrid device-profile registry (`Basilisk V3 X` USB + BLE, `Basilisk V3 Pro` USB, `Basilisk V3 35K` USB)
   - button binding/turbo helpers and persistence key builders
 - `Sources/OpenSnekProtocols/`
   - `BLEVendorProtocol`: BLE framing, key map, and DPI payload parsing/building
@@ -158,6 +158,13 @@ tccutil reset Bluetooth io.opensnek.OpenSnek
 ```
 
 ## Probe CLI
+
+When multiple Razer USB mice are attached, target the intended device explicitly:
+
+```bash
+swift run --package-path OpenSnek OpenSnekProbe usb-info --pid 0x00ab
+swift run --package-path OpenSnek OpenSnekProbe usb-button-read --slot 52 --pid 0x00ab
+```
 
 ### Read current BLE DPI
 

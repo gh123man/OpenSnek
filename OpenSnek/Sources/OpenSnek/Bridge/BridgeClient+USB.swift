@@ -562,6 +562,7 @@ extension BridgeClient {
         hidKey: Int,
         turboEnabled: Bool,
         turboRate: Int,
+        clutchDPI: Int?,
         persistentProfile: Int,
         writeDirectLayer: Bool
     ) throws -> Bool {
@@ -572,6 +573,7 @@ extension BridgeClient {
             hidKey: hidKey,
             turboEnabled: turboEnabled && bindingKind.supportsTurbo,
             turboRate: turboRate,
+            clutchDPI: clutchDPI,
             profileID: device.profile_id
         )
         let clampedSlot = UInt8(max(0, min(255, slot)))

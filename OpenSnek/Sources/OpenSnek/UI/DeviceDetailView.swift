@@ -1190,6 +1190,7 @@ struct ButtonMappingTableCard: View {
                 isEditable: appState.isButtonSlotEditable(slot.slot),
                 selectedKind: kind,
                 turboEligible: kind != .default && kind.supportsTurbo,
+                clutchDPI: appState.buttonBindingClutchDPI(for: slot.slot),
                 keyboardDraft: kind == .keyboardSimple ? appState.keyboardTextDraft(for: slot.slot) : "",
                 turboEnabled: turboEnabled,
                 turboRatePressesPerSecond: turboRate,
@@ -1280,6 +1281,7 @@ private struct ButtonBindingRowModel: Identifiable, Equatable {
     let isEditable: Bool
     let selectedKind: ButtonBindingKind
     let turboEligible: Bool
+    let clutchDPI: Int
     let keyboardDraft: String
     let turboEnabled: Bool
     let turboRatePressesPerSecond: Int
@@ -1308,7 +1310,7 @@ private struct ButtonBindingRow: View {
                         set: { appState.updateButtonBindingKind(slot: row.slot, kind: $0) }
                     )
                 ) {
-                    ForEach(ButtonBindingKind.allCases) { kind in
+                    ForEach(ButtonBindingSupport.availableButtonBindingKinds(profileID: appState.selectedDevice?.profile_id)) { kind in
                         Text(kind.label).tag(kind)
                     }
                 }
@@ -1345,6 +1347,62 @@ private struct ButtonBindingRow: View {
                     Text("Type: a-z, 0-9, punctuation, enter, tab, space, esc")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(.white.opacity(0.58))
+                }
+            }
+
+            if row.selectedKind == .dpiClutch {
+                HStack {
+                    Spacer()
+                    HStack(spacing: 8) {
+                        Text("Clutch DPI")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.72))
+                        TextField(
+                            "400",
+                            text: Binding(
+                                get: { String(appState.buttonBindingClutchDPI(for: row.slot)) },
+                                set: { newValue in
+                                    if let parsed = Int(newValue) {
+                                        appState.updateButtonBindingClutchDPI(slot: row.slot, dpi: parsed)
+                                    }
+                                }
+                            )
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 120)
+                        .multilineTextAlignment(.center)
+                        .disabled(!row.isEditable)
+                    }
+                    .frame(width: 300, alignment: .trailing)
+                }
+
+                HStack(spacing: 8) {
+                    Spacer()
+                    Text("100")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.62))
+
+                    Slider(
+                        value: Binding(
+                            get: { Double(appState.buttonBindingClutchDPI(for: row.slot)) },
+                            set: { newValue in
+                                let quantized = Int(round(newValue / 100.0) * 100.0)
+                                appState.updateButtonBindingClutchDPI(slot: row.slot, dpi: quantized)
+                            }
+                        ),
+                        in: 100...30000
+                    )
+                    .frame(width: 140)
+                    .disabled(!row.isEditable)
+
+                    Text("30000")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.62))
+
+                    Text("\(row.clutchDPI)")
+                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.76))
+                        .frame(width: 56, alignment: .trailing)
                 }
             }
 
