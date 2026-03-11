@@ -9,6 +9,41 @@ struct DeviceStatusIndicator {
     let color: Color
 }
 
+enum PollingProfile: Equatable {
+    case foreground
+    case serviceIdle
+    case serviceInteractive
+
+    var refreshStateInterval: TimeInterval {
+        switch self {
+        case .foreground, .serviceInteractive:
+            return 2.0
+        case .serviceIdle:
+            return 8.0
+        }
+    }
+
+    var devicePresenceInterval: TimeInterval {
+        switch self {
+        case .foreground, .serviceInteractive:
+            return 1.2
+        case .serviceIdle:
+            return 4.0
+        }
+    }
+
+    var fastDpiInterval: TimeInterval? {
+        switch self {
+        case .foreground:
+            return 0.20
+        case .serviceInteractive:
+            return 0.25
+        case .serviceIdle:
+            return nil
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class AppState {
@@ -45,11 +80,16 @@ final class AppState {
     let buttonSlots = ButtonSlotDescriptor.defaults
     var editableButtonBindings: [Int: ButtonBindingDraft] = [:]
     var keyboardTextDraftBySlot: [Int: String] = [:]
+    var backgroundServiceEnabled: Bool
+    var launchAtStartupEnabled: Bool
+    var serviceStatusMessage: String?
 
-    private let client = BridgeClient()
+    private var backend: any DeviceBackend
     private let applyCoordinator = ApplyCoordinator()
     private let preferenceStore = DevicePreferenceStore()
     private let releaseUpdateChecker = ReleaseUpdateChecker()
+    private let launchRole: OpenSnekProcessRole
+    private let serviceCoordinator: BackgroundServiceCoordinator
     private var isHydrating = false
     private var dpiApplyTask: Task<Void, Never>?
     private var pollApplyTask: Task<Void, Never>?
@@ -79,6 +119,32 @@ final class AppState {
     private var isPollingDevices = false
     private var refreshFailureCountByDeviceID: [String: Int] = [:]
     private var hasCheckedForUpdates = false
+    private var runtimeTask: Task<Void, Never>?
+    private var didStartRuntime = false
+    private var compactMenuPresented = false
+    private var compactInteractionUntil: Date?
+    private var lastRefreshStatePollAt: Date = .distantPast
+    private var lastDevicePresencePollAt: Date = .distantPast
+    private var lastFastDpiPollAt: Date = .distantPast
+    private var transientStatusUntil: Date?
+
+    init(
+        launchRole: OpenSnekProcessRole = .current,
+        backend: (any DeviceBackend)? = nil,
+        serviceCoordinator: BackgroundServiceCoordinator = .shared,
+        autoStart: Bool = true
+    ) {
+        self.launchRole = launchRole
+        self.serviceCoordinator = serviceCoordinator
+        self.backgroundServiceEnabled = serviceCoordinator.backgroundServiceEnabled
+        self.launchAtStartupEnabled = serviceCoordinator.launchAtStartupEnabled
+        self.backend = backend ?? LocalBridgeBackend.shared
+        if launchRole.isService, autoStart {
+            Task { [weak self] in
+                await self?.start()
+            }
+        }
+    }
 
     var selectedDevice: MouseDevice? {
         guard let selectedDeviceID else { return nil }
@@ -158,7 +224,7 @@ final class AppState {
 
         if let lastUpdated {
             let age = Date().timeIntervalSince(lastUpdated)
-            if age > 4.5 {
+            if age > max(4.5, currentPollingProfile.refreshStateInterval * 1.7) {
                 return DeviceStatusIndicator(label: "Poll Delayed", color: Color(hex: 0xFFD60A))
             }
             return DeviceStatusIndicator(label: "Connected", color: Color(hex: 0x30D158))
@@ -235,6 +301,186 @@ final class AppState {
         )
     }
 
+    var isServiceProcess: Bool {
+        launchRole.isService
+    }
+
+    var compactStatusMessage: String? {
+        guard let serviceStatusMessage,
+              let transientStatusUntil,
+              Date() < transientStatusUntil
+        else {
+            return nil
+        }
+        return serviceStatusMessage
+    }
+
+    var compactActiveStageIndex: Int {
+        max(0, min(max(0, editableStageCount - 1), editableActiveStage - 1))
+    }
+
+    var compactActiveStageValue: Int {
+        stageValue(compactActiveStageIndex)
+    }
+
+    var currentPollingProfile: PollingProfile {
+        if !launchRole.isService {
+            return .foreground
+        }
+        if compactMenuPresented {
+            return .serviceInteractive
+        }
+        if let compactInteractionUntil, Date() < compactInteractionUntil {
+            return .serviceInteractive
+        }
+        return .serviceIdle
+    }
+
+    func start() async {
+        guard !didStartRuntime else { return }
+        didStartRuntime = true
+
+        if launchRole.isService {
+            do {
+                try serviceCoordinator.registerServiceHostIfNeeded(backend: LocalBridgeBackend.shared)
+            } catch {
+                serviceStatusMessage = "Service host failed: \(error.localizedDescription)"
+            }
+        } else {
+            await configureBackendForCurrentPreferences()
+        }
+
+        await refreshDevices()
+        if !launchRole.isService {
+            await checkForUpdates()
+        }
+
+        runtimeTask = Task { [weak self] in
+            while let self, !Task.isCancelled {
+                await self.pollRuntimeOnce()
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            }
+        }
+    }
+
+    func setCompactMenuPresented(_ isPresented: Bool) {
+        compactMenuPresented = isPresented
+        if isPresented {
+            compactInteractionUntil = Date().addingTimeInterval(3.0)
+        }
+    }
+
+    func setBackgroundServiceEnabled(_ enabled: Bool) async {
+        backgroundServiceEnabled = enabled
+        serviceCoordinator.setBackgroundServiceEnabled(enabled)
+        if !enabled, launchAtStartupEnabled {
+            setLaunchAtStartupEnabled(false)
+        }
+
+        if enabled {
+            do {
+                backend = try await serviceCoordinator.connectOrLaunchService()
+                serviceStatusMessage = "Menu bar service connected"
+                transientStatusUntil = Date().addingTimeInterval(3.0)
+                errorMessage = nil
+            } catch {
+                backend = LocalBridgeBackend.shared
+                backgroundServiceEnabled = false
+                serviceCoordinator.setBackgroundServiceEnabled(false)
+                errorMessage = "Background service unavailable: \(error.localizedDescription)"
+            }
+        } else {
+            backend = LocalBridgeBackend.shared
+            if launchRole.isService {
+                serviceCoordinator.stopCurrentServiceHostIfNeeded()
+                NSApp.terminate(nil)
+                return
+            } else {
+                serviceCoordinator.stopServiceProcess()
+            }
+            serviceStatusMessage = "Menu bar service stopped"
+            transientStatusUntil = Date().addingTimeInterval(3.0)
+        }
+
+        await refreshDevices()
+    }
+
+    func setLaunchAtStartupEnabled(_ enabled: Bool) {
+        do {
+            try serviceCoordinator.setLaunchAtStartupEnabled(enabled)
+            launchAtStartupEnabled = enabled
+            serviceStatusMessage = enabled ? "Launch at startup enabled" : "Launch at startup disabled"
+            transientStatusUntil = Date().addingTimeInterval(3.0)
+        } catch {
+            errorMessage = "Launch at startup failed: \(error.localizedDescription)"
+            launchAtStartupEnabled = serviceCoordinator.launchAtStartupEnabled
+        }
+    }
+
+    func openFullAppFromService() {
+        serviceCoordinator.launchFullAppProcess()
+    }
+
+    func openSettingsFromService() {
+        serviceCoordinator.launchFullAppProcess(arguments: ["--open-settings"])
+    }
+
+    func terminateServiceProcess() {
+        serviceCoordinator.setBackgroundServiceEnabled(false)
+        serviceCoordinator.stopCurrentServiceHostIfNeeded()
+        if launchAtStartupEnabled {
+            try? serviceCoordinator.setLaunchAtStartupEnabled(false)
+            launchAtStartupEnabled = false
+        }
+        NSApp.terminate(nil)
+    }
+
+    func refreshNow() async {
+        await refreshDevices()
+        compactInteractionUntil = Date().addingTimeInterval(3.0)
+    }
+
+    private func configureBackendForCurrentPreferences() async {
+        do {
+            backend = try await serviceCoordinator.makeBackendForCurrentMode()
+            if backgroundServiceEnabled {
+                serviceStatusMessage = "Menu bar service connected"
+                transientStatusUntil = Date().addingTimeInterval(2.0)
+            }
+        } catch {
+            backend = LocalBridgeBackend.shared
+            errorMessage = "Background service unavailable: \(error.localizedDescription)"
+        }
+    }
+
+    private func pollRuntimeOnce() async {
+        let now = Date()
+        let profile = currentPollingProfile
+
+        if now.timeIntervalSince(lastDevicePresencePollAt) >= profile.devicePresenceInterval {
+            lastDevicePresencePollAt = now
+            await pollDevicePresence()
+        }
+
+        if now.timeIntervalSince(lastRefreshStatePollAt) >= profile.refreshStateInterval {
+            lastRefreshStatePollAt = now
+            await refreshState()
+        }
+
+        if let fastInterval = profile.fastDpiInterval,
+           now.timeIntervalSince(lastFastDpiPollAt) >= fastInterval {
+            lastFastDpiPollAt = now
+            await refreshDpiFast()
+        }
+
+        if let transientStatusUntil, now >= transientStatusUntil {
+            self.transientStatusUntil = nil
+            if compactStatusMessage == nil {
+                serviceStatusMessage = nil
+            }
+        }
+    }
+
     func refreshDevices() async {
         let start = Date()
         AppLog.event("AppState", "refreshDevices start")
@@ -242,7 +488,7 @@ final class AppState {
         defer { isLoading = false }
 
         do {
-            let listed = try await client.listDevices()
+            let listed = try await backend.listDevices()
             _ = applyDeviceList(listed, source: "refresh")
             errorMessage = nil
         } catch {
@@ -276,7 +522,7 @@ final class AppState {
         defer { isPollingDevices = false }
 
         do {
-            let listed = try await client.listDevices()
+            let listed = try await backend.listDevices()
             let changed = applyDeviceList(listed, source: "poll")
             if changed {
                 errorMessage = nil
@@ -407,7 +653,7 @@ final class AppState {
 
         let start = Date()
         do {
-            let fetched = try await client.readState(device: selectedDevice)
+            let fetched = try await backend.readState(device: selectedDevice)
             guard refreshRevision == applyCoordinator.stateRevision else {
                 AppLog.debug("AppState", "refreshState stale-drop rev=\(refreshRevision) current=\(applyCoordinator.stateRevision)")
                 return
@@ -917,7 +1163,7 @@ final class AppState {
             let fastRevision = applyCoordinator.stateRevision
 
         do {
-            guard let fast = try await client.readDpiStagesFast(device: selectedDevice) else { return }
+            guard let fast = try await backend.readDpiStagesFast(device: selectedDevice) else { return }
             if selectedDevice.transport == .usb {
                 lastUSBFastDpiAt = Date()
             }
@@ -995,7 +1241,7 @@ final class AppState {
 
         let start = Date()
         do {
-            let next = try await client.apply(device: selectedDevice, patch: patch)
+            let next = try await backend.apply(device: selectedDevice, patch: patch)
             let merged = next.merged(with: stateCacheByDeviceID[selectedDevice.id])
             stateCacheByDeviceID[selectedDevice.id] = merged
             if state != merged {
@@ -1007,6 +1253,7 @@ final class AppState {
                 // Avoid showing transient in-flight stage states from fast polling
                 // while BLE latching settles after a write.
                 suppressFastDpiUntil = Date().addingTimeInterval(0.9)
+                compactInteractionUntil = Date().addingTimeInterval(3.0)
             }
             lastUpdated = Date()
             if shouldHydrateEditableState {
@@ -1040,6 +1287,14 @@ final class AppState {
             }
             errorMessage = nil
             setTelemetryWarning(telemetryWarning(for: merged, device: selectedDevice), device: selectedDevice)
+            if patch.dpiStages != nil || patch.activeStage != nil {
+                let activeStage = (merged.dpi_stages.active_stage ?? 0) + 1
+                let activeValue = merged.dpi_stages.values?[max(0, min((merged.dpi_stages.values?.count ?? 1) - 1, activeStage - 1))]
+                    ?? merged.dpi?.x
+                    ?? compactActiveStageValue
+                serviceStatusMessage = "Stage \(activeStage) -> \(activeValue) DPI applied"
+                transientStatusUntil = Date().addingTimeInterval(3.0)
+            }
             AppLog.event(
                 "AppState",
                 "apply ok device=\(selectedDevice.id) active=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
@@ -1050,6 +1305,10 @@ final class AppState {
             AppLog.error("AppState", "apply failed device=\(selectedDevice.id): \(error.localizedDescription)")
             errorMessage = error.localizedDescription
             warningMessage = nil
+            if patch.dpiStages != nil || patch.activeStage != nil {
+                serviceStatusMessage = "DPI update failed"
+                transientStatusUntil = Date().addingTimeInterval(4.0)
+            }
         }
     }
 
@@ -1142,7 +1401,7 @@ final class AppState {
                 "hydrated Bluetooth lighting color from persisted cache id=\(device.id) rgb=(\(persisted.r),\(persisted.g),\(persisted.b))"
             )
         } else if device.transport == .bluetooth,
-                  let rgb = try? await client.readLightingColor(device: device) {
+                  let rgb = try? await backend.readLightingColor(device: device) {
             editableColor = RGBColor(r: rgb.r, g: rgb.g, b: rgb.b)
             persistLightingColor(editableColor, device: device)
             AppLog.debug("AppState", "hydrated Bluetooth lighting color from device id=\(device.id) rgb=(\(rgb.r),\(rgb.g),\(rgb.b))")
@@ -1245,13 +1504,13 @@ final class AppState {
 
         for slot in slots {
             do {
-                let persistentBlock = try await client.debugUSBReadButtonBinding(
+                let persistentBlock = try await backend.debugUSBReadButtonBinding(
                     device: device,
                     slot: slot,
                     profile: persistentProfile
                 )
                 let directBlock = shouldReadDirect
-                    ? try await client.debugUSBReadButtonBinding(device: device, slot: slot, profile: 0x00)
+                    ? try await backend.debugUSBReadButtonBinding(device: device, slot: slot, profile: 0x00)
                     : nil
                 let block = directBlock ?? persistentBlock
                 if let block {

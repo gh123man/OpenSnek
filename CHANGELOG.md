@@ -5,6 +5,8 @@ All notable changes to this project are documented in this file.
 ## [2026-03-10]
 
 ### Added
+- An optional menu bar background service for the macOS app, including a compact current-stage DPI widget with battery/status readout, quick refresh, and a fast path to launch the full windowed app while sharing the same backend owner.
+- Background-service settings in the macOS app for enabling the widget process and launching it automatically at startup, plus service-side logs under `~/Library/Logs/OpenSnek/`.
 - USB device-profile support for Razer Basilisk V3 35K (`0x00CB`) in the macOS app and shared Swift support layers, including its own button layout metadata and three-zone USB lighting IDs.
 - `OpenSnekProbe usb-raw`, a generic USB HID feature-report inspector for new-device bring-up and protocol verification.
 - Shared button-slot access metadata now distinguishes editable, protocol-read-only, and software-read-only controls so future device bring-up can document non-remappable buttons explicitly.
@@ -27,6 +29,7 @@ All notable changes to this project are documented in this file.
 - Python USB tooling now recognizes Basilisk V3 35K (`0x00CB`) and mirrors multi-zone USB lighting writes across all validated LED IDs.
 
 ### Changed
+- App-level polling is now runtime-owned instead of view-timer-owned, allowing the full app to keep its current cadence while the background widget drops to a slower idle cadence and only boosts polling when the menu is open or a DPI change was just applied.
 - Unsupported-button footnotes now use plain-language UI copy instead of protocol jargon, including the Basilisk V3 X HyperSpeed sniper/Hypershift note.
 - The polling-rate and scroll-control cards now align labels on the left and controls on the right to match the rest of the app.
 - The empty-state supported-devices list now uses smaller inline USB/BT pills so more devices fit cleanly in one row.

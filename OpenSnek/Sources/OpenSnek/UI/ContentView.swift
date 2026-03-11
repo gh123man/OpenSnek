@@ -15,21 +15,10 @@ struct ContentView: View {
         }
         .navigationSplitViewStyle(.automatic)
         .task {
-            async let deviceRefresh: Void = appState.refreshDevices()
-            async let updateCheck: Void = appState.checkForUpdates()
-            _ = await (deviceRefresh, updateCheck)
+            await appState.start()
         }
         .onChange(of: appState.selectedDeviceID) { _, _ in
             Task { await appState.refreshState() }
-        }
-        .onReceive(Timer.publish(every: 2.0, on: .main, in: .common).autoconnect()) { _ in
-            Task { await appState.refreshState() }
-        }
-        .onReceive(Timer.publish(every: 1.2, on: .main, in: .common).autoconnect()) { _ in
-            Task { await appState.pollDevicePresence() }
-        }
-        .onReceive(Timer.publish(every: 0.20, on: .main, in: .common).autoconnect()) { _ in
-            Task { await appState.refreshDpiFast() }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {

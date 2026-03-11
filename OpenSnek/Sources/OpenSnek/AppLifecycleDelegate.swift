@@ -6,16 +6,27 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown"
         AppLog.info("App", "launch version=\(version) build=\(build) logLevel=\(AppLog.currentLevel.shortLabel)")
 
+        if OpenSnekProcessRole.current.isService {
+            NSApp.setActivationPolicy(.accessory)
+            return
+        }
+
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             NSRunningApplication.current.activate(options: [.activateAllWindows])
             NSApp.windows.forEach { $0.makeKeyAndOrderFront(nil) }
+            if ProcessInfo.processInfo.arguments.contains("--open-settings") {
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            }
         }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if OpenSnekProcessRole.current.isService {
+            return false
+        }
         if !flag {
             sender.windows.forEach { $0.makeKeyAndOrderFront(nil) }
         }
@@ -23,6 +34,10 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+        !OpenSnekProcessRole.current.isService
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        BackgroundServiceCoordinator.shared.stopCurrentServiceHostIfNeeded()
     }
 }
