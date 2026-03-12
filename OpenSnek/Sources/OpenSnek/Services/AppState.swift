@@ -49,6 +49,45 @@ enum PollingProfile: Equatable {
     }
 }
 
+enum RuntimeWakeSchedule {
+    static let minimumSleepInterval: TimeInterval = 0.10
+
+    static func nextSleepInterval(
+        now: Date,
+        profile: PollingProfile,
+        usesRemoteServiceUpdates: Bool,
+        lastDevicePresencePollAt: Date,
+        lastRefreshStatePollAt: Date,
+        lastFastDpiPollAt: Date,
+        lastRemoteClientPresencePingAt: Date,
+        transientStatusUntil: Date?,
+        nextRemoteClientPresenceExpiry: Date?
+    ) -> TimeInterval {
+        var intervals: [TimeInterval] = []
+
+        if usesRemoteServiceUpdates {
+            intervals.append(max(0, 1.0 - now.timeIntervalSince(lastRemoteClientPresencePingAt)))
+        } else {
+            intervals.append(max(0, profile.devicePresenceInterval - now.timeIntervalSince(lastDevicePresencePollAt)))
+            intervals.append(max(0, profile.refreshStateInterval - now.timeIntervalSince(lastRefreshStatePollAt)))
+            if let fastInterval = profile.fastDpiInterval {
+                intervals.append(max(0, fastInterval - now.timeIntervalSince(lastFastDpiPollAt)))
+            }
+        }
+
+        if let transientStatusUntil {
+            intervals.append(max(0, transientStatusUntil.timeIntervalSince(now)))
+        }
+
+        if let nextRemoteClientPresenceExpiry {
+            intervals.append(max(0, nextRemoteClientPresenceExpiry.timeIntervalSince(now)))
+        }
+
+        let nextDue = intervals.filter { $0.isFinite && $0 >= 0 }.min() ?? 1.0
+        return max(minimumSleepInterval, nextDue)
+    }
+}
+
 @MainActor
 @Observable
 final class AppState {
@@ -420,7 +459,14 @@ final class AppState {
     }
 
     private func pruneExpiredRemoteClientPresence(now: Date) {
-        remoteClientPresenceByProcessID = remoteClientPresenceByProcessID.filter { $0.value.expiresAt > now }
+        guard !remoteClientPresenceByProcessID.isEmpty else { return }
+        let expiredProcessIDs = remoteClientPresenceByProcessID.compactMap { processID, state in
+            state.expiresAt <= now ? processID : nil
+        }
+        guard !expiredProcessIDs.isEmpty else { return }
+        for processID in expiredProcessIDs {
+            remoteClientPresenceByProcessID.removeValue(forKey: processID)
+        }
     }
 
     private func installCrossProcessObservers() {
@@ -451,11 +497,17 @@ final class AppState {
     func recordRemoteClientPresence(_ presence: CrossProcessClientPresence, now: Date = Date()) {
         guard launchRole.isService else { return }
         guard presence.sourceProcessID > 0 else { return }
+        let hadActiveRemoteClients = hasActiveRemoteClients(at: now)
         pruneExpiredRemoteClientPresence(now: now)
+        let previous = remoteClientPresenceByProcessID[presence.sourceProcessID]
         remoteClientPresenceByProcessID[presence.sourceProcessID] = RemoteClientPresenceState(
             expiresAt: now.addingTimeInterval(2.5),
             selectedDeviceID: presence.selectedDeviceID
         )
+        let selectedDeviceChanged = previous?.selectedDeviceID != presence.selectedDeviceID
+        if !hadActiveRemoteClients || selectedDeviceChanged {
+            requestImmediateRuntimePoll(resetPollingDeadlines: true)
+        }
     }
 
     func applyRemoteServiceSnapshot(_ snapshot: SharedServiceSnapshot) {
@@ -521,15 +573,21 @@ final class AppState {
         runtimeTask = Task { [weak self] in
             while let self, !Task.isCancelled {
                 await self.pollRuntimeOnce()
-                try? await Task.sleep(nanoseconds: 200_000_000)
+                let sleepInterval = self.runtimeSleepInterval(after: Date())
+                let sleepNanos = UInt64((sleepInterval * 1_000_000_000).rounded())
+                try? await Task.sleep(nanoseconds: sleepNanos)
             }
         }
     }
 
     func setCompactMenuPresented(_ isPresented: Bool) {
+        let presentationChanged = compactMenuPresented != isPresented
         compactMenuPresented = isPresented
         if isPresented {
             compactInteractionUntil = Date().addingTimeInterval(3.0)
+            if presentationChanged {
+                requestImmediateRuntimePoll(resetPollingDeadlines: true)
+            }
         }
     }
 
@@ -637,6 +695,24 @@ final class AppState {
         }
     }
 
+    func runtimeSleepInterval(after now: Date) -> TimeInterval {
+        RuntimeWakeSchedule.nextSleepInterval(
+            now: now,
+            profile: pollingProfile(at: now),
+            usesRemoteServiceUpdates: usesRemoteServiceUpdates,
+            lastDevicePresencePollAt: lastDevicePresencePollAt,
+            lastRefreshStatePollAt: lastRefreshStatePollAt,
+            lastFastDpiPollAt: lastFastDpiPollAt,
+            lastRemoteClientPresencePingAt: lastRemoteClientPresencePingAt,
+            transientStatusUntil: transientStatusUntil,
+            nextRemoteClientPresenceExpiry: remoteClientPresenceByProcessID
+                .values
+                .map(\.expiresAt)
+                .filter { $0 > now }
+                .min()
+        )
+    }
+
     private func pollRuntimeOnce() async {
         let now = Date()
         let profile = pollingProfile(at: now)
@@ -677,6 +753,18 @@ final class AppState {
             if compactStatusMessage == nil {
                 serviceStatusMessage = nil
             }
+        }
+    }
+
+    private func requestImmediateRuntimePoll(resetPollingDeadlines: Bool) {
+        guard didStartRuntime else { return }
+        if resetPollingDeadlines {
+            lastDevicePresencePollAt = .distantPast
+            lastRefreshStatePollAt = .distantPast
+            lastFastDpiPollAt = .distantPast
+        }
+        Task { [weak self] in
+            await self?.pollRuntimeOnce()
         }
     }
 

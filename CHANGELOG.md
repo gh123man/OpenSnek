@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [2026-03-12]
 
 ### Fixed
+- Reduced idle background-service CPU usage by stopping redundant 200 ms runtime wakeups and avoiding unnecessary remote-client-presence state churn that kept the menu bar UI relayout path active even when the service was idle.
 - When the background service is already running, clicking the Dock icon or otherwise reopening the app now hands off to a real windowed app instance instead of leaving the accessory-only service process active with no visible UI.
 - Choosing `Quit` from the menu bar service now closes both the compact service and any open full app window instances, instead of only terminating the service process.
 - Multi-device service ownership now keeps baseline state polling per-device instead of per-selected-device, so the menu bar UI and main window can stay focused on different mice without either one going stale or falling into `Poll Delayed`.

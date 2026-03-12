@@ -54,4 +54,58 @@ final class ServiceModeTests: XCTestCase {
         let profile = await MainActor.run { appState.currentPollingProfile }
         XCTAssertEqual(profile, .foreground)
     }
+
+    func testRuntimeWakeScheduleBacksOffToIdlePresenceDeadline() {
+        let now = Date(timeIntervalSince1970: 1_773_400_000)
+
+        let sleep = RuntimeWakeSchedule.nextSleepInterval(
+            now: now,
+            profile: .serviceIdle,
+            usesRemoteServiceUpdates: false,
+            lastDevicePresencePollAt: now,
+            lastRefreshStatePollAt: now,
+            lastFastDpiPollAt: now,
+            lastRemoteClientPresencePingAt: .distantPast,
+            transientStatusUntil: nil,
+            nextRemoteClientPresenceExpiry: nil
+        )
+
+        XCTAssertEqual(sleep, 4.0, accuracy: 0.001)
+    }
+
+    func testRuntimeWakeScheduleKeepsInteractiveFastPollingCadence() {
+        let now = Date(timeIntervalSince1970: 1_773_400_100)
+
+        let sleep = RuntimeWakeSchedule.nextSleepInterval(
+            now: now,
+            profile: .serviceInteractive,
+            usesRemoteServiceUpdates: false,
+            lastDevicePresencePollAt: now,
+            lastRefreshStatePollAt: now,
+            lastFastDpiPollAt: now,
+            lastRemoteClientPresencePingAt: .distantPast,
+            transientStatusUntil: nil,
+            nextRemoteClientPresenceExpiry: nil
+        )
+
+        XCTAssertEqual(sleep, 0.25, accuracy: 0.001)
+    }
+
+    func testRuntimeWakeScheduleUsesRemotePresencePingDeadline() {
+        let now = Date(timeIntervalSince1970: 1_773_400_200)
+
+        let sleep = RuntimeWakeSchedule.nextSleepInterval(
+            now: now,
+            profile: .foreground,
+            usesRemoteServiceUpdates: true,
+            lastDevicePresencePollAt: .distantPast,
+            lastRefreshStatePollAt: .distantPast,
+            lastFastDpiPollAt: .distantPast,
+            lastRemoteClientPresencePingAt: now,
+            transientStatusUntil: nil,
+            nextRemoteClientPresenceExpiry: nil
+        )
+
+        XCTAssertEqual(sleep, 1.0, accuracy: 0.001)
+    }
 }
