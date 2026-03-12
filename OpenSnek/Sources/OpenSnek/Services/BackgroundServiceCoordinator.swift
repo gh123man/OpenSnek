@@ -28,6 +28,10 @@ final class BackgroundServiceCoordinator {
     init(defaults: UserDefaults = .standard, fileManager: FileManager = .default) {
         self.defaults = defaults
         self.fileManager = fileManager
+        self.defaults.register(defaults: [
+            Self.backgroundServiceEnabledDefaultsKey: true,
+            Self.launchAtStartupDefaultsKey: false,
+        ])
     }
 
     var backgroundServiceEnabled: Bool {

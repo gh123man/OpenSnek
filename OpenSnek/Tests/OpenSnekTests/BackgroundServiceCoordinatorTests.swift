@@ -3,6 +3,19 @@ import XCTest
 @testable import OpenSnek
 
 final class BackgroundServiceCoordinatorTests: XCTestCase {
+    func testFreshInstallDefaultsEnableMenuBarIcon() async {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let coordinator = await MainActor.run {
+            BackgroundServiceCoordinator(defaults: defaults)
+        }
+
+        let backgroundServiceEnabled = await MainActor.run { coordinator.backgroundServiceEnabled }
+        let launchAtStartupEnabled = await MainActor.run { coordinator.launchAtStartupEnabled }
+
+        XCTAssertTrue(backgroundServiceEnabled)
+        XCTAssertFalse(launchAtStartupEnabled)
+    }
+
     func testPreferredReusableApplicationPrefersActiveRegularApp() {
         let selected = BackgroundServiceCoordinator.preferredReusableApplication(
             in: [

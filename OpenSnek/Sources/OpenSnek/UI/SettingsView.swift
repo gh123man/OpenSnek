@@ -19,20 +19,20 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section("Background Service") {
-                Toggle("Enable menu bar service", isOn: Binding(
+                Toggle("Menu bar icon", isOn: Binding(
                     get: { appState.backgroundServiceEnabled },
                     set: { newValue in
                         Task { await appState.setBackgroundServiceEnabled(newValue) }
                     }
                 ))
 
-                Toggle("Launch menu bar service at startup", isOn: Binding(
+                Toggle("Start at login", isOn: Binding(
                     get: { appState.launchAtStartupEnabled },
                     set: { appState.setLaunchAtStartupEnabled($0) }
                 ))
                 .disabled(!appState.backgroundServiceEnabled)
 
-                Text("When enabled, Open Snek keeps a compact menu bar widget running as a separate background instance. The full app can still be launched at any time.")
+                Text("When enabled, Open Snek keeps a compact menu bar icon running as a separate background instance. The full app can still be launched at any time.")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
 

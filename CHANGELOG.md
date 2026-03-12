@@ -30,6 +30,7 @@ All notable changes to this project are documented in this file.
 - Restoring the Basilisk V3 35K top DPI button now preserves its observed default USB payload (`04 02 0F 7B 00 00 00`) instead of falling back to the generic DPI-cycle block.
 
 ### Changed
+- Fresh installs now default the menu bar icon to enabled, and the settings labels now read `Menu bar icon` and `Start at login` to match the intended behavior more closely.
 - The menu bar status glyph and the full app title bar now use the provided `snek-menu.png` branding at a smaller fitted size, and local `.dist` bundle builds now copy that resource into the app so the icon shows up outside Xcode builds.
 - Standardized app-icon generation around `OpenSnek/Branding/AppIcon-master.png` so the checked-in asset catalog, local `.app` bundle builds, and DMG artwork all use the same source image.
 - Reduced the exported icon's optical size slightly to give the Dock icon more breathing room on macOS versions where the previous full-bleed artwork read as oversized.
