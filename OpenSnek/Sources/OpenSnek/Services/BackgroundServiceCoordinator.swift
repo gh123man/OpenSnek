@@ -9,6 +9,7 @@ final class BackgroundServiceCoordinator {
 
     nonisolated static let backgroundServiceEnabledDefaultsKey = "backgroundServiceEnabled"
     nonisolated static let launchAtStartupDefaultsKey = "launchServiceAtStartup"
+    nonisolated static let menuBarDefaultMigrationDefaultsKey = "didMigrateMenuBarIconDefault"
     nonisolated static let endpointDefaultsKey = "backgroundServiceEndpoint"
     nonisolated static let portDefaultsKey = "backgroundServicePort"
     nonisolated static let pidDefaultsKey = "backgroundServicePID"
@@ -32,6 +33,10 @@ final class BackgroundServiceCoordinator {
             Self.backgroundServiceEnabledDefaultsKey: true,
             Self.launchAtStartupDefaultsKey: false,
         ])
+        if !self.defaults.bool(forKey: Self.menuBarDefaultMigrationDefaultsKey) {
+            self.defaults.set(true, forKey: Self.backgroundServiceEnabledDefaultsKey)
+            self.defaults.set(true, forKey: Self.menuBarDefaultMigrationDefaultsKey)
+        }
     }
 
     var backgroundServiceEnabled: Bool {

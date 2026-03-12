@@ -16,6 +16,21 @@ final class BackgroundServiceCoordinatorTests: XCTestCase {
         XCTAssertFalse(launchAtStartupEnabled)
     }
 
+    func testOneTimeMigrationTurnsMenuBarIconOnForExistingInstall() async {
+        let suiteName = UUID().uuidString
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults.set(false, forKey: BackgroundServiceCoordinator.backgroundServiceEnabledDefaultsKey)
+
+        let coordinator = await MainActor.run {
+            BackgroundServiceCoordinator(defaults: defaults)
+        }
+
+        let backgroundServiceEnabled = await MainActor.run { coordinator.backgroundServiceEnabled }
+        XCTAssertTrue(backgroundServiceEnabled)
+        XCTAssertTrue(defaults.bool(forKey: BackgroundServiceCoordinator.menuBarDefaultMigrationDefaultsKey))
+    }
+
     func testPreferredReusableApplicationPrefersActiveRegularApp() {
         let selected = BackgroundServiceCoordinator.preferredReusableApplication(
             in: [

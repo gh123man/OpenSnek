@@ -1546,14 +1546,6 @@ final class AppState {
             }
             errorMessage = nil
             setTelemetryWarning(telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)
-            if patch.dpiStages != nil || patch.activeStage != nil {
-                let activeStage = (merged.dpi_stages.active_stage ?? 0) + 1
-                let activeValue = merged.dpi_stages.values?[max(0, min((merged.dpi_stages.values?.count ?? 1) - 1, activeStage - 1))]
-                    ?? merged.dpi?.x
-                    ?? compactActiveStageValue
-                serviceStatusMessage = "Stage \(activeStage) -> \(activeValue) DPI applied"
-                transientStatusUntil = Date().addingTimeInterval(3.0)
-            }
             AppLog.event(
                 "AppState",
                 "apply ok device=\(presentationDevice.id) active=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
