@@ -2,7 +2,7 @@
 import IOKit.hid
 import OpenSnekCore
 
-public struct USBPassiveDPIReading: Hashable, Codable, Sendable {
+public struct PassiveDPIReading: Hashable, Codable, Sendable {
     public let dpiX: Int
     public let dpiY: Int
 
@@ -12,7 +12,7 @@ public struct USBPassiveDPIReading: Hashable, Codable, Sendable {
     }
 }
 
-public struct USBPassiveDPIEvent: Hashable, Sendable {
+public struct PassiveDPIEvent: Hashable, Sendable {
     public let deviceID: String
     public let dpiX: Int
     public let dpiY: Int
@@ -26,36 +26,50 @@ public struct USBPassiveDPIEvent: Hashable, Sendable {
     }
 }
 
-public enum USBPassiveDPIParser {
+public enum PassiveDPIParser {
     public static func parse(
         report: [UInt8],
-        descriptor: USBPassiveDPIInputDescriptor
-    ) -> USBPassiveDPIReading? {
+        descriptor: PassiveDPIInputDescriptor
+    ) -> PassiveDPIReading? {
         guard report.count >= descriptor.minInputReportSize else { return nil }
 
-        let payloadStart: Int
-        if report.first == descriptor.reportID {
-            guard report.count >= 6, report[1] == descriptor.subtype else { return nil }
-            payloadStart = 1
-        } else {
-            guard report.count >= 5, report[0] == descriptor.subtype else { return nil }
-            payloadStart = 0
-        }
+        let payloadStart = payloadStartIndex(in: report, descriptor: descriptor)
+        guard let payloadStart, report.count > payloadStart + 4 else { return nil }
 
         let dpiX = (Int(report[payloadStart + 1]) << 8) | Int(report[payloadStart + 2])
         let dpiY = (Int(report[payloadStart + 3]) << 8) | Int(report[payloadStart + 4])
         guard (100...30_000).contains(dpiX), (100...30_000).contains(dpiY) else { return nil }
-        return USBPassiveDPIReading(dpiX: dpiX, dpiY: dpiY)
+        return PassiveDPIReading(dpiX: dpiX, dpiY: dpiY)
+    }
+
+    private static func payloadStartIndex(
+        in report: [UInt8],
+        descriptor: PassiveDPIInputDescriptor
+    ) -> Int? {
+        if report.first == descriptor.subtype {
+            return 0
+        }
+
+        var index = 0
+        while index < report.count, report[index] == descriptor.reportID {
+            let candidate = index + 1
+            if candidate < report.count, report[candidate] == descriptor.subtype {
+                return candidate
+            }
+            index += 1
+        }
+
+        return nil
     }
 }
 
-public final class USBPassiveDPIEventMonitor: @unchecked Sendable {
+public final class PassiveDPIEventMonitor: @unchecked Sendable {
     public struct WatchTarget: @unchecked Sendable {
         public let deviceID: String
         public let device: IOHIDDevice
-        public let descriptor: USBPassiveDPIInputDescriptor
+        public let descriptor: PassiveDPIInputDescriptor
 
-        public init(deviceID: String, device: IOHIDDevice, descriptor: USBPassiveDPIInputDescriptor) {
+        public init(deviceID: String, device: IOHIDDevice, descriptor: PassiveDPIInputDescriptor) {
             self.deviceID = deviceID
             self.device = device
             self.descriptor = descriptor
@@ -64,10 +78,10 @@ public final class USBPassiveDPIEventMonitor: @unchecked Sendable {
 
     private final class CallbackContext {
         let deviceID: String
-        let descriptor: USBPassiveDPIInputDescriptor
-        let emit: @Sendable (USBPassiveDPIEvent) -> Void
+        let descriptor: PassiveDPIInputDescriptor
+        let emit: @Sendable (PassiveDPIEvent) -> Void
 
-        init(deviceID: String, descriptor: USBPassiveDPIInputDescriptor, emit: @escaping @Sendable (USBPassiveDPIEvent) -> Void) {
+        init(deviceID: String, descriptor: PassiveDPIInputDescriptor, emit: @escaping @Sendable (PassiveDPIEvent) -> Void) {
             self.deviceID = deviceID
             self.descriptor = descriptor
             self.emit = emit
@@ -83,15 +97,15 @@ public final class USBPassiveDPIEventMonitor: @unchecked Sendable {
         let deviceID: String
         let device: IOHIDDevice
         let devicePointer: UInt
-        let descriptor: USBPassiveDPIInputDescriptor
+        let descriptor: PassiveDPIInputDescriptor
         let buffer: UnsafeMutablePointer<UInt8>
         let bufferLength: CFIndex
         let context: UnsafeMutableRawPointer
     }
 
-    public var onEvent: (@Sendable (USBPassiveDPIEvent) -> Void)?
+    public var onEvent: (@Sendable (PassiveDPIEvent) -> Void)?
 
-    private let queue = DispatchQueue(label: "open.snek.usb.passive-dpi")
+    private let queue = DispatchQueue(label: "open.snek.hid.passive-dpi")
     private let runLoopStateLock = NSLock()
     private var runLoop: CFRunLoop?
     private var thread: Thread?
@@ -143,7 +157,7 @@ public final class USBPassiveDPIEventMonitor: @unchecked Sendable {
                 }
             }
         }
-        thread.name = "open.snek.usb.passive-dpi"
+        thread.name = "open.snek.hid.passive-dpi"
         runLoopStateLock.lock()
         self.thread = thread
         runLoopStateLock.unlock()
@@ -249,9 +263,9 @@ public final class USBPassiveDPIEventMonitor: @unchecked Sendable {
         guard result == kIOReturnSuccess, reportType == kIOHIDReportTypeInput, let context else { return }
         let callbackContext = Unmanaged<CallbackContext>.fromOpaque(context).takeUnretainedValue()
         let bytes = Array(UnsafeBufferPointer(start: report, count: max(0, reportLength)))
-        guard let reading = USBPassiveDPIParser.parse(report: bytes, descriptor: callbackContext.descriptor) else { return }
+        guard let reading = PassiveDPIParser.parse(report: bytes, descriptor: callbackContext.descriptor) else { return }
         callbackContext.emit(
-            USBPassiveDPIEvent(
+            PassiveDPIEvent(
                 deviceID: callbackContext.deviceID,
                 dpiX: reading.dpiX,
                 dpiY: reading.dpiY,

@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [2026-03-12]
 
 ### Fixed
+- On the validated Basilisk V3 X HyperSpeed Bluetooth path (`0x00BA`), Open Snek now listens for passive HID DPI input reports and applies those cached-state updates immediately, then disables Bluetooth fast DPI polling for that device after the first live passive event is observed.
 - On the validated Basilisk V3 Pro USB path (`0x00AB`), Open Snek now listens for the mouse's passive DPI input report and applies those updates to cached state immediately, removing the old 200 ms fast-poll lag for on-device DPI changes while keeping the slower full USB state poll for other controls.
 - The bridge now keeps its HID discovery manager alive while the app is running, which lets the Basilisk V3 Pro USB passive DPI listener continue receiving live input reports after device discovery instead of going silent once enumeration finished.
 - USB fast DPI polling now stays enabled until that passive Basilisk V3 Pro input report is actually observed at runtime, preventing a regression to the slower full-state poll when macOS registers the listener but does not deliver live HID events.

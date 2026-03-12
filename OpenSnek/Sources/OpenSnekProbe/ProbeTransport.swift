@@ -41,7 +41,7 @@ private struct USBProbeDeviceCandidate: @unchecked Sendable {
     let maxInputReportSize: Int
     let maxFeatureReportSize: Int
     let score: Int
-    let passiveDescriptor: USBPassiveDPIInputDescriptor?
+    let passiveDescriptor: PassiveDPIInputDescriptor?
 
     var usageLabel: String {
         String(format: "0x%02x:0x%02x", usagePage, usage)
@@ -79,7 +79,7 @@ private func enumerateUSBProbeCandidates(preferredProductID: Int? = nil) throws 
         throw ProbeError.protocolError("No USB Razer HID device found")
     }
 
-    var gathered: [(device: IOHIDDevice, deviceID: String, productID: Int, productName: String, locationID: Int, usagePage: Int, usage: Int, maxInputReportSize: Int, maxFeatureReportSize: Int, score: Int, passiveDescriptor: USBPassiveDPIInputDescriptor?)] = []
+    var gathered: [(device: IOHIDDevice, deviceID: String, productID: Int, productName: String, locationID: Int, usagePage: Int, usage: Int, maxInputReportSize: Int, maxFeatureReportSize: Int, score: Int, passiveDescriptor: PassiveDPIInputDescriptor?)] = []
     for candidate in rawSet {
         guard
             USBHIDSupport.intProperty(candidate, key: kIOHIDVendorIDKey as CFString) == usbVID,
@@ -98,7 +98,7 @@ private func enumerateUSBProbeCandidates(preferredProductID: Int? = nil) throws 
         let maxFeatureReportSize = USBHIDSupport.intProperty(candidate, key: kIOHIDMaxFeatureReportSizeKey as CFString) ?? 0
         let score = USBHIDSupport.handlePreferenceScore(device: candidate)
         let productName = USBHIDSupport.stringProperty(candidate, key: kIOHIDProductKey as CFString) ?? "Razer HID Device"
-        let passiveDescriptor = DeviceProfiles.resolve(vendorID: usbVID, productID: product, transport: .usb)?.usbPassiveDPIInput
+        let passiveDescriptor = DeviceProfiles.resolve(vendorID: usbVID, productID: product, transport: .usb)?.passiveDPIInput
 
         gathered.append((
             device: candidate,
@@ -279,7 +279,7 @@ struct USBInputReportEvent: Sendable {
     let maxFeatureReportSize: Int
     let report: [UInt8]
     let elapsedSeconds: Double
-    let passiveDPI: USBPassiveDPIReading?
+    let passiveDPI: PassiveDPIReading?
 
     var usageLabel: String {
         String(format: "0x%02x:0x%02x", usagePage, usage)
@@ -437,7 +437,7 @@ final class USBInputReportProbe: @unchecked Sendable {
             guard let self else { return }
             let observedAt = Date()
             let passiveDPI = candidate.passiveDescriptor.flatMap {
-                USBPassiveDPIParser.parse(report: report, descriptor: $0)
+                PassiveDPIParser.parse(report: report, descriptor: $0)
             }
             self.incrementReportCount()
             onReport(

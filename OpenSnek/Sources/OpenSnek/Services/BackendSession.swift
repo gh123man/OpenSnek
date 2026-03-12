@@ -46,9 +46,9 @@ private final class DistributedObserverToken: @unchecked Sendable {
     }
 }
 
-func mergedStateFromPassiveUSBDpiEvent(
+func mergedStateFromPassiveDpiEvent(
     previous: MouseState?,
-    event: USBPassiveDPIEvent
+    event: PassiveDPIEvent
 ) -> MouseState? {
     guard let previous, let stageValues = previous.dpi_stages.values, !stageValues.isEmpty else { return nil }
 
@@ -300,9 +300,9 @@ final actor LocalBridgeBackend: DeviceBackend {
     init() {
         Task { [weak self] in
             guard let self else { return }
-            let stream = await self.client.usbPassiveDpiEventStream()
+            let stream = await self.client.passiveDpiEventStream()
             for await event in stream {
-                await self.handlePassiveUSBDpiEvent(event)
+                await self.handlePassiveDpiEvent(event)
             }
         }
     }
@@ -418,8 +418,8 @@ final actor LocalBridgeBackend: DeviceBackend {
         cachedStateAtByDeviceID[deviceID] = Date()
     }
 
-    private func handlePassiveUSBDpiEvent(_ event: USBPassiveDPIEvent) {
-        guard let updated = mergedStateFromPassiveUSBDpiEvent(
+    private func handlePassiveDpiEvent(_ event: PassiveDPIEvent) {
+        guard let updated = mergedStateFromPassiveDpiEvent(
             previous: cachedStateByDeviceID[event.deviceID],
             event: event
         ) else {

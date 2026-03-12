@@ -10,14 +10,14 @@ actor BridgeClient {
     var deviceSessions: [String: USBHIDControlSession] = [:]
     var deviceSessionCandidates: [String: [USBHIDControlSession]] = [:]
     var lastStateByDeviceID: [String: MouseState] = [:]
-    var usbPassiveDpiEventContinuations: [UUID: AsyncStream<USBPassiveDPIEvent>.Continuation] = [:]
-    var usbPassiveDpiArmedDeviceIDs: Set<String> = []
-    var usbPassiveDpiObservedDeviceIDs: Set<String> = []
+    var passiveDpiEventContinuations: [UUID: AsyncStream<PassiveDPIEvent>.Continuation] = [:]
+    var passiveDpiArmedDeviceIDs: Set<String> = []
+    var passiveDpiObservedDeviceIDs: Set<String> = []
     var btReqID: UInt8 = 0x30
     var btDpiSnapshotByDeviceID: [String: (active: Int, count: Int, slots: [Int], stageIDs: [UInt8], marker: UInt8)] = [:]
     var btExpectedDpiByDeviceID: [String: (active: Int, values: [Int], expiresAt: Date, remainingMasks: Int)] = [:]
     let btVendorClient = BLEVendorTransportClient()
-    let usbPassiveDpiMonitor = USBPassiveDPIEventMonitor()
+    let passiveDpiMonitor = PassiveDPIEventMonitor()
     var btExchangeLocked = false
     var btExchangeWaiters: [CheckedContinuation<Void, Never>] = []
     var hidAccessDenied = false
@@ -30,20 +30,20 @@ actor BridgeClient {
     private var hidManagerOpenResult: IOReturn?
 
     init() {
-        usbPassiveDpiMonitor.onEvent = { [weak self] event in
+        passiveDpiMonitor.onEvent = { [weak self] event in
             Task {
-                await self?.handleUSBPassiveDpiEvent(event)
+                await self?.handlePassiveDpiEvent(event)
             }
         }
     }
 
-    func usbPassiveDpiEventStream() -> AsyncStream<USBPassiveDPIEvent> {
+    func passiveDpiEventStream() -> AsyncStream<PassiveDPIEvent> {
         let id = UUID()
-        let (stream, continuation) = AsyncStream.makeStream(of: USBPassiveDPIEvent.self)
-        usbPassiveDpiEventContinuations[id] = continuation
+        let (stream, continuation) = AsyncStream.makeStream(of: PassiveDPIEvent.self)
+        passiveDpiEventContinuations[id] = continuation
         continuation.onTermination = { @Sendable [weak self] _ in
             Task {
-                await self?.removeUSBPassiveDpiContinuation(id: id)
+                await self?.removePassiveDpiContinuation(id: id)
             }
         }
         return stream
@@ -52,25 +52,25 @@ actor BridgeClient {
     func shouldUseFastDPIPolling(device: MouseDevice) -> Bool {
         Self.shouldUseFastDPIPolling(
             device: device,
-            armedPassiveDpiDeviceIDs: usbPassiveDpiArmedDeviceIDs,
-            observedPassiveDpiDeviceIDs: usbPassiveDpiObservedDeviceIDs
+            armedPassiveDpiDeviceIDs: passiveDpiArmedDeviceIDs,
+            observedPassiveDpiDeviceIDs: passiveDpiObservedDeviceIDs
         )
     }
 
-    private func removeUSBPassiveDpiContinuation(id: UUID) {
-        usbPassiveDpiEventContinuations.removeValue(forKey: id)
+    private func removePassiveDpiContinuation(id: UUID) {
+        passiveDpiEventContinuations.removeValue(forKey: id)
     }
 
-    private func handleUSBPassiveDpiEvent(_ event: USBPassiveDPIEvent) {
-        guard usbPassiveDpiArmedDeviceIDs.contains(event.deviceID) else { return }
-        let firstObserved = usbPassiveDpiObservedDeviceIDs.insert(event.deviceID).inserted
+    private func handlePassiveDpiEvent(_ event: PassiveDPIEvent) {
+        guard passiveDpiArmedDeviceIDs.contains(event.deviceID) else { return }
+        let firstObserved = passiveDpiObservedDeviceIDs.insert(event.deviceID).inserted
         if firstObserved {
             AppLog.event(
                 "Bridge",
-                "usbPassiveDpi observed device=\(event.deviceID); disabling USB fast DPI polling for this device"
+                "passiveDpi observed device=\(event.deviceID); disabling fast DPI polling for this device"
             )
         }
-        for continuation in usbPassiveDpiEventContinuations.values {
+        for continuation in passiveDpiEventContinuations.values {
             continuation.yield(event)
         }
     }
@@ -122,7 +122,7 @@ actor BridgeClient {
 
         var modelsByID: [String: MouseDevice] = [:]
         var sessionsByID: [String: [(score: Int, session: USBHIDControlSession)]] = [:]
-        var passiveDpiTargets: [USBPassiveDPIEventMonitor.WatchTarget] = []
+        var passiveDpiTargets: [PassiveDPIEventMonitor.WatchTarget] = []
         for device in devices {
             guard let vendor = USBHIDSupport.intProperty(device, key: kIOHIDVendorIDKey as CFString),
                   (vendor == usbVID || vendor == btVID),
@@ -155,7 +155,7 @@ actor BridgeClient {
                 modelsByID[id] = model
             }
 
-            if let passiveTarget = usbPassiveDpiWatchTarget(
+            if let passiveTarget = passiveDpiWatchTarget(
                 for: device,
                 deviceID: id,
                 profile: profile,
@@ -182,8 +182,8 @@ actor BridgeClient {
         }
         deviceSessionCandidates = candidatesByID
         deviceSessions = preferredSessionsByID
-        usbPassiveDpiArmedDeviceIDs = await usbPassiveDpiMonitor.replaceTargets(passiveDpiTargets)
-        usbPassiveDpiObservedDeviceIDs.formIntersection(usbPassiveDpiArmedDeviceIDs)
+        passiveDpiArmedDeviceIDs = await passiveDpiMonitor.replaceTargets(passiveDpiTargets)
+        passiveDpiObservedDeviceIDs.formIntersection(passiveDpiArmedDeviceIDs)
         var result = Array(modelsByID.values)
 
         let hasBluetoothDevice = result.contains(where: { $0.transport == .bluetooth })
@@ -218,13 +218,13 @@ actor BridgeClient {
         return sorted
     }
 
-    private func usbPassiveDpiWatchTarget(
+    private func passiveDpiWatchTarget(
         for device: IOHIDDevice,
         deviceID: String,
         profile: DeviceProfile?,
         transport: DeviceTransportKind
-    ) -> USBPassiveDPIEventMonitor.WatchTarget? {
-        guard transport == .usb, let descriptor = profile?.usbPassiveDPIInput else { return nil }
+    ) -> PassiveDPIEventMonitor.WatchTarget? {
+        guard transport == .usb || transport == .bluetooth, let descriptor = profile?.passiveDPIInput else { return nil }
 
         let usagePage = USBHIDSupport.intProperty(device, key: kIOHIDPrimaryUsagePageKey as CFString) ?? -1
         let usage = USBHIDSupport.intProperty(device, key: kIOHIDPrimaryUsageKey as CFString) ?? -1
@@ -241,7 +241,7 @@ actor BridgeClient {
             return nil
         }
 
-        return USBPassiveDPIEventMonitor.WatchTarget(deviceID: deviceID, device: device, descriptor: descriptor)
+        return PassiveDPIEventMonitor.WatchTarget(deviceID: deviceID, device: device, descriptor: descriptor)
     }
 
     nonisolated static func shouldUseFastDPIPolling(
@@ -249,7 +249,6 @@ actor BridgeClient {
         armedPassiveDpiDeviceIDs: Set<String>,
         observedPassiveDpiDeviceIDs: Set<String>
     ) -> Bool {
-        guard device.transport == .usb else { return true }
         guard armedPassiveDpiDeviceIDs.contains(device.id) else { return true }
         return !observedPassiveDpiDeviceIDs.contains(device.id)
     }

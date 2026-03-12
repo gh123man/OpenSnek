@@ -6,7 +6,7 @@ import OpenSnekHardware
 
 final class USBPassiveDPIEventTests: XCTestCase {
     func testPassiveUSBMonitorReplaceTargetsReturnsForEmptyList() async throws {
-        let monitor = USBPassiveDPIEventMonitor()
+        let monitor = PassiveDPIEventMonitor()
 
         let active = try await withAsyncTimeout(seconds: 1.0) {
             await monitor.replaceTargets([])
@@ -15,7 +15,7 @@ final class USBPassiveDPIEventTests: XCTestCase {
         XCTAssertTrue(active.isEmpty)
     }
 
-    func testPassiveUSBFastPollingFallsBackUntilRealEventIsObserved() {
+    func testPassiveDpiFastPollingFallsBackUntilRealEventIsObserved() {
         let usbDevice = makePassiveTestDevice(id: "usb-passive-gating", transport: .usb)
         let bluetoothDevice = makePassiveTestDevice(id: "bt-passive-gating", transport: .bluetooth)
 
@@ -40,7 +40,7 @@ final class USBPassiveDPIEventTests: XCTestCase {
                 observedPassiveDpiDeviceIDs: [usbDevice.id]
             )
         )
-        XCTAssertTrue(
+        XCTAssertFalse(
             BridgeClient.shouldUseFastDPIPolling(
                 device: bluetoothDevice,
                 armedPassiveDpiDeviceIDs: [bluetoothDevice.id],
@@ -49,44 +49,57 @@ final class USBPassiveDPIEventTests: XCTestCase {
         )
     }
 
-    func testPassiveUSBParserAcceptsObservedV3ProFrames() {
+    func testPassiveDPIParserAcceptsObservedUSBAndBluetoothFrames() {
         let descriptor = try! XCTUnwrap(
-            DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00AB, transport: .usb)?.usbPassiveDPIInput
+            DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00AB, transport: .usb)?.passiveDPIInput
         )
 
-        let staged800 = USBPassiveDPIParser.parse(
+        let staged800 = PassiveDPIParser.parse(
             report: [0x05, 0x02, 0x03, 0x20, 0x03, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
             descriptor: descriptor
         )
-        let staged2000 = USBPassiveDPIParser.parse(
+        let staged2000 = PassiveDPIParser.parse(
             report: [0x05, 0x02, 0x07, 0xD0, 0x07, 0xD0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
             descriptor: descriptor
         )
-        let staged1100 = USBPassiveDPIParser.parse(
+        let staged1100 = PassiveDPIParser.parse(
             report: [0x02, 0x04, 0x4C, 0x04, 0x4C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
             descriptor: descriptor
         )
-        let shortObservedFrame = USBPassiveDPIParser.parse(
+        let shortObservedFrame = PassiveDPIParser.parse(
             report: [0x05, 0x02, 0x04, 0x4C, 0x04, 0x4C, 0x00, 0x00],
             descriptor: descriptor
         )
+        let bluetoothDescriptor = try! XCTUnwrap(
+            DeviceProfiles.resolve(vendorID: 0x068E, productID: 0x00BA, transport: .bluetooth)?.passiveDPIInput
+        )
+        let bluetoothDuplicatedReportID = PassiveDPIParser.parse(
+            report: [0x05, 0x05, 0x02, 0x07, 0xD0, 0x07, 0xD0, 0x00, 0x00],
+            descriptor: bluetoothDescriptor
+        )
+        let bluetoothSingleReportID = PassiveDPIParser.parse(
+            report: [0x05, 0x02, 0x03, 0x20, 0x03, 0x20, 0x00, 0x00, 0x00],
+            descriptor: bluetoothDescriptor
+        )
 
-        XCTAssertEqual(staged800, USBPassiveDPIReading(dpiX: 800, dpiY: 800))
-        XCTAssertEqual(staged2000, USBPassiveDPIReading(dpiX: 2000, dpiY: 2000))
-        XCTAssertEqual(staged1100, USBPassiveDPIReading(dpiX: 1100, dpiY: 1100))
-        XCTAssertEqual(shortObservedFrame, USBPassiveDPIReading(dpiX: 1100, dpiY: 1100))
+        XCTAssertEqual(staged800, PassiveDPIReading(dpiX: 800, dpiY: 800))
+        XCTAssertEqual(staged2000, PassiveDPIReading(dpiX: 2000, dpiY: 2000))
+        XCTAssertEqual(staged1100, PassiveDPIReading(dpiX: 1100, dpiY: 1100))
+        XCTAssertEqual(shortObservedFrame, PassiveDPIReading(dpiX: 1100, dpiY: 1100))
+        XCTAssertEqual(bluetoothDuplicatedReportID, PassiveDPIReading(dpiX: 2000, dpiY: 2000))
+        XCTAssertEqual(bluetoothSingleReportID, PassiveDPIReading(dpiX: 800, dpiY: 800))
     }
 
     func testPassiveUSBParserRejectsInvalidSubtypeAndOutOfRangeValues() {
         let descriptor = try! XCTUnwrap(
-            DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00AB, transport: .usb)?.usbPassiveDPIInput
+            DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00AB, transport: .usb)?.passiveDPIInput
         )
 
-        let wrongSubtype = USBPassiveDPIParser.parse(
+        let wrongSubtype = PassiveDPIParser.parse(
             report: [0x05, 0x03, 0x03, 0x20, 0x03, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
             descriptor: descriptor
         )
-        let outOfRange = USBPassiveDPIParser.parse(
+        let outOfRange = PassiveDPIParser.parse(
             report: [0x05, 0x02, 0x00, 0x32, 0x00, 0x32, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
             descriptor: descriptor
         )
@@ -97,23 +110,23 @@ final class USBPassiveDPIEventTests: XCTestCase {
 
     func testPassiveUSBMergeUpdatesActiveStageOnlyForUniqueMatch() {
         let device = makePassiveTestDevice(id: "usb-passive-merge", transport: .usb)
-        let uniqueMatch = mergedStateFromPassiveUSBDpiEvent(
+        let uniqueMatch = mergedStateFromPassiveDpiEvent(
             previous: makePassiveTestState(
                 device: device,
                 dpiValues: [800, 900, 2000, 1100, 1200],
                 activeStage: 0,
                 dpiValue: 800
             ),
-            event: USBPassiveDPIEvent(deviceID: device.id, dpiX: 2000, dpiY: 2000, observedAt: Date())
+            event: PassiveDPIEvent(deviceID: device.id, dpiX: 2000, dpiY: 2000, observedAt: Date())
         )
-        let duplicateMatch = mergedStateFromPassiveUSBDpiEvent(
+        let duplicateMatch = mergedStateFromPassiveDpiEvent(
             previous: makePassiveTestState(
                 device: device,
                 dpiValues: [800, 2000, 2000],
                 activeStage: 0,
                 dpiValue: 800
             ),
-            event: USBPassiveDPIEvent(deviceID: device.id, dpiX: 2000, dpiY: 2000, observedAt: Date())
+            event: PassiveDPIEvent(deviceID: device.id, dpiX: 2000, dpiY: 2000, observedAt: Date())
         )
 
         XCTAssertEqual(uniqueMatch?.dpi?.x, 2000)
@@ -123,9 +136,9 @@ final class USBPassiveDPIEventTests: XCTestCase {
     }
 
     func testPassiveUSBMergeDropsEventWithoutSeededState() {
-        let merged = mergedStateFromPassiveUSBDpiEvent(
+        let merged = mergedStateFromPassiveDpiEvent(
             previous: nil,
-            event: USBPassiveDPIEvent(deviceID: "missing", dpiX: 1100, dpiY: 1100, observedAt: Date())
+            event: PassiveDPIEvent(deviceID: "missing", dpiX: 1100, dpiY: 1100, observedAt: Date())
         )
 
         XCTAssertNil(merged)
@@ -320,7 +333,7 @@ private actor PassiveUpdateStubBackend: DeviceBackend {
 private func makePassiveTestDevice(id: String, transport: DeviceTransportKind) -> MouseDevice {
     MouseDevice(
         id: id,
-        vendor_id: 0x1532,
+        vendor_id: transport == .bluetooth ? 0x068E : 0x1532,
         product_id: transport == .bluetooth ? 0x00BA : 0x00AB,
         product_name: "Passive Test Mouse",
         transport: transport,
@@ -328,9 +341,9 @@ private func makePassiveTestDevice(id: String, transport: DeviceTransportKind) -
         serial: "PASSIVE-\(id)",
         firmware: "1.0.0",
         location_id: abs(id.hashValue),
-        profile_id: .basiliskV3Pro,
-        supports_advanced_lighting_effects: true,
-        onboard_profile_count: 3
+        profile_id: transport == .bluetooth ? .basiliskV3XHyperspeed : .basiliskV3Pro,
+        supports_advanced_lighting_effects: transport != .bluetooth,
+        onboard_profile_count: transport == .bluetooth ? 1 : 3
     )
 }
 

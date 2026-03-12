@@ -117,7 +117,7 @@ public struct USBLightingZoneDescriptor: Identifiable, Hashable, Codable, Sendab
     }
 }
 
-public struct USBPassiveDPIInputDescriptor: Hashable, Codable, Sendable {
+public struct PassiveDPIInputDescriptor: Hashable, Codable, Sendable {
     public let usagePage: Int
     public let usage: Int
     public let reportID: UInt8
@@ -168,7 +168,7 @@ public struct DeviceProfile: Hashable, Sendable {
     public let supportedLightingEffects: [LightingEffectKind]
     public let usbLightingLEDIDs: [UInt8]
     public let usbLightingZones: [USBLightingZoneDescriptor]
-    public let usbPassiveDPIInput: USBPassiveDPIInputDescriptor?
+    public let passiveDPIInput: PassiveDPIInputDescriptor?
     public let onboardProfileCount: Int
 
     public init(
@@ -181,7 +181,7 @@ public struct DeviceProfile: Hashable, Sendable {
         supportedLightingEffects: [LightingEffectKind] = LightingEffectKind.allCases,
         usbLightingLEDIDs: [UInt8] = [],
         usbLightingZones: [USBLightingZoneDescriptor] = [],
-        usbPassiveDPIInput: USBPassiveDPIInputDescriptor? = nil,
+        passiveDPIInput: PassiveDPIInputDescriptor? = nil,
         onboardProfileCount: Int = 1
     ) {
         self.id = id
@@ -193,7 +193,7 @@ public struct DeviceProfile: Hashable, Sendable {
         self.supportedLightingEffects = supportedLightingEffects
         self.usbLightingLEDIDs = usbLightingLEDIDs
         self.usbLightingZones = usbLightingZones
-        self.usbPassiveDPIInput = usbPassiveDPIInput
+        self.passiveDPIInput = passiveDPIInput
         self.onboardProfileCount = max(1, onboardProfileCount)
     }
 
@@ -341,7 +341,7 @@ public enum DeviceProfiles {
         supportedLightingEffects: basiliskV335KUSBLightingEffects,
         usbLightingLEDIDs: [0x01, 0x04, 0x0A],
         usbLightingZones: basiliskV335KUSBLightingZones,
-        usbPassiveDPIInput: USBPassiveDPIInputDescriptor(
+        passiveDPIInput: PassiveDPIInputDescriptor(
             usagePage: 0x01,
             usage: 0x06,
             reportID: 0x05,
@@ -364,6 +364,14 @@ public enum DeviceProfiles {
         supportsAdvancedLightingEffects: false,
         supportedLightingEffects: [.staticColor],
         usbLightingZones: basiliskV3XUSBLightingZones,
+        passiveDPIInput: PassiveDPIInputDescriptor(
+            usagePage: 0x01,
+            usage: 0x02,
+            reportID: 0x05,
+            subtype: 0x02,
+            minInputReportSize: 7,
+            maxFeatureReportSize: 1
+        ),
         onboardProfileCount: 1
     )
 

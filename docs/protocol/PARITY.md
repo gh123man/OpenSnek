@@ -27,7 +27,7 @@ Legend:
 | Serial read | `00:82` | key `01 83 00 00` | `razer_usb.py` + `razer_ble.py` (USB HID + BT vendor fallback) | DONE | BT vendor fallback implemented |
 | Firmware read | `00:81` | unknown vendor key | `razer_usb.py` + `razer_ble.py` (HID path) | PARTIAL | HID over BT may fail on some stacks |
 | Device mode | `00:84/04` | `01 82 00 00` (read), `01 02 00 00` (write candidate) | `razer_usb.py` + `razer_ble.py` | PARTIAL | BT read fallback enabled; BT write path disabled for safety. OpenSnek writes/reads mode on USB and shows the card only when readback is available. |
-| DPI XY | `04:85/05` | passive HID read; live apply via vendor stage writes | both scripts | PARTIAL | direct BT HID `set_dpi` is not reliable on validated stack |
+| DPI XY | `04:85/05` | passive HID read/listen; live apply via vendor stage writes | both scripts | PARTIAL | direct BT HID `set_dpi` is not reliable on validated stack, but OpenSnek now uses validated passive BT HID reports for immediate on-device DPI-change updates |
 | DPI stages + active stage | `04:86/06` | `0B84`/`0B04`, `op=0x26` | both scripts | DONE | OpenSnek normalizes active-stage via stage IDs and preserves USB stage IDs on writes to avoid off-by-one stage mapping. |
 | Poll rate | `00:85/05` | HID fallback only | both scripts | PARTIAL | Need BLE vendor equivalent |
 | Battery level | `07:80` | Battery Service + observed vendor read | both scripts | PARTIAL | Charging-state parity still incomplete on BLE |
@@ -99,6 +99,7 @@ Validated in-session over USB:
 
 Validated in-session over Bluetooth:
 - HID path (`--disable-vendor-gatt`): probe works, config command reads return `None`, writes return `False`
+- passive HID DPI report on the paired BT HID interface now drives immediate Open Snek DPI-state updates; observed/app-supported frame prefixes include `05 05 02 <x_hi> <x_lo> <y_hi> <y_lo> ...` and the macOS-normalized `05 02 ...` variant
 - Vendor GATT path (default-on): working for
   - idle-time raw read/write/readback
   - low-battery-threshold raw read/write/readback
