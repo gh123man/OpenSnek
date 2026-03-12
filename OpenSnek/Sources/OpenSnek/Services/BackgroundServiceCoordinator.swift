@@ -12,6 +12,14 @@ final class BackgroundServiceCoordinator {
     nonisolated static let endpointDefaultsKey = "backgroundServiceEndpoint"
     nonisolated static let portDefaultsKey = "backgroundServicePort"
     nonisolated static let pidDefaultsKey = "backgroundServicePID"
+    nonisolated static let openSettingsNotificationName = Notification.Name("io.opensnek.OpenSnek.openSettings")
+
+    struct RunningAppSnapshot: Equatable {
+        let processIdentifier: pid_t
+        let activationPolicy: NSApplication.ActivationPolicy
+        let isActive: Bool
+        let isTerminated: Bool
+    }
 
     private let defaults: UserDefaults
     private let fileManager: FileManager
@@ -134,6 +142,15 @@ final class BackgroundServiceCoordinator {
     }
 
     func launchFullAppProcess(arguments: [String] = []) {
+        if let existingApp = existingForegroundAppInstance() {
+            _ = existingApp.unhide()
+            _ = existingApp.activate(options: [.activateAllWindows])
+            if arguments.contains("--open-settings") {
+                postOpenSettingsRequest()
+            }
+            return
+        }
+
         let bundleURL = Bundle.main.bundleURL
         if bundleURL.pathExtension == "app" {
             let configuration = NSWorkspace.OpenConfiguration()
@@ -174,6 +191,53 @@ final class BackgroundServiceCoordinator {
 
     private var executableURL: URL {
         URL(fileURLWithPath: ProcessInfo.processInfo.arguments[0]).resolvingSymlinksInPath()
+    }
+
+    private func existingForegroundAppInstance() -> NSRunningApplication? {
+        guard let bundleIdentifier = Bundle.main.bundleIdentifier else { return nil }
+        let runningApplications = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+        guard let preferred = Self.preferredReusableApplication(
+            in: runningApplications.map {
+                RunningAppSnapshot(
+                    processIdentifier: $0.processIdentifier,
+                    activationPolicy: $0.activationPolicy,
+                    isActive: $0.isActive,
+                    isTerminated: $0.isTerminated
+                )
+            },
+            excluding: ProcessInfo.processInfo.processIdentifier
+        ) else {
+            return nil
+        }
+        return runningApplications.first { $0.processIdentifier == preferred.processIdentifier }
+    }
+
+    private func postOpenSettingsRequest() {
+        DistributedNotificationCenter.default().postNotificationName(
+            Self.openSettingsNotificationName,
+            object: nil,
+            userInfo: nil,
+            deliverImmediately: true
+        )
+    }
+
+    static func preferredReusableApplication(
+        in runningApplications: [RunningAppSnapshot],
+        excluding currentProcessIdentifier: pid_t
+    ) -> RunningAppSnapshot? {
+        runningApplications
+            .filter {
+                $0.processIdentifier != currentProcessIdentifier &&
+                    !$0.isTerminated &&
+                    $0.activationPolicy == .regular
+            }
+            .sorted { lhs, rhs in
+                if lhs.isActive != rhs.isActive {
+                    return lhs.isActive && !rhs.isActive
+                }
+                return lhs.processIdentifier < rhs.processIdentifier
+            }
+            .first
     }
 
     private var launchAgentURL: URL {

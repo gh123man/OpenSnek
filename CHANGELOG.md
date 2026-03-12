@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [2026-03-12]
 
 ### Fixed
+- The menu bar service now reuses an already-open full app window when you choose `Show Open Snek`, bringing the existing app to the foreground instead of spawning duplicate full app instances.
 - The menu bar service now publishes a real localhost IPC endpoint instead of trying to serialize an `NSXPCListenerEndpoint` into defaults, which restores shared backend ownership when the main window and background service are open together and prevents dual-process USB contention.
 - When the background service is enabled, the full app now follows a service-published snapshot feed instead of polling the service for steady-state device/state updates, so hardware polling stays service-owned and both UIs converge from the same live snapshot stream.
 - Remote UI clients now send a lightweight active-presence heartbeat to the service so the service keeps its faster interactive polling cadence while the full window is open, instead of dropping back to idle timing.
