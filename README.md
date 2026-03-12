@@ -48,11 +48,13 @@ Support is transport-specific. A mouse may be supported over USB, Bluetooth, or 
 
 Current validated support:
 
+Status key: `Yes` = supported and validated, `Not yet` = the transport exists on the hardware but Open Snek does not support it yet, `No` = that transport is not available on the device.
+
 | Device | USB | Bluetooth | Notes |
 |---|---|---|---|
 | Basilisk V3 X HyperSpeed | Yes | Yes | Full core support, with transport-specific limits on some button remaps and lighting features |
-| Basilisk V3 Pro | Yes | N/A | USB support includes 3 onboard profiles, 3 lighting zones, extended button hydration, and validated wheel-tilt controls |
-| Basilisk V3 35K | Yes | N/A | USB support includes DPI, polling rate, lighting zones, and validated button remap coverage |
+| Basilisk V3 Pro | Yes | Not yet | USB support includes DPI, polling rate, 3 lighting zones, extended button hydration, and validated wheel-tilt / clutch controls. The hardware supports Bluetooth, but Open Snek does not implement it yet. The mouse exposes 5 onboard profiles, and profile support is not implemented yet. |
+| Basilisk V3 35K | Yes | No | USB-only model. USB support includes DPI, polling rate, lighting zones, and validated button remap coverage |
 
 Unsupported Razer mice still get a best-effort experience when possible. Open Snek will probe for controls that already match known behavior, show a light warning that the device is not fully supported, and avoid exposing UI for features that have not been mapped safely yet.
 
