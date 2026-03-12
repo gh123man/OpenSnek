@@ -4,9 +4,10 @@ import XCTest
 
 final class BackgroundServiceCoordinatorTests: XCTestCase {
     func testFreshInstallDefaultsEnableMenuBarIcon() async {
-        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let suiteName = UUID().uuidString
+        let defaults = UserDefaults(suiteName: suiteName)!
         let coordinator = await MainActor.run {
-            BackgroundServiceCoordinator(defaults: defaults)
+            BackgroundServiceCoordinator(defaults: UserDefaults(suiteName: suiteName)!)
         }
 
         let backgroundServiceEnabled = await MainActor.run { coordinator.backgroundServiceEnabled }
@@ -23,7 +24,7 @@ final class BackgroundServiceCoordinatorTests: XCTestCase {
         defaults.set(false, forKey: BackgroundServiceCoordinator.backgroundServiceEnabledDefaultsKey)
 
         let coordinator = await MainActor.run {
-            BackgroundServiceCoordinator(defaults: defaults)
+            BackgroundServiceCoordinator(defaults: UserDefaults(suiteName: suiteName)!)
         }
 
         let backgroundServiceEnabled = await MainActor.run { coordinator.backgroundServiceEnabled }
