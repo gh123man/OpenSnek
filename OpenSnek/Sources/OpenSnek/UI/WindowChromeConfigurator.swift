@@ -37,23 +37,23 @@ struct WindowChromeConfigurator: NSViewRepresentable {
         }) else {
             return
         }
-        guard let menuIcon = OpenSnekBranding.menuIcon else { return }
+        guard let titlebarIcon = OpenSnekBranding.titlebarIcon else { return }
 
-        let imageView = NSImageView(image: menuIcon)
-        imageView.imageScaling = .scaleProportionallyUpOrDown
+        let imageView = NSImageView(image: titlebarIcon)
+        imageView.imageScaling = .scaleNone
         imageView.translatesAutoresizingMaskIntoConstraints = false
 
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: 16, height: 14))
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 13, height: 12))
         container.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(imageView)
 
         NSLayoutConstraint.activate([
-            imageView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            imageView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            imageView.topAnchor.constraint(equalTo: container.topAnchor),
-            imageView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-            container.widthAnchor.constraint(equalToConstant: 16),
-            container.heightAnchor.constraint(equalToConstant: 14),
+            imageView.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            imageView.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            imageView.widthAnchor.constraint(equalToConstant: 10),
+            imageView.heightAnchor.constraint(equalToConstant: 9),
+            container.widthAnchor.constraint(equalToConstant: 13),
+            container.heightAnchor.constraint(equalToConstant: 12),
         ])
 
         let accessory = NSTitlebarAccessoryViewController()

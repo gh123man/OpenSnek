@@ -249,9 +249,6 @@ private struct ServiceMenuBarStatusGlyph: View {
             if let menuIcon = OpenSnekBranding.menuIcon {
                 Image(nsImage: menuIcon)
                     .renderingMode(.original)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 7, height: 7)
             } else {
                 ZStack {
                     Circle()
