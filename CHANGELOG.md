@@ -19,6 +19,7 @@ All notable changes to this project are documented in this file.
 ### Changed
 - Standardized app-icon generation around `OpenSnek/Branding/AppIcon-master.png` so the checked-in asset catalog, local `.app` bundle builds, and DMG artwork all use the same source image.
 - Reduced the exported icon's optical size slightly to give the Dock icon more breathing room on macOS versions where the previous full-bleed artwork read as oversized.
+- The menu bar widget now uses a custom status-item glyph with compact live-DPI text, clearer action labels, battery icon + percentage, and larger DPI stage hit targets in both the compact widget and the full app; the redundant manual refresh row and misleading chevron affordances were removed.
 
 ## [2026-03-10]
 

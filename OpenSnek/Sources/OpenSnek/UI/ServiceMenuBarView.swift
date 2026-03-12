@@ -1,6 +1,43 @@
 import AppKit
 import SwiftUI
 
+enum ServiceMenuBarPresentation {
+    static func batterySymbolName(percent: Int, charging: Bool?) -> String {
+        if charging == true {
+            return "battery.100percent.bolt"
+        }
+
+        switch percent {
+        case ..<13:
+            return "battery.0"
+        case ..<38:
+            return "battery.25"
+        case ..<63:
+            return "battery.50"
+        case ..<88:
+            return "battery.75"
+        default:
+            return "battery.100percent"
+        }
+    }
+
+    static func compactDpiText(for dpi: Int?) -> String? {
+        guard let dpi, dpi > 0 else { return nil }
+        guard dpi >= 1000 else { return "\(dpi)" }
+
+        let thousands = Double(dpi) / 1000.0
+        if dpi < 10_000 {
+            let rounded = (thousands * 10).rounded() / 10
+            if rounded == rounded.rounded() {
+                return "\(Int(rounded))k"
+            }
+            return String(format: "%.1fk", rounded)
+        }
+
+        return "\(Int(thousands.rounded()))k"
+    }
+}
+
 struct ServiceMenuBarView: View {
     @Bindable var appState: AppState
 
@@ -26,16 +63,13 @@ struct ServiceMenuBarView: View {
                     .foregroundStyle(.secondary)
             }
             Divider()
-            actionRow("Refresh") {
-                Task { await appState.refreshNow() }
-            }
-            actionRow("Open Open Snek") {
+            actionRow("Show Open Snek", systemImage: "rectangle.on.rectangle") {
                 appState.openFullAppFromService()
             }
-            actionRow("Settings…") {
+            actionRow("Settings…", systemImage: "gearshape") {
                 appState.openSettingsFromService()
             }
-            actionRow("Quit Service") {
+            actionRow("Quit", systemImage: "power") {
                 appState.terminateServiceProcess()
             }
         }
@@ -71,9 +105,17 @@ struct ServiceMenuBarView: View {
             Spacer()
 
             if let battery = appState.state?.battery_percent {
-                Text("\(battery)%")
-                    .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    Image(
+                        systemName: ServiceMenuBarPresentation.batterySymbolName(
+                            percent: battery,
+                            charging: appState.state?.charging
+                        )
+                    )
+                    Text("\(battery)%")
+                }
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundStyle(.secondary)
             }
         }
     }
@@ -82,26 +124,28 @@ struct ServiceMenuBarView: View {
         HStack(spacing: 8) {
             ForEach(0..<max(1, appState.editableStageCount), id: \.self) { index in
                 let stage = index + 1
+                let isSelected = appState.editableActiveStage == stage
                 Button {
-                    if appState.editableActiveStage != stage {
+                    if !isSelected {
                         appState.editableActiveStage = stage
                         appState.scheduleAutoApplyActiveStage()
                     }
                 } label: {
                     Text("\(stage)")
                         .font(.system(size: 11, weight: .black, design: .rounded))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
+                        .foregroundStyle(isSelected ? Color.accentColor : .primary)
+                        .frame(maxWidth: .infinity, minHeight: 34)
+                        .background(
+                            Capsule()
+                                .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.06))
+                        )
+                        .overlay(
+                            Capsule()
+                                .stroke(isSelected ? Color.accentColor : Color.primary.opacity(0.10), lineWidth: 1)
+                        )
+                        .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
-                .background(
-                    Capsule()
-                        .fill(appState.editableActiveStage == stage ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.06))
-                )
-                .overlay(
-                    Capsule()
-                        .stroke(appState.editableActiveStage == stage ? Color.accentColor : Color.primary.opacity(0.10), lineWidth: 1)
-                )
             }
         }
     }
@@ -133,18 +177,101 @@ struct ServiceMenuBarView: View {
         }
     }
 
-    private func actionRow(_ title: String, action: @escaping () -> Void) -> some View {
+    private func actionRow(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack {
-                Text(title)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
+            HStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
+                Text(title)
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                Spacer()
             }
-            .font(.system(size: 12, weight: .bold, design: .rounded))
-            .contentShape(Rectangle())
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.primary.opacity(0.04))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)
+    }
+}
+
+struct ServiceMenuBarStatusItemLabel: View {
+    @Bindable var appState: AppState
+
+    private var currentDpi: Int? {
+        guard appState.state != nil else { return nil }
+
+        if let liveDpi = appState.state?.dpi?.x, liveDpi > 0 {
+            return liveDpi
+        }
+
+        let fallback = appState.compactActiveStageValue
+        return fallback > 0 ? fallback : nil
+    }
+
+    private var compactDpiText: String? {
+        ServiceMenuBarPresentation.compactDpiText(for: currentDpi)
+    }
+
+    var body: some View {
+        HStack(spacing: compactDpiText == nil ? 0 : 5) {
+            ServiceMenuBarCrosshair(isConnected: appState.selectedDevice != nil)
+
+            if let compactDpiText {
+                Text(compactDpiText)
+                    .font(.system(size: 11, weight: .black, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+            }
+        }
+        .help(helpText)
+        .accessibilityLabel(helpText)
+    }
+
+    private var helpText: String {
+        if let device = appState.selectedDevice, let currentDpi {
+            return "\(device.product_name), \(currentDpi) DPI"
+        }
+        if let device = appState.selectedDevice {
+            return device.product_name
+        }
+        return "Open Snek"
+    }
+}
+
+private struct ServiceMenuBarCrosshair: View {
+    let isConnected: Bool
+
+    private var iconOpacity: Double {
+        isConnected ? 0.88 : 0.46
+    }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.primary.opacity(iconOpacity), lineWidth: 1.2)
+
+            Rectangle()
+                .fill(Color.primary.opacity(iconOpacity))
+                .frame(width: 1, height: 11)
+
+            Rectangle()
+                .fill(Color.primary.opacity(iconOpacity))
+                .frame(width: 11, height: 1)
+
+            Circle()
+                .fill(Color.primary.opacity(iconOpacity))
+                .frame(width: 3.5, height: 3.5)
+        }
+        .frame(width: 14, height: 14)
     }
 }

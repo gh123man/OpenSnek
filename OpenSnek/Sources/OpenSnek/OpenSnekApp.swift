@@ -21,8 +21,10 @@ struct OpenSnekApp: App {
             }
         }
 
-        MenuBarExtra("Open Snek", systemImage: "dial.medium", isInserted: .constant(appState.isServiceProcess)) {
+        MenuBarExtra(isInserted: .constant(appState.isServiceProcess)) {
             ServiceMenuBarView(appState: appState)
+        } label: {
+            ServiceMenuBarStatusItemLabel(appState: appState)
         }
         .menuBarExtraStyle(.window)
 
