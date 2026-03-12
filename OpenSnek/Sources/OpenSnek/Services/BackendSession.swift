@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import OpenSnekCore
+import OpenSnekHardware
 
 enum OpenSnekProcessRole: String, Sendable {
     case app
@@ -20,6 +21,8 @@ protocol DeviceBackend: AnyObject, Sendable {
     func listDevices() async throws -> [MouseDevice]
     func readState(device: MouseDevice) async throws -> MouseState
     func readDpiStagesFast(device: MouseDevice) async throws -> DpiFastSnapshot?
+    func shouldUseFastDPIPolling(device: MouseDevice) async -> Bool
+    func stateUpdates() async -> AsyncStream<BackendStateUpdate>
     func apply(device: MouseDevice, patch: DevicePatch) async throws -> MouseState
     func readLightingColor(device: MouseDevice) async throws -> RGBPatch?
     func debugUSBReadButtonBinding(device: MouseDevice, slot: Int, profile: Int) async throws -> [UInt8]?
@@ -28,6 +31,52 @@ protocol DeviceBackend: AnyObject, Sendable {
 struct DpiFastSnapshot: Codable, Hashable, Sendable {
     let active: Int
     let values: [Int]
+}
+
+enum BackendStateUpdate: Sendable {
+    case deviceList([MouseDevice], updatedAt: Date)
+    case deviceState(deviceID: String, state: MouseState, updatedAt: Date)
+    case snapshot(SharedServiceSnapshot)
+}
+
+private final class DistributedObserverToken: @unchecked Sendable {
+    let observer: NSObjectProtocol
+
+    init(observer: NSObjectProtocol) {
+        self.observer = observer
+    }
+}
+
+func mergedStateFromPassiveDpiEvent(
+    previous: MouseState?,
+    event: PassiveDPIEvent
+) -> MouseState? {
+    guard let previous, let stageValues = previous.dpi_stages.values, !stageValues.isEmpty else { return nil }
+
+    let matchingIndices = stageValues.enumerated().compactMap { index, value in
+        value == event.dpiX ? index : nil
+    }
+    let resolvedActiveStage = matchingIndices.count == 1 ? matchingIndices[0] : previous.dpi_stages.active_stage
+
+    return MouseState(
+        device: previous.device,
+        connection: previous.connection,
+        battery_percent: previous.battery_percent,
+        charging: previous.charging,
+        dpi: DpiPair(x: event.dpiX, y: event.dpiY),
+        dpi_stages: DpiStages(active_stage: resolvedActiveStage, values: stageValues),
+        poll_rate: previous.poll_rate,
+        sleep_timeout: previous.sleep_timeout,
+        device_mode: previous.device_mode,
+        low_battery_threshold_raw: previous.low_battery_threshold_raw,
+        scroll_mode: previous.scroll_mode,
+        scroll_acceleration: previous.scroll_acceleration,
+        scroll_smart_reel: previous.scroll_smart_reel,
+        active_onboard_profile: previous.active_onboard_profile,
+        onboard_profile_count: previous.onboard_profile_count,
+        led_value: previous.led_value,
+        capabilities: previous.capabilities
+    )
 }
 
 private struct ApplyRequest: Codable, Sendable {
@@ -59,6 +108,7 @@ private enum BackgroundServiceMethod: String, Codable, Sendable {
     case listDevices
     case readState
     case readDpiStagesFast
+    case shouldUseFastDPIPolling
     case apply
     case readLightingColor
     case debugUSBReadButtonBinding
@@ -245,8 +295,27 @@ final actor LocalBridgeBackend: DeviceBackend {
     private var cachedStateAtByDeviceID: [String: Date] = [:]
     private var cachedFastByDeviceID: [String: DpiFastSnapshot] = [:]
     private var cachedFastAtByDeviceID: [String: Date] = [:]
+    private var stateUpdateContinuations: [UUID: AsyncStream<BackendStateUpdate>.Continuation] = [:]
+    private var devicePresenceRefreshTask: Task<Void, Never>?
 
     nonisolated var usesRemoteServiceTransport: Bool { false }
+
+    init() {
+        Task { [weak self] in
+            guard let self else { return }
+            let stream = await self.client.passiveDpiEventStream()
+            for await event in stream {
+                await self.handlePassiveDpiEvent(event)
+            }
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            let stream = await self.client.devicePresenceEventStream()
+            for await event in stream {
+                await self.handleDevicePresenceEvent(event)
+            }
+        }
+    }
 
     func listDevices() async throws -> [MouseDevice] {
         if let cachedDevicesAt,
@@ -255,8 +324,7 @@ final actor LocalBridgeBackend: DeviceBackend {
             return cachedDevices
         }
         let devices = try await client.listDevices()
-        cachedDevices = devices
-        cachedDevicesAt = Date()
+        updateCachedDevices(devices, updatedAt: Date(), publishUpdate: false)
         publishSnapshotIfService()
         return devices
     }
@@ -289,6 +357,22 @@ final actor LocalBridgeBackend: DeviceBackend {
         return fast
     }
 
+    func shouldUseFastDPIPolling(device: MouseDevice) async -> Bool {
+        await client.shouldUseFastDPIPolling(device: device)
+    }
+
+    func stateUpdates() async -> AsyncStream<BackendStateUpdate> {
+        let id = UUID()
+        let (stream, continuation) = AsyncStream.makeStream(of: BackendStateUpdate.self)
+        stateUpdateContinuations[id] = continuation
+        continuation.onTermination = { @Sendable [weak self] _ in
+            Task {
+                await self?.removeStateUpdateContinuation(id: id)
+            }
+        }
+        return stream
+    }
+
     func apply(device: MouseDevice, patch: DevicePatch) async throws -> MouseState {
         let state = try await client.apply(device: device, patch: patch)
         let now = Date()
@@ -310,6 +394,24 @@ final actor LocalBridgeBackend: DeviceBackend {
 
     func debugUSBReadButtonBinding(device: MouseDevice, slot: Int, profile: Int) async throws -> [UInt8]? {
         try await client.debugUSBReadButtonBinding(device: device, slot: slot, profile: profile)
+    }
+
+    private func removeStateUpdateContinuation(id: UUID) {
+        stateUpdateContinuations.removeValue(forKey: id)
+    }
+
+    private func handleDevicePresenceEvent(_ event: HIDDevicePresenceEvent) {
+        invalidateCachedTelemetry(for: event.deviceID)
+        devicePresenceRefreshTask?.cancel()
+        devicePresenceRefreshTask = Task { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: 200_000_000)
+            } catch {
+                return
+            }
+            guard let self, !Task.isCancelled else { return }
+            await self.refreshCachedDevicesAfterPresenceChange(observedAt: event.observedAt)
+        }
     }
 
     private func updateCachedStateFromFastSnapshot(_ snapshot: DpiFastSnapshot, for deviceID: String) {
@@ -337,6 +439,78 @@ final actor LocalBridgeBackend: DeviceBackend {
         )
         cachedStateByDeviceID[deviceID] = updated
         cachedStateAtByDeviceID[deviceID] = Date()
+    }
+
+    private func handlePassiveDpiEvent(_ event: PassiveDPIEvent) {
+        guard let updated = mergedStateFromPassiveDpiEvent(
+            previous: cachedStateByDeviceID[event.deviceID],
+            event: event
+        ) else {
+            return
+        }
+
+        cachedStateByDeviceID[event.deviceID] = updated
+        cachedStateAtByDeviceID[event.deviceID] = event.observedAt
+        let fastActive = updated.dpi_stages.active_stage ?? cachedFastByDeviceID[event.deviceID]?.active ?? 0
+        if let values = updated.dpi_stages.values {
+            cachedFastByDeviceID[event.deviceID] = DpiFastSnapshot(active: fastActive, values: values)
+            cachedFastAtByDeviceID[event.deviceID] = event.observedAt
+        }
+
+        publishStateUpdate(.deviceState(deviceID: event.deviceID, state: updated, updatedAt: event.observedAt))
+        publishSnapshotIfService()
+    }
+
+    private func publishStateUpdate(_ update: BackendStateUpdate) {
+        for continuation in stateUpdateContinuations.values {
+            continuation.yield(update)
+        }
+    }
+
+    private func refreshCachedDevicesAfterPresenceChange(observedAt: Date) async {
+        do {
+            let devices = try await client.listDevices()
+            updateCachedDevices(devices, updatedAt: observedAt, publishUpdate: true)
+            publishSnapshotIfService()
+        } catch {
+            AppLog.warning(
+                "Backend",
+                "device presence refresh failed: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    private func updateCachedDevices(
+        _ devices: [MouseDevice],
+        updatedAt: Date,
+        publishUpdate: Bool
+    ) {
+        let previousIDs = Set(cachedDevices.map(\.id))
+        let nextIDs = Set(devices.map(\.id))
+        purgeCaches(forRemovedDeviceIDs: previousIDs.subtracting(nextIDs))
+        cachedDevices = devices
+        cachedDevicesAt = updatedAt
+        if publishUpdate {
+            publishStateUpdate(.deviceList(devices, updatedAt: updatedAt))
+        }
+    }
+
+    private func invalidateCachedTelemetry(for deviceID: String) {
+        cachedDevicesAt = nil
+        cachedStateByDeviceID.removeValue(forKey: deviceID)
+        cachedStateAtByDeviceID.removeValue(forKey: deviceID)
+        cachedFastByDeviceID.removeValue(forKey: deviceID)
+        cachedFastAtByDeviceID.removeValue(forKey: deviceID)
+    }
+
+    private func purgeCaches(forRemovedDeviceIDs removedDeviceIDs: Set<String>) {
+        guard !removedDeviceIDs.isEmpty else { return }
+        for deviceID in removedDeviceIDs {
+            cachedStateByDeviceID.removeValue(forKey: deviceID)
+            cachedStateAtByDeviceID.removeValue(forKey: deviceID)
+            cachedFastByDeviceID.removeValue(forKey: deviceID)
+            cachedFastAtByDeviceID.removeValue(forKey: deviceID)
+        }
     }
 
     private func publishSnapshotIfService() {
@@ -385,6 +559,9 @@ private actor BackgroundServiceRequestHandler {
         case .readDpiStagesFast:
             let device = try decodePayload(MouseDevice.self, from: request.payload)
             payload = try BackendCodec.encode(try await backend.readDpiStagesFast(device: device))
+        case .shouldUseFastDPIPolling:
+            let device = try decodePayload(MouseDevice.self, from: request.payload)
+            payload = try BackendCodec.encode(await backend.shouldUseFastDPIPolling(device: device))
         case .apply:
             let applyRequest = try decodePayload(ApplyRequest.self, from: request.payload)
             payload = try BackendCodec.encode(try await backend.apply(device: applyRequest.device, patch: applyRequest.patch))
@@ -445,6 +622,27 @@ final actor IPCDeviceBackend: DeviceBackend {
             payload: try BackendCodec.encode(device),
             responseType: DpiFastSnapshot?.self
         )
+    }
+
+    func shouldUseFastDPIPolling(device: MouseDevice) async -> Bool {
+        (try? await request(
+            method: .shouldUseFastDPIPolling,
+            payload: try BackendCodec.encode(device),
+            responseType: Bool.self
+        )) ?? false
+    }
+
+    func stateUpdates() async -> AsyncStream<BackendStateUpdate> {
+        AsyncStream { continuation in
+            let token = DistributedObserverToken(
+                observer: CrossProcessStateSync.observeSnapshots { snapshot in
+                    continuation.yield(.snapshot(snapshot))
+                }
+            )
+            continuation.onTermination = { @Sendable _ in
+                CrossProcessStateSync.removeObserver(token.observer)
+            }
+        }
     }
 
     func apply(device: MouseDevice, patch: DevicePatch) async throws -> MouseState {

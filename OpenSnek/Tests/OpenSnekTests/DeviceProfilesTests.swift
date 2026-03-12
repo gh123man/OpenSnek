@@ -10,6 +10,7 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual])
         XCTAssertEqual(profile?.usbLightingLEDIDs, [0x01])
         XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel"])
+        XCTAssertNil(profile?.passiveDPIInput)
         XCTAssertEqual(profile?.onboardProfileCount, 1)
     }
 
@@ -27,6 +28,7 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .spectrum, .wave])
         XCTAssertEqual(profile?.usbLightingLEDIDs, [0x01, 0x04, 0x0A])
         XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel", "logo", "underglow"])
+        XCTAssertNil(profile?.passiveDPIInput)
         XCTAssertEqual(profile?.onboardProfileCount, 5)
     }
 
@@ -43,6 +45,10 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .spectrum, .wave])
         XCTAssertEqual(profile?.usbLightingLEDIDs, [0x01, 0x04, 0x0A])
         XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel", "logo", "underglow"])
+        XCTAssertEqual(profile?.passiveDPIInput?.usagePage, 0x01)
+        XCTAssertEqual(profile?.passiveDPIInput?.usage, 0x06)
+        XCTAssertEqual(profile?.passiveDPIInput?.reportID, 0x05)
+        XCTAssertEqual(profile?.passiveDPIInput?.subtype, 0x02)
         XCTAssertEqual(profile?.onboardProfileCount, 3)
     }
 
@@ -54,6 +60,10 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.buttonLayout.access(for: 6), .softwareReadOnly)
         XCTAssertEqual(profile?.buttonLayout.softwareReadOnlySlots.map(\.slot), [6])
         XCTAssertEqual(profile?.supportsAdvancedLightingEffects, false)
+        XCTAssertEqual(profile?.passiveDPIInput?.usagePage, 0x01)
+        XCTAssertEqual(profile?.passiveDPIInput?.usage, 0x02)
+        XCTAssertEqual(profile?.passiveDPIInput?.reportID, 0x05)
+        XCTAssertEqual(profile?.passiveDPIInput?.subtype, 0x02)
         XCTAssertEqual(profile?.onboardProfileCount, 1)
     }
 

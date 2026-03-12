@@ -46,6 +46,8 @@ final class BackgroundServiceTransportTests: XCTestCase {
 
         let fast = try await serviceBackend.readDpiStagesFast(device: devices[0])
         XCTAssertEqual(fast, DpiFastSnapshot(active: 2, values: [1200, 2400, 3600]))
+        let usesFastPolling = await serviceBackend.shouldUseFastDPIPolling(device: devices[0])
+        XCTAssertTrue(usesFastPolling)
 
         let lighting = try await serviceBackend.readLightingColor(device: devices[0])
         XCTAssertEqual(lighting, RGBPatch(r: 10, g: 20, b: 30))
@@ -112,6 +114,16 @@ private actor StubServiceBackend: DeviceBackend {
             return nil
         }
         return DpiFastSnapshot(active: active, values: values)
+    }
+
+    func shouldUseFastDPIPolling(device _: MouseDevice) async -> Bool {
+        true
+    }
+
+    func stateUpdates() async -> AsyncStream<BackendStateUpdate> {
+        AsyncStream { continuation in
+            continuation.finish()
+        }
     }
 
     func apply(device _: MouseDevice, patch: DevicePatch) async throws -> MouseState {

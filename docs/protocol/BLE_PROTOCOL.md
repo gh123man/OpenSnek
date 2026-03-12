@@ -278,6 +278,36 @@ If you want write behavior that matches the app/probe:
 - preserve existing stage IDs from the last read
 - preserve the final entry marker from the last read
 - for multi-stage writes, replace only the first `count` stage values and keep the tail slots unchanged
+
+#### 6.2.5 Passive HID DPI Input Report
+
+The Bluetooth DPI-stage vendor exchange is still request/notify over GATT, but validated devices can also emit a passive HID input report when the on-device DPI cycle control changes the live DPI.
+
+Validated macOS HID topology for Basilisk V3 X HyperSpeed Bluetooth (`VID=0x068E`, `PID=0x00BA`):
+- transport: `Bluetooth Low Energy`
+- primary usage: `0x01:0x02`
+- max input report size: `9`
+- max feature report size: `1`
+
+Observed passive frame shape in the existing Python HID sniff path:
+
+```text
+05 05 02 <x_hi> <x_lo> <y_hi> <y_lo> ...
+```
+
+Where:
+- first `0x05`: report ID
+- second `0x05`: duplicated report ID on the current hidapi path
+- `0x02`: DPI subtype
+- X/Y DPI are big-endian 16-bit values
+
+OpenSnek's parser also accepts `05 02 ...` and `02 ...` report prefixes because macOS `IOHIDDeviceRegisterInputReportCallback` can normalize away one or both leading report-ID bytes. That normalization detail is an inference from current host behavior, not a separate wire-format claim.
+
+Current app policy:
+- subscribe to passive HID DPI reports only on capture-validated Bluetooth profiles
+- update cached `dpi.x/y` immediately from the HID report
+- recompute `active_stage` only when the reported DPI uniquely matches one cached stage value
+- keep Bluetooth fast DPI polling enabled until the first passive HID event is actually observed at runtime, then disable the fast-poll fallback for that device
 - for single-stage writes, mirror the single value across all 5 slots
 
 Those are client rules, not independent protocol guarantees, but they are what current Swift uses.
@@ -709,6 +739,8 @@ The app may still expose richer lighting on USB HID, but this BLE document only 
 | `BTVendorClient.run` | one serialized exchange over CoreBluetooth |
 | `BridgeClient.btGetDpiStages` | DPI read + validation + stale-read handling |
 | `BridgeClient.btSetDpiStages` | DPI write with ID/marker preservation |
+| `PassiveDPIParser.parse` | passive HID DPI input parser used for Bluetooth live updates |
+| `PassiveDPIEventMonitor.replaceTargets` | passive HID input-report subscription manager |
 | `BridgeClient.readLightingColor` | lighting-frame read |
 | `BridgeClient.btSetLightingRGB` | lighting-frame write |
 | `BridgeClient.btSetLightingModeRaw` | mode-selector write |
