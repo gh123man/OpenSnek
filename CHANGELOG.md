@@ -7,6 +7,7 @@ All notable changes to this project are documented in this file.
 ### Fixed
 - Removed the transient `Stage x -> y DPI applied` status message because the live UI already reflects successful DPI changes directly.
 - Added a one-time migration so the new menu bar icon default turns on for existing installs too, instead of only applying to brand-new preference domains.
+- Added a follow-up versioned migration so installs that already passed the first default-on migration but still persisted the older `false` value are corrected too, while still preserving later manual opt-outs.
 - Toggling `Launch menu bar service at startup` no longer blocks the UI or starts a second service/app instance immediately; it now only updates the launch-agent registration for the next login, while the separate `Enable menu bar service` toggle continues to control the current session.
 - Restored the clear full-window title bar styling after the title bar icon removal accidentally dropped the shared window chrome configurator along with the accessory view.
 - Removed the experimental main-window title bar icon, and the menu bar service `Settings…` action now uses SwiftUI's settings scene opener so it reliably opens the app settings window again.
@@ -16,6 +17,9 @@ All notable changes to this project are documented in this file.
 - Remote UI clients now send a lightweight active-presence heartbeat to the service so the service keeps its faster interactive polling cadence while the full window is open, instead of dropping back to idle timing.
 - The macOS app now keeps live telemetry and DPI/apply flows attached to the currently selected physical mouse even when the runtime device ID shifts during polling, avoiding `Poll Delayed` UI freezes and dropped apply/readback updates after recent multi-device safety changes.
 - The full app now adopts an already-running menu bar service as its hardware backend even if local service preferences are stale, preventing dual-process USB/HID contention when the compact widget and main window are open at the same time.
+
+### Changed
+- The menu bar widget now includes a device picker when multiple supported mice are connected, and service-published apply snapshots now move both UIs to the last device that changed so the compact widget and full app stay focused on the same mouse.
 
 ## [2026-03-11]
 

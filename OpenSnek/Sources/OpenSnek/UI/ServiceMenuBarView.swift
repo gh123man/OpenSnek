@@ -45,6 +45,20 @@ struct ServiceMenuBarView: View {
         appState.selectedDevice != nil && appState.state != nil
     }
 
+    private var showsDevicePicker: Bool {
+        appState.devices.count > 1
+    }
+
+    private var selectedDeviceIDBinding: Binding<String> {
+        Binding(
+            get: { appState.selectedDeviceID ?? appState.devices.first?.id ?? "" },
+            set: { deviceID in
+                guard appState.devices.contains(where: { $0.id == deviceID }) else { return }
+                appState.selectDevice(deviceID)
+            }
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             header
@@ -87,9 +101,27 @@ struct ServiceMenuBarView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(appState.selectedDevice?.product_name ?? "No device connected")
-                .font(.system(size: 15, weight: .black, design: .rounded))
+        VStack(alignment: .leading, spacing: showsDevicePicker ? 8 : 3) {
+            if showsDevicePicker {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Device")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                    Picker("Device", selection: selectedDeviceIDBinding) {
+                        ForEach(appState.devices) { device in
+                            Text("\(device.product_name) (\(device.transport.shortLabel))")
+                                .tag(device.id)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .font(.system(size: 15, weight: .black, design: .rounded))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else {
+                Text(appState.selectedDevice?.product_name ?? "No device connected")
+                    .font(.system(size: 15, weight: .black, design: .rounded))
+            }
             Text(appState.selectedDevice?.connectionLabel ?? "Waiting for a supported mouse")
                 .font(.system(size: 11, weight: .bold, design: .rounded))
                 .foregroundStyle(.secondary)

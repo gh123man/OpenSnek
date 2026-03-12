@@ -5,6 +5,8 @@ struct SharedServiceSnapshot: Codable, Sendable {
     let devices: [MouseDevice]
     let stateByDeviceID: [String: MouseState]
     let lastUpdatedByDeviceID: [String: Date]
+    let focusedDeviceID: String?
+    let focusedDeviceChangedAt: Date?
 }
 
 struct CrossProcessClientPresence: Sendable {

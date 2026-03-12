@@ -133,6 +133,7 @@ final class AppState {
     private var clientPresenceObserver: NSObjectProtocol?
     private var remoteClientInteractionUntil: Date?
     private var lastRemoteClientPresencePingAt: Date = .distantPast
+    private var lastHandledRemoteFocusAt: Date = .distantPast
 
     init(
         launchRole: OpenSnekProcessRole = .current,
@@ -406,6 +407,14 @@ final class AppState {
             stateCacheByDeviceID[deviceID] = remoteState
             lastUpdatedByDeviceID[deviceID] = snapshot.lastUpdatedByDeviceID[deviceID] ?? Date()
             refreshFailureCountByDeviceID[deviceID] = 0
+        }
+
+        if let focusedDeviceID = snapshot.focusedDeviceID,
+           let focusedDeviceChangedAt = snapshot.focusedDeviceChangedAt,
+           focusedDeviceChangedAt > lastHandledRemoteFocusAt,
+           liveIDs.contains(focusedDeviceID) {
+            selectedDeviceID = focusedDeviceID
+            lastHandledRemoteFocusAt = focusedDeviceChangedAt
         }
 
         _ = applyDeviceList(snapshot.devices, source: "subscription")
@@ -1504,6 +1513,9 @@ final class AppState {
             let presentationDeviceID = presentationDevice.id
             let merged = next.merged(with: stateCacheByDeviceID[presentationDeviceID] ?? stateCacheByDeviceID[applyDeviceID])
             cacheState(merged, sourceDeviceID: applyDeviceID, presentationDeviceID: presentationDeviceID)
+            if selectedDeviceID != presentationDeviceID {
+                selectedDeviceID = presentationDeviceID
+            }
             if state != merged {
                 state = merged
             }
