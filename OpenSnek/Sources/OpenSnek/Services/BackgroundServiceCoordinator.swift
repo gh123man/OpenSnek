@@ -68,6 +68,9 @@ final class BackgroundServiceCoordinator {
         if isCurrentProcessService {
             return LocalBridgeBackend.shared
         }
+        if let backend = try await connectToRunningService() {
+            return backend
+        }
         guard backgroundServiceEnabled else {
             return LocalBridgeBackend.shared
         }

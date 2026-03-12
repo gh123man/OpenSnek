@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 - The macOS app now keeps live telemetry and DPI/apply flows attached to the currently selected physical mouse even when the runtime device ID shifts during polling, avoiding `Poll Delayed` UI freezes and dropped apply/readback updates after recent multi-device safety changes.
+- The full app now adopts an already-running menu bar service as its hardware backend even if local service preferences are stale, preventing dual-process USB/HID contention when the compact widget and main window are open at the same time.
 
 ## [2026-03-11]
 
