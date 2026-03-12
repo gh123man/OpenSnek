@@ -180,6 +180,32 @@ final class BackgroundServiceCoordinator {
         }
     }
 
+    func terminateOtherRunningApplicationInstances() {
+        guard let bundleIdentifier = Bundle.main.bundleIdentifier else { return }
+        let runningApplications = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+        let targets = Self.otherRunningApplicationsToTerminate(
+            in: runningApplications.map {
+                RunningAppSnapshot(
+                    processIdentifier: $0.processIdentifier,
+                    activationPolicy: $0.activationPolicy,
+                    isActive: $0.isActive,
+                    isTerminated: $0.isTerminated
+                )
+            },
+            excluding: ProcessInfo.processInfo.processIdentifier
+        )
+
+        for target in targets {
+            guard let application = runningApplications.first(where: { $0.processIdentifier == target.processIdentifier }) else {
+                continue
+            }
+            if !application.terminate() {
+                AppLog.warning("Service", "terminate() declined by pid=\(application.processIdentifier); force terminating")
+                _ = application.forceTerminate()
+            }
+        }
+    }
+
     func stopServiceProcess() {
         guard let pid = serviceProcessIdentifier else { return }
         kill(pid, SIGTERM)
@@ -242,6 +268,26 @@ final class BackgroundServiceCoordinator {
                 return lhs.processIdentifier < rhs.processIdentifier
             }
             .first
+    }
+
+    nonisolated static func otherRunningApplicationsToTerminate(
+        in runningApplications: [RunningAppSnapshot],
+        excluding currentProcessIdentifier: pid_t
+    ) -> [RunningAppSnapshot] {
+        runningApplications
+            .filter {
+                $0.processIdentifier != currentProcessIdentifier &&
+                    !$0.isTerminated
+            }
+            .sorted { lhs, rhs in
+                if lhs.isActive != rhs.isActive {
+                    return lhs.isActive && !rhs.isActive
+                }
+                if lhs.activationPolicy != rhs.activationPolicy {
+                    return lhs.activationPolicy == .regular && rhs.activationPolicy != .regular
+                }
+                return lhs.processIdentifier < rhs.processIdentifier
+            }
     }
 
     private var launchAgentURL: URL {

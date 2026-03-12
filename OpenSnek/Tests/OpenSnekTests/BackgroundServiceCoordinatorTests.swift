@@ -95,4 +95,18 @@ final class BackgroundServiceCoordinatorTests: XCTestCase {
 
         XCTAssertNil(selected)
     }
+
+    func testOtherRunningApplicationsToTerminateIncludesAllOtherLiveInstances() {
+        let targets = BackgroundServiceCoordinator.otherRunningApplicationsToTerminate(
+            in: [
+                .init(processIdentifier: 301, activationPolicy: .accessory, isActive: true, isTerminated: false),
+                .init(processIdentifier: 302, activationPolicy: .regular, isActive: true, isTerminated: false),
+                .init(processIdentifier: 303, activationPolicy: .accessory, isActive: false, isTerminated: false),
+                .init(processIdentifier: 304, activationPolicy: .regular, isActive: false, isTerminated: true),
+            ],
+            excluding: 301
+        )
+
+        XCTAssertEqual(targets.map(\.processIdentifier), [302, 303])
+    }
 }

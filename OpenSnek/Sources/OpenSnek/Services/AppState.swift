@@ -602,6 +602,7 @@ final class AppState {
     }
 
     func terminateServiceProcess() {
+        serviceCoordinator.terminateOtherRunningApplicationInstances()
         prepareForCurrentServiceProcessTermination()
         NSApp.terminate(nil)
     }

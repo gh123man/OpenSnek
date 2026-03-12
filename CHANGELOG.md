@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [2026-03-12]
 
 ### Fixed
+- Choosing `Quit` from the menu bar service now closes both the compact service and any open full app window instances, instead of only terminating the service process.
 - Multi-device service ownership now keeps baseline state polling per-device instead of per-selected-device, so the menu bar UI and main window can stay focused on different mice without either one going stale or falling into `Poll Delayed`.
 - Cross-process service snapshots no longer force both UIs onto the same "last changed" device; each UI now keeps its own selection while still receiving live state updates for every connected mouse.
 - Removed the transient `Stage x -> y DPI applied` status message because the live UI already reflects successful DPI changes directly.
