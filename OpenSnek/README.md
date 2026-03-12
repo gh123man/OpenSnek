@@ -31,15 +31,21 @@ Device onboarding and capture interpretation live in:
 - `Sources/OpenSnekHardware/`
   - shared repository/driver abstractions for bridge migration
   - shared `USBHIDControlSession` and `BLEVendorTransportClient` transport clients
+  - `PassiveDPIEventMonitor`: HID input-report listener for validated USB/Bluetooth passive DPI updates
+  - `HIDDevicePresenceMonitor`: macOS HID attach/remove monitor used for physical device presence
 - `Sources/OpenSnekAppSupport/`
   - `ApplyCoordinator`: latest-wins patch coalescing helper
   - `DevicePreferenceStore`: extracted `UserDefaults` persistence for lighting/button state
 - `Sources/OpenSnek/Bridge/`
   - `BridgeClient`: repository-compatible bridge shell and discovery/orchestration
+    - resolves supported devices and transport-specific profiles
+    - owns passive DPI listener registration, reconnect re-arming, and fast-poll fallback decisions
+    - keeps physical HID presence separate from telemetry availability
   - `BridgeClient+USB`: USB HID state/apply path
   - `BridgeClient+Bluetooth`: BLE vendor state/apply path
 - `Sources/OpenSnek/Services/`
-  - `AppState`: top-level UI state model composed with extracted apply/persistence helpers, service settings, and app-level polling
+  - `BackendSession`: local bridge backend plus remote service backend with a shared async state-update stream
+  - `AppState`: top-level UI state model composed with extracted apply/persistence helpers, service settings, connection health tracking, diagnostics, and app-level polling
   - `AppLog`: runtime file + OSLog logger
   - background service/XPC helpers for the optional menu bar widget process
 - `Sources/OpenSnek/UI/`
@@ -57,10 +63,22 @@ Device onboarding and capture interpretation live in:
 
 - BLE vendor transactions are serialized per connection.
 - Auto-apply edits are coalesced (latest-wins) to prevent write backlog.
-- Refresh and fast-poll responses are revision-gated to drop stale results.
+- Physical presence and telemetry freshness are tracked separately.
+- Refresh, snapshot, and fast-poll responses are revision-gated to drop stale results.
 - Invalid DPI payloads are ignored (with retry) to avoid UI snapback on transient malformed frames.
+- Validated transports prefer passive HID DPI input reports, with fast DPI polling kept as a recovery path until passive reports are observed again.
+- Passive HID updates can supersede older full-state reads, so rapid on-device DPI cycling does not snap back to older values.
 - Device discovery now resolves profile metadata up front, including button layout and lighting-effect support per transport.
 - Open Snek can run either standalone or with an optional companion menu bar service. When the service is enabled, the widget and full app share one backend owner over a local XPC bridge.
+
+## Connection Model
+
+- macOS HID discovery is the source of truth for whether a device is physically attached. `HIDDevicePresenceMonitor` listens for attach/remove events and the bridge refreshes the device list immediately when those changes arrive.
+- Telemetry health is separate from presence. A device can still be shown as physically present while reads are reconnecting, stale, or temporarily unavailable, and the UI disables editing controls until live state is healthy again.
+- `BridgeClient` registers passive HID DPI watch targets for validated transports. When a passive event is observed, Open Snek updates cached DPI state immediately and disables fast DPI polling for that device.
+- On reconnects or passive-listener registration changes, the bridge re-arms the passive listener and temporarily falls back to fast DPI polling until real-time HID reports resume.
+- `BackendSession` exposes the same `BackendStateUpdate` stream for both the in-process hardware backend and the background service transport, so `AppState` consumes one flow for device list changes, passive DPI updates, and full-state snapshots.
+- The diagnostics sheet reports three separate signals for the selected device: physical presence, telemetry status, and DPI update path (`Real-time HID events` vs `Polling fallback`).
 
 ## Build / Run
 
