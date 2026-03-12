@@ -218,21 +218,10 @@ struct ServiceMenuBarStatusItemLabel: View {
         return fallback > 0 ? fallback : nil
     }
 
-    private var compactDpiText: String? {
-        ServiceMenuBarPresentation.compactDpiText(for: currentDpi)
-    }
-
     var body: some View {
-        HStack(spacing: compactDpiText == nil ? 0 : 5) {
-            ServiceMenuBarStatusGlyph(isConnected: appState.selectedDevice != nil)
-
-            if let compactDpiText {
-                Text(compactDpiText)
-                    .font(.system(size: 11, weight: .black, design: .rounded))
-                    .monospacedDigit()
-                    .lineLimit(1)
-            }
-        }
+        ServiceMenuBarStatusGlyph(isConnected: appState.selectedDevice != nil)
+            .frame(width: 12, height: 12)
+            .fixedSize()
         .help(helpText)
         .accessibilityLabel(helpText)
     }
@@ -262,7 +251,7 @@ private struct ServiceMenuBarStatusGlyph: View {
                     .renderingMode(.original)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 10, height: 10)
+                    .frame(width: 7, height: 7)
             } else {
                 ZStack {
                     Circle()
@@ -283,6 +272,6 @@ private struct ServiceMenuBarStatusGlyph: View {
             }
         }
         .opacity(iconOpacity)
-        .frame(width: 14, height: 14)
+        .frame(width: 12, height: 12)
     }
 }
