@@ -1,0 +1,26 @@
+import XCTest
+@testable import OpenSnek
+
+final class AppLifecycleDelegateTests: XCTestCase {
+    func testServiceReopenLaunchesFullApp() {
+        XCTAssertEqual(
+            AppLifecycleDelegate.reopenBehavior(launchRole: .service, hasVisibleWindows: false),
+            .launchFullApp
+        )
+        XCTAssertEqual(
+            AppLifecycleDelegate.reopenBehavior(launchRole: .service, hasVisibleWindows: true),
+            .launchFullApp
+        )
+    }
+
+    func testWindowedAppReopenRestoresHiddenWindowsOnlyWhenNeeded() {
+        XCTAssertEqual(
+            AppLifecycleDelegate.reopenBehavior(launchRole: .app, hasVisibleWindows: false),
+            .reopenWindows
+        )
+        XCTAssertEqual(
+            AppLifecycleDelegate.reopenBehavior(launchRole: .app, hasVisibleWindows: true),
+            .noop
+        )
+    }
+}

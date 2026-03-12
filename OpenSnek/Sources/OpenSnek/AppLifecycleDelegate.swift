@@ -2,6 +2,22 @@ import AppKit
 
 @MainActor
 final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
+    enum ReopenBehavior: Equatable {
+        case launchFullApp
+        case reopenWindows
+        case noop
+    }
+
+    nonisolated static func reopenBehavior(
+        launchRole: OpenSnekProcessRole,
+        hasVisibleWindows: Bool
+    ) -> ReopenBehavior {
+        if launchRole.isService {
+            return .launchFullApp
+        }
+        return hasVisibleWindows ? .noop : .reopenWindows
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown"
@@ -21,14 +37,24 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+    func applicationDidBecomeActive(_ notification: Notification) {
         if OpenSnekProcessRole.current.isService {
+            NSApp.setActivationPolicy(.accessory)
+        }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        switch Self.reopenBehavior(launchRole: OpenSnekProcessRole.current, hasVisibleWindows: flag) {
+        case .launchFullApp:
+            sender.setActivationPolicy(.accessory)
+            BackgroundServiceCoordinator.shared.launchFullAppProcess()
             return false
-        }
-        if !flag {
+        case .reopenWindows:
             sender.windows.forEach { $0.makeKeyAndOrderFront(nil) }
+            return true
+        case .noop:
+            return true
         }
-        return true
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
