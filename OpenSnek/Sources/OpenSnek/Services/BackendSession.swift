@@ -1,5 +1,5 @@
-import AppKit
 import Foundation
+import Network
 import OpenSnekCore
 
 enum OpenSnekProcessRole: String, Sendable {
@@ -16,6 +16,7 @@ enum OpenSnekProcessRole: String, Sendable {
 }
 
 protocol DeviceBackend: AnyObject, Sendable {
+    var usesRemoteServiceTransport: Bool { get }
     func listDevices() async throws -> [MouseDevice]
     func readState(device: MouseDevice) async throws -> MouseState
     func readDpiStagesFast(device: MouseDevice) async throws -> DpiFastSnapshot?
@@ -53,25 +54,183 @@ private enum BackendCodec {
     }
 }
 
-private final class XPCReplyBox: @unchecked Sendable {
-    let handler: (Data?, String?) -> Void
+private enum BackgroundServiceMethod: String, Codable, Sendable {
+    case ping
+    case listDevices
+    case readState
+    case readDpiStagesFast
+    case apply
+    case readLightingColor
+    case debugUSBReadButtonBinding
+}
 
-    init(_ handler: @escaping (Data?, String?) -> Void) {
-        self.handler = handler
-    }
+private struct BackgroundServiceRequestEnvelope: Codable, Sendable {
+    let method: BackgroundServiceMethod
+    let payload: Data?
+}
 
-    func reply(data: Data?, error: String?) {
-        handler(data, error)
+private struct BackgroundServiceResponseEnvelope: Codable, Sendable {
+    let payload: Data?
+    let error: String?
+}
+
+private enum BackgroundServiceTransportError: LocalizedError {
+    case connectionClosed
+    case invalidLength
+    case missingPayload
+    case listenerUnavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .connectionClosed:
+            return "Background service connection closed unexpectedly"
+        case .invalidLength:
+            return "Background service returned an invalid message"
+        case .missingPayload:
+            return "Background service request was missing its payload"
+        case .listenerUnavailable:
+            return "Background service listener did not publish a port"
+        }
     }
 }
 
-private func scheduleBackendReply<T: Encodable & Sendable>(
-    replyBox: XPCReplyBox,
-    operation: @escaping @Sendable () async throws -> T
-) {
-    DispatchQueue.global(qos: .userInitiated).async {
-        Task {
-            await BackgroundServiceXPCBridge.replyWithResult(replyBox, operation: operation)
+private final class BackgroundServiceResumeGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var hasResumed = false
+
+    func claim() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !hasResumed else { return false }
+        hasResumed = true
+        return true
+    }
+}
+
+private enum BackgroundServiceTransport {
+    static func listenerParameters() -> NWParameters {
+        let parameters = NWParameters.tcp
+        parameters.allowLocalEndpointReuse = true
+        parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: .any)
+        return parameters
+    }
+
+    static func clientParameters() -> NWParameters {
+        .tcp
+    }
+
+    static func awaitReady(listener: NWListener) async throws -> NWEndpoint.Port {
+        try await withCheckedThrowingContinuation { continuation in
+            let queue = DispatchQueue(label: "io.opensnek.service.listener")
+            let gate = BackgroundServiceResumeGate()
+            listener.stateUpdateHandler = { state in
+                switch state {
+                case .ready:
+                    guard gate.claim() else { return }
+                    guard let port = listener.port else {
+                        continuation.resume(throwing: BackgroundServiceTransportError.listenerUnavailable)
+                        return
+                    }
+                    continuation.resume(returning: port)
+                case .failed(let error):
+                    guard gate.claim() else { return }
+                    continuation.resume(throwing: error)
+                case .cancelled:
+                    guard gate.claim() else { return }
+                    continuation.resume(throwing: BackgroundServiceTransportError.connectionClosed)
+                default:
+                    break
+                }
+            }
+            listener.start(queue: queue)
+        }
+    }
+
+    static func awaitReady(connection: NWConnection) async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            let queue = DispatchQueue(label: "io.opensnek.service.client")
+            let gate = BackgroundServiceResumeGate()
+            connection.stateUpdateHandler = { state in
+                switch state {
+                case .ready:
+                    guard gate.claim() else { return }
+                    continuation.resume()
+                case .failed(let error):
+                    guard gate.claim() else { return }
+                    continuation.resume(throwing: error)
+                case .cancelled:
+                    guard gate.claim() else { return }
+                    continuation.resume(throwing: BackgroundServiceTransportError.connectionClosed)
+                default:
+                    break
+                }
+            }
+            connection.start(queue: queue)
+        }
+    }
+
+    static func sendFrame(_ payload: Data, over connection: NWConnection) async throws {
+        var framed = Data()
+        var length = UInt32(payload.count).bigEndian
+        withUnsafeBytes(of: &length) { header in
+            framed.append(contentsOf: header)
+        }
+        framed.append(payload)
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            connection.send(content: framed, completion: .contentProcessed { error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            })
+        }
+    }
+
+    static func receiveFrame(from connection: NWConnection) async throws -> Data {
+        let header = try await receiveExactly(4, from: connection)
+        let length = header.reduce(UInt32(0)) { partial, byte in
+            (partial << 8) | UInt32(byte)
+        }
+
+        if length == 0 {
+            return Data()
+        }
+
+        return try await receiveExactly(Int(length), from: connection)
+    }
+
+    private static func receiveExactly(_ count: Int, from connection: NWConnection) async throws -> Data {
+        guard count >= 0 else {
+            throw BackgroundServiceTransportError.invalidLength
+        }
+
+        var buffer = Data()
+        while buffer.count < count {
+            let chunk = try await receiveChunk(maximumLength: count - buffer.count, from: connection)
+            buffer.append(chunk)
+        }
+        return buffer
+    }
+
+    private static func receiveChunk(maximumLength: Int, from connection: NWConnection) async throws -> Data {
+        try await withCheckedThrowingContinuation { continuation in
+            connection.receive(minimumIncompleteLength: 1, maximumLength: maximumLength) { data, _, isComplete, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                if let data, !data.isEmpty {
+                    continuation.resume(returning: data)
+                    return
+                }
+                if isComplete {
+                    continuation.resume(throwing: BackgroundServiceTransportError.connectionClosed)
+                } else {
+                    continuation.resume(throwing: BackgroundServiceTransportError.invalidLength)
+                }
+            }
         }
     }
 }
@@ -87,6 +246,8 @@ final actor LocalBridgeBackend: DeviceBackend {
     private var cachedFastByDeviceID: [String: DpiFastSnapshot] = [:]
     private var cachedFastAtByDeviceID: [String: Date] = [:]
 
+    nonisolated var usesRemoteServiceTransport: Bool { false }
+
     func listDevices() async throws -> [MouseDevice] {
         if let cachedDevicesAt,
            Date().timeIntervalSince(cachedDevicesAt) < 1.0,
@@ -96,6 +257,7 @@ final actor LocalBridgeBackend: DeviceBackend {
         let devices = try await client.listDevices()
         cachedDevices = devices
         cachedDevicesAt = Date()
+        publishSnapshotIfService()
         return devices
     }
 
@@ -108,6 +270,7 @@ final actor LocalBridgeBackend: DeviceBackend {
         let state = try await client.readState(device: device)
         cachedStateByDeviceID[device.id] = state
         cachedStateAtByDeviceID[device.id] = Date()
+        publishSnapshotIfService()
         return state
     }
 
@@ -121,6 +284,8 @@ final actor LocalBridgeBackend: DeviceBackend {
         let fast = DpiFastSnapshot(active: snapshot.active, values: snapshot.values)
         cachedFastByDeviceID[device.id] = fast
         cachedFastAtByDeviceID[device.id] = Date()
+        updateCachedStateFromFastSnapshot(fast, for: device.id)
+        publishSnapshotIfService()
         return fast
     }
 
@@ -134,6 +299,7 @@ final actor LocalBridgeBackend: DeviceBackend {
             cachedFastByDeviceID[device.id] = fast
             cachedFastAtByDeviceID[device.id] = Date()
         }
+        publishSnapshotIfService()
         return state
     }
 
@@ -144,238 +310,257 @@ final actor LocalBridgeBackend: DeviceBackend {
     func debugUSBReadButtonBinding(device: MouseDevice, slot: Int, profile: Int) async throws -> [UInt8]? {
         try await client.debugUSBReadButtonBinding(device: device, slot: slot, profile: profile)
     }
+
+    private func updateCachedStateFromFastSnapshot(_ snapshot: DpiFastSnapshot, for deviceID: String) {
+        guard let previous = cachedStateByDeviceID[deviceID], !snapshot.values.isEmpty else { return }
+        let active = max(0, min(snapshot.values.count - 1, snapshot.active))
+        let currentDpiValue = snapshot.values[active]
+        let updated = MouseState(
+            device: previous.device,
+            connection: previous.connection,
+            battery_percent: previous.battery_percent,
+            charging: previous.charging,
+            dpi: DpiPair(x: currentDpiValue, y: currentDpiValue),
+            dpi_stages: DpiStages(active_stage: active, values: snapshot.values),
+            poll_rate: previous.poll_rate,
+            sleep_timeout: previous.sleep_timeout,
+            device_mode: previous.device_mode,
+            low_battery_threshold_raw: previous.low_battery_threshold_raw,
+            scroll_mode: previous.scroll_mode,
+            scroll_acceleration: previous.scroll_acceleration,
+            scroll_smart_reel: previous.scroll_smart_reel,
+            active_onboard_profile: previous.active_onboard_profile,
+            onboard_profile_count: previous.onboard_profile_count,
+            led_value: previous.led_value,
+            capabilities: previous.capabilities
+        )
+        cachedStateByDeviceID[deviceID] = updated
+        cachedStateAtByDeviceID[deviceID] = Date()
+    }
+
+    private func publishSnapshotIfService() {
+        guard OpenSnekProcessRole.current.isService else { return }
+        let liveIDs = Set(cachedDevices.map(\.id))
+        CrossProcessStateSync.post(
+            snapshot: SharedServiceSnapshot(
+                devices: cachedDevices,
+                stateByDeviceID: cachedStateByDeviceID.filter { liveIDs.contains($0.key) },
+                lastUpdatedByDeviceID: cachedStateAtByDeviceID.filter { liveIDs.contains($0.key) }
+            )
+        )
+    }
 }
 
-@objc protocol BackgroundServiceXPCProtocol {
-    func ping(_ reply: @escaping (Bool) -> Void)
-    func listDevices(_ reply: @escaping (Data?, String?) -> Void)
-    func readState(_ deviceData: Data, reply: @escaping (Data?, String?) -> Void)
-    func readDpiStagesFast(_ deviceData: Data, reply: @escaping (Data?, String?) -> Void)
-    func apply(_ requestData: Data, reply: @escaping (Data?, String?) -> Void)
-    func readLightingColor(_ deviceData: Data, reply: @escaping (Data?, String?) -> Void)
-    func debugUSBReadButtonBinding(_ requestData: Data, reply: @escaping (Data?, String?) -> Void)
-}
+private actor BackgroundServiceRequestHandler {
+    private let backend: any DeviceBackend
 
-final class BackgroundServiceXPCBridge: NSObject, BackgroundServiceXPCProtocol {
-    private let backend: LocalBridgeBackend
-
-    init(backend: LocalBridgeBackend) {
+    init(backend: any DeviceBackend) {
         self.backend = backend
     }
 
-    func ping(_ reply: @escaping (Bool) -> Void) {
-        reply(true)
-    }
-
-    func listDevices(_ reply: @escaping (Data?, String?) -> Void) {
-        let backend = self.backend
-        let replyBox = XPCReplyBox(reply)
-        scheduleBackendReply(replyBox: replyBox) {
-            try await backend.listDevices()
+    func handle(_ requestData: Data) async -> Data {
+        let response: BackgroundServiceResponseEnvelope
+        do {
+            let request = try BackendCodec.decode(BackgroundServiceRequestEnvelope.self, from: requestData)
+            response = try await makeResponse(for: request)
+        } catch {
+            response = BackgroundServiceResponseEnvelope(payload: nil, error: error.localizedDescription)
         }
+
+        return (try? BackendCodec.encode(response)) ?? Data()
     }
 
-    func readState(_ deviceData: Data, reply: @escaping (Data?, String?) -> Void) {
-        let backend = self.backend
-        let replyBox = XPCReplyBox(reply)
-        scheduleBackendReply(replyBox: replyBox) {
-            let device = try BackendCodec.decode(MouseDevice.self, from: deviceData)
-            return try await backend.readState(device: device)
-        }
-    }
+    private func makeResponse(for request: BackgroundServiceRequestEnvelope) async throws -> BackgroundServiceResponseEnvelope {
+        let payload: Data
 
-    func readDpiStagesFast(_ deviceData: Data, reply: @escaping (Data?, String?) -> Void) {
-        let backend = self.backend
-        let replyBox = XPCReplyBox(reply)
-        scheduleBackendReply(replyBox: replyBox) {
-            let device = try BackendCodec.decode(MouseDevice.self, from: deviceData)
-            return try await backend.readDpiStagesFast(device: device)
-        }
-    }
-
-    func apply(_ requestData: Data, reply: @escaping (Data?, String?) -> Void) {
-        let backend = self.backend
-        let replyBox = XPCReplyBox(reply)
-        scheduleBackendReply(replyBox: replyBox) {
-            let request = try BackendCodec.decode(ApplyRequest.self, from: requestData)
-            return try await backend.apply(device: request.device, patch: request.patch)
-        }
-    }
-
-    func readLightingColor(_ deviceData: Data, reply: @escaping (Data?, String?) -> Void) {
-        let backend = self.backend
-        let replyBox = XPCReplyBox(reply)
-        scheduleBackendReply(replyBox: replyBox) {
-            let device = try BackendCodec.decode(MouseDevice.self, from: deviceData)
-            return try await backend.readLightingColor(device: device)
-        }
-    }
-
-    func debugUSBReadButtonBinding(_ requestData: Data, reply: @escaping (Data?, String?) -> Void) {
-        let backend = self.backend
-        let replyBox = XPCReplyBox(reply)
-        scheduleBackendReply(replyBox: replyBox) {
-            let request = try BackendCodec.decode(ButtonBindingReadRequest.self, from: requestData)
-            return try await backend.debugUSBReadButtonBinding(
-                device: request.device,
-                slot: request.slot,
-                profile: request.profile
+        switch request.method {
+        case .ping:
+            payload = try BackendCodec.encode(true)
+        case .listDevices:
+            payload = try BackendCodec.encode(try await backend.listDevices())
+        case .readState:
+            let device = try decodePayload(MouseDevice.self, from: request.payload)
+            payload = try BackendCodec.encode(try await backend.readState(device: device))
+        case .readDpiStagesFast:
+            let device = try decodePayload(MouseDevice.self, from: request.payload)
+            payload = try BackendCodec.encode(try await backend.readDpiStagesFast(device: device))
+        case .apply:
+            let applyRequest = try decodePayload(ApplyRequest.self, from: request.payload)
+            payload = try BackendCodec.encode(try await backend.apply(device: applyRequest.device, patch: applyRequest.patch))
+        case .readLightingColor:
+            let device = try decodePayload(MouseDevice.self, from: request.payload)
+            payload = try BackendCodec.encode(try await backend.readLightingColor(device: device))
+        case .debugUSBReadButtonBinding:
+            let bindingRequest = try decodePayload(ButtonBindingReadRequest.self, from: request.payload)
+            payload = try BackendCodec.encode(
+                try await backend.debugUSBReadButtonBinding(
+                    device: bindingRequest.device,
+                    slot: bindingRequest.slot,
+                    profile: bindingRequest.profile
+                )
             )
         }
+
+        return BackgroundServiceResponseEnvelope(payload: payload, error: nil)
     }
 
-    fileprivate static func replyWithResult<T: Encodable & Sendable>(
-        _ replyBox: XPCReplyBox,
-        operation: @escaping () async throws -> T
-    ) async {
-        do {
-            let value = try await operation()
-            replyBox.reply(data: try BackendCodec.encode(value), error: nil)
-        } catch {
-            replyBox.reply(data: nil, error: error.localizedDescription)
+    private func decodePayload<T: Decodable>(_ type: T.Type, from payload: Data?) throws -> T {
+        guard let payload else {
+            throw BackgroundServiceTransportError.missingPayload
         }
+        return try BackendCodec.decode(type, from: payload)
     }
 }
 
-final actor XPCDeviceBackend: DeviceBackend {
-    private let connection: NSXPCConnection
+final actor IPCDeviceBackend: DeviceBackend {
+    private let host: NWEndpoint.Host = .ipv4(.loopback)
+    private let port: NWEndpoint.Port
 
-    init(endpoint: NSXPCListenerEndpoint) {
-        let connection = NSXPCConnection(listenerEndpoint: endpoint)
-        connection.remoteObjectInterface = NSXPCInterface(with: BackgroundServiceXPCProtocol.self)
-        connection.resume()
-        self.connection = connection
+    init(port: NWEndpoint.Port) {
+        self.port = port
     }
 
+    nonisolated var usesRemoteServiceTransport: Bool { true }
+
     func ping() async -> Bool {
-        await withCheckedContinuation { continuation in
-            guard let proxy = connection.remoteObjectProxy as? BackgroundServiceXPCProtocol else {
-                continuation.resume(returning: false)
-                return
-            }
-            proxy.ping { ok in
-                continuation.resume(returning: ok)
-            }
-        }
+        (try? await request(method: .ping, payload: nil, responseType: Bool.self)) ?? false
     }
 
     func listDevices() async throws -> [MouseDevice] {
-        try await request { proxy, reply in
-            proxy.listDevices(reply)
-        }
+        try await request(method: .listDevices, payload: nil, responseType: [MouseDevice].self)
     }
 
     func readState(device: MouseDevice) async throws -> MouseState {
-        let data = try BackendCodec.encode(device)
-        return try await request { proxy, reply in
-            proxy.readState(data, reply: reply)
-        }
+        try await request(
+            method: .readState,
+            payload: try BackendCodec.encode(device),
+            responseType: MouseState.self
+        )
     }
 
     func readDpiStagesFast(device: MouseDevice) async throws -> DpiFastSnapshot? {
-        let data = try BackendCodec.encode(device)
-        return try await request { proxy, reply in
-            proxy.readDpiStagesFast(data, reply: reply)
-        }
+        try await request(
+            method: .readDpiStagesFast,
+            payload: try BackendCodec.encode(device),
+            responseType: DpiFastSnapshot?.self
+        )
     }
 
     func apply(device: MouseDevice, patch: DevicePatch) async throws -> MouseState {
-        let data = try BackendCodec.encode(ApplyRequest(device: device, patch: patch))
-        return try await request { proxy, reply in
-            proxy.apply(data, reply: reply)
-        }
+        try await request(
+            method: .apply,
+            payload: try BackendCodec.encode(ApplyRequest(device: device, patch: patch)),
+            responseType: MouseState.self
+        )
     }
 
     func readLightingColor(device: MouseDevice) async throws -> RGBPatch? {
-        let data = try BackendCodec.encode(device)
-        return try await request { proxy, reply in
-            proxy.readLightingColor(data, reply: reply)
-        }
+        try await request(
+            method: .readLightingColor,
+            payload: try BackendCodec.encode(device),
+            responseType: RGBPatch?.self
+        )
     }
 
     func debugUSBReadButtonBinding(device: MouseDevice, slot: Int, profile: Int) async throws -> [UInt8]? {
-        let requestData = try BackendCodec.encode(
-            ButtonBindingReadRequest(device: device, slot: slot, profile: profile)
+        try await request(
+            method: .debugUSBReadButtonBinding,
+            payload: try BackendCodec.encode(ButtonBindingReadRequest(device: device, slot: slot, profile: profile)),
+            responseType: [UInt8]?.self
         )
-        return try await request { proxy, reply in
-            proxy.debugUSBReadButtonBinding(requestData, reply: reply)
-        }
     }
 
     private func request<T: Decodable & Sendable>(
-        _ invoke: @escaping (BackgroundServiceXPCProtocol, @escaping (Data?, String?) -> Void) -> Void
+        method: BackgroundServiceMethod,
+        payload: Data?,
+        responseType: T.Type
     ) async throws -> T {
-        try await withCheckedThrowingContinuation { continuation in
-            let errorProxy = connection.remoteObjectProxyWithErrorHandler { error in
-                continuation.resume(throwing: error)
-            }
+        let connection = NWConnection(host: host, port: port, using: BackgroundServiceTransport.clientParameters())
+        defer { connection.cancel() }
 
-            guard let proxy = errorProxy as? BackgroundServiceXPCProtocol else {
-                continuation.resume(throwing: NSError(domain: "OpenSnek.XPC", code: 1, userInfo: [
-                    NSLocalizedDescriptionKey: "Failed to create XPC proxy"
-                ]))
-                return
-            }
+        try await BackgroundServiceTransport.awaitReady(connection: connection)
 
-            invoke(proxy) { data, errorMessage in
-                if let errorMessage {
-                    continuation.resume(throwing: NSError(domain: "OpenSnek.XPC", code: 2, userInfo: [
-                        NSLocalizedDescriptionKey: errorMessage
-                    ]))
-                    return
-                }
-                guard let data else {
-                    continuation.resume(throwing: NSError(domain: "OpenSnek.XPC", code: 3, userInfo: [
-                        NSLocalizedDescriptionKey: "Service returned no payload"
-                    ]))
-                    return
-                }
-                do {
-                    continuation.resume(returning: try BackendCodec.decode(T.self, from: data))
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
+        let request = BackgroundServiceRequestEnvelope(method: method, payload: payload)
+        try await BackgroundServiceTransport.sendFrame(try BackendCodec.encode(request), over: connection)
+
+        let responseData = try await BackgroundServiceTransport.receiveFrame(from: connection)
+        let response = try BackendCodec.decode(BackgroundServiceResponseEnvelope.self, from: responseData)
+        if let error = response.error {
+            throw NSError(domain: "OpenSnek.Service", code: 2, userInfo: [
+                NSLocalizedDescriptionKey: error
+            ])
         }
+        guard let payload = response.payload else {
+            throw NSError(domain: "OpenSnek.Service", code: 3, userInfo: [
+                NSLocalizedDescriptionKey: "Background service returned no payload"
+            ])
+        }
+        return try BackendCodec.decode(responseType, from: payload)
     }
 }
 
-final class BackgroundServiceHost: NSObject, NSXPCListenerDelegate {
-    private let listener = NSXPCListener.anonymous()
-    private let bridge: BackgroundServiceXPCBridge
-    private let defaults = UserDefaults.standard
+final class BackgroundServiceHost: @unchecked Sendable {
+    private let defaults: UserDefaults
     private let pid = ProcessInfo.processInfo.processIdentifier
+    private let listener: NWListener
+    private let handler: BackgroundServiceRequestHandler
+    private let queue = DispatchQueue(label: "io.opensnek.service.host")
 
-    init(backend: LocalBridgeBackend) {
-        bridge = BackgroundServiceXPCBridge(backend: backend)
-        super.init()
-        listener.delegate = self
+    init(backend: any DeviceBackend, defaults: UserDefaults = .standard) throws {
+        self.defaults = defaults
+        self.listener = try NWListener(using: BackgroundServiceTransport.listenerParameters())
+        self.handler = BackgroundServiceRequestHandler(backend: backend)
     }
 
-    func start() throws {
-        let endpointData = try NSKeyedArchiver.archivedData(
-            withRootObject: listener.endpoint,
-            requiringSecureCoding: true
-        )
-        defaults.set(endpointData, forKey: BackgroundServiceCoordinator.endpointDefaultsKey)
+    func start() async throws {
+        listener.newConnectionHandler = { [weak self] connection in
+            self?.accept(connection)
+        }
+
+        let port = try await BackgroundServiceTransport.awaitReady(listener: listener)
+        defaults.removeObject(forKey: BackgroundServiceCoordinator.endpointDefaultsKey)
+        defaults.set(Int(port.rawValue), forKey: BackgroundServiceCoordinator.portDefaultsKey)
         defaults.set(pid, forKey: BackgroundServiceCoordinator.pidDefaultsKey)
         defaults.synchronize()
-        listener.resume()
+        AppLog.info("Service", "background service published pid=\(pid) port=\(port.rawValue)")
     }
 
     func stop() {
         if defaults.integer(forKey: BackgroundServiceCoordinator.pidDefaultsKey) == pid {
             defaults.removeObject(forKey: BackgroundServiceCoordinator.endpointDefaultsKey)
+            defaults.removeObject(forKey: BackgroundServiceCoordinator.portDefaultsKey)
             defaults.removeObject(forKey: BackgroundServiceCoordinator.pidDefaultsKey)
             defaults.synchronize()
         }
-        listener.invalidate()
+        listener.cancel()
     }
 
-    func listener(_ listener: NSXPCListener, shouldAcceptNewConnection newConnection: NSXPCConnection) -> Bool {
-        newConnection.exportedInterface = NSXPCInterface(with: BackgroundServiceXPCProtocol.self)
-        newConnection.exportedObject = bridge
-        newConnection.resume()
-        return true
+    private func accept(_ connection: NWConnection) {
+        connection.stateUpdateHandler = { [weak self] state in
+            switch state {
+            case .ready:
+                self?.handle(connection)
+            case .failed(let error):
+                AppLog.warning("Service", "background service connection failed: \(error.localizedDescription)")
+                connection.cancel()
+            default:
+                break
+            }
+        }
+        connection.start(queue: queue)
+    }
+
+    private func handle(_ connection: NWConnection) {
+        let handler = self.handler
+        Task {
+            do {
+                let requestData = try await BackgroundServiceTransport.receiveFrame(from: connection)
+                let responseData = await handler.handle(requestData)
+                try await BackgroundServiceTransport.sendFrame(responseData, over: connection)
+            } catch {
+                AppLog.warning("Service", "background service request failed: \(error.localizedDescription)")
+            }
+            connection.cancel()
+        }
     }
 }

@@ -5,6 +5,9 @@ All notable changes to this project are documented in this file.
 ## [2026-03-12]
 
 ### Fixed
+- The menu bar service now publishes a real localhost IPC endpoint instead of trying to serialize an `NSXPCListenerEndpoint` into defaults, which restores shared backend ownership when the main window and background service are open together and prevents dual-process USB contention.
+- When the background service is enabled, the full app now follows a service-published snapshot feed instead of polling the service for steady-state device/state updates, so hardware polling stays service-owned and both UIs converge from the same live snapshot stream.
+- Remote UI clients now send a lightweight active-presence heartbeat to the service so the service keeps its faster interactive polling cadence while the full window is open, instead of dropping back to idle timing.
 - The macOS app now keeps live telemetry and DPI/apply flows attached to the currently selected physical mouse even when the runtime device ID shifts during polling, avoiding `Poll Delayed` UI freezes and dropped apply/readback updates after recent multi-device safety changes.
 - The full app now adopts an already-running menu bar service as its hardware backend even if local service preferences are stale, preventing dual-process USB/HID contention when the compact widget and main window are open at the same time.
 
@@ -23,6 +26,7 @@ All notable changes to this project are documented in this file.
 - Restoring the Basilisk V3 35K top DPI button now preserves its observed default USB payload (`04 02 0F 7B 00 00 00`) instead of falling back to the generic DPI-cycle block.
 
 ### Changed
+- The menu bar status glyph and the full app title bar now use the provided `snek-menu.png` branding at a smaller fitted size, and local `.dist` bundle builds now copy that resource into the app so the icon shows up outside Xcode builds.
 - Standardized app-icon generation around `OpenSnek/Branding/AppIcon-master.png` so the checked-in asset catalog, local `.app` bundle builds, and DMG artwork all use the same source image.
 - Reduced the exported icon's optical size slightly to give the Dock icon more breathing room on macOS versions where the previous full-bleed artwork read as oversized.
 - The menu bar widget now uses a custom status-item glyph with compact live-DPI text, clearer action labels, battery icon + percentage, and larger DPI stage hit targets in both the compact widget and the full app; the redundant manual refresh row and misleading chevron affordances were removed.

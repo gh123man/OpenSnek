@@ -18,11 +18,16 @@ struct ContentView: View {
             await appState.start()
         }
         .onChange(of: appState.selectedDeviceID) { _, _ in
+            guard !appState.usesRemoteServiceUpdates || appState.state == nil else { return }
             Task { await appState.refreshState() }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                Task { await appState.refreshDevices() }
+                if appState.usesRemoteServiceUpdates {
+                    appState.sendRemoteClientPresence()
+                } else {
+                    Task { await appState.refreshDevices() }
+                }
             }
         }
     }

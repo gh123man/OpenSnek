@@ -224,7 +224,7 @@ struct ServiceMenuBarStatusItemLabel: View {
 
     var body: some View {
         HStack(spacing: compactDpiText == nil ? 0 : 5) {
-            ServiceMenuBarCrosshair(isConnected: appState.selectedDevice != nil)
+            ServiceMenuBarStatusGlyph(isConnected: appState.selectedDevice != nil)
 
             if let compactDpiText {
                 Text(compactDpiText)
@@ -248,7 +248,7 @@ struct ServiceMenuBarStatusItemLabel: View {
     }
 }
 
-private struct ServiceMenuBarCrosshair: View {
+private struct ServiceMenuBarStatusGlyph: View {
     let isConnected: Bool
 
     private var iconOpacity: Double {
@@ -256,22 +256,33 @@ private struct ServiceMenuBarCrosshair: View {
     }
 
     var body: some View {
-        ZStack {
-            Circle()
-                .stroke(Color.primary.opacity(iconOpacity), lineWidth: 1.2)
+        Group {
+            if let menuIcon = OpenSnekBranding.menuIcon {
+                Image(nsImage: menuIcon)
+                    .renderingMode(.original)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 10, height: 10)
+            } else {
+                ZStack {
+                    Circle()
+                        .stroke(Color.primary.opacity(iconOpacity), lineWidth: 1.2)
 
-            Rectangle()
-                .fill(Color.primary.opacity(iconOpacity))
-                .frame(width: 1, height: 11)
+                    Rectangle()
+                        .fill(Color.primary.opacity(iconOpacity))
+                        .frame(width: 1, height: 11)
 
-            Rectangle()
-                .fill(Color.primary.opacity(iconOpacity))
-                .frame(width: 11, height: 1)
+                    Rectangle()
+                        .fill(Color.primary.opacity(iconOpacity))
+                        .frame(width: 11, height: 1)
 
-            Circle()
-                .fill(Color.primary.opacity(iconOpacity))
-                .frame(width: 3.5, height: 3.5)
+                    Circle()
+                        .fill(Color.primary.opacity(iconOpacity))
+                        .frame(width: 3.5, height: 3.5)
+                }
+            }
         }
+        .opacity(iconOpacity)
         .frame(width: 14, height: 14)
     }
 }

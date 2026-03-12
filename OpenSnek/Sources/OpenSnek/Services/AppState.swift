@@ -128,6 +128,11 @@ final class AppState {
     private var lastDevicePresencePollAt: Date = .distantPast
     private var lastFastDpiPollAt: Date = .distantPast
     private var transientStatusUntil: Date?
+    private var isBackendReady = false
+    private var serviceSnapshotObserver: NSObjectProtocol?
+    private var clientPresenceObserver: NSObjectProtocol?
+    private var remoteClientInteractionUntil: Date?
+    private var lastRemoteClientPresencePingAt: Date = .distantPast
 
     init(
         launchRole: OpenSnekProcessRole = .current,
@@ -140,6 +145,8 @@ final class AppState {
         self.backgroundServiceEnabled = serviceCoordinator.backgroundServiceEnabled
         self.launchAtStartupEnabled = serviceCoordinator.launchAtStartupEnabled
         self.backend = backend ?? LocalBridgeBackend.shared
+        self.isBackendReady = launchRole.isService || backend != nil || !serviceCoordinator.backgroundServiceEnabled
+        installCrossProcessObservers()
         if launchRole.isService, autoStart {
             Task { [weak self] in
                 await self?.start()
@@ -348,10 +355,80 @@ final class AppState {
         if compactMenuPresented {
             return .serviceInteractive
         }
+        if let remoteClientInteractionUntil, Date() < remoteClientInteractionUntil {
+            return .serviceInteractive
+        }
         if let compactInteractionUntil, Date() < compactInteractionUntil {
             return .serviceInteractive
         }
         return .serviceIdle
+    }
+
+    var usesRemoteServiceUpdates: Bool {
+        !launchRole.isService && backend.usesRemoteServiceTransport
+    }
+
+    private func installCrossProcessObservers() {
+        guard serviceSnapshotObserver == nil else { return }
+        serviceSnapshotObserver = CrossProcessStateSync.observeSnapshots { [weak self] snapshot in
+            Task { [weak self] in
+                await self?.handleServiceSnapshot(snapshot)
+            }
+        }
+
+        guard clientPresenceObserver == nil else { return }
+        clientPresenceObserver = CrossProcessStateSync.observeClientPresence { [weak self] presence in
+            Task { [weak self] in
+                await self?.handleRemoteClientPresence(presence)
+            }
+        }
+    }
+
+    private func handleServiceSnapshot(_ snapshot: SharedServiceSnapshot) async {
+        guard usesRemoteServiceUpdates, isBackendReady else { return }
+        applyRemoteServiceSnapshot(snapshot)
+    }
+
+    private func handleRemoteClientPresence(_ presence: CrossProcessClientPresence) async {
+        guard launchRole.isService else { return }
+        guard presence.sourceProcessID > 0 else { return }
+        remoteClientInteractionUntil = Date().addingTimeInterval(2.5)
+    }
+
+    func applyRemoteServiceSnapshot(_ snapshot: SharedServiceSnapshot) {
+        guard usesRemoteServiceUpdates else { return }
+
+        let liveIDs = Set(snapshot.devices.map(\.id))
+        stateCacheByDeviceID = stateCacheByDeviceID.filter { liveIDs.contains($0.key) }
+        lastUpdatedByDeviceID = lastUpdatedByDeviceID.filter { liveIDs.contains($0.key) }
+
+        for (deviceID, remoteState) in snapshot.stateByDeviceID {
+            stateCacheByDeviceID[deviceID] = remoteState
+            lastUpdatedByDeviceID[deviceID] = snapshot.lastUpdatedByDeviceID[deviceID] ?? Date()
+            refreshFailureCountByDeviceID[deviceID] = 0
+        }
+
+        _ = applyDeviceList(snapshot.devices, source: "subscription")
+
+        if let selectedDeviceID,
+           let selectedState = stateCacheByDeviceID[selectedDeviceID],
+           let selectedDevice = selectedDevice {
+            state = selectedState
+            lastUpdated = lastUpdatedByDeviceID[selectedDeviceID]
+            if shouldHydrateEditable {
+                hydrateEditable(from: selectedState)
+            }
+            errorMessage = nil
+            setTelemetryWarning(telemetryWarning(for: selectedState, device: selectedDevice), device: selectedDevice)
+        } else if let selectedDeviceID {
+            syncSelectedDevicePresentation(deviceID: selectedDeviceID)
+            errorMessage = nil
+        } else {
+            state = nil
+            lastUpdated = nil
+            warningMessage = nil
+            errorMessage = nil
+        }
     }
 
     func start() async {
@@ -360,15 +437,20 @@ final class AppState {
 
         if launchRole.isService {
             do {
-                try serviceCoordinator.registerServiceHostIfNeeded(backend: LocalBridgeBackend.shared)
+                try await serviceCoordinator.registerServiceHostIfNeeded(backend: LocalBridgeBackend.shared)
             } catch {
                 serviceStatusMessage = "Service host failed: \(error.localizedDescription)"
             }
+            isBackendReady = true
         } else {
             await configureBackendForCurrentPreferences()
         }
 
-        await refreshDevices()
+        if usesRemoteServiceUpdates {
+            sendRemoteClientPresence()
+        } else {
+            await refreshDevices()
+        }
         if !launchRole.isService {
             await checkForUpdates()
         }
@@ -398,17 +480,20 @@ final class AppState {
         if enabled {
             do {
                 backend = try await serviceCoordinator.connectOrLaunchService()
+                isBackendReady = true
                 serviceStatusMessage = "Menu bar service connected"
                 transientStatusUntil = Date().addingTimeInterval(3.0)
                 errorMessage = nil
             } catch {
                 backend = LocalBridgeBackend.shared
+                isBackendReady = true
                 backgroundServiceEnabled = false
                 serviceCoordinator.setBackgroundServiceEnabled(false)
                 errorMessage = "Background service unavailable: \(error.localizedDescription)"
             }
         } else {
             backend = LocalBridgeBackend.shared
+            isBackendReady = true
             if launchRole.isService {
                 serviceCoordinator.stopCurrentServiceHostIfNeeded()
                 NSApp.terminate(nil)
@@ -420,7 +505,11 @@ final class AppState {
             transientStatusUntil = Date().addingTimeInterval(3.0)
         }
 
-        await refreshDevices()
+        if usesRemoteServiceUpdates {
+            sendRemoteClientPresence()
+        } else {
+            await refreshDevices()
+        }
     }
 
     func setLaunchAtStartupEnabled(_ enabled: Bool) {
@@ -454,19 +543,31 @@ final class AppState {
     }
 
     func refreshNow() async {
-        await refreshDevices()
+        if usesRemoteServiceUpdates {
+            sendRemoteClientPresence()
+        } else {
+            await refreshDevices()
+        }
         compactInteractionUntil = Date().addingTimeInterval(3.0)
+    }
+
+    func sendRemoteClientPresence() {
+        guard usesRemoteServiceUpdates else { return }
+        lastRemoteClientPresencePingAt = Date()
+        CrossProcessStateSync.postClientPresence()
     }
 
     private func configureBackendForCurrentPreferences() async {
         do {
             backend = try await serviceCoordinator.makeBackendForCurrentMode()
+            isBackendReady = true
             if backgroundServiceEnabled {
                 serviceStatusMessage = "Menu bar service connected"
                 transientStatusUntil = Date().addingTimeInterval(2.0)
             }
         } catch {
             backend = LocalBridgeBackend.shared
+            isBackendReady = true
             errorMessage = "Background service unavailable: \(error.localizedDescription)"
         }
     }
@@ -474,6 +575,20 @@ final class AppState {
     private func pollRuntimeOnce() async {
         let now = Date()
         let profile = currentPollingProfile
+
+        if usesRemoteServiceUpdates {
+            if now.timeIntervalSince(lastRemoteClientPresencePingAt) >= 1.0 {
+                lastRemoteClientPresencePingAt = now
+                CrossProcessStateSync.postClientPresence()
+            }
+            if let transientStatusUntil, now >= transientStatusUntil {
+                self.transientStatusUntil = nil
+                if compactStatusMessage == nil {
+                    serviceStatusMessage = nil
+                }
+            }
+            return
+        }
 
         if now.timeIntervalSince(lastDevicePresencePollAt) >= profile.devicePresenceInterval {
             lastDevicePresencePollAt = now
@@ -500,6 +615,10 @@ final class AppState {
     }
 
     func refreshDevices() async {
+        guard isBackendReady else {
+            AppLog.debug("AppState", "refreshDevices deferred until backend is ready")
+            return
+        }
         let start = Date()
         AppLog.event("AppState", "refreshDevices start")
         isLoading = true
@@ -1304,7 +1423,6 @@ final class AppState {
             let presentationDeviceID = presentationDevice.id
             let previous = stateCacheByDeviceID[presentationDeviceID] ?? stateCacheByDeviceID[selectedDevice.id] ?? state
             guard let previous else { return }
-
             let active = max(0, min(fast.values.count - 1, fast.active))
             let currentDpiValue = fast.values[active]
             let updated = MouseState(

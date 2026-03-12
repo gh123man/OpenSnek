@@ -1,6 +1,7 @@
 import AppKit
 import Darwin
 import Foundation
+import Network
 
 @MainActor
 final class BackgroundServiceCoordinator {
@@ -9,6 +10,7 @@ final class BackgroundServiceCoordinator {
     nonisolated static let backgroundServiceEnabledDefaultsKey = "backgroundServiceEnabled"
     nonisolated static let launchAtStartupDefaultsKey = "launchServiceAtStartup"
     nonisolated static let endpointDefaultsKey = "backgroundServiceEndpoint"
+    nonisolated static let portDefaultsKey = "backgroundServicePort"
     nonisolated static let pidDefaultsKey = "backgroundServicePID"
 
     private let defaults: UserDefaults
@@ -38,11 +40,11 @@ final class BackgroundServiceCoordinator {
         return Int32(pid)
     }
 
-    func registerServiceHostIfNeeded(backend: LocalBridgeBackend) throws {
+    func registerServiceHostIfNeeded(backend: LocalBridgeBackend) async throws {
         guard isCurrentProcessService else { return }
         guard serviceHost == nil else { return }
-        let host = BackgroundServiceHost(backend: backend)
-        try host.start()
+        let host = try BackgroundServiceHost(backend: backend, defaults: defaults)
+        try await host.start()
         serviceHost = host
     }
 
@@ -66,14 +68,18 @@ final class BackgroundServiceCoordinator {
 
     func makeBackendForCurrentMode() async throws -> any DeviceBackend {
         if isCurrentProcessService {
+            AppLog.info("Service", "using local bridge backend in service process")
             return LocalBridgeBackend.shared
         }
         if let backend = try await connectToRunningService() {
+            AppLog.info("Service", "using background service backend from running service")
             return backend
         }
         guard backgroundServiceEnabled else {
+            AppLog.info("Service", "using local bridge backend because background service is disabled")
             return LocalBridgeBackend.shared
         }
+        AppLog.info("Service", "launching background service backend")
         return try await connectOrLaunchService()
     }
 
@@ -94,28 +100,23 @@ final class BackgroundServiceCoordinator {
         ])
     }
 
-    func connectToRunningService() async throws -> XPCDeviceBackend? {
+    func connectToRunningService() async throws -> IPCDeviceBackend? {
         guard isServiceProcessAlive else {
             defaults.removeObject(forKey: Self.endpointDefaultsKey)
+            defaults.removeObject(forKey: Self.portDefaultsKey)
             defaults.removeObject(forKey: Self.pidDefaultsKey)
             return nil
         }
-        guard let endpointData = defaults.data(forKey: Self.endpointDefaultsKey) else {
+        let portValue = defaults.integer(forKey: Self.portDefaultsKey)
+        guard let port = NWEndpoint.Port(rawValue: UInt16(portValue)), portValue > 0 else {
             return nil
         }
-
-        let unarchived = try NSKeyedUnarchiver.unarchivedObject(
-            ofClass: NSXPCListenerEndpoint.self,
-            from: endpointData
-        )
-        guard let endpoint = unarchived else {
-            return nil
-        }
-
-        let backend = XPCDeviceBackend(endpoint: endpoint)
+        let backend = IPCDeviceBackend(port: port)
         guard await backend.ping() else {
+            AppLog.warning("Service", "background service ping failed pid=\(serviceProcessIdentifier ?? 0) port=\(portValue)")
             return nil
         }
+        AppLog.debug("Service", "background service ping ok pid=\(serviceProcessIdentifier ?? 0) port=\(portValue)")
         return backend
     }
 
@@ -162,6 +163,7 @@ final class BackgroundServiceCoordinator {
         guard let pid = serviceProcessIdentifier else { return }
         kill(pid, SIGTERM)
         defaults.removeObject(forKey: Self.endpointDefaultsKey)
+        defaults.removeObject(forKey: Self.portDefaultsKey)
         defaults.removeObject(forKey: Self.pidDefaultsKey)
     }
 
