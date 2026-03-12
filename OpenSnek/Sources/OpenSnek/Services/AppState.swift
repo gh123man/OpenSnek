@@ -608,9 +608,15 @@ final class AppState {
 
     private func handleBackendDeviceListUpdate(_ listed: [MouseDevice]) async {
         guard !usesRemoteServiceUpdates else { return }
+        let previousIDs = Set(devices.map(\.id))
         _ = applyDeviceList(listed, source: "subscription")
         guard !listed.isEmpty else { return }
-        await refreshAllDeviceStates()
+        let prioritizedDeviceIDs = listed
+            .filter { device in
+                device.transport == .bluetooth && !previousIDs.contains(device.id)
+            }
+            .map(\.id)
+        await refreshAllDeviceStates(prioritizing: prioritizedDeviceIDs)
         await refreshDpiUpdateTransportStatuses(for: listed)
     }
 
@@ -1279,12 +1285,19 @@ final class AppState {
         return devices.first(where: { deviceIdentityKey($0) == identityKey })
     }
 
-    private func refreshableDevicesInPriorityOrder() -> [MouseDevice] {
+    private func refreshableDevicesInPriorityOrder(prioritizing prioritizedDeviceIDs: [String] = []) -> [MouseDevice] {
         guard !devices.isEmpty else { return [] }
         let now = Date()
 
         var ordered: [MouseDevice] = []
         var seen: Set<String> = []
+
+        for deviceID in prioritizedDeviceIDs {
+            guard let device = devices.first(where: { $0.id == deviceID }) else { continue }
+            guard !isStrictlyUnsupported(device) else { continue }
+            guard seen.insert(device.id).inserted else { continue }
+            ordered.append(device)
+        }
 
         if let selectedDevice, !isStrictlyUnsupported(selectedDevice), seen.insert(selectedDevice.id).inserted {
             ordered.append(selectedDevice)
@@ -1381,8 +1394,8 @@ final class AppState {
         _ = await refreshState(for: selectedDevice)
     }
 
-    private func refreshAllDeviceStates() async {
-        let devicesToRefresh = refreshableDevicesInPriorityOrder()
+    private func refreshAllDeviceStates(prioritizing prioritizedDeviceIDs: [String] = []) async {
+        let devicesToRefresh = refreshableDevicesInPriorityOrder(prioritizing: prioritizedDeviceIDs)
         guard !devicesToRefresh.isEmpty else {
             if let selectedDevice, isStrictlyUnsupported(selectedDevice) {
                 state = nil

@@ -563,6 +563,45 @@ actor BridgeClient {
         )
     }
 
+    nonisolated static func preferredBluetoothControlWarmupName(
+        vendorID: Int,
+        productID: Int,
+        transport: DeviceTransportKind
+    ) -> String? {
+        guard transport == .bluetooth else { return nil }
+        return DeviceProfiles.resolve(
+            vendorID: vendorID,
+            productID: productID,
+            transport: transport
+        )?.productName
+    }
+
+    func prepareBluetoothControlConnection(preferredPeripheralName: String?) async -> Bool {
+        let trimmedName = preferredPeripheralName?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let start = Date()
+
+        do {
+            _ = try await btExchange(
+                [],
+                timeout: 1.0,
+                preferredPeripheralName: trimmedName
+            )
+            AppLog.debug(
+                "Bridge",
+                "btPrepareConnection ready name=\(trimmedName ?? "any") " +
+                "elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
+            )
+            return true
+        } catch {
+            AppLog.debug(
+                "Bridge",
+                "btPrepareConnection failed name=\(trimmedName ?? "any"): \(error.localizedDescription)"
+            )
+            return false
+        }
+    }
+
     func readState(device: MouseDevice) async throws -> MouseState {
         let start = Date()
         if device.transport == .bluetooth {

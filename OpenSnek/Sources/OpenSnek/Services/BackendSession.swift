@@ -295,8 +295,11 @@ final actor LocalBridgeBackend: DeviceBackend {
     private var cachedStateAtByDeviceID: [String: Date] = [:]
     private var cachedFastByDeviceID: [String: DpiFastSnapshot] = [:]
     private var cachedFastAtByDeviceID: [String: Date] = [:]
+    private var reconnectSeedStateByDeviceID: [String: MouseState] = [:]
+    private var bluetoothControlReadyDeviceIDs: Set<String> = []
     private var stateUpdateContinuations: [UUID: AsyncStream<BackendStateUpdate>.Continuation] = [:]
     private var devicePresenceRefreshTask: Task<Void, Never>?
+    private var activeBluetoothWarmupKeys: Set<String> = []
 
     nonisolated var usesRemoteServiceTransport: Bool { false }
 
@@ -323,8 +326,12 @@ final actor LocalBridgeBackend: DeviceBackend {
            !cachedDevices.isEmpty {
             return cachedDevices
         }
+        let previousIDs = Set(cachedDevices.map(\.id))
         let devices = try await client.listDevices()
         updateCachedDevices(devices, updatedAt: Date(), publishUpdate: false)
+        scheduleBluetoothWarmups(for: devices.filter { device in
+            device.transport == .bluetooth && !previousIDs.contains(device.id)
+        })
         publishSnapshotIfService()
         return devices
     }
@@ -338,6 +345,7 @@ final actor LocalBridgeBackend: DeviceBackend {
         let state = try await client.readState(device: device)
         cachedStateByDeviceID[device.id] = state
         cachedStateAtByDeviceID[device.id] = Date()
+        reconnectSeedStateByDeviceID[device.id] = state
         publishSnapshotIfService()
         return state
     }
@@ -378,6 +386,7 @@ final actor LocalBridgeBackend: DeviceBackend {
         let now = Date()
         cachedStateByDeviceID[device.id] = state
         cachedStateAtByDeviceID[device.id] = now
+        reconnectSeedStateByDeviceID[device.id] = state
         if let values = state.dpi_stages.values,
            let active = state.dpi_stages.active_stage {
             let fast = DpiFastSnapshot(active: active, values: values)
@@ -402,16 +411,92 @@ final actor LocalBridgeBackend: DeviceBackend {
 
     private func handleDevicePresenceEvent(_ event: HIDDevicePresenceEvent) {
         invalidateCachedTelemetry(for: event.deviceID)
+        scheduleBluetoothWarmup(for: event)
         devicePresenceRefreshTask?.cancel()
         devicePresenceRefreshTask = Task { [weak self] in
+            guard let self, !Task.isCancelled else { return }
+            await self.refreshCachedDevicesAfterPresenceChange(observedAt: event.observedAt, event: event)
+
+            guard event.transport == .bluetooth, event.change == .connected else { return }
+
             do {
                 try await Task.sleep(nanoseconds: 200_000_000)
             } catch {
                 return
             }
-            guard let self, !Task.isCancelled else { return }
-            await self.refreshCachedDevicesAfterPresenceChange(observedAt: event.observedAt)
+
+            guard !Task.isCancelled else { return }
+            await self.refreshCachedDevicesAfterPresenceChange(observedAt: Date(), event: event)
         }
+    }
+
+    private func scheduleBluetoothWarmup(for event: HIDDevicePresenceEvent) {
+        guard event.transport == .bluetooth, event.change == .connected else { return }
+        guard let preferredPeripheralName = BridgeClient.preferredBluetoothControlWarmupName(
+            vendorID: event.vendorID,
+            productID: event.productID,
+            transport: event.transport
+        ) else {
+            return
+        }
+        scheduleBluetoothWarmup(
+            deviceID: event.deviceID,
+            preferredPeripheralName: preferredPeripheralName
+        )
+    }
+
+    private func scheduleBluetoothWarmups(for devices: [MouseDevice]) {
+        for device in devices where device.transport == .bluetooth {
+            scheduleBluetoothWarmup(
+                deviceID: device.id,
+                preferredPeripheralName: device.product_name
+            )
+        }
+    }
+
+    private func scheduleBluetoothWarmup(
+        deviceID: String? = nil,
+        preferredPeripheralName: String?
+    ) {
+        let normalizedKey = deviceID ?? preferredPeripheralName?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() ?? "*"
+        guard activeBluetoothWarmupKeys.insert(normalizedKey).inserted else { return }
+
+        let client = self.client
+        Task { [deviceID, preferredPeripheralName, normalizedKey] in
+            let warmed = await client.prepareBluetoothControlConnection(
+                preferredPeripheralName: preferredPeripheralName
+            )
+            self.finishBluetoothWarmup(
+                key: normalizedKey,
+                deviceID: deviceID,
+                warmed: warmed
+            )
+        }
+    }
+
+    private func finishBluetoothWarmup(
+        key: String,
+        deviceID: String?,
+        warmed: Bool
+    ) {
+        activeBluetoothWarmupKeys.remove(key)
+        guard warmed, let deviceID else { return }
+        bluetoothControlReadyDeviceIDs.insert(deviceID)
+        promoteReconnectSeedIfAvailable(deviceID: deviceID)
+    }
+
+    private func promoteReconnectSeedIfAvailable(deviceID: String, updatedAt: Date = Date()) {
+        guard bluetoothControlReadyDeviceIDs.contains(deviceID) else { return }
+        guard cachedDevices.contains(where: { $0.id == deviceID }) else { return }
+        guard let seed = reconnectSeedStateByDeviceID[deviceID] else { return }
+
+        cachedStateByDeviceID[deviceID] = seed
+        cachedStateAtByDeviceID[deviceID] = updatedAt
+        bluetoothControlReadyDeviceIDs.remove(deviceID)
+        publishStateUpdate(.deviceState(deviceID: deviceID, state: seed, updatedAt: updatedAt))
+        publishSnapshotIfService()
     }
 
     private func updateCachedStateFromFastSnapshot(_ snapshot: DpiFastSnapshot, for deviceID: String) {
@@ -439,6 +524,7 @@ final actor LocalBridgeBackend: DeviceBackend {
         )
         cachedStateByDeviceID[deviceID] = updated
         cachedStateAtByDeviceID[deviceID] = Date()
+        reconnectSeedStateByDeviceID[deviceID] = updated
     }
 
     private func handlePassiveDpiEvent(_ event: PassiveDPIEvent) {
@@ -451,6 +537,7 @@ final actor LocalBridgeBackend: DeviceBackend {
 
         cachedStateByDeviceID[event.deviceID] = updated
         cachedStateAtByDeviceID[event.deviceID] = event.observedAt
+        reconnectSeedStateByDeviceID[event.deviceID] = updated
         let fastActive = updated.dpi_stages.active_stage ?? cachedFastByDeviceID[event.deviceID]?.active ?? 0
         if let values = updated.dpi_stages.values {
             cachedFastByDeviceID[event.deviceID] = DpiFastSnapshot(active: fastActive, values: values)
@@ -467,10 +554,29 @@ final actor LocalBridgeBackend: DeviceBackend {
         }
     }
 
-    private func refreshCachedDevicesAfterPresenceChange(observedAt: Date) async {
+    private func refreshCachedDevicesAfterPresenceChange(
+        observedAt: Date,
+        event: HIDDevicePresenceEvent? = nil
+    ) async {
         do {
+            let previousIDs = Set(cachedDevices.map(\.id))
             let devices = try await client.listDevices()
             updateCachedDevices(devices, updatedAt: observedAt, publishUpdate: true)
+            let bluetoothDevicesToWarm: [MouseDevice]
+            if let event,
+               event.transport == .bluetooth,
+               event.change == .connected,
+               let eventDevice = devices.first(where: { $0.id == event.deviceID }) {
+                bluetoothDevicesToWarm = [eventDevice]
+            } else {
+                bluetoothDevicesToWarm = devices.filter { device in
+                    device.transport == .bluetooth && !previousIDs.contains(device.id)
+                }
+            }
+            scheduleBluetoothWarmups(for: bluetoothDevicesToWarm)
+            for device in bluetoothDevicesToWarm {
+                promoteReconnectSeedIfAvailable(deviceID: device.id, updatedAt: observedAt)
+            }
             publishSnapshotIfService()
         } catch {
             AppLog.warning(
@@ -496,11 +602,15 @@ final actor LocalBridgeBackend: DeviceBackend {
     }
 
     private func invalidateCachedTelemetry(for deviceID: String) {
+        if let cached = cachedStateByDeviceID[deviceID] {
+            reconnectSeedStateByDeviceID[deviceID] = cached
+        }
         cachedDevicesAt = nil
         cachedStateByDeviceID.removeValue(forKey: deviceID)
         cachedStateAtByDeviceID.removeValue(forKey: deviceID)
         cachedFastByDeviceID.removeValue(forKey: deviceID)
         cachedFastAtByDeviceID.removeValue(forKey: deviceID)
+        bluetoothControlReadyDeviceIDs.remove(deviceID)
     }
 
     private func purgeCaches(forRemovedDeviceIDs removedDeviceIDs: Set<String>) {

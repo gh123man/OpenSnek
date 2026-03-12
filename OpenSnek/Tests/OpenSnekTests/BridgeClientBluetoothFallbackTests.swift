@@ -36,4 +36,24 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
         XCTAssertNil(device.button_layout)
         XCTAssertFalse(device.supports_advanced_lighting_effects)
     }
+
+    func testPreferredBluetoothControlWarmupNameUsesResolvedProfile() {
+        let preferredName = BridgeClient.preferredBluetoothControlWarmupName(
+            vendorID: 0x068E,
+            productID: 0x00BA,
+            transport: .bluetooth
+        )
+
+        XCTAssertEqual(preferredName, "Basilisk V3 X HyperSpeed")
+    }
+
+    func testPreferredBluetoothControlWarmupNameSkipsNonBluetoothDevices() {
+        let preferredName = BridgeClient.preferredBluetoothControlWarmupName(
+            vendorID: 0x1532,
+            productID: 0x00B9,
+            transport: .usb
+        )
+
+        XCTAssertNil(preferredName)
+    }
 }

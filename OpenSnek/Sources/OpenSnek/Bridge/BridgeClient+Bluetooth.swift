@@ -129,7 +129,12 @@ extension BridgeClient {
         return btReqID
     }
 
-    func btExchange(_ writes: [Data], timeout: TimeInterval = 0.8, device: MouseDevice? = nil) async throws -> [Data] {
+    func btExchange(
+        _ writes: [Data],
+        timeout: TimeInterval = 0.8,
+        device: MouseDevice? = nil,
+        preferredPeripheralName: String? = nil
+    ) async throws -> [Data] {
         let start = Date()
         await btAcquireExchangeLock()
         defer { btReleaseExchangeLock() }
@@ -137,7 +142,7 @@ extension BridgeClient {
         let result = try await btVendorClient.run(
             writes: writes,
             timeout: timeout,
-            preferredPeripheralName: device?.product_name
+            preferredPeripheralName: preferredPeripheralName ?? device?.product_name
         )
         AppLog.debug(
             "Bridge",
