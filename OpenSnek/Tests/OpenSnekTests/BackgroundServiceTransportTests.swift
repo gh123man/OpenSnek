@@ -23,7 +23,7 @@ final class BackgroundServiceTransportTests: XCTestCase {
         )
 
         let coordinator = await MainActor.run {
-            BackgroundServiceCoordinator(defaults: defaults)
+            BackgroundServiceCoordinator(defaults: UserDefaults(suiteName: suiteName)!)
         }
         let connectedBackend = try await coordinator.connectToRunningService()
         let serviceBackend = try XCTUnwrap(connectedBackend)
