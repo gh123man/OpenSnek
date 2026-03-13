@@ -125,6 +125,51 @@ final class USBPassiveDPIEventTests: XCTestCase {
         XCTAssertTrue(removed.isEmpty)
     }
 
+    func testBluetoothReadStateBypassesRecentCacheWhenPassiveRealtimeDpiIsActive() {
+        let device = makePassiveTestDevice(id: "bt-passive-cache", transport: .bluetooth)
+        let now = Date(timeIntervalSince1970: 1_773_600_000)
+
+        let shouldReuse = LocalBridgeBackend.shouldReuseCachedStateForRead(
+            device: device,
+            cachedAt: now.addingTimeInterval(-0.2),
+            now: now,
+            shouldUseFastDPIPolling: false
+        )
+
+        XCTAssertFalse(shouldReuse)
+    }
+
+    func testBluetoothReadStateStillUsesRecentCacheBeforePassiveRealtimeDpiIsObserved() {
+        let device = makePassiveTestDevice(id: "bt-fast-cache", transport: .bluetooth)
+        let now = Date(timeIntervalSince1970: 1_773_600_010)
+
+        let shouldReuse = LocalBridgeBackend.shouldReuseCachedStateForRead(
+            device: device,
+            cachedAt: now.addingTimeInterval(-0.2),
+            now: now,
+            shouldUseFastDPIPolling: true
+        )
+
+        XCTAssertTrue(shouldReuse)
+    }
+
+    func testCompletedPollingReadIsMaskedWhenNewerCachedStateLandsDuringRead() {
+        let start = Date(timeIntervalSince1970: 1_773_600_020)
+
+        XCTAssertTrue(
+            LocalBridgeBackend.completedReadWasSuperseded(
+                startedAt: start,
+                latestCachedAt: start.addingTimeInterval(0.05)
+            )
+        )
+        XCTAssertFalse(
+            LocalBridgeBackend.completedReadWasSuperseded(
+                startedAt: start,
+                latestCachedAt: start.addingTimeInterval(-0.05)
+            )
+        )
+    }
+
     func testBluetoothHIDDiscoveryRequiresMatchingConnectedPeripheralWhenKnown() {
         XCTAssertTrue(
             BridgeClient.shouldIncludeBluetoothHIDDevice(

@@ -297,6 +297,105 @@ final class AppStateMultiDeviceTests: XCTestCase {
         XCTAssertEqual(activeStage, 2)
     }
 
+    func testBackendDeviceListUpdateRecoversSelectionToMatchingBluetoothTransportWhenUSBHasNoTelemetry() async throws {
+        let usbDevice = makeTestDevice(
+            id: "usb-recovery",
+            productName: "Shared Mouse",
+            transport: .usb,
+            serial: "MATCHED-DEVICE",
+            locationID: 1,
+            profile: .basiliskV3Pro
+        )
+        let bluetoothDevice = makeTestDevice(
+            id: "bt-recovery",
+            productName: "Shared Mouse",
+            transport: .bluetooth,
+            serial: "MATCHED-DEVICE",
+            locationID: 2,
+            profile: .basiliskV3XHyperspeed
+        )
+        let bluetoothState = makeTestState(
+            device: bluetoothDevice,
+            connection: "bluetooth",
+            batteryPercent: 74,
+            dpiValues: [1200, 2400, 3600],
+            activeStage: 1,
+            dpiValue: 2400
+        )
+        let backend = DeviceListUpdatingStubBackend(
+            devices: [usbDevice],
+            stateByDeviceID: [bluetoothDevice.id: bluetoothState]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.refreshDevices()
+        await backend.emitDeviceListUpdate([usbDevice, bluetoothDevice])
+
+        try await waitForAppStateCondition(timeout: 2.0) {
+            await MainActor.run {
+                appState.selectedDeviceID == bluetoothDevice.id &&
+                    appState.state?.device.id == bluetoothDevice.id
+            }
+        }
+
+        let selectedDeviceID = await MainActor.run { appState.selectedDeviceID }
+        let selectedDpi = await MainActor.run { appState.state?.dpi?.x }
+        let status = await MainActor.run { appState.currentDeviceStatusIndicator.label }
+
+        XCTAssertEqual(selectedDeviceID, bluetoothDevice.id)
+        XCTAssertEqual(selectedDpi, 2400)
+        XCTAssertEqual(status, "Connected")
+    }
+
+    func testBackendDeviceListUpdateDoesNotSwitchToUnrelatedBluetoothDeviceDuringUSBRecovery() async throws {
+        let usbDevice = makeTestDevice(
+            id: "usb-unrelated",
+            productName: "Alpha Mouse",
+            transport: .usb,
+            serial: "USB-ONLY",
+            locationID: 1,
+            profile: .basiliskV3Pro
+        )
+        let bluetoothDevice = makeTestDevice(
+            id: "bt-unrelated",
+            productName: "Beta Mouse",
+            transport: .bluetooth,
+            serial: "BT-ONLY",
+            locationID: 2,
+            profile: .basiliskV3XHyperspeed
+        )
+        let bluetoothState = makeTestState(
+            device: bluetoothDevice,
+            connection: "bluetooth",
+            batteryPercent: 74,
+            dpiValues: [1200, 2400, 3600],
+            activeStage: 1,
+            dpiValue: 2400
+        )
+        let backend = DeviceListUpdatingStubBackend(
+            devices: [usbDevice],
+            stateByDeviceID: [bluetoothDevice.id: bluetoothState]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.refreshDevices()
+        await backend.emitDeviceListUpdate([usbDevice, bluetoothDevice])
+
+        try await waitForAppStateCondition(timeout: 1.0) {
+            await MainActor.run {
+                appState.devices.count == 2
+            }
+        }
+
+        let selectedDeviceID = await MainActor.run { appState.selectedDeviceID }
+
+        XCTAssertEqual(selectedDeviceID, usbDevice.id)
+    }
+
     func testRemotePresenceSelectedDeviceDrivesServiceInteractivePollingUntilExpiry() async {
         let suiteName = "AppStateMultiDeviceTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

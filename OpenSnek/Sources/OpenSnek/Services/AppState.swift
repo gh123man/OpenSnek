@@ -4,152 +4,6 @@ import OpenSnekAppSupport
 import OpenSnekCore
 import SwiftUI
 
-struct DeviceStatusIndicator {
-    let label: String
-    let color: Color
-}
-
-private enum DeviceConnectionState: Equatable {
-    case disconnected
-    case reconnecting
-    case connected
-    case unsupported
-    case error
-
-    var indicator: DeviceStatusIndicator {
-        switch self {
-        case .disconnected:
-            DeviceStatusIndicator(label: "Disconnected", color: Color(hex: 0xFF453A))
-        case .reconnecting:
-            DeviceStatusIndicator(label: "Reconnecting", color: Color(hex: 0xFFD60A))
-        case .connected:
-            DeviceStatusIndicator(label: "Connected", color: Color(hex: 0x30D158))
-        case .unsupported:
-            DeviceStatusIndicator(label: "Unsupported", color: Color(hex: 0xFFD60A))
-        case .error:
-            DeviceStatusIndicator(label: "Error", color: Color(hex: 0xFF453A))
-        }
-    }
-
-    var allowsInteraction: Bool {
-        self == .connected
-    }
-
-    var diagnosticsLabel: String {
-        switch self {
-        case .disconnected:
-            "Disconnected"
-        case .reconnecting:
-            "Reconnecting to live telemetry"
-        case .connected:
-            "Live"
-        case .unsupported:
-            "Unsupported"
-        case .error:
-            "Error"
-        }
-    }
-}
-
-private enum DpiUpdateTransportStatus: Equatable {
-    case unknown
-    case pollingFallback
-    case realTimeHID
-    case unsupported
-
-    var diagnosticsLabel: String {
-        switch self {
-        case .unknown:
-            "Checking"
-        case .pollingFallback:
-            "Polling fallback active"
-        case .realTimeHID:
-            "Real-time HID active"
-        case .unsupported:
-            "Unsupported"
-        }
-    }
-}
-
-private struct RemoteClientPresenceState {
-    let expiresAt: Date
-    let selectedDeviceID: String?
-}
-
-enum PollingProfile: Equatable {
-    case foreground
-    case serviceIdle
-    case serviceInteractive
-
-    var refreshStateInterval: TimeInterval {
-        switch self {
-        case .foreground, .serviceInteractive:
-            return 2.0
-        case .serviceIdle:
-            return 8.0
-        }
-    }
-
-    var devicePresenceInterval: TimeInterval {
-        switch self {
-        case .foreground, .serviceInteractive:
-            return 1.2
-        case .serviceIdle:
-            return 4.0
-        }
-    }
-
-    var fastDpiInterval: TimeInterval? {
-        switch self {
-        case .foreground:
-            return 0.20
-        case .serviceInteractive:
-            return 0.25
-        case .serviceIdle:
-            return nil
-        }
-    }
-}
-
-enum RuntimeWakeSchedule {
-    static let minimumSleepInterval: TimeInterval = 0.10
-
-    static func nextSleepInterval(
-        now: Date,
-        profile: PollingProfile,
-        usesRemoteServiceUpdates: Bool,
-        lastDevicePresencePollAt: Date,
-        lastRefreshStatePollAt: Date,
-        lastFastDpiPollAt: Date,
-        lastRemoteClientPresencePingAt: Date,
-        transientStatusUntil: Date?,
-        nextRemoteClientPresenceExpiry: Date?
-    ) -> TimeInterval {
-        var intervals: [TimeInterval] = []
-
-        if usesRemoteServiceUpdates {
-            intervals.append(max(0, 1.0 - now.timeIntervalSince(lastRemoteClientPresencePingAt)))
-        } else {
-            intervals.append(max(0, profile.devicePresenceInterval - now.timeIntervalSince(lastDevicePresencePollAt)))
-            intervals.append(max(0, profile.refreshStateInterval - now.timeIntervalSince(lastRefreshStatePollAt)))
-            if let fastInterval = profile.fastDpiInterval {
-                intervals.append(max(0, fastInterval - now.timeIntervalSince(lastFastDpiPollAt)))
-            }
-        }
-
-        if let transientStatusUntil {
-            intervals.append(max(0, transientStatusUntil.timeIntervalSince(now)))
-        }
-
-        if let nextRemoteClientPresenceExpiry {
-            intervals.append(max(0, nextRemoteClientPresenceExpiry.timeIntervalSince(now)))
-        }
-
-        let nextDue = intervals.filter { $0.isFinite && $0 >= 0 }.min() ?? 1.0
-        return max(minimumSleepInterval, nextDue)
-    }
-}
-
 @MainActor
 @Observable
 final class AppState {
@@ -189,61 +43,18 @@ final class AppState {
     var backgroundServiceEnabled: Bool
     var launchAtStartupEnabled: Bool
     var serviceStatusMessage: String?
-
-    private var backend: any DeviceBackend
-    private let applyCoordinator = ApplyCoordinator()
-    private let preferenceStore = DevicePreferenceStore()
-    private let releaseUpdateChecker = ReleaseUpdateChecker()
-    private let launchRole: OpenSnekProcessRole
-    private let serviceCoordinator: BackgroundServiceCoordinator
-    private var isHydrating = false
-    private var dpiApplyTask: Task<Void, Never>?
-    private var pollApplyTask: Task<Void, Never>?
-    private var powerApplyTask: Task<Void, Never>?
-    private var deviceModeApplyTask: Task<Void, Never>?
-    private var lowBatteryApplyTask: Task<Void, Never>?
-    private var scrollModeApplyTask: Task<Void, Never>?
-    private var scrollAccelerationApplyTask: Task<Void, Never>?
-    private var scrollSmartReelApplyTask: Task<Void, Never>?
-    private var ledApplyTask: Task<Void, Never>?
-    private var colorApplyTask: Task<Void, Never>?
-    private var lightingEffectApplyTask: Task<Void, Never>?
-    private var buttonApplyTask: Task<Void, Never>?
-    private var activeStageApplyTask: Task<Void, Never>?
-    private var hasPendingLocalEdits = false
-    private var applyDrainTask: Task<Void, Never>?
-    private var stateCacheByDeviceID: [String: MouseState] = [:]
-    private var lastUpdatedByDeviceID: [String: Date] = [:]
-    private var refreshingStateDeviceIDs: Set<String> = []
-    private var refreshingFastDpiDeviceIDs: Set<String> = []
-    private var suppressFastDpiUntilByDeviceID: [String: Date] = [:]
-    private var lastUSBFastDpiAtByDeviceID: [String: Date] = [:]
     var isEditingDpiControl = false
-    private var lastLocalEditAt: Date?
-    private var localEditDeviceIdentityKey: String?
-    private var hydratedLightingStateByDeviceID: Set<String> = []
-    private var hydratedButtonBindingsKey: String?
-    private var manualUSBButtonProfileSelectionByDeviceID: Set<String> = []
-    private var keyboardDraftApplyTaskBySlot: [Int: Task<Void, Never>] = [:]
-    private var isPollingDevices = false
-    private var refreshFailureCountByDeviceID: [String: Int] = [:]
-    private var stateRefreshSuppressedUntilByDeviceID: [String: Date] = [:]
-    private var unavailableDeviceIDs: Set<String> = []
-    private var dpiUpdateTransportStatusByDeviceID: [String: DpiUpdateTransportStatus] = [:]
-    private var hasCheckedForUpdates = false
-    private var runtimeTask: Task<Void, Never>?
-    private var didStartRuntime = false
-    private var compactMenuPresented = false
-    private var compactInteractionUntil: Date?
-    private var lastRefreshStatePollAt: Date = .distantPast
-    private var lastDevicePresencePollAt: Date = .distantPast
-    private var lastFastDpiPollAt: Date = .distantPast
-    private var transientStatusUntil: Date?
-    private var isBackendReady = false
-    private var clientPresenceObserver: NSObjectProtocol?
-    private var backendStateUpdatesTask: Task<Void, Never>?
-    private var remoteClientPresenceByProcessID: [Int32: RemoteClientPresenceState] = [:]
-    private var lastRemoteClientPresencePingAt: Date = .distantPast
+
+    var backend: any DeviceBackend
+    let releaseUpdateChecker = ReleaseUpdateChecker()
+    let launchRole: OpenSnekProcessRole
+    let serviceCoordinator: BackgroundServiceCoordinator
+    var hasCheckedForUpdates = false
+
+    @ObservationIgnored private var deviceControllerStorage: AppStateDeviceController?
+    @ObservationIgnored private var editorControllerStorage: AppStateEditorController?
+    @ObservationIgnored private var applyControllerStorage: AppStateApplyController?
+    @ObservationIgnored private var runtimeControllerStorage: AppStateRuntimeController?
 
     init(
         launchRole: OpenSnekProcessRole = .current,
@@ -256,16 +67,81 @@ final class AppState {
         self.backgroundServiceEnabled = serviceCoordinator.backgroundServiceEnabled
         self.launchAtStartupEnabled = serviceCoordinator.launchAtStartupEnabled
         self.backend = backend ?? LocalBridgeBackend.shared
-        self.isBackendReady = launchRole.isService || backend != nil || !serviceCoordinator.backgroundServiceEnabled
-        installCrossProcessObservers()
+
+        runtimeController.installCrossProcessObservers()
+        runtimeController.setBackendReady(launchRole.isService || backend != nil || !serviceCoordinator.backgroundServiceEnabled)
         Task { [weak self] in
-            await self?.restartBackendStateUpdates()
+            await self?.runtimeController.restartBackendStateUpdates()
         }
         if launchRole.isService, autoStart {
             Task { [weak self] in
                 await self?.start()
             }
         }
+    }
+
+    deinit {
+        let deviceController = deviceControllerStorage
+        let applyController = applyControllerStorage
+        let editorController = editorControllerStorage
+        let runtimeController = runtimeControllerStorage
+        @MainActor
+        func tearDownControllers() {
+            deviceController?.tearDown()
+            applyController?.tearDown()
+            editorController?.tearDown()
+            runtimeController?.tearDown()
+        }
+
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                tearDownControllers()
+            }
+        } else {
+            let group = DispatchGroup()
+            group.enter()
+            Task { @MainActor in
+                tearDownControllers()
+                group.leave()
+            }
+            group.wait()
+        }
+    }
+
+    var deviceController: AppStateDeviceController {
+        if let deviceControllerStorage {
+            return deviceControllerStorage
+        }
+        let controller = AppStateDeviceController(appState: self)
+        deviceControllerStorage = controller
+        return controller
+    }
+
+    var editorController: AppStateEditorController {
+        if let editorControllerStorage {
+            return editorControllerStorage
+        }
+        let controller = AppStateEditorController(appState: self)
+        editorControllerStorage = controller
+        return controller
+    }
+
+    var applyController: AppStateApplyController {
+        if let applyControllerStorage {
+            return applyControllerStorage
+        }
+        let controller = AppStateApplyController(appState: self)
+        applyControllerStorage = controller
+        return controller
+    }
+
+    var runtimeController: AppStateRuntimeController {
+        if let runtimeControllerStorage {
+            return runtimeControllerStorage
+        }
+        let controller = AppStateRuntimeController(appState: self)
+        runtimeControllerStorage = controller
+        return controller
     }
 
     var selectedDevice: MouseDevice? {
@@ -280,10 +156,7 @@ final class AppState {
 
     var selectedDeviceIsStrictlyUnsupported: Bool {
         guard let selectedDevice else { return false }
-        if resolvedProfile(for: selectedDevice) != nil {
-            return false
-        }
-        return selectedDevice.transport == .bluetooth
+        return deviceController.isStrictlyUnsupported(selectedDevice)
     }
 
     var selectedDeviceIsUnsupportedUSB: Bool {
@@ -293,12 +166,12 @@ final class AppState {
 
     var selectedDeviceControlsEnabled: Bool {
         guard let selectedDevice else { return false }
-        return connectionState(for: selectedDevice).allowsInteraction
+        return deviceController.connectionState(for: selectedDevice).allowsInteraction
     }
 
     var selectedDeviceInteractionMessage: String? {
         guard let selectedDevice else { return nil }
-        switch connectionState(for: selectedDevice) {
+        switch deviceController.connectionState(for: selectedDevice) {
         case .reconnecting:
             return "Reconnecting to live telemetry. Controls will unlock automatically."
         case .disconnected:
@@ -360,7 +233,7 @@ final class AppState {
 
     var currentDeviceStatusIndicator: DeviceStatusIndicator {
         guard let selectedDevice else { return DeviceConnectionState.disconnected.indicator }
-        return statusIndicator(for: selectedDevice)
+        return deviceController.statusIndicator(for: selectedDevice)
     }
 
     func isButtonSlotEditable(_ slot: Int) -> Bool {
@@ -373,22 +246,22 @@ final class AppState {
 
     func diagnosticsDump(for device: MouseDevice, state explicitState: MouseState? = nil) -> String {
         let resolvedProfile = resolvedProfile(for: device)
-        let liveState = explicitState ?? stateCacheByDeviceID[device.id] ?? (device.id == selectedDeviceID ? state : nil)
-        let deviceStatusIndicator = statusIndicator(for: device)
-        let deviceConnectionState = connectionState(for: device)
-        let deviceLastUpdated = lastUpdatedTimestamp(for: device)
+        let liveState = explicitState ?? deviceController.cachedState(for: device.id) ?? (device.id == selectedDeviceID ? state : nil)
+        let deviceStatusIndicator = deviceController.statusIndicator(for: device)
+        let deviceConnectionState = deviceController.connectionState(for: device)
+        let deviceLastUpdated = deviceController.lastUpdatedTimestamp(for: device)
         var appContextLines: [String] = [
             "App version: \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown")",
             "Build: \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown")",
             "Selected device ID: \(selectedDeviceID ?? "none")",
             "Refreshing state: \(isRefreshingState ? "Yes" : "No")",
             "Applying changes: \(isApplying ? "Yes" : "No")",
-            "Pending local edits: \(hasPendingLocalEdits ? "Yes" : "No")",
+            "Pending local edits: \(applyController.hasPendingLocalEdits ? "Yes" : "No")",
             "Current status badge: \(deviceStatusIndicator.label)",
             "Physical presence: \(devices.contains(where: { $0.id == device.id }) ? "Detected by macOS" : "Not detected")",
             "Telemetry status: \(deviceConnectionState.diagnosticsLabel)",
             "Controls enabled: \(deviceConnectionState.allowsInteraction ? "Yes" : "No")",
-            "DPI update path: \(dpiUpdateTransportStatus(for: device).diagnosticsLabel)",
+            "DPI update path: \(deviceController.dpiUpdateTransportStatus(for: device).diagnosticsLabel)",
             "Last updated: \(deviceLastUpdated.map(Self.diagnosticsTimestamp) ?? "Unknown")",
             "Warning: \(device.id == selectedDeviceID ? (warningMessage ?? "None") : "None")",
             "Error: \(device.id == selectedDeviceID ? (errorMessage ?? "None") : "None")",
@@ -418,7 +291,7 @@ final class AppState {
             let summary = "\(device.product_name) (\(device.transport.connectionLabel), " +
                 "\(String(format: "0x%04X", device.vendor_id)):\(String(format: "0x%04X", device.product_id)), " +
                 "profile \(resolvedProfile?.id.rawValue ?? "generic"))"
-            let stateForDevice = device.id == selectedDeviceID ? state : stateCacheByDeviceID[device.id]
+            let stateForDevice = device.id == selectedDeviceID ? state : deviceController.cachedState(for: device.id)
             return IssueReportDeviceEntry(
                 title: "\(device.product_name) [\(device.transport.connectionLabel)]",
                 summary: summary,
@@ -443,13 +316,7 @@ final class AppState {
     }
 
     var compactStatusMessage: String? {
-        guard let serviceStatusMessage,
-              let transientStatusUntil,
-              Date() < transientStatusUntil
-        else {
-            return nil
-        }
-        return serviceStatusMessage
+        runtimeController.compactStatusMessage
     }
 
     var compactActiveStageIndex: Int {
@@ -465,19 +332,7 @@ final class AppState {
     }
 
     func pollingProfile(at now: Date) -> PollingProfile {
-        if !launchRole.isService {
-            return .foreground
-        }
-        if compactMenuPresented {
-            return .serviceInteractive
-        }
-        if hasActiveRemoteClients(at: now) {
-            return .serviceInteractive
-        }
-        if let compactInteractionUntil, now < compactInteractionUntil {
-            return .serviceInteractive
-        }
-        return .serviceIdle
+        runtimeController.pollingProfile(at: now)
     }
 
     var usesRemoteServiceUpdates: Bool {
@@ -485,505 +340,71 @@ final class AppState {
     }
 
     func diagnosticsConnectionLines(for device: MouseDevice) -> [String] {
-        let deviceConnectionState = connectionState(for: device)
-        let presence = devices.contains(where: { $0.id == device.id }) ? "Detected by macOS" : "Not detected"
-        let dpiPath = deviceConnectionState == .disconnected
-            ? "Unavailable while disconnected"
-            : dpiUpdateTransportStatus(for: device).diagnosticsLabel
-        return [
-            "Presence: \(presence)",
-            "Telemetry: \(deviceConnectionState.diagnosticsLabel)",
-            "DPI updates: \(dpiPath)",
-        ]
+        deviceController.diagnosticsConnectionLines(for: device)
     }
 
     func refreshConnectionDiagnostics(for device: MouseDevice) async {
-        guard !isStrictlyUnsupported(device) else {
-            dpiUpdateTransportStatusByDeviceID[device.id] = .unsupported
-            return
-        }
-        guard devices.contains(where: { $0.id == device.id }) || selectedDeviceID == device.id else {
-            dpiUpdateTransportStatusByDeviceID[device.id] = .unknown
-            return
-        }
-        let usesFastPolling = await backend.shouldUseFastDPIPolling(device: device)
-        guard devices.contains(where: { $0.id == device.id }) || selectedDeviceID == device.id else { return }
-        dpiUpdateTransportStatusByDeviceID[device.id] = usesFastPolling ? .pollingFallback : .realTimeHID
+        await deviceController.refreshConnectionDiagnostics(for: device)
     }
 
     func activeFastPollingDeviceIDs(at now: Date) -> [String] {
-        let liveIDs = Set(devices.map(\.id))
-        var ordered: [String] = []
-        var seen: Set<String> = []
-
-        for deviceID in localFastPollingDeviceIDs(at: now) {
-            guard liveIDs.contains(deviceID) else { continue }
-            guard seen.insert(deviceID).inserted else { continue }
-            ordered.append(deviceID)
-        }
-
-        let remoteSelectedDeviceIDs = activeRemoteSelectedDeviceIDs(at: now)
-        for deviceID in remoteSelectedDeviceIDs {
-            guard liveIDs.contains(deviceID) else { continue }
-            guard seen.insert(deviceID).inserted else { continue }
-            ordered.append(deviceID)
-        }
-
-        if launchRole.isService,
-           hasActiveRemoteClients(at: now),
-           remoteSelectedDeviceIDs.isEmpty,
-           let selectedDeviceID,
-           liveIDs.contains(selectedDeviceID),
-           seen.insert(selectedDeviceID).inserted {
-            ordered.append(selectedDeviceID)
-        }
-
-        return ordered
-    }
-
-    private func hasActiveRemoteClients(at now: Date) -> Bool {
-        remoteClientPresenceByProcessID.values.contains { $0.expiresAt > now }
-    }
-
-    private func activeRemoteSelectedDeviceIDs(at now: Date) -> [String] {
-        remoteClientPresenceByProcessID
-            .values
-            .filter { $0.expiresAt > now }
-            .compactMap(\.selectedDeviceID)
-    }
-
-    private func localFastPollingDeviceIDs(at now: Date) -> [String] {
-        guard let selectedDeviceID else { return [] }
-        if launchRole.isService {
-            let localInteractive = compactMenuPresented ||
-                (compactInteractionUntil.map { now < $0 } ?? false)
-            return localInteractive ? [selectedDeviceID] : []
-        }
-        return usesRemoteServiceUpdates ? [] : [selectedDeviceID]
-    }
-
-    private func pruneExpiredRemoteClientPresence(now: Date) {
-        guard !remoteClientPresenceByProcessID.isEmpty else { return }
-        let expiredProcessIDs = remoteClientPresenceByProcessID.compactMap { processID, state in
-            state.expiresAt <= now ? processID : nil
-        }
-        guard !expiredProcessIDs.isEmpty else { return }
-        for processID in expiredProcessIDs {
-            remoteClientPresenceByProcessID.removeValue(forKey: processID)
-        }
-    }
-
-    private func installCrossProcessObservers() {
-        guard clientPresenceObserver == nil else { return }
-        clientPresenceObserver = CrossProcessStateSync.observeClientPresence { [weak self] presence in
-            Task { [weak self] in
-                await self?.handleRemoteClientPresence(presence)
-            }
-        }
-    }
-
-    private func restartBackendStateUpdates() async {
-        backendStateUpdatesTask?.cancel()
-        let stream = await backend.stateUpdates()
-        backendStateUpdatesTask = Task { [weak self] in
-            guard let self else { return }
-            for await update in stream {
-                await self.handleBackendStateUpdate(update)
-            }
-        }
-    }
-
-    private func handleBackendStateUpdate(_ update: BackendStateUpdate) async {
-        guard isBackendReady else { return }
-        switch update {
-        case .deviceList(let devices, _):
-            await handleBackendDeviceListUpdate(devices)
-        case .snapshot(let snapshot):
-            guard usesRemoteServiceUpdates else { return }
-            applyRemoteServiceSnapshot(snapshot)
-        case .deviceState(let deviceID, let updatedState, let updatedAt):
-            applyBackendDeviceStateUpdate(deviceID: deviceID, state: updatedState, updatedAt: updatedAt)
-        }
-    }
-
-    private func handleBackendDeviceListUpdate(_ listed: [MouseDevice]) async {
-        guard !usesRemoteServiceUpdates else { return }
-        let previousIDs = Set(devices.map(\.id))
-        _ = applyDeviceList(listed, source: "subscription")
-        guard !listed.isEmpty else { return }
-        let prioritizedDeviceIDs = listed
-            .filter { device in
-                device.transport == .bluetooth && !previousIDs.contains(device.id)
-            }
-            .map(\.id)
-        await refreshAllDeviceStates(prioritizing: prioritizedDeviceIDs)
-        await refreshDpiUpdateTransportStatuses(for: listed)
-    }
-
-    private func handleRemoteClientPresence(_ presence: CrossProcessClientPresence) async {
-        recordRemoteClientPresence(presence)
+        runtimeController.activeFastPollingDeviceIDs(at: now)
     }
 
     func recordRemoteClientPresence(_ presence: CrossProcessClientPresence, now: Date = Date()) {
-        guard launchRole.isService else { return }
-        guard presence.sourceProcessID > 0 else { return }
-        let hadActiveRemoteClients = hasActiveRemoteClients(at: now)
-        pruneExpiredRemoteClientPresence(now: now)
-        let previous = remoteClientPresenceByProcessID[presence.sourceProcessID]
-        remoteClientPresenceByProcessID[presence.sourceProcessID] = RemoteClientPresenceState(
-            expiresAt: now.addingTimeInterval(2.5),
-            selectedDeviceID: presence.selectedDeviceID
-        )
-        let selectedDeviceChanged = previous?.selectedDeviceID != presence.selectedDeviceID
-        if !hadActiveRemoteClients || selectedDeviceChanged {
-            requestImmediateRuntimePoll(resetPollingDeadlines: true)
-        }
+        runtimeController.recordRemoteClientPresence(presence, now: now)
     }
 
     func applyRemoteServiceSnapshot(_ snapshot: SharedServiceSnapshot) {
-        guard usesRemoteServiceUpdates else { return }
-
-        let liveIDs = Set(snapshot.devices.map(\.id))
-        stateCacheByDeviceID = stateCacheByDeviceID.filter { liveIDs.contains($0.key) }
-        lastUpdatedByDeviceID = lastUpdatedByDeviceID.filter { liveIDs.contains($0.key) }
-
-        for (deviceID, remoteState) in snapshot.stateByDeviceID {
-            let snapshotUpdatedAt = snapshot.lastUpdatedByDeviceID[deviceID] ?? Date()
-            if let latestCachedAt = lastUpdatedByDeviceID[deviceID],
-               latestCachedAt > snapshotUpdatedAt {
-                AppLog.debug(
-                    "AppState",
-                    "remoteSnapshot superseded-drop device=\(deviceID) updatedAt=\(snapshotUpdatedAt.timeIntervalSince1970) " +
-                    "cachedAt=\(latestCachedAt.timeIntervalSince1970)"
-                )
-                continue
-            }
-            stateCacheByDeviceID[deviceID] = remoteState
-            lastUpdatedByDeviceID[deviceID] = snapshotUpdatedAt
-            refreshFailureCountByDeviceID[deviceID] = 0
-            unavailableDeviceIDs.remove(deviceID)
-        }
-
-        _ = applyDeviceList(snapshot.devices, source: "subscription")
-
-        if let selectedDeviceID,
-           let selectedState = stateCacheByDeviceID[selectedDeviceID],
-           let selectedDevice = selectedDevice {
-            state = selectedState
-            lastUpdated = lastUpdatedByDeviceID[selectedDeviceID]
-            if shouldHydrateEditable {
-                hydrateEditable(from: selectedState)
-            }
-            errorMessage = nil
-            setTelemetryWarning(telemetryWarning(for: selectedState, device: selectedDevice), device: selectedDevice)
-        } else if let selectedDeviceID {
-            syncSelectedDevicePresentation(deviceID: selectedDeviceID)
-            errorMessage = nil
-        } else {
-            state = nil
-            lastUpdated = nil
-            warningMessage = nil
-            errorMessage = nil
-        }
-
-        Task { [weak self] in
-            await self?.refreshDpiUpdateTransportStatuses(for: snapshot.devices)
-        }
-    }
-
-    private func applyBackendDeviceStateUpdate(deviceID: String, state updatedState: MouseState, updatedAt: Date) {
-        guard let sourceDevice = devices.first(where: { $0.id == deviceID }),
-              let presentationDevice = presentationDevice(for: sourceDevice) else {
-            return
-        }
-
-        let presentationDeviceID = presentationDevice.id
-        if let latestCachedAt = latestCachedUpdateAt(sourceDeviceID: deviceID, presentationDeviceID: presentationDeviceID),
-           latestCachedAt > updatedAt {
-            AppLog.debug(
-                "AppState",
-                "backendStateUpdate superseded-drop device=\(presentationDeviceID) updatedAt=\(updatedAt.timeIntervalSince1970) " +
-                "cachedAt=\(latestCachedAt.timeIntervalSince1970)"
-            )
-            return
-        }
-        let previous = stateCacheByDeviceID[presentationDeviceID] ?? stateCacheByDeviceID[deviceID]
-        let merged = updatedState.merged(with: previous)
-        let shouldFocusOnActivity = shouldFocusServiceSelectionOnActivity(previous: previous, next: merged)
-
-        cacheState(merged, sourceDeviceID: deviceID, presentationDeviceID: presentationDeviceID, updatedAt: updatedAt)
-        dpiUpdateTransportStatusByDeviceID[deviceID] = .realTimeHID
-        dpiUpdateTransportStatusByDeviceID[presentationDeviceID] = .realTimeHID
-        refreshFailureCountByDeviceID[deviceID] = 0
-        refreshFailureCountByDeviceID[presentationDeviceID] = 0
-        unavailableDeviceIDs.remove(deviceID)
-        unavailableDeviceIDs.remove(presentationDeviceID)
-
-        if shouldFocusOnActivity {
-            focusServiceSelectionOnActivity(deviceID: presentationDeviceID)
-        }
-
-        if selectedDeviceID == presentationDeviceID {
-            if state != merged {
-                state = merged
-            }
-            if shouldHydrateEditable {
-                hydrateEditable(from: merged)
-            }
-            errorMessage = nil
-            setTelemetryWarning(telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)
-        }
+        deviceController.applyRemoteServiceSnapshot(snapshot)
     }
 
     func start() async {
-        guard !didStartRuntime else { return }
-        didStartRuntime = true
-
-        if launchRole.isService {
-            do {
-                try await serviceCoordinator.registerServiceHostIfNeeded(backend: LocalBridgeBackend.shared)
-            } catch {
-                serviceStatusMessage = "Service host failed: \(error.localizedDescription)"
-            }
-            isBackendReady = true
-        } else {
-            await configureBackendForCurrentPreferences()
-        }
-
-        if usesRemoteServiceUpdates {
-            sendRemoteClientPresence()
-        } else {
-            await refreshDevices()
-        }
-        if !launchRole.isService {
-            await checkForUpdates()
-        }
-
-        runtimeTask = Task { [weak self] in
-            while let self, !Task.isCancelled {
-                await self.pollRuntimeOnce()
-                let sleepInterval = self.runtimeSleepInterval(after: Date())
-                let sleepNanos = UInt64((sleepInterval * 1_000_000_000).rounded())
-                try? await Task.sleep(nanoseconds: sleepNanos)
-            }
-        }
+        await runtimeController.start()
     }
 
     func setCompactMenuPresented(_ isPresented: Bool) {
-        let presentationChanged = compactMenuPresented != isPresented
-        compactMenuPresented = isPresented
-        if isPresented {
-            compactInteractionUntil = Date().addingTimeInterval(3.0)
-            if presentationChanged {
-                requestImmediateRuntimePoll(resetPollingDeadlines: true)
-            }
-        }
+        runtimeController.setCompactMenuPresented(isPresented)
     }
 
     func setBackgroundServiceEnabled(_ enabled: Bool) async {
-        backgroundServiceEnabled = enabled
-        serviceCoordinator.setBackgroundServiceEnabled(enabled)
-        if !enabled, launchAtStartupEnabled {
-            setLaunchAtStartupEnabled(false)
-        }
-
-        if enabled {
-            do {
-                backend = try await serviceCoordinator.connectOrLaunchService()
-                await restartBackendStateUpdates()
-                isBackendReady = true
-                serviceStatusMessage = "Menu bar service connected"
-                transientStatusUntil = Date().addingTimeInterval(3.0)
-                errorMessage = nil
-            } catch {
-                backend = LocalBridgeBackend.shared
-                await restartBackendStateUpdates()
-                isBackendReady = true
-                backgroundServiceEnabled = false
-                serviceCoordinator.setBackgroundServiceEnabled(false)
-                errorMessage = "Background service unavailable: \(error.localizedDescription)"
-            }
-        } else {
-            backend = LocalBridgeBackend.shared
-            await restartBackendStateUpdates()
-            isBackendReady = true
-            if launchRole.isService {
-                serviceCoordinator.stopCurrentServiceHostIfNeeded()
-                NSApp.terminate(nil)
-                return
-            } else {
-                serviceCoordinator.stopServiceProcess()
-            }
-            serviceStatusMessage = "Menu bar service stopped"
-            transientStatusUntil = Date().addingTimeInterval(3.0)
-        }
-
-        if usesRemoteServiceUpdates {
-            sendRemoteClientPresence()
-        } else {
-            await refreshDevices()
-        }
+        await runtimeController.setBackgroundServiceEnabled(enabled)
     }
 
     func setLaunchAtStartupEnabled(_ enabled: Bool) {
-        do {
-            try serviceCoordinator.setLaunchAtStartupEnabled(enabled)
-            launchAtStartupEnabled = enabled
-            serviceStatusMessage = enabled
-                ? "Launch at startup enabled for next login"
-                : "Launch at startup disabled"
-            transientStatusUntil = Date().addingTimeInterval(3.0)
-        } catch {
-            errorMessage = "Launch at startup failed: \(error.localizedDescription)"
-            launchAtStartupEnabled = serviceCoordinator.launchAtStartupEnabled
-        }
+        runtimeController.setLaunchAtStartupEnabled(enabled)
     }
 
     func openFullAppFromService() {
-        serviceCoordinator.launchFullAppProcess()
+        runtimeController.openFullAppFromService()
     }
 
     func openSettingsFromService() {
-        serviceCoordinator.launchFullAppProcess(arguments: ["--open-settings"])
+        runtimeController.openSettingsFromService()
     }
 
     func prepareForCurrentServiceProcessTermination() {
-        serviceCoordinator.stopCurrentServiceHostIfNeeded()
+        runtimeController.prepareForCurrentServiceProcessTermination()
     }
 
     func terminateServiceProcess() {
-        serviceCoordinator.terminateOtherRunningApplicationInstances()
-        prepareForCurrentServiceProcessTermination()
-        NSApp.terminate(nil)
+        runtimeController.terminateServiceProcess()
     }
 
     func refreshNow() async {
-        if usesRemoteServiceUpdates {
-            sendRemoteClientPresence()
-        } else {
-            await refreshDevices()
-        }
-        compactInteractionUntil = Date().addingTimeInterval(3.0)
+        await runtimeController.refreshNow()
     }
 
     func sendRemoteClientPresence() {
-        guard usesRemoteServiceUpdates else { return }
-        lastRemoteClientPresencePingAt = Date()
-        CrossProcessStateSync.postClientPresence(selectedDeviceID: selectedDeviceID)
-    }
-
-    private func configureBackendForCurrentPreferences() async {
-        do {
-            backend = try await serviceCoordinator.makeBackendForCurrentMode()
-            await restartBackendStateUpdates()
-            isBackendReady = true
-            if backgroundServiceEnabled {
-                serviceStatusMessage = "Menu bar service connected"
-                transientStatusUntil = Date().addingTimeInterval(2.0)
-            }
-        } catch {
-            backend = LocalBridgeBackend.shared
-            await restartBackendStateUpdates()
-            isBackendReady = true
-            errorMessage = "Background service unavailable: \(error.localizedDescription)"
-        }
+        runtimeController.sendRemoteClientPresence()
     }
 
     func runtimeSleepInterval(after now: Date) -> TimeInterval {
-        RuntimeWakeSchedule.nextSleepInterval(
-            now: now,
-            profile: pollingProfile(at: now),
-            usesRemoteServiceUpdates: usesRemoteServiceUpdates,
-            lastDevicePresencePollAt: lastDevicePresencePollAt,
-            lastRefreshStatePollAt: lastRefreshStatePollAt,
-            lastFastDpiPollAt: lastFastDpiPollAt,
-            lastRemoteClientPresencePingAt: lastRemoteClientPresencePingAt,
-            transientStatusUntil: transientStatusUntil,
-            nextRemoteClientPresenceExpiry: remoteClientPresenceByProcessID
-                .values
-                .map(\.expiresAt)
-                .filter { $0 > now }
-                .min()
-        )
-    }
-
-    private func pollRuntimeOnce() async {
-        let now = Date()
-        let profile = pollingProfile(at: now)
-        pruneExpiredRemoteClientPresence(now: now)
-
-        if usesRemoteServiceUpdates {
-            if now.timeIntervalSince(lastRemoteClientPresencePingAt) >= 1.0 {
-                lastRemoteClientPresencePingAt = now
-                CrossProcessStateSync.postClientPresence(selectedDeviceID: selectedDeviceID)
-            }
-            if let transientStatusUntil, now >= transientStatusUntil {
-                self.transientStatusUntil = nil
-                if compactStatusMessage == nil {
-                    serviceStatusMessage = nil
-                }
-            }
-            return
-        }
-
-        if now.timeIntervalSince(lastDevicePresencePollAt) >= profile.devicePresenceInterval {
-            lastDevicePresencePollAt = now
-            await pollDevicePresence()
-        }
-
-        if now.timeIntervalSince(lastRefreshStatePollAt) >= profile.refreshStateInterval {
-            lastRefreshStatePollAt = now
-            await refreshAllDeviceStates()
-        }
-
-        if let fastInterval = profile.fastDpiInterval,
-           now.timeIntervalSince(lastFastDpiPollAt) >= fastInterval {
-            lastFastDpiPollAt = now
-            await refreshDpiFast()
-        }
-
-        if let transientStatusUntil, now >= transientStatusUntil {
-            self.transientStatusUntil = nil
-            if compactStatusMessage == nil {
-                serviceStatusMessage = nil
-            }
-        }
-    }
-
-    private func requestImmediateRuntimePoll(resetPollingDeadlines: Bool) {
-        guard didStartRuntime else { return }
-        if resetPollingDeadlines {
-            lastDevicePresencePollAt = .distantPast
-            lastRefreshStatePollAt = .distantPast
-            lastFastDpiPollAt = .distantPast
-        }
-        Task { [weak self] in
-            await self?.pollRuntimeOnce()
-        }
+        runtimeController.runtimeSleepInterval(after: now)
     }
 
     func refreshDevices() async {
-        guard isBackendReady else {
-            AppLog.debug("AppState", "refreshDevices deferred until backend is ready")
-            return
-        }
-        let start = Date()
-        AppLog.event("AppState", "refreshDevices start")
-        isLoading = true
-        defer { isLoading = false }
-
-        do {
-            let listed = try await backend.listDevices()
-            _ = applyDeviceList(listed, source: "refresh")
-            errorMessage = nil
-        } catch {
-            AppLog.error("AppState", "refreshDevices failed: \(error.localizedDescription)")
-            errorMessage = error.localizedDescription
-        }
-
-        await refreshAllDeviceStates()
-        await refreshDpiUpdateTransportStatuses(for: devices)
-        AppLog.event("AppState", "refreshDevices end elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s")
+        await deviceController.refreshDevices()
     }
 
     func checkForUpdates(force: Bool = false) async {
@@ -1003,923 +424,155 @@ final class AppState {
     }
 
     func pollDevicePresence() async {
-        guard !isPollingDevices, !isLoading else { return }
-        isPollingDevices = true
-        defer { isPollingDevices = false }
-
-        do {
-            let listed = try await backend.listDevices()
-            let changed = applyDeviceList(listed, source: "poll")
-            if changed {
-                errorMessage = nil
-                await refreshAllDeviceStates()
-                await refreshDpiUpdateTransportStatuses(for: listed)
-            } else if selectedDevice != nil, state == nil {
-                await refreshState()
-            } else if let selectedDevice {
-                await refreshConnectionDiagnostics(for: selectedDevice)
-            }
-        } catch {
-            if devices.isEmpty {
-                let lowered = error.localizedDescription.lowercased()
-                if lowered.contains("no device") || lowered.contains("no supported device") || lowered.contains("not found") {
-                    errorMessage = nil
-                } else {
-                    AppLog.warning("AppState", "pollDevicePresence failed with no visible devices: \(error.localizedDescription)")
-                    errorMessage = error.localizedDescription
-                }
-            } else {
-                AppLog.debug("AppState", "pollDevicePresence failed: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    @discardableResult
-    private func applyDeviceList(_ listed: [MouseDevice], source: String) -> Bool {
-        let sorted = listed.sorted { $0.product_name < $1.product_name }
-        let previousDevices = devices
-        let previousIDs = Set(previousDevices.map(\.id))
-        let previousSelectedID = selectedDeviceID
-        let previousSelectedDevice = previousDevices.first(where: { $0.id == previousSelectedID })
-        let previousSelectedIdentity = previousSelectedDevice.map { deviceIdentityKey($0) }
-
-        let newIDs = Set(sorted.map(\.id))
-        let removedIDs = previousIDs.subtracting(newIDs)
-        if !removedIDs.isEmpty {
-            hydratedLightingStateByDeviceID.subtract(removedIDs)
-            if let hydratedButtonBindingsKey,
-               let hydratedDeviceID = hydratedButtonBindingsKey.split(separator: "#").first,
-               removedIDs.contains(String(hydratedDeviceID)) {
-                self.hydratedButtonBindingsKey = nil
-            }
-            for id in removedIDs {
-                stateCacheByDeviceID[id] = nil
-                refreshFailureCountByDeviceID[id] = nil
-                stateRefreshSuppressedUntilByDeviceID[id] = nil
-                unavailableDeviceIDs.remove(id)
-                dpiUpdateTransportStatusByDeviceID[id] = nil
-                manualUSBButtonProfileSelectionByDeviceID.remove(id)
-                lastUpdatedByDeviceID[id] = nil
-                suppressFastDpiUntilByDeviceID[id] = nil
-                lastUSBFastDpiAtByDeviceID[id] = nil
-                refreshingStateDeviceIDs.remove(id)
-                refreshingFastDpiDeviceIDs.remove(id)
-            }
-        }
-
-        devices = sorted
-        if let previousSelectedID, newIDs.contains(previousSelectedID) {
-            selectedDeviceID = previousSelectedID
-        } else if let previousSelectedIdentity,
-                  let match = sorted.first(where: { deviceIdentityKey($0) == previousSelectedIdentity }) {
-            selectedDeviceID = match.id
-        } else {
-            selectedDeviceID = sorted.first?.id
-        }
-
-        if let selectedDeviceID {
-            syncSelectedDevicePresentation(deviceID: selectedDeviceID)
-        } else {
-            state = nil
-            errorMessage = nil
-            warningMessage = nil
-            lastUpdated = nil
-        }
-
-        let changed = previousIDs != newIDs || previousSelectedID != selectedDeviceID
-        if changed {
-            AppLog.event(
-                "AppState",
-                "applyDeviceList source=\(source) count=\(sorted.count) selected=\(selectedDeviceID ?? "nil")"
-            )
-        }
-        if usesRemoteServiceUpdates, previousSelectedID != selectedDeviceID {
-            sendRemoteClientPresence()
-        }
-        return changed
+        await deviceController.pollDevicePresence()
     }
 
     func selectDevice(_ deviceID: String) {
-        guard selectedDeviceID != deviceID else { return }
-        selectedDeviceID = deviceID
-        syncSelectedDevicePresentation(deviceID: deviceID)
-        if let selectedDevice {
-            Task { [weak self] in
-                await self?.refreshConnectionDiagnostics(for: selectedDevice)
-            }
-        }
-        if usesRemoteServiceUpdates {
-            sendRemoteClientPresence()
-        }
-    }
-
-    private func syncSelectedDevicePresentation(deviceID: String) {
-        guard let device = devices.first(where: { $0.id == deviceID }) else {
-            state = nil
-            errorMessage = nil
-            warningMessage = nil
-            lastUpdated = nil
-            isRefreshingState = false
-            return
-        }
-
-        isRefreshingState = refreshingStateDeviceIDs.contains(deviceID)
-        if unavailableDeviceIDs.contains(deviceID) {
-            state = nil
-            lastUpdated = nil
-            warningMessage = nil
-            if errorMessage == nil || !Self.isDeviceAvailabilityMessage(errorMessage ?? "") {
-                errorMessage = "Device disconnected or unavailable"
-            }
-        } else if let cached = stateCacheByDeviceID[deviceID] {
-            state = cached
-            lastUpdated = lastUpdatedByDeviceID[deviceID]
-            warningMessage = telemetryWarning(for: cached, device: device)
-            if shouldHydrateEditable {
-                hydrateEditable(from: cached)
-            }
-        } else if let state, stateSummaryMatchesDevice(state, device: device) {
-            warningMessage = telemetryWarning(for: state, device: device)
-            if shouldHydrateEditable {
-                hydrateEditable(from: state)
-            }
-        } else {
-            state = nil
-            lastUpdated = nil
-            warningMessage = nil
-        }
-        if !unavailableDeviceIDs.contains(deviceID) {
-            errorMessage = nil
-        }
-    }
-
-    private func setTelemetryWarning(_ newValue: String?, device: MouseDevice) {
-        if warningMessage != newValue, let newValue {
-            AppLog.warning("AppState", "telemetry degraded device=\(device.id) transport=\(device.transport.rawValue): \(newValue)")
-        }
-        warningMessage = newValue
-    }
-
-    private func connectionState(for device: MouseDevice) -> DeviceConnectionState {
-        if isStrictlyUnsupported(device) {
-            return .unsupported
-        }
-
-        if !devices.contains(where: { $0.id == device.id }) && selectedDeviceID != device.id {
-            return .disconnected
-        }
-
-        if unavailableDeviceIDs.contains(device.id) {
-            return .disconnected
-        }
-
-        if device.id == selectedDeviceID, let errorMessage, !errorMessage.isEmpty {
-            let lowered = errorMessage.lowercased()
-            return Self.isDeviceAvailabilityMessage(lowered) ? .disconnected : .error
-        }
-
-        let failures = refreshFailureCountByDeviceID[device.id] ?? 0
-        if failures > 0 {
-            return .reconnecting
-        }
-
-        guard let updatedAt = lastUpdatedTimestamp(for: device) else {
-            return .reconnecting
-        }
-
-        let age = Date().timeIntervalSince(updatedAt)
-        if age > max(4.5, currentPollingProfile.refreshStateInterval * 1.7) {
-            return .reconnecting
-        }
-
-        return .connected
-    }
-
-    private func statusIndicator(for device: MouseDevice) -> DeviceStatusIndicator {
-        connectionState(for: device).indicator
-    }
-
-    private func lastUpdatedTimestamp(for device: MouseDevice) -> Date? {
-        lastUpdatedByDeviceID[device.id] ?? (device.id == selectedDeviceID ? lastUpdated : nil)
-    }
-
-    private func dpiUpdateTransportStatus(for device: MouseDevice) -> DpiUpdateTransportStatus {
-        if isStrictlyUnsupported(device) {
-            return .unsupported
-        }
-        return dpiUpdateTransportStatusByDeviceID[device.id] ?? .unknown
-    }
-
-    private func refreshDpiUpdateTransportStatuses(for devices: [MouseDevice]) async {
-        for device in devices {
-            await refreshConnectionDiagnostics(for: device)
-        }
-    }
-
-    private func focusServiceSelectionOnActivity(deviceID: String) {
-        guard launchRole.isService else { return }
-        guard selectedDeviceID != deviceID else { return }
-        guard devices.contains(where: { $0.id == deviceID }) else { return }
-        selectedDeviceID = deviceID
-        syncSelectedDevicePresentation(deviceID: deviceID)
-    }
-
-    private func shouldFocusServiceSelectionOnActivity(previous: MouseState?, next: MouseState) -> Bool {
-        guard launchRole.isService else { return false }
-        guard let previous else { return false }
-
-        return previous.dpi != next.dpi ||
-            previous.dpi_stages != next.dpi_stages ||
-            previous.poll_rate != next.poll_rate ||
-            previous.sleep_timeout != next.sleep_timeout ||
-            previous.device_mode != next.device_mode ||
-            previous.low_battery_threshold_raw != next.low_battery_threshold_raw ||
-            previous.scroll_mode != next.scroll_mode ||
-            previous.scroll_acceleration != next.scroll_acceleration ||
-            previous.scroll_smart_reel != next.scroll_smart_reel ||
-            previous.active_onboard_profile != next.active_onboard_profile ||
-            previous.onboard_profile_count != next.onboard_profile_count ||
-            previous.led_value != next.led_value
-    }
-
-    private func deviceIdentityKey(_ device: MouseDevice) -> String {
-        if let serial = device.serial?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !serial.isEmpty {
-            return "serial:\(serial.lowercased())"
-        }
-        return String(
-            format: "vp:%04x:%04x:%@",
-            device.vendor_id,
-            device.product_id,
-            device.transport.rawValue
-        )
-    }
-
-    private func stateSummaryMatchesDevice(_ state: MouseState, device: MouseDevice) -> Bool {
-        let deviceSerial = device.serial?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        let stateSerial = state.device.serial?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-
-        if let deviceSerial, !deviceSerial.isEmpty,
-           let stateSerial, !stateSerial.isEmpty {
-            return deviceSerial == stateSerial
-        }
-
-        return state.device.transport == device.transport &&
-            state.device.product_name == device.product_name
-    }
-
-    private func isStrictlyUnsupported(_ device: MouseDevice) -> Bool {
-        resolvedProfile(for: device) == nil && device.transport == .bluetooth
-    }
-
-    private func presentationDevice(for device: MouseDevice) -> MouseDevice? {
-        if let exactMatch = devices.first(where: { $0.id == device.id }) {
-            return exactMatch
-        }
-        let identityKey = deviceIdentityKey(device)
-        return devices.first(where: { deviceIdentityKey($0) == identityKey })
-    }
-
-    private func refreshableDevicesInPriorityOrder(prioritizing prioritizedDeviceIDs: [String] = []) -> [MouseDevice] {
-        guard !devices.isEmpty else { return [] }
-        let now = Date()
-
-        var ordered: [MouseDevice] = []
-        var seen: Set<String> = []
-
-        for deviceID in prioritizedDeviceIDs {
-            guard let device = devices.first(where: { $0.id == deviceID }) else { continue }
-            guard !isStrictlyUnsupported(device) else { continue }
-            guard seen.insert(device.id).inserted else { continue }
-            ordered.append(device)
-        }
-
-        if let selectedDevice, !isStrictlyUnsupported(selectedDevice), seen.insert(selectedDevice.id).inserted {
-            ordered.append(selectedDevice)
-        }
-
-        for device in devices where !isStrictlyUnsupported(device) {
-            guard seen.insert(device.id).inserted else { continue }
-            if selectedDeviceID != device.id,
-               let suppressedUntil = stateRefreshSuppressedUntilByDeviceID[device.id],
-               now < suppressedUntil {
-                continue
-            }
-            ordered.append(device)
-        }
-
-        return ordered
-    }
-
-    private func cacheState(_ state: MouseState, sourceDeviceID: String, presentationDeviceID: String, updatedAt: Date = Date()) {
-        stateCacheByDeviceID[sourceDeviceID] = state
-        lastUpdatedByDeviceID[sourceDeviceID] = updatedAt
-
-        if presentationDeviceID != sourceDeviceID {
-            stateCacheByDeviceID[presentationDeviceID] = state
-            lastUpdatedByDeviceID[presentationDeviceID] = updatedAt
-        }
-
-        if selectedDeviceID == presentationDeviceID {
-            lastUpdated = updatedAt
-        }
-    }
-
-    private func latestCachedUpdateAt(sourceDeviceID: String, presentationDeviceID: String) -> Date? {
-        [lastUpdatedByDeviceID[sourceDeviceID], lastUpdatedByDeviceID[presentationDeviceID]]
-            .compactMap { $0 }
-            .max()
-    }
-
-    private static func isDeviceAvailabilityMessage(_ message: String) -> Bool {
-        let lowered = message.lowercased()
-        return lowered.contains("no device") ||
-            lowered.contains("disconnected") ||
-            lowered.contains("not available") ||
-            lowered.contains("telemetry unavailable") ||
-            lowered.contains("bt vendor timeout") ||
-            lowered.contains("failed to connect") ||
-            lowered.contains("bluetooth is powered off")
-    }
-
-    private func stateRefreshBackoffInterval(for device: MouseDevice, failures: Int, error: any Error) -> TimeInterval {
-        let lowered = error.localizedDescription.lowercased()
-        if device.transport == .usb,
-           lowered.contains("telemetry unavailable") || lowered.contains("usable responses") {
-            return 30.0
-        }
-
-        switch failures {
-        case ...1:
-            return 8.0
-        case 2:
-            return 15.0
-        case 3:
-            return 30.0
-        default:
-            return 60.0
-        }
-    }
-
-    private func resolvedProfile(for device: MouseDevice) -> DeviceProfile? {
-        DeviceProfiles.resolve(
-            vendorID: device.vendor_id,
-            productID: device.product_id,
-            transport: device.transport
-        )
+        deviceController.selectDevice(deviceID)
     }
 
     func refreshState() async {
-        guard let selectedDevice else {
-            state = nil
-            errorMessage = nil
-            warningMessage = nil
-            lastUpdated = nil
-            isRefreshingState = false
-            return
-        }
-        guard !isStrictlyUnsupported(selectedDevice) else {
-            state = nil
-            warningMessage = nil
-            errorMessage = nil
-            lastUpdated = nil
-            isRefreshingState = false
-            return
-        }
-        _ = await refreshState(for: selectedDevice)
-    }
-
-    private func refreshAllDeviceStates(prioritizing prioritizedDeviceIDs: [String] = []) async {
-        let devicesToRefresh = refreshableDevicesInPriorityOrder(prioritizing: prioritizedDeviceIDs)
-        guard !devicesToRefresh.isEmpty else {
-            if let selectedDevice, isStrictlyUnsupported(selectedDevice) {
-                state = nil
-                warningMessage = nil
-                errorMessage = nil
-                lastUpdated = nil
-                isRefreshingState = false
-            } else if let selectedDeviceID {
-                syncSelectedDevicePresentation(deviceID: selectedDeviceID)
-            } else {
-                state = nil
-                warningMessage = nil
-                errorMessage = nil
-                lastUpdated = nil
-                isRefreshingState = false
-            }
-            return
-        }
-
-        for device in devicesToRefresh {
-            _ = await refreshState(for: device)
-        }
-
-        if let selectedDeviceID {
-            syncSelectedDevicePresentation(deviceID: selectedDeviceID)
-        }
-    }
-
-    @discardableResult
-    private func refreshState(for device: MouseDevice) async -> Bool {
-        guard !isStrictlyUnsupported(device) else { return false }
-        guard !refreshingStateDeviceIDs.contains(device.id) else { return false }
-        guard !isApplying else {
-            AppLog.debug("AppState", "refreshState skipped applying device=\(device.id)")
-            return false
-        }
-        guard !hasPendingLocalEditsAffecting(device) else {
-            AppLog.debug("AppState", "refreshState skipped pending-local-edits device=\(device.id)")
-            return false
-        }
-
-        if selectedDeviceID == device.id, let cached = stateCacheByDeviceID[device.id] {
-            state = cached
-        }
-
-        refreshingStateDeviceIDs.insert(device.id)
-        if selectedDeviceID == device.id {
-            isRefreshingState = true
-        }
-        defer {
-            refreshingStateDeviceIDs.remove(device.id)
-            if selectedDeviceID == device.id {
-                isRefreshingState = false
-            }
-        }
-
-        let refreshRevision = applyCoordinator.stateRevision
-        let refreshDeviceID = device.id
-        let start = Date()
-
-        do {
-            let fetched = try await backend.readState(device: device)
-            guard refreshRevision == applyCoordinator.stateRevision else {
-                AppLog.debug("AppState", "refreshState stale-drop rev=\(refreshRevision) current=\(applyCoordinator.stateRevision)")
-                return false
-            }
-            guard let presentationDevice = presentationDevice(for: device) else {
-                AppLog.debug("AppState", "refreshState drop missing-presentation device=\(refreshDeviceID)")
-                return false
-            }
-
-            let presentationDeviceID = presentationDevice.id
-            if let latestCachedAt = latestCachedUpdateAt(sourceDeviceID: refreshDeviceID, presentationDeviceID: presentationDeviceID),
-               latestCachedAt > start {
-                AppLog.debug(
-                    "AppState",
-                    "refreshState superseded-drop device=\(presentationDeviceID) startedAt=\(start.timeIntervalSince1970) " +
-                    "cachedAt=\(latestCachedAt.timeIntervalSince1970)"
-                )
-                return false
-            }
-            let previous = stateCacheByDeviceID[presentationDeviceID] ?? stateCacheByDeviceID[refreshDeviceID]
-            let merged = fetched.merged(
-                with: previous
-            )
-            let shouldFocusOnActivity = shouldFocusServiceSelectionOnActivity(previous: previous, next: merged)
-            let updatedAt = Date()
-            cacheState(merged, sourceDeviceID: refreshDeviceID, presentationDeviceID: presentationDeviceID, updatedAt: updatedAt)
-            refreshFailureCountByDeviceID[refreshDeviceID] = 0
-            refreshFailureCountByDeviceID[presentationDeviceID] = 0
-            stateRefreshSuppressedUntilByDeviceID[refreshDeviceID] = nil
-            stateRefreshSuppressedUntilByDeviceID[presentationDeviceID] = nil
-            unavailableDeviceIDs.remove(refreshDeviceID)
-            unavailableDeviceIDs.remove(presentationDeviceID)
-            if shouldFocusOnActivity {
-                focusServiceSelectionOnActivity(deviceID: presentationDeviceID)
-            }
-
-            if selectedDeviceID == presentationDeviceID {
-                if state != merged {
-                    state = merged
-                }
-                if shouldHydrateEditable {
-                    hydrateEditable(from: merged)
-                    await hydrateLightingStateIfNeeded(device: presentationDevice)
-                    await hydrateButtonBindingsIfNeeded(device: presentationDevice)
-                }
-                errorMessage = nil
-                setTelemetryWarning(telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)
-            }
-
-            AppLog.debug(
-                "AppState",
-                "refreshState ok device=\(presentationDeviceID) active=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
-                "values=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
-                "elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
-            )
-            return true
-        } catch {
-            let presentationDeviceID = presentationDevice(for: device)?.id ?? refreshDeviceID
-            let failures = (refreshFailureCountByDeviceID[presentationDeviceID] ?? 0) + 1
-            refreshFailureCountByDeviceID[refreshDeviceID] = failures
-            refreshFailureCountByDeviceID[presentationDeviceID] = failures
-            let isAvailabilityFailure = Self.isDeviceAvailabilityMessage(error.localizedDescription)
-            if isAvailabilityFailure {
-                unavailableDeviceIDs.insert(refreshDeviceID)
-                unavailableDeviceIDs.insert(presentationDeviceID)
-            }
-
-            if selectedDeviceID != presentationDeviceID {
-                let suppressedUntil = Date().addingTimeInterval(
-                    stateRefreshBackoffInterval(for: device, failures: failures, error: error)
-                )
-                stateRefreshSuppressedUntilByDeviceID[refreshDeviceID] = suppressedUntil
-                stateRefreshSuppressedUntilByDeviceID[presentationDeviceID] = suppressedUntil
-                AppLog.debug(
-                    "AppState",
-                    "refreshState backoff device=\(presentationDeviceID) failures=\(failures) " +
-                    "until=\(suppressedUntil.timeIntervalSince1970): \(error.localizedDescription)"
-                )
-            }
-
-            guard selectedDeviceID == presentationDeviceID else {
-                AppLog.debug("AppState", "refreshState masked non-selected failure device=\(presentationDeviceID): \(error.localizedDescription)")
-                return false
-            }
-
-            if isAvailabilityFailure {
-                state = nil
-                lastUpdated = nil
-                warningMessage = nil
-                errorMessage = error.localizedDescription
-                return false
-            }
-
-            if stateCacheByDeviceID[presentationDeviceID] == nil {
-                AppLog.error(
-                    "AppState",
-                    "refreshState failed device=\(presentationDeviceID) transport=\(device.transport.rawValue) no-cache: \(error.localizedDescription)"
-                )
-                errorMessage = error.localizedDescription
-                warningMessage = nil
-            } else {
-                AppLog.debug("AppState", "refreshState transient-failure masked: \(error.localizedDescription)")
-                if failures >= 3 {
-                    if failures == 3 {
-                        AppLog.warning(
-                            "AppState",
-                            "device read unstable device=\(presentationDeviceID) failures=\(failures): \(error.localizedDescription)"
-                        )
-                    }
-                    errorMessage = "Device read is failing repeatedly (\(failures)x): \(error.localizedDescription)"
-                } else {
-                    errorMessage = nil
-                }
-                warningMessage = "Using the last known values while live telemetry settles."
-            }
-            return false
-        }
+        await deviceController.refreshState()
     }
 
     func updateStage(_ index: Int, value: Int) {
-        guard index >= 0 && index < editableStageValues.count else { return }
-        editableStageValues[index] = max(100, min(30000, value))
+        applyController.updateStage(index, value: value)
     }
 
     func stageValue(_ index: Int) -> Int {
-        guard index >= 0 && index < editableStageValues.count else { return 800 }
-        return editableStageValues[index]
+        applyController.stageValue(index)
     }
 
     func applyDpiStages() async {
-        let count = max(1, min(5, editableStageCount))
-        let values = Array(editableStageValues.prefix(count)).map { max(100, min(30000, $0)) }
-        let active = max(0, min(count - 1, editableActiveStage - 1))
-
-        enqueueApply(DevicePatch(dpiStages: values, activeStage: active))
+        await applyController.applyDpiStages()
     }
 
     func scheduleAutoApplyDpi() {
-        guard !isHydrating else { return }
-        markLocalEditsPending()
-        dpiApplyTask?.cancel()
-        dpiApplyTask = Task { [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: 320_000_000)
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            await self?.applyDpiStages()
-        }
+        applyController.scheduleAutoApplyDpi()
     }
 
     func applyActiveStageOnly() async {
-        let count = max(1, min(5, editableStageCount))
-        let values = Array(editableStageValues.prefix(count)).map { max(100, min(30000, $0)) }
-        let active = max(0, min(count - 1, editableActiveStage - 1))
-        enqueueApply(DevicePatch(dpiStages: values, activeStage: active))
+        await applyController.applyActiveStageOnly()
     }
 
     func scheduleAutoApplyActiveStage() {
-        guard !isHydrating else { return }
-        markLocalEditsPending()
-        activeStageApplyTask?.cancel()
-        activeStageApplyTask = Task { [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: 80_000_000)
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            await self?.applyActiveStageOnly()
-        }
+        applyController.scheduleAutoApplyActiveStage()
     }
 
     func applyPollRate() async {
-        enqueueApply(DevicePatch(pollRate: editablePollRate))
+        await applyController.applyPollRate()
     }
 
     func scheduleAutoApplyPollRate() {
-        guard !isHydrating else { return }
-        markLocalEditsPending()
-        pollApplyTask?.cancel()
-        pollApplyTask = Task { [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: 250_000_000)
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            await self?.applyPollRate()
-        }
+        applyController.scheduleAutoApplyPollRate()
     }
 
     func applySleepTimeout() async {
-        enqueueApply(DevicePatch(sleepTimeout: editableSleepTimeout))
+        await applyController.applySleepTimeout()
     }
 
     func scheduleAutoApplySleepTimeout() {
-        guard !isHydrating else { return }
-        markLocalEditsPending()
-        powerApplyTask?.cancel()
-        powerApplyTask = Task { [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: 260_000_000)
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            await self?.applySleepTimeout()
-        }
+        applyController.scheduleAutoApplySleepTimeout()
     }
 
     func applyDeviceMode() async {
-        let mode = editableDeviceMode == 0x03 ? 0x03 : 0x00
-        enqueueApply(DevicePatch(deviceMode: DeviceMode(mode: mode, param: 0x00)))
+        await applyController.applyDeviceMode()
     }
 
     func scheduleAutoApplyDeviceMode() {
-        guard !isHydrating else { return }
-        markLocalEditsPending()
-        deviceModeApplyTask?.cancel()
-        deviceModeApplyTask = Task { [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: 200_000_000)
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            await self?.applyDeviceMode()
-        }
+        applyController.scheduleAutoApplyDeviceMode()
     }
 
     func applyLowBatteryThreshold() async {
-        let raw = max(0x0C, min(0x3F, editableLowBatteryThresholdRaw))
-        enqueueApply(DevicePatch(lowBatteryThresholdRaw: raw))
+        await applyController.applyLowBatteryThreshold()
     }
 
     func scheduleAutoApplyLowBatteryThreshold() {
-        guard !isHydrating else { return }
-        markLocalEditsPending()
-        lowBatteryApplyTask?.cancel()
-        lowBatteryApplyTask = Task { [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: 220_000_000)
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            await self?.applyLowBatteryThreshold()
-        }
+        applyController.scheduleAutoApplyLowBatteryThreshold()
     }
 
     func applyScrollMode() async {
-        enqueueApply(DevicePatch(scrollMode: max(0, min(1, editableScrollMode))))
+        await applyController.applyScrollMode()
     }
 
     func scheduleAutoApplyScrollMode() {
-        guard !isHydrating else { return }
-        markLocalEditsPending()
-        scrollModeApplyTask?.cancel()
-        scrollModeApplyTask = Task { [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: 220_000_000)
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            await self?.applyScrollMode()
-        }
+        applyController.scheduleAutoApplyScrollMode()
     }
 
     func applyScrollAcceleration() async {
-        enqueueApply(DevicePatch(scrollAcceleration: editableScrollAcceleration))
+        await applyController.applyScrollAcceleration()
     }
 
     func scheduleAutoApplyScrollAcceleration() {
-        guard !isHydrating else { return }
-        markLocalEditsPending()
-        scrollAccelerationApplyTask?.cancel()
-        scrollAccelerationApplyTask = Task { [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: 220_000_000)
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            await self?.applyScrollAcceleration()
-        }
+        applyController.scheduleAutoApplyScrollAcceleration()
     }
 
     func applyScrollSmartReel() async {
-        enqueueApply(DevicePatch(scrollSmartReel: editableScrollSmartReel))
+        await applyController.applyScrollSmartReel()
     }
 
     func scheduleAutoApplyScrollSmartReel() {
-        guard !isHydrating else { return }
-        markLocalEditsPending()
-        scrollSmartReelApplyTask?.cancel()
-        scrollSmartReelApplyTask = Task { [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: 220_000_000)
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            await self?.applyScrollSmartReel()
-        }
+        applyController.scheduleAutoApplyScrollSmartReel()
     }
 
     func applyLedBrightness() async {
-        enqueueApply(DevicePatch(ledBrightness: editableLedBrightness))
+        await applyController.applyLedBrightness()
     }
 
     func scheduleAutoApplyLedBrightness() {
-        guard !isHydrating else { return }
-        markLocalEditsPending()
-        ledApplyTask?.cancel()
-        ledApplyTask = Task { [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: 180_000_000)
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            await self?.applyLedBrightness()
-        }
+        applyController.scheduleAutoApplyLedBrightness()
     }
 
     func applyLedColor() async {
-        enqueueApply(
-            DevicePatch(
-                ledRGB: RGBPatch(r: editableColor.r, g: editableColor.g, b: editableColor.b),
-                usbLightingZoneLEDIDs: currentUSBLightingZoneLEDIDs()
-            )
-        )
+        await applyController.applyLedColor()
     }
 
     func scheduleAutoApplyLedColor() {
-        guard !isHydrating else { return }
-        markLocalEditsPending()
-        colorApplyTask?.cancel()
-        colorApplyTask = Task { [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: 200_000_000)
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            await self?.applyLedColor()
-        }
+        applyController.scheduleAutoApplyLedColor()
     }
 
     func applyLightingEffect() async {
-        guard let selectedDevice else { return }
-        if !selectedDevice.supports_advanced_lighting_effects {
-            editableLightingEffect = .staticColor
-            enqueueApply(DevicePatch(ledRGB: RGBPatch(r: editableColor.r, g: editableColor.g, b: editableColor.b)))
-            return
-        }
-        enqueueApply(
-            DevicePatch(
-                lightingEffect: currentLightingEffectPatch(),
-                usbLightingZoneLEDIDs: currentUSBLightingZoneLEDIDs()
-            )
-        )
+        await applyController.applyLightingEffect()
     }
 
     func scheduleAutoApplyLightingEffect() {
-        guard !isHydrating else { return }
-        markLocalEditsPending()
-        lightingEffectApplyTask?.cancel()
-        lightingEffectApplyTask = Task { [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: 200_000_000)
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            await self?.applyLightingEffect()
-        }
+        applyController.scheduleAutoApplyLightingEffect()
     }
 
     func updateLightingEffect(_ kind: LightingEffectKind) {
-        guard selectedDevice?.supports_advanced_lighting_effects == true else {
-            editableLightingEffect = .staticColor
-            editableUSBLightingZoneID = "all"
-            return
-        }
-        let supportedEffects = visibleLightingEffects
-        editableLightingEffect = supportedEffects.contains(kind) ? kind : (supportedEffects.first ?? .staticColor)
-        if kind != .staticColor {
-            editableUSBLightingZoneID = "all"
-        }
+        editorController.updateLightingEffect(kind)
     }
 
     func updateUSBLightingZoneID(_ zoneID: String) {
-        editableUSBLightingZoneID = zoneID
+        editorController.updateUSBLightingZoneID(zoneID)
     }
 
     func updateUSBButtonProfile(_ profile: Int) {
-        guard let selectedDevice, supportsMultipleOnboardProfiles else { return }
-        let clamped = max(1, min(visibleOnboardProfileCount, profile))
-        editableUSBButtonProfile = clamped
-        manualUSBButtonProfileSelectionByDeviceID.insert(selectedDevice.id)
-        hydratedButtonBindingsKey = nil
-        Task { [weak self] in
-            await self?.hydrateButtonBindingsIfNeeded(device: selectedDevice)
-        }
+        editorController.updateUSBButtonProfile(profile)
     }
 
     func updateLightingWaveDirection(_ direction: LightingWaveDirection) {
-        editableLightingWaveDirection = direction
+        editorController.updateLightingWaveDirection(direction)
     }
 
     func updateLightingReactiveSpeed(_ speed: Int) {
-        editableLightingReactiveSpeed = max(1, min(4, speed))
-    }
-
-    private func applyButtonBinding(slot: Int) async {
-        let resolved = editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
-        let binding = ButtonBindingPatch(
-            slot: slot,
-            kind: resolved.kind,
-            hidKey: resolved.kind == .keyboardSimple ? resolved.hidKey : nil,
-            turboEnabled: resolved.kind.supportsTurbo ? resolved.turboEnabled : false,
-            turboRate: resolved.kind.supportsTurbo && resolved.turboEnabled ? resolved.turboRate : nil,
-            clutchDPI: resolved.kind == .dpiClutch ? resolved.clutchDPI ?? ButtonBindingSupport.defaultDPIClutchDPI(for: selectedDevice?.profile_id) : nil,
-            persistentProfile: editableUSBButtonProfile,
-            writeDirectLayer: !supportsMultipleOnboardProfiles || editableUSBButtonProfile == activeOnboardProfile
-        )
-        enqueueApply(DevicePatch(buttonBinding: binding))
-    }
-
-    func scheduleAutoApplyButton(slot: Int) {
-        guard !isHydrating else { return }
-        markLocalEditsPending()
-        buttonApplyTask?.cancel()
-        buttonApplyTask = Task { [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: 260_000_000)
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            await self?.applyButtonBinding(slot: slot)
-        }
+        editorController.updateLightingReactiveSpeed(speed)
     }
 
     func buttonBindingKind(for slot: Int) -> ButtonBindingKind {
-        editableButtonBindings[slot]?.kind ?? defaultButtonBinding(for: slot).kind
+        editorController.buttonBindingKind(for: slot)
     }
 
     func buttonBindingHidKey(for slot: Int) -> Int {
-        editableButtonBindings[slot]?.hidKey ?? defaultButtonBinding(for: slot).hidKey
+        editorController.buttonBindingHidKey(for: slot)
     }
 
     func buttonBindingTurboEnabled(for slot: Int) -> Bool {
-        editableButtonBindings[slot]?.turboEnabled ?? defaultButtonBinding(for: slot).turboEnabled
+        editorController.buttonBindingTurboEnabled(for: slot)
     }
 
     func buttonBindingTurboRate(for slot: Int) -> Int {
-        editableButtonBindings[slot]?.turboRate ?? defaultButtonBinding(for: slot).turboRate
+        editorController.buttonBindingTurboRate(for: slot)
     }
 
     func buttonBindingTurboRatePressesPerSecond(for slot: Int) -> Int {
@@ -1927,59 +580,23 @@ final class AppState {
     }
 
     func buttonBindingClutchDPI(for slot: Int) -> Int {
-        editableButtonBindings[slot]?.clutchDPI
-            ?? ButtonBindingSupport.defaultDPIClutchDPI(for: selectedDevice?.profile_id)
-            ?? 400
+        editorController.buttonBindingClutchDPI(for: slot)
     }
 
     func updateButtonBindingKind(slot: Int, kind: ButtonBindingKind) {
-        guard visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
-        var next = editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
-        next.kind = kind
-        if kind != .keyboardSimple {
-            keyboardDraftApplyTaskBySlot[slot]?.cancel()
-            keyboardDraftApplyTaskBySlot[slot] = nil
-            next.hidKey = 4
-            keyboardTextDraftBySlot[slot] = nil
-        } else {
-            keyboardTextDraftBySlot[slot] = AppState.keyboardText(forHidKey: next.hidKey) ?? ""
-        }
-        if kind == .dpiClutch {
-            next.clutchDPI = next.clutchDPI ?? ButtonBindingSupport.defaultDPIClutchDPI(for: selectedDevice?.profile_id)
-        }
-        if !kind.supportsTurbo {
-            next.turboEnabled = false
-        }
-        editableButtonBindings[slot] = next
-        scheduleAutoApplyButton(slot: slot)
+        editorController.updateButtonBindingKind(slot: slot, kind: kind)
     }
 
     func updateButtonBindingHidKey(slot: Int, hidKey: Int) {
-        guard visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
-        var next = editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
-        next.kind = .keyboardSimple
-        next.hidKey = max(4, min(231, hidKey))
-        editableButtonBindings[slot] = next
-        keyboardTextDraftBySlot[slot] = AppState.keyboardText(forHidKey: next.hidKey) ?? ""
-        scheduleAutoApplyButton(slot: slot)
+        editorController.updateButtonBindingHidKey(slot: slot, hidKey: hidKey)
     }
 
     func updateButtonBindingTurboEnabled(slot: Int, enabled: Bool) {
-        guard visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
-        var next = editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
-        guard next.kind.supportsTurbo else { return }
-        next.turboEnabled = enabled
-        editableButtonBindings[slot] = next
-        scheduleAutoApplyButton(slot: slot)
+        editorController.updateButtonBindingTurboEnabled(slot: slot, enabled: enabled)
     }
 
     func updateButtonBindingTurboRate(slot: Int, rate: Int) {
-        guard visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
-        var next = editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
-        guard next.kind.supportsTurbo else { return }
-        next.turboRate = max(1, min(255, rate))
-        editableButtonBindings[slot] = next
-        scheduleAutoApplyButton(slot: slot)
+        editorController.updateButtonBindingTurboRate(slot: slot, rate: rate)
     }
 
     func updateButtonBindingTurboPressesPerSecond(slot: Int, pressesPerSecond: Int) {
@@ -1988,622 +605,27 @@ final class AppState {
     }
 
     func updateButtonBindingClutchDPI(slot: Int, dpi: Int) {
-        guard visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
-        var next = editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
-        guard next.kind == .dpiClutch else { return }
-        next.clutchDPI = max(100, min(30_000, dpi))
-        editableButtonBindings[slot] = next
-        scheduleAutoApplyButton(slot: slot)
+        editorController.updateButtonBindingClutchDPI(slot: slot, dpi: dpi)
     }
 
     func keyboardTextDraft(for slot: Int) -> String {
-        if let draft = keyboardTextDraftBySlot[slot] {
-            return draft
-        }
-        let hidKey = buttonBindingHidKey(for: slot)
-        return AppState.keyboardText(forHidKey: hidKey) ?? ""
+        editorController.keyboardTextDraft(for: slot)
     }
 
     func updateKeyboardTextDraft(slot: Int, text: String) {
-        guard visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
-        keyboardTextDraftBySlot[slot] = text
-        keyboardDraftApplyTaskBySlot[slot]?.cancel()
-        keyboardDraftApplyTaskBySlot[slot] = Task { [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: 320_000_000)
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            self?.applyKeyboardTextDraft(slot: slot)
-        }
+        editorController.updateKeyboardTextDraft(slot: slot, text: text)
     }
 
     func refreshDpiFast() async {
-        guard !isApplying else { return }
-
-        let now = Date()
-        for deviceID in activeFastPollingDeviceIDs(at: now) {
-            guard let device = devices.first(where: { $0.id == deviceID }) else { continue }
-            await refreshDpiFast(for: device, now: now)
-        }
+        await deviceController.refreshDpiFast()
     }
 
-    private func refreshDpiFast(for device: MouseDevice, now: Date) async {
-        guard device.transport == .bluetooth || device.transport == .usb else { return }
-        guard !isStrictlyUnsupported(device) else { return }
-        guard !refreshingFastDpiDeviceIDs.contains(device.id) else { return }
-        guard !refreshingStateDeviceIDs.contains(device.id) else { return }
-        guard !hasPendingLocalEditsAffecting(device) else { return }
-        let usesFastPolling = await backend.shouldUseFastDPIPolling(device: device)
-        if !usesFastPolling {
-            dpiUpdateTransportStatusByDeviceID[device.id] = .realTimeHID
-            return
-        }
-
-        if device.transport == .usb,
-           let lastUSBFastDpiAt = lastUSBFastDpiAtByDeviceID[device.id],
-           now.timeIntervalSince(lastUSBFastDpiAt) < 0.55 {
-            return
-        }
-        if let until = suppressFastDpiUntilByDeviceID[device.id] {
-            if now < until { return }
-            suppressFastDpiUntilByDeviceID[device.id] = nil
-        }
-
-        refreshingFastDpiDeviceIDs.insert(device.id)
-        defer { refreshingFastDpiDeviceIDs.remove(device.id) }
-        let fastRevision = applyCoordinator.stateRevision
-
-        do {
-            guard let fast = try await backend.readDpiStagesFast(device: device) else { return }
-            guard let presentationDevice = presentationDevice(for: device) else { return }
-            let readAt = Date()
-            if device.transport == .usb {
-                lastUSBFastDpiAtByDeviceID[device.id] = readAt
-                lastUSBFastDpiAtByDeviceID[presentationDevice.id] = readAt
-            }
-            guard fastRevision == applyCoordinator.stateRevision else {
-                AppLog.debug("AppState", "refreshDpiFast stale-drop rev=\(fastRevision) current=\(applyCoordinator.stateRevision)")
-                return
-            }
-            let presentationDeviceID = presentationDevice.id
-            let previous = stateCacheByDeviceID[presentationDeviceID] ?? stateCacheByDeviceID[device.id] ?? state
-            guard let previous else { return }
-            let active = max(0, min(fast.values.count - 1, fast.active))
-            let currentDpiValue = fast.values[active]
-            let updated = MouseState(
-                device: previous.device,
-                connection: previous.connection,
-                battery_percent: previous.battery_percent,
-                charging: previous.charging,
-                dpi: DpiPair(x: currentDpiValue, y: currentDpiValue),
-                dpi_stages: DpiStages(active_stage: active, values: fast.values),
-                poll_rate: previous.poll_rate,
-                sleep_timeout: previous.sleep_timeout,
-                device_mode: previous.device_mode,
-                low_battery_threshold_raw: previous.low_battery_threshold_raw,
-                scroll_mode: previous.scroll_mode,
-                scroll_acceleration: previous.scroll_acceleration,
-                scroll_smart_reel: previous.scroll_smart_reel,
-                led_value: previous.led_value,
-                capabilities: previous.capabilities
-            )
-
-            let shouldFocusOnActivity = shouldFocusServiceSelectionOnActivity(previous: previous, next: updated)
-            cacheState(updated, sourceDeviceID: device.id, presentationDeviceID: presentationDeviceID, updatedAt: readAt)
-            dpiUpdateTransportStatusByDeviceID[device.id] = .pollingFallback
-            dpiUpdateTransportStatusByDeviceID[presentationDeviceID] = .pollingFallback
-            unavailableDeviceIDs.remove(device.id)
-            unavailableDeviceIDs.remove(presentationDeviceID)
-            if shouldFocusOnActivity {
-                focusServiceSelectionOnActivity(deviceID: presentationDeviceID)
-            }
-            if selectedDeviceID == presentationDeviceID {
-                if state != updated {
-                    state = updated
-                }
-                if shouldHydrateEditable {
-                    hydrateEditable(from: updated)
-                }
-            }
-            AppLog.debug(
-                "AppState",
-                "refreshDpiFast ok device=\(presentationDeviceID) active=\(active) " +
-                "values=\(fast.values.map(String.init).joined(separator: ","))"
-            )
-        } catch {
-            // Ignore fast-poll transient failures to keep UI stable.
-        }
-    }
-
-    private func markLocalEditsPending() {
-        hasPendingLocalEdits = true
-        lastLocalEditAt = Date()
-        localEditDeviceIdentityKey = selectedDevice.map(deviceIdentityKey)
-    }
-
-    private func hasPendingLocalEditsAffecting(_ device: MouseDevice) -> Bool {
-        guard hasPendingLocalEdits else { return false }
-        guard let localEditDeviceIdentityKey else { return false }
-        return localEditDeviceIdentityKey == deviceIdentityKey(device)
-    }
-
-    private func enqueueApply(_ patch: DevicePatch) {
-        _ = applyCoordinator.enqueue(patch)
-        markLocalEditsPending()
-
-        if applyDrainTask == nil {
-            applyDrainTask = Task { [weak self] in
-                await self?.drainApplyQueue()
-            }
-        }
-    }
-
-    private func drainApplyQueue() async {
-        while let patch = applyCoordinator.dequeue() {
-            await applyNow(patch: patch)
-            hasPendingLocalEdits = applyCoordinator.hasPending
-        }
-        hasPendingLocalEdits = false
-        localEditDeviceIdentityKey = nil
-        applyDrainTask = nil
-    }
-
-    private func applyNow(patch: DevicePatch) async {
-        guard let selectedDevice else {
-            AppLog.warning("AppState", "apply skipped with no selected device patch=\(patch.describe)")
-            errorMessage = "No device selected"
-            return
-        }
-
-        applyCoordinator.bumpRevision()
-        AppLog.event("AppState", "apply start device=\(selectedDevice.id) patch=\(patch.describe)")
-        isApplying = true
-        defer { isApplying = false }
-
-        let start = Date()
-        let applyDeviceID = selectedDevice.id
-        do {
-            let next = try await backend.apply(device: selectedDevice, patch: patch)
-            guard let presentationDevice = presentationDevice(for: selectedDevice) else {
-                let merged = next.merged(with: stateCacheByDeviceID[applyDeviceID])
-                stateCacheByDeviceID[applyDeviceID] = merged
-                lastUpdatedByDeviceID[applyDeviceID] = Date()
-                AppLog.debug("AppState", "apply result cached for missing-presentation device=\(applyDeviceID)")
-                return
-            }
-            let presentationDeviceID = presentationDevice.id
-            let merged = next.merged(with: stateCacheByDeviceID[presentationDeviceID] ?? stateCacheByDeviceID[applyDeviceID])
-            cacheState(merged, sourceDeviceID: applyDeviceID, presentationDeviceID: presentationDeviceID)
-            focusServiceSelectionOnActivity(deviceID: presentationDeviceID)
-            if selectedDeviceID == presentationDeviceID, state != merged {
-                state = merged
-            }
-            let localEditsChangedDuringApply = (lastLocalEditAt ?? .distantPast) > start
-            let shouldHydrateEditableState = !localEditsChangedDuringApply && !applyCoordinator.hasPending
-            if patch.dpiStages != nil || patch.activeStage != nil {
-                // Avoid showing transient in-flight stage states from fast polling
-                // while BLE latching settles after a write.
-                let suppressedUntil = Date().addingTimeInterval(0.9)
-                suppressFastDpiUntilByDeviceID[applyDeviceID] = suppressedUntil
-                suppressFastDpiUntilByDeviceID[presentationDeviceID] = suppressedUntil
-                compactInteractionUntil = Date().addingTimeInterval(3.0)
-            }
-            if shouldHydrateEditableState, selectedDeviceID == presentationDeviceID {
-                lastLocalEditAt = nil
-                hydrateEditable(from: merged)
-            } else if selectedDeviceID == presentationDeviceID {
-                AppLog.debug(
-                    "AppState",
-                    "apply hydrate skipped pending=\(applyCoordinator.hasPending) localEditsDuringApply=\(localEditsChangedDuringApply)"
-                )
-            }
-            if patch.ledRGB != nil {
-                persistLightingColor(editableColor, device: presentationDevice)
-                hydratedLightingStateByDeviceID.insert(presentationDevice.id)
-            }
-            if let lightingEffect = patch.lightingEffect {
-                persistLightingEffect(lightingEffect, device: presentationDevice)
-                persistLightingColor(
-                    RGBColor(
-                        r: lightingEffect.primary.r,
-                        g: lightingEffect.primary.g,
-                        b: lightingEffect.primary.b
-                    ),
-                    device: presentationDevice
-                )
-                hydratedLightingStateByDeviceID.insert(presentationDevice.id)
-            }
-            if let buttonBinding = patch.buttonBinding {
-                persistButtonBinding(buttonBinding, device: presentationDevice, profile: buttonBinding.persistentProfile)
-                hydratedButtonBindingsKey = buttonBindingsHydrationKey(device: presentationDevice)
-            }
-            if selectedDeviceID == presentationDeviceID {
-                errorMessage = nil
-                setTelemetryWarning(telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)
-            }
-            AppLog.event(
-                "AppState",
-                "apply ok device=\(presentationDevice.id) active=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
-                "values=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
-                "elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
-            )
-        } catch {
-            AppLog.error("AppState", "apply failed device=\(selectedDevice.id): \(error.localizedDescription)")
-            let shouldShowApplyFailure: Bool
-            if let currentSelectedDevice = self.selectedDevice {
-                shouldShowApplyFailure = deviceIdentityKey(currentSelectedDevice) == deviceIdentityKey(selectedDevice)
-            } else {
-                shouldShowApplyFailure = false
-            }
-            if shouldShowApplyFailure {
-                errorMessage = error.localizedDescription
-                warningMessage = nil
-                if patch.dpiStages != nil || patch.activeStage != nil {
-                    serviceStatusMessage = "DPI update failed"
-                    transientStatusUntil = Date().addingTimeInterval(4.0)
-                }
-            } else {
-                AppLog.debug("AppState", "apply failure masked for no-longer-selected device=\(selectedDevice.id)")
-            }
-        }
-    }
-
-    private var shouldHydrateEditable: Bool {
-        guard !isApplying, !isEditingDpiControl, !hasPendingLocalEdits else { return false }
-        guard let lastLocalEditAt else { return true }
-        return Date().timeIntervalSince(lastLocalEditAt) > 0.8
-    }
-
-    private func telemetryWarning(for state: MouseState, device: MouseDevice) -> String? {
-        guard device.transport == .usb else { return nil }
-        var missing: [String] = []
-        if state.dpi_stages.values == nil { missing.append("DPI stages") }
-        if state.poll_rate == nil { missing.append("poll rate") }
-        if state.led_value == nil { missing.append("lighting") }
-        guard !missing.isEmpty else { return nil }
-        return "USB telemetry is incomplete (missing \(missing.joined(separator: ", "))). " +
-            "Controls stay visible, but values may be stale until readback succeeds."
-    }
-
-    private func hydrateEditable(from state: MouseState) {
-        isHydrating = true
-        defer { isHydrating = false }
-
-        if let values = state.dpi_stages.values, !values.isEmpty {
-            editableStageCount = max(1, min(5, values.count))
-            for i in 0..<editableStageValues.count {
-                if i < values.count {
-                    editableStageValues[i] = max(100, min(30000, values[i]))
-                }
-            }
-        } else if let dpi = state.dpi?.x {
-            editableStageCount = 1
-            editableStageValues[0] = max(100, min(30000, dpi))
-        }
-
-        if let active = state.dpi_stages.active_stage {
-            let maxStage = max(1, editableStageCount)
-            editableActiveStage = max(1, min(maxStage, active + 1))
-        } else {
-            editableActiveStage = 1
-        }
-
-        if let poll = state.poll_rate {
-            editablePollRate = poll
-        }
-
-        if let timeout = state.sleep_timeout {
-            editableSleepTimeout = max(60, min(900, timeout))
-        }
-
-        if let mode = state.device_mode?.mode {
-            editableDeviceMode = mode == 0x03 ? 0x03 : 0x00
-        }
-
-        if let lowBatteryRaw = state.low_battery_threshold_raw {
-            editableLowBatteryThresholdRaw = max(0x0C, min(0x3F, lowBatteryRaw))
-        }
-
-        if let scrollMode = state.scroll_mode {
-            editableScrollMode = max(0, min(1, scrollMode))
-        }
-
-        if let scrollAcceleration = state.scroll_acceleration {
-            editableScrollAcceleration = scrollAcceleration
-        }
-
-        if let scrollSmartReel = state.scroll_smart_reel {
-            editableScrollSmartReel = scrollSmartReel
-        }
-
-        if let led = state.led_value {
-            editableLedBrightness = led
-        }
-
-        syncUSBButtonProfileSelection(from: state)
-    }
-
-    private func hydrateLightingStateIfNeeded(device: MouseDevice) async {
-        guard !hydratedLightingStateByDeviceID.contains(device.id) else { return }
-        var loadedPersistedColor = false
-        editableUSBLightingZoneID = "all"
-
-        if device.transport == .bluetooth,
-           let persisted = loadPersistedLightingColor(device: device) {
-            editableColor = persisted
-            loadedPersistedColor = true
-            AppLog.debug(
-                "AppState",
-                "hydrated Bluetooth lighting color from persisted cache id=\(device.id) rgb=(\(persisted.r),\(persisted.g),\(persisted.b))"
-            )
-        } else if device.transport == .bluetooth,
-                  let rgb = try? await backend.readLightingColor(device: device) {
-            editableColor = RGBColor(r: rgb.r, g: rgb.g, b: rgb.b)
-            persistLightingColor(editableColor, device: device)
-            AppLog.debug("AppState", "hydrated Bluetooth lighting color from device id=\(device.id) rgb=(\(rgb.r),\(rgb.g),\(rgb.b))")
-        } else if let persisted = loadPersistedLightingColor(device: device) {
-            editableColor = persisted
-            loadedPersistedColor = true
-            AppLog.debug(
-                "AppState",
-                "hydrated lighting color from persisted cache id=\(device.id) rgb=(\(persisted.r),\(persisted.g),\(persisted.b))"
-            )
-        } else {
-            AppLog.debug("AppState", "lighting color read unavailable for device id=\(device.id)")
-        }
-
-        if device.supports_advanced_lighting_effects, let persistedEffect = loadPersistedLightingEffect(device: device) {
-            let supportedEffects = DeviceProfiles
-                .resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?
-                .supportedLightingEffects ?? LightingEffectKind.allCases
-            editableLightingEffect = supportedEffects.contains(persistedEffect.kind)
-                ? persistedEffect.kind
-                : (supportedEffects.first ?? .staticColor)
-            editableLightingWaveDirection = persistedEffect.waveDirection
-            editableLightingReactiveSpeed = persistedEffect.reactiveSpeed
-            editableSecondaryColor = persistedEffect.secondaryColor
-            AppLog.debug(
-                "AppState",
-                "hydrated lighting effect from persisted cache id=\(device.id) kind=\(persistedEffect.kind.rawValue)"
-            )
-        } else if !device.supports_advanced_lighting_effects {
-            editableLightingEffect = .staticColor
-        }
-
-        if loadedPersistedColor, device.transport == .bluetooth {
-            enqueueApply(DevicePatch(ledRGB: RGBPatch(r: editableColor.r, g: editableColor.g, b: editableColor.b)))
-            AppLog.debug("AppState", "queued persisted lighting color reapply id=\(device.id)")
-        }
-
-        hydratedLightingStateByDeviceID.insert(device.id)
-    }
-
-    private func persistLightingColor(_ color: RGBColor, device: MouseDevice) {
-        preferenceStore.persistLightingColor(color, device: device)
-    }
-
-    private func loadPersistedLightingColor(device: MouseDevice) -> RGBColor? {
-        preferenceStore.loadPersistedLightingColor(device: device)
-    }
-
-    private func persistLightingEffect(_ effect: LightingEffectPatch, device: MouseDevice) {
-        preferenceStore.persistLightingEffect(effect, device: device)
-    }
-
-    private func loadPersistedLightingEffect(device: MouseDevice) -> (
-        kind: LightingEffectKind,
-        waveDirection: LightingWaveDirection,
-        reactiveSpeed: Int,
-        secondaryColor: RGBColor
-    )? {
-        preferenceStore.loadPersistedLightingEffect(device: device)
-    }
-
-    private func hydrateButtonBindingsIfNeeded(device: MouseDevice) async {
-        let hydrationKey = buttonBindingsHydrationKey(device: device)
-        guard hydratedButtonBindingsKey != hydrationKey else { return }
-
-        var hydrated = loadPersistedButtonBindings(device: device, profile: editableUSBButtonProfile)
-        if device.transport == .usb, let fromDevice = await loadUSBButtonBindingsFromDevice(device: device) {
-            hydrated.merge(fromDevice) { _, fromDevice in fromDevice }
-            savePersistedButtonBindings(device: device, bindings: hydrated, profile: editableUSBButtonProfile)
-            AppLog.debug(
-                "AppState",
-                "hydrated button bindings from USB readback id=\(device.id) profile=\(editableUSBButtonProfile) slots=\(fromDevice.keys.sorted())"
-            )
-        } else {
-            AppLog.debug(
-                "AppState",
-                "hydrated button bindings from persisted cache id=\(device.id) profile=\(editableUSBButtonProfile) slots=\(hydrated.keys.sorted())"
-            )
-        }
-
-        editableButtonBindings = hydrated
-        keyboardTextDraftBySlot = hydrated.reduce(into: [:]) { partialResult, pair in
-            let slot = pair.key
-            let draft = pair.value
-            if draft.kind == .keyboardSimple {
-                partialResult[slot] = AppState.keyboardText(forHidKey: draft.hidKey) ?? ""
-            }
-        }
-        hydratedButtonBindingsKey = hydrationKey
-    }
-
-    private func loadUSBButtonBindingsFromDevice(device: MouseDevice) async -> [Int: ButtonBindingDraft]? {
-        let slots = (device.button_layout?.visibleSlots ?? buttonSlots)
-            .map(\.slot)
-            .filter { $0 != 6 }
-        var bindings: [Int: ButtonBindingDraft] = [:]
-        var readAnyBlock = false
-        let persistentProfile = max(1, min(visibleOnboardProfileCount, editableUSBButtonProfile))
-        let shouldReadDirect = !supportsMultipleOnboardProfiles || persistentProfile == activeOnboardProfile
-
-        for slot in slots {
-            do {
-                let persistentBlock = try await backend.debugUSBReadButtonBinding(
-                    device: device,
-                    slot: slot,
-                    profile: persistentProfile
-                )
-                let directBlock = shouldReadDirect
-                    ? try await backend.debugUSBReadButtonBinding(device: device, slot: slot, profile: 0x00)
-                    : nil
-                let block = directBlock ?? persistentBlock
-                if let block {
-                    readAnyBlock = true
-                    if let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
-                        slot: slot,
-                        functionBlock: block,
-                        profileID: device.profile_id
-                    ) {
-                        bindings[slot] = draft
-                    }
-                }
-            } catch {
-                AppLog.debug(
-                    "AppState",
-                    "usb button hydration read failed id=\(device.id) slot=\(slot): \(error.localizedDescription)"
-                )
-            }
-        }
-
-        guard readAnyBlock else { return nil }
-        return bindings
-    }
-
-    private func persistButtonBinding(_ binding: ButtonBindingPatch, device: MouseDevice, profile: Int) {
-        preferenceStore.persistButtonBinding(binding, device: device, profile: profile)
-    }
-
-    private func savePersistedButtonBindings(device: MouseDevice, bindings: [Int: ButtonBindingDraft], profile: Int) {
-        preferenceStore.savePersistedButtonBindings(device: device, bindings: bindings, profile: profile)
-    }
-
-    private func loadPersistedButtonBindings(device: MouseDevice, profile: Int) -> [Int: ButtonBindingDraft] {
-        preferenceStore.loadPersistedButtonBindings(device: device, profile: profile)
-    }
-
-    private func defaultButtonBinding(for slot: Int) -> ButtonBindingDraft {
-        ButtonBindingSupport.defaultButtonBinding(for: slot, profileID: selectedDevice?.profile_id)
-    }
-
-    private func currentLightingEffectPatch() -> LightingEffectPatch {
-        LightingEffectPatch(
-            kind: editableLightingEffect,
-            primary: RGBPatch(r: editableColor.r, g: editableColor.g, b: editableColor.b),
-            secondary: RGBPatch(r: editableSecondaryColor.r, g: editableSecondaryColor.g, b: editableSecondaryColor.b),
-            waveDirection: editableLightingWaveDirection,
-            reactiveSpeed: editableLightingReactiveSpeed
+    func resolvedProfile(for device: MouseDevice) -> DeviceProfile? {
+        DeviceProfiles.resolve(
+            vendorID: device.vendor_id,
+            productID: device.product_id,
+            transport: device.transport
         )
-    }
-
-    private func currentUSBLightingZoneLEDIDs() -> [UInt8]? {
-        guard editableLightingEffect == .staticColor else { return nil }
-        guard editableUSBLightingZoneID != "all" else { return nil }
-        return visibleUSBLightingZones.first(where: { $0.id == editableUSBLightingZoneID })?.ledIDs
-    }
-
-    private func syncUSBButtonProfileSelection(from state: MouseState) {
-        guard let selectedDevice else { return }
-        let count = max(1, max(selectedDevice.onboard_profile_count, state.onboard_profile_count ?? 1))
-        let active = max(1, min(count, state.active_onboard_profile ?? 1))
-        let selected: Int
-        if manualUSBButtonProfileSelectionByDeviceID.contains(selectedDevice.id) {
-            selected = max(1, min(count, editableUSBButtonProfile))
-        } else {
-            selected = active
-        }
-        if editableUSBButtonProfile != selected {
-            editableUSBButtonProfile = selected
-            hydratedButtonBindingsKey = nil
-        }
-    }
-
-    private func buttonBindingsHydrationKey(device: MouseDevice) -> String {
-        "\(device.id)#\(editableUSBButtonProfile)"
-    }
-
-    private func applyKeyboardTextDraft(slot: Int) {
-        guard let text = keyboardTextDraftBySlot[slot] else { return }
-        guard let hidKey = AppState.hidKey(fromKeyboardText: text) else { return }
-        updateButtonBindingHidKey(slot: slot, hidKey: hidKey)
-    }
-
-    private static func hidKey(fromKeyboardText text: String) -> Int? {
-        guard !text.isEmpty else { return nil }
-        if text == " " { return 44 }
-        let normalized = text.trimmingCharacters(in: .newlines).lowercased()
-        switch normalized {
-        case "enter", "return":
-            return 40
-        case "esc", "escape":
-            return 41
-        case "tab":
-            return 43
-        case "space":
-            return 44
-        default:
-            break
-        }
-
-        guard let scalar = normalized.unicodeScalars.first else { return nil }
-        let value = scalar.value
-
-        if value >= 97 && value <= 122 { // a-z
-            return 4 + Int(value - 97)
-        }
-        if value >= 49 && value <= 57 { // 1-9
-            return 30 + Int(value - 49)
-        }
-        if value == 48 { // 0
-            return 39
-        }
-
-        switch Character(scalar) {
-        case "-": return 45
-        case "=": return 46
-        case "[": return 47
-        case "]": return 48
-        case "\\": return 49
-        case ";": return 51
-        case "'": return 52
-        case "`": return 53
-        case ",": return 54
-        case ".": return 55
-        case "/": return 56
-        default: return nil
-        }
-    }
-
-    private static func keyboardText(forHidKey hidKey: Int) -> String? {
-        if hidKey >= 4 && hidKey <= 29 {
-            return String(UnicodeScalar(hidKey - 4 + 97)!)
-        }
-        if hidKey >= 30 && hidKey <= 38 {
-            return String(hidKey - 30 + 1)
-        }
-        if hidKey == 39 { return "0" }
-
-        switch hidKey {
-        case 40: return "enter"
-        case 41: return "esc"
-        case 43: return "tab"
-        case 44: return "space"
-        case 45: return "-"
-        case 46: return "="
-        case 47: return "["
-        case 48: return "]"
-        case 49: return "\\"
-        case 51: return ";"
-        case 52: return "'"
-        case 53: return "`"
-        case 54: return ","
-        case 55: return "."
-        case 56: return "/"
-        default: return nil
-        }
     }
 
     static func turboRawToPressesPerSecond(_ rawRate: Int) -> Int {
@@ -2622,50 +644,5 @@ final class AppState {
 
     private static func diagnosticsRGB(_ color: RGBColor) -> String {
         String(format: "#%02X%02X%02X", color.r, color.g, color.b)
-    }
-}
-
-private extension DevicePatch {
-    var describe: String {
-        var parts: [String] = []
-        if let deviceMode { parts.append("mode=(\(deviceMode.mode),\(deviceMode.param))") }
-        if let lowBatteryThresholdRaw { parts.append("lowBatt=0x\(String(lowBatteryThresholdRaw, radix: 16))") }
-        if let scrollMode { parts.append("scrollMode=\(scrollMode)") }
-        if let scrollAcceleration { parts.append("scrollAccel=\(scrollAcceleration)") }
-        if let scrollSmartReel { parts.append("smartReel=\(scrollSmartReel)") }
-        if let pollRate { parts.append("poll=\(pollRate)") }
-        if let sleepTimeout { parts.append("sleep=\(sleepTimeout)") }
-        if let dpiStages { parts.append("stages=\(dpiStages)") }
-        if let activeStage { parts.append("active=\(activeStage)") }
-        if let ledBrightness { parts.append("led=\(ledBrightness)") }
-        if let ledRGB { parts.append("rgb=(\(ledRGB.r),\(ledRGB.g),\(ledRGB.b))") }
-        if let lightingEffect {
-            var detail = "fx=\(lightingEffect.kind.rawValue)"
-            if lightingEffect.kind.usesWaveDirection {
-                detail += ",dir=\(lightingEffect.waveDirection.rawValue)"
-            }
-            if lightingEffect.kind.usesReactiveSpeed {
-                detail += ",speed=\(lightingEffect.reactiveSpeed)"
-            }
-            if lightingEffect.kind.usesPrimaryColor {
-                detail += ",p=(\(lightingEffect.primary.r),\(lightingEffect.primary.g),\(lightingEffect.primary.b))"
-            }
-            if lightingEffect.kind.usesSecondaryColor {
-                detail += ",s=(\(lightingEffect.secondary.r),\(lightingEffect.secondary.g),\(lightingEffect.secondary.b))"
-            }
-            parts.append(detail)
-        }
-        if let buttonBinding {
-            var detail = "button(slot=\(buttonBinding.slot),kind=\(buttonBinding.kind.rawValue)"
-            if buttonBinding.turboEnabled {
-                detail += ",turbo=on,rate=\(buttonBinding.turboRate ?? 0x8E)"
-            }
-            if buttonBinding.kind == .dpiClutch {
-                detail += ",dpi=\(buttonBinding.clutchDPI ?? ButtonBindingSupport.defaultV3ProDPIClutchDPI)"
-            }
-            detail += ")"
-            parts.append(detail)
-        }
-        return parts.isEmpty ? "empty" : parts.joined(separator: " ")
     }
 }
