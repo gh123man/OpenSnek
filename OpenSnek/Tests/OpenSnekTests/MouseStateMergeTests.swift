@@ -108,4 +108,38 @@ final class MouseStateMergeTests: XCTestCase {
         XCTAssertEqual(merged.led_value, 180)
         XCTAssertEqual(merged.device.firmware, "1.3")
     }
+
+    func testMergeClearsStaleChargingWhenFreshBatterySnapshotHasUnknownChargeState() {
+        let previous = MouseState(
+            device: DeviceSummary(id: "dev", product_name: "Mouse", serial: "ABC", transport: .bluetooth, firmware: "1.2"),
+            connection: "Bluetooth",
+            battery_percent: 88,
+            charging: true,
+            dpi: DpiPair(x: 800, y: 800),
+            dpi_stages: DpiStages(active_stage: 0, values: [800, 6400]),
+            poll_rate: nil,
+            device_mode: nil,
+            low_battery_threshold_raw: nil,
+            led_value: 200,
+            capabilities: Capabilities(dpi_stages: true, poll_rate: false, button_remap: true, lighting: true)
+        )
+
+        let incoming = MouseState(
+            device: DeviceSummary(id: "dev", product_name: "Mouse", serial: "ABC", transport: .bluetooth, firmware: "1.2"),
+            connection: "Bluetooth",
+            battery_percent: 87,
+            charging: nil,
+            dpi: nil,
+            dpi_stages: DpiStages(active_stage: nil, values: nil),
+            poll_rate: nil,
+            device_mode: nil,
+            low_battery_threshold_raw: nil,
+            led_value: nil,
+            capabilities: Capabilities(dpi_stages: true, poll_rate: false, button_remap: true, lighting: true)
+        )
+
+        let merged = incoming.merged(with: previous)
+        XCTAssertEqual(merged.battery_percent, 87)
+        XCTAssertNil(merged.charging)
+    }
 }

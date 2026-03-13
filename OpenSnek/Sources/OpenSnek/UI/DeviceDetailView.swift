@@ -267,10 +267,17 @@ struct DeviceOverviewBar: View {
 
                 VStack(alignment: .trailing, spacing: 8) {
                     if let battery = state.battery_percent {
-                        Label(
-                            "\(battery)%",
-                            systemImage: state.charging == true ? "battery.100percent.bolt" : "battery.75"
+                        let batteryIcon = BatteryPresentation.icon(
+                            percent: battery,
+                            charging: state.charging
                         )
+                        HStack(spacing: 8) {
+                            Image(
+                                systemName: batteryIcon.symbolName,
+                                variableValue: batteryIcon.variableValue
+                            )
+                            Text("\(battery)%")
+                        }
                         .font(.system(size: 24, weight: .black, design: .rounded))
                         .foregroundStyle(.white)
                     }
