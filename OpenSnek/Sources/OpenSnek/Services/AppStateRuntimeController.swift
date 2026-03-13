@@ -3,7 +3,10 @@ import Foundation
 
 @MainActor
 final class AppStateRuntimeController {
-    unowned let appState: AppState
+    private let environment: AppEnvironment
+    private unowned let deviceStore: DeviceStore
+    private unowned let runtimeStore: RuntimeStore
+    private weak var deviceControllerStorage: AppStateDeviceController?
 
     private var runtimeTask: Task<Void, Never>?
     private var didStartRuntime = false
@@ -19,8 +22,10 @@ final class AppStateRuntimeController {
     private var remoteClientPresenceByProcessID: [Int32: RemoteClientPresenceState] = [:]
     private var lastRemoteClientPresencePingAt: Date = .distantPast
 
-    init(appState: AppState) {
-        self.appState = appState
+    init(environment: AppEnvironment, deviceStore: DeviceStore, runtimeStore: RuntimeStore) {
+        self.environment = environment
+        self.deviceStore = deviceStore
+        self.runtimeStore = runtimeStore
     }
 
     func tearDown() {
@@ -32,8 +37,19 @@ final class AppStateRuntimeController {
         clientPresenceObserver = nil
     }
 
+    func bind(deviceController: AppStateDeviceController) {
+        self.deviceControllerStorage = deviceController
+    }
+
+    private var deviceController: AppStateDeviceController {
+        guard let deviceControllerStorage else {
+            preconditionFailure("AppStateRuntimeController accessed before deviceController was bound")
+        }
+        return deviceControllerStorage
+    }
+
     var compactStatusMessage: String? {
-        guard let serviceStatusMessage = appState.serviceStatusMessage,
+        guard let serviceStatusMessage = runtimeStore.serviceStatusMessage,
               let transientStatusUntil,
               Date() < transientStatusUntil else {
             return nil
@@ -53,8 +69,12 @@ final class AppStateRuntimeController {
         transientStatusUntil = date
     }
 
+    var currentPollingProfile: PollingProfile {
+        pollingProfile(at: Date())
+    }
+
     func pollingProfile(at now: Date) -> PollingProfile {
-        if !appState.launchRole.isService {
+        if !environment.launchRole.isService {
             return .foreground
         }
         if compactMenuPresented {
@@ -70,7 +90,7 @@ final class AppStateRuntimeController {
     }
 
     func activeFastPollingDeviceIDs(at now: Date) -> [String] {
-        let liveIDs = Set(appState.devices.map(\.id))
+        let liveIDs = Set(deviceStore.devices.map(\.id))
         var ordered: [String] = []
         var seen: Set<String> = []
 
@@ -87,10 +107,10 @@ final class AppStateRuntimeController {
             ordered.append(deviceID)
         }
 
-        if appState.launchRole.isService,
+        if environment.launchRole.isService,
            hasActiveRemoteClients(at: now),
            remoteSelectedDeviceIDs.isEmpty,
-           let selectedDeviceID = appState.selectedDeviceID,
+           let selectedDeviceID = deviceStore.selectedDeviceID,
            liveIDs.contains(selectedDeviceID),
            seen.insert(selectedDeviceID).inserted {
             ordered.append(selectedDeviceID)
@@ -100,7 +120,7 @@ final class AppStateRuntimeController {
     }
 
     func recordRemoteClientPresence(_ presence: CrossProcessClientPresence, now: Date = Date()) {
-        guard appState.launchRole.isService else { return }
+        guard environment.launchRole.isService else { return }
         guard presence.sourceProcessID > 0 else { return }
         let hadActiveRemoteClients = hasActiveRemoteClients(at: now)
         pruneExpiredRemoteClientPresence(now: now)
@@ -126,7 +146,7 @@ final class AppStateRuntimeController {
 
     func restartBackendStateUpdates() async {
         backendStateUpdatesTask?.cancel()
-        let stream = await appState.backend.stateUpdates()
+        let stream = await environment.backend.stateUpdates()
         backendStateUpdatesTask = Task { [weak self] in
             guard let self else { return }
             for await update in stream {
@@ -139,12 +159,12 @@ final class AppStateRuntimeController {
         guard isBackendReady else { return }
         switch update {
         case .deviceList(let devices, _):
-            await appState.deviceController.handleBackendDeviceListUpdate(devices)
+            await deviceController.handleBackendDeviceListUpdate(devices)
         case .snapshot(let snapshot):
-            guard appState.usesRemoteServiceUpdates else { return }
-            appState.deviceController.applyRemoteServiceSnapshot(snapshot)
+            guard environment.usesRemoteServiceUpdates else { return }
+            deviceController.applyRemoteServiceSnapshot(snapshot)
         case .deviceState(let deviceID, let updatedState, let updatedAt):
-            appState.deviceController.applyBackendDeviceStateUpdate(deviceID: deviceID, state: updatedState, updatedAt: updatedAt)
+            deviceController.applyBackendDeviceStateUpdate(deviceID: deviceID, state: updatedState, updatedAt: updatedAt)
         }
     }
 
@@ -156,24 +176,24 @@ final class AppStateRuntimeController {
         guard !didStartRuntime else { return }
         didStartRuntime = true
 
-        if appState.launchRole.isService {
+        if environment.launchRole.isService {
             do {
-                try await appState.serviceCoordinator.registerServiceHostIfNeeded(backend: LocalBridgeBackend.shared)
+                try await environment.serviceCoordinator.registerServiceHostIfNeeded(backend: LocalBridgeBackend.shared)
             } catch {
-                appState.serviceStatusMessage = "Service host failed: \(error.localizedDescription)"
+                runtimeStore.serviceStatusMessage = "Service host failed: \(error.localizedDescription)"
             }
             isBackendReady = true
         } else {
             await configureBackendForCurrentPreferences()
         }
 
-        if appState.usesRemoteServiceUpdates {
+        if environment.usesRemoteServiceUpdates {
             sendRemoteClientPresence()
         } else {
-            await appState.deviceController.refreshDevices()
+            await deviceController.refreshDevices()
         }
-        if !appState.launchRole.isService {
-            await appState.checkForUpdates()
+        if !environment.launchRole.isService {
+            await checkForUpdates()
         }
 
         runtimeTask = Task { [weak self] in
@@ -198,111 +218,127 @@ final class AppStateRuntimeController {
     }
 
     func setBackgroundServiceEnabled(_ enabled: Bool) async {
-        appState.backgroundServiceEnabled = enabled
-        appState.serviceCoordinator.setBackgroundServiceEnabled(enabled)
-        if !enabled, appState.launchAtStartupEnabled {
+        runtimeStore.backgroundServiceEnabled = enabled
+        environment.serviceCoordinator.setBackgroundServiceEnabled(enabled)
+        if !enabled, runtimeStore.launchAtStartupEnabled {
             setLaunchAtStartupEnabled(false)
         }
 
         if enabled {
             do {
-                appState.backend = try await appState.serviceCoordinator.connectOrLaunchService()
+                environment.backend = try await environment.serviceCoordinator.connectOrLaunchService()
                 await restartBackendStateUpdates()
                 isBackendReady = true
-                appState.serviceStatusMessage = "Menu bar service connected"
+                runtimeStore.serviceStatusMessage = "Menu bar service connected"
                 transientStatusUntil = Date().addingTimeInterval(3.0)
-                appState.errorMessage = nil
+                deviceStore.errorMessage = nil
             } catch {
-                appState.backend = LocalBridgeBackend.shared
+                environment.backend = LocalBridgeBackend.shared
                 await restartBackendStateUpdates()
                 isBackendReady = true
-                appState.backgroundServiceEnabled = false
-                appState.serviceCoordinator.setBackgroundServiceEnabled(false)
-                appState.errorMessage = "Background service unavailable: \(error.localizedDescription)"
+                runtimeStore.backgroundServiceEnabled = false
+                environment.serviceCoordinator.setBackgroundServiceEnabled(false)
+                deviceStore.errorMessage = "Background service unavailable: \(error.localizedDescription)"
             }
         } else {
-            appState.backend = LocalBridgeBackend.shared
+            environment.backend = LocalBridgeBackend.shared
             await restartBackendStateUpdates()
             isBackendReady = true
-            if appState.launchRole.isService {
-                appState.serviceCoordinator.stopCurrentServiceHostIfNeeded()
+            if environment.launchRole.isService {
+                environment.serviceCoordinator.stopCurrentServiceHostIfNeeded()
                 NSApp.terminate(nil)
                 return
             } else {
-                appState.serviceCoordinator.stopServiceProcess()
+                environment.serviceCoordinator.stopServiceProcess()
             }
-            appState.serviceStatusMessage = "Menu bar service stopped"
+            runtimeStore.serviceStatusMessage = "Menu bar service stopped"
             transientStatusUntil = Date().addingTimeInterval(3.0)
         }
 
-        if appState.usesRemoteServiceUpdates {
+        if environment.usesRemoteServiceUpdates {
             sendRemoteClientPresence()
         } else {
-            await appState.deviceController.refreshDevices()
+            await deviceController.refreshDevices()
         }
     }
 
     func setLaunchAtStartupEnabled(_ enabled: Bool) {
         do {
-            try appState.serviceCoordinator.setLaunchAtStartupEnabled(enabled)
-            appState.launchAtStartupEnabled = enabled
-            appState.serviceStatusMessage = enabled
+            try environment.serviceCoordinator.setLaunchAtStartupEnabled(enabled)
+            runtimeStore.launchAtStartupEnabled = enabled
+            runtimeStore.serviceStatusMessage = enabled
                 ? "Launch at startup enabled for next login"
                 : "Launch at startup disabled"
             transientStatusUntil = Date().addingTimeInterval(3.0)
         } catch {
-            appState.errorMessage = "Launch at startup failed: \(error.localizedDescription)"
-            appState.launchAtStartupEnabled = appState.serviceCoordinator.launchAtStartupEnabled
+            deviceStore.errorMessage = "Launch at startup failed: \(error.localizedDescription)"
+            runtimeStore.launchAtStartupEnabled = environment.serviceCoordinator.launchAtStartupEnabled
         }
     }
 
     func openFullAppFromService() {
-        appState.serviceCoordinator.launchFullAppProcess()
+        environment.serviceCoordinator.launchFullAppProcess()
     }
 
     func openSettingsFromService() {
-        appState.serviceCoordinator.launchFullAppProcess(arguments: ["--open-settings"])
+        environment.serviceCoordinator.launchFullAppProcess(arguments: ["--open-settings"])
     }
 
     func prepareForCurrentServiceProcessTermination() {
-        appState.serviceCoordinator.stopCurrentServiceHostIfNeeded()
+        environment.serviceCoordinator.stopCurrentServiceHostIfNeeded()
     }
 
     func terminateServiceProcess() {
-        appState.serviceCoordinator.terminateOtherRunningApplicationInstances()
+        environment.serviceCoordinator.terminateOtherRunningApplicationInstances()
         prepareForCurrentServiceProcessTermination()
         NSApp.terminate(nil)
     }
 
     func refreshNow() async {
-        if appState.usesRemoteServiceUpdates {
+        if environment.usesRemoteServiceUpdates {
             sendRemoteClientPresence()
         } else {
-            await appState.deviceController.refreshDevices()
+            await deviceController.refreshDevices()
         }
         compactInteractionUntil = Date().addingTimeInterval(3.0)
     }
 
     func sendRemoteClientPresence() {
-        guard appState.usesRemoteServiceUpdates else { return }
+        guard environment.usesRemoteServiceUpdates else { return }
         lastRemoteClientPresencePingAt = Date()
-        CrossProcessStateSync.postClientPresence(selectedDeviceID: appState.selectedDeviceID)
+        CrossProcessStateSync.postClientPresence(selectedDeviceID: deviceStore.selectedDeviceID)
     }
 
     private func configureBackendForCurrentPreferences() async {
         do {
-            appState.backend = try await appState.serviceCoordinator.makeBackendForCurrentMode()
+            environment.backend = try await environment.serviceCoordinator.makeBackendForCurrentMode()
             await restartBackendStateUpdates()
             isBackendReady = true
-            if appState.backgroundServiceEnabled {
-                appState.serviceStatusMessage = "Menu bar service connected"
+            if runtimeStore.backgroundServiceEnabled {
+                runtimeStore.serviceStatusMessage = "Menu bar service connected"
                 transientStatusUntil = Date().addingTimeInterval(2.0)
             }
         } catch {
-            appState.backend = LocalBridgeBackend.shared
+            environment.backend = LocalBridgeBackend.shared
             await restartBackendStateUpdates()
             isBackendReady = true
-            appState.errorMessage = "Background service unavailable: \(error.localizedDescription)"
+            deviceStore.errorMessage = "Background service unavailable: \(error.localizedDescription)"
+        }
+    }
+
+    private func checkForUpdates(force: Bool = false) async {
+        guard force || !environment.hasCheckedForUpdates else { return }
+        environment.hasCheckedForUpdates = true
+
+        guard let currentVersion = ReleaseUpdateChecker.currentAppVersion() else { return }
+
+        do {
+            deviceStore.availableUpdate = try await environment.releaseUpdateChecker.checkForUpdate(currentVersion: currentVersion)
+            if let availableUpdate = deviceStore.availableUpdate {
+                AppLog.event("AppState", "update available current=\(currentVersion) latest=\(availableUpdate.latestVersion)")
+            }
+        } catch {
+            AppLog.debug("AppState", "checkForUpdates failed: \(error.localizedDescription)")
         }
     }
 
@@ -310,7 +346,7 @@ final class AppStateRuntimeController {
         RuntimeWakeSchedule.nextSleepInterval(
             now: now,
             profile: pollingProfile(at: now),
-            usesRemoteServiceUpdates: appState.usesRemoteServiceUpdates,
+            usesRemoteServiceUpdates: environment.usesRemoteServiceUpdates,
             lastDevicePresencePollAt: lastDevicePresencePollAt,
             lastRefreshStatePollAt: lastRefreshStatePollAt,
             lastFastDpiPollAt: lastFastDpiPollAt,
@@ -329,10 +365,10 @@ final class AppStateRuntimeController {
         let profile = pollingProfile(at: now)
         pruneExpiredRemoteClientPresence(now: now)
 
-        if appState.usesRemoteServiceUpdates {
+        if environment.usesRemoteServiceUpdates {
             if now.timeIntervalSince(lastRemoteClientPresencePingAt) >= 1.0 {
                 lastRemoteClientPresencePingAt = now
-                CrossProcessStateSync.postClientPresence(selectedDeviceID: appState.selectedDeviceID)
+                CrossProcessStateSync.postClientPresence(selectedDeviceID: deviceStore.selectedDeviceID)
             }
             clearTransientStatusIfExpired(now: now)
             return
@@ -340,18 +376,18 @@ final class AppStateRuntimeController {
 
         if now.timeIntervalSince(lastDevicePresencePollAt) >= profile.devicePresenceInterval {
             lastDevicePresencePollAt = now
-            await appState.deviceController.pollDevicePresence()
+            await deviceController.pollDevicePresence()
         }
 
         if now.timeIntervalSince(lastRefreshStatePollAt) >= profile.refreshStateInterval {
             lastRefreshStatePollAt = now
-            await appState.deviceController.refreshAllDeviceStates()
+            await deviceController.refreshAllDeviceStates()
         }
 
         if let fastInterval = profile.fastDpiInterval,
            now.timeIntervalSince(lastFastDpiPollAt) >= fastInterval {
             lastFastDpiPollAt = now
-            await appState.deviceController.refreshDpiFast()
+            await deviceController.refreshDpiFast()
         }
 
         clearTransientStatusIfExpired(now: now)
@@ -361,7 +397,7 @@ final class AppStateRuntimeController {
         if let transientStatusUntil, now >= transientStatusUntil {
             self.transientStatusUntil = nil
             if compactStatusMessage == nil {
-                appState.serviceStatusMessage = nil
+                runtimeStore.serviceStatusMessage = nil
             }
         }
     }
@@ -390,12 +426,12 @@ final class AppStateRuntimeController {
     }
 
     private func localFastPollingDeviceIDs(at now: Date) -> [String] {
-        guard let selectedDeviceID = appState.selectedDeviceID else { return [] }
-        if appState.launchRole.isService {
+        guard let selectedDeviceID = deviceStore.selectedDeviceID else { return [] }
+        if environment.launchRole.isService {
             let localInteractive = compactMenuPresented || (compactInteractionUntil.map { now < $0 } ?? false)
             return localInteractive ? [selectedDeviceID] : []
         }
-        return appState.usesRemoteServiceUpdates ? [] : [selectedDeviceID]
+        return environment.usesRemoteServiceUpdates ? [] : [selectedDeviceID]
     }
 
     private func pruneExpiredRemoteClientPresence(now: Date) {

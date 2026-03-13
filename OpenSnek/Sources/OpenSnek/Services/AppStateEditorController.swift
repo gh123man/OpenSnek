@@ -4,7 +4,11 @@ import OpenSnekCore
 
 @MainActor
 final class AppStateEditorController {
-    unowned let appState: AppState
+    private let environment: AppEnvironment
+    private unowned let deviceStore: DeviceStore
+    private unowned let editorStore: EditorStore
+    private let buttonSlots: [ButtonSlotDescriptor]
+    private weak var applyControllerStorage: AppStateApplyController?
 
     private let preferenceStore = DevicePreferenceStore()
     private(set) var isHydrating = false
@@ -13,8 +17,16 @@ final class AppStateEditorController {
     private var manualUSBButtonProfileSelectionByDeviceID: Set<String> = []
     private var keyboardDraftApplyTaskBySlot: [Int: Task<Void, Never>] = [:]
 
-    init(appState: AppState) {
-        self.appState = appState
+    init(
+        environment: AppEnvironment,
+        deviceStore: DeviceStore,
+        editorStore: EditorStore,
+        buttonSlots: [ButtonSlotDescriptor]
+    ) {
+        self.environment = environment
+        self.deviceStore = deviceStore
+        self.editorStore = editorStore
+        self.buttonSlots = buttonSlots
     }
 
     func tearDown() {
@@ -22,6 +34,17 @@ final class AppStateEditorController {
             task.cancel()
         }
         keyboardDraftApplyTaskBySlot.removeAll()
+    }
+
+    func bind(applyController: AppStateApplyController) {
+        self.applyControllerStorage = applyController
+    }
+
+    private var applyController: AppStateApplyController {
+        guard let applyControllerStorage else {
+            preconditionFailure("AppStateEditorController accessed before applyController was bound")
+        }
+        return applyControllerStorage
     }
 
     func removeHydratedState(for removedDeviceIDs: Set<String>) {
@@ -51,54 +74,54 @@ final class AppStateEditorController {
         defer { isHydrating = false }
 
         if let values = state.dpi_stages.values, !values.isEmpty {
-            appState.editableStageCount = max(1, min(5, values.count))
-            for index in 0..<appState.editableStageValues.count {
+            editorStore.editableStageCount = max(1, min(5, values.count))
+            for index in 0..<editorStore.editableStageValues.count {
                 if index < values.count {
-                    appState.editableStageValues[index] = max(100, min(30000, values[index]))
+                    editorStore.editableStageValues[index] = max(100, min(30000, values[index]))
                 }
             }
         } else if let dpi = state.dpi?.x {
-            appState.editableStageCount = 1
-            appState.editableStageValues[0] = max(100, min(30000, dpi))
+            editorStore.editableStageCount = 1
+            editorStore.editableStageValues[0] = max(100, min(30000, dpi))
         }
 
         if let active = state.dpi_stages.active_stage {
-            let maxStage = max(1, appState.editableStageCount)
-            appState.editableActiveStage = max(1, min(maxStage, active + 1))
+            let maxStage = max(1, editorStore.editableStageCount)
+            editorStore.editableActiveStage = max(1, min(maxStage, active + 1))
         } else {
-            appState.editableActiveStage = 1
+            editorStore.editableActiveStage = 1
         }
 
         if let poll = state.poll_rate {
-            appState.editablePollRate = poll
+            editorStore.editablePollRate = poll
         }
 
         if let timeout = state.sleep_timeout {
-            appState.editableSleepTimeout = max(60, min(900, timeout))
+            editorStore.editableSleepTimeout = max(60, min(900, timeout))
         }
 
         if let mode = state.device_mode?.mode {
-            appState.editableDeviceMode = mode == 0x03 ? 0x03 : 0x00
+            editorStore.editableDeviceMode = mode == 0x03 ? 0x03 : 0x00
         }
 
         if let lowBatteryRaw = state.low_battery_threshold_raw {
-            appState.editableLowBatteryThresholdRaw = max(0x0C, min(0x3F, lowBatteryRaw))
+            editorStore.editableLowBatteryThresholdRaw = max(0x0C, min(0x3F, lowBatteryRaw))
         }
 
         if let scrollMode = state.scroll_mode {
-            appState.editableScrollMode = max(0, min(1, scrollMode))
+            editorStore.editableScrollMode = max(0, min(1, scrollMode))
         }
 
         if let scrollAcceleration = state.scroll_acceleration {
-            appState.editableScrollAcceleration = scrollAcceleration
+            editorStore.editableScrollAcceleration = scrollAcceleration
         }
 
         if let scrollSmartReel = state.scroll_smart_reel {
-            appState.editableScrollSmartReel = scrollSmartReel
+            editorStore.editableScrollSmartReel = scrollSmartReel
         }
 
         if let led = state.led_value {
-            appState.editableLedBrightness = led
+            editorStore.editableLedBrightness = led
         }
 
         syncUSBButtonProfileSelection(from: state)
@@ -107,23 +130,23 @@ final class AppStateEditorController {
     func hydrateLightingStateIfNeeded(device: MouseDevice) async {
         guard !hydratedLightingStateByDeviceID.contains(device.id) else { return }
         var loadedPersistedColor = false
-        appState.editableUSBLightingZoneID = "all"
+        editorStore.editableUSBLightingZoneID = "all"
 
         if device.transport == .bluetooth,
            let persisted = loadPersistedLightingColor(device: device) {
-            appState.editableColor = persisted
+            editorStore.editableColor = persisted
             loadedPersistedColor = true
             AppLog.debug(
                 "AppState",
                 "hydrated Bluetooth lighting color from persisted cache id=\(device.id) rgb=(\(persisted.r),\(persisted.g),\(persisted.b))"
             )
         } else if device.transport == .bluetooth,
-                  let rgb = try? await appState.backend.readLightingColor(device: device) {
-            appState.editableColor = RGBColor(r: rgb.r, g: rgb.g, b: rgb.b)
-            persistLightingColor(appState.editableColor, device: device)
+                  let rgb = try? await environment.backend.readLightingColor(device: device) {
+            editorStore.editableColor = RGBColor(r: rgb.r, g: rgb.g, b: rgb.b)
+            persistLightingColor(editorStore.editableColor, device: device)
             AppLog.debug("AppState", "hydrated Bluetooth lighting color from device id=\(device.id) rgb=(\(rgb.r),\(rgb.g),\(rgb.b))")
         } else if let persisted = loadPersistedLightingColor(device: device) {
-            appState.editableColor = persisted
+            editorStore.editableColor = persisted
             loadedPersistedColor = true
             AppLog.debug(
                 "AppState",
@@ -137,23 +160,23 @@ final class AppStateEditorController {
             let supportedEffects = DeviceProfiles
                 .resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?
                 .supportedLightingEffects ?? LightingEffectKind.allCases
-            appState.editableLightingEffect = supportedEffects.contains(persistedEffect.kind)
+            editorStore.editableLightingEffect = supportedEffects.contains(persistedEffect.kind)
                 ? persistedEffect.kind
                 : (supportedEffects.first ?? .staticColor)
-            appState.editableLightingWaveDirection = persistedEffect.waveDirection
-            appState.editableLightingReactiveSpeed = persistedEffect.reactiveSpeed
-            appState.editableSecondaryColor = persistedEffect.secondaryColor
+            editorStore.editableLightingWaveDirection = persistedEffect.waveDirection
+            editorStore.editableLightingReactiveSpeed = persistedEffect.reactiveSpeed
+            editorStore.editableSecondaryColor = persistedEffect.secondaryColor
             AppLog.debug(
                 "AppState",
                 "hydrated lighting effect from persisted cache id=\(device.id) kind=\(persistedEffect.kind.rawValue)"
             )
         } else if !device.supports_advanced_lighting_effects {
-            appState.editableLightingEffect = .staticColor
+            editorStore.editableLightingEffect = .staticColor
         }
 
         if loadedPersistedColor, device.transport == .bluetooth {
-            appState.applyController.enqueueApply(
-                DevicePatch(ledRGB: RGBPatch(r: appState.editableColor.r, g: appState.editableColor.g, b: appState.editableColor.b))
+            applyController.enqueueApply(
+                DevicePatch(ledRGB: RGBPatch(r: editorStore.editableColor.r, g: editorStore.editableColor.g, b: editorStore.editableColor.b))
             )
             AppLog.debug("AppState", "queued persisted lighting color reapply id=\(device.id)")
         }
@@ -190,23 +213,23 @@ final class AppStateEditorController {
         let hydrationKey = buttonBindingsHydrationKey(device: device)
         guard hydratedButtonBindingsKey != hydrationKey else { return }
 
-        var hydrated = loadPersistedButtonBindings(device: device, profile: appState.editableUSBButtonProfile)
+        var hydrated = loadPersistedButtonBindings(device: device, profile: editorStore.editableUSBButtonProfile)
         if device.transport == .usb, let fromDevice = await loadUSBButtonBindingsFromDevice(device: device) {
             hydrated.merge(fromDevice) { _, readback in readback }
-            savePersistedButtonBindings(device: device, bindings: hydrated, profile: appState.editableUSBButtonProfile)
+            savePersistedButtonBindings(device: device, bindings: hydrated, profile: editorStore.editableUSBButtonProfile)
             AppLog.debug(
                 "AppState",
-                "hydrated button bindings from USB readback id=\(device.id) profile=\(appState.editableUSBButtonProfile) slots=\(fromDevice.keys.sorted())"
+                "hydrated button bindings from USB readback id=\(device.id) profile=\(editorStore.editableUSBButtonProfile) slots=\(fromDevice.keys.sorted())"
             )
         } else {
             AppLog.debug(
                 "AppState",
-                "hydrated button bindings from persisted cache id=\(device.id) profile=\(appState.editableUSBButtonProfile) slots=\(hydrated.keys.sorted())"
+                "hydrated button bindings from persisted cache id=\(device.id) profile=\(editorStore.editableUSBButtonProfile) slots=\(hydrated.keys.sorted())"
             )
         }
 
-        appState.editableButtonBindings = hydrated
-        appState.keyboardTextDraftBySlot = hydrated.reduce(into: [:]) { partialResult, pair in
+        editorStore.editableButtonBindings = hydrated
+        editorStore.keyboardTextDraftBySlot = hydrated.reduce(into: [:]) { partialResult, pair in
             if pair.value.kind == .keyboardSimple {
                 partialResult[pair.key] = AppStateKeyboardSupport.keyboardText(forHidKey: pair.value.hidKey) ?? ""
             }
@@ -219,23 +242,23 @@ final class AppStateEditorController {
     }
 
     func loadUSBButtonBindingsFromDevice(device: MouseDevice) async -> [Int: ButtonBindingDraft]? {
-        let slots = (device.button_layout?.visibleSlots ?? appState.buttonSlots)
+        let slots = (device.button_layout?.visibleSlots ?? buttonSlots)
             .map(\.slot)
             .filter { $0 != 6 }
         var bindings: [Int: ButtonBindingDraft] = [:]
         var readAnyBlock = false
-        let persistentProfile = max(1, min(appState.visibleOnboardProfileCount, appState.editableUSBButtonProfile))
-        let shouldReadDirect = !appState.supportsMultipleOnboardProfiles || persistentProfile == appState.activeOnboardProfile
+        let persistentProfile = max(1, min(editorStore.visibleOnboardProfileCount, editorStore.editableUSBButtonProfile))
+        let shouldReadDirect = !editorStore.supportsMultipleOnboardProfiles || persistentProfile == editorStore.activeOnboardProfile
 
         for slot in slots {
             do {
-                let persistentBlock = try await appState.backend.debugUSBReadButtonBinding(
+                let persistentBlock = try await environment.backend.debugUSBReadButtonBinding(
                     device: device,
                     slot: slot,
                     profile: persistentProfile
                 )
                 let directBlock = shouldReadDirect
-                    ? try await appState.backend.debugUSBReadButtonBinding(device: device, slot: slot, profile: 0x00)
+                    ? try await environment.backend.debugUSBReadButtonBinding(device: device, slot: slot, profile: 0x00)
                     : nil
                 let block = directBlock ?? persistentBlock
                 if let block {
@@ -273,66 +296,66 @@ final class AppStateEditorController {
     }
 
     func defaultButtonBinding(for slot: Int) -> ButtonBindingDraft {
-        ButtonBindingSupport.defaultButtonBinding(for: slot, profileID: appState.selectedDevice?.profile_id)
+        ButtonBindingSupport.defaultButtonBinding(for: slot, profileID: deviceStore.selectedDevice?.profile_id)
     }
 
     func currentLightingEffectPatch() -> LightingEffectPatch {
         LightingEffectPatch(
-            kind: appState.editableLightingEffect,
-            primary: RGBPatch(r: appState.editableColor.r, g: appState.editableColor.g, b: appState.editableColor.b),
-            secondary: RGBPatch(r: appState.editableSecondaryColor.r, g: appState.editableSecondaryColor.g, b: appState.editableSecondaryColor.b),
-            waveDirection: appState.editableLightingWaveDirection,
-            reactiveSpeed: appState.editableLightingReactiveSpeed
+            kind: editorStore.editableLightingEffect,
+            primary: RGBPatch(r: editorStore.editableColor.r, g: editorStore.editableColor.g, b: editorStore.editableColor.b),
+            secondary: RGBPatch(r: editorStore.editableSecondaryColor.r, g: editorStore.editableSecondaryColor.g, b: editorStore.editableSecondaryColor.b),
+            waveDirection: editorStore.editableLightingWaveDirection,
+            reactiveSpeed: editorStore.editableLightingReactiveSpeed
         )
     }
 
     func currentUSBLightingZoneLEDIDs() -> [UInt8]? {
-        guard appState.editableLightingEffect == .staticColor else { return nil }
-        guard appState.editableUSBLightingZoneID != "all" else { return nil }
-        return appState.visibleUSBLightingZones.first(where: { $0.id == appState.editableUSBLightingZoneID })?.ledIDs
+        guard editorStore.editableLightingEffect == .staticColor else { return nil }
+        guard editorStore.editableUSBLightingZoneID != "all" else { return nil }
+        return editorStore.visibleUSBLightingZones.first(where: { $0.id == editorStore.editableUSBLightingZoneID })?.ledIDs
     }
 
     func syncUSBButtonProfileSelection(from state: MouseState) {
-        guard let selectedDevice = appState.selectedDevice else { return }
+        guard let selectedDevice = deviceStore.selectedDevice else { return }
         let count = max(1, max(selectedDevice.onboard_profile_count, state.onboard_profile_count ?? 1))
         let active = max(1, min(count, state.active_onboard_profile ?? 1))
         let selected: Int
         if manualUSBButtonProfileSelectionByDeviceID.contains(selectedDevice.id) {
-            selected = max(1, min(count, appState.editableUSBButtonProfile))
+            selected = max(1, min(count, editorStore.editableUSBButtonProfile))
         } else {
             selected = active
         }
-        if appState.editableUSBButtonProfile != selected {
-            appState.editableUSBButtonProfile = selected
+        if editorStore.editableUSBButtonProfile != selected {
+            editorStore.editableUSBButtonProfile = selected
             hydratedButtonBindingsKey = nil
         }
     }
 
     func buttonBindingsHydrationKey(device: MouseDevice) -> String {
-        "\(device.id)#\(appState.editableUSBButtonProfile)"
+        "\(device.id)#\(editorStore.editableUSBButtonProfile)"
     }
 
     func updateLightingEffect(_ kind: LightingEffectKind) {
-        guard appState.selectedDevice?.supports_advanced_lighting_effects == true else {
-            appState.editableLightingEffect = .staticColor
-            appState.editableUSBLightingZoneID = "all"
+        guard deviceStore.selectedDevice?.supports_advanced_lighting_effects == true else {
+            editorStore.editableLightingEffect = .staticColor
+            editorStore.editableUSBLightingZoneID = "all"
             return
         }
-        let supportedEffects = appState.visibleLightingEffects
-        appState.editableLightingEffect = supportedEffects.contains(kind) ? kind : (supportedEffects.first ?? .staticColor)
+        let supportedEffects = editorStore.visibleLightingEffects
+        editorStore.editableLightingEffect = supportedEffects.contains(kind) ? kind : (supportedEffects.first ?? .staticColor)
         if kind != .staticColor {
-            appState.editableUSBLightingZoneID = "all"
+            editorStore.editableUSBLightingZoneID = "all"
         }
     }
 
     func updateUSBLightingZoneID(_ zoneID: String) {
-        appState.editableUSBLightingZoneID = zoneID
+        editorStore.editableUSBLightingZoneID = zoneID
     }
 
     func updateUSBButtonProfile(_ profile: Int) {
-        guard let selectedDevice = appState.selectedDevice, appState.supportsMultipleOnboardProfiles else { return }
-        let clamped = max(1, min(appState.visibleOnboardProfileCount, profile))
-        appState.editableUSBButtonProfile = clamped
+        guard let selectedDevice = deviceStore.selectedDevice, editorStore.supportsMultipleOnboardProfiles else { return }
+        let clamped = max(1, min(editorStore.visibleOnboardProfileCount, profile))
+        editorStore.editableUSBButtonProfile = clamped
         manualUSBButtonProfileSelectionByDeviceID.insert(selectedDevice.id)
         hydratedButtonBindingsKey = nil
         Task { [weak self] in
@@ -341,96 +364,96 @@ final class AppStateEditorController {
     }
 
     func updateLightingWaveDirection(_ direction: LightingWaveDirection) {
-        appState.editableLightingWaveDirection = direction
+        editorStore.editableLightingWaveDirection = direction
     }
 
     func updateLightingReactiveSpeed(_ speed: Int) {
-        appState.editableLightingReactiveSpeed = max(1, min(4, speed))
+        editorStore.editableLightingReactiveSpeed = max(1, min(4, speed))
     }
 
     func buttonBindingKind(for slot: Int) -> ButtonBindingKind {
-        appState.editableButtonBindings[slot]?.kind ?? defaultButtonBinding(for: slot).kind
+        editorStore.editableButtonBindings[slot]?.kind ?? defaultButtonBinding(for: slot).kind
     }
 
     func buttonBindingHidKey(for slot: Int) -> Int {
-        appState.editableButtonBindings[slot]?.hidKey ?? defaultButtonBinding(for: slot).hidKey
+        editorStore.editableButtonBindings[slot]?.hidKey ?? defaultButtonBinding(for: slot).hidKey
     }
 
     func buttonBindingTurboEnabled(for slot: Int) -> Bool {
-        appState.editableButtonBindings[slot]?.turboEnabled ?? defaultButtonBinding(for: slot).turboEnabled
+        editorStore.editableButtonBindings[slot]?.turboEnabled ?? defaultButtonBinding(for: slot).turboEnabled
     }
 
     func buttonBindingTurboRate(for slot: Int) -> Int {
-        appState.editableButtonBindings[slot]?.turboRate ?? defaultButtonBinding(for: slot).turboRate
+        editorStore.editableButtonBindings[slot]?.turboRate ?? defaultButtonBinding(for: slot).turboRate
     }
 
     func buttonBindingClutchDPI(for slot: Int) -> Int {
-        appState.editableButtonBindings[slot]?.clutchDPI
-            ?? ButtonBindingSupport.defaultDPIClutchDPI(for: appState.selectedDevice?.profile_id)
+        editorStore.editableButtonBindings[slot]?.clutchDPI
+            ?? ButtonBindingSupport.defaultDPIClutchDPI(for: deviceStore.selectedDevice?.profile_id)
             ?? 400
     }
 
     func updateButtonBindingKind(slot: Int, kind: ButtonBindingKind) {
-        guard appState.visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
-        var next = appState.editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
+        guard deviceStore.visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
+        var next = editorStore.editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
         next.kind = kind
         if kind != .keyboardSimple {
             keyboardDraftApplyTaskBySlot[slot]?.cancel()
             keyboardDraftApplyTaskBySlot[slot] = nil
             next.hidKey = 4
-            appState.keyboardTextDraftBySlot[slot] = nil
+            editorStore.keyboardTextDraftBySlot[slot] = nil
         } else {
-            appState.keyboardTextDraftBySlot[slot] = AppStateKeyboardSupport.keyboardText(forHidKey: next.hidKey) ?? ""
+            editorStore.keyboardTextDraftBySlot[slot] = AppStateKeyboardSupport.keyboardText(forHidKey: next.hidKey) ?? ""
         }
         if kind == .dpiClutch {
-            next.clutchDPI = next.clutchDPI ?? ButtonBindingSupport.defaultDPIClutchDPI(for: appState.selectedDevice?.profile_id)
+            next.clutchDPI = next.clutchDPI ?? ButtonBindingSupport.defaultDPIClutchDPI(for: deviceStore.selectedDevice?.profile_id)
         }
         if !kind.supportsTurbo {
             next.turboEnabled = false
         }
-        appState.editableButtonBindings[slot] = next
-        appState.applyController.scheduleAutoApplyButton(slot: slot)
+        editorStore.editableButtonBindings[slot] = next
+        applyController.scheduleAutoApplyButton(slot: slot)
     }
 
     func updateButtonBindingHidKey(slot: Int, hidKey: Int) {
-        guard appState.visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
-        var next = appState.editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
+        guard deviceStore.visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
+        var next = editorStore.editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
         next.kind = .keyboardSimple
         next.hidKey = max(4, min(231, hidKey))
-        appState.editableButtonBindings[slot] = next
-        appState.keyboardTextDraftBySlot[slot] = AppStateKeyboardSupport.keyboardText(forHidKey: next.hidKey) ?? ""
-        appState.applyController.scheduleAutoApplyButton(slot: slot)
+        editorStore.editableButtonBindings[slot] = next
+        editorStore.keyboardTextDraftBySlot[slot] = AppStateKeyboardSupport.keyboardText(forHidKey: next.hidKey) ?? ""
+        applyController.scheduleAutoApplyButton(slot: slot)
     }
 
     func updateButtonBindingTurboEnabled(slot: Int, enabled: Bool) {
-        guard appState.visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
-        var next = appState.editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
+        guard deviceStore.visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
+        var next = editorStore.editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
         guard next.kind.supportsTurbo else { return }
         next.turboEnabled = enabled
-        appState.editableButtonBindings[slot] = next
-        appState.applyController.scheduleAutoApplyButton(slot: slot)
+        editorStore.editableButtonBindings[slot] = next
+        applyController.scheduleAutoApplyButton(slot: slot)
     }
 
     func updateButtonBindingTurboRate(slot: Int, rate: Int) {
-        guard appState.visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
-        var next = appState.editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
+        guard deviceStore.visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
+        var next = editorStore.editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
         guard next.kind.supportsTurbo else { return }
         next.turboRate = max(1, min(255, rate))
-        appState.editableButtonBindings[slot] = next
-        appState.applyController.scheduleAutoApplyButton(slot: slot)
+        editorStore.editableButtonBindings[slot] = next
+        applyController.scheduleAutoApplyButton(slot: slot)
     }
 
     func updateButtonBindingClutchDPI(slot: Int, dpi: Int) {
-        guard appState.visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
-        var next = appState.editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
+        guard deviceStore.visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
+        var next = editorStore.editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
         guard next.kind == .dpiClutch else { return }
         next.clutchDPI = max(100, min(30_000, dpi))
-        appState.editableButtonBindings[slot] = next
-        appState.applyController.scheduleAutoApplyButton(slot: slot)
+        editorStore.editableButtonBindings[slot] = next
+        applyController.scheduleAutoApplyButton(slot: slot)
     }
 
     func keyboardTextDraft(for slot: Int) -> String {
-        if let draft = appState.keyboardTextDraftBySlot[slot] {
+        if let draft = editorStore.keyboardTextDraftBySlot[slot] {
             return draft
         }
         let hidKey = buttonBindingHidKey(for: slot)
@@ -438,8 +461,8 @@ final class AppStateEditorController {
     }
 
     func updateKeyboardTextDraft(slot: Int, text: String) {
-        guard appState.visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
-        appState.keyboardTextDraftBySlot[slot] = text
+        guard deviceStore.visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
+        editorStore.keyboardTextDraftBySlot[slot] = text
         keyboardDraftApplyTaskBySlot[slot]?.cancel()
         keyboardDraftApplyTaskBySlot[slot] = Task { [weak self] in
             do {
@@ -453,7 +476,7 @@ final class AppStateEditorController {
     }
 
     private func applyKeyboardTextDraft(slot: Int) {
-        guard let text = appState.keyboardTextDraftBySlot[slot] else { return }
+        guard let text = editorStore.keyboardTextDraftBySlot[slot] else { return }
         guard let hidKey = AppStateKeyboardSupport.hidKey(fromKeyboardText: text) else { return }
         updateButtonBindingHidKey(slot: slot, hidKey: hidKey)
     }

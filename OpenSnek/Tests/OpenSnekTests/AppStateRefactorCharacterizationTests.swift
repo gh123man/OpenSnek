@@ -11,10 +11,10 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             AppState(launchRole: .app, backend: backend, autoStart: false)
         }
 
-        await appState.applyPollRate()
+        await appState.editorStore.applyPollRate()
 
         try await waitForRefactorCondition {
-            await MainActor.run { appState.errorMessage == "No device selected" }
+            await MainActor.run { appState.deviceStore.errorMessage == "No device selected" }
         }
 
         let applyCount = await backend.applyCount()
@@ -48,17 +48,17 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             AppState(launchRole: .app, backend: backend, autoStart: false)
         }
 
-        await appState.refreshDevices()
+        await appState.deviceStore.refreshDevices()
         await MainActor.run {
-            appState.editablePollRate = 500
+            appState.editorStore.editablePollRate = 500
         }
-        await appState.applyPollRate()
+        await appState.editorStore.applyPollRate()
         await backend.waitForFirstApplyToStart()
 
         await MainActor.run {
-            appState.editablePollRate = 250
+            appState.editorStore.editablePollRate = 250
         }
-        await appState.applyPollRate()
+        await appState.editorStore.applyPollRate()
         await backend.releaseFirstApply()
 
         try await waitForRefactorCondition(timeout: 2.0) {
@@ -67,8 +67,8 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
 
         let patches = await backend.recordedPatches()
         let maxConcurrentApplies = await backend.maxConcurrentApplies()
-        let editablePollRate = await MainActor.run { appState.editablePollRate }
-        let livePollRate = await MainActor.run { appState.state?.poll_rate }
+        let editablePollRate = await MainActor.run { appState.editorStore.editablePollRate }
+        let livePollRate = await MainActor.run { appState.deviceStore.state?.poll_rate }
 
         XCTAssertEqual(maxConcurrentApplies, 1)
         XCTAssertEqual(patches.map(\.pollRate), [500, 250])
@@ -103,25 +103,25 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             AppState(launchRole: .app, backend: backend, autoStart: false)
         }
 
-        await appState.refreshDevices()
+        await appState.deviceStore.refreshDevices()
         await MainActor.run {
-            appState.editableStageCount = 3
-            appState.editableStageValues = [1000, 2000, 3000, 6400, 12000]
-            appState.editableActiveStage = 3
+            appState.editorStore.editableStageCount = 3
+            appState.editorStore.editableStageValues = [1000, 2000, 3000, 6400, 12000]
+            appState.editorStore.editableActiveStage = 3
         }
-        await appState.applyDpiStages()
+        await appState.editorStore.applyDpiStages()
 
         try await waitForRefactorCondition {
             await backend.applyCount() == 1
         }
 
-        await appState.refreshDpiFast()
+        await appState.deviceStore.refreshDpiFast()
         let initialFastReadCount = await backend.fastReadCount()
         XCTAssertEqual(initialFastReadCount, 0)
 
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        await appState.refreshDpiFast()
+        await appState.deviceStore.refreshDpiFast()
         let finalFastReadCount = await backend.fastReadCount()
         XCTAssertEqual(finalFastReadCount, 1)
     }
@@ -157,7 +157,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             AppState(launchRole: .app, backend: backend, autoStart: false)
         }
 
-        await appState.refreshDevices()
+        await appState.deviceStore.refreshDevices()
 
         try await waitForRefactorCondition {
             await backend.applyCount() == 1
@@ -165,7 +165,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
 
         let patches = await backend.recordedPatches()
         let patch = try XCTUnwrap(patches.first)
-        let editableColor = await MainActor.run { appState.editableColor }
+        let editableColor = await MainActor.run { appState.editorStore.editableColor }
 
         XCTAssertEqual(patch.ledRGB?.r, persistedColor.r)
         XCTAssertEqual(patch.ledRGB?.g, persistedColor.g)
@@ -228,13 +228,13 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             AppState(launchRole: .app, backend: backend, autoStart: false)
         }
 
-        await appState.refreshDevices()
+        await appState.deviceStore.refreshDevices()
 
         try await waitForRefactorCondition {
-            await MainActor.run { appState.buttonBindingKind(for: 4) == .rightClick }
+            await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) == .rightClick }
         }
 
-        let binding = await MainActor.run { appState.buttonBindingKind(for: 4) }
+        let binding = await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) }
         XCTAssertEqual(binding, .rightClick)
     }
 
@@ -295,21 +295,21 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             AppState(launchRole: .app, backend: backend, autoStart: false)
         }
 
-        await appState.refreshDevices()
+        await appState.deviceStore.refreshDevices()
 
-        let initialBinding = await MainActor.run { appState.buttonBindingKind(for: 4) }
+        let initialBinding = await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) }
         XCTAssertEqual(initialBinding, .leftClick)
 
         await MainActor.run {
-            appState.updateUSBButtonProfile(2)
+            appState.editorStore.updateUSBButtonProfile(2)
         }
 
         try await waitForRefactorCondition {
-            await MainActor.run { appState.buttonBindingKind(for: 4) == .rightClick }
+            await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) == .rightClick }
         }
 
-        let selectedProfile = await MainActor.run { appState.editableUSBButtonProfile }
-        let updatedBinding = await MainActor.run { appState.buttonBindingKind(for: 4) }
+        let selectedProfile = await MainActor.run { appState.editorStore.editableUSBButtonProfile }
+        let updatedBinding = await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) }
         XCTAssertEqual(selectedProfile, 2)
         XCTAssertEqual(updatedBinding, .rightClick)
     }

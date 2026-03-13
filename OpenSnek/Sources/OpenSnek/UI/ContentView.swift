@@ -3,30 +3,32 @@ import AppKit
 import OpenSnekCore
 
 struct ContentView: View {
-    @Bindable var appState: AppState
+    let deviceStore: DeviceStore
+    let editorStore: EditorStore
+    let runtimeStore: RuntimeStore
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationSplitView {
-            DeviceSidebarView(appState: appState)
+            DeviceSidebarView(deviceStore: deviceStore)
                 .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 340)
         } detail: {
             detail
         }
         .navigationSplitViewStyle(.automatic)
         .task {
-            await appState.start()
+            await runtimeStore.start()
         }
-        .onChange(of: appState.selectedDeviceID) { _, _ in
-            guard !appState.usesRemoteServiceUpdates || appState.state == nil else { return }
-            Task { await appState.refreshState() }
+        .onChange(of: deviceStore.selectedDeviceID) { _, _ in
+            guard !deviceStore.usesRemoteServiceUpdates || deviceStore.state == nil else { return }
+            Task { await deviceStore.refreshState() }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                if appState.usesRemoteServiceUpdates {
-                    appState.sendRemoteClientPresence()
+                if deviceStore.usesRemoteServiceUpdates {
+                    runtimeStore.sendRemoteClientPresence()
                 } else {
-                    Task { await appState.refreshDevices() }
+                    Task { await deviceStore.refreshDevices() }
                 }
             }
         }
@@ -41,14 +43,19 @@ struct ContentView: View {
             )
             .ignoresSafeArea()
 
-            if let selected = appState.selectedDevice {
-                if appState.selectedDeviceIsStrictlyUnsupported || appState.selectedDeviceIsUnsupportedUSB {
-                    GenericDeviceDetailView(appState: appState, selected: selected)
-                } else if let state = appState.state,
+            if let selected = deviceStore.selectedDevice {
+                if deviceStore.selectedDeviceIsStrictlyUnsupported || deviceStore.selectedDeviceIsUnsupportedUSB {
+                    GenericDeviceDetailView(deviceStore: deviceStore, selected: selected)
+                } else if let state = deviceStore.state,
                           state.device.id == nil || state.device.id == selected.id {
-                    DeviceDetailView(appState: appState, selected: selected, state: state)
+                    DeviceDetailView(
+                        deviceStore: deviceStore,
+                        editorStore: editorStore,
+                        selected: selected,
+                        state: state
+                    )
                 } else {
-                    DeviceUnavailableDetailView(appState: appState, selected: selected)
+                    DeviceUnavailableDetailView(deviceStore: deviceStore, selected: selected)
                 }
             } else {
                 emptyState
@@ -106,26 +113,26 @@ struct ContentView: View {
     }
 
     private var showsUSBAccessCallout: Bool {
-        guard appState.selectedDevice?.transport == .usb else { return false }
-        if isInputMonitoringError(appState.errorMessage) {
+        guard deviceStore.selectedDevice?.transport == .usb else { return false }
+        if isInputMonitoringError(deviceStore.errorMessage) {
             return true
         }
-        if appState.warningMessage != nil {
+        if deviceStore.warningMessage != nil {
             return true
         }
-        guard let state = appState.state else { return false }
+        guard let state = deviceStore.state else { return false }
         return state.dpi_stages.values == nil || state.poll_rate == nil || state.led_value == nil
     }
 
     private var usbCalloutTitle: String {
-        if isInputMonitoringError(appState.errorMessage) {
+        if isInputMonitoringError(deviceStore.errorMessage) {
             return "USB Access Blocked"
         }
         return "USB Telemetry Limited"
     }
 
     private var usbCalloutMessage: String {
-        if let warning = appState.warningMessage {
+        if let warning = deviceStore.warningMessage {
             return warning
         }
         return "DPI, polling, or lighting readback is unavailable for this device session."
@@ -138,11 +145,11 @@ struct ContentView: View {
             var detailLines: [String] = []
             var actions: [NoticeAction] = [
                 NoticeAction(title: "Refresh") {
-                    Task { await appState.refreshDevices() }
+                    Task { await deviceStore.refreshDevices() }
                 }
             ]
 
-            if isInputMonitoringError(appState.errorMessage) {
+            if isInputMonitoringError(deviceStore.errorMessage) {
                 detailLines = [
                     "Grant Input Monitoring for the app host (Open Snek, Terminal, or Xcode), then relaunch.",
                     "If already granted but still blocked, reset stale TCC grant: tccutil reset ListenEvent \(Bundle.main.bundleIdentifier ?? "io.opensnek.OpenSnek")",
@@ -161,13 +168,13 @@ struct ContentView: View {
                     title: usbCalloutTitle,
                     message: usbCalloutMessage,
                     detailLines: detailLines,
-                    tone: isInputMonitoringError(appState.errorMessage) ? .error : .warning,
+                    tone: isInputMonitoringError(deviceStore.errorMessage) ? .error : .warning,
                     actions: actions
                 )
             )
         }
 
-        if let error = appState.errorMessage, shouldShowSeparateErrorNotice {
+        if let error = deviceStore.errorMessage, shouldShowSeparateErrorNotice {
             notices.append(
                 NoticeItem(
                     title: errorNoticeTitle(for: error),
@@ -178,7 +185,7 @@ struct ContentView: View {
             )
         }
 
-        if let warning = appState.warningMessage, shouldShowSeparateWarningNotice {
+        if let warning = deviceStore.warningMessage, shouldShowSeparateWarningNotice {
             notices.append(
                 NoticeItem(
                     title: "Warning",
@@ -193,15 +200,15 @@ struct ContentView: View {
     }
 
     private var shouldShowSeparateErrorNotice: Bool {
-        guard appState.errorMessage != nil else { return false }
-        if isInputMonitoringError(appState.errorMessage), showsUSBAccessCallout {
+        guard deviceStore.errorMessage != nil else { return false }
+        if isInputMonitoringError(deviceStore.errorMessage), showsUSBAccessCallout {
             return false
         }
         return true
     }
 
     private var shouldShowSeparateWarningNotice: Bool {
-        guard appState.warningMessage != nil else { return false }
+        guard deviceStore.warningMessage != nil else { return false }
         return !showsUSBAccessCallout
     }
 

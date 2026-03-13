@@ -12,25 +12,39 @@ struct OpenSnekApp: App {
 
     var body: some Scene {
         WindowGroup("") {
-            if appState.isServiceProcess {
+            if appState.runtimeStore.isServiceProcess {
                 ServiceWindowSuppressorView()
             } else {
-                ContentView(appState: appState)
+                ContentView(
+                    deviceStore: appState.deviceStore,
+                    editorStore: appState.editorStore,
+                    runtimeStore: appState.runtimeStore
+                )
                     .frame(minWidth: 900, minHeight: 600)
                     .background(WindowChromeConfigurator().frame(width: 0, height: 0))
                     .background(SettingsOpenBridgeView().frame(width: 0, height: 0))
             }
         }
 
-        MenuBarExtra(isInserted: .constant(appState.isServiceProcess)) {
-            ServiceMenuBarView(appState: appState)
+        MenuBarExtra(isInserted: .constant(appState.runtimeStore.isServiceProcess)) {
+            ServiceMenuBarView(
+                deviceStore: appState.deviceStore,
+                editorStore: appState.editorStore,
+                runtimeStore: appState.runtimeStore
+            )
         } label: {
-            ServiceMenuBarStatusItemLabel(appState: appState)
+            ServiceMenuBarStatusItemLabel(
+                deviceStore: appState.deviceStore,
+                editorStore: appState.editorStore
+            )
         }
         .menuBarExtraStyle(.window)
 
         Settings {
-            SettingsView(appState: appState)
+            SettingsView(
+                deviceStore: appState.deviceStore,
+                runtimeStore: appState.runtimeStore
+            )
         }
     }
 }

@@ -2,7 +2,8 @@ import AppKit
 import SwiftUI
 
 struct SettingsView: View {
-    @Bindable var appState: AppState
+    let deviceStore: DeviceStore
+    let runtimeStore: RuntimeStore
     @AppStorage(AppLog.levelDefaultsKey) private var logLevelRawValue = AppLog.currentLevel.rawValue
     @State private var showsDiagnosticsSheet = false
 
@@ -20,23 +21,23 @@ struct SettingsView: View {
         Form {
             Section("Background Service") {
                 Toggle("Menu bar icon", isOn: Binding(
-                    get: { appState.backgroundServiceEnabled },
+                    get: { runtimeStore.backgroundServiceEnabled },
                     set: { newValue in
-                        Task { await appState.setBackgroundServiceEnabled(newValue) }
+                        Task { await runtimeStore.setBackgroundServiceEnabled(newValue) }
                     }
                 ))
 
                 Toggle("Start at login", isOn: Binding(
-                    get: { appState.launchAtStartupEnabled },
-                    set: { appState.setLaunchAtStartupEnabled($0) }
+                    get: { runtimeStore.launchAtStartupEnabled },
+                    set: { runtimeStore.setLaunchAtStartupEnabled($0) }
                 ))
-                .disabled(!appState.backgroundServiceEnabled)
+                .disabled(!runtimeStore.backgroundServiceEnabled)
 
                 Text("When enabled, Open Snek keeps a compact menu bar icon running as a separate background instance. The full app can still be launched at any time.")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
 
-                if let message = appState.compactStatusMessage ?? appState.serviceStatusMessage {
+                if let message = runtimeStore.compactStatusMessage ?? runtimeStore.serviceStatusMessage {
                     Text(message)
                         .font(.system(size: 12, weight: .bold, design: .rounded))
                         .foregroundStyle(.secondary)
@@ -106,7 +107,7 @@ struct SettingsView: View {
         .padding(20)
         .frame(width: 520)
         .sheet(isPresented: $showsDiagnosticsSheet) {
-            IssueDiagnosticsSheet(payload: appState.githubIssueDiagnosticsPayload())
+            IssueDiagnosticsSheet(payload: deviceStore.githubIssueDiagnosticsPayload())
         }
         .onAppear {
             AppLog.updateLevel(AppLogLevel(rawValue: logLevelRawValue) ?? AppLog.defaultLevel, resetLog: false)
@@ -115,7 +116,7 @@ struct SettingsView: View {
 
     private func copyDiagnosticsPayload() {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(appState.githubIssueDiagnosticsPayload(), forType: .string)
+        NSPasteboard.general.setString(deviceStore.githubIssueDiagnosticsPayload(), forType: .string)
     }
 
     private func openBugReport() {

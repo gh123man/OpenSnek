@@ -26,19 +26,19 @@ final class ServiceModeTests: XCTestCase {
             AppState(launchRole: .service, serviceCoordinator: coordinator, autoStart: false)
         }
 
-        let initial = await MainActor.run { appState.currentPollingProfile }
+        let initial = await MainActor.run { appState.runtimeStore.currentPollingProfile }
         XCTAssertEqual(initial, .serviceIdle)
 
         await MainActor.run {
-            appState.setCompactMenuPresented(true)
+            appState.runtimeStore.setCompactMenuPresented(true)
         }
-        let interactive = await MainActor.run { appState.currentPollingProfile }
+        let interactive = await MainActor.run { appState.runtimeStore.currentPollingProfile }
         XCTAssertEqual(interactive, .serviceInteractive)
 
         await MainActor.run {
-            appState.setCompactMenuPresented(false)
+            appState.runtimeStore.setCompactMenuPresented(false)
         }
-        let afterClose = await MainActor.run { appState.currentPollingProfile }
+        let afterClose = await MainActor.run { appState.runtimeStore.currentPollingProfile }
         XCTAssertEqual(afterClose, .serviceInteractive)
     }
 
@@ -51,7 +51,7 @@ final class ServiceModeTests: XCTestCase {
             AppState(launchRole: .app, serviceCoordinator: coordinator, autoStart: false)
         }
 
-        let profile = await MainActor.run { appState.currentPollingProfile }
+        let profile = await MainActor.run { appState.runtimeStore.currentPollingProfile }
         XCTAssertEqual(profile, .foreground)
     }
 

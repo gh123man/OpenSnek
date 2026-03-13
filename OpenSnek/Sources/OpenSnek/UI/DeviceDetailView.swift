@@ -3,7 +3,8 @@ import SwiftUI
 import OpenSnekCore
 
 struct DeviceDetailView: View {
-    @Bindable var appState: AppState
+    let deviceStore: DeviceStore
+    let editorStore: EditorStore
     let selected: MouseDevice
     let state: MouseState
     private let cardSpacing: CGFloat = 14
@@ -23,11 +24,11 @@ struct DeviceDetailView: View {
         GeometryReader { proxy in
             let sections = detailSections
             let contentWidth = detailContentWidth(for: proxy.size.width)
-            let controlsEnabled = appState.selectedDeviceControlsEnabled
+            let controlsEnabled = deviceStore.selectedDeviceControlsEnabled
 
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 18) {
-                    DeviceOverviewBar(appState: appState, selected: selected, state: state)
+                    DeviceOverviewBar(deviceStore: deviceStore, selected: selected, state: state)
                     VStack(alignment: .leading, spacing: 12) {
                         DetailColumnsLayout(
                             minTwoColumnCardWidth: detailTwoColumnMinWidth,
@@ -44,7 +45,7 @@ struct DeviceDetailView: View {
                         .disabled(!controlsEnabled)
                         .opacity(controlsEnabled ? 1.0 : 0.44)
                     }
-                    DiagnosticsFooter(appState: appState, device: selected, state: state)
+                    DiagnosticsFooter(deviceStore: deviceStore, device: selected, state: state)
                 }
                 .frame(width: contentWidth, alignment: .leading)
                 .padding(.horizontal, horizontalPadding)
@@ -54,7 +55,7 @@ struct DeviceDetailView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(WindowDragBlocker())
             .task(id: selected.id) {
-                await appState.refreshConnectionDiagnostics(for: selected)
+                await deviceStore.refreshConnectionDiagnostics(for: selected)
             }
         }
     }
@@ -94,19 +95,19 @@ struct DeviceDetailView: View {
     private func detailCard(for section: DetailSection) -> some View {
         switch section {
         case .dpiStages:
-            DpiStagesCard(appState: appState)
+            DpiStagesCard(editorStore: editorStore)
         case .lighting:
-            LightingCard(appState: appState, selected: selected, swatches: swatches)
+            LightingCard(editorStore: editorStore, selected: selected, swatches: swatches)
         case .pollRate:
-            PollRateCard(appState: appState)
+            PollRateCard(editorStore: editorStore)
         case .powerManagement:
-            SleepTimeoutCard(appState: appState)
+            SleepTimeoutCard(editorStore: editorStore)
         case .lowBatteryThreshold:
-            LowBatteryThresholdCard(appState: appState)
+            LowBatteryThresholdCard(editorStore: editorStore)
         case .scrollControls:
-            ScrollControlsCard(appState: appState, state: state)
+            ScrollControlsCard(editorStore: editorStore, state: state)
         case .buttonRemap:
-            ButtonMappingTableCard(appState: appState, title: "Button Remap")
+            ButtonMappingTableCard(deviceStore: deviceStore, editorStore: editorStore, title: "Button Remap")
         }
     }
 
@@ -236,7 +237,7 @@ private struct DetailColumnsLayout: Layout {
 }
 
 struct DeviceOverviewBar: View {
-    @Bindable var appState: AppState
+    let deviceStore: DeviceStore
     let selected: MouseDevice
     let state: MouseState
 
@@ -281,7 +282,7 @@ struct DeviceOverviewBar: View {
                     text: state.connection,
                     color: selected.transport == .bluetooth ? Color(hex: 0x66D9FF) : Color(hex: 0xA8F46A)
                 )
-                DeviceStatusBadge(indicator: appState.currentDeviceStatusIndicator)
+                DeviceStatusBadge(indicator: deviceStore.currentDeviceStatusIndicator)
             }
 
             Rectangle()
@@ -291,18 +292,18 @@ struct DeviceOverviewBar: View {
     }
 
     private var showsUnsupportedUSBMarker: Bool {
-        appState.selectedDeviceIsUnsupportedUSB && appState.selectedDeviceID == selected.id
+        deviceStore.selectedDeviceIsUnsupportedUSB && deviceStore.selectedDeviceID == selected.id
     }
 }
 
 struct GenericDeviceDetailView: View {
-    @Bindable var appState: AppState
+    let deviceStore: DeviceStore
     let selected: MouseDevice
 
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 18) {
-                GenericDeviceOverviewBar(appState: appState, selected: selected)
+                GenericDeviceOverviewBar(deviceStore: deviceStore, selected: selected)
 
                 if resolvedProfile == nil {
                     Card(title: "Limited Support") {
@@ -326,7 +327,7 @@ struct GenericDeviceDetailView: View {
                     }
                 }
 
-                DiagnosticsFooter(appState: appState, device: selected, state: nil)
+                DiagnosticsFooter(deviceStore: deviceStore, device: selected, state: nil)
             }
             .frame(maxWidth: 820, alignment: .leading)
             .padding(.horizontal, 20)
@@ -370,16 +371,16 @@ struct GenericDeviceDetailView: View {
 }
 
 struct DeviceUnavailableDetailView: View {
-    @Bindable var appState: AppState
+    let deviceStore: DeviceStore
     let selected: MouseDevice
 
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 18) {
-                GenericDeviceOverviewBar(appState: appState, selected: selected)
+                GenericDeviceOverviewBar(deviceStore: deviceStore, selected: selected)
 
-                Card(title: appState.currentDeviceStatusIndicator.label) {
-                    Text(appState.selectedDeviceInteractionMessage ?? "Live telemetry is unavailable for this device right now.")
+                Card(title: deviceStore.currentDeviceStatusIndicator.label) {
+                    Text(deviceStore.selectedDeviceInteractionMessage ?? "Live telemetry is unavailable for this device right now.")
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.88))
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -389,7 +390,7 @@ struct DeviceUnavailableDetailView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     VStack(alignment: .leading, spacing: 6) {
-                        ForEach(appState.diagnosticsConnectionLines(for: selected), id: \.self) { line in
+                        ForEach(deviceStore.diagnosticsConnectionLines(for: selected), id: \.self) { line in
                             Text(line)
                                 .font(.system(size: 12, weight: .medium, design: .monospaced))
                                 .foregroundStyle(.white.opacity(0.78))
@@ -398,7 +399,7 @@ struct DeviceUnavailableDetailView: View {
                     .padding(.top, 2)
                 }
 
-                DiagnosticsFooter(appState: appState, device: selected, state: nil)
+                DiagnosticsFooter(deviceStore: deviceStore, device: selected, state: nil)
             }
             .frame(maxWidth: 820, alignment: .leading)
             .padding(.horizontal, 20)
@@ -408,13 +409,13 @@ struct DeviceUnavailableDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(WindowDragBlocker())
         .task(id: selected.id) {
-            await appState.refreshConnectionDiagnostics(for: selected)
+            await deviceStore.refreshConnectionDiagnostics(for: selected)
         }
     }
 }
 
 struct GenericDeviceOverviewBar: View {
-    @Bindable var appState: AppState
+    let deviceStore: DeviceStore
     let selected: MouseDevice
 
     var body: some View {
@@ -442,7 +443,7 @@ struct GenericDeviceOverviewBar: View {
                     text: selected.connectionLabel,
                     color: selected.transport == .bluetooth ? Color(hex: 0x66D9FF) : Color(hex: 0xA8F46A)
                 )
-                DeviceStatusBadge(indicator: appState.currentDeviceStatusIndicator)
+                DeviceStatusBadge(indicator: deviceStore.currentDeviceStatusIndicator)
             }
 
             Rectangle()
@@ -452,7 +453,7 @@ struct GenericDeviceOverviewBar: View {
     }
 
     private var showsUnsupportedUSBMarker: Bool {
-        appState.selectedDeviceIsUnsupportedUSB && appState.selectedDeviceID == selected.id
+        deviceStore.selectedDeviceIsUnsupportedUSB && deviceStore.selectedDeviceID == selected.id
     }
 }
 
@@ -482,14 +483,14 @@ private struct UnsupportedUSBInlineBanner: View {
 }
 
 struct DiagnosticsFooter: View {
-    @Bindable var appState: AppState
+    let deviceStore: DeviceStore
     let device: MouseDevice
     let state: MouseState?
 
     var body: some View {
         HStack {
             Spacer()
-            DeviceDiagnosticsButton(appState: appState, device: device, state: state)
+            DeviceDiagnosticsButton(deviceStore: deviceStore, device: device, state: state)
             Spacer()
         }
         .frame(maxWidth: .infinity)
@@ -525,7 +526,7 @@ struct DeviceStatusBadge: View {
 }
 
 struct DeviceDiagnosticsButton: View {
-    @Bindable var appState: AppState
+    let deviceStore: DeviceStore
     let device: MouseDevice
     let state: MouseState?
     @State private var showsDiagnostics = false
@@ -541,19 +542,19 @@ struct DeviceDiagnosticsButton: View {
         .controlSize(.small)
         .tint(.white.opacity(0.2))
         .sheet(isPresented: $showsDiagnostics) {
-            DeviceDiagnosticsSheet(appState: appState, device: device, state: state)
+            DeviceDiagnosticsSheet(deviceStore: deviceStore, device: device, state: state)
         }
     }
 }
 
 struct DeviceDiagnosticsSheet: View {
-    @Bindable var appState: AppState
+    let deviceStore: DeviceStore
     let device: MouseDevice
     let state: MouseState?
     @Environment(\.dismiss) private var dismiss
 
     private var diagnosticsText: String {
-        appState.diagnosticsDump(for: device, state: state)
+        deviceStore.diagnosticsDump(for: device, state: state)
     }
 
     var body: some View {
@@ -586,7 +587,7 @@ struct DeviceDiagnosticsSheet: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Connection Paths")
                     .font(.system(size: 12, weight: .black, design: .rounded))
-                ForEach(appState.diagnosticsConnectionLines(for: device), id: \.self) { line in
+                ForEach(deviceStore.diagnosticsConnectionLines(for: device), id: \.self) { line in
                     Text(line)
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
@@ -623,7 +624,7 @@ struct DeviceDiagnosticsSheet: View {
         .padding(18)
         .frame(minWidth: 760, minHeight: 540, alignment: .topLeading)
         .task(id: device.id) {
-            await appState.refreshConnectionDiagnostics(for: device)
+            await deviceStore.refreshConnectionDiagnostics(for: device)
         }
     }
 
@@ -634,24 +635,24 @@ struct DeviceDiagnosticsSheet: View {
 }
 
 struct LightingCard: View {
-    @Bindable var appState: AppState
+    let editorStore: EditorStore
     let selected: MouseDevice
     let swatches: [LightingSwatch]
 
     private var accentBase: Color {
-        Color(rgb: appState.editableColor)
+        Color(rgb: editorStore.editableColor)
     }
 
     private var accentOpacity: Double {
-        let brightness = Double(max(0, min(255, appState.editableLedBrightness))) / 255.0
+        let brightness = Double(max(0, min(255, editorStore.editableLedBrightness))) / 255.0
         return 0.10 + (brightness * 0.22)
     }
 
     private var zoneGradientColors: [Color] {
         guard selected.transport == .usb,
-              appState.editableLightingEffect == .staticColor,
-              appState.visibleUSBLightingZones.count > 1,
-              appState.editableUSBLightingZoneID != "all"
+              editorStore.editableLightingEffect == .staticColor,
+              editorStore.visibleUSBLightingZones.count > 1,
+              editorStore.editableUSBLightingZoneID != "all"
         else {
             return [
                 accentBase.opacity(accentOpacity),
@@ -664,7 +665,7 @@ struct LightingCard: View {
             "logo": Color(hex: 0x7FF2A5),
             "underglow": Color(hex: 0xFFD36B),
         ]
-        let zones = appState.visibleUSBLightingZones.filter { $0.id == appState.editableUSBLightingZoneID }
+        let zones = editorStore.visibleUSBLightingZones.filter { $0.id == editorStore.editableUSBLightingZoneID }
 
         let overlayOpacity = max(0.10, accentOpacity * 0.9)
         let zoneColors = zones.map { zone in
@@ -676,7 +677,7 @@ struct LightingCard: View {
     }
 
     private var brightnessPercent: Int {
-        Int(round((Double(max(0, min(255, appState.editableLedBrightness))) / 255.0) * 100.0))
+        Int(round((Double(max(0, min(255, editorStore.editableLedBrightness))) / 255.0) * 100.0))
     }
 
     var body: some View {
@@ -693,11 +694,11 @@ struct LightingCard: View {
 
             Slider(
                 value: Binding(
-                    get: { (Double(max(0, min(255, appState.editableLedBrightness))) / 255.0) * 100.0 },
+                    get: { (Double(max(0, min(255, editorStore.editableLedBrightness))) / 255.0) * 100.0 },
                     set: { newValue in
                         let percent = max(0.0, min(100.0, newValue))
-                        appState.editableLedBrightness = Int(round((percent / 100.0) * 255.0))
-                        appState.scheduleAutoApplyLedBrightness()
+                        editorStore.editableLedBrightness = Int(round((percent / 100.0) * 255.0))
+                        editorStore.scheduleAutoApplyLedBrightness()
                     }
                 ),
                 in: 0...100
@@ -709,10 +710,10 @@ struct LightingCard: View {
                 LightingColorEditor(
                     title: "Color",
                     color: Binding(
-                        get: { appState.editableColor },
+                        get: { editorStore.editableColor },
                         set: {
-                            appState.editableColor = $0
-                            appState.scheduleAutoApplyLedColor()
+                            editorStore.editableColor = $0
+                            editorStore.scheduleAutoApplyLedColor()
                         }
                     ),
                     swatches: swatches
@@ -726,14 +727,14 @@ struct LightingCard: View {
                     Picker(
                         "",
                         selection: Binding(
-                            get: { appState.editableLightingEffect },
+                            get: { editorStore.editableLightingEffect },
                             set: {
-                                appState.updateLightingEffect($0)
-                                appState.scheduleAutoApplyLightingEffect()
+                                editorStore.updateLightingEffect($0)
+                                editorStore.scheduleAutoApplyLightingEffect()
                             }
                         )
                     ) {
-                        ForEach(appState.visibleLightingEffects) { kind in
+                        ForEach(editorStore.visibleLightingEffects) { kind in
                             Text(kind.label).tag(kind)
                         }
                     }
@@ -742,7 +743,7 @@ struct LightingCard: View {
                     .frame(width: 220, alignment: .trailing)
                 }
 
-                if appState.editableLightingEffect.usesWaveDirection {
+                if editorStore.editableLightingEffect.usesWaveDirection {
                     HStack {
                         Text("Direction")
                             .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -751,10 +752,10 @@ struct LightingCard: View {
                         Picker(
                             "Direction",
                             selection: Binding(
-                                get: { appState.editableLightingWaveDirection },
+                                get: { editorStore.editableLightingWaveDirection },
                                 set: {
-                                    appState.updateLightingWaveDirection($0)
-                                    appState.scheduleAutoApplyLightingEffect()
+                                    editorStore.updateLightingWaveDirection($0)
+                                    editorStore.scheduleAutoApplyLightingEffect()
                                 }
                             )
                         ) {
@@ -766,7 +767,7 @@ struct LightingCard: View {
                     }
                 }
 
-                if appState.editableLightingEffect.usesReactiveSpeed {
+                if editorStore.editableLightingEffect.usesReactiveSpeed {
                     HStack {
                         Text("Speed")
                             .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -775,10 +776,10 @@ struct LightingCard: View {
                         Picker(
                             "Speed",
                             selection: Binding(
-                                get: { appState.editableLightingReactiveSpeed },
+                                get: { editorStore.editableLightingReactiveSpeed },
                                 set: {
-                                    appState.updateLightingReactiveSpeed($0)
-                                    appState.scheduleAutoApplyLightingEffect()
+                                    editorStore.updateLightingReactiveSpeed($0)
+                                    editorStore.scheduleAutoApplyLightingEffect()
                                 }
                             )
                         ) {
@@ -792,10 +793,10 @@ struct LightingCard: View {
                     }
                 }
 
-                if appState.editableLightingEffect.usesPrimaryColor {
+                if editorStore.editableLightingEffect.usesPrimaryColor {
                     if selected.transport == .usb,
-                       appState.editableLightingEffect == .staticColor,
-                       appState.visibleUSBLightingZones.count > 1 {
+                       editorStore.editableLightingEffect == .staticColor,
+                       editorStore.visibleUSBLightingZones.count > 1 {
                         HStack {
                             Text("Static Zone")
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -804,15 +805,15 @@ struct LightingCard: View {
                             Picker(
                                 "",
                                 selection: Binding(
-                                    get: { appState.editableUSBLightingZoneID },
+                                    get: { editorStore.editableUSBLightingZoneID },
                                     set: {
-                                        appState.updateUSBLightingZoneID($0)
-                                        appState.scheduleAutoApplyLightingEffect()
+                                        editorStore.updateUSBLightingZoneID($0)
+                                        editorStore.scheduleAutoApplyLightingEffect()
                                     }
                                 )
                             ) {
                                 Text("All Zones").tag("all")
-                                ForEach(appState.visibleUSBLightingZones) { zone in
+                                ForEach(editorStore.visibleUSBLightingZones) { zone in
                                     Text(zone.label).tag(zone.id)
                                 }
                             }
@@ -825,24 +826,24 @@ struct LightingCard: View {
                     LightingColorEditor(
                         title: "Primary Color",
                         color: Binding(
-                            get: { appState.editableColor },
+                            get: { editorStore.editableColor },
                             set: {
-                                appState.editableColor = $0
-                                appState.scheduleAutoApplyLightingEffect()
+                                editorStore.editableColor = $0
+                                editorStore.scheduleAutoApplyLightingEffect()
                             }
                         ),
                         swatches: swatches
                     )
                 }
 
-                if appState.editableLightingEffect.usesSecondaryColor {
+                if editorStore.editableLightingEffect.usesSecondaryColor {
                     LightingColorEditor(
                         title: "Secondary Color",
                         color: Binding(
-                            get: { appState.editableSecondaryColor },
+                            get: { editorStore.editableSecondaryColor },
                             set: {
-                                appState.editableSecondaryColor = $0
-                                appState.scheduleAutoApplyLightingEffect()
+                                editorStore.editableSecondaryColor = $0
+                                editorStore.scheduleAutoApplyLightingEffect()
                             }
                         ),
                         swatches: swatches
@@ -955,51 +956,51 @@ struct RGBSliderRow: View {
 }
 
 struct DpiStagesCard: View {
-    @Bindable var appState: AppState
+    let editorStore: EditorStore
 
     var body: some View {
         let supportsMultiStage = true
-        let stageCount = supportsMultiStage ? appState.editableStageCount : 1
+        let stageCount = supportsMultiStage ? editorStore.editableStageCount : 1
         Card(title: "DPI Stages") {
             HStack {
-                Text(supportsMultiStage ? "Enabled stages: \(appState.editableStageCount) / 5" : "Single-stage DPI")
+                Text(supportsMultiStage ? "Enabled stages: \(editorStore.editableStageCount) / 5" : "Single-stage DPI")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.82))
                 Spacer()
                 HStack(spacing: 8) {
                     Button {
                         guard supportsMultiStage else { return }
-                        let next = max(1, appState.editableStageCount - 1)
-                        guard next != appState.editableStageCount else { return }
-                        appState.editableStageCount = next
-                        appState.editableActiveStage = min(appState.editableActiveStage, appState.editableStageCount)
-                        appState.scheduleAutoApplyDpi()
+                        let next = max(1, editorStore.editableStageCount - 1)
+                        guard next != editorStore.editableStageCount else { return }
+                        editorStore.editableStageCount = next
+                        editorStore.editableActiveStage = min(editorStore.editableActiveStage, editorStore.editableStageCount)
+                        editorStore.scheduleAutoApplyDpi()
                     } label: {
                         Image(systemName: "minus.circle.fill")
                             .font(.system(size: 20, weight: .bold))
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(supportsMultiStage && appState.editableStageCount > 1 ? .white : .white.opacity(0.35))
-                    .disabled(!supportsMultiStage || appState.editableStageCount <= 1)
+                    .foregroundStyle(supportsMultiStage && editorStore.editableStageCount > 1 ? .white : .white.opacity(0.35))
+                    .disabled(!supportsMultiStage || editorStore.editableStageCount <= 1)
 
                     Button {
                         guard supportsMultiStage else { return }
-                        let next = min(5, appState.editableStageCount + 1)
-                        guard next != appState.editableStageCount else { return }
-                        appState.editableStageCount = next
-                        appState.scheduleAutoApplyDpi()
+                        let next = min(5, editorStore.editableStageCount + 1)
+                        guard next != editorStore.editableStageCount else { return }
+                        editorStore.editableStageCount = next
+                        editorStore.scheduleAutoApplyDpi()
                     } label: {
                         Image(systemName: "plus.circle.fill")
                             .font(.system(size: 20, weight: .bold))
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(supportsMultiStage && appState.editableStageCount < 5 ? .white : .white.opacity(0.35))
-                    .disabled(!supportsMultiStage || appState.editableStageCount >= 5)
+                    .foregroundStyle(supportsMultiStage && editorStore.editableStageCount < 5 ? .white : .white.opacity(0.35))
+                    .disabled(!supportsMultiStage || editorStore.editableStageCount >= 5)
                 }
             }
 
             ForEach(0..<stageCount, id: \.self) { idx in
-                let isSelectedStage = stageCount == 1 || appState.editableActiveStage == (idx + 1)
+                let isSelectedStage = stageCount == 1 || editorStore.editableActiveStage == (idx + 1)
                 let stageColor = stageAccent(for: idx, isSelected: isSelectedStage)
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -1010,11 +1011,11 @@ struct DpiStagesCard: View {
                         TextField(
                             "DPI",
                             text: Binding(
-                                get: { String(appState.stageValue(idx)) },
+                                get: { String(editorStore.stageValue(idx)) },
                                 set: { newValue in
                                     if let parsed = Int(newValue) {
-                                        appState.updateStage(idx, value: parsed)
-                                        appState.scheduleAutoApplyDpi()
+                                        editorStore.updateStage(idx, value: parsed)
+                                        editorStore.scheduleAutoApplyDpi()
                                     }
                                 }
                             )
@@ -1025,16 +1026,16 @@ struct DpiStagesCard: View {
 
                     Slider(
                         value: Binding(
-                            get: { Double(appState.stageValue(idx)) },
+                            get: { Double(editorStore.stageValue(idx)) },
                             set: { newValue in
                                 let quantized = Int(round(newValue / 100.0) * 100.0)
-                                appState.updateStage(idx, value: quantized)
-                                appState.scheduleAutoApplyDpi()
+                                editorStore.updateStage(idx, value: quantized)
+                                editorStore.scheduleAutoApplyDpi()
                             }
                         ),
                         in: 100...30000,
                         onEditingChanged: { editing in
-                            appState.isEditingDpiControl = editing
+                            editorStore.isEditingDpiControl = editing
                         }
                     )
                     .tint(isSelectedStage ? stageColor : Color.white.opacity(0.80))
@@ -1061,14 +1062,14 @@ struct DpiStagesCard: View {
         } else {
             Button {
                 let selected = index + 1
-                if appState.editableActiveStage != selected {
-                    appState.editableActiveStage = selected
-                    appState.scheduleAutoApplyActiveStage()
+                if editorStore.editableActiveStage != selected {
+                    editorStore.editableActiveStage = selected
+                    editorStore.scheduleAutoApplyActiveStage()
                 }
             } label: {
                 Label(
                     "Stage \(index + 1)",
-                    systemImage: appState.editableActiveStage == (index + 1) ? "checkmark.square.fill" : "square"
+                    systemImage: editorStore.editableActiveStage == (index + 1) ? "checkmark.square.fill" : "square"
                 )
                 .labelStyle(.titleAndIcon)
                 .padding(.horizontal, 10)
@@ -1100,12 +1101,18 @@ struct DpiStagesCard: View {
 }
 
 struct PollRateCard: View {
-    @Bindable var appState: AppState
+    let editorStore: EditorStore
 
     var body: some View {
         Card(title: "Polling Rate") {
             LabeledControlRow(title: "Rate") {
-                Picker("Rate", selection: $appState.editablePollRate) {
+                Picker(
+                    "Rate",
+                    selection: Binding(
+                        get: { editorStore.editablePollRate },
+                        set: { editorStore.editablePollRate = $0 }
+                    )
+                ) {
                     Text("125 Hz").tag(125)
                     Text("500 Hz").tag(500)
                     Text("1000 Hz").tag(1000)
@@ -1115,14 +1122,14 @@ struct PollRateCard: View {
                 .frame(width: 220)
             }
         }
-        .onChange(of: appState.editablePollRate) { _, _ in
-            appState.scheduleAutoApplyPollRate()
+        .onChange(of: editorStore.editablePollRate) { _, _ in
+            editorStore.scheduleAutoApplyPollRate()
         }
     }
 }
 
 struct SleepTimeoutCard: View {
-    @Bindable var appState: AppState
+    let editorStore: EditorStore
 
     var body: some View {
         Card(title: "Power Management") {
@@ -1131,18 +1138,18 @@ struct SleepTimeoutCard: View {
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.85))
                 Spacer()
-                Text(formatTimeout(appState.editableSleepTimeout))
+                Text(formatTimeout(editorStore.editableSleepTimeout))
                     .font(.system(size: 13, weight: .bold, design: .monospaced))
                     .foregroundStyle(.white)
             }
 
             Slider(
                 value: Binding(
-                    get: { Double(appState.editableSleepTimeout) },
+                    get: { Double(editorStore.editableSleepTimeout) },
                     set: { newValue in
                         let quantized = Int(round(newValue / 15.0) * 15.0)
-                        appState.editableSleepTimeout = max(60, min(900, quantized))
-                        appState.scheduleAutoApplySleepTimeout()
+                        editorStore.editableSleepTimeout = max(60, min(900, quantized))
+                        editorStore.scheduleAutoApplySleepTimeout()
                     }
                 ),
                 in: 60...900
@@ -1159,7 +1166,7 @@ struct SleepTimeoutCard: View {
 }
 
 struct LowBatteryThresholdCard: View {
-    @Bindable var appState: AppState
+    let editorStore: EditorStore
 
     var body: some View {
         Card(title: "Low Battery Threshold") {
@@ -1168,7 +1175,7 @@ struct LowBatteryThresholdCard: View {
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.82))
                 Spacer()
-                let raw = max(0x0C, min(0x3F, appState.editableLowBatteryThresholdRaw))
+                let raw = max(0x0C, min(0x3F, editorStore.editableLowBatteryThresholdRaw))
                 Text("~\(approxPercent(raw))%")
                     .font(.system(size: 13, weight: .bold, design: .monospaced))
                     .foregroundStyle(.white)
@@ -1176,10 +1183,10 @@ struct LowBatteryThresholdCard: View {
 
             Slider(
                 value: Binding(
-                    get: { Double(max(0x0C, min(0x3F, appState.editableLowBatteryThresholdRaw))) },
+                    get: { Double(max(0x0C, min(0x3F, editorStore.editableLowBatteryThresholdRaw)) ) },
                     set: { newValue in
-                        appState.editableLowBatteryThresholdRaw = max(0x0C, min(0x3F, Int(round(newValue))))
-                        appState.scheduleAutoApplyLowBatteryThreshold()
+                        editorStore.editableLowBatteryThresholdRaw = max(0x0C, min(0x3F, Int(round(newValue))))
+                        editorStore.scheduleAutoApplyLowBatteryThreshold()
                     }
                 ),
                 in: Double(0x0C)...Double(0x3F)
@@ -1198,7 +1205,7 @@ struct LowBatteryThresholdCard: View {
 }
 
 struct ScrollControlsCard: View {
-    @Bindable var appState: AppState
+    let editorStore: EditorStore
     let state: MouseState
 
     var body: some View {
@@ -1209,10 +1216,10 @@ struct ScrollControlsCard: View {
                         Picker(
                             "Wheel",
                             selection: Binding(
-                                get: { appState.editableScrollMode },
+                                get: { editorStore.editableScrollMode },
                                 set: {
-                                    appState.editableScrollMode = ($0 == 1 ? 1 : 0)
-                                    appState.scheduleAutoApplyScrollMode()
+                                    editorStore.editableScrollMode = ($0 == 1 ? 1 : 0)
+                                    editorStore.scheduleAutoApplyScrollMode()
                                 }
                             )
                         ) {
@@ -1230,10 +1237,10 @@ struct ScrollControlsCard: View {
                         Toggle(
                             "Acceleration",
                             isOn: Binding(
-                                get: { appState.editableScrollAcceleration },
+                                get: { editorStore.editableScrollAcceleration },
                                 set: {
-                                    appState.editableScrollAcceleration = $0
-                                    appState.scheduleAutoApplyScrollAcceleration()
+                                    editorStore.editableScrollAcceleration = $0
+                                    editorStore.scheduleAutoApplyScrollAcceleration()
                                 }
                             )
                         )
@@ -1248,10 +1255,10 @@ struct ScrollControlsCard: View {
                         Toggle(
                             "Smart Reel",
                             isOn: Binding(
-                                get: { appState.editableScrollSmartReel },
+                                get: { editorStore.editableScrollSmartReel },
                                 set: {
-                                    appState.editableScrollSmartReel = $0
-                                    appState.scheduleAutoApplyScrollSmartReel()
+                                    editorStore.editableScrollSmartReel = $0
+                                    editorStore.scheduleAutoApplyScrollSmartReel()
                                 }
                             )
                         )
@@ -1267,25 +1274,26 @@ struct ScrollControlsCard: View {
 }
 
 struct ButtonMappingTableCard: View {
-    @Bindable var appState: AppState
+    let deviceStore: DeviceStore
+    let editorStore: EditorStore
     let title: String
 
     private var rows: [ButtonBindingRowModel] {
-        appState.visibleButtonSlots.map { slot in
-            let kind = appState.buttonBindingKind(for: slot.slot)
-            let turboEnabled = appState.buttonBindingTurboEnabled(for: slot.slot)
-            let turboRate = appState.buttonBindingTurboRatePressesPerSecond(for: slot.slot)
+        deviceStore.visibleButtonSlots.map { slot in
+            let kind = editorStore.buttonBindingKind(for: slot.slot)
+            let turboEnabled = editorStore.buttonBindingTurboEnabled(for: slot.slot)
+            let turboRate = editorStore.buttonBindingTurboRatePressesPerSecond(for: slot.slot)
             return ButtonBindingRowModel(
                 slot: slot.slot,
                 friendlyName: slot.friendlyName,
-                isEditable: appState.isButtonSlotEditable(slot.slot),
+                isEditable: deviceStore.isButtonSlotEditable(slot.slot),
                 selectedKind: kind,
                 turboEligible: kind != .default && kind.supportsTurbo,
-                clutchDPI: appState.buttonBindingClutchDPI(for: slot.slot),
-                keyboardDraft: kind == .keyboardSimple ? appState.keyboardTextDraft(for: slot.slot) : "",
+                clutchDPI: editorStore.buttonBindingClutchDPI(for: slot.slot),
+                keyboardDraft: kind == .keyboardSimple ? editorStore.keyboardTextDraft(for: slot.slot) : "",
                 turboEnabled: turboEnabled,
                 turboRatePressesPerSecond: turboRate,
-                notice: appState.buttonSlotNotice(slot.slot)
+                notice: deviceStore.buttonSlotNotice(slot.slot)
             )
         }
     }
@@ -1295,12 +1303,12 @@ struct ButtonMappingTableCard: View {
             VStack(alignment: .leading, spacing: 12) {
                 LazyVStack(alignment: .leading, spacing: 10) {
                     ForEach(rows) { row in
-                        ButtonBindingRow(appState: appState, row: row)
+                        ButtonBindingRow(editorStore: editorStore, row: row)
                     }
                 }
 
-                if !appState.hiddenUnsupportedButtonSlots.isEmpty {
-                    UnsupportedButtonsFootnote(entries: appState.hiddenUnsupportedButtonSlots)
+                if !deviceStore.hiddenUnsupportedButtonSlots.isEmpty {
+                    UnsupportedButtonsFootnote(entries: deviceStore.hiddenUnsupportedButtonSlots)
                 }
             }
         }
@@ -1382,7 +1390,7 @@ private struct ButtonBindingRowModel: Identifiable, Equatable {
 }
 
 private struct ButtonBindingRow: View {
-    @Bindable var appState: AppState
+    let editorStore: EditorStore
     let row: ButtonBindingRowModel
 
     var body: some View {
@@ -1397,11 +1405,11 @@ private struct ButtonBindingRow: View {
                 Picker(
                     "",
                     selection: Binding(
-                        get: { appState.buttonBindingKind(for: row.slot) },
-                        set: { appState.updateButtonBindingKind(slot: row.slot, kind: $0) }
+                        get: { editorStore.buttonBindingKind(for: row.slot) },
+                        set: { editorStore.updateButtonBindingKind(slot: row.slot, kind: $0) }
                     )
                 ) {
-                    ForEach(ButtonBindingSupport.availableButtonBindingKinds(profileID: appState.selectedDevice?.profile_id)) { kind in
+                    ForEach(ButtonBindingSupport.availableButtonBindingKinds(profileID: editorStore.selectedDeviceProfileID)) { kind in
                         Text(kind.label).tag(kind)
                     }
                 }
@@ -1421,8 +1429,8 @@ private struct ButtonBindingRow: View {
                         TextField(
                             "a",
                             text: Binding(
-                                get: { appState.keyboardTextDraft(for: row.slot) },
-                                set: { appState.updateKeyboardTextDraft(slot: row.slot, text: $0) }
+                                get: { editorStore.keyboardTextDraft(for: row.slot) },
+                                set: { editorStore.updateKeyboardTextDraft(slot: row.slot, text: $0) }
                             )
                         )
                         .textFieldStyle(.roundedBorder)
@@ -1451,10 +1459,10 @@ private struct ButtonBindingRow: View {
                         TextField(
                             "400",
                             text: Binding(
-                                get: { String(appState.buttonBindingClutchDPI(for: row.slot)) },
+                                get: { String(editorStore.buttonBindingClutchDPI(for: row.slot)) },
                                 set: { newValue in
                                     if let parsed = Int(newValue) {
-                                        appState.updateButtonBindingClutchDPI(slot: row.slot, dpi: parsed)
+                                        editorStore.updateButtonBindingClutchDPI(slot: row.slot, dpi: parsed)
                                     }
                                 }
                             )
@@ -1475,10 +1483,10 @@ private struct ButtonBindingRow: View {
 
                     Slider(
                         value: Binding(
-                            get: { Double(appState.buttonBindingClutchDPI(for: row.slot)) },
+                            get: { Double(editorStore.buttonBindingClutchDPI(for: row.slot)) },
                             set: { newValue in
                                 let quantized = Int(round(newValue / 100.0) * 100.0)
-                                appState.updateButtonBindingClutchDPI(slot: row.slot, dpi: quantized)
+                                editorStore.updateButtonBindingClutchDPI(slot: row.slot, dpi: quantized)
                             }
                         ),
                         in: 100...30000
@@ -1503,8 +1511,8 @@ private struct ButtonBindingRow: View {
                     Toggle(
                         "Turbo",
                         isOn: Binding(
-                            get: { appState.buttonBindingTurboEnabled(for: row.slot) },
-                            set: { appState.updateButtonBindingTurboEnabled(slot: row.slot, enabled: $0) }
+                            get: { editorStore.buttonBindingTurboEnabled(for: row.slot) },
+                            set: { editorStore.updateButtonBindingTurboEnabled(slot: row.slot, enabled: $0) }
                         )
                     )
                     .toggleStyle(.switch)
@@ -1519,8 +1527,8 @@ private struct ButtonBindingRow: View {
 
                         Slider(
                             value: Binding(
-                                get: { Double(appState.buttonBindingTurboRatePressesPerSecond(for: row.slot)) },
-                                set: { appState.updateButtonBindingTurboPressesPerSecond(slot: row.slot, pressesPerSecond: Int(round($0))) }
+                                get: { Double(editorStore.buttonBindingTurboRatePressesPerSecond(for: row.slot)) },
+                                set: { editorStore.updateButtonBindingTurboPressesPerSecond(slot: row.slot, pressesPerSecond: Int(round($0))) }
                             ),
                             in: 1...20
                         )

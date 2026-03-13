@@ -346,7 +346,7 @@ final class USBPassiveDPIEventTests: XCTestCase {
         }
 
         await Task.yield()
-        await appState.refreshDevices()
+        await appState.deviceStore.refreshDevices()
         await backend.emitStateUpdate(
             deviceID: device.id,
             state: makePassiveTestState(
@@ -358,8 +358,8 @@ final class USBPassiveDPIEventTests: XCTestCase {
         )
         try? await Task.sleep(nanoseconds: 50_000_000)
 
-        let liveDpi = await MainActor.run { appState.state?.dpi?.x }
-        let activeStage = await MainActor.run { appState.editableActiveStage }
+        let liveDpi = await MainActor.run { appState.deviceStore.state?.dpi?.x }
+        let activeStage = await MainActor.run { appState.editorStore.editableActiveStage }
 
         XCTAssertEqual(liveDpi, 3200)
         XCTAssertEqual(activeStage, 3)
@@ -384,8 +384,8 @@ final class USBPassiveDPIEventTests: XCTestCase {
         }
 
         await Task.yield()
-        await appState.refreshDevices()
-        await appState.refreshDpiFast()
+        await appState.deviceStore.refreshDevices()
+        await appState.deviceStore.refreshDpiFast()
 
         let fastReadCount = await backend.fastReadCount()
         XCTAssertEqual(fastReadCount, 0)
@@ -410,8 +410,8 @@ final class USBPassiveDPIEventTests: XCTestCase {
         }
 
         await Task.yield()
-        await appState.refreshDevices()
-        await appState.refreshDpiFast()
+        await appState.deviceStore.refreshDevices()
+        await appState.deviceStore.refreshDpiFast()
 
         let fastReadCount = await backend.fastReadCount()
         XCTAssertEqual(fastReadCount, 1)
@@ -441,7 +441,7 @@ final class USBPassiveDPIEventTests: XCTestCase {
 
         try? await Task.sleep(nanoseconds: 50_000_000)
         let refreshTask = Task {
-            await appState.refreshDevices()
+            await appState.deviceStore.refreshDevices()
         }
 
         await backend.waitForReadStateStart()
@@ -455,9 +455,9 @@ final class USBPassiveDPIEventTests: XCTestCase {
         await backend.resumeReadState()
         await refreshTask.value
 
-        let liveDpi = await MainActor.run { appState.state?.dpi?.x }
-        let activeStage = await MainActor.run { appState.editableActiveStage }
-        let lastUpdated = await MainActor.run { appState.lastUpdated }
+        let liveDpi = await MainActor.run { appState.deviceStore.state?.dpi?.x }
+        let activeStage = await MainActor.run { appState.editorStore.editableActiveStage }
+        let lastUpdated = await MainActor.run { appState.deviceStore.lastUpdated }
 
         XCTAssertEqual(liveDpi, 1200)
         XCTAssertEqual(activeStage, 5)
