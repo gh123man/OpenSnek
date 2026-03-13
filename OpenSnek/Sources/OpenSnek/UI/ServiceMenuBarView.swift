@@ -1,4 +1,5 @@
 import AppKit
+import OpenSnekCore
 import SwiftUI
 
 enum ServiceMenuBarPresentation {
@@ -53,16 +54,6 @@ struct ServiceMenuBarView: View {
 
     private var showsDevicePicker: Bool {
         deviceStore.devices.count > 1
-    }
-
-    private var selectedDeviceIDBinding: Binding<String> {
-        Binding(
-            get: { deviceStore.selectedDeviceID ?? deviceStore.devices.first?.id ?? "" },
-            set: { deviceID in
-                guard deviceStore.devices.contains(where: { $0.id == deviceID }) else { return }
-                deviceStore.selectDevice(deviceID)
-            }
-        )
     }
 
     var body: some View {
@@ -134,15 +125,46 @@ struct ServiceMenuBarView: View {
                     Text("Device")
                         .font(.system(size: 10, weight: .bold, design: .rounded))
                         .foregroundStyle(.secondary)
-                    Picker("Device", selection: selectedDeviceIDBinding) {
+                    Menu {
                         ForEach(deviceStore.devices) { device in
-                            Text("\(device.product_name) (\(device.transport.shortLabel))")
-                                .tag(device.id)
+                            Button {
+                                deviceStore.selectDevice(device.id)
+                            } label: {
+                                if device.id == deviceStore.selectedDeviceID {
+                                    Label(devicePickerTitle(for: device), systemImage: "checkmark")
+                                } else {
+                                    Text(devicePickerTitle(for: device))
+                                }
+                            }
                         }
+                    } label: {
+                        HStack(spacing: 10) {
+                            Text(selectedDevicePickerTitle)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+
+                            Spacer(minLength: 8)
+
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.system(size: 11, weight: .black))
+                                .foregroundStyle(.secondary)
+                        }
+                        .font(.system(size: 15, weight: .black, design: .rounded))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.primary.opacity(0.04))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                                )
+                        )
+                        .contentShape(RoundedRectangle(cornerRadius: 10))
                     }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .font(.system(size: 15, weight: .black, design: .rounded))
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } else {
@@ -153,6 +175,7 @@ struct ServiceMenuBarView: View {
                 .font(.system(size: 11, weight: .bold, design: .rounded))
                 .foregroundStyle(.secondary)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var statusRow: some View {
@@ -183,6 +206,7 @@ struct ServiceMenuBarView: View {
         HStack(spacing: 8) {
             ForEach(0..<max(1, editorStore.editableStageCount), id: \.self) { index in
                 let stage = index + 1
+                let stageValue = editorStore.stageValue(index)
                 let isSelected = editorStore.editableActiveStage == stage
                 Button {
                     if !isSelected {
@@ -190,8 +214,10 @@ struct ServiceMenuBarView: View {
                         editorStore.scheduleAutoApplyActiveStage()
                     }
                 } label: {
-                    Text("\(stage)")
+                    Text("\(stageValue)")
                         .font(.system(size: 11, weight: .black, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                         .foregroundStyle(isSelected ? Color.accentColor : .primary)
                         .frame(maxWidth: .infinity, minHeight: 34)
                         .background(
@@ -207,6 +233,17 @@ struct ServiceMenuBarView: View {
                 .buttonStyle(.plain)
             }
         }
+    }
+
+    private var selectedDevicePickerTitle: String {
+        guard let selected = deviceStore.selectedDevice else {
+            return "No device connected"
+        }
+        return devicePickerTitle(for: selected)
+    }
+
+    private func devicePickerTitle(for device: MouseDevice) -> String {
+        "\(device.product_name) (\(device.transport.shortLabel))"
     }
 
     private var dpiSlider: some View {
@@ -266,6 +303,7 @@ struct ServiceMenuBarView: View {
 struct ServiceMenuBarStatusItemLabel: View {
     let deviceStore: DeviceStore
     let editorStore: EditorStore
+    let runtimeStore: RuntimeStore
 
     private var currentDpi: Int? {
         guard deviceStore.state != nil else { return nil }
@@ -279,11 +317,18 @@ struct ServiceMenuBarStatusItemLabel: View {
     }
 
     var body: some View {
-        ServiceMenuBarStatusGlyph(isConnected: deviceStore.selectedDevice != nil)
-            .frame(width: OpenSnekBranding.menuBarIconSide, height: OpenSnekBranding.menuBarIconSide)
-            .fixedSize()
-            .help(helpText)
-            .accessibilityLabel(helpText)
+        Group {
+            if let transientDpi = runtimeStore.statusItemTransientDpi {
+                ServiceMenuBarStatusDpiBadge(dpi: transientDpi)
+                    .frame(width: OpenSnekBranding.menuBarIconSide, height: OpenSnekBranding.menuBarIconSide)
+            } else {
+                ServiceMenuBarStatusGlyph(isConnected: deviceStore.selectedDevice != nil)
+                    .frame(width: OpenSnekBranding.menuBarIconSide, height: OpenSnekBranding.menuBarIconSide)
+                    .fixedSize()
+            }
+        }
+        .help(helpText)
+        .accessibilityLabel(helpText)
     }
 
     private var helpText: String {
@@ -294,6 +339,16 @@ struct ServiceMenuBarStatusItemLabel: View {
             return device.product_name
         }
         return "Open Snek"
+    }
+}
+
+private struct ServiceMenuBarStatusDpiBadge: View {
+    let dpi: Int
+
+    var body: some View {
+        Image(nsImage: OpenSnekBranding.menuBarDpiBadge(dpi: dpi))
+            .interpolation(.high)
+            .antialiased(true)
     }
 }
 

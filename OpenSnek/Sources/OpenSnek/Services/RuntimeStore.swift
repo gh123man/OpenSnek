@@ -8,13 +8,21 @@ final class RuntimeStore {
     var backgroundServiceEnabled: Bool
     var launchAtStartupEnabled: Bool
     var serviceStatusMessage: String?
+    var statusItemTransientDpi: Int?
+    @ObservationIgnored let statusItemDpiDisplayDuration: TimeInterval
 
     @ObservationIgnored private weak var runtimeControllerStorage: AppStateRuntimeController?
 
-    init(environment: AppEnvironment, backgroundServiceEnabled: Bool, launchAtStartupEnabled: Bool) {
+    init(
+        environment: AppEnvironment,
+        backgroundServiceEnabled: Bool,
+        launchAtStartupEnabled: Bool,
+        statusItemDpiDisplayDuration: TimeInterval = 3.0
+    ) {
         self.environment = environment
         self.backgroundServiceEnabled = backgroundServiceEnabled
         self.launchAtStartupEnabled = launchAtStartupEnabled
+        self.statusItemDpiDisplayDuration = statusItemDpiDisplayDuration
     }
 
     func bind(runtimeController: AppStateRuntimeController) {

@@ -40,6 +40,7 @@ All notable changes to this project are documented in this file.
 - `OpenSnekProbe` now includes `usb-input-listen` and `usb-input-values` so USB HID bring-up can capture raw input-report and HID-value callback traffic across every exposed Razer USB interface, which made it possible to confirm that the attached Basilisk V3 Pro still produces zero macOS HID callbacks during live DPI-cycle probing on this host.
 - The menu bar widget now includes a device picker when multiple supported mice are connected, and the service tracks active selections per UI so only the devices currently in use get the faster interactive DPI polling path.
 - The menu bar device picker now follows the last device with meaningful DPI/config activity in the service process, so the compact UI shifts to whichever mouse was just touched without forcing the full app to change selection.
+- The menu bar widget now renders each stage pill with its actual DPI value, uses a full-width device picker control, and briefly swaps the status-item glyph for a stacked `DPI` + raw-value badge after live on-device DPI changes.
 
 ## [2026-03-11]
 

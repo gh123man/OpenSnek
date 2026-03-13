@@ -35,7 +35,8 @@ struct OpenSnekApp: App {
         } label: {
             ServiceMenuBarStatusItemLabel(
                 deviceStore: appState.deviceStore,
-                editorStore: appState.editorStore
+                editorStore: appState.editorStore,
+                runtimeStore: appState.runtimeStore
             )
         }
         .menuBarExtraStyle(.window)

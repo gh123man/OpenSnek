@@ -18,7 +18,8 @@ final class AppState {
         launchRole: OpenSnekProcessRole = .current,
         backend: (any DeviceBackend)? = nil,
         serviceCoordinator: BackgroundServiceCoordinator = .shared,
-        autoStart: Bool = true
+        autoStart: Bool = true,
+        statusItemDpiDisplayDuration: TimeInterval = 3.0
     ) {
         let environment = AppEnvironment(
             launchRole: launchRole,
@@ -32,7 +33,8 @@ final class AppState {
         self.runtimeStore = RuntimeStore(
             environment: environment,
             backgroundServiceEnabled: serviceCoordinator.backgroundServiceEnabled,
-            launchAtStartupEnabled: serviceCoordinator.launchAtStartupEnabled
+            launchAtStartupEnabled: serviceCoordinator.launchAtStartupEnabled,
+            statusItemDpiDisplayDuration: statusItemDpiDisplayDuration
         )
         self.buttonSlots = buttonSlots
         self.deviceController = AppStateDeviceController(

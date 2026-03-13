@@ -197,6 +197,7 @@ final class AppStateDeviceController {
         if shouldFocusOnActivity {
             focusServiceSelectionOnActivity(deviceID: presentationDeviceID)
         }
+        runtimeController.updateStatusItemTransientDpi(previous: previous, next: merged, deviceID: presentationDeviceID)
 
         if deviceStore.selectedDeviceID == presentationDeviceID {
             if deviceStore.state != merged {
@@ -326,6 +327,7 @@ final class AppStateDeviceController {
 
         let changed = previousIDs != newIDs || previousSelectedID != deviceStore.selectedDeviceID
         if changed {
+            runtimeController.clearStatusItemTransientDpi()
             AppLog.event(
                 "AppState",
                 "applyDeviceList source=\(source) count=\(sorted.count) selected=\(deviceStore.selectedDeviceID ?? "nil")"
@@ -374,6 +376,7 @@ final class AppStateDeviceController {
 
     func selectDevice(_ deviceID: String) {
         guard deviceStore.selectedDeviceID != deviceID else { return }
+        runtimeController.clearStatusItemTransientDpi()
         deviceStore.selectedDeviceID = deviceID
         syncSelectedDevicePresentation(deviceID: deviceID)
         if let selectedDevice = deviceStore.selectedDevice {
@@ -787,6 +790,7 @@ final class AppStateDeviceController {
             if shouldFocusOnActivity {
                 focusServiceSelectionOnActivity(deviceID: presentationDeviceID)
             }
+            runtimeController.updateStatusItemTransientDpi(previous: previous, next: merged, deviceID: presentationDeviceID)
 
             if deviceStore.selectedDeviceID == presentationDeviceID {
                 if deviceStore.state != merged {
@@ -953,6 +957,7 @@ final class AppStateDeviceController {
             if shouldFocusOnActivity {
                 focusServiceSelectionOnActivity(deviceID: presentationDeviceID)
             }
+            runtimeController.updateStatusItemTransientDpi(previous: previous, next: updated, deviceID: presentationDeviceID)
             if deviceStore.selectedDeviceID == presentationDeviceID {
                 if deviceStore.state != updated {
                     deviceStore.state = updated

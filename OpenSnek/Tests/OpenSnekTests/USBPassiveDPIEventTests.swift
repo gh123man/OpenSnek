@@ -365,6 +365,53 @@ final class USBPassiveDPIEventTests: XCTestCase {
         XCTAssertEqual(activeStage, 3)
     }
 
+    func testServiceAppStateShowsTransientStatusItemDpiAfterLiveUpdate() async {
+        let device = makePassiveTestDevice(id: "usb-passive-service-badge", transport: .usb)
+        let backend = PassiveUpdateStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makePassiveTestState(
+                    device: device,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800
+                )
+            ],
+            shouldUseFastPolling: false
+        )
+        let appState = await MainActor.run {
+            AppState(
+                launchRole: .service,
+                backend: backend,
+                autoStart: false,
+                statusItemDpiDisplayDuration: 0.05
+            )
+        }
+
+        await Task.yield()
+        await appState.deviceStore.refreshDevices()
+        let initialTransientDpi = await MainActor.run { appState.runtimeStore.statusItemTransientDpi }
+        XCTAssertNil(initialTransientDpi)
+
+        await backend.emitStateUpdate(
+            deviceID: device.id,
+            state: makePassiveTestState(
+                device: device,
+                dpiValues: [800, 1600, 3200],
+                activeStage: 2,
+                dpiValue: 3200
+            )
+        )
+        try? await Task.sleep(nanoseconds: 20_000_000)
+
+        let transientDpi = await MainActor.run { appState.runtimeStore.statusItemTransientDpi }
+        XCTAssertEqual(transientDpi, 3200)
+
+        try? await Task.sleep(nanoseconds: 80_000_000)
+        let clearedTransientDpi = await MainActor.run { appState.runtimeStore.statusItemTransientDpi }
+        XCTAssertNil(clearedTransientDpi)
+    }
+
     func testAppStateSkipsFastPollingWhenPassiveUSBUpdatesAreAvailable() async {
         let device = makePassiveTestDevice(id: "usb-passive-skip", transport: .usb)
         let backend = PassiveUpdateStubBackend(

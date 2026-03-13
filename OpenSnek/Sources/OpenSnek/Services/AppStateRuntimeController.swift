@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import OpenSnekCore
 
 @MainActor
 final class AppStateRuntimeController {
@@ -21,6 +22,7 @@ final class AppStateRuntimeController {
     private var backendStateUpdatesTask: Task<Void, Never>?
     private var remoteClientPresenceByProcessID: [Int32: RemoteClientPresenceState] = [:]
     private var lastRemoteClientPresencePingAt: Date = .distantPast
+    private var statusItemTransientDpiResetTask: Task<Void, Never>?
 
     init(environment: AppEnvironment, deviceStore: DeviceStore, runtimeStore: RuntimeStore) {
         self.environment = environment
@@ -31,6 +33,7 @@ final class AppStateRuntimeController {
     func tearDown() {
         runtimeTask?.cancel()
         backendStateUpdatesTask?.cancel()
+        statusItemTransientDpiResetTask?.cancel()
         if let clientPresenceObserver {
             CrossProcessStateSync.removeObserver(clientPresenceObserver)
         }
@@ -67,6 +70,26 @@ final class AppStateRuntimeController {
 
     func setTransientStatus(until date: Date?) {
         transientStatusUntil = date
+    }
+
+    func clearStatusItemTransientDpi(cancelTask: Bool = true) {
+        if cancelTask {
+            statusItemTransientDpiResetTask?.cancel()
+        }
+        statusItemTransientDpiResetTask = nil
+        runtimeStore.statusItemTransientDpi = nil
+    }
+
+    func updateStatusItemTransientDpi(previous: MouseState?, next: MouseState, deviceID: String) {
+        guard environment.launchRole.isService else { return }
+        guard deviceStore.selectedDeviceID == deviceID else { return }
+        guard let previousDpi = resolvedDpi(from: previous),
+              let nextDpi = resolvedDpi(from: next),
+              previousDpi != nextDpi else {
+            return
+        }
+
+        presentStatusItemTransientDpi(nextDpi)
     }
 
     var currentPollingProfile: PollingProfile {
@@ -170,6 +193,35 @@ final class AppStateRuntimeController {
 
     private func handleRemoteClientPresence(_ presence: CrossProcessClientPresence) async {
         recordRemoteClientPresence(presence)
+    }
+
+    private func resolvedDpi(from state: MouseState?) -> Int? {
+        guard let state else { return nil }
+
+        if let liveDpi = state.dpi?.x, liveDpi > 0 {
+            return liveDpi
+        }
+
+        guard let values = state.dpi_stages.values, !values.isEmpty else { return nil }
+        let active = max(0, min(values.count - 1, state.dpi_stages.active_stage ?? 0))
+        return values[active]
+    }
+
+    private func presentStatusItemTransientDpi(_ dpi: Int) {
+        guard dpi > 0 else { return }
+
+        runtimeStore.statusItemTransientDpi = dpi
+        statusItemTransientDpiResetTask?.cancel()
+        let durationNanos = UInt64(max(0, runtimeStore.statusItemDpiDisplayDuration) * 1_000_000_000)
+        statusItemTransientDpiResetTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: durationNanos)
+            } catch {
+                return
+            }
+
+            self?.clearStatusItemTransientDpi(cancelTask: false)
+        }
     }
 
     func start() async {
