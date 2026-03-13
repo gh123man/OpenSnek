@@ -2,7 +2,7 @@ import AppKit
 
 enum OpenSnekBranding {
     static var menuBarIconSide: CGFloat {
-        max(18, floor(NSStatusBar.system.thickness))
+        max(16, floor(NSStatusBar.system.thickness))
     }
 
     static var menuIcon: NSImage? {
