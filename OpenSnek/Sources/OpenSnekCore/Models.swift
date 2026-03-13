@@ -205,11 +205,18 @@ public struct MouseState: Codable, Hashable, Sendable {
 public extension MouseState {
     func merged(with previous: MouseState?) -> MouseState {
         guard let previous else { return self }
+        let mergedBatteryPercent = battery_percent ?? previous.battery_percent
+        let mergedCharging: Bool?
+        if battery_percent != nil {
+            mergedCharging = charging
+        } else {
+            mergedCharging = charging ?? previous.charging
+        }
         return MouseState(
             device: device.merged(with: previous.device),
             connection: connection,
-            battery_percent: battery_percent ?? previous.battery_percent,
-            charging: charging ?? previous.charging,
+            battery_percent: mergedBatteryPercent,
+            charging: mergedCharging,
             dpi: dpi ?? previous.dpi,
             dpi_stages: DpiStages(
                 active_stage: dpi_stages.active_stage ?? previous.dpi_stages.active_stage,

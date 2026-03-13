@@ -2,24 +2,24 @@ import AppKit
 import OpenSnekCore
 import SwiftUI
 
-enum ServiceMenuBarPresentation {
-    static func batterySymbolName(percent: Int, charging: Bool?) -> String {
-        if charging == true {
-            return "battery.100percent.bolt"
-        }
+struct BatteryIconPresentation: Equatable {
+    let symbolName: String
+    let variableValue: Double
+}
 
-        switch percent {
-        case ..<13:
-            return "battery.0"
-        case ..<38:
-            return "battery.25"
-        case ..<63:
-            return "battery.50"
-        case ..<88:
-            return "battery.75"
-        default:
-            return "battery.100percent"
-        }
+enum BatteryPresentation {
+    static func icon(percent: Int, charging: Bool?) -> BatteryIconPresentation {
+        let clampedPercent = max(0, min(100, percent))
+        return BatteryIconPresentation(
+            symbolName: charging == true ? "battery.100percent.bolt" : "battery.100percent",
+            variableValue: Double(clampedPercent) / 100.0
+        )
+    }
+}
+
+enum ServiceMenuBarPresentation {
+    static func batteryIcon(percent: Int, charging: Bool?) -> BatteryIconPresentation {
+        BatteryPresentation.icon(percent: percent, charging: charging)
     }
 
     static func compactDpiText(for dpi: Int?) -> String? {
@@ -195,12 +195,14 @@ struct ServiceMenuBarView: View {
             Spacer()
 
             if let battery = deviceStore.state?.battery_percent {
+                let batteryIcon = ServiceMenuBarPresentation.batteryIcon(
+                    percent: battery,
+                    charging: deviceStore.state?.charging
+                )
                 HStack(spacing: 4) {
                     Image(
-                        systemName: ServiceMenuBarPresentation.batterySymbolName(
-                            percent: battery,
-                            charging: deviceStore.state?.charging
-                        )
+                        systemName: batteryIcon.symbolName,
+                        variableValue: batteryIcon.variableValue
                     )
                     Text("\(battery)%")
                 }

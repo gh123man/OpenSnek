@@ -4,6 +4,50 @@ import OpenSnekCore
 import OpenSnekHardware
 
 final class BridgeClientBluetoothFallbackTests: XCTestCase {
+    func testResolveBluetoothBatteryStatePreservesKnownVendorFields() {
+        let resolved = BridgeClient.resolveBluetoothBatteryState(
+            vendorRaw: 77,
+            vendorStatus: 1,
+            usbFallback: (12, false)
+        )
+
+        XCTAssertEqual(resolved.percent, 77)
+        XCTAssertEqual(resolved.charging, true)
+    }
+
+    func testResolveBluetoothBatteryStateKeepsChargingUnknownWhenStatusMissing() {
+        let resolved = BridgeClient.resolveBluetoothBatteryState(
+            vendorRaw: 87,
+            vendorStatus: nil,
+            usbFallback: nil
+        )
+
+        XCTAssertEqual(resolved.percent, 87)
+        XCTAssertNil(resolved.charging)
+    }
+
+    func testResolveBluetoothBatteryStateFillsOnlyMissingFieldsFromUSBFallback() {
+        let resolved = BridgeClient.resolveBluetoothBatteryState(
+            vendorRaw: 240,
+            vendorStatus: nil,
+            usbFallback: (20, true)
+        )
+
+        XCTAssertEqual(resolved.percent, 94)
+        XCTAssertEqual(resolved.charging, true)
+    }
+
+    func testResolveBluetoothBatteryStateUsesUSBFallbackWhenVendorBatteryMissing() {
+        let resolved = BridgeClient.resolveBluetoothBatteryState(
+            vendorRaw: nil,
+            vendorStatus: 0,
+            usbFallback: (64, true)
+        )
+
+        XCTAssertEqual(resolved.percent, 64)
+        XCTAssertEqual(resolved.charging, false)
+    }
+
     func testSupportedBluetoothFallbackUsesResolvedProfile() {
         let summary = BLEVendorTransportClient.ConnectedPeripheralSummary(
             name: "Razer Basilisk V3 X HyperSpeed",

@@ -10,12 +10,19 @@ final class ServiceMenuBarPresentationTests: XCTestCase {
         XCTAssertEqual(ServiceMenuBarPresentation.compactDpiText(for: 12_000), "12k")
     }
 
-    func testBatterySymbolNameMatchesChargeBands() {
-        XCTAssertEqual(ServiceMenuBarPresentation.batterySymbolName(percent: 5, charging: false), "battery.0")
-        XCTAssertEqual(ServiceMenuBarPresentation.batterySymbolName(percent: 22, charging: false), "battery.25")
-        XCTAssertEqual(ServiceMenuBarPresentation.batterySymbolName(percent: 55, charging: false), "battery.50")
-        XCTAssertEqual(ServiceMenuBarPresentation.batterySymbolName(percent: 80, charging: false), "battery.75")
-        XCTAssertEqual(ServiceMenuBarPresentation.batterySymbolName(percent: 99, charging: false), "battery.100percent")
-        XCTAssertEqual(ServiceMenuBarPresentation.batterySymbolName(percent: 33, charging: true), "battery.100percent.bolt")
+    func testBatteryIconUsesAdaptiveSymbolAndSharedPresentation() {
+        let shared = BatteryPresentation.icon(percent: 33, charging: true)
+        let compactMenu = ServiceMenuBarPresentation.batteryIcon(percent: 33, charging: true)
+
+        XCTAssertEqual(shared, compactMenu)
+        XCTAssertEqual(shared.symbolName, "battery.100percent.bolt")
+        XCTAssertEqual(shared.variableValue, 0.33, accuracy: 0.001)
+    }
+
+    func testBatteryIconClampsVariableValueToPercentBounds() {
+        XCTAssertEqual(BatteryPresentation.icon(percent: -10, charging: false).variableValue, 0.0, accuracy: 0.001)
+        XCTAssertEqual(BatteryPresentation.icon(percent: 58, charging: nil).variableValue, 0.58, accuracy: 0.001)
+        XCTAssertEqual(BatteryPresentation.icon(percent: 120, charging: false).variableValue, 1.0, accuracy: 0.001)
+        XCTAssertEqual(BatteryPresentation.icon(percent: 58, charging: nil).symbolName, "battery.100percent")
     }
 }

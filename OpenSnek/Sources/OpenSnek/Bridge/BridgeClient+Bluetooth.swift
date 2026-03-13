@@ -4,6 +4,11 @@ import OpenSnekHardware
 import OpenSnekProtocols
 
 extension BridgeClient {
+    struct BluetoothBatteryState: Equatable {
+        let percent: Int?
+        let charging: Bool?
+    }
+
     private func btHex(_ data: Data) -> String {
         data.map { String(format: "%02x", $0) }.joined()
     }
@@ -18,6 +23,21 @@ extension BridgeClient {
             .joined(separator: " | ")
     }
 
+    static func resolveBluetoothBatteryState(
+        vendorRaw: Int?,
+        vendorStatus: Int?,
+        usbFallback: (Int, Bool)?
+    ) -> BluetoothBatteryState {
+        let vendorPercent = vendorRaw.map { raw in
+            raw <= 100 ? raw : Int((Double(raw) / 255.0) * 100.0)
+        }
+
+        return BluetoothBatteryState(
+            percent: vendorPercent ?? usbFallback?.0,
+            charging: vendorStatus.map { $0 == 1 } ?? usbFallback?.1
+        )
+    }
+
     func readBluetoothState(device: MouseDevice, session: USBHIDControlSession?) async throws -> MouseState {
         let btStages = (try? await btGetDpiStages(device: device))
             ?? btDpiSnapshotByDeviceID[device.id].map { snapshot in
@@ -28,14 +48,12 @@ extension BridgeClient {
         let lighting = (try? await btGetScalar(device: device, key: .lightingGet, size: 1)) ?? nil
         let sleepTimeout = (try? await btGetScalar(device: device, key: .powerTimeoutGet, size: 2)) ?? nil
 
-        let batteryPct: Int?
-        if let batteryRaw {
-            batteryPct = batteryRaw <= 100 ? batteryRaw : Int((Double(batteryRaw) / 255.0) * 100.0)
-        } else if let session {
-            batteryPct = (try? getBattery(session, device))??.0
-        } else {
-            batteryPct = nil
-        }
+        let usbBatteryFallback = session.flatMap { try? getBattery($0, device) }
+        let batteryState = Self.resolveBluetoothBatteryState(
+            vendorRaw: batteryRaw,
+            vendorStatus: batteryStatus,
+            usbFallback: usbBatteryFallback
+        )
 
         return MouseState(
             device: DeviceSummary(
@@ -46,8 +64,8 @@ extension BridgeClient {
                 firmware: nil
             ),
             connection: "Bluetooth",
-            battery_percent: batteryPct,
-            charging: batteryStatus == 1,
+            battery_percent: batteryState.percent,
+            charging: batteryState.charging,
             dpi: {
                 guard
                     let active = btStages?.active,
