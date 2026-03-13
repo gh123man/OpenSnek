@@ -2,7 +2,7 @@ import SwiftUI
 import OpenSnekCore
 
 struct DeviceSidebarView: View {
-    @Bindable var appState: AppState
+    let deviceStore: DeviceStore
 
     var body: some View {
         ZStack {
@@ -38,7 +38,7 @@ struct DeviceSidebarView: View {
 
                 ScrollView {
                     LazyVStack(spacing: 6) {
-                        if appState.devices.isEmpty {
+                        if deviceStore.devices.isEmpty {
                             Text("No supported device found")
                                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                                 .foregroundStyle(.white.opacity(0.6))
@@ -46,13 +46,13 @@ struct DeviceSidebarView: View {
                                 .padding(.top, 6)
                         }
 
-                        ForEach(appState.devices) { device in
+                        ForEach(deviceStore.devices) { device in
                             Button {
-                                appState.selectDevice(device.id)
+                                deviceStore.selectDevice(device.id)
                             } label: {
                                 DeviceRow(
                                     device: device,
-                                    isSelected: appState.selectedDeviceID == device.id
+                                    isSelected: deviceStore.selectedDeviceID == device.id
                                 )
                             }
                             .buttonStyle(.plain)
@@ -62,7 +62,7 @@ struct DeviceSidebarView: View {
                 }
                 .frame(maxHeight: .infinity)
 
-                if let availableUpdate = appState.availableUpdate {
+                if let availableUpdate = deviceStore.availableUpdate {
                     Button {
                         NSWorkspace.shared.open(availableUpdate.releaseURL)
                     } label: {

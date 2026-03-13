@@ -39,26 +39,28 @@ enum ServiceMenuBarPresentation {
 }
 
 struct ServiceMenuBarView: View {
-    @Bindable var appState: AppState
+    let deviceStore: DeviceStore
+    let editorStore: EditorStore
+    let runtimeStore: RuntimeStore
 
     private var showsDeviceControls: Bool {
-        appState.selectedDevice != nil && appState.state != nil
+        deviceStore.selectedDevice != nil && deviceStore.state != nil
     }
 
     private var controlsEnabled: Bool {
-        appState.selectedDeviceControlsEnabled
+        deviceStore.selectedDeviceControlsEnabled
     }
 
     private var showsDevicePicker: Bool {
-        appState.devices.count > 1
+        deviceStore.devices.count > 1
     }
 
     private var selectedDeviceIDBinding: Binding<String> {
         Binding(
-            get: { appState.selectedDeviceID ?? appState.devices.first?.id ?? "" },
+            get: { deviceStore.selectedDeviceID ?? deviceStore.devices.first?.id ?? "" },
             set: { deviceID in
-                guard appState.devices.contains(where: { $0.id == deviceID }) else { return }
-                appState.selectDevice(deviceID)
+                guard deviceStore.devices.contains(where: { $0.id == deviceID }) else { return }
+                deviceStore.selectDevice(deviceID)
             }
         )
     }
@@ -69,7 +71,7 @@ struct ServiceMenuBarView: View {
             statusRow
             if showsDeviceControls {
                 VStack(alignment: .leading, spacing: 10) {
-                    if !controlsEnabled, let message = appState.selectedDeviceInteractionMessage {
+                    if !controlsEnabled, let message = deviceStore.selectedDeviceInteractionMessage {
                         Text(message)
                             .font(.system(size: 11, weight: .bold, design: .rounded))
                             .foregroundStyle(.secondary)
@@ -82,13 +84,13 @@ struct ServiceMenuBarView: View {
                     .disabled(!controlsEnabled)
                     .opacity(controlsEnabled ? 1.0 : 0.45)
 
-                    if let message = appState.compactStatusMessage {
+                    if let message = runtimeStore.compactStatusMessage {
                         Text(message)
                             .font(.system(size: 11, weight: .bold, design: .rounded))
                             .foregroundStyle(.secondary)
                     }
                 }
-            } else if let message = appState.selectedDeviceInteractionMessage {
+            } else if let message = deviceStore.selectedDeviceInteractionMessage {
                 Text(message)
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
@@ -99,29 +101,29 @@ struct ServiceMenuBarView: View {
             }
             Divider()
             actionRow("Show Open Snek", systemImage: "rectangle.on.rectangle") {
-                appState.openFullAppFromService()
+                runtimeStore.openFullAppFromService()
             }
             actionRow("Settings…", systemImage: "gearshape") {
-                appState.openSettingsFromService()
+                runtimeStore.openSettingsFromService()
             }
             actionRow("Quit", systemImage: "power") {
-                appState.terminateServiceProcess()
+                runtimeStore.terminateServiceProcess()
             }
         }
         .padding(16)
         .frame(width: 320)
         .task {
-            await appState.start()
+            await runtimeStore.start()
         }
-        .task(id: appState.selectedDeviceID) {
-            guard let device = appState.selectedDevice else { return }
-            await appState.refreshConnectionDiagnostics(for: device)
+        .task(id: deviceStore.selectedDeviceID) {
+            guard let device = deviceStore.selectedDevice else { return }
+            await deviceStore.refreshConnectionDiagnostics(for: device)
         }
         .onAppear {
-            appState.setCompactMenuPresented(true)
+            runtimeStore.setCompactMenuPresented(true)
         }
         .onDisappear {
-            appState.setCompactMenuPresented(false)
+            runtimeStore.setCompactMenuPresented(false)
         }
     }
 
@@ -133,7 +135,7 @@ struct ServiceMenuBarView: View {
                         .font(.system(size: 10, weight: .bold, design: .rounded))
                         .foregroundStyle(.secondary)
                     Picker("Device", selection: selectedDeviceIDBinding) {
-                        ForEach(appState.devices) { device in
+                        ForEach(deviceStore.devices) { device in
                             Text("\(device.product_name) (\(device.transport.shortLabel))")
                                 .tag(device.id)
                         }
@@ -144,10 +146,10 @@ struct ServiceMenuBarView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } else {
-                Text(appState.selectedDevice?.product_name ?? "No device connected")
+                Text(deviceStore.selectedDevice?.product_name ?? "No device connected")
                     .font(.system(size: 15, weight: .black, design: .rounded))
             }
-            Text(appState.selectedDevice?.connectionLabel ?? "Waiting for a supported mouse")
+            Text(deviceStore.selectedDevice?.connectionLabel ?? "Waiting for a supported mouse")
                 .font(.system(size: 11, weight: .bold, design: .rounded))
                 .foregroundStyle(.secondary)
         }
@@ -155,18 +157,18 @@ struct ServiceMenuBarView: View {
 
     private var statusRow: some View {
         HStack(spacing: 10) {
-            Label(appState.currentDeviceStatusIndicator.label, systemImage: "circle.fill")
-                .foregroundStyle(appState.currentDeviceStatusIndicator.color)
+            Label(deviceStore.currentDeviceStatusIndicator.label, systemImage: "circle.fill")
+                .foregroundStyle(deviceStore.currentDeviceStatusIndicator.color)
                 .font(.system(size: 11, weight: .bold, design: .rounded))
 
             Spacer()
 
-            if let battery = appState.state?.battery_percent {
+            if let battery = deviceStore.state?.battery_percent {
                 HStack(spacing: 4) {
                     Image(
                         systemName: ServiceMenuBarPresentation.batterySymbolName(
                             percent: battery,
-                            charging: appState.state?.charging
+                            charging: deviceStore.state?.charging
                         )
                     )
                     Text("\(battery)%")
@@ -179,13 +181,13 @@ struct ServiceMenuBarView: View {
 
     private var stagePicker: some View {
         HStack(spacing: 8) {
-            ForEach(0..<max(1, appState.editableStageCount), id: \.self) { index in
+            ForEach(0..<max(1, editorStore.editableStageCount), id: \.self) { index in
                 let stage = index + 1
-                let isSelected = appState.editableActiveStage == stage
+                let isSelected = editorStore.editableActiveStage == stage
                 Button {
                     if !isSelected {
-                        appState.editableActiveStage = stage
-                        appState.scheduleAutoApplyActiveStage()
+                        editorStore.editableActiveStage = stage
+                        editorStore.scheduleAutoApplyActiveStage()
                     }
                 } label: {
                     Text("\(stage)")
@@ -210,25 +212,25 @@ struct ServiceMenuBarView: View {
     private var dpiSlider: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Stage \(appState.editableActiveStage) DPI")
+                Text("Stage \(editorStore.editableActiveStage) DPI")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                 Spacer()
-                Text("\(appState.compactActiveStageValue)")
+                Text("\(editorStore.compactActiveStageValue)")
                     .font(.system(size: 12, weight: .black, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
             Slider(
                 value: Binding(
-                    get: { Double(appState.compactActiveStageValue) },
+                    get: { Double(editorStore.compactActiveStageValue) },
                     set: { newValue in
                         let quantized = Int(round(newValue / 100.0) * 100.0)
-                        appState.updateStage(appState.compactActiveStageIndex, value: quantized)
-                        appState.scheduleAutoApplyDpi()
+                        editorStore.updateStage(editorStore.compactActiveStageIndex, value: quantized)
+                        editorStore.scheduleAutoApplyDpi()
                     }
                 ),
                 in: 100...30000,
                 onEditingChanged: { editing in
-                    appState.isEditingDpiControl = editing
+                    editorStore.isEditingDpiControl = editing
                 }
             )
         }
@@ -262,32 +264,33 @@ struct ServiceMenuBarView: View {
 }
 
 struct ServiceMenuBarStatusItemLabel: View {
-    @Bindable var appState: AppState
+    let deviceStore: DeviceStore
+    let editorStore: EditorStore
 
     private var currentDpi: Int? {
-        guard appState.state != nil else { return nil }
+        guard deviceStore.state != nil else { return nil }
 
-        if let liveDpi = appState.state?.dpi?.x, liveDpi > 0 {
+        if let liveDpi = deviceStore.state?.dpi?.x, liveDpi > 0 {
             return liveDpi
         }
 
-        let fallback = appState.compactActiveStageValue
+        let fallback = editorStore.compactActiveStageValue
         return fallback > 0 ? fallback : nil
     }
 
     var body: some View {
-        ServiceMenuBarStatusGlyph(isConnected: appState.selectedDevice != nil)
+        ServiceMenuBarStatusGlyph(isConnected: deviceStore.selectedDevice != nil)
             .frame(width: OpenSnekBranding.menuBarIconSide, height: OpenSnekBranding.menuBarIconSide)
             .fixedSize()
-        .help(helpText)
-        .accessibilityLabel(helpText)
+            .help(helpText)
+            .accessibilityLabel(helpText)
     }
 
     private var helpText: String {
-        if let device = appState.selectedDevice, let currentDpi {
+        if let device = deviceStore.selectedDevice, let currentDpi {
             return "\(device.product_name), \(currentDpi) DPI"
         }
-        if let device = appState.selectedDevice {
+        if let device = deviceStore.selectedDevice {
             return device.product_name
         }
         return "Open Snek"

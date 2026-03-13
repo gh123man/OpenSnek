@@ -61,7 +61,7 @@ final class BackgroundServiceCoordinatorTests: XCTestCase {
         }
 
         await MainActor.run {
-            appState.prepareForCurrentServiceProcessTermination()
+            appState.runtimeStore.prepareForCurrentServiceProcessTermination()
         }
 
         let backgroundServiceEnabled = await MainActor.run { coordinator.backgroundServiceEnabled }

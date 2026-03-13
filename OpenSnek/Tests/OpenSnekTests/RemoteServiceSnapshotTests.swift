@@ -9,7 +9,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
             AppState(launchRole: .app, backend: SnapshotTestRemoteBackend(), autoStart: false)
         }
 
-        let usesRemoteSnapshots = await MainActor.run { appState.usesRemoteServiceUpdates }
+        let usesRemoteSnapshots = await MainActor.run { appState.environment.usesRemoteServiceUpdates }
         XCTAssertTrue(usesRemoteSnapshots)
     }
 
@@ -41,13 +41,13 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         )
 
         await MainActor.run {
-            appState.applyRemoteServiceSnapshot(snapshot)
+            appState.deviceStore.applyRemoteServiceSnapshot(snapshot)
         }
 
-        let selectedDeviceID = await MainActor.run { appState.selectedDeviceID }
-        let selectedDpi = await MainActor.run { appState.state?.dpi?.x }
-        let activeStage = await MainActor.run { appState.editableActiveStage }
-        let pollRate = await MainActor.run { appState.editablePollRate }
+        let selectedDeviceID = await MainActor.run { appState.deviceStore.selectedDeviceID }
+        let selectedDpi = await MainActor.run { appState.deviceStore.state?.dpi?.x }
+        let activeStage = await MainActor.run { appState.editorStore.editableActiveStage }
+        let pollRate = await MainActor.run { appState.editorStore.editablePollRate }
 
         XCTAssertEqual(selectedDeviceID, device.id)
         XCTAssertEqual(selectedDpi, 2400)
@@ -128,15 +128,15 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         )
 
         await MainActor.run {
-            appState.applyRemoteServiceSnapshot(initialSnapshot)
-            appState.selectDevice(usbDevice.id)
-            appState.applyRemoteServiceSnapshot(laterSnapshot)
+            appState.deviceStore.applyRemoteServiceSnapshot(initialSnapshot)
+            appState.deviceStore.selectDevice(usbDevice.id)
+            appState.deviceStore.applyRemoteServiceSnapshot(laterSnapshot)
         }
 
-        let selectedDeviceID = await MainActor.run { appState.selectedDeviceID }
-        let selectedDpi = await MainActor.run { appState.state?.dpi?.x }
-        let selectedBattery = await MainActor.run { appState.state?.battery_percent }
-        let activeStage = await MainActor.run { appState.editableActiveStage }
+        let selectedDeviceID = await MainActor.run { appState.deviceStore.selectedDeviceID }
+        let selectedDpi = await MainActor.run { appState.deviceStore.state?.dpi?.x }
+        let selectedBattery = await MainActor.run { appState.deviceStore.state?.battery_percent }
+        let activeStage = await MainActor.run { appState.editorStore.editableActiveStage }
 
         XCTAssertEqual(selectedDeviceID, usbDevice.id)
         XCTAssertEqual(selectedDpi, 900)
@@ -192,15 +192,15 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         )
 
         await MainActor.run {
-            appState.applyRemoteServiceSnapshot(snapshot)
-            appState.selectDevice(alphaDevice.id)
+            appState.deviceStore.applyRemoteServiceSnapshot(snapshot)
+            appState.deviceStore.selectDevice(alphaDevice.id)
         }
-        let staleLabel = await MainActor.run { appState.currentDeviceStatusIndicator.label }
+        let staleLabel = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
 
         await MainActor.run {
-            appState.selectDevice(betaDevice.id)
+            appState.deviceStore.selectDevice(betaDevice.id)
         }
-        let freshLabel = await MainActor.run { appState.currentDeviceStatusIndicator.label }
+        let freshLabel = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
 
         XCTAssertEqual(staleLabel, "Reconnecting")
         XCTAssertEqual(freshLabel, "Connected")
@@ -253,13 +253,13 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         )
 
         await MainActor.run {
-            appState.applyRemoteServiceSnapshot(newerSnapshot)
-            appState.applyRemoteServiceSnapshot(olderSnapshot)
+            appState.deviceStore.applyRemoteServiceSnapshot(newerSnapshot)
+            appState.deviceStore.applyRemoteServiceSnapshot(olderSnapshot)
         }
 
-        let selectedDpi = await MainActor.run { appState.state?.dpi?.x }
-        let selectedBattery = await MainActor.run { appState.state?.battery_percent }
-        let activeStage = await MainActor.run { appState.editableActiveStage }
+        let selectedDpi = await MainActor.run { appState.deviceStore.state?.dpi?.x }
+        let selectedBattery = await MainActor.run { appState.deviceStore.state?.battery_percent }
+        let activeStage = await MainActor.run { appState.editorStore.editableActiveStage }
 
         XCTAssertEqual(selectedDpi, 1100)
         XCTAssertEqual(selectedBattery, 75)

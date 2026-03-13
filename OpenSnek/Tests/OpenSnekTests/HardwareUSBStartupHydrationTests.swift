@@ -95,11 +95,11 @@ final class HardwareUSBStartupHydrationTests: XCTestCase {
             UserDefaults.standard.set(conflictingData, forKey: cacheKey)
 
             let appState = await MainActor.run { AppState() }
-            await appState.refreshDevices()
-            await MainActor.run { appState.selectedDeviceID = usb.id }
-            await appState.refreshState()
+            await appState.deviceStore.refreshDevices()
+            await MainActor.run { appState.deviceStore.selectDevice(usb.id) }
+            await appState.deviceStore.refreshState()
 
-            let hydratedKind = await MainActor.run { appState.buttonBindingKind(for: slot) }
+            let hydratedKind = await MainActor.run { appState.editorStore.buttonBindingKind(for: slot) }
             XCTAssertEqual(hydratedKind, .rightClick, "Startup hydration should prefer USB readback over stale cache")
         } catch {
             await restoreOriginal()

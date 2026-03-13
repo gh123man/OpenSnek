@@ -59,11 +59,11 @@ final class UnsupportedDeviceHandlingTests: XCTestCase {
             firmware: nil
         )
 
-        appState.devices = [unsupportedUSB]
-        appState.selectedDeviceID = unsupportedUSB.id
+        appState.deviceStore.devices = [unsupportedUSB]
+        appState.deviceStore.selectedDeviceID = unsupportedUSB.id
 
-        XCTAssertTrue(appState.selectedDeviceIsUnsupportedUSB)
-        XCTAssertFalse(appState.selectedDeviceIsStrictlyUnsupported)
+        XCTAssertTrue(appState.deviceStore.selectedDeviceIsUnsupportedUSB)
+        XCTAssertFalse(appState.deviceStore.selectedDeviceIsStrictlyUnsupported)
 
         let unsupportedBluetooth = MouseDevice(
             id: "bt-unsupported",
@@ -76,10 +76,10 @@ final class UnsupportedDeviceHandlingTests: XCTestCase {
             firmware: nil
         )
 
-        appState.devices = [unsupportedBluetooth]
-        appState.selectedDeviceID = unsupportedBluetooth.id
+        appState.deviceStore.devices = [unsupportedBluetooth]
+        appState.deviceStore.selectedDeviceID = unsupportedBluetooth.id
 
-        XCTAssertFalse(appState.selectedDeviceIsUnsupportedUSB)
-        XCTAssertTrue(appState.selectedDeviceIsStrictlyUnsupported)
+        XCTAssertFalse(appState.deviceStore.selectedDeviceIsUnsupportedUSB)
+        XCTAssertTrue(appState.deviceStore.selectedDeviceIsStrictlyUnsupported)
     }
 }

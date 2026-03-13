@@ -337,12 +337,32 @@ final actor LocalBridgeBackend: DeviceBackend {
     }
 
     func readState(device: MouseDevice) async throws -> MouseState {
+        let readStartedAt = Date()
         if let cachedAt = cachedStateAtByDeviceID[device.id],
-           let cached = cachedStateByDeviceID[device.id],
-           Date().timeIntervalSince(cachedAt) < 1.0 {
+           let cached = cachedStateByDeviceID[device.id] {
+            let shouldUseFastPolling = device.transport == .bluetooth
+                ? await client.shouldUseFastDPIPolling(device: device)
+                : true
+            if Self.shouldReuseCachedStateForRead(
+                device: device,
+                cachedAt: cachedAt,
+                now: readStartedAt,
+                shouldUseFastDPIPolling: shouldUseFastPolling
+            ) {
+                return cached
+            }
+        }
+
+        let state = try await client.readState(device: device)
+        if Self.completedReadWasSuperseded(startedAt: readStartedAt, latestCachedAt: cachedStateAtByDeviceID[device.id]),
+           let cached = cachedStateByDeviceID[device.id] {
+            AppLog.debug(
+                "Backend",
+                "readState stale-result masked device=\(device.id) startedAt=\(readStartedAt.timeIntervalSince1970) " +
+                "cachedAt=\(cachedStateAtByDeviceID[device.id]?.timeIntervalSince1970 ?? 0)"
+            )
             return cached
         }
-        let state = try await client.readState(device: device)
         cachedStateByDeviceID[device.id] = state
         cachedStateAtByDeviceID[device.id] = Date()
         reconnectSeedStateByDeviceID[device.id] = state
@@ -351,12 +371,22 @@ final actor LocalBridgeBackend: DeviceBackend {
     }
 
     func readDpiStagesFast(device: MouseDevice) async throws -> DpiFastSnapshot? {
+        let readStartedAt = Date()
         if let cachedAt = cachedFastAtByDeviceID[device.id],
            let cached = cachedFastByDeviceID[device.id],
-           Date().timeIntervalSince(cachedAt) < 0.2 {
+           readStartedAt.timeIntervalSince(cachedAt) < 0.2 {
             return cached
         }
         guard let snapshot = try await client.readDpiStagesFast(device: device) else { return nil }
+        if Self.completedReadWasSuperseded(startedAt: readStartedAt, latestCachedAt: cachedFastAtByDeviceID[device.id]),
+           let cached = cachedFastByDeviceID[device.id] {
+            AppLog.debug(
+                "Backend",
+                "readDpiFast stale-result masked device=\(device.id) startedAt=\(readStartedAt.timeIntervalSince1970) " +
+                "cachedAt=\(cachedFastAtByDeviceID[device.id]?.timeIntervalSince1970 ?? 0)"
+            )
+            return cached
+        }
         let fast = DpiFastSnapshot(active: snapshot.active, values: snapshot.values)
         cachedFastByDeviceID[device.id] = fast
         cachedFastAtByDeviceID[device.id] = Date()
@@ -407,6 +437,24 @@ final actor LocalBridgeBackend: DeviceBackend {
 
     private func removeStateUpdateContinuation(id: UUID) {
         stateUpdateContinuations.removeValue(forKey: id)
+    }
+
+    nonisolated static func shouldReuseCachedStateForRead(
+        device: MouseDevice,
+        cachedAt: Date,
+        now: Date,
+        shouldUseFastDPIPolling: Bool
+    ) -> Bool {
+        guard now.timeIntervalSince(cachedAt) < 1.0 else { return false }
+        if device.transport == .bluetooth, !shouldUseFastDPIPolling {
+            return false
+        }
+        return true
+    }
+
+    nonisolated static func completedReadWasSuperseded(startedAt: Date, latestCachedAt: Date?) -> Bool {
+        guard let latestCachedAt else { return false }
+        return latestCachedAt > startedAt
     }
 
     private func handleDevicePresenceEvent(_ event: HIDDevicePresenceEvent) {
