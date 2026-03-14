@@ -181,6 +181,8 @@ TxnID:    0x1F
 ```
 
 Validated slot ids on Basilisk V3 X HyperSpeed (`0x00B9`): `0x01..0x05`, `0x09`, `0x0A`, `0x60`.
+Known rejection on Basilisk V3 X HyperSpeed (`0x00B9`):
+- `0x06`: Hypershift / Boss-sniper control returns status `0x03` on `0x02:0x8C` reads and is not exposed by the validated USB button-function path
 
 Validated slot ids on Basilisk V3 Pro (`0x00AB`): `0x01..0x05`, `0x09`, `0x0A`, `0x0F`, `0x34`, `0x35`, `0x6A`.
 Observed control labels on `0x00AB`:
@@ -217,6 +219,7 @@ Validated function block examples:
 Client note:
 - USB function blocks are not BLE `p0/p1/p2` payloads. Use `class,len,data[]` encoding directly.
 - Legacy non-analog write command `0x02:0x0D` is still observed in ecosystem notes but is fallback-only on this device.
+- On Basilisk V3 X HyperSpeed (`0x00B9`), the Hypershift / Boss-sniper control (`0x06`) rejects `0x02:0x8C` button reads with status `0x03`; do not treat it as part of the writable/readable USB button-function slot set.
 - Basilisk V3 Pro (`0x00AB`) and Basilisk V3 35K (`0x00CB`) `0x02:0x8C` reads do not use the simpler Basilisk V3 X payload shape. Observed extended-layout slots decode from `response[11..<18]`; treating `response[10...]` as the block causes false positives and mislabels on extra controls.
 - Always validate the echoed `profile` and `slot` bytes before decoding a `0x02:0x8C` read. This device will otherwise yield stale-looking success frames that can be mistaken for additional slots.
 - OpenSnek normalizes both `06 01 06 00 00 00 00` and the observed `0x60` variant `04 02 0F 7B 00 00 00` as the user-facing `DPI Cycle` action.
