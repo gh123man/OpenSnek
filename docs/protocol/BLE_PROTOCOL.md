@@ -466,7 +466,10 @@ Examples:
 
 Special case:
 
-- slot `0x60` default (DPI cycle):
+- slot `0x06` is the separate Hypershift / Boss-sniper control and is not covered by the default-binding examples below
+- slot `0x60` is the top DPI button; its native/default binding is `DPI cycle`
+
+- slot `0x60` default binding (top DPI button -> DPI cycle):
   - `01 60 00 06 01 06 00 00 00 00`
 
 #### 6.5.4 Slot Coverage
