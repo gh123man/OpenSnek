@@ -99,7 +99,8 @@ The workflow will:
 2. archive/export the app with Xcode
 3. notarize and staple the `.app`
 4. create a styled drag-install DMG, then sign, notarize, and staple it
-5. upload `OpenSnek-<version>.dmg` to the matching GitHub Release
+5. publish the latest top section from `CHANGELOG.md` as the GitHub Release notes
+6. upload `OpenSnek-<version>.dmg` to the matching GitHub Release
 
 ## Validation
 

@@ -19,6 +19,14 @@ jobs:
       - name: Install xcodegen
         run: brew install xcodegen
 
+      - name: Generate release notes from changelog
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_NOTES_PATH="$RUNNER_TEMP/release-notes.md"
+          python3 OpenSnek/scripts/extract_release_notes.py CHANGELOG.md > "$RELEASE_NOTES_PATH"
+          echo "RELEASE_NOTES_PATH=$RELEASE_NOTES_PATH" >> "$GITHUB_ENV"
+
       - name: Decode signing assets
         shell: bash
         env:
@@ -100,6 +108,9 @@ jobs:
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
           DMG_PATH="OpenSnek/.release/artifacts/OpenSnek-${VERSION}.dmg"
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
-            gh release create "$GITHUB_REF_NAME" --title "OpenSnek ${VERSION}" --generate-notes
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --title "OpenSnek ${VERSION}" --notes-file "$RELEASE_NOTES_PATH"
+          else
+            gh release create "$GITHUB_REF_NAME" --title "OpenSnek ${VERSION}" --notes-file "$RELEASE_NOTES_PATH"
+          fi
           gh release upload "$GITHUB_REF_NAME" "$DMG_PATH" --clobber
