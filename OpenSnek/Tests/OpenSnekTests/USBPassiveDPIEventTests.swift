@@ -103,25 +103,25 @@ final class USBPassiveDPIEventTests: XCTestCase {
 
     func testPassiveDpiObservedStateResetsWhenRegistrationChanges() {
         let unchanged = BridgeClient.reconciledObservedPassiveDpiDeviceIDs(
-            observedDeviceIDs: ["bt-device", "usb-device"],
-            previousTargetPointersByDeviceID: [
-                "bt-device": [0x01],
-                "usb-device": [0x11, 0x12],
+            observedDeviceIDs: ["bt-device:bluetooth", "usb-device"],
+            previousTargetIDsByDeviceID: [
+                "bt-device:bluetooth": ["bt-a"],
+                "usb-device": ["usb-a", "usb-b"],
             ],
-            nextTargetPointersByDeviceID: [
-                "bt-device": [0x01],
-                "usb-device": [0x21, 0x22],
+            nextTargetIDsByDeviceID: [
+                "bt-device:bluetooth": ["bt-b"],
+                "usb-device": ["usb-c", "usb-d"],
             ]
         )
         let removed = BridgeClient.reconciledObservedPassiveDpiDeviceIDs(
-            observedDeviceIDs: ["bt-device"],
-            previousTargetPointersByDeviceID: [
-                "bt-device": [0x01],
+            observedDeviceIDs: ["bt-device:bluetooth"],
+            previousTargetIDsByDeviceID: [
+                "bt-device:bluetooth": ["bt-a"],
             ],
-            nextTargetPointersByDeviceID: [:]
+            nextTargetIDsByDeviceID: [:]
         )
 
-        XCTAssertEqual(unchanged, ["bt-device"])
+        XCTAssertEqual(unchanged, ["bt-device:bluetooth"])
         XCTAssertTrue(removed.isEmpty)
     }
 
@@ -151,6 +151,39 @@ final class USBPassiveDPIEventTests: XCTestCase {
         )
 
         XCTAssertTrue(shouldReuse)
+    }
+
+    func testBluetoothPassiveObservationResetsAfterWatchdogDetectsMissedChange() {
+        let device = makePassiveTestDevice(id: "bt-watchdog", transport: .bluetooth)
+        let now = Date(timeIntervalSince1970: 1_773_600_011)
+
+        let shouldReset = BridgeClient.shouldResetBluetoothPassiveObservation(
+            previousState: makePassiveTestState(
+                device: device,
+                dpiValues: [800, 900, 1000, 1100, 1200],
+                activeStage: 1,
+                dpiValue: 900
+            ),
+            active: 3,
+            values: [800, 900, 1000, 1100, 1200],
+            lastObservedAt: now.addingTimeInterval(-0.6),
+            now: now
+        )
+        let shouldKeepRealtime = BridgeClient.shouldResetBluetoothPassiveObservation(
+            previousState: makePassiveTestState(
+                device: device,
+                dpiValues: [800, 900, 1000, 1100, 1200],
+                activeStage: 1,
+                dpiValue: 900
+            ),
+            active: 3,
+            values: [800, 900, 1000, 1100, 1200],
+            lastObservedAt: now.addingTimeInterval(-0.1),
+            now: now
+        )
+
+        XCTAssertTrue(shouldReset)
+        XCTAssertFalse(shouldKeepRealtime)
     }
 
     func testCompletedPollingReadIsMaskedWhenNewerCachedStateLandsDuringRead() {
@@ -275,6 +308,29 @@ final class USBPassiveDPIEventTests: XCTestCase {
 
         XCTAssertNil(wrongSubtype)
         XCTAssertNil(outOfRange)
+    }
+
+    func testPassiveBluetoothParserClassifiesHeartbeatFramesSeparatelyFromDpiFrames() {
+        let descriptor = try! XCTUnwrap(
+            DeviceProfiles.resolve(vendorID: 0x068E, productID: 0x00BA, transport: .bluetooth)?.passiveDPIInput
+        )
+
+        let heartbeat = PassiveDPIParser.classify(
+            report: [0x05, 0x05, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+            descriptor: descriptor
+        )
+        let dpi = PassiveDPIParser.classify(
+            report: [0x05, 0x05, 0x02, 0x04, 0x4C, 0x04, 0x4C, 0x00, 0x00],
+            descriptor: descriptor
+        )
+        let other = PassiveDPIParser.classify(
+            report: [0x01, 0x00, 0x00, 0x00, 0x00, 0x00],
+            descriptor: descriptor
+        )
+
+        XCTAssertEqual(heartbeat, .heartbeat)
+        XCTAssertEqual(dpi, .dpi(PassiveDPIReading(dpiX: 1100, dpiY: 1100)))
+        XCTAssertEqual(other, .other)
     }
 
     func testPassiveUSBMergeUpdatesActiveStageOnlyForUniqueMatch() {

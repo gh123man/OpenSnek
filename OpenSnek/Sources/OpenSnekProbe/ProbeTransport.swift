@@ -890,6 +890,821 @@ final class USBInputValueProbe: @unchecked Sendable {
     }
 }
 
+struct PassiveDPIProbeEvent: Sendable {
+    let deviceID: String
+    let deviceLabel: String
+    let transport: DeviceTransportKind
+    let dpiX: Int
+    let dpiY: Int
+    let elapsedSeconds: Double
+    let idleGapSeconds: Double
+    let eventCount: Int
+}
+
+struct PassiveDPIProbeHeartbeat: Sendable {
+    let elapsedSeconds: Double
+    let totalEvents: Int
+    let deviceStatuses: [String]
+}
+
+struct PassiveDPIProbeStats: Sendable {
+    let totalEvents: Int
+}
+
+struct PassiveDPIRawProbeEvent: Sendable {
+    let deviceID: String
+    let deviceLabel: String
+    let transport: DeviceTransportKind
+    let reportLength: Int
+    let reportPreview: String
+    let parsedReading: PassiveDPIReading?
+    let elapsedSeconds: Double
+    let rawGapSeconds: Double
+    let parsedIdleSeconds: Double
+    let callbackCount: Int
+    let parsedCount: Int
+    let rejectedCount: Int
+}
+
+struct PassiveDPIRawProbeHeartbeat: Sendable {
+    let elapsedSeconds: Double
+    let totalCallbacks: Int
+    let totalParsed: Int
+    let totalRejected: Int
+    let deviceStatuses: [String]
+}
+
+struct PassiveDPIRawReportShapeSummary: Sendable {
+    let signature: String
+    let count: Int
+    let parsedCount: Int
+    let rejectedCount: Int
+}
+
+struct PassiveDPIRawParsedContext: Sendable {
+    let deviceLabel: String
+    let elapsedSeconds: Double
+    let parsedSignature: String
+    let parsedReading: PassiveDPIReading
+    let precedingSignatures: [String]
+}
+
+struct PassiveDPIRawProbeStats: Sendable {
+    let totalCallbacks: Int
+    let totalParsed: Int
+    let totalRejected: Int
+    let topShapes: [PassiveDPIRawReportShapeSummary]
+    let parsedContexts: [PassiveDPIRawParsedContext]
+}
+
+private struct PassiveDPIProbeCandidate: @unchecked Sendable {
+    let device: MouseDevice
+    let name: String
+    let usagePage: Int
+    let usage: Int
+    let maxInputReportSize: Int
+    let maxFeatureReportSize: Int
+    let target: PassiveDPIEventMonitor.WatchTarget
+
+    var label: String {
+        "\(name) [\(device.transport.rawValue)]"
+    }
+
+    func describe() -> String {
+        String(
+            format: "candidate device=%@ transport=%@ pid=0x%04x usage=0x%02x:0x%02x input=%d feature=%d id=%@",
+            name,
+            device.transport.rawValue,
+            device.product_id,
+            usagePage,
+            usage,
+            maxInputReportSize,
+            maxFeatureReportSize,
+            device.id
+        )
+    }
+}
+
+private func passiveDPIReportPreview(_ report: [UInt8], limit: Int = 12) -> String {
+    let preview = report.prefix(max(1, limit))
+    let hex = preview.map { String(format: "%02x", $0) }.joined(separator: " ")
+    return report.count > limit ? "\(hex) ..." : hex
+}
+
+private func passiveDPIReportSignature(_ report: [UInt8]) -> String {
+    report.map { String(format: "%02x", $0) }.joined(separator: " ")
+}
+
+private func shouldIncludeBluetoothProbeDevice(
+    hidDeviceName: String,
+    connectedPeripheralNames: [String?]?
+) -> Bool {
+    guard let connectedPeripheralNames else { return true }
+    guard !connectedPeripheralNames.isEmpty else { return false }
+    guard let normalizedHIDName = BluetoothNameMatcher.normalized(hidDeviceName) else { return true }
+
+    var sawUnknownConnectedName = false
+    for connectedName in connectedPeripheralNames {
+        guard let normalizedConnectedName = BluetoothNameMatcher.normalized(connectedName) else {
+            sawUnknownConnectedName = true
+            continue
+        }
+        if normalizedHIDName == normalizedConnectedName ||
+            normalizedHIDName.contains(normalizedConnectedName) ||
+            normalizedConnectedName.contains(normalizedHIDName) {
+            return true
+        }
+    }
+
+    return sawUnknownConnectedName
+}
+
+private func passiveDPIProbeTargetID(
+    usagePage: Int,
+    usage: Int,
+    maxInput: Int,
+    maxFeature: Int
+) -> String {
+    "\(usagePage):\(usage):\(maxInput):\(maxFeature)"
+}
+
+private func enumeratePassiveDPIProbeCandidates(
+    transport preferredTransport: DeviceTransportKind?,
+    productID preferredProductID: Int?,
+    preferredName: String?
+) async throws -> (manager: IOHIDManager, candidates: [PassiveDPIProbeCandidate]) {
+    let usbVID = 0x1532
+    let btVID = 0x068E
+    let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
+    IOHIDManagerSetDeviceMatchingMultiple(manager, [
+        [kIOHIDVendorIDKey: usbVID] as CFDictionary,
+        [kIOHIDVendorIDKey: btVID] as CFDictionary,
+    ] as CFArray)
+
+    let openResult = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+    guard openResult == kIOReturnSuccess else {
+        throw ProbeError.protocolError("IOHIDManagerOpen failed (\(openResult))")
+    }
+
+    let connectedBluetoothNames = await BLEVendorTransportClient().connectedPeripheralSummaries()?.map(\.name)
+    let devices = ((IOHIDManagerCopyDevices(manager) as NSSet?)?.allObjects ?? []).map { $0 as! IOHIDDevice }
+
+    var candidates: [PassiveDPIProbeCandidate] = []
+    for hidDevice in devices {
+        guard
+            let vendorID = USBHIDSupport.intProperty(hidDevice, key: kIOHIDVendorIDKey as CFString),
+            (vendorID == usbVID || vendorID == btVID),
+            let productID = USBHIDSupport.intProperty(hidDevice, key: kIOHIDProductIDKey as CFString)
+        else {
+            continue
+        }
+
+        let name = USBHIDSupport.stringProperty(hidDevice, key: kIOHIDProductKey as CFString) ?? "Razer Mouse"
+        let transportRaw = (USBHIDSupport.stringProperty(hidDevice, key: kIOHIDTransportKey as CFString) ?? "").lowercased()
+        let transport: DeviceTransportKind = transportRaw.contains("bluetooth") || vendorID == btVID ? .bluetooth : .usb
+        if let preferredTransport, transport != preferredTransport { continue }
+        if let preferredProductID, productID != preferredProductID { continue }
+        if let preferredName,
+           !BluetoothNameMatcher.looselyMatches(name, preferredName),
+           !name.localizedCaseInsensitiveContains(preferredName) {
+            continue
+        }
+        if transport == .bluetooth,
+           !shouldIncludeBluetoothProbeDevice(
+            hidDeviceName: name,
+            connectedPeripheralNames: connectedBluetoothNames
+           ) {
+            continue
+        }
+
+        let profile = DeviceProfiles.resolve(vendorID: vendorID, productID: productID, transport: transport)
+        guard let descriptor = profile?.passiveDPIInput else { continue }
+
+        let usagePage = USBHIDSupport.intProperty(hidDevice, key: kIOHIDPrimaryUsagePageKey as CFString) ?? -1
+        let usage = USBHIDSupport.intProperty(hidDevice, key: kIOHIDPrimaryUsageKey as CFString) ?? -1
+        let maxInputReportSize = USBHIDSupport.intProperty(hidDevice, key: kIOHIDMaxInputReportSizeKey as CFString) ?? 0
+        let maxFeatureReportSize = USBHIDSupport.intProperty(hidDevice, key: kIOHIDMaxFeatureReportSizeKey as CFString) ?? 0
+        guard usagePage == descriptor.usagePage,
+              usage == descriptor.usage,
+              maxInputReportSize >= descriptor.minInputReportSize
+        else {
+            continue
+        }
+        if let expectedMaxFeatureReportSize = descriptor.maxFeatureReportSize,
+           maxFeatureReportSize != expectedMaxFeatureReportSize {
+            continue
+        }
+
+        let locationID = USBHIDSupport.intProperty(hidDevice, key: kIOHIDLocationIDKey as CFString) ?? 0
+        let serial = USBHIDSupport.stringProperty(hidDevice, key: kIOHIDSerialNumberKey as CFString)
+        let deviceID = String(format: "%04x:%04x:%08x:%@", vendorID, productID, locationID, transport.rawValue)
+        let target = PassiveDPIEventMonitor.WatchTarget(
+            deviceID: deviceID,
+            targetID: passiveDPIProbeTargetID(
+                usagePage: usagePage,
+                usage: usage,
+                maxInput: maxInputReportSize,
+                maxFeature: maxFeatureReportSize
+            ),
+            device: hidDevice,
+            descriptor: descriptor
+        )
+        let device = MouseDevice(
+            id: deviceID,
+            vendor_id: vendorID,
+            product_id: productID,
+            product_name: name,
+            transport: transport,
+            path_b64: "",
+            serial: serial,
+            firmware: nil,
+            location_id: locationID,
+            profile_id: profile?.id,
+            button_layout: profile?.buttonLayout,
+            supports_advanced_lighting_effects: profile?.supportsAdvancedLightingEffects ?? false,
+            onboard_profile_count: profile?.onboardProfileCount ?? 1
+        )
+
+        candidates.append(
+            PassiveDPIProbeCandidate(
+                device: device,
+                name: name,
+                usagePage: usagePage,
+                usage: usage,
+                maxInputReportSize: maxInputReportSize,
+                maxFeatureReportSize: maxFeatureReportSize,
+                target: target
+            )
+        )
+    }
+
+    guard !candidates.isEmpty else {
+        throw ProbeError.protocolError("No passive DPI HID targets matched the current filters")
+    }
+
+    let sorted = candidates.sorted { lhs, rhs in
+        if lhs.device.transport != rhs.device.transport {
+            return lhs.device.transport.rawValue < rhs.device.transport.rawValue
+        }
+        if lhs.name != rhs.name { return lhs.name < rhs.name }
+        return lhs.device.id < rhs.device.id
+    }
+    return (manager, sorted)
+}
+
+final class PassiveDPIRawProbe: @unchecked Sendable {
+    private final class CallbackContext {
+        let emit: @Sendable ([UInt8], Date) -> Void
+
+        init(emit: @escaping @Sendable ([UInt8], Date) -> Void) {
+            self.emit = emit
+        }
+    }
+
+    private struct Registration {
+        let device: IOHIDDevice
+        let buffer: UnsafeMutablePointer<UInt8>
+        let bufferLength: CFIndex
+        let context: UnsafeMutableRawPointer
+    }
+
+    private actor State {
+        struct DeviceSnapshot {
+            let callbackCount: Int
+            let parsedCount: Int
+            let rejectedCount: Int
+            let rawGapSeconds: Double
+            let parsedIdleSeconds: Double
+        }
+
+        private struct ShapeCounter {
+            var count = 0
+            var parsedCount = 0
+            var rejectedCount = 0
+        }
+
+        private let startedAt: Date
+        private var totalCallbacks = 0
+        private var totalParsed = 0
+        private var totalRejected = 0
+        private var callbackCountsByDeviceID: [String: Int] = [:]
+        private var parsedCountsByDeviceID: [String: Int] = [:]
+        private var rejectedCountsByDeviceID: [String: Int] = [:]
+        private var lastCallbackAtByDeviceID: [String: Date] = [:]
+        private var lastParsedAtByDeviceID: [String: Date] = [:]
+        private var recentSignaturesByDeviceID: [String: [String]] = [:]
+        private var shapeCountsBySignature: [String: ShapeCounter] = [:]
+        private var parsedContexts: [PassiveDPIRawParsedContext] = []
+
+        init(startedAt: Date) {
+            self.startedAt = startedAt
+        }
+
+        func record(
+            deviceLabel: String,
+            deviceID: String,
+            reportSignature: String,
+            observedAt: Date,
+            parsedReading: PassiveDPIReading?
+        ) -> DeviceSnapshot {
+            totalCallbacks += 1
+            callbackCountsByDeviceID[deviceID, default: 0] += 1
+            let previousCallbackAt = lastCallbackAtByDeviceID[deviceID] ?? startedAt
+            lastCallbackAtByDeviceID[deviceID] = observedAt
+
+            var shapeCounter = shapeCountsBySignature[reportSignature] ?? ShapeCounter()
+            shapeCounter.count += 1
+
+            let precedingSignatures = Array(recentSignaturesByDeviceID[deviceID, default: []].suffix(5))
+            if parsedReading != nil {
+                totalParsed += 1
+                parsedCountsByDeviceID[deviceID, default: 0] += 1
+                lastParsedAtByDeviceID[deviceID] = observedAt
+                shapeCounter.parsedCount += 1
+                if let parsedReading {
+                    parsedContexts.append(
+                        PassiveDPIRawParsedContext(
+                            deviceLabel: deviceLabel,
+                            elapsedSeconds: observedAt.timeIntervalSince(startedAt),
+                            parsedSignature: reportSignature,
+                            parsedReading: parsedReading,
+                            precedingSignatures: precedingSignatures
+                        )
+                    )
+                    if parsedContexts.count > 16 {
+                        parsedContexts.removeFirst(parsedContexts.count - 16)
+                    }
+                }
+            } else {
+                totalRejected += 1
+                rejectedCountsByDeviceID[deviceID, default: 0] += 1
+                shapeCounter.rejectedCount += 1
+            }
+            shapeCountsBySignature[reportSignature] = shapeCounter
+            recentSignaturesByDeviceID[deviceID, default: []].append(reportSignature)
+            if let signatures = recentSignaturesByDeviceID[deviceID], signatures.count > 8 {
+                recentSignaturesByDeviceID[deviceID] = Array(signatures.suffix(8))
+            }
+
+            let lastParsedAt = lastParsedAtByDeviceID[deviceID] ?? startedAt
+            return DeviceSnapshot(
+                callbackCount: callbackCountsByDeviceID[deviceID] ?? 0,
+                parsedCount: parsedCountsByDeviceID[deviceID] ?? 0,
+                rejectedCount: rejectedCountsByDeviceID[deviceID] ?? 0,
+                rawGapSeconds: max(0, observedAt.timeIntervalSince(previousCallbackAt)),
+                parsedIdleSeconds: max(0, observedAt.timeIntervalSince(lastParsedAt))
+            )
+        }
+
+        func heartbeat(now: Date, candidates: [PassiveDPIProbeCandidate]) -> PassiveDPIRawProbeHeartbeat {
+            PassiveDPIRawProbeHeartbeat(
+                elapsedSeconds: now.timeIntervalSince(startedAt),
+                totalCallbacks: totalCallbacks,
+                totalParsed: totalParsed,
+                totalRejected: totalRejected,
+                deviceStatuses: candidates.map { candidate in
+                    let callbackCount = callbackCountsByDeviceID[candidate.device.id] ?? 0
+                    let parsedCount = parsedCountsByDeviceID[candidate.device.id] ?? 0
+                    let rejectedCount = rejectedCountsByDeviceID[candidate.device.id] ?? 0
+                    let rawIdle = now.timeIntervalSince(lastCallbackAtByDeviceID[candidate.device.id] ?? startedAt)
+                    let parsedIdle = now.timeIntervalSince(lastParsedAtByDeviceID[candidate.device.id] ?? startedAt)
+                    return String(
+                        format: "%@ callbacks=%d parsed=%d rejected=%d rawIdle=%.3fs parsedIdle=%.3fs",
+                        candidate.label,
+                        callbackCount,
+                        parsedCount,
+                        rejectedCount,
+                        max(0, rawIdle),
+                        max(0, parsedIdle)
+                    )
+                }
+            )
+        }
+
+        func snapshot() -> PassiveDPIRawProbeStats {
+            let topShapes = shapeCountsBySignature
+                .map { signature, counter in
+                    PassiveDPIRawReportShapeSummary(
+                        signature: signature,
+                        count: counter.count,
+                        parsedCount: counter.parsedCount,
+                        rejectedCount: counter.rejectedCount
+                    )
+                }
+                .sorted { lhs, rhs in
+                    if lhs.count != rhs.count { return lhs.count > rhs.count }
+                    return lhs.signature < rhs.signature
+                }
+            return PassiveDPIRawProbeStats(
+                totalCallbacks: totalCallbacks,
+                totalParsed: totalParsed,
+                totalRejected: totalRejected,
+                topShapes: Array(topShapes.prefix(8)),
+                parsedContexts: parsedContexts
+            )
+        }
+    }
+
+    private let manager: IOHIDManager
+    private let candidates: [PassiveDPIProbeCandidate]
+    private let queue = DispatchQueue(label: "open.snek.probe.passive-dpi-raw")
+    private let runLoopStateLock = NSLock()
+    private var runLoop: CFRunLoop?
+    private var thread: Thread?
+    private var keepAlivePort: Port?
+    private var registrationsByDeviceID: [String: Registration] = [:]
+
+    var candidateCount: Int { candidates.count }
+
+    private init(manager: IOHIDManager, candidates: [PassiveDPIProbeCandidate]) {
+        self.manager = manager
+        self.candidates = candidates
+    }
+
+    deinit {
+        stopSynchronously()
+        IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+    }
+
+    static func make(
+        transport: DeviceTransportKind?,
+        productID: Int?,
+        preferredName: String?
+    ) async throws -> PassiveDPIRawProbe {
+        let enumeration = try await enumeratePassiveDPIProbeCandidates(
+            transport: transport,
+            productID: productID,
+            preferredName: preferredName
+        )
+        return PassiveDPIRawProbe(
+            manager: enumeration.manager,
+            candidates: enumeration.candidates
+        )
+    }
+
+    func describeCandidates() -> [String] {
+        candidates.map { $0.describe() }
+    }
+
+    func capture(
+        duration: TimeInterval,
+        heartbeatSeconds: TimeInterval,
+        onReport: @escaping @Sendable (PassiveDPIRawProbeEvent) -> Void,
+        onHeartbeat: @escaping @Sendable (PassiveDPIRawProbeHeartbeat) -> Void
+    ) async throws -> PassiveDPIRawProbeStats {
+        let startedAt = Date()
+        let state = State(startedAt: startedAt)
+        let candidatesByDeviceID = Dictionary(uniqueKeysWithValues: candidates.map { ($0.device.id, $0) })
+
+        try await start { deviceID, report, observedAt in
+            guard let candidate = candidatesByDeviceID[deviceID] else { return }
+            let parsedReading = PassiveDPIParser.parse(report: report, descriptor: candidate.target.descriptor)
+            let reportSignature = passiveDPIReportSignature(report)
+            Task {
+                let snapshot = await state.record(
+                    deviceLabel: candidate.label,
+                    deviceID: deviceID,
+                    reportSignature: reportSignature,
+                    observedAt: observedAt,
+                    parsedReading: parsedReading
+                )
+                onReport(
+                    PassiveDPIRawProbeEvent(
+                        deviceID: deviceID,
+                        deviceLabel: candidate.label,
+                        transport: candidate.device.transport,
+                        reportLength: report.count,
+                        reportPreview: passiveDPIReportPreview(report),
+                        parsedReading: parsedReading,
+                        elapsedSeconds: observedAt.timeIntervalSince(startedAt),
+                        rawGapSeconds: snapshot.rawGapSeconds,
+                        parsedIdleSeconds: snapshot.parsedIdleSeconds,
+                        callbackCount: snapshot.callbackCount,
+                        parsedCount: snapshot.parsedCount,
+                        rejectedCount: snapshot.rejectedCount
+                    )
+                )
+            }
+        }
+        defer { stopSynchronously() }
+
+        let deadline = duration > 0 ? startedAt.addingTimeInterval(duration) : nil
+        var nextHeartbeatAt = startedAt
+        while !Task.isCancelled {
+            let now = Date()
+            if let deadline, now >= deadline {
+                break
+            }
+            if now >= nextHeartbeatAt {
+                onHeartbeat(await state.heartbeat(now: now, candidates: candidates))
+                nextHeartbeatAt = now.addingTimeInterval(max(0.1, heartbeatSeconds))
+            }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+
+        return await state.snapshot()
+    }
+
+    private func start(
+        onReport: @escaping @Sendable (String, [UInt8], Date) -> Void
+    ) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            queue.async {
+                self.ensureRunLoopLocked()
+                self.performOnRunLoopLocked {
+                    self.removeAllRegistrations()
+                    for candidate in self.candidates {
+                        _ = self.addRegistration(candidate: candidate, onReport: onReport)
+                    }
+                    if self.registrationsByDeviceID.isEmpty {
+                        continuation.resume(throwing: ProbeError.protocolError("Failed to register any passive DPI raw callbacks"))
+                    } else {
+                        continuation.resume()
+                    }
+                }
+            }
+        }
+    }
+
+    private func ensureRunLoopLocked() {
+        runLoopStateLock.lock()
+        if runLoop != nil {
+            runLoopStateLock.unlock()
+            return
+        }
+        runLoopStateLock.unlock()
+
+        let ready = DispatchSemaphore(value: 0)
+        let thread = Thread { [weak self] in
+            guard let self else {
+                ready.signal()
+                return
+            }
+
+            let keepAlivePort = Port()
+            RunLoop.current.add(keepAlivePort, forMode: .default)
+            let currentRunLoop = CFRunLoopGetCurrent()
+
+            self.runLoopStateLock.lock()
+            self.keepAlivePort = keepAlivePort
+            self.runLoop = currentRunLoop
+            self.runLoopStateLock.unlock()
+            ready.signal()
+
+            while !Thread.current.isCancelled {
+                let _: Void = autoreleasepool {
+                    CFRunLoopRunInMode(CFRunLoopMode.defaultMode, 1.0, false)
+                }
+            }
+        }
+        thread.name = "open.snek.probe.passive-dpi-raw"
+        runLoopStateLock.lock()
+        self.thread = thread
+        runLoopStateLock.unlock()
+        thread.start()
+        ready.wait()
+    }
+
+    private func performOnRunLoopLocked(_ block: @escaping () -> Void) {
+        guard let runLoop else {
+            block()
+            return
+        }
+        CFRunLoopPerformBlock(runLoop, CFRunLoopMode.defaultMode.rawValue, block)
+        CFRunLoopWakeUp(runLoop)
+    }
+
+    private func addRegistration(
+        candidate: PassiveDPIProbeCandidate,
+        onReport: @escaping @Sendable (String, [UInt8], Date) -> Void
+    ) -> Bool {
+        let openResult = IOHIDDeviceOpen(candidate.target.device, IOOptionBits(kIOHIDOptionsTypeNone))
+        guard openResult == kIOReturnSuccess else { return false }
+
+        let reportLength = max(
+            candidate.target.descriptor.minInputReportSize,
+            candidate.maxInputReportSize
+        )
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: reportLength)
+        buffer.initialize(repeating: 0, count: reportLength)
+
+        let contextBox = CallbackContext { report, observedAt in
+            onReport(candidate.device.id, report, observedAt)
+        }
+        let context = UnsafeMutableRawPointer(Unmanaged.passRetained(contextBox).toOpaque())
+
+        IOHIDDeviceScheduleWithRunLoop(candidate.target.device, CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
+        IOHIDDeviceRegisterInputReportCallback(
+            candidate.target.device,
+            buffer,
+            CFIndex(reportLength),
+            Self.inputReportCallback,
+            context
+        )
+
+        registrationsByDeviceID[candidate.device.id] = Registration(
+            device: candidate.target.device,
+            buffer: buffer,
+            bufferLength: CFIndex(reportLength),
+            context: context
+        )
+        return true
+    }
+
+    private func removeAllRegistrations() {
+        for deviceID in Array(registrationsByDeviceID.keys) {
+            removeRegistration(deviceID: deviceID)
+        }
+    }
+
+    private func removeRegistration(deviceID: String) {
+        guard let registration = registrationsByDeviceID.removeValue(forKey: deviceID) else { return }
+        IOHIDDeviceUnscheduleFromRunLoop(
+            registration.device,
+            CFRunLoopGetCurrent(),
+            CFRunLoopMode.defaultMode.rawValue
+        )
+        IOHIDDeviceClose(registration.device, IOOptionBits(kIOHIDOptionsTypeNone))
+        registration.buffer.deinitialize(count: Int(registration.bufferLength))
+        registration.buffer.deallocate()
+        Unmanaged<CallbackContext>.fromOpaque(registration.context).release()
+    }
+
+    private func stopSynchronously() {
+        let stopped = DispatchSemaphore(value: 0)
+        queue.async {
+            guard self.runLoop != nil || !self.registrationsByDeviceID.isEmpty else {
+                stopped.signal()
+                return
+            }
+            self.performOnRunLoopLocked {
+                self.removeAllRegistrations()
+                self.runLoopStateLock.lock()
+                let runLoop = self.runLoop
+                let thread = self.thread
+                self.keepAlivePort = nil
+                self.runLoop = nil
+                self.thread = nil
+                self.runLoopStateLock.unlock()
+                thread?.cancel()
+                if let runLoop {
+                    CFRunLoopStop(runLoop)
+                    CFRunLoopWakeUp(runLoop)
+                }
+                stopped.signal()
+            }
+        }
+        stopped.wait()
+    }
+
+    private static let inputReportCallback: IOHIDReportCallback = { context, result, _, reportType, _, report, reportLength in
+        guard result == kIOReturnSuccess, reportType == kIOHIDReportTypeInput, let context else { return }
+        let callbackContext = Unmanaged<CallbackContext>.fromOpaque(context).takeUnretainedValue()
+        let bytes = Array(UnsafeBufferPointer(start: report, count: max(0, reportLength)))
+        callbackContext.emit(bytes, Date())
+    }
+}
+
+final class PassiveDPIProbe: @unchecked Sendable {
+    private actor State {
+        private let startedAt: Date
+        private var totalEvents = 0
+        private var eventCountsByDeviceID: [String: Int] = [:]
+        private var lastObservedAtByDeviceID: [String: Date] = [:]
+
+        init(startedAt: Date) {
+            self.startedAt = startedAt
+        }
+
+        func record(event: PassiveDPIEvent) -> (elapsedSeconds: Double, idleGapSeconds: Double, eventCount: Int) {
+            totalEvents += 1
+            let previousObservedAt = lastObservedAtByDeviceID[event.deviceID] ?? startedAt
+            let deviceEventCount = (eventCountsByDeviceID[event.deviceID] ?? 0) + 1
+            eventCountsByDeviceID[event.deviceID] = deviceEventCount
+            lastObservedAtByDeviceID[event.deviceID] = event.observedAt
+            return (
+                elapsedSeconds: event.observedAt.timeIntervalSince(startedAt),
+                idleGapSeconds: max(0, event.observedAt.timeIntervalSince(previousObservedAt)),
+                eventCount: totalEvents
+            )
+        }
+
+        func heartbeat(now: Date, candidates: [PassiveDPIProbeCandidate]) -> PassiveDPIProbeHeartbeat {
+            PassiveDPIProbeHeartbeat(
+                elapsedSeconds: now.timeIntervalSince(startedAt),
+                totalEvents: totalEvents,
+                deviceStatuses: candidates.map { candidate in
+                    let count = eventCountsByDeviceID[candidate.device.id] ?? 0
+                    let idleSeconds = now.timeIntervalSince(lastObservedAtByDeviceID[candidate.device.id] ?? startedAt)
+                    return String(
+                        format: "%@ count=%d idle=%.3fs",
+                        candidate.label,
+                        count,
+                        max(0, idleSeconds)
+                    )
+                }
+            )
+        }
+
+        func snapshot() -> PassiveDPIProbeStats {
+            PassiveDPIProbeStats(totalEvents: totalEvents)
+        }
+    }
+
+    private let manager: IOHIDManager
+    private let candidates: [PassiveDPIProbeCandidate]
+    private let monitor = PassiveDPIEventMonitor()
+
+    var candidateCount: Int { candidates.count }
+
+    private init(manager: IOHIDManager, candidates: [PassiveDPIProbeCandidate]) {
+        self.manager = manager
+        self.candidates = candidates
+    }
+
+    deinit {
+        IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+    }
+
+    static func make(
+        transport: DeviceTransportKind?,
+        productID: Int?,
+        preferredName: String?
+    ) async throws -> PassiveDPIProbe {
+        let enumeration = try await enumeratePassiveDPIProbeCandidates(
+            transport: transport,
+            productID: productID,
+            preferredName: preferredName
+        )
+        return PassiveDPIProbe(
+            manager: enumeration.manager,
+            candidates: enumeration.candidates
+        )
+    }
+
+    func describeCandidates() -> [String] {
+        candidates.map { $0.describe() }
+    }
+
+    func capture(
+        duration: TimeInterval,
+        heartbeatSeconds: TimeInterval,
+        onEvent: @escaping @Sendable (PassiveDPIProbeEvent) -> Void,
+        onHeartbeat: @escaping @Sendable (PassiveDPIProbeHeartbeat) -> Void
+    ) async throws -> PassiveDPIProbeStats {
+        let activeDeviceIDs = await monitor.replaceTargets(candidates.map(\.target))
+        guard !activeDeviceIDs.isEmpty else {
+            throw ProbeError.protocolError("Failed to register any passive DPI HID listeners")
+        }
+        defer {
+            Task {
+                _ = await self.monitor.replaceTargets([])
+            }
+        }
+
+        let startedAt = Date()
+        let state = State(startedAt: startedAt)
+        let candidatesByDeviceID = Dictionary(uniqueKeysWithValues: candidates.map { ($0.device.id, $0) })
+
+        monitor.onEvent = { event in
+            guard let candidate = candidatesByDeviceID[event.deviceID] else { return }
+            Task {
+                let recorded = await state.record(event: event)
+                onEvent(
+                    PassiveDPIProbeEvent(
+                        deviceID: event.deviceID,
+                        deviceLabel: candidate.label,
+                        transport: candidate.device.transport,
+                        dpiX: event.dpiX,
+                        dpiY: event.dpiY,
+                        elapsedSeconds: recorded.elapsedSeconds,
+                        idleGapSeconds: recorded.idleGapSeconds,
+                        eventCount: recorded.eventCount
+                    )
+                )
+            }
+        }
+
+        let deadline = duration > 0 ? startedAt.addingTimeInterval(duration) : nil
+        var nextHeartbeatAt = startedAt
+        while !Task.isCancelled {
+            let now = Date()
+            if let deadline, now >= deadline {
+                break
+            }
+            if now >= nextHeartbeatAt {
+                let heartbeat = await state.heartbeat(now: now, candidates: candidates)
+                onHeartbeat(heartbeat)
+                nextHeartbeatAt = now.addingTimeInterval(max(0.1, heartbeatSeconds))
+            }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+
+        monitor.onEvent = nil
+        return await state.snapshot()
+    }
+}
+
 actor ProbeBridge {
     private let vendor = BLEVendorTransportClient()
     private var reqID: UInt8 = 0x30

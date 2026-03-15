@@ -4,6 +4,8 @@ import OpenSnekCore
 
 @MainActor
 final class AppStateRuntimeController {
+    private static let serviceIdleFallbackFastDpiInterval: TimeInterval = 0.5
+
     private let environment: AppEnvironment
     private unowned let deviceStore: DeviceStore
     private unowned let runtimeStore: RuntimeStore
@@ -20,6 +22,8 @@ final class AppStateRuntimeController {
     private(set) var isBackendReady = false
     private var clientPresenceObserver: NSObjectProtocol?
     private var backendStateUpdatesTask: Task<Void, Never>?
+    private var pendingBackendDeviceStateUpdates: [String: (state: MouseState, updatedAt: Date)] = [:]
+    private var backendDeviceStateFlushTask: Task<Void, Never>?
     private var remoteClientPresenceByProcessID: [Int32: RemoteClientPresenceState] = [:]
     private var lastRemoteClientPresencePingAt: Date = .distantPast
     private var statusItemTransientDpiResetTask: Task<Void, Never>?
@@ -33,6 +37,7 @@ final class AppStateRuntimeController {
     func tearDown() {
         runtimeTask?.cancel()
         backendStateUpdatesTask?.cancel()
+        backendDeviceStateFlushTask?.cancel()
         statusItemTransientDpiResetTask?.cancel()
         if let clientPresenceObserver {
             CrossProcessStateSync.removeObserver(clientPresenceObserver)
@@ -120,6 +125,16 @@ final class AppStateRuntimeController {
         pollingProfile(at: Date())
     }
 
+    func effectiveFastDpiInterval(at now: Date) -> TimeInterval? {
+        let profile = pollingProfile(at: now)
+        if let fastInterval = profile.fastDpiInterval {
+            return fastInterval
+        }
+
+        guard profile == .serviceIdle else { return nil }
+        return activeFastPollingDeviceIDs(at: now).isEmpty ? nil : Self.serviceIdleFallbackFastDpiInterval
+    }
+
     func pollingProfile(at now: Date) -> PollingProfile {
         if !environment.launchRole.isService {
             return .foreground
@@ -193,6 +208,8 @@ final class AppStateRuntimeController {
 
     func restartBackendStateUpdates() async {
         backendStateUpdatesTask?.cancel()
+        backendDeviceStateFlushTask?.cancel()
+        pendingBackendDeviceStateUpdates.removeAll()
         let stream = await environment.backend.stateUpdates()
         backendStateUpdatesTask = Task { [weak self] in
             guard let self else { return }
@@ -206,12 +223,59 @@ final class AppStateRuntimeController {
         guard isBackendReady else { return }
         switch update {
         case .deviceList(let devices, _):
+            flushPendingBackendDeviceStateUpdates()
             await deviceController.handleBackendDeviceListUpdate(devices)
         case .snapshot(let snapshot):
             guard environment.usesRemoteServiceUpdates else { return }
+            flushPendingBackendDeviceStateUpdates()
             deviceController.applyRemoteServiceSnapshot(snapshot)
+        case .dpiTransportStatus(let deviceID, let status, _):
+            flushPendingBackendDeviceStateUpdates()
+            deviceController.applyBackendDpiTransportStatusUpdate(deviceID: deviceID, status: status)
         case .deviceState(let deviceID, let updatedState, let updatedAt):
-            deviceController.applyBackendDeviceStateUpdate(deviceID: deviceID, state: updatedState, updatedAt: updatedAt)
+            enqueueBackendDeviceStateUpdate(
+                deviceID: deviceID,
+                state: updatedState,
+                updatedAt: updatedAt
+            )
+        }
+    }
+
+    private func enqueueBackendDeviceStateUpdate(
+        deviceID: String,
+        state: MouseState,
+        updatedAt: Date
+    ) {
+        if let existing = pendingBackendDeviceStateUpdates[deviceID],
+           existing.updatedAt > updatedAt {
+            return
+        }
+        pendingBackendDeviceStateUpdates[deviceID] = (state: state, updatedAt: updatedAt)
+        guard backendDeviceStateFlushTask == nil else { return }
+
+        backendDeviceStateFlushTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: 16_000_000)
+            } catch {
+                return
+            }
+            self?.flushPendingBackendDeviceStateUpdates()
+        }
+    }
+
+    private func flushPendingBackendDeviceStateUpdates() {
+        backendDeviceStateFlushTask?.cancel()
+        backendDeviceStateFlushTask = nil
+        guard !pendingBackendDeviceStateUpdates.isEmpty else { return }
+
+        let pending = pendingBackendDeviceStateUpdates
+        pendingBackendDeviceStateUpdates.removeAll()
+        for (deviceID, payload) in pending.sorted(by: { $0.value.updatedAt < $1.value.updatedAt }) {
+            deviceController.applyBackendDeviceStateUpdate(
+                deviceID: deviceID,
+                state: payload.state,
+                updatedAt: payload.updatedAt
+            )
         }
     }
 
@@ -444,6 +508,7 @@ final class AppStateRuntimeController {
         RuntimeWakeSchedule.nextSleepInterval(
             now: now,
             profile: pollingProfile(at: now),
+            fastDpiInterval: effectiveFastDpiInterval(at: now),
             usesRemoteServiceUpdates: environment.usesRemoteServiceUpdates,
             lastDevicePresencePollAt: lastDevicePresencePollAt,
             lastRefreshStatePollAt: lastRefreshStatePollAt,
@@ -482,7 +547,7 @@ final class AppStateRuntimeController {
             await deviceController.refreshAllDeviceStates()
         }
 
-        if let fastInterval = profile.fastDpiInterval,
+        if let fastInterval = effectiveFastDpiInterval(at: now),
            now.timeIntervalSince(lastFastDpiPollAt) >= fastInterval {
             lastFastDpiPollAt = now
             await deviceController.refreshDpiFast()
@@ -527,7 +592,21 @@ final class AppStateRuntimeController {
         guard let selectedDeviceID = deviceStore.selectedDeviceID else { return [] }
         if environment.launchRole.isService {
             let localInteractive = compactMenuPresented || (compactInteractionUntil.map { now < $0 } ?? false)
-            return localInteractive ? [selectedDeviceID] : []
+            if localInteractive {
+                return [selectedDeviceID]
+            }
+
+            guard let selectedDevice = deviceStore.devices.first(where: { $0.id == selectedDeviceID }) else {
+                return []
+            }
+            switch deviceController.dpiUpdateTransportStatus(for: selectedDevice) {
+            case .unknown, .streamActive, .pollingFallback:
+                return [selectedDeviceID]
+            case .realTimeHID:
+                return selectedDevice.transport == .bluetooth ? [selectedDeviceID] : []
+            case .listening, .unsupported:
+                return []
+            }
         }
         return environment.usesRemoteServiceUpdates ? [] : [selectedDeviceID]
     }

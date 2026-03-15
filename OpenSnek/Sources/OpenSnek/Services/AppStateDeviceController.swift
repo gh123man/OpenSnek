@@ -15,6 +15,7 @@ final class AppStateDeviceController {
     private var refreshingFastDpiDeviceIDs: Set<String> = []
     private var suppressFastDpiUntilByDeviceID: [String: Date] = [:]
     private var lastUSBFastDpiAtByDeviceID: [String: Date] = [:]
+    private var lastBluetoothRealtimeWatchdogAtByDeviceID: [String: Date] = [:]
     private var isPollingDevices = false
     private var refreshFailureCountByDeviceID: [String: Int] = [:]
     private var stateRefreshSuppressedUntilByDeviceID: [String: Date] = [:]
@@ -210,10 +211,34 @@ final class AppStateDeviceController {
                 deviceStore.state = merged
             }
             if applyController.shouldHydrateEditable {
-                editorController.hydrateEditable(from: merged)
+                if Self.shouldUseDpiOnlyEditorHydration(previous: previous, next: merged) {
+                    editorController.hydrateEditableDpi(from: merged)
+                } else {
+                    editorController.hydrateEditable(from: merged)
+                }
             }
             deviceStore.errorMessage = nil
             setTelemetryWarning(editorController.telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)
+        }
+    }
+
+    func applyBackendDpiTransportStatusUpdate(deviceID: String, status: DpiUpdateTransportStatus) {
+        let currentStatus = dpiUpdateTransportStatusByDeviceID[deviceID]
+        if !Self.shouldApplyBackendDpiTransportStatusUpdate(current: currentStatus, incoming: status) {
+            return
+        }
+
+        setDpiUpdateTransportStatus(status, for: deviceID)
+
+        guard let sourceDevice = deviceStore.devices.first(where: { $0.id == deviceID }),
+              let presentationDevice = presentationDevice(for: sourceDevice) else {
+            return
+        }
+
+        let presentationDeviceID = presentationDevice.id
+        let presentationStatus = dpiUpdateTransportStatusByDeviceID[presentationDeviceID]
+        if Self.shouldApplyBackendDpiTransportStatusUpdate(current: presentationStatus, incoming: status) {
+            setDpiUpdateTransportStatus(status, for: presentationDeviceID)
         }
     }
 
@@ -912,9 +937,17 @@ final class AppStateDeviceController {
         guard !refreshingStateDeviceIDs.contains(device.id) else { return }
         guard !applyController.hasPendingLocalEditsAffecting(device) else { return }
         let usesFastPolling = await environment.backend.shouldUseFastDPIPolling(device: device)
+        let watchdogOnly = !usesFastPolling && device.transport == .bluetooth
         if !usesFastPolling {
             setDpiUpdateTransportStatus(.realTimeHID, for: device.id)
-            return
+            if !watchdogOnly {
+                return
+            }
+            if let lastWatchdogAt = lastBluetoothRealtimeWatchdogAtByDeviceID[device.id],
+               now.timeIntervalSince(lastWatchdogAt) < 1.0 {
+                return
+            }
+            lastBluetoothRealtimeWatchdogAtByDeviceID[device.id] = now
         }
 
         if device.transport == .usb,
@@ -970,10 +1003,17 @@ final class AppStateDeviceController {
 
             let shouldFocusOnActivity = shouldFocusServiceSelectionOnActivity(previous: previous, next: updated)
             cacheState(updated, sourceDeviceID: device.id, presentationDeviceID: presentationDeviceID, updatedAt: readAt)
-            let existingTransportStatus = dpiUpdateTransportStatusByDeviceID[presentationDeviceID]
-            if existingTransportStatus != .listening {
-                setDpiUpdateTransportStatus(.pollingFallback, for: device.id)
-                setDpiUpdateTransportStatus(.pollingFallback, for: presentationDeviceID)
+            if watchdogOnly {
+                let stillUsesFastPolling = await environment.backend.shouldUseFastDPIPolling(device: device)
+                let nextStatus: DpiUpdateTransportStatus = stillUsesFastPolling ? .pollingFallback : .realTimeHID
+                setDpiUpdateTransportStatus(nextStatus, for: device.id)
+                setDpiUpdateTransportStatus(nextStatus, for: presentationDeviceID)
+            } else {
+                let existingTransportStatus = dpiUpdateTransportStatusByDeviceID[presentationDeviceID]
+                if existingTransportStatus != .listening && existingTransportStatus != .streamActive {
+                    setDpiUpdateTransportStatus(.pollingFallback, for: device.id)
+                    setDpiUpdateTransportStatus(.pollingFallback, for: presentationDeviceID)
+                }
             }
             unavailableDeviceIDs.remove(device.id)
             unavailableDeviceIDs.remove(presentationDeviceID)
@@ -986,7 +1026,11 @@ final class AppStateDeviceController {
                     deviceStore.state = updated
                 }
                 if applyController.shouldHydrateEditable {
-                    editorController.hydrateEditable(from: updated)
+                    if Self.shouldUseDpiOnlyEditorHydration(previous: previous, next: updated) {
+                        editorController.hydrateEditableDpi(from: updated)
+                    } else {
+                        editorController.hydrateEditable(from: updated)
+                    }
                 }
             }
             AppLog.debug(
@@ -1004,6 +1048,51 @@ final class AppStateDeviceController {
         guard previous != status else { return }
         dpiUpdateTransportStatusByDeviceID[deviceID] = status
         deviceStore.invalidateConnectionDiagnostics()
+    }
+
+    private static func shouldUseDpiOnlyEditorHydration(previous: MouseState?, next: MouseState) -> Bool {
+        guard let previous else { return false }
+        guard previous.dpi != next.dpi || previous.dpi_stages != next.dpi_stages else { return false }
+        return previous.device == next.device &&
+            previous.connection == next.connection &&
+            previous.battery_percent == next.battery_percent &&
+            previous.charging == next.charging &&
+            previous.poll_rate == next.poll_rate &&
+            previous.sleep_timeout == next.sleep_timeout &&
+            previous.device_mode == next.device_mode &&
+            previous.low_battery_threshold_raw == next.low_battery_threshold_raw &&
+            previous.scroll_mode == next.scroll_mode &&
+            previous.scroll_acceleration == next.scroll_acceleration &&
+            previous.scroll_smart_reel == next.scroll_smart_reel &&
+            previous.active_onboard_profile == next.active_onboard_profile &&
+            previous.onboard_profile_count == next.onboard_profile_count &&
+            previous.led_value == next.led_value &&
+            previous.capabilities == next.capabilities
+    }
+
+    private static func shouldApplyBackendDpiTransportStatusUpdate(
+        current: DpiUpdateTransportStatus?,
+        incoming: DpiUpdateTransportStatus
+    ) -> Bool {
+        guard let current else { return true }
+        return dpiTransportStatusPriority(incoming) >= dpiTransportStatusPriority(current)
+    }
+
+    private static func dpiTransportStatusPriority(_ status: DpiUpdateTransportStatus) -> Int {
+        switch status {
+        case .unknown:
+            0
+        case .pollingFallback:
+            1
+        case .listening:
+            2
+        case .streamActive:
+            3
+        case .realTimeHID:
+            4
+        case .unsupported:
+            5
+        }
     }
 
     private func restorePersistedLightingIfNeeded(for device: MouseDevice) async {
