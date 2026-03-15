@@ -15,10 +15,16 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Install xcodegen
+        run: brew install xcodegen
+
       - name: Show toolchain
         run: |
           xcodebuild -version
           swift --version
+
+      - name: Verify generated Xcode project is in sync
+        run: ./OpenSnek/scripts/check_xcodeproj_sync.sh
 
       - name: Run Swift package tests
         env:

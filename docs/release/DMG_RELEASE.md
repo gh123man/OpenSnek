@@ -86,21 +86,43 @@ OpenSnek/.release/logs/
 
 The workflow lives at `.github/workflows/release-dmg.yml`.
 
-Trigger it by pushing a version tag:
+Preferred release entrypoint:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+./OpenSnek/scripts/cut_release.sh --version <version>
+```
+
+That script:
+- fetches and fast-forwards `main`
+- runs `swift test --package-path OpenSnek`
+- creates an annotated `v<version>` tag
+- pushes `main` and the tag
+
+The GitHub Actions workflow can also be triggered manually by pushing a version tag:
+
+```bash
+git tag v<version>
+git push origin v<version>
 ```
 
 The workflow will:
 
-1. import the Developer ID certificate into a temporary keychain
-2. archive/export the app with Xcode
-3. notarize and staple the `.app`
-4. create a styled drag-install DMG, then sign, notarize, and staple it
-5. publish the latest top section from `CHANGELOG.md` as the GitHub Release notes
-6. upload `OpenSnek-<version>.dmg` to the matching GitHub Release
+1. verify the tagged commit is reachable from `main`
+2. run `swift test --package-path OpenSnek`
+3. import the Developer ID certificate into a temporary keychain
+4. archive/export the app with Xcode
+5. notarize and staple the `.app`
+6. create a styled drag-install DMG, then sign, notarize, and staple it
+7. publish the latest top section from `CHANGELOG.md` as the GitHub Release notes
+8. upload `OpenSnek-<version>.dmg` to the matching GitHub Release
+
+## Project sync guard
+
+The pull-request workflow now verifies that `OpenSnek/OpenSnek.xcodeproj` is regenerated and in sync with `OpenSnek/project.yml`:
+
+```bash
+./OpenSnek/scripts/check_xcodeproj_sync.sh
+```
 
 ## Validation
 
