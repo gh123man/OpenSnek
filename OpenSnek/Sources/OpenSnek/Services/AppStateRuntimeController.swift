@@ -115,6 +115,7 @@ final class AppStateRuntimeController {
             return
         }
 
+        noteServiceDpiActivity()
         presentStatusItemTransientDpi(nextDpi)
     }
 
@@ -538,6 +539,12 @@ final class AppStateRuntimeController {
         Task { [weak self] in
             await self?.pollRuntimeOnce()
         }
+    }
+
+    private func noteServiceDpiActivity() {
+        guard environment.launchRole.isService else { return }
+        compactInteractionUntil = Date().addingTimeInterval(3.0)
+        requestImmediateRuntimePoll(resetPollingDeadlines: false)
     }
 
     private func hasActiveRemoteClients(at now: Date) -> Bool {

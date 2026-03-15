@@ -204,6 +204,47 @@ final class ServiceModeTests: XCTestCase {
             0.5
         )
     }
+
+    @MainActor
+    func testSelectedDpiActivityPromotesServiceBackToInteractiveProfile() async {
+        let backend = ServiceModeTransportBackend(transportStatus: .realTimeHID)
+        let appState = AppState(launchRole: .service, backend: backend, autoStart: false)
+        let device = backend.device
+        let previous = try! await backend.readState(device: device)
+        let next = MouseState(
+            device: previous.device,
+            connection: previous.connection,
+            battery_percent: previous.battery_percent,
+            charging: previous.charging,
+            dpi: DpiPair(x: 3200, y: 3200),
+            dpi_stages: DpiStages(active_stage: 2, values: [800, 1600, 3200]),
+            poll_rate: previous.poll_rate,
+            sleep_timeout: previous.sleep_timeout,
+            device_mode: previous.device_mode,
+            low_battery_threshold_raw: previous.low_battery_threshold_raw,
+            scroll_mode: previous.scroll_mode,
+            scroll_acceleration: previous.scroll_acceleration,
+            scroll_smart_reel: previous.scroll_smart_reel,
+            active_onboard_profile: previous.active_onboard_profile,
+            onboard_profile_count: previous.onboard_profile_count,
+            led_value: previous.led_value,
+            capabilities: previous.capabilities
+        )
+
+        _ = appState.deviceController.applyDeviceList([device], source: "test")
+        appState.deviceStore.selectedDeviceID = device.id
+        appState.runtimeController.setCompactInteraction(until: nil)
+
+        appState.runtimeController.updateStatusItemTransientDpi(
+            previous: previous,
+            next: next,
+            deviceID: device.id
+        )
+
+        let queryNow = Date()
+        XCTAssertEqual(appState.runtimeStore.pollingProfile(at: queryNow), .serviceInteractive)
+        XCTAssertEqual(appState.runtimeStore.activeFastPollingDeviceIDs(at: queryNow), [device.id])
+    }
 }
 
 private actor ServiceModeTransportBackend: DeviceBackend {

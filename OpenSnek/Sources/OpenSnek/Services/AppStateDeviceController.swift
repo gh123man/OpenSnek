@@ -968,8 +968,9 @@ final class AppStateDeviceController {
         }
         if correctionOnly {
             setDpiUpdateTransportStatus(.realTimeHID, for: device.id)
+            let minimumInterval = realtimeCorrectionMinimumInterval(for: device)
             if let lastCorrectionAt = lastRealtimeCorrectionAtByDeviceID[device.id],
-               now.timeIntervalSince(lastCorrectionAt) < 1.0 {
+               now.timeIntervalSince(lastCorrectionAt) < minimumInterval {
                 return
             }
             lastRealtimeCorrectionAtByDeviceID[device.id] = now
@@ -1099,6 +1100,14 @@ final class AppStateDeviceController {
     nonisolated static func shouldDelayBluetoothRealtimeCorrection(lastHeartbeatAt: Date?, now: Date) -> Bool {
         guard let lastHeartbeatAt else { return false }
         return now.timeIntervalSince(lastHeartbeatAt) < 0.4
+    }
+
+    nonisolated static func realtimeCorrectionMinimumInterval(isService: Bool) -> TimeInterval {
+        isService ? 0.45 : 1.0
+    }
+
+    private func realtimeCorrectionMinimumInterval(for _: MouseDevice) -> TimeInterval {
+        Self.realtimeCorrectionMinimumInterval(isService: environment.launchRole.isService)
     }
 
     nonisolated static func shouldDelayBluetoothRealtimeStateRefresh(

@@ -13,6 +13,7 @@ All notable changes to this project are documented in this file.
 - Bluetooth passive HID report handling now classifies the frequent `05 05 10 ...` packets as heartbeat/status traffic separate from actual `05 05 02 ...` DPI packets, and the app surfaces that as `HID stream active` immediately instead of waiting forever on `Listening for first HID event` when the listener is alive but no DPI change has happened yet.
 - Selected devices now keep a low-rate fast DPI correction read alive even after passive real-time HID becomes active, so an occasional missed passive packet gets reconciled quickly on both USB and Bluetooth instead of leaving the UI stale until the next manual change.
 - Bluetooth full-state refreshes now back off while heartbeat-backed real-time HID is healthy, which avoids repeatedly reopening the slower serialized BLE telemetry lane during active DPI bursts.
+- The menu bar service now treats selected-device DPI activity as a short interactive burst and uses a tighter service-only correction cadence, so the status item updates much faster after on-device DPI changes without restoring the heavier foreground polling profile full-time.
 
 ## [2026-03-14]
 
