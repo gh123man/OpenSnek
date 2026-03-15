@@ -57,125 +57,6 @@ final class BackgroundServiceTransportTests: XCTestCase {
         let binding = try await serviceBackend.debugUSBReadButtonBinding(device: devices[0], slot: 5, profile: 2)
         XCTAssertEqual(binding, [0xAA, 0x55, 0x05, 0x02])
     }
-
-    func testCoordinatorStreamsStateUpdatesOverServiceSocket() async throws {
-        let suiteName = "BackgroundServiceTransportTests.stream.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        let backend = StubServiceBackend()
-        let host = try BackgroundServiceHost(backend: backend, defaults: defaults)
-        try await host.start()
-        defer { host.stop() }
-
-        let coordinator = await MainActor.run {
-            BackgroundServiceCoordinator(defaults: UserDefaults(suiteName: suiteName)!)
-        }
-        let connectedBackend = try await coordinator.connectToRunningService()
-        let serviceBackend = try XCTUnwrap(connectedBackend)
-        let devices = try await serviceBackend.listDevices()
-        let device = try XCTUnwrap(devices.first)
-
-        let firstTwoUpdatesTask = Task<[BackendStateUpdate], Never> {
-            var received: [BackendStateUpdate] = []
-            let stream = await serviceBackend.stateUpdates()
-            for await update in stream {
-                received.append(update)
-                if received.count == 2 {
-                    break
-                }
-            }
-            return received
-        }
-
-        try? await Task.sleep(nanoseconds: 50_000_000)
-        await backend.emitDeviceStateUpdate(
-            MouseState(
-                device: DeviceSummary(
-                    id: device.id,
-                    product_name: device.product_name,
-                    serial: device.serial,
-                    transport: device.transport,
-                    firmware: device.firmware
-                ),
-                connection: "usb",
-                battery_percent: 87,
-                charging: false,
-                dpi: DpiPair(x: 3200, y: 3200),
-                dpi_stages: DpiStages(active_stage: 2, values: [800, 1600, 3200]),
-                poll_rate: 1000,
-                device_mode: DeviceMode(mode: 0x00, param: 0x00),
-                led_value: 64,
-                capabilities: Capabilities(
-                    dpi_stages: true,
-                    poll_rate: true,
-                    power_management: true,
-                    button_remap: true,
-                    lighting: true
-                )
-            ),
-            deviceID: device.id
-        )
-
-        let received = await firstTwoUpdatesTask.value
-        XCTAssertEqual(received.count, 2)
-        guard case .deviceList(let streamedDevices, _) = received[0] else {
-            return XCTFail("Expected initial device list update")
-        }
-        XCTAssertEqual(streamedDevices.map(\.id), [device.id])
-        guard case .deviceState(let updatedDeviceID, let updatedState, _) = received[1] else {
-            return XCTFail("Expected device state update")
-        }
-        XCTAssertEqual(updatedDeviceID, device.id)
-        XCTAssertEqual(updatedState.dpi?.x, 3200)
-    }
-
-    func testCoordinatorStreamsDpiTransportStatusUpdatesOverServiceSocket() async throws {
-        let suiteName = "BackgroundServiceTransportTests.transport.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        let backend = StubServiceBackend()
-        let host = try BackgroundServiceHost(backend: backend, defaults: defaults)
-        try await host.start()
-        defer { host.stop() }
-
-        let coordinator = await MainActor.run {
-            BackgroundServiceCoordinator(defaults: UserDefaults(suiteName: suiteName)!)
-        }
-        let connectedBackend = try await coordinator.connectToRunningService()
-        let serviceBackend = try XCTUnwrap(connectedBackend)
-        let devices = try await serviceBackend.listDevices()
-        let device = try XCTUnwrap(devices.first)
-
-        let firstTwoUpdatesTask = Task<[BackendStateUpdate], Never> {
-            var received: [BackendStateUpdate] = []
-            let stream = await serviceBackend.stateUpdates()
-            for await update in stream {
-                received.append(update)
-                if received.count == 2 {
-                    break
-                }
-            }
-            return received
-        }
-
-        try? await Task.sleep(nanoseconds: 50_000_000)
-        await backend.emitDpiTransportStatusUpdate(.streamActive, deviceID: device.id)
-
-        let received = await firstTwoUpdatesTask.value
-        XCTAssertEqual(received.count, 2)
-        guard case .deviceList = received[0] else {
-            return XCTFail("Expected initial device list update")
-        }
-        guard case .dpiTransportStatus(let updatedDeviceID, let status, _) = received[1] else {
-            return XCTFail("Expected DPI transport status update")
-        }
-        XCTAssertEqual(updatedDeviceID, device.id)
-        XCTAssertEqual(status, .streamActive)
-    }
 }
 
 private actor StubServiceBackend: DeviceBackend {
@@ -220,7 +101,6 @@ private actor StubServiceBackend: DeviceBackend {
             lighting: true
         )
     )
-    private let stateUpdateStreamPair = AsyncStream.makeStream(of: BackendStateUpdate.self)
 
     func listDevices() async throws -> [MouseDevice] {
         [device]
@@ -256,7 +136,9 @@ private actor StubServiceBackend: DeviceBackend {
     }
 
     func stateUpdates() async -> AsyncStream<BackendStateUpdate> {
-        stateUpdateStreamPair.stream
+        AsyncStream { continuation in
+            continuation.finish()
+        }
     }
 
     func apply(device _: MouseDevice, patch: DevicePatch) async throws -> MouseState {
@@ -293,22 +175,5 @@ private actor StubServiceBackend: DeviceBackend {
 
     func debugUSBReadButtonBinding(device _: MouseDevice, slot: Int, profile: Int) async throws -> [UInt8]? {
         [0xAA, 0x55, UInt8(slot & 0xFF), UInt8(profile & 0xFF)]
-    }
-
-    func emitDeviceStateUpdate(_ nextState: MouseState, deviceID: String, updatedAt: Date = Date()) {
-        state = nextState
-        stateUpdateStreamPair.continuation.yield(
-            .deviceState(deviceID: deviceID, state: nextState, updatedAt: updatedAt)
-        )
-    }
-
-    func emitDpiTransportStatusUpdate(
-        _ status: DpiUpdateTransportStatus,
-        deviceID: String,
-        updatedAt: Date = Date()
-    ) {
-        stateUpdateStreamPair.continuation.yield(
-            .dpiTransportStatus(deviceID: deviceID, status: status, updatedAt: updatedAt)
-        )
     }
 }

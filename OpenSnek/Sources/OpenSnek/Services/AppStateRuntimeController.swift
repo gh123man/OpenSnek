@@ -22,8 +22,6 @@ final class AppStateRuntimeController {
     private(set) var isBackendReady = false
     private var clientPresenceObserver: NSObjectProtocol?
     private var backendStateUpdatesTask: Task<Void, Never>?
-    private var pendingBackendDeviceStateUpdates: [String: (state: MouseState, updatedAt: Date)] = [:]
-    private var backendDeviceStateFlushTask: Task<Void, Never>?
     private var remoteClientPresenceByProcessID: [Int32: RemoteClientPresenceState] = [:]
     private var lastRemoteClientPresencePingAt: Date = .distantPast
     private var statusItemTransientDpiResetTask: Task<Void, Never>?
@@ -37,7 +35,6 @@ final class AppStateRuntimeController {
     func tearDown() {
         runtimeTask?.cancel()
         backendStateUpdatesTask?.cancel()
-        backendDeviceStateFlushTask?.cancel()
         statusItemTransientDpiResetTask?.cancel()
         if let clientPresenceObserver {
             CrossProcessStateSync.removeObserver(clientPresenceObserver)
@@ -208,8 +205,6 @@ final class AppStateRuntimeController {
 
     func restartBackendStateUpdates() async {
         backendStateUpdatesTask?.cancel()
-        backendDeviceStateFlushTask?.cancel()
-        pendingBackendDeviceStateUpdates.removeAll()
         let stream = await environment.backend.stateUpdates()
         backendStateUpdatesTask = Task { [weak self] in
             guard let self else { return }
@@ -223,58 +218,17 @@ final class AppStateRuntimeController {
         guard isBackendReady else { return }
         switch update {
         case .deviceList(let devices, _):
-            flushPendingBackendDeviceStateUpdates()
             await deviceController.handleBackendDeviceListUpdate(devices)
         case .snapshot(let snapshot):
             guard environment.usesRemoteServiceUpdates else { return }
-            flushPendingBackendDeviceStateUpdates()
             deviceController.applyRemoteServiceSnapshot(snapshot)
         case .dpiTransportStatus(let deviceID, let status, _):
-            flushPendingBackendDeviceStateUpdates()
             deviceController.applyBackendDpiTransportStatusUpdate(deviceID: deviceID, status: status)
         case .deviceState(let deviceID, let updatedState, let updatedAt):
-            enqueueBackendDeviceStateUpdate(
+            deviceController.applyBackendDeviceStateUpdate(
                 deviceID: deviceID,
                 state: updatedState,
                 updatedAt: updatedAt
-            )
-        }
-    }
-
-    private func enqueueBackendDeviceStateUpdate(
-        deviceID: String,
-        state: MouseState,
-        updatedAt: Date
-    ) {
-        if let existing = pendingBackendDeviceStateUpdates[deviceID],
-           existing.updatedAt > updatedAt {
-            return
-        }
-        pendingBackendDeviceStateUpdates[deviceID] = (state: state, updatedAt: updatedAt)
-        guard backendDeviceStateFlushTask == nil else { return }
-
-        backendDeviceStateFlushTask = Task { @MainActor [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: 16_000_000)
-            } catch {
-                return
-            }
-            self?.flushPendingBackendDeviceStateUpdates()
-        }
-    }
-
-    private func flushPendingBackendDeviceStateUpdates() {
-        backendDeviceStateFlushTask?.cancel()
-        backendDeviceStateFlushTask = nil
-        guard !pendingBackendDeviceStateUpdates.isEmpty else { return }
-
-        let pending = pendingBackendDeviceStateUpdates
-        pendingBackendDeviceStateUpdates.removeAll()
-        for (deviceID, payload) in pending.sorted(by: { $0.value.updatedAt < $1.value.updatedAt }) {
-            deviceController.applyBackendDeviceStateUpdate(
-                deviceID: deviceID,
-                state: payload.state,
-                updatedAt: payload.updatedAt
             )
         }
     }

@@ -7,12 +7,6 @@ struct SharedServiceSnapshot: Codable, Sendable {
     let lastUpdatedByDeviceID: [String: Date]
 }
 
-struct SharedServiceDeviceStateUpdate: Codable, Sendable {
-    let deviceID: String
-    let state: MouseState
-    let updatedAt: Date
-}
-
 struct CrossProcessClientPresence: Sendable {
     let sourceProcessID: Int32
     let selectedDeviceID: String?
@@ -20,7 +14,6 @@ struct CrossProcessClientPresence: Sendable {
 
 enum CrossProcessStateSync {
     static let snapshotNotificationName = Notification.Name("io.opensnek.OpenSnek.serviceSnapshot")
-    static let deviceStateNotificationName = Notification.Name("io.opensnek.OpenSnek.serviceDeviceState")
     static let clientPresenceNotificationName = Notification.Name("io.opensnek.OpenSnek.clientPresence")
 
     private static let payloadKey = "payload"
@@ -50,32 +43,6 @@ enum CrossProcessStateSync {
         ) { notification in
             guard let snapshot = snapshot(from: notification) else { return }
             handler(snapshot)
-        }
-    }
-
-    static func post(deviceState update: SharedServiceDeviceStateUpdate) {
-        guard let encoded = try? JSONEncoder().encode(update) else { return }
-        DistributedNotificationCenter.default().postNotificationName(
-            deviceStateNotificationName,
-            object: nil,
-            userInfo: [
-                payloadKey: encoded.base64EncodedString(),
-                sourceProcessIDKey: Int(ProcessInfo.processInfo.processIdentifier),
-            ],
-            deliverImmediately: true
-        )
-    }
-
-    static func observeDeviceStates(
-        using handler: @escaping @Sendable (SharedServiceDeviceStateUpdate) -> Void
-    ) -> NSObjectProtocol {
-        DistributedNotificationCenter.default().addObserver(
-            forName: deviceStateNotificationName,
-            object: nil,
-            queue: nil
-        ) { notification in
-            guard let update = deviceStateUpdate(from: notification) else { return }
-            handler(update)
         }
     }
 
@@ -117,15 +84,6 @@ enum CrossProcessStateSync {
             return nil
         }
         return try? JSONDecoder().decode(SharedServiceSnapshot.self, from: payloadData)
-    }
-
-    private static func deviceStateUpdate(from notification: Notification) -> SharedServiceDeviceStateUpdate? {
-        guard let userInfo = notification.userInfo,
-              let payload = userInfo[payloadKey] as? String,
-              let payloadData = Data(base64Encoded: payload) else {
-            return nil
-        }
-        return try? JSONDecoder().decode(SharedServiceDeviceStateUpdate.self, from: payloadData)
     }
 
     private static func clientPresence(from notification: Notification) -> CrossProcessClientPresence? {

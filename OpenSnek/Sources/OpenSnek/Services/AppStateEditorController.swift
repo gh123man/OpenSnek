@@ -80,7 +80,24 @@ final class AppStateEditorController {
         isHydrating = true
         defer { isHydrating = false }
 
-        hydrateEditableDpiControls(from: state)
+        if let values = state.dpi_stages.values, !values.isEmpty {
+            editorStore.editableStageCount = max(1, min(5, values.count))
+            for index in 0..<editorStore.editableStageValues.count {
+                if index < values.count {
+                    editorStore.editableStageValues[index] = max(100, min(30000, values[index]))
+                }
+            }
+        } else if let dpi = state.dpi?.x {
+            editorStore.editableStageCount = 1
+            editorStore.editableStageValues[0] = max(100, min(30000, dpi))
+        }
+
+        if let active = state.dpi_stages.active_stage {
+            let maxStage = max(1, editorStore.editableStageCount)
+            editorStore.editableActiveStage = max(1, min(maxStage, active + 1))
+        } else {
+            editorStore.editableActiveStage = 1
+        }
 
         if let poll = state.poll_rate {
             editorStore.editablePollRate = poll
@@ -115,34 +132,6 @@ final class AppStateEditorController {
         }
 
         syncUSBButtonProfileSelection(from: state)
-    }
-
-    func hydrateEditableDpi(from state: MouseState) {
-        isHydrating = true
-        defer { isHydrating = false }
-
-        hydrateEditableDpiControls(from: state)
-    }
-
-    private func hydrateEditableDpiControls(from state: MouseState) {
-        if let values = state.dpi_stages.values, !values.isEmpty {
-            editorStore.editableStageCount = max(1, min(5, values.count))
-            for index in 0..<editorStore.editableStageValues.count {
-                if index < values.count {
-                    editorStore.editableStageValues[index] = max(100, min(30000, values[index]))
-                }
-            }
-        } else if let dpi = state.dpi?.x {
-            editorStore.editableStageCount = 1
-            editorStore.editableStageValues[0] = max(100, min(30000, dpi))
-        }
-
-        if let active = state.dpi_stages.active_stage {
-            let maxStage = max(1, editorStore.editableStageCount)
-            editorStore.editableActiveStage = max(1, min(maxStage, active + 1))
-        } else {
-            editorStore.editableActiveStage = 1
-        }
     }
 
     func hydrateLightingStateIfNeeded(device: MouseDevice) async {

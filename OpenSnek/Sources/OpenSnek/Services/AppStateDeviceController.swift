@@ -211,11 +211,7 @@ final class AppStateDeviceController {
                 deviceStore.state = merged
             }
             if applyController.shouldHydrateEditable {
-                if Self.shouldUseDpiOnlyEditorHydration(previous: previous, next: merged) {
-                    editorController.hydrateEditableDpi(from: merged)
-                } else {
-                    editorController.hydrateEditable(from: merged)
-                }
+                editorController.hydrateEditable(from: merged)
             }
             deviceStore.errorMessage = nil
             setTelemetryWarning(editorController.telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)
@@ -1023,11 +1019,7 @@ final class AppStateDeviceController {
                     deviceStore.state = updated
                 }
                 if applyController.shouldHydrateEditable {
-                    if Self.shouldUseDpiOnlyEditorHydration(previous: previous, next: updated) {
-                        editorController.hydrateEditableDpi(from: updated)
-                    } else {
-                        editorController.hydrateEditable(from: updated)
-                    }
+                    editorController.hydrateEditable(from: updated)
                 }
             }
             AppLog.debug(
@@ -1045,26 +1037,6 @@ final class AppStateDeviceController {
         guard previous != status else { return }
         dpiUpdateTransportStatusByDeviceID[deviceID] = status
         deviceStore.invalidateConnectionDiagnostics()
-    }
-
-    private static func shouldUseDpiOnlyEditorHydration(previous: MouseState?, next: MouseState) -> Bool {
-        guard let previous else { return false }
-        guard previous.dpi != next.dpi || previous.dpi_stages != next.dpi_stages else { return false }
-        return previous.device == next.device &&
-            previous.connection == next.connection &&
-            previous.battery_percent == next.battery_percent &&
-            previous.charging == next.charging &&
-            previous.poll_rate == next.poll_rate &&
-            previous.sleep_timeout == next.sleep_timeout &&
-            previous.device_mode == next.device_mode &&
-            previous.low_battery_threshold_raw == next.low_battery_threshold_raw &&
-            previous.scroll_mode == next.scroll_mode &&
-            previous.scroll_acceleration == next.scroll_acceleration &&
-            previous.scroll_smart_reel == next.scroll_smart_reel &&
-            previous.active_onboard_profile == next.active_onboard_profile &&
-            previous.onboard_profile_count == next.onboard_profile_count &&
-            previous.led_value == next.led_value &&
-            previous.capabilities == next.capabilities
     }
 
     private static func shouldApplyBackendDpiTransportStatusUpdate(

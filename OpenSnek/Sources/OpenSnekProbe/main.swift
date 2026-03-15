@@ -10,127 +10,6 @@ enum OpenSnekProbe {
         }
 
         switch command {
-        case "dpi-raw-listen":
-            let parsed = try parsePassiveDPIListenArgs(Array(args.dropFirst()))
-            let probe = try await PassiveDPIRawProbe.make(
-                transport: parsed.transport,
-                productID: parsed.productID,
-                preferredName: parsed.preferredName
-            )
-            print(
-                "dpi-raw-listen candidates=\(probe.candidateCount) " +
-                "duration=\(parsed.durationLabel) transport=\(parsed.transportLabel)"
-            )
-            for line in probe.describeCandidates() {
-                print(line)
-            }
-            let stats = try await probe.capture(
-                duration: parsed.durationSeconds,
-                heartbeatSeconds: parsed.heartbeatSeconds
-            ) { event in
-                let parsedDetail: String
-                if let parsedReading = event.parsedReading {
-                    parsedDetail = " parsed=\(parsedReading.dpiX)x\(parsedReading.dpiY)"
-                } else {
-                    parsedDetail = " parsed=reject"
-                }
-                print(
-                    String(
-                        format: "[+%.3fs] raw device=%@ transport=%@ report[%d]=%@ rawGap=%.3fs parsedIdle=%.3fs callbacks=%d parsed=%d rejected=%d%@",
-                        event.elapsedSeconds,
-                        event.deviceLabel,
-                        event.transport.rawValue,
-                        event.reportLength,
-                        event.reportPreview,
-                        event.rawGapSeconds,
-                        event.parsedIdleSeconds,
-                        event.callbackCount,
-                        event.parsedCount,
-                        event.rejectedCount,
-                        parsedDetail
-                    )
-                )
-            } onHeartbeat: { heartbeat in
-                let status = heartbeat.deviceStatuses.joined(separator: " | ")
-                print(
-                    String(
-                        format: "[+%.3fs] heartbeat callbacks=%d parsed=%d rejected=%d %@",
-                        heartbeat.elapsedSeconds,
-                        heartbeat.totalCallbacks,
-                        heartbeat.totalParsed,
-                        heartbeat.totalRejected,
-                        status
-                    )
-                )
-            }
-            print(
-                "dpi-raw-listen complete callbacks=\(stats.totalCallbacks) " +
-                "parsed=\(stats.totalParsed) rejected=\(stats.totalRejected)"
-            )
-            for shape in stats.topShapes {
-                print(
-                    "shape count=\(shape.count) parsed=\(shape.parsedCount) " +
-                    "rejected=\(shape.rejectedCount) report=\(shape.signature)"
-                )
-            }
-            for context in stats.parsedContexts {
-                let preceding = context.precedingSignatures.isEmpty
-                    ? "none"
-                    : context.precedingSignatures.joined(separator: " <- ")
-                print(
-                    String(
-                        format: "[+%.3fs] parsed-context device=%@ dpi=%dx%d report=%@ preceding=%@",
-                        context.elapsedSeconds,
-                        context.deviceLabel,
-                        context.parsedReading.dpiX,
-                        context.parsedReading.dpiY,
-                        context.parsedSignature,
-                        preceding
-                    )
-                )
-            }
-        case "dpi-event-listen":
-            let parsed = try parsePassiveDPIListenArgs(Array(args.dropFirst()))
-            let probe = try await PassiveDPIProbe.make(
-                transport: parsed.transport,
-                productID: parsed.productID,
-                preferredName: parsed.preferredName
-            )
-            print(
-                "dpi-event-listen candidates=\(probe.candidateCount) " +
-                "duration=\(parsed.durationLabel) transport=\(parsed.transportLabel)"
-            )
-            for line in probe.describeCandidates() {
-                print(line)
-            }
-            let stats = try await probe.capture(
-                duration: parsed.durationSeconds,
-                heartbeatSeconds: parsed.heartbeatSeconds
-            ) { event in
-                print(
-                    String(
-                        format: "[+%.3fs] event device=%@ transport=%@ dpi=%dx%d gap=%.3fs count=%d",
-                        event.elapsedSeconds,
-                        event.deviceLabel,
-                        event.transport.rawValue,
-                        event.dpiX,
-                        event.dpiY,
-                        event.idleGapSeconds,
-                        event.eventCount
-                    )
-                )
-            } onHeartbeat: { heartbeat in
-                let status = heartbeat.deviceStatuses.joined(separator: " | ")
-                print(
-                    String(
-                        format: "[+%.3fs] heartbeat total=%d %@",
-                        heartbeat.elapsedSeconds,
-                        heartbeat.totalEvents,
-                        status
-                    )
-                )
-            }
-            print("dpi-event-listen complete events=\(stats.totalEvents)")
         case "dpi-read":
             let bridge = ProbeBridge()
             let snapshot = try await bridge.readDpi()
@@ -504,8 +383,6 @@ enum OpenSnekProbe {
           OpenSnekProbe dpi-read
           OpenSnekProbe dpi-set --values 1600,6400 [--active 1] [--verify-retries 6] [--verify-delay-ms 120]
           OpenSnekProbe dpi-cycle --sequence 800,6400;1600,6400 --loops 10 [--active 1] [--sleep-ms 120]
-          OpenSnekProbe dpi-raw-listen [--transport usb|bluetooth|any] [--pid 0x00ab] [--name "BSK V3 PRO"] [--duration 20] [--heartbeat 1.0]
-          OpenSnekProbe dpi-event-listen [--transport usb|bluetooth|any] [--pid 0x00ab] [--name "BSK V3 PRO"] [--duration 20] [--heartbeat 1.0]
           OpenSnekProbe bt-info
           OpenSnekProbe bt-raw-read --key 10840000 [--name "BSK V3 PRO"] [--timeout-ms 600]
           OpenSnekProbe bt-raw-write --key 10040000 --payload 0400000000ff4010 [--name "BSK V3 PRO"] [--timeout-ms 900]
@@ -558,44 +435,6 @@ enum OpenSnekProbe {
         let verifyRetries = Int(flags["--verify-retries"] ?? "6") ?? 6
         let verifyDelayMs = Int(flags["--verify-delay-ms"] ?? "120") ?? 120
         return (sequence, loops, active, sleepMs, verifyRetries, verifyDelayMs)
-    }
-
-    private static func parsePassiveDPIListenArgs(_ args: [String]) throws -> (
-        durationSeconds: TimeInterval,
-        durationLabel: String,
-        heartbeatSeconds: TimeInterval,
-        transport: DeviceTransportKind?,
-        transportLabel: String,
-        productID: Int?,
-        preferredName: String?
-    ) {
-        let flags = parseFlags(args)
-        let durationRaw = flags["--duration"] ?? "20"
-        let durationSeconds = max(0, Double(durationRaw) ?? 20.0)
-        let durationLabel = durationSeconds > 0 ? String(format: "%.1fs", durationSeconds) : "until-cancelled"
-        let heartbeatSeconds = max(0.1, Double(flags["--heartbeat"] ?? "1.0") ?? 1.0)
-        let transportRaw = (flags["--transport"] ?? "any").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let transport: DeviceTransportKind?
-        switch transportRaw {
-        case "", "any":
-            transport = nil
-        case "usb":
-            transport = .usb
-        case "bluetooth", "bt":
-            transport = .bluetooth
-        default:
-            throw ProbeError.usage("Invalid --transport '\(transportRaw)'\n\(usageText)")
-        }
-        let transportLabel = transport?.rawValue ?? "any"
-        return (
-            durationSeconds,
-            durationLabel,
-            heartbeatSeconds,
-            transport,
-            transportLabel,
-            try parseOptionalUSBPID(args),
-            parsePeripheralName(flags["--name"])
-        )
     }
 
     private static func parseUSBButtonReadArgs(_ args: [String]) throws -> (slot: Int, profiles: [UInt8], hypershift: UInt8, productID: Int?) {

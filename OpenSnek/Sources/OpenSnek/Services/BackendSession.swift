@@ -91,11 +91,19 @@ struct HIDAccessStatus: Codable, Equatable, Sendable {
     }
 }
 
-enum BackendStateUpdate: Codable, Sendable {
+enum BackendStateUpdate: Sendable {
     case deviceList([MouseDevice], updatedAt: Date)
     case deviceState(deviceID: String, state: MouseState, updatedAt: Date)
     case dpiTransportStatus(deviceID: String, status: DpiUpdateTransportStatus, updatedAt: Date)
     case snapshot(SharedServiceSnapshot)
+}
+
+private final class DistributedObserverToken: @unchecked Sendable {
+    let observer: NSObjectProtocol
+
+    init(observer: NSObjectProtocol) {
+        self.observer = observer
+    }
 }
 
 func mergedStateFromPassiveDpiEvent(
@@ -162,7 +170,6 @@ private enum BackgroundServiceMethod: String, Codable, Sendable {
     case shouldUseFastDPIPolling
     case dpiUpdateTransportStatus
     case hidAccessStatus
-    case subscribeStateUpdates
     case apply
     case readLightingColor
     case debugUSBReadButtonBinding
@@ -452,6 +459,7 @@ final actor LocalBridgeBackend: DeviceBackend {
         cachedFastByDeviceID[device.id] = fast
         cachedFastAtByDeviceID[device.id] = Date()
         updateCachedStateFromFastSnapshot(fast, for: device.id)
+        publishSnapshotIfService()
         return fast
     }
 
@@ -620,6 +628,7 @@ final actor LocalBridgeBackend: DeviceBackend {
         cachedStateAtByDeviceID[deviceID] = updatedAt
         bluetoothControlReadyDeviceIDs.remove(deviceID)
         publishStateUpdate(.deviceState(deviceID: deviceID, state: seed, updatedAt: updatedAt))
+        publishSnapshotIfService()
     }
 
     private func updateCachedStateFromFastSnapshot(_ snapshot: DpiFastSnapshot, for deviceID: String) {
@@ -668,6 +677,7 @@ final actor LocalBridgeBackend: DeviceBackend {
         }
 
         publishStateUpdate(.deviceState(deviceID: event.deviceID, state: updated, updatedAt: event.observedAt))
+        publishSnapshotIfService()
     }
 
     private func handlePassiveDpiHeartbeat(_ event: PassiveDPIHeartbeatEvent) {
@@ -756,8 +766,15 @@ final actor LocalBridgeBackend: DeviceBackend {
     }
 
     private func publishSnapshotIfService() {
-        // Remote clients now consume live state deltas over the background service TCP subscription.
         guard OpenSnekProcessRole.current.isService else { return }
+        let liveIDs = Set(cachedDevices.map(\.id))
+        CrossProcessStateSync.post(
+            snapshot: SharedServiceSnapshot(
+                devices: cachedDevices,
+                stateByDeviceID: cachedStateByDeviceID.filter { liveIDs.contains($0.key) },
+                lastUpdatedByDeviceID: cachedStateAtByDeviceID.filter { liveIDs.contains($0.key) }
+            )
+        )
     }
 }
 
@@ -802,8 +819,6 @@ private actor BackgroundServiceRequestHandler {
             payload = try BackendCodec.encode(await backend.dpiUpdateTransportStatus(device: device))
         case .hidAccessStatus:
             payload = try BackendCodec.encode(await backend.hidAccessStatus())
-        case .subscribeStateUpdates:
-            throw BackgroundServiceTransportError.invalidLength
         case .apply:
             let applyRequest = try decodePayload(ApplyRequest.self, from: request.payload)
             payload = try BackendCodec.encode(try await backend.apply(device: applyRequest.device, patch: applyRequest.patch))
@@ -822,14 +837,6 @@ private actor BackgroundServiceRequestHandler {
         }
 
         return BackgroundServiceResponseEnvelope(payload: payload, error: nil)
-    }
-
-    func stateUpdates() async -> AsyncStream<BackendStateUpdate> {
-        await backend.stateUpdates()
-    }
-
-    func listDevices() async throws -> [MouseDevice] {
-        try await backend.listDevices()
     }
 
     private func decodePayload<T: Decodable>(_ type: T.Type, from payload: Data?) throws -> T {
@@ -900,50 +907,13 @@ final actor IPCDeviceBackend: DeviceBackend {
 
     func stateUpdates() async -> AsyncStream<BackendStateUpdate> {
         AsyncStream { continuation in
-            let host = self.host
-            let port = self.port
-            let task = Task {
-                while !Task.isCancelled {
-                    let connection = NWConnection(
-                        host: host,
-                        port: port,
-                        using: BackgroundServiceTransport.clientParameters()
-                    )
-                    do {
-                        try await BackgroundServiceTransport.awaitReady(connection: connection)
-                        let request = BackgroundServiceRequestEnvelope(
-                            method: .subscribeStateUpdates,
-                            payload: nil
-                        )
-                        try await BackgroundServiceTransport.sendFrame(
-                            try BackendCodec.encode(request),
-                            over: connection
-                        )
-
-                        while !Task.isCancelled {
-                            let updateData = try await BackgroundServiceTransport.receiveFrame(from: connection)
-                            let update = try BackendCodec.decode(BackendStateUpdate.self, from: updateData)
-                            continuation.yield(update)
-                        }
-                    } catch {
-                        if Task.isCancelled {
-                            connection.cancel()
-                            break
-                        }
-                        AppLog.warning(
-                            "Service",
-                            "background service state subscription interrupted: \(error.localizedDescription)"
-                        )
-                        connection.cancel()
-                        try? await Task.sleep(nanoseconds: 300_000_000)
-                        continue
-                    }
-                    connection.cancel()
+            let token = DistributedObserverToken(
+                observer: CrossProcessStateSync.observeSnapshots { snapshot in
+                    continuation.yield(.snapshot(snapshot))
                 }
-                continuation.finish()
-            }
+            )
             continuation.onTermination = { @Sendable _ in
-                task.cancel()
+                CrossProcessStateSync.removeObserver(token.observer)
             }
         }
     }
@@ -1057,38 +1027,12 @@ final class BackgroundServiceHost: @unchecked Sendable {
         Task {
             do {
                 let requestData = try await BackgroundServiceTransport.receiveFrame(from: connection)
-                let request = try BackendCodec.decode(BackgroundServiceRequestEnvelope.self, from: requestData)
-                if request.method == .subscribeStateUpdates {
-                    try await self.handleStateSubscription(connection, handler: handler)
-                } else {
-                    let responseData = await handler.handle(requestData)
-                    try await BackgroundServiceTransport.sendFrame(responseData, over: connection)
-                }
+                let responseData = await handler.handle(requestData)
+                try await BackgroundServiceTransport.sendFrame(responseData, over: connection)
             } catch {
                 AppLog.warning("Service", "background service request failed: \(error.localizedDescription)")
             }
             connection.cancel()
-        }
-    }
-
-    private func handleStateSubscription(
-        _ connection: NWConnection,
-        handler: BackgroundServiceRequestHandler
-    ) async throws {
-        let initialDevices = try await handler.listDevices()
-        try await BackgroundServiceTransport.sendFrame(
-            try BackendCodec.encode(
-                BackendStateUpdate.deviceList(initialDevices, updatedAt: Date())
-            ),
-            over: connection
-        )
-
-        let stream = await handler.stateUpdates()
-        for await update in stream {
-            try await BackgroundServiceTransport.sendFrame(
-                try BackendCodec.encode(update),
-                over: connection
-            )
         }
     }
 }
