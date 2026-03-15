@@ -1,5 +1,10 @@
 import Foundation
 
+enum AppBuildChannel: String, Equatable {
+    case dev
+    case release
+}
+
 struct ReleaseVersion: Comparable, Equatable {
     enum PreReleaseIdentifier: Comparable, Equatable {
         case numeric(Int)
@@ -143,5 +148,14 @@ struct ReleaseUpdateChecker: Sendable {
 
     static func currentAppVersion(bundle: Bundle = .main) -> String? {
         bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+    }
+
+    static func currentBuildChannel(bundle: Bundle = .main) -> AppBuildChannel {
+        let rawValue = bundle.object(forInfoDictionaryKey: "OpenSnekBuildChannel") as? String
+        return rawValue.flatMap(AppBuildChannel.init(rawValue:)) ?? .release
+    }
+
+    static func shouldCheckForUpdates(bundle: Bundle = .main) -> Bool {
+        currentBuildChannel(bundle: bundle) == .release
     }
 }

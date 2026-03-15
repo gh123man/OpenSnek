@@ -1086,6 +1086,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				OPEN_SNEK_BUILD_CHANNEL = release;
 				PRODUCT_BUNDLE_IDENTIFIER = io.opensnek.OpenSnek;
 				PRODUCT_NAME = OpenSnek;
 				SDKROOT = macosx;
@@ -1182,6 +1183,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				OPEN_SNEK_BUILD_CHANNEL = dev;
 				PRODUCT_BUNDLE_IDENTIFIER = io.opensnek.OpenSnek;
 				PRODUCT_NAME = OpenSnek;
 				SDKROOT = macosx;

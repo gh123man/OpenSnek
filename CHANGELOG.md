@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [2026-03-15]
 
 ### Fixed
+- Local/development app builds now identify themselves with a `Dev Build` sidebar banner and skip GitHub release update checks, instead of showing a misleading upgrade prompt that is only relevant to shipped release builds.
 - The Basilisk V3 X HyperSpeed USB profile (`0x00B9`) now enables the shared passive HID DPI listener tuple used by the other supported USB Basilisk profiles, so the app can upgrade that device from polling fallback to real-time HID monitoring once macOS delivers live DPI callbacks.
 - The background menu bar service now keeps a slower fast-DPI fallback poll alive for the selected device only when it is actually stuck on polling fallback, instead of also hammering Bluetooth devices that are merely re-arming passive HID listeners in `Listening` state after a registration reset.
 - Bluetooth passive DPI listeners now keep their observed real-time state across routine HID target rebuilds for the same logical device, which avoids re-enabling fallback polling and repeated listener churn during rapid on-device DPI cycling.

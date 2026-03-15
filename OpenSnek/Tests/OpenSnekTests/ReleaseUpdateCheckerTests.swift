@@ -33,4 +33,33 @@ final class ReleaseUpdateCheckerTests: XCTestCase {
         XCTAssertNil(ReleaseVersion.parse("main"))
         XCTAssertNil(ReleaseVersion.parse("v1.beta.0"))
     }
+
+    func testCurrentBuildChannelDefaultsToReleaseWhenUnset() {
+        let bundle = bundleWithInfoDictionary([:])
+        XCTAssertEqual(ReleaseUpdateChecker.currentBuildChannel(bundle: bundle), .release)
+        XCTAssertTrue(ReleaseUpdateChecker.shouldCheckForUpdates(bundle: bundle))
+    }
+
+    func testCurrentBuildChannelRecognizesDevBuilds() {
+        let bundle = bundleWithInfoDictionary(["OpenSnekBuildChannel": "dev"])
+        XCTAssertEqual(ReleaseUpdateChecker.currentBuildChannel(bundle: bundle), .dev)
+        XCTAssertFalse(ReleaseUpdateChecker.shouldCheckForUpdates(bundle: bundle))
+    }
+}
+
+private final class ReleaseUpdateCheckerTestBundle: Bundle, @unchecked Sendable {
+    private let testInfoDictionary: [String: Any]
+
+    init(infoDictionary: [String: Any]) {
+        self.testInfoDictionary = infoDictionary
+        super.init()
+    }
+
+    override func object(forInfoDictionaryKey key: String) -> Any? {
+        testInfoDictionary[key]
+    }
+}
+
+private func bundleWithInfoDictionary(_ infoDictionary: [String: Any]) -> Bundle {
+    ReleaseUpdateCheckerTestBundle(infoDictionary: infoDictionary)
 }

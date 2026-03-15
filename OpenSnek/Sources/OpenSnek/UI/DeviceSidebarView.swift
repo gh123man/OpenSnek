@@ -62,7 +62,37 @@ struct DeviceSidebarView: View {
                 }
                 .frame(maxHeight: .infinity)
 
-                if let availableUpdate = deviceStore.availableUpdate {
+                if deviceStore.currentBuildChannel == .dev {
+                    HStack(spacing: 10) {
+                        Image(systemName: "hammer.circle.fill")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(Color(hex: 0xF4C65D))
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Dev Build")
+                                .font(.system(size: 11, weight: .black, design: .rounded))
+                                .foregroundStyle(.white)
+
+                            Text("Local/development build. Update checks are disabled.")
+                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.70))
+                        }
+
+                        Spacer(minLength: 8)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 9)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.white.opacity(0.07))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color(hex: 0xF4C65D).opacity(0.30), lineWidth: 1)
+                            )
+                    )
+                    .help("This build was produced from a local/development configuration.")
+                } else if let availableUpdate = deviceStore.availableUpdate {
                     Button {
                         NSWorkspace.shared.open(availableUpdate.releaseURL)
                     } label: {

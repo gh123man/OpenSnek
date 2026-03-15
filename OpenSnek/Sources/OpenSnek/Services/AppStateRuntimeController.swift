@@ -446,6 +446,11 @@ final class AppStateRuntimeController {
         guard force || !environment.hasCheckedForUpdates else { return }
         environment.hasCheckedForUpdates = true
 
+        guard ReleaseUpdateChecker.shouldCheckForUpdates() else {
+            deviceStore.availableUpdate = nil
+            return
+        }
+
         guard let currentVersion = ReleaseUpdateChecker.currentAppVersion() else { return }
 
         do {

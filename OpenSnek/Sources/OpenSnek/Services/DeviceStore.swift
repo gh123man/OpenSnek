@@ -109,6 +109,10 @@ final class DeviceStore {
         return resolvedProfile(for: selectedDevice)?.passiveDPIInput != nil
     }
 
+    var currentBuildChannel: AppBuildChannel {
+        ReleaseUpdateChecker.currentBuildChannel()
+    }
+
     var selectedDeviceInteractionMessage: String? {
         _ = connectionDiagnosticsRevision
         guard let selectedDevice else { return nil }

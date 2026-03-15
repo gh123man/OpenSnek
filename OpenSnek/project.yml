@@ -85,6 +85,11 @@ targets:
         CODE_SIGN_STYLE: Automatic
         ENABLE_HARDENED_RUNTIME: YES
         SUPPORTS_MACCATALYST: NO
+      configs:
+        Debug:
+          OPEN_SNEK_BUILD_CHANNEL: dev
+        Release:
+          OPEN_SNEK_BUILD_CHANNEL: release
     dependencies:
       - target: OpenSnekCore
       - target: OpenSnekProtocols
