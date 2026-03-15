@@ -263,6 +263,19 @@ final class USBPassiveDPIEventTests: XCTestCase {
         )
     }
 
+    func testRealtimeCorrectionMinimumIntervalIsLowerInServiceMode() {
+        XCTAssertEqual(
+            AppStateDeviceController.realtimeCorrectionMinimumInterval(isService: true),
+            0.45,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            AppStateDeviceController.realtimeCorrectionMinimumInterval(isService: false),
+            1.0,
+            accuracy: 0.001
+        )
+    }
+
     func testBluetoothPassiveObservationResetsAfterWatchdogDetectsMissedChange() {
         let device = makePassiveTestDevice(id: "bt-watchdog", transport: .bluetooth)
         let now = Date(timeIntervalSince1970: 1_773_600_011)
