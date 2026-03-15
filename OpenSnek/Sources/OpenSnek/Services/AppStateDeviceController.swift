@@ -16,6 +16,8 @@ final class AppStateDeviceController {
     private var suppressFastDpiUntilByDeviceID: [String: Date] = [:]
     private var lastUSBFastDpiAtByDeviceID: [String: Date] = [:]
     private var lastRealtimeCorrectionAtByDeviceID: [String: Date] = [:]
+    private var lastPassiveHeartbeatAtByDeviceID: [String: Date] = [:]
+    private var lastFullStateRefreshAtByDeviceID: [String: Date] = [:]
     private var isPollingDevices = false
     private var refreshFailureCountByDeviceID: [String: Int] = [:]
     private var stateRefreshSuppressedUntilByDeviceID: [String: Date] = [:]
@@ -218,7 +220,11 @@ final class AppStateDeviceController {
         }
     }
 
-    func applyBackendDpiTransportStatusUpdate(deviceID: String, status: DpiUpdateTransportStatus) {
+    func applyBackendDpiTransportStatusUpdate(deviceID: String, status: DpiUpdateTransportStatus, updatedAt: Date) {
+        if status == .streamActive {
+            lastPassiveHeartbeatAtByDeviceID[deviceID] = updatedAt
+        }
+
         let currentStatus = dpiUpdateTransportStatusByDeviceID[deviceID]
         if !Self.shouldApplyBackendDpiTransportStatusUpdate(current: currentStatus, incoming: status) {
             return
@@ -232,6 +238,9 @@ final class AppStateDeviceController {
         }
 
         let presentationDeviceID = presentationDevice.id
+        if status == .streamActive {
+            lastPassiveHeartbeatAtByDeviceID[presentationDeviceID] = updatedAt
+        }
         let presentationStatus = dpiUpdateTransportStatusByDeviceID[presentationDeviceID]
         if Self.shouldApplyBackendDpiTransportStatusUpdate(current: presentationStatus, incoming: status) {
             setDpiUpdateTransportStatus(status, for: presentationDeviceID)
@@ -314,6 +323,7 @@ final class AppStateDeviceController {
                 unavailableDeviceIDs.remove(id)
                 setDpiUpdateTransportStatus(nil, for: id)
                 lastUpdatedByDeviceID[id] = nil
+                lastFullStateRefreshAtByDeviceID[id] = nil
                 suppressFastDpiUntilByDeviceID[id] = nil
                 lastUSBFastDpiAtByDeviceID[id] = nil
                 refreshingStateDeviceIDs.remove(id)
@@ -776,6 +786,18 @@ final class AppStateDeviceController {
             return false
         }
 
+        let now = Date()
+        if Self.shouldDelayBluetoothRealtimeStateRefresh(
+            transport: device.transport,
+            transportStatus: dpiUpdateTransportStatusByDeviceID[device.id],
+            lastHeartbeatAt: lastPassiveHeartbeatAtByDeviceID[device.id],
+            lastFullStateRefreshAt: lastFullStateRefreshAtByDeviceID[device.id],
+            now: now
+        ) {
+            AppLog.debug("AppState", "refreshState deferred active-bt-realtime device=\(device.id)")
+            return false
+        }
+
         if deviceStore.selectedDeviceID == device.id, let cached = stateCacheByDeviceID[device.id] {
             deviceStore.state = cached
         }
@@ -821,6 +843,8 @@ final class AppStateDeviceController {
             let shouldFocusOnActivity = shouldFocusServiceSelectionOnActivity(previous: previous, next: merged)
             let updatedAt = Date()
             cacheState(merged, sourceDeviceID: refreshDeviceID, presentationDeviceID: presentationDeviceID, updatedAt: updatedAt)
+            lastFullStateRefreshAtByDeviceID[refreshDeviceID] = updatedAt
+            lastFullStateRefreshAtByDeviceID[presentationDeviceID] = updatedAt
             refreshFailureCountByDeviceID[refreshDeviceID] = 0
             refreshFailureCountByDeviceID[presentationDeviceID] = 0
             stateRefreshSuppressedUntilByDeviceID[refreshDeviceID] = nil
@@ -934,6 +958,14 @@ final class AppStateDeviceController {
         guard !applyController.hasPendingLocalEditsAffecting(device) else { return }
         let usesFastPolling = await environment.backend.shouldUseFastDPIPolling(device: device)
         let correctionOnly = !usesFastPolling
+        if correctionOnly,
+           device.transport == .bluetooth,
+           Self.shouldDelayBluetoothRealtimeCorrection(
+            lastHeartbeatAt: lastPassiveHeartbeatAtByDeviceID[device.id],
+            now: now
+           ) {
+            return
+        }
         if correctionOnly {
             setDpiUpdateTransportStatus(.realTimeHID, for: device.id)
             if let lastCorrectionAt = lastRealtimeCorrectionAtByDeviceID[device.id],
@@ -1062,6 +1094,28 @@ final class AppStateDeviceController {
         case .unsupported:
             5
         }
+    }
+
+    nonisolated static func shouldDelayBluetoothRealtimeCorrection(lastHeartbeatAt: Date?, now: Date) -> Bool {
+        guard let lastHeartbeatAt else { return false }
+        return now.timeIntervalSince(lastHeartbeatAt) < 0.4
+    }
+
+    nonisolated static func shouldDelayBluetoothRealtimeStateRefresh(
+        transport: DeviceTransportKind,
+        transportStatus: DpiUpdateTransportStatus?,
+        lastHeartbeatAt: Date?,
+        lastFullStateRefreshAt: Date?,
+        now: Date
+    ) -> Bool {
+        guard transport == .bluetooth else { return false }
+        guard transportStatus == .streamActive || transportStatus == .realTimeHID else { return false }
+        guard let lastHeartbeatAt,
+              now.timeIntervalSince(lastHeartbeatAt) < 0.8 else {
+            return false
+        }
+        guard let lastFullStateRefreshAt else { return false }
+        return now.timeIntervalSince(lastFullStateRefreshAt) < 8.0
     }
 
     private func restorePersistedLightingIfNeeded(for device: MouseDevice) async {

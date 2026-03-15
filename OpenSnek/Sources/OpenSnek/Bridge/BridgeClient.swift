@@ -6,6 +6,7 @@ import OpenSnekProtocols
 
 actor BridgeClient {
     typealias USBDpiStageSnapshot = (active: Int, values: [Int], stageIDs: [UInt8])
+    private static let bluetoothPassiveResetSilenceInterval: TimeInterval = 1.0
 
     var deviceSessions: [String: USBHIDControlSession] = [:]
     var deviceSessionCandidates: [String: [USBHIDControlSession]] = [:]
@@ -16,6 +17,7 @@ actor BridgeClient {
     var passiveDpiArmedDeviceIDs: Set<String> = []
     var passiveDpiHeartbeatDeviceIDs: Set<String> = []
     var passiveDpiObservedDeviceIDs: Set<String> = []
+    var passiveDpiLastHeartbeatAtByDeviceID: [String: Date] = [:]
     var passiveDpiLastObservedAtByDeviceID: [String: Date] = [:]
     var passiveDpiTargetIDsByDeviceID: [String: Set<String>] = [:]
     var passiveDpiTargetsByDeviceID: [String: [PassiveDPIEventMonitor.WatchTarget]] = [:]
@@ -165,12 +167,14 @@ actor BridgeClient {
 
     private func handlePassiveDpiHeartbeat(_ event: PassiveDPIHeartbeatEvent) {
         guard passiveDpiArmedDeviceIDs.contains(event.deviceID) else { return }
+        passiveDpiLastHeartbeatAtByDeviceID[event.deviceID] = event.observedAt
         let firstHeartbeat = passiveDpiHeartbeatDeviceIDs.insert(event.deviceID).inserted
-        guard firstHeartbeat else { return }
-        AppLog.debug(
-            "Bridge",
-            "passiveDpi heartbeat device=\(event.deviceID); HID stream is active"
-        )
+        if firstHeartbeat {
+            AppLog.debug(
+                "Bridge",
+                "passiveDpi heartbeat device=\(event.deviceID); HID stream is active"
+            )
+        }
         for continuation in passiveDpiHeartbeatContinuations.values {
             continuation.yield(event)
         }
@@ -217,6 +221,7 @@ actor BridgeClient {
 
     private func clearPassiveDpiObservation(deviceID: String, reason: String) {
         passiveDpiUpgradeNotBeforeByDeviceID.removeValue(forKey: deviceID)
+        passiveDpiLastHeartbeatAtByDeviceID.removeValue(forKey: deviceID)
         passiveDpiLastObservedAtByDeviceID.removeValue(forKey: deviceID)
         passiveDpiHeartbeatDeviceIDs.remove(deviceID)
         guard passiveDpiObservedDeviceIDs.remove(deviceID) != nil else { return }
@@ -232,6 +237,7 @@ actor BridgeClient {
         lastStateByDeviceID.removeValue(forKey: deviceID)
         passiveDpiArmedDeviceIDs.remove(deviceID)
         passiveDpiHeartbeatDeviceIDs.remove(deviceID)
+        passiveDpiLastHeartbeatAtByDeviceID.removeValue(forKey: deviceID)
         passiveDpiLastObservedAtByDeviceID.removeValue(forKey: deviceID)
         passiveDpiTargetIDsByDeviceID.removeValue(forKey: deviceID)
         passiveDpiTargetsByDeviceID.removeValue(forKey: deviceID)
@@ -586,6 +592,7 @@ actor BridgeClient {
         previousState: MouseState?,
         active: Int,
         values: [Int],
+        lastHeartbeatAt: Date?,
         lastObservedAt: Date?,
         now: Date
     ) -> Bool {
@@ -604,7 +611,11 @@ actor BridgeClient {
         }
 
         guard let lastObservedAt else { return true }
-        return now.timeIntervalSince(lastObservedAt) > 0.35
+        if let lastHeartbeatAt,
+           now.timeIntervalSince(lastHeartbeatAt) <= bluetoothPassiveResetSilenceInterval {
+            return false
+        }
+        return now.timeIntervalSince(lastObservedAt) > bluetoothPassiveResetSilenceInterval
     }
 
     nonisolated static func reconciledObservedPassiveDpiDeviceIDs(
@@ -835,6 +846,7 @@ actor BridgeClient {
                 previousState: lastStateByDeviceID[device.id],
                 active: parsed.active,
                 values: parsed.values,
+                lastHeartbeatAt: passiveDpiLastHeartbeatAtByDeviceID[device.id],
                 lastObservedAt: passiveDpiLastObservedAtByDeviceID[device.id],
                 now: now
                ) {

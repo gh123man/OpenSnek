@@ -393,6 +393,13 @@ public enum DeviceProfiles {
         supportedLightingEffects: basiliskV3XUSBLightingEffects,
         usbLightingLEDIDs: [0x01],
         usbLightingZones: basiliskV3XUSBLightingZones,
+        passiveDPIInput: PassiveDPIInputDescriptor(
+            usagePage: 0x01,
+            usage: 0x06,
+            reportID: 0x05,
+            subtype: 0x02,
+            minInputReportSize: 5
+        ),
         onboardProfileCount: 1
     )
 

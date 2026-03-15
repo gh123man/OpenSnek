@@ -440,9 +440,15 @@ final actor LocalBridgeBackend: DeviceBackend {
 
     func readDpiStagesFast(device: MouseDevice) async throws -> DpiFastSnapshot? {
         let readStartedAt = Date()
+        let shouldUseFastPolling = await client.shouldUseFastDPIPolling(device: device)
         if let cachedAt = cachedFastAtByDeviceID[device.id],
            let cached = cachedFastByDeviceID[device.id],
-           readStartedAt.timeIntervalSince(cachedAt) < 0.2 {
+           Self.shouldReuseCachedFastSnapshot(
+            device: device,
+            cachedAt: cachedAt,
+            now: readStartedAt,
+            shouldUseFastDPIPolling: shouldUseFastPolling
+           ) {
             return cached
         }
         guard let snapshot = try await client.readDpiStagesFast(device: device) else { return nil }
@@ -534,6 +540,25 @@ final actor LocalBridgeBackend: DeviceBackend {
             return false
         }
         return true
+    }
+
+    nonisolated static func shouldReuseCachedFastSnapshot(
+        device: MouseDevice,
+        cachedAt: Date,
+        now: Date,
+        shouldUseFastDPIPolling: Bool
+    ) -> Bool {
+        let maxAge: TimeInterval
+        if device.transport == .bluetooth, !shouldUseFastDPIPolling {
+            // While passive BT DPI events are flowing, prefer the latest cached state
+            // and defer vendor reads until the stream has been quiet for roughly one
+            // correction interval.
+            maxAge = 0.9
+        } else {
+            maxAge = 0.2
+        }
+
+        return now.timeIntervalSince(cachedAt) < maxAge
     }
 
     nonisolated static func completedReadWasSuperseded(startedAt: Date, latestCachedAt: Date?) -> Bool {

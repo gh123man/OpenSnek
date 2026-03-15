@@ -152,14 +152,19 @@ final class AppStateRuntimeController {
         let liveIDs = Set(deviceStore.devices.map(\.id))
         var ordered: [String] = []
         var seen: Set<String> = []
+        let remoteSelectedDeviceIDs = activeRemoteSelectedDeviceIDs(at: now)
+        let shouldIncludeLocalSelection = !environment.launchRole.isService ||
+            remoteSelectedDeviceIDs.isEmpty ||
+            isLocallyInteractive(at: now)
 
-        for deviceID in localFastPollingDeviceIDs(at: now) {
-            guard liveIDs.contains(deviceID) else { continue }
-            guard seen.insert(deviceID).inserted else { continue }
-            ordered.append(deviceID)
+        if shouldIncludeLocalSelection {
+            for deviceID in localFastPollingDeviceIDs(at: now) {
+                guard liveIDs.contains(deviceID) else { continue }
+                guard seen.insert(deviceID).inserted else { continue }
+                ordered.append(deviceID)
+            }
         }
 
-        let remoteSelectedDeviceIDs = activeRemoteSelectedDeviceIDs(at: now)
         for deviceID in remoteSelectedDeviceIDs {
             guard liveIDs.contains(deviceID) else { continue }
             guard seen.insert(deviceID).inserted else { continue }
@@ -222,8 +227,12 @@ final class AppStateRuntimeController {
         case .snapshot(let snapshot):
             guard environment.usesRemoteServiceUpdates else { return }
             deviceController.applyRemoteServiceSnapshot(snapshot)
-        case .dpiTransportStatus(let deviceID, let status, _):
-            deviceController.applyBackendDpiTransportStatusUpdate(deviceID: deviceID, status: status)
+        case .dpiTransportStatus(let deviceID, let status, let updatedAt):
+            deviceController.applyBackendDpiTransportStatusUpdate(
+                deviceID: deviceID,
+                status: status,
+                updatedAt: updatedAt
+            )
         case .deviceState(let deviceID, let updatedState, let updatedAt):
             deviceController.applyBackendDeviceStateUpdate(
                 deviceID: deviceID,
@@ -545,7 +554,7 @@ final class AppStateRuntimeController {
     private func localFastPollingDeviceIDs(at now: Date) -> [String] {
         guard let selectedDeviceID = deviceStore.selectedDeviceID else { return [] }
         if environment.launchRole.isService {
-            let localInteractive = compactMenuPresented || (compactInteractionUntil.map { now < $0 } ?? false)
+            let localInteractive = isLocallyInteractive(at: now)
             if localInteractive {
                 return [selectedDeviceID]
             }
@@ -554,15 +563,19 @@ final class AppStateRuntimeController {
                 return []
             }
             switch deviceController.dpiUpdateTransportStatus(for: selectedDevice) {
-            case .unknown, .streamActive, .pollingFallback:
+            case .streamActive, .pollingFallback:
                 return [selectedDeviceID]
             case .realTimeHID:
                 return [selectedDeviceID]
-            case .listening, .unsupported:
+            case .unknown, .listening, .unsupported:
                 return []
             }
         }
         return environment.usesRemoteServiceUpdates ? [] : [selectedDeviceID]
+    }
+
+    private func isLocallyInteractive(at now: Date) -> Bool {
+        compactMenuPresented || (compactInteractionUntil.map { now < $0 } ?? false)
     }
 
     private func pruneExpiredRemoteClientPresence(now: Date) {
