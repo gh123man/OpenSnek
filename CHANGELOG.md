@@ -12,6 +12,7 @@ All notable changes to this project are documented in this file.
 - Passive HID listener reuse now rebuilds the underlying registration when macOS swaps in a new `IOHIDDevice` object for the same logical target, which fixes Bluetooth sessions getting stuck indefinitely in `Listening for first HID event` after reconnect/re-enumeration.
 - Bluetooth real-time DPI now keeps a low-rate watchdog fast read alive for the selected device, and a missed on-device stage change automatically demotes the stale passive-HID path back to fallback polling and re-arms the listener instead of staying stuck in a dead `realTimeHID` state forever.
 - Bluetooth passive HID report handling now classifies the frequent `05 05 10 ...` packets as heartbeat/status traffic separate from actual `05 05 02 ...` DPI packets, and the app surfaces that as `HID stream active` immediately instead of waiting forever on `Listening for first HID event` when the listener is alive but no DPI change has happened yet.
+- Selected devices now keep a low-rate fast DPI correction read alive even after passive real-time HID becomes active, so an occasional missed passive packet gets reconciled quickly on both USB and Bluetooth instead of leaving the UI stale until the next manual change.
 
 ## [2026-03-14]
 

@@ -15,7 +15,7 @@ final class AppStateDeviceController {
     private var refreshingFastDpiDeviceIDs: Set<String> = []
     private var suppressFastDpiUntilByDeviceID: [String: Date] = [:]
     private var lastUSBFastDpiAtByDeviceID: [String: Date] = [:]
-    private var lastBluetoothRealtimeWatchdogAtByDeviceID: [String: Date] = [:]
+    private var lastRealtimeCorrectionAtByDeviceID: [String: Date] = [:]
     private var isPollingDevices = false
     private var refreshFailureCountByDeviceID: [String: Int] = [:]
     private var stateRefreshSuppressedUntilByDeviceID: [String: Date] = [:]
@@ -937,17 +937,14 @@ final class AppStateDeviceController {
         guard !refreshingStateDeviceIDs.contains(device.id) else { return }
         guard !applyController.hasPendingLocalEditsAffecting(device) else { return }
         let usesFastPolling = await environment.backend.shouldUseFastDPIPolling(device: device)
-        let watchdogOnly = !usesFastPolling && device.transport == .bluetooth
-        if !usesFastPolling {
+        let correctionOnly = !usesFastPolling
+        if correctionOnly {
             setDpiUpdateTransportStatus(.realTimeHID, for: device.id)
-            if !watchdogOnly {
+            if let lastCorrectionAt = lastRealtimeCorrectionAtByDeviceID[device.id],
+               now.timeIntervalSince(lastCorrectionAt) < 1.0 {
                 return
             }
-            if let lastWatchdogAt = lastBluetoothRealtimeWatchdogAtByDeviceID[device.id],
-               now.timeIntervalSince(lastWatchdogAt) < 1.0 {
-                return
-            }
-            lastBluetoothRealtimeWatchdogAtByDeviceID[device.id] = now
+            lastRealtimeCorrectionAtByDeviceID[device.id] = now
         }
 
         if device.transport == .usb,
@@ -1003,7 +1000,7 @@ final class AppStateDeviceController {
 
             let shouldFocusOnActivity = shouldFocusServiceSelectionOnActivity(previous: previous, next: updated)
             cacheState(updated, sourceDeviceID: device.id, presentationDeviceID: presentationDeviceID, updatedAt: readAt)
-            if watchdogOnly {
+            if correctionOnly {
                 let stillUsesFastPolling = await environment.backend.shouldUseFastDPIPolling(device: device)
                 let nextStatus: DpiUpdateTransportStatus = stillUsesFastPolling ? .pollingFallback : .realTimeHID
                 setDpiUpdateTransportStatus(nextStatus, for: device.id)

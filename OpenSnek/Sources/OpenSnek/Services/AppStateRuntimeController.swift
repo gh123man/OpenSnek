@@ -603,7 +603,7 @@ final class AppStateRuntimeController {
             case .unknown, .streamActive, .pollingFallback:
                 return [selectedDeviceID]
             case .realTimeHID:
-                return selectedDevice.transport == .bluetooth ? [selectedDeviceID] : []
+                return [selectedDeviceID]
             case .listening, .unsupported:
                 return []
             }

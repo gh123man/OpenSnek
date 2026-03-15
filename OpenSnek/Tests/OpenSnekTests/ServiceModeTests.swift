@@ -182,30 +182,43 @@ final class ServiceModeTests: XCTestCase {
             0.5
         )
     }
+
+    @MainActor
+    func testServiceIdleKeepsSlowFastPollingForSelectedUSBRealtimeCorrection() async {
+        let backend = ServiceModeTransportBackend(
+            transportStatus: .realTimeHID,
+            device: makeServiceModeDevice(id: "service-test-usb-device", transport: .usb, productID: 0x00AB)
+        )
+        let appState = AppState(launchRole: .service, backend: backend, autoStart: false)
+        let device = backend.device
+
+        _ = appState.deviceController.applyDeviceList([device], source: "test")
+        await appState.deviceController.refreshConnectionDiagnostics(for: device)
+
+        XCTAssertEqual(
+            appState.runtimeStore.activeFastPollingDeviceIDs(at: Date()),
+            [device.id]
+        )
+        XCTAssertEqual(
+            appState.runtimeController.effectiveFastDpiInterval(at: Date()),
+            0.5
+        )
+    }
 }
 
 private actor ServiceModeTransportBackend: DeviceBackend {
     nonisolated var usesRemoteServiceTransport: Bool { false }
 
-    let device = MouseDevice(
-        id: "service-test-device",
-        vendor_id: 0x068E,
-        product_id: 0x00AC,
-        product_name: "Basilisk V3 Pro",
-        transport: .bluetooth,
-        path_b64: "",
-        serial: "SERVICE",
-        firmware: "1.0.0",
-        location_id: 1,
-        profile_id: .basiliskV3Pro,
-        supports_advanced_lighting_effects: true,
-        onboard_profile_count: 1
-    )
+    let device: MouseDevice
 
     private let transportStatus: DpiUpdateTransportStatus
 
-    init(transportStatus: DpiUpdateTransportStatus) {
+    init(
+        transportStatus: DpiUpdateTransportStatus,
+        device: MouseDevice = makeServiceModeDevice(id: "service-test-device", transport: .bluetooth, productID: 0x00AC)
+    ) {
         self.transportStatus = transportStatus
+        self.device = device
     }
 
     func listDevices() async throws -> [MouseDevice] {
@@ -273,4 +286,21 @@ private actor ServiceModeTransportBackend: DeviceBackend {
     func debugUSBReadButtonBinding(device _: MouseDevice, slot _: Int, profile _: Int) async throws -> [UInt8]? {
         nil
     }
+}
+
+private func makeServiceModeDevice(id: String, transport: DeviceTransportKind, productID: Int) -> MouseDevice {
+    MouseDevice(
+        id: id,
+        vendor_id: transport == .bluetooth ? 0x068E : 0x1532,
+        product_id: productID,
+        product_name: "Basilisk V3 Pro",
+        transport: transport,
+        path_b64: "",
+        serial: "SERVICE",
+        firmware: "1.0.0",
+        location_id: 1,
+        profile_id: .basiliskV3Pro,
+        supports_advanced_lighting_effects: true,
+        onboard_profile_count: 1
+    )
 }

@@ -489,8 +489,8 @@ final class USBPassiveDPIEventTests: XCTestCase {
         XCTAssertNil(clearedTransientDpi)
     }
 
-    func testAppStateSkipsFastPollingWhenPassiveUSBUpdatesAreAvailable() async {
-        let device = makePassiveTestDevice(id: "usb-passive-skip", transport: .usb)
+    func testAppStateKeepsLowRateCorrectionPollingWhenPassiveUSBUpdatesAreAvailable() async {
+        let device = makePassiveTestDevice(id: "usb-passive-correct", transport: .usb)
         let backend = PassiveUpdateStubBackend(
             devices: [device],
             stateByDeviceID: [
@@ -512,7 +512,7 @@ final class USBPassiveDPIEventTests: XCTestCase {
         await appState.deviceStore.refreshDpiFast()
 
         let fastReadCount = await backend.fastReadCount()
-        XCTAssertEqual(fastReadCount, 0)
+        XCTAssertEqual(fastReadCount, 1)
     }
 
     func testAppStateFallsBackToFastPollingWhenPassiveUSBUpdatesAreUnavailable() async {
