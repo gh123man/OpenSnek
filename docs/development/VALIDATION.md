@@ -97,7 +97,13 @@ xcodebuild -project OpenSnek/OpenSnek.xcodeproj -scheme OpenSnek -destination 'p
 xcodebuild -project OpenSnek/OpenSnek.xcodeproj -scheme OpenSnekProbe -destination 'platform=macOS' build
 ```
 
-Do not regenerate `OpenSnek/OpenSnek.xcodeproj` unless `OpenSnek/project.yml` changed.
+Regenerate `OpenSnek/OpenSnek.xcodeproj` after `OpenSnek/project.yml` changes and after staged source/test/resource file adds, deletes, or renames that affect the generated project tree.
+
+To automate that locally:
+
+```bash
+./OpenSnek/scripts/install_git_hooks.sh
+```
 
 ## Permissions / TCC
 

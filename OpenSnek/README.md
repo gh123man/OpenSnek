@@ -115,8 +115,11 @@ For full app behavior (dock icon, proper activation/focus, keyboard text-entry r
 For distribution/signing workflows, use the generated Xcode project:
 
 ```bash
+./OpenSnek/scripts/install_git_hooks.sh
 ./OpenSnek/scripts/generate_xcodeproj.sh --open
 ```
+
+The local pre-commit hook installed by `install_git_hooks.sh` automatically regenerates and re-stages `OpenSnek.xcodeproj` when staged changes would otherwise leave the generated project out of sync.
 
 Regenerate app icon assets from the canonical master PNG (`Branding/AppIcon-master.png`):
 
