@@ -92,18 +92,12 @@ Use these only when the task needs them:
 swift run --package-path OpenSnek OpenSnek
 ./OpenSnek/scripts/run_macos_app.sh
 ./OpenSnek/scripts/generate_xcodeproj.sh
-xcodebuild -project OpenSnek/OpenSnek.xcodeproj -scheme OpenSnek -destination 'platform=macOS' build
-xcodebuild -project OpenSnek/OpenSnek.xcodeproj -scheme OpenSnek -destination 'platform=macOS' test
-xcodebuild -project OpenSnek/OpenSnek.xcodeproj -scheme OpenSnekProbe -destination 'platform=macOS' build
+./OpenSnek/scripts/xcodebuild_generated.sh -scheme OpenSnek -destination 'platform=macOS' build
+./OpenSnek/scripts/xcodebuild_generated.sh -scheme OpenSnek -destination 'platform=macOS' test
+./OpenSnek/scripts/xcodebuild_generated.sh -scheme OpenSnekProbe -destination 'platform=macOS' build
 ```
 
-Regenerate `OpenSnek/OpenSnek.xcodeproj` after `OpenSnek/project.yml` changes and after staged source/test/resource file adds, deletes, or renames that affect the generated project tree.
-
-To automate that locally:
-
-```bash
-./OpenSnek/scripts/install_git_hooks.sh
-```
+`OpenSnek/OpenSnek.xcodeproj` is generated from `OpenSnek/project.yml` on demand and is not committed.
 
 ## Permissions / TCC
 

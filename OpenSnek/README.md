@@ -57,7 +57,7 @@ Device onboarding and capture interpretation live in:
 - `App/`
   - `Info.plist`: app metadata/permissions for Xcode builds
   - `Resources/Assets.xcassets`: app icon catalog
-- `project.yml`: XcodeGen spec for reproducible `OpenSnek.xcodeproj`
+- `project.yml`: XcodeGen spec for the generated, gitignored `OpenSnek.xcodeproj`
 
 ## Runtime Guarantees
 
@@ -115,11 +115,10 @@ For full app behavior (dock icon, proper activation/focus, keyboard text-entry r
 For distribution/signing workflows, use the generated Xcode project:
 
 ```bash
-./OpenSnek/scripts/install_git_hooks.sh
 ./OpenSnek/scripts/generate_xcodeproj.sh --open
 ```
 
-The local pre-commit hook installed by `install_git_hooks.sh` automatically regenerates and re-stages `OpenSnek.xcodeproj` when staged changes would otherwise leave the generated project out of sync.
+`OpenSnek/OpenSnek.xcodeproj` is generated on demand from `project.yml` and is not checked into git.
 
 Regenerate app icon assets from the canonical master PNG (`Branding/AppIcon-master.png`):
 
@@ -130,9 +129,9 @@ Regenerate app icon assets from the canonical master PNG (`Branding/AppIcon-mast
 CLI Xcode validation:
 
 ```bash
-xcodebuild -project OpenSnek/OpenSnek.xcodeproj -scheme OpenSnek -destination 'platform=macOS' build
-xcodebuild -project OpenSnek/OpenSnek.xcodeproj -scheme OpenSnek -destination 'platform=macOS' test
-xcodebuild -project OpenSnek/OpenSnek.xcodeproj -scheme OpenSnekProbe -destination 'platform=macOS' build
+./OpenSnek/scripts/xcodebuild_generated.sh -scheme OpenSnek -destination 'platform=macOS' build
+./OpenSnek/scripts/xcodebuild_generated.sh -scheme OpenSnek -destination 'platform=macOS' test
+./OpenSnek/scripts/xcodebuild_generated.sh -scheme OpenSnekProbe -destination 'platform=macOS' build
 ```
 
 Bundle build only:

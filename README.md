@@ -102,11 +102,10 @@ swift test --package-path OpenSnek
 ## Xcode
 
 ```bash
-./OpenSnek/scripts/install_git_hooks.sh
 ./OpenSnek/scripts/generate_xcodeproj.sh --open
 ```
 
-`install_git_hooks.sh` enables the repo's versioned pre-commit hook locally. That hook regenerates and re-stages `OpenSnek/OpenSnek.xcodeproj` when staged `project.yml` changes or staged source/test/resource file adds, deletes, or renames would make the generated project drift from the tree.
+`OpenSnek/OpenSnek.xcodeproj` is generated from `OpenSnek/project.yml` on demand and is not checked into git.
 
 ## Project Docs
 
