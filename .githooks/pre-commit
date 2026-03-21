@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+needs_xcodeproj_regen=false
+
+path_requires_xcodeproj_regen() {
+  local status="$1"
+  local path="$2"
+
+  case "$path" in
+    OpenSnek/project.yml)
+      return 0
+      ;;
+    OpenSnek/Sources/*|OpenSnek/Tests/*|OpenSnek/App/Resources/*)
+      case "$status" in
+        A*|C*|D*|R*)
+          return 0
+          ;;
+      esac
+      ;;
+  esac
+
+  return 1
+}
+
+while IFS=$'\t' read -r status path maybe_new_path; do
+  if path_requires_xcodeproj_regen "$status" "$path"; then
+    needs_xcodeproj_regen=true
+    break
+  fi
+
+  if [[ -n "${maybe_new_path:-}" ]] && path_requires_xcodeproj_regen "$status" "$maybe_new_path"; then
+    needs_xcodeproj_regen=true
+    break
+  fi
+done < <(git diff --cached --name-status --diff-filter=ACMRD)
+
+if [[ "$needs_xcodeproj_regen" != true ]]; then
+  exit 0
+fi
+
+if ! command -v xcodegen >/dev/null 2>&1; then
+  echo "xcodegen is required to keep OpenSnek.xcodeproj in sync. Install with: brew install xcodegen" >&2
+  exit 1
+fi
+
+echo "pre-commit: regenerating OpenSnek.xcodeproj for staged topology changes" >&2
+./OpenSnek/scripts/generate_xcodeproj.sh
+git add OpenSnek/OpenSnek.xcodeproj/project.pbxproj
