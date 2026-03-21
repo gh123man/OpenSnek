@@ -14,6 +14,7 @@
 		0B4BB8DAF84F4166B7DDEE44 /* BridgeClient+Bluetooth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CC6FAA3C44729C3700FE4E1 /* BridgeClient+Bluetooth.swift */; };
 		0EB6806B3FB527AF093FD1E0 /* OpenSnekCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A565F79B7A11FE5BE25FD3DF /* OpenSnekCore.framework */; };
 		104601B0BC2F1D36B44A56C8 /* USBPassiveDPIEventMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0165E25D97B7943014E776B8 /* USBPassiveDPIEventMonitor.swift */; };
+		1066D4A9F559E5102AE28449 /* DeveloperRuntimeOptionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA8B0C4F63BEEA9EF4F005D /* DeveloperRuntimeOptionsTests.swift */; };
 		115C434E7B9D1D2EF63C2D27 /* OpenSnekProtocols.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FFCAF5468D311043044792E4 /* OpenSnekProtocols.framework */; };
 		14A60F78987BD7E62A05435A /* CoreAliases.swift in Sources */ = {isa = PBXBuildFile; fileRef = E07B7A5FA7CA43DA87EB0B12 /* CoreAliases.swift */; };
 		14E8CAD2DFC4A9235AD756A5 /* USBPassiveDPIEventTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94E0277FF8089CE064B9AF39 /* USBPassiveDPIEventTests.swift */; };
@@ -81,6 +82,7 @@
 		B601683BCF8CF86905DE4AC8 /* OpenSnekAppSupport.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 58FFF2733703D2A6B60589C9 /* OpenSnekAppSupport.framework */; };
 		B7A9D4F41FBB23D158D74461 /* OpenSnekHardware.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3B4A9C2329D2DC93E67914B4 /* OpenSnekHardware.framework */; };
 		BED47AFF117D88E1BC2E531F /* BackgroundServiceCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89EC8F30230BA69A6D4F4581 /* BackgroundServiceCoordinator.swift */; };
+		C02A9ACAB674582AAE90D9F4 /* DeveloperRuntimeOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 824DB38EBC45E9E6AB43654A /* DeveloperRuntimeOptions.swift */; };
 		C1EE40E913BCA3F8E9934F41 /* BackgroundServiceCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEB04F90DEF484852DEC0305 /* BackgroundServiceCoordinatorTests.swift */; };
 		C33A7755A9861F62FB03CDAF /* HardwareUSBStateSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE8F84CCA1A0F5533E54C54E /* HardwareUSBStateSmokeTests.swift */; };
 		C4F19D86AEC3E6D05F3F1D04 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80DCADFE41E288CC68B74DAF /* AppEnvironment.swift */; };
@@ -308,6 +310,7 @@
 		799DCE2031A8BABF4A66A412 /* DeviceProfilesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceProfilesTests.swift; sourceTree = "<group>"; };
 		7E565DA45A51754437348FAC /* TurboRateMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurboRateMappingTests.swift; sourceTree = "<group>"; };
 		80DCADFE41E288CC68B74DAF /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
+		824DB38EBC45E9E6AB43654A /* DeveloperRuntimeOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperRuntimeOptions.swift; sourceTree = "<group>"; };
 		89EC8F30230BA69A6D4F4581 /* BackgroundServiceCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundServiceCoordinator.swift; sourceTree = "<group>"; };
 		91C4490720E613CB77D916C5 /* DevicePreferenceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevicePreferenceStore.swift; sourceTree = "<group>"; };
 		94E0277FF8089CE064B9AF39 /* USBPassiveDPIEventTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = USBPassiveDPIEventTests.swift; sourceTree = "<group>"; };
@@ -351,6 +354,7 @@
 		F6559F1E140B59BC3EB70141 /* HardwareDpiReliabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareDpiReliabilityTests.swift; sourceTree = "<group>"; };
 		FBFB4278398BC94A5E37967C /* snek-menu.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "snek-menu.png"; sourceTree = "<group>"; };
 		FCE2CEEB636DB1FEE68464AA /* BLEVendorTransportClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLEVendorTransportClient.swift; sourceTree = "<group>"; };
+		FEA8B0C4F63BEEA9EF4F005D /* DeveloperRuntimeOptionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperRuntimeOptionsTests.swift; sourceTree = "<group>"; };
 		FFCAF5468D311043044792E4 /* OpenSnekProtocols.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = OpenSnekProtocols.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -485,6 +489,7 @@
 			children = (
 				0A4224D8E997DD977430D6F8 /* ApplyCoordinator.swift */,
 				3491751DEEEBE0C258D62A71 /* AppSupportModule.swift */,
+				824DB38EBC45E9E6AB43654A /* DeveloperRuntimeOptions.swift */,
 				91C4490720E613CB77D916C5 /* DevicePreferenceStore.swift */,
 			);
 			name = OpenSnekAppSupport;
@@ -548,6 +553,7 @@
 				C05AFB11B6A46052936D2A5B /* BackgroundServiceTransportTests.swift */,
 				3290EDBE39717C1D8F46AE15 /* BLEVendorProtocolTests.swift */,
 				D27C6FBB73D7181EC5CA7EF4 /* BridgeClientBluetoothFallbackTests.swift */,
+				FEA8B0C4F63BEEA9EF4F005D /* DeveloperRuntimeOptionsTests.swift */,
 				E745B07B6A83DDBC08D6D943 /* DeviceDiagnosticsFormatterTests.swift */,
 				4D49AFD14532949E1EAA5C87 /* DevicePatchMergeTests.swift */,
 				799DCE2031A8BABF4A66A412 /* DeviceProfilesTests.swift */,
@@ -889,6 +895,7 @@
 			files = (
 				F9E12897A80FA5398E8CE015 /* AppSupportModule.swift in Sources */,
 				A633796EEE25F6072B9E73FF /* ApplyCoordinator.swift in Sources */,
+				C02A9ACAB674582AAE90D9F4 /* DeveloperRuntimeOptions.swift in Sources */,
 				F4AF3E48372FE406E5ED089A /* DevicePreferenceStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -923,6 +930,7 @@
 				C1EE40E913BCA3F8E9934F41 /* BackgroundServiceCoordinatorTests.swift in Sources */,
 				3AB14EF6601477571E742267 /* BackgroundServiceTransportTests.swift in Sources */,
 				B591BB9B7CCD5FBD0AB5AAB3 /* BridgeClientBluetoothFallbackTests.swift in Sources */,
+				1066D4A9F559E5102AE28449 /* DeveloperRuntimeOptionsTests.swift in Sources */,
 				EBCFEC8BF3B7980DBAFA9EAA /* DeviceDiagnosticsFormatterTests.swift in Sources */,
 				2AD6CE479E23A6FFC950DDC5 /* DevicePatchMergeTests.swift in Sources */,
 				FCEF227A89510B96FA408730 /* DeviceProfilesTests.swift in Sources */,
