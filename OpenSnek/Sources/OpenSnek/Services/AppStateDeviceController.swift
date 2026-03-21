@@ -1069,6 +1069,10 @@ final class AppStateDeviceController {
         let previous = dpiUpdateTransportStatusByDeviceID[deviceID]
         guard previous != status else { return }
         dpiUpdateTransportStatusByDeviceID[deviceID] = status
+        AppLog.debug(
+            "AppState",
+            "dpiTransportStatus device=\(deviceID) previous=\(previous?.rawValue ?? "nil") next=\(status?.rawValue ?? "nil")"
+        )
         deviceStore.invalidateConnectionDiagnostics()
     }
 

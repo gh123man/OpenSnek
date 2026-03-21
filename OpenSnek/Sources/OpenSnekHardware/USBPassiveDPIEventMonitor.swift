@@ -112,12 +112,20 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         public let deviceID: String
         public let targetID: String
         public let device: IOHIDDevice
+        public let deviceIdentityToken: String
         public let descriptor: PassiveDPIInputDescriptor
 
-        public init(deviceID: String, targetID: String, device: IOHIDDevice, descriptor: PassiveDPIInputDescriptor) {
+        public init(
+            deviceID: String,
+            targetID: String,
+            device: IOHIDDevice,
+            deviceIdentityToken: String,
+            descriptor: PassiveDPIInputDescriptor
+        ) {
             self.deviceID = deviceID
             self.targetID = targetID
             self.device = device
+            self.deviceIdentityToken = deviceIdentityToken
             self.descriptor = descriptor
         }
     }
@@ -127,17 +135,20 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         let descriptor: PassiveDPIInputDescriptor
         let emit: @Sendable (PassiveDPIEvent) -> Void
         let emitHeartbeat: @Sendable (PassiveDPIHeartbeatEvent) -> Void
+        let emitDebug: @Sendable (String) -> Void
 
         init(
             deviceID: String,
             descriptor: PassiveDPIInputDescriptor,
             emit: @escaping @Sendable (PassiveDPIEvent) -> Void,
-            emitHeartbeat: @escaping @Sendable (PassiveDPIHeartbeatEvent) -> Void
+            emitHeartbeat: @escaping @Sendable (PassiveDPIHeartbeatEvent) -> Void,
+            emitDebug: @escaping @Sendable (String) -> Void
         ) {
             self.deviceID = deviceID
             self.descriptor = descriptor
             self.emit = emit
             self.emitHeartbeat = emitHeartbeat
+            self.emitDebug = emitDebug
         }
     }
 
@@ -150,6 +161,7 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         let deviceID: String
         let targetID: String
         let device: IOHIDDevice
+        let deviceIdentityToken: String
         let descriptor: PassiveDPIInputDescriptor
         let buffer: UnsafeMutablePointer<UInt8>
         let bufferLength: CFIndex
@@ -158,6 +170,7 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
 
     public var onEvent: (@Sendable (PassiveDPIEvent) -> Void)?
     public var onHeartbeat: (@Sendable (PassiveDPIHeartbeatEvent) -> Void)?
+    public var onDebug: (@Sendable (String) -> Void)?
 
     private let queue = DispatchQueue(label: "open.snek.hid.passive-dpi")
     private let runLoopStateLock = NSLock()
@@ -261,8 +274,12 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         var activeDeviceIDs: Set<String> = []
         for (key, target) in desiredByKey {
             if let existing = registrationsByKey[key],
-               existing.descriptor == target.descriptor,
-               !Self.deviceReferenceChanged(existing.device, target.device) {
+               Self.shouldReuseRegistration(
+                existingDescriptor: existing.descriptor,
+                existingDeviceIdentityToken: existing.deviceIdentityToken,
+                targetDescriptor: target.descriptor,
+                targetDeviceIdentityToken: target.deviceIdentityToken
+               ) {
                 activeDeviceIDs.insert(target.deviceID)
                 continue
             }
@@ -277,12 +294,19 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
     }
 
     private func addRegistration(target: WatchTarget, key: RegistrationKey) -> Bool {
-        let openResult = IOHIDDeviceOpen(target.device, IOOptionBits(kIOHIDOptionsTypeNone))
-        guard openResult == kIOReturnSuccess else { return false }
+        let registrationDevice = Self.registrationDevice(from: target.device) ?? target.device
+        let openResult = IOHIDDeviceOpen(registrationDevice, IOOptionBits(kIOHIDOptionsTypeNone))
+        guard openResult == kIOReturnSuccess else {
+            onDebug?(
+                "register failed device=\(target.deviceID) target=\(target.targetID) " +
+                "identity=\(target.deviceIdentityToken) result=\(openResult)"
+            )
+            return false
+        }
 
         let reportLength = max(
             target.descriptor.minInputReportSize,
-            USBHIDSupport.intProperty(target.device, key: kIOHIDMaxInputReportSizeKey as CFString) ?? target.descriptor.minInputReportSize
+            USBHIDSupport.intProperty(registrationDevice, key: kIOHIDMaxInputReportSizeKey as CFString) ?? target.descriptor.minInputReportSize
         )
         let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: reportLength)
         buffer.initialize(repeating: 0, count: reportLength)
@@ -294,12 +318,14 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
             self?.onEvent?(event)
         } emitHeartbeat: { [weak self] event in
             self?.onHeartbeat?(event)
+        } emitDebug: { [weak self] message in
+            self?.onDebug?(message)
         }
         let context = UnsafeMutableRawPointer(Unmanaged.passRetained(contextBox).toOpaque())
 
-        IOHIDDeviceScheduleWithRunLoop(target.device, CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
+        IOHIDDeviceScheduleWithRunLoop(registrationDevice, CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
         IOHIDDeviceRegisterInputReportCallback(
-            target.device,
+            registrationDevice,
             buffer,
             CFIndex(reportLength),
             Self.inputReportCallback,
@@ -309,17 +335,26 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         registrationsByKey[key] = Registration(
             deviceID: target.deviceID,
             targetID: target.targetID,
-            device: target.device,
+            device: registrationDevice,
+            deviceIdentityToken: target.deviceIdentityToken,
             descriptor: target.descriptor,
             buffer: buffer,
             bufferLength: CFIndex(reportLength),
             context: context
+        )
+        onDebug?(
+            "register ok device=\(target.deviceID) target=\(target.targetID) identity=\(target.deviceIdentityToken) " +
+            "reportSize=\(reportLength) cloned=\(registrationDevice !== target.device)"
         )
         return true
     }
 
     private func removeRegistration(key: RegistrationKey) {
         guard let registration = registrationsByKey.removeValue(forKey: key) else { return }
+        onDebug?(
+            "unregister device=\(registration.deviceID) target=\(registration.targetID) " +
+            "identity=\(registration.deviceIdentityToken)"
+        )
         IOHIDDeviceUnscheduleFromRunLoop(
             registration.device,
             CFRunLoopGetCurrent(),
@@ -331,8 +366,14 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         Unmanaged<CallbackContext>.fromOpaque(registration.context).release()
     }
 
-    private static func deviceReferenceChanged(_ lhs: IOHIDDevice, _ rhs: IOHIDDevice) -> Bool {
-        Unmanaged.passUnretained(lhs).toOpaque() != Unmanaged.passUnretained(rhs).toOpaque()
+    static func shouldReuseRegistration(
+        existingDescriptor: PassiveDPIInputDescriptor,
+        existingDeviceIdentityToken: String,
+        targetDescriptor: PassiveDPIInputDescriptor,
+        targetDeviceIdentityToken: String
+    ) -> Bool {
+        existingDescriptor == targetDescriptor &&
+            existingDeviceIdentityToken == targetDeviceIdentityToken
     }
 
     private static let inputReportCallback: IOHIDReportCallback = { context, result, _, reportType, _, report, reportLength in
@@ -340,8 +381,13 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         let callbackContext = Unmanaged<CallbackContext>.fromOpaque(context).takeUnretainedValue()
         let bytes = Array(UnsafeBufferPointer(start: report, count: max(0, reportLength)))
         let observedAt = Date()
-        switch PassiveDPIParser.classify(report: bytes, descriptor: callbackContext.descriptor) {
+        let classification = PassiveDPIParser.classify(report: bytes, descriptor: callbackContext.descriptor)
+        switch classification {
         case .dpi(let reading):
+            callbackContext.emitDebug(
+                "callback dpi device=\(callbackContext.deviceID) bytes=\(hexString(bytes)) " +
+                "dpiX=\(reading.dpiX) dpiY=\(reading.dpiY)"
+            )
             callbackContext.emit(
                 PassiveDPIEvent(
                     deviceID: callbackContext.deviceID,
@@ -358,7 +404,37 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
                 )
             )
         case .other:
+            if shouldLogOtherReport(bytes, descriptor: callbackContext.descriptor) {
+                callbackContext.emitDebug(
+                    "callback other device=\(callbackContext.deviceID) bytes=\(hexString(bytes))"
+                )
+            }
             break
         }
+    }
+
+    private static func shouldLogOtherReport(
+        _ bytes: [UInt8],
+        descriptor: PassiveDPIInputDescriptor
+    ) -> Bool {
+        guard !bytes.isEmpty else { return false }
+        if bytes.first == descriptor.reportID {
+            return true
+        }
+        if bytes.count > 1, bytes[1] == descriptor.reportID {
+            return true
+        }
+        let interestingSubtypes = [descriptor.subtype, descriptor.heartbeatSubtype].compactMap { $0 }
+        return Array(bytes.prefix(3)).contains { interestingSubtypes.contains($0) }
+    }
+
+    private static func hexString(_ bytes: [UInt8]) -> String {
+        bytes.map { String(format: "%02x", $0) }.joined(separator: " ")
+    }
+
+    private static func registrationDevice(from device: IOHIDDevice) -> IOHIDDevice? {
+        let service = IOHIDDeviceGetService(device)
+        guard service != 0 else { return nil }
+        return IOHIDDeviceCreate(kCFAllocatorDefault, service)
     }
 }

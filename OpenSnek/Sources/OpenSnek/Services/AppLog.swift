@@ -122,7 +122,9 @@ final class AppLog: @unchecked Sendable {
 
     private func write(level: AppLogLevel, source: String, message: String) {
         guard level >= Self.currentLevel else { return }
-        let line = "\(timestamp()) [\(level.shortLabel)] [\(source)] \(message)\n"
+        let pid = ProcessInfo.processInfo.processIdentifier
+        let role = OpenSnekProcessRole.current.rawValue
+        let line = "\(timestamp()) [\(level.shortLabel)] [\(source)] [pid=\(pid) role=\(role)] \(message)\n"
         logger.log("\(line, privacy: .public)")
 
         queue.async {

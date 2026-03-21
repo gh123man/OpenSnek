@@ -1,11 +1,20 @@
 import Foundation
 import IOKit.hid
+import OpenSnekAppSupport
 import OpenSnekCore
 import OpenSnekHardware
 import OpenSnekProtocols
 
 actor BridgeClient {
     typealias USBDpiStageSnapshot = (active: Int, values: [Int], stageIDs: [UInt8])
+    typealias BluetoothExpectedDpiState = (
+        active: Int,
+        values: [Int],
+        previousActive: Int?,
+        previousValues: [Int]?,
+        expiresAt: Date,
+        remainingMasks: Int
+    )
     private static let bluetoothPassiveResetSilenceInterval: TimeInterval = 1.0
     private static let bluetoothPassiveHeartbeatHealthyInterval: TimeInterval = 1.5
 
@@ -25,7 +34,7 @@ actor BridgeClient {
     var passiveDpiUpgradeNotBeforeByDeviceID: [String: Date] = [:]
     var btReqID: UInt8 = 0x30
     var btDpiSnapshotByDeviceID: [String: (active: Int, count: Int, slots: [Int], stageIDs: [UInt8], marker: UInt8)] = [:]
-    var btExpectedDpiByDeviceID: [String: (active: Int, values: [Int], expiresAt: Date, remainingMasks: Int)] = [:]
+    var btExpectedDpiByDeviceID: [String: BluetoothExpectedDpiState] = [:]
     let btVendorClient = BLEVendorTransportClient()
     let hidDevicePresenceMonitor = HIDDevicePresenceMonitor()
     let passiveDpiMonitor = PassiveDPIEventMonitor()
@@ -55,6 +64,9 @@ actor BridgeClient {
             Task {
                 await self?.handlePassiveDpiHeartbeat(event)
             }
+        }
+        passiveDpiMonitor.onDebug = { message in
+            AppLog.debug("Bridge", "passiveMonitor \(message)")
         }
         hidDevicePresenceMonitor.start()
     }
@@ -112,6 +124,9 @@ actor BridgeClient {
         guard profile?.passiveDPIInput != nil else {
             return .unsupported
         }
+        guard DeveloperRuntimeOptions.passiveHIDUpdatesEnabled() else {
+            return .pollingFallback
+        }
         if passiveDpiObservedDeviceIDs.contains(device.id) {
             return .realTimeHID
         }
@@ -148,13 +163,30 @@ actor BridgeClient {
     }
 
     private func handlePassiveDpiEvent(_ event: PassiveDPIEvent) {
-        guard passiveDpiArmedDeviceIDs.contains(event.deviceID) else { return }
+        guard DeveloperRuntimeOptions.passiveHIDUpdatesEnabled() else {
+            AppLog.debug(
+                "Bridge",
+                "passiveDpi drop device=\(event.deviceID) dpi=\(event.dpiX) reason=disabled"
+            )
+            return
+        }
+        guard passiveDpiArmedDeviceIDs.contains(event.deviceID) else {
+            AppLog.debug(
+                "Bridge",
+                "passiveDpi drop device=\(event.deviceID) dpi=\(event.dpiX) reason=not-armed armed=\(Array(passiveDpiArmedDeviceIDs).sorted())"
+            )
+            return
+        }
         passiveDpiUpgradeNotBeforeByDeviceID.removeValue(forKey: event.deviceID)
         passiveDpiLastObservedAtByDeviceID[event.deviceID] = event.observedAt
         if Self.isBluetoothDeviceID(event.deviceID) {
             seedBluetoothPassiveDpiExpectation(event)
         }
         let firstObserved = passiveDpiObservedDeviceIDs.insert(event.deviceID).inserted
+        AppLog.debug(
+            "Bridge",
+            "passiveDpi forward device=\(event.deviceID) dpi=\(event.dpiX) firstObserved=\(firstObserved) continuations=\(passiveDpiEventContinuations.count)"
+        )
         if firstObserved {
             AppLog.event(
                 "Bridge",
@@ -167,7 +199,14 @@ actor BridgeClient {
     }
 
     private func handlePassiveDpiHeartbeat(_ event: PassiveDPIHeartbeatEvent) {
-        guard passiveDpiArmedDeviceIDs.contains(event.deviceID) else { return }
+        guard DeveloperRuntimeOptions.passiveHIDUpdatesEnabled() else { return }
+        guard passiveDpiArmedDeviceIDs.contains(event.deviceID) else {
+            AppLog.debug(
+                "Bridge",
+                "passiveDpi heartbeat-drop device=\(event.deviceID) reason=not-armed armed=\(Array(passiveDpiArmedDeviceIDs).sorted())"
+            )
+            return
+        }
         passiveDpiLastHeartbeatAtByDeviceID[event.deviceID] = event.observedAt
         let firstHeartbeat = passiveDpiHeartbeatDeviceIDs.insert(event.deviceID).inserted
         if firstHeartbeat {
@@ -182,8 +221,9 @@ actor BridgeClient {
     }
 
     private func seedBluetoothPassiveDpiExpectation(_ event: PassiveDPIEvent) {
+        let previousState = lastStateByDeviceID[event.deviceID]
         if let projected = mergedStateFromPassiveDpiEvent(
-            previous: lastStateByDeviceID[event.deviceID],
+            previous: previousState,
             event: event
         ) {
             lastStateByDeviceID[event.deviceID] = projected
@@ -200,6 +240,8 @@ actor BridgeClient {
         btExpectedDpiByDeviceID[event.deviceID] = (
             active: expected.active,
             values: expected.values,
+            previousActive: Self.clampedDpiActiveIndex(for: previousState),
+            previousValues: previousState?.dpi_stages.values,
             expiresAt: Date().addingTimeInterval(1.2),
             remainingMasks: 4
         )
@@ -288,7 +330,10 @@ actor BridgeClient {
 
     func hidAccessStatus(forceRefresh: Bool = true) -> HIDAccessStatus {
         if forceRefresh {
+            AppLog.debug("Bridge", "hidAccessStatus forcing IOHIDManager refresh")
             clearManagedHIDManager()
+        } else {
+            AppLog.debug("Bridge", "hidAccessStatus reusing shared IOHIDManager")
         }
 
         let (_, openResult) = managedHIDManager()
@@ -396,9 +441,16 @@ actor BridgeClient {
         }
         deviceSessionCandidates = candidatesByID
         deviceSessions = preferredSessionsByID
-        passiveDpiTargetsByDeviceID = Self.passiveDpiTargetsByDeviceID(targets: passiveDpiTargets)
-        let nextPassiveDpiTargetIDsByDeviceID = Self.passiveDpiTargetIDsByDeviceID(targets: passiveDpiTargets)
-        passiveDpiArmedDeviceIDs = await passiveDpiMonitor.replaceTargets(passiveDpiTargets)
+        let passiveUpdatesEnabled = DeveloperRuntimeOptions.passiveHIDUpdatesEnabled()
+        let activePassiveTargets = passiveUpdatesEnabled ? passiveDpiTargets : []
+        passiveDpiTargetsByDeviceID = Self.passiveDpiTargetsByDeviceID(targets: activePassiveTargets)
+        let nextPassiveDpiTargetIDsByDeviceID = Self.passiveDpiTargetIDsByDeviceID(targets: activePassiveTargets)
+        passiveDpiArmedDeviceIDs = await passiveDpiMonitor.replaceTargets(activePassiveTargets)
+        AppLog.debug(
+            "Bridge",
+            "passiveDpi targets listed enabled=\(passiveUpdatesEnabled) total=\(activePassiveTargets.count) " +
+            "armed=\(Array(passiveDpiArmedDeviceIDs).sorted())"
+        )
         let activePassiveTargetIDsByDeviceID = nextPassiveDpiTargetIDsByDeviceID.filter {
             passiveDpiArmedDeviceIDs.contains($0.key)
         }
@@ -535,6 +587,7 @@ actor BridgeClient {
             deviceID: deviceID,
             targetID: targetID,
             device: device,
+            deviceIdentityToken: USBHIDSupport.deviceIdentityToken(device),
             descriptor: descriptor
         )
     }
@@ -616,6 +669,28 @@ actor BridgeClient {
             return false
         }
         return now.timeIntervalSince(lastObservedAt) > bluetoothPassiveResetSilenceInterval
+    }
+
+    nonisolated static func shouldMaskBluetoothExpectedRead(
+        parsedActive: Int,
+        parsedValues: [Int],
+        expected: BluetoothExpectedDpiState
+    ) -> Bool {
+        guard let previousActive = expected.previousActive,
+              let previousValues = expected.previousValues,
+              !previousValues.isEmpty else {
+            return false
+        }
+
+        let clampedPreviousActive = max(0, min(previousValues.count - 1, previousActive))
+        let normalizedParsedValues = Array(parsedValues.prefix(previousValues.count))
+        return parsedActive == clampedPreviousActive && normalizedParsedValues == previousValues
+    }
+
+    private nonisolated static func clampedDpiActiveIndex(for state: MouseState?) -> Int? {
+        guard let values = state?.dpi_stages.values, !values.isEmpty else { return nil }
+        let active = state?.dpi_stages.active_stage ?? 0
+        return max(0, min(values.count - 1, active))
     }
 
     nonisolated static func isBluetoothPassiveHeartbeatHealthy(lastHeartbeatAt: Date?, now: Date) -> Bool {
