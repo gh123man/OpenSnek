@@ -1,0 +1,4 @@
+interface:
+  display_name: "Test"
+  short_description: "Run the full OpenSnek unit suite"
+  default_prompt: "Use $test to run the full OpenSnek unit test suite."
