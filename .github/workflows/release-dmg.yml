@@ -18,8 +18,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install xcodegen
-        run: brew install xcodegen
+      - name: Install XcodeGen
+        run: |
+          brew update
+          brew install xcodegen
 
       - name: Verify tagged commit is on main
         shell: bash
