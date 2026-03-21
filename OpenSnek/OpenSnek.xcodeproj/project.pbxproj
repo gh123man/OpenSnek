@@ -69,6 +69,7 @@
 		A2C5595CCC3FB7E8953BA7A1 /* BackendSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FF8D2C81FE5C71D51C642B2 /* BackendSession.swift */; };
 		A633796EEE25F6072B9E73FF /* ApplyCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A4224D8E997DD977430D6F8 /* ApplyCoordinator.swift */; };
 		AA2F2F51D1E7955ADAFB17F7 /* WindowChromeConfigurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CE5899BC2B523D0AEB68A87 /* WindowChromeConfigurator.swift */; };
+		AA4211BC0988AE1F48698322 /* WindowChromeConfiguratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C379A27BB3FEB68031911D2 /* WindowChromeConfiguratorTests.swift */; };
 		AB97921BDF952DEBEECA881C /* ReleaseUpdateCheckerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2988AE631326CE5D4A7D922 /* ReleaseUpdateCheckerTests.swift */; };
 		AC9E372D1224D2BFFCBC5CF3 /* BridgeClient+USB.swift in Sources */ = {isa = PBXBuildFile; fileRef = D058524CB1C51701F550EDD3 /* BridgeClient+USB.swift */; };
 		AD54CC81DD15471E7E9578C5 /* HardwareDpiReliabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6559F1E140B59BC3EB70141 /* HardwareDpiReliabilityTests.swift */; };
@@ -272,6 +273,7 @@
 		0AFCB16EA0F33132EF65690B /* AppStateMultiDeviceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateMultiDeviceTests.swift; sourceTree = "<group>"; };
 		0B405B510FA38B3476E32D86 /* AppLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLog.swift; sourceTree = "<group>"; };
 		0CC6FAA3C44729C3700FE4E1 /* BridgeClient+Bluetooth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BridgeClient+Bluetooth.swift"; sourceTree = "<group>"; };
+		1C379A27BB3FEB68031911D2 /* WindowChromeConfiguratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowChromeConfiguratorTests.swift; sourceTree = "<group>"; };
 		203712F6B3D0B0983DBF8A0A /* OpenSnekTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OpenSnekTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		257C620943BA80210638ABCF /* PermissionSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionSupport.swift; sourceTree = "<group>"; };
 		25B6F1DCF3F2DE7078B44903 /* OpenSnekProbe */ = {isa = PBXFileReference; includeInIndex = 0; path = OpenSnekProbe; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -565,6 +567,7 @@
 				47B10AF66929E89F9C77E8F0 /* USBButtonHydrationTests.swift */,
 				C675D1D109E11E2AF759F8BE /* USBDpiStageParsingTests.swift */,
 				94E0277FF8089CE064B9AF39 /* USBPassiveDPIEventTests.swift */,
+				1C379A27BB3FEB68031911D2 /* WindowChromeConfiguratorTests.swift */,
 			);
 			name = OpenSnekTests;
 			path = Tests/OpenSnekTests;
@@ -939,6 +942,7 @@
 				41E3C65723CD3F2CC16223B3 /* USBDpiStageParsingTests.swift in Sources */,
 				14E8CAD2DFC4A9235AD756A5 /* USBPassiveDPIEventTests.swift in Sources */,
 				D125F9B058CBC5FA9A98F19A /* UnsupportedDeviceHandlingTests.swift in Sources */,
+				AA4211BC0988AE1F48698322 /* WindowChromeConfiguratorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
