@@ -828,23 +828,18 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend {
     }
 
     private func handlePassiveDpiEvent(_ event: PassiveDPIEvent) {
-        let previousSource: String
         let previousState: MouseState?
         if let cached = cachedStateByDeviceID[event.deviceID] {
-            previousSource = "cachedState"
             previousState = cached
         } else if let reconnectSeed = reconnectSeedStateByDeviceID[event.deviceID] {
-            previousSource = "reconnectSeed"
             previousState = reconnectSeed
         } else if let device = cachedDevices.first(where: { $0.id == event.deviceID }) {
-            previousSource = "deviceSeed"
             previousState = Self.seededStateForPassiveDpiEvent(
                 device: device,
                 event: event,
                 fastSnapshot: cachedFastByDeviceID[event.deviceID]
             )
         } else {
-            previousSource = "missing"
             previousState = nil
         }
 
@@ -852,19 +847,8 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend {
             previous: previousState,
             event: event
         ) else {
-            AppLog.debug(
-                "Backend",
-                "passiveDpi drop device=\(event.deviceID) dpi=\(event.dpiX) reason=merge-nil previous=\(previousSource) " +
-                "cachedDevices=\(cachedDevices.map(\.id))"
-            )
             return
         }
-
-        AppLog.debug(
-            "Backend",
-            "passiveDpi apply device=\(event.deviceID) dpi=\(event.dpiX) previous=\(previousSource) " +
-            "active=\(updated.dpi_stages.active_stage.map(String.init) ?? "nil") values=\(updated.dpi_stages.values ?? [])"
-        )
 
         cachedStateByDeviceID[event.deviceID] = updated
         cachedStateAtByDeviceID[event.deviceID] = event.observedAt
@@ -880,10 +864,6 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend {
     }
 
     private func handlePassiveDpiHeartbeat(_ event: PassiveDPIHeartbeatEvent) {
-        AppLog.debug(
-            "Backend",
-            "passiveDpi heartbeat device=\(event.deviceID) continuations=\(stateUpdateContinuations.count)"
-        )
         publishStateUpdate(
             .dpiTransportStatus(
                 deviceID: event.deviceID,
@@ -894,22 +874,6 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend {
     }
 
     private func publishStateUpdate(_ update: BackendStateUpdate) {
-        switch update {
-        case .deviceState(let deviceID, let state, _):
-            AppLog.debug(
-                "Backend",
-                "publish stateUpdate kind=deviceState device=\(deviceID) dpi=\(state.dpi?.x ?? 0) " +
-                "continuations=\(stateUpdateContinuations.count)"
-            )
-        case .dpiTransportStatus(let deviceID, let status, _):
-            AppLog.debug(
-                "Backend",
-                "publish stateUpdate kind=dpiTransportStatus device=\(deviceID) status=\(status.rawValue) " +
-                "continuations=\(stateUpdateContinuations.count)"
-            )
-        default:
-            break
-        }
         for continuation in stateUpdateContinuations.values {
             continuation.yield(update)
         }
@@ -1324,22 +1288,7 @@ private actor BackgroundServiceClientSubscription {
                     guard let payload = envelope.payload else {
                         throw BackgroundServiceTransportError.missingPayload
                     }
-                    let update = try BackendCodec.decode(BackendStateUpdate.self, from: payload)
-                    switch update {
-                    case .deviceState(let deviceID, let state, _):
-                        AppLog.debug(
-                            "Service",
-                            "subscription recv kind=deviceState device=\(deviceID) dpi=\(state.dpi?.x ?? 0)"
-                        )
-                    case .dpiTransportStatus(let deviceID, let status, _):
-                        AppLog.debug(
-                            "Service",
-                            "subscription recv kind=dpiTransportStatus device=\(deviceID) status=\(status.rawValue)"
-                        )
-                    default:
-                        break
-                    }
-                    continuation.yield(update)
+                    continuation.yield(try BackendCodec.decode(BackendStateUpdate.self, from: payload))
                 case .openSettingsRequested:
                     continuation.yield(.openSettingsRequested)
                 }
@@ -1503,20 +1452,6 @@ private actor BackgroundServiceSubscriberRegistry {
     }
 
     func broadcast(_ update: BackendStateUpdate) async {
-        switch update {
-        case .deviceState(let deviceID, let state, _):
-            AppLog.debug(
-                "Service",
-                "broadcast kind=deviceState device=\(deviceID) dpi=\(state.dpi?.x ?? 0) subscribers=\(sessions.count)"
-            )
-        case .dpiTransportStatus(let deviceID, let status, _):
-            AppLog.debug(
-                "Service",
-                "broadcast kind=dpiTransportStatus device=\(deviceID) status=\(status.rawValue) subscribers=\(sessions.count)"
-            )
-        default:
-            break
-        }
         for (id, session) in sessions {
             do {
                 try await session.sendStateUpdate(update)

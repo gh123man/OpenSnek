@@ -65,9 +65,6 @@ actor BridgeClient {
                 await self?.handlePassiveDpiHeartbeat(event)
             }
         }
-        passiveDpiMonitor.onDebug = { message in
-            AppLog.debug("Bridge", "passiveMonitor \(message)")
-        }
         hidDevicePresenceMonitor.start()
     }
 
@@ -163,30 +160,14 @@ actor BridgeClient {
     }
 
     private func handlePassiveDpiEvent(_ event: PassiveDPIEvent) {
-        guard DeveloperRuntimeOptions.passiveHIDUpdatesEnabled() else {
-            AppLog.debug(
-                "Bridge",
-                "passiveDpi drop device=\(event.deviceID) dpi=\(event.dpiX) reason=disabled"
-            )
-            return
-        }
-        guard passiveDpiArmedDeviceIDs.contains(event.deviceID) else {
-            AppLog.debug(
-                "Bridge",
-                "passiveDpi drop device=\(event.deviceID) dpi=\(event.dpiX) reason=not-armed armed=\(Array(passiveDpiArmedDeviceIDs).sorted())"
-            )
-            return
-        }
+        guard DeveloperRuntimeOptions.passiveHIDUpdatesEnabled() else { return }
+        guard passiveDpiArmedDeviceIDs.contains(event.deviceID) else { return }
         passiveDpiUpgradeNotBeforeByDeviceID.removeValue(forKey: event.deviceID)
         passiveDpiLastObservedAtByDeviceID[event.deviceID] = event.observedAt
         if Self.isBluetoothDeviceID(event.deviceID) {
             seedBluetoothPassiveDpiExpectation(event)
         }
         let firstObserved = passiveDpiObservedDeviceIDs.insert(event.deviceID).inserted
-        AppLog.debug(
-            "Bridge",
-            "passiveDpi forward device=\(event.deviceID) dpi=\(event.dpiX) firstObserved=\(firstObserved) continuations=\(passiveDpiEventContinuations.count)"
-        )
         if firstObserved {
             AppLog.event(
                 "Bridge",
@@ -200,13 +181,7 @@ actor BridgeClient {
 
     private func handlePassiveDpiHeartbeat(_ event: PassiveDPIHeartbeatEvent) {
         guard DeveloperRuntimeOptions.passiveHIDUpdatesEnabled() else { return }
-        guard passiveDpiArmedDeviceIDs.contains(event.deviceID) else {
-            AppLog.debug(
-                "Bridge",
-                "passiveDpi heartbeat-drop device=\(event.deviceID) reason=not-armed armed=\(Array(passiveDpiArmedDeviceIDs).sorted())"
-            )
-            return
-        }
+        guard passiveDpiArmedDeviceIDs.contains(event.deviceID) else { return }
         passiveDpiLastHeartbeatAtByDeviceID[event.deviceID] = event.observedAt
         let firstHeartbeat = passiveDpiHeartbeatDeviceIDs.insert(event.deviceID).inserted
         if firstHeartbeat {
@@ -446,11 +421,6 @@ actor BridgeClient {
         passiveDpiTargetsByDeviceID = Self.passiveDpiTargetsByDeviceID(targets: activePassiveTargets)
         let nextPassiveDpiTargetIDsByDeviceID = Self.passiveDpiTargetIDsByDeviceID(targets: activePassiveTargets)
         passiveDpiArmedDeviceIDs = await passiveDpiMonitor.replaceTargets(activePassiveTargets)
-        AppLog.debug(
-            "Bridge",
-            "passiveDpi targets listed enabled=\(passiveUpdatesEnabled) total=\(activePassiveTargets.count) " +
-            "armed=\(Array(passiveDpiArmedDeviceIDs).sorted())"
-        )
         let activePassiveTargetIDsByDeviceID = nextPassiveDpiTargetIDsByDeviceID.filter {
             passiveDpiArmedDeviceIDs.contains($0.key)
         }
