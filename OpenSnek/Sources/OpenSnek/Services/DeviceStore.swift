@@ -84,8 +84,8 @@ final class DeviceStore {
         return devices.first(where: { $0.id == selectedDeviceID })
     }
 
-    var usesRemoteServiceUpdates: Bool {
-        environment.usesRemoteServiceUpdates
+    var usesRemoteServiceTransport: Bool {
+        environment.usesRemoteServiceTransport
     }
 
     var selectedDeviceIsStrictlyUnsupported: Bool {
@@ -255,7 +255,7 @@ final class DeviceStore {
             "Input Monitoring: \(runtimeStore.hidAccessStatus.diagnosticsLabel)",
             "Input Monitoring host: \(runtimeStore.hidAccessStatus.hostLabel)",
             "Polling profile: \(pollingProfileLabel(runtimeController.pollingProfile(at: Date())))",
-            "Remote service transport: \(usesRemoteServiceUpdates ? "Enabled" : "Disabled")",
+            "Remote service transport: \(usesRemoteServiceTransport ? "Enabled" : "Disabled")",
             "Compact menu service: \(runtimeStore.backgroundServiceEnabled ? "Enabled" : "Disabled")",
         ]
         var lines = appContextLines

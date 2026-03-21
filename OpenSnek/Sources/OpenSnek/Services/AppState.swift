@@ -13,6 +13,8 @@ final class AppState {
     let editorController: AppStateEditorController
     let applyController: AppStateApplyController
     let runtimeController: AppStateRuntimeController
+    private var backendStateUpdatesBootstrapTask: Task<Void, Never>?
+    private var autoStartRuntimeTask: Task<Void, Never>?
 
     init(
         launchRole: OpenSnekProcessRole = .current,
@@ -68,6 +70,10 @@ final class AppState {
     deinit {
         @MainActor
         func tearDownControllers() {
+            backendStateUpdatesBootstrapTask?.cancel()
+            backendStateUpdatesBootstrapTask = nil
+            autoStartRuntimeTask?.cancel()
+            autoStartRuntimeTask = nil
             deviceController.tearDown()
             applyController.tearDown()
             editorController.tearDown()
@@ -116,15 +122,14 @@ final class AppState {
         )
         runtimeStore.bind(runtimeController: runtimeController)
 
-        runtimeController.installCrossProcessObservers()
         runtimeController.setBackendReady(
             environment.launchRole.isService || backendWasInjected || !environment.serviceCoordinator.backgroundServiceEnabled
         )
-        Task { [weak self] in
+        backendStateUpdatesBootstrapTask = Task { [weak self] in
             await self?.runtimeController.restartBackendStateUpdates()
         }
         if environment.launchRole.isService, autoStart {
-            Task { [weak self] in
+            autoStartRuntimeTask = Task { [weak self] in
                 await self?.runtimeController.start()
             }
         }
