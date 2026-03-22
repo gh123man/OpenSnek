@@ -1322,7 +1322,7 @@ struct ButtonMappingTableCard: View {
                 selectedKind: kind,
                 turboEligible: kind != .default && kind.supportsTurbo,
                 clutchDPI: editorStore.buttonBindingClutchDPI(for: slot.slot),
-                keyboardDraft: kind == .keyboardSimple ? editorStore.keyboardTextDraft(for: slot.slot) : "",
+                keyboardHidKey: editorStore.buttonBindingHidKey(for: slot.slot),
                 turboEnabled: turboEnabled,
                 turboRatePressesPerSecond: turboRate,
                 notice: deviceStore.buttonSlotNotice(slot.slot)
@@ -1413,7 +1413,7 @@ private struct ButtonBindingRowModel: Identifiable, Equatable {
     let selectedKind: ButtonBindingKind
     let turboEligible: Bool
     let clutchDPI: Int
-    let keyboardDraft: String
+    let keyboardHidKey: Int
     let turboEnabled: Bool
     let turboRatePressesPerSecond: Int
     let notice: String?
@@ -1456,30 +1456,11 @@ private struct ButtonBindingRow: View {
             if row.selectedKind == .keyboardSimple {
                 HStack {
                     Spacer()
-                    HStack(spacing: 8) {
-                        Text("Key")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.72))
-                        TextField(
-                            "a",
-                            text: Binding(
-                                get: { editorStore.keyboardTextDraft(for: row.slot) },
-                                set: { editorStore.updateKeyboardTextDraft(slot: row.slot, text: $0) }
-                            )
-                        )
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 120)
-                        .multilineTextAlignment(.center)
-                        .disabled(!row.isEditable)
-                    }
-                    .frame(width: 300, alignment: .trailing)
-                }
-
-                HStack {
-                    Spacer()
-                    Text("Type: a-z, 0-9, punctuation, enter, tab, space, esc")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.58))
+                    KeyboardBindingEditor(
+                        hidKey: row.keyboardHidKey,
+                        isEditable: row.isEditable,
+                        onSelect: { editorStore.updateButtonBindingHidKey(slot: row.slot, hidKey: $0) }
+                    )
                 }
             }
 

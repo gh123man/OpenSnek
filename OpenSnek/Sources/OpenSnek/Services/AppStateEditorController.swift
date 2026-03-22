@@ -15,7 +15,6 @@ final class AppStateEditorController {
     private var hydratedLightingStateByDeviceID: Set<String> = []
     private var hydratedButtonBindingsKey: String?
     private var manualUSBButtonProfileSelectionByDeviceID: Set<String> = []
-    private var keyboardDraftApplyTaskBySlot: [Int: Task<Void, Never>] = [:]
     private var isTearingDown = false
 
     init(
@@ -32,10 +31,6 @@ final class AppStateEditorController {
 
     func tearDown() {
         isTearingDown = true
-        for task in keyboardDraftApplyTaskBySlot.values {
-            task.cancel()
-        }
-        keyboardDraftApplyTaskBySlot.removeAll()
     }
 
     func bind(applyController: AppStateApplyController) {
@@ -243,11 +238,6 @@ final class AppStateEditorController {
         }
 
         editorStore.editableButtonBindings = hydrated
-        editorStore.keyboardTextDraftBySlot = hydrated.reduce(into: [:]) { partialResult, pair in
-            if pair.value.kind == .keyboardSimple {
-                partialResult[pair.key] = AppStateKeyboardSupport.keyboardText(forHidKey: pair.value.hidKey) ?? ""
-            }
-        }
         hydratedButtonBindingsKey = hydrationKey
     }
 
@@ -527,12 +517,7 @@ final class AppStateEditorController {
         var next = editorStore.editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
         next.kind = kind
         if kind != .keyboardSimple {
-            keyboardDraftApplyTaskBySlot[slot]?.cancel()
-            keyboardDraftApplyTaskBySlot[slot] = nil
             next.hidKey = 4
-            editorStore.keyboardTextDraftBySlot[slot] = nil
-        } else {
-            editorStore.keyboardTextDraftBySlot[slot] = AppStateKeyboardSupport.keyboardText(forHidKey: next.hidKey) ?? ""
         }
         if kind == .dpiClutch {
             next.clutchDPI = next.clutchDPI ?? ButtonBindingSupport.defaultDPIClutchDPI(for: deviceStore.selectedDevice?.profile_id)
@@ -550,7 +535,6 @@ final class AppStateEditorController {
         next.kind = .keyboardSimple
         next.hidKey = max(4, min(231, hidKey))
         editorStore.editableButtonBindings[slot] = next
-        editorStore.keyboardTextDraftBySlot[slot] = AppStateKeyboardSupport.keyboardText(forHidKey: next.hidKey) ?? ""
         applyController.scheduleAutoApplyButton(slot: slot)
     }
 
@@ -579,34 +563,5 @@ final class AppStateEditorController {
         next.clutchDPI = DeviceProfiles.clampDPI(dpi, profileID: deviceStore.selectedDevice?.profile_id)
         editorStore.editableButtonBindings[slot] = next
         applyController.scheduleAutoApplyButton(slot: slot)
-    }
-
-    func keyboardTextDraft(for slot: Int) -> String {
-        if let draft = editorStore.keyboardTextDraftBySlot[slot] {
-            return draft
-        }
-        let hidKey = buttonBindingHidKey(for: slot)
-        return AppStateKeyboardSupport.keyboardText(forHidKey: hidKey) ?? ""
-    }
-
-    func updateKeyboardTextDraft(slot: Int, text: String) {
-        guard deviceStore.visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
-        editorStore.keyboardTextDraftBySlot[slot] = text
-        keyboardDraftApplyTaskBySlot[slot]?.cancel()
-        keyboardDraftApplyTaskBySlot[slot] = Task { [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: 320_000_000)
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            self?.applyKeyboardTextDraft(slot: slot)
-        }
-    }
-
-    private func applyKeyboardTextDraft(slot: Int) {
-        guard let text = editorStore.keyboardTextDraftBySlot[slot] else { return }
-        guard let hidKey = AppStateKeyboardSupport.hidKey(fromKeyboardText: text) else { return }
-        updateButtonBindingHidKey(slot: slot, hidKey: hidKey)
     }
 }
