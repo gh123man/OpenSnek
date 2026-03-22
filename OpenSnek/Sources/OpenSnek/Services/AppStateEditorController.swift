@@ -14,6 +14,9 @@ final class AppStateEditorController {
     private(set) var isHydrating = false
     private var hydratedLightingStateByDeviceID: Set<String> = []
     private var hydratedButtonBindingsKey: String?
+    private var buttonBindingsCacheByHydrationKey: [String: [Int: ButtonBindingDraft]] = [:]
+    private var buttonBindingsReadbackAttemptedKeys: Set<String> = []
+    private var buttonBindingsReadbackInFlightKeys: Set<String> = []
     private var manualUSBButtonProfileSelectionByDeviceID: Set<String> = []
     private var isTearingDown = false
 
@@ -55,6 +58,18 @@ final class AppStateEditorController {
         guard !removedDeviceIDs.isEmpty else { return }
         hydratedLightingStateByDeviceID.subtract(removedDeviceIDs)
         manualUSBButtonProfileSelectionByDeviceID.subtract(removedDeviceIDs)
+        buttonBindingsCacheByHydrationKey = buttonBindingsCacheByHydrationKey.filter { key, _ in
+            guard let hydratedDeviceID = key.split(separator: "#").first else { return true }
+            return !removedDeviceIDs.contains(String(hydratedDeviceID))
+        }
+        buttonBindingsReadbackAttemptedKeys = buttonBindingsReadbackAttemptedKeys.filter { key in
+            guard let hydratedDeviceID = key.split(separator: "#").first else { return true }
+            return !removedDeviceIDs.contains(String(hydratedDeviceID))
+        }
+        buttonBindingsReadbackInFlightKeys = buttonBindingsReadbackInFlightKeys.filter { key in
+            guard let hydratedDeviceID = key.split(separator: "#").first else { return true }
+            return !removedDeviceIDs.contains(String(hydratedDeviceID))
+        }
         if let hydratedButtonBindingsKey,
            let hydratedDeviceID = hydratedButtonBindingsKey.split(separator: "#").first,
            removedDeviceIDs.contains(String(hydratedDeviceID)) {
@@ -215,30 +230,75 @@ final class AppStateEditorController {
 
     func hydrateButtonBindingsIfNeeded(device: MouseDevice) async {
         guard !isTearingDown else { return }
+        let profile = editorStore.editableUSBButtonProfile
         let hydrationKey = buttonBindingsHydrationKey(device: device)
-        guard hydratedButtonBindingsKey != hydrationKey else { return }
+        let cached = buttonBindingsCacheByHydrationKey[hydrationKey]
+            ?? loadPersistedButtonBindings(device: device, profile: profile)
+        buttonBindingsCacheByHydrationKey[hydrationKey] = cached
 
-        var hydrated = loadPersistedButtonBindings(device: device, profile: editorStore.editableUSBButtonProfile)
-        if device.transport == .usb, let fromDevice = await loadUSBButtonBindingsFromDevice(device: device) {
-            hydrated.merge(fromDevice) { _, readback in readback }
-            savePersistedButtonBindings(device: device, bindings: hydrated, profile: editorStore.editableUSBButtonProfile)
-            AppLog.debug(
-                "AppState",
-                "hydrated button bindings from USB readback id=\(device.id) profile=\(editorStore.editableUSBButtonProfile) slots=\(fromDevice.keys.sorted())"
-            )
-        } else {
-            AppLog.debug(
-                "AppState",
-                "hydrated button bindings from persisted cache id=\(device.id) profile=\(editorStore.editableUSBButtonProfile) slots=\(hydrated.keys.sorted())"
-            )
+        if hydratedButtonBindingsKey != hydrationKey || editorStore.editableButtonBindings != cached {
+            editorStore.editableButtonBindings = cached
+            hydratedButtonBindingsKey = hydrationKey
         }
 
-        editorStore.editableButtonBindings = hydrated
-        hydratedButtonBindingsKey = hydrationKey
+        if device.transport != .usb {
+            AppLog.debug(
+                "AppState",
+                "hydrated button bindings from persisted cache id=\(device.id) profile=\(profile) slots=\(cached.keys.sorted())"
+            )
+            return
+        }
+
+        guard !buttonBindingsReadbackAttemptedKeys.contains(hydrationKey),
+              !buttonBindingsReadbackInFlightKeys.contains(hydrationKey) else {
+            AppLog.debug(
+                "AppState",
+                "hydrated button bindings from session cache id=\(device.id) profile=\(profile) slots=\(cached.keys.sorted())"
+            )
+            return
+        }
+
+        buttonBindingsReadbackAttemptedKeys.insert(hydrationKey)
+        buttonBindingsReadbackInFlightKeys.insert(hydrationKey)
+        Task { @MainActor [weak self] in
+            await self?.refreshUSBButtonBindingsFromDevice(device: device, hydrationKey: hydrationKey, profile: profile)
+        }
     }
 
     func markButtonBindingsHydrated(device: MouseDevice) {
-        hydratedButtonBindingsKey = buttonBindingsHydrationKey(device: device)
+        let hydrationKey = buttonBindingsHydrationKey(device: device)
+        hydratedButtonBindingsKey = hydrationKey
+        buttonBindingsCacheByHydrationKey[hydrationKey] = editorStore.editableButtonBindings
+        buttonBindingsReadbackAttemptedKeys.insert(hydrationKey)
+    }
+
+    private func refreshUSBButtonBindingsFromDevice(device: MouseDevice, hydrationKey: String, profile: Int) async {
+        defer { buttonBindingsReadbackInFlightKeys.remove(hydrationKey) }
+        guard !isTearingDown else { return }
+
+        guard let fromDevice = await loadUSBButtonBindingsFromDevice(device: device) else {
+            let cached = buttonBindingsCacheByHydrationKey[hydrationKey] ?? [:]
+            AppLog.debug(
+                "AppState",
+                "hydrated button bindings from persisted cache id=\(device.id) profile=\(profile) slots=\(cached.keys.sorted())"
+            )
+            return
+        }
+
+        var hydrated = buttonBindingsCacheByHydrationKey[hydrationKey]
+            ?? loadPersistedButtonBindings(device: device, profile: profile)
+        hydrated.merge(fromDevice) { _, readback in readback }
+        buttonBindingsCacheByHydrationKey[hydrationKey] = hydrated
+        savePersistedButtonBindings(device: device, bindings: hydrated, profile: profile)
+
+        if hydratedButtonBindingsKey == hydrationKey {
+            editorStore.editableButtonBindings = hydrated
+        }
+
+        AppLog.debug(
+            "AppState",
+            "hydrated button bindings from USB readback id=\(device.id) profile=\(profile) slots=\(fromDevice.keys.sorted())"
+        )
     }
 
     func loadUSBButtonBindingsFromDevice(device: MouseDevice) async -> [Int: ButtonBindingDraft]? {

@@ -179,16 +179,11 @@ final class AppStateRuntimeController {
         var ordered: [String] = []
         var seen: Set<String> = []
         let remoteSelectedDeviceIDs = activeRemoteSelectedDeviceIDs(at: now)
-        let shouldIncludeLocalSelection = !environment.launchRole.isService ||
-            remoteSelectedDeviceIDs.isEmpty ||
-            isLocallyInteractive(at: now)
 
-        if shouldIncludeLocalSelection {
-            for deviceID in localFastPollingDeviceIDs(at: now) {
-                guard liveIDs.contains(deviceID) else { continue }
-                guard seen.insert(deviceID).inserted else { continue }
-                ordered.append(deviceID)
-            }
+        for deviceID in localFastPollingDeviceIDs(at: now) {
+            guard liveIDs.contains(deviceID) else { continue }
+            guard seen.insert(deviceID).inserted else { continue }
+            ordered.append(deviceID)
         }
 
         for deviceID in remoteSelectedDeviceIDs {
@@ -197,17 +192,6 @@ final class AppStateRuntimeController {
             guard shouldFastPollSelectedDevice(device) else { continue }
             guard seen.insert(deviceID).inserted else { continue }
             ordered.append(deviceID)
-        }
-
-        if environment.launchRole.isService,
-           hasActiveRemoteClients(at: now),
-           remoteSelectedDeviceIDs.isEmpty,
-           let selectedDeviceID = deviceStore.selectedDeviceID,
-           let selectedDevice = deviceStore.devices.first(where: { $0.id == selectedDeviceID }),
-           liveIDs.contains(selectedDeviceID),
-           shouldFastPollSelectedDevice(selectedDevice),
-           seen.insert(selectedDeviceID).inserted {
-            ordered.append(selectedDeviceID)
         }
 
         return ordered
@@ -701,30 +685,46 @@ final class AppStateRuntimeController {
             .compactMap(\.selectedDeviceID)
     }
 
+    private func orderedLocalFastPollingDevices() -> [MouseDevice] {
+        var ordered: [MouseDevice] = []
+        var seen: Set<String> = []
+
+        if let selectedDeviceID = deviceStore.selectedDeviceID,
+           let selectedDevice = deviceStore.devices.first(where: { $0.id == selectedDeviceID }),
+           seen.insert(selectedDeviceID).inserted {
+            ordered.append(selectedDevice)
+        }
+
+        for device in deviceStore.devices where seen.insert(device.id).inserted {
+            ordered.append(device)
+        }
+
+        return ordered
+    }
+
     private func localFastPollingDeviceIDs(at now: Date) -> [String] {
-        guard let selectedDeviceID = deviceStore.selectedDeviceID else { return [] }
+        let orderedDevices = orderedLocalFastPollingDevices()
+        guard !orderedDevices.isEmpty else { return [] }
         if environment.launchRole.isService {
-            let localInteractive = isLocallyInteractive(at: now)
-            if localInteractive {
-                guard let selectedDevice = deviceStore.devices.first(where: { $0.id == selectedDeviceID }) else {
-                    return []
+            if pollingProfile(at: now) == .serviceInteractive {
+                return orderedDevices.compactMap { device in
+                    shouldFastPollSelectedDevice(device) ? device.id : nil
                 }
-                return shouldFastPollSelectedDevice(selectedDevice) ? [selectedDeviceID] : []
             }
 
-            guard let selectedDevice = deviceStore.devices.first(where: { $0.id == selectedDeviceID }) else {
-                return []
-            }
-            switch deviceController.dpiUpdateTransportStatus(for: selectedDevice) {
-            case .pollingFallback:
-                return [selectedDeviceID]
-            case .realTimeHID:
-                return shouldMaintainIdleRealtimeWatchdog(for: selectedDevice, now: now) ? [selectedDeviceID] : []
-            case .unknown, .listening, .streamActive, .unsupported:
-                return []
+            return orderedDevices.compactMap { device in
+                switch deviceController.dpiUpdateTransportStatus(for: device) {
+                case .pollingFallback:
+                    return device.id
+                case .realTimeHID:
+                    return shouldMaintainIdleRealtimeWatchdog(for: device, now: now) ? device.id : nil
+                case .unknown, .listening, .streamActive, .unsupported:
+                    return nil
+                }
             }
         }
-        return environment.usesRemoteServiceTransport ? [] : [selectedDeviceID]
+        guard !environment.usesRemoteServiceTransport else { return [] }
+        return orderedDevices.map(\.id)
     }
 
     private func shouldFastPollSelectedDevice(_ device: MouseDevice) -> Bool {

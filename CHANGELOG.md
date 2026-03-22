@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [2026-03-22]
+
+### Fixed
+- Passive HID DPI fallback/correction scheduling now tracks every visible local device instead of only the selected one, so concurrent USB and Bluetooth mice can both keep their passive-stream upgrade path and real-time watchdog active in the same app/service session.
+- Switching device tabs no longer blocks on fresh USB button-binding readback for a device that was already hydrated earlier in the session. The UI now reuses cached per-device editor state immediately and refreshes any USB button readback in the background instead of tying tab selection responsiveness to control-transport reads.
+
 ## [2026-03-21]
 
 ### Added

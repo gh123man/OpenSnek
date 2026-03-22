@@ -810,7 +810,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
 
         XCTAssertEqual(selectedDeviceID, betaDevice.id)
         XCTAssertEqual(activeProfile, .serviceInteractive)
-        XCTAssertEqual(activeDeviceIDs, [alphaDevice.id])
+        XCTAssertEqual(activeDeviceIDs, [betaDevice.id, alphaDevice.id])
         XCTAssertEqual(expiredProfile, .serviceIdle)
         XCTAssertTrue(expiredDeviceIDs.isEmpty)
     }
@@ -858,7 +858,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let activeDeviceIDs = await MainActor.run { appState.runtimeStore.activeFastPollingDeviceIDs(at: now) }
 
         XCTAssertEqual(activeProfile, .serviceInteractive)
-        XCTAssertEqual(activeDeviceIDs, [betaDevice.id])
+        XCTAssertEqual(activeDeviceIDs, [betaDevice.id, alphaDevice.id])
     }
 
     func testServiceFastPollingUnionIncludesLocalAndRemoteSelections() async {
@@ -905,6 +905,57 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let activeDeviceIDs = await MainActor.run { appState.runtimeStore.activeFastPollingDeviceIDs(at: now) }
 
         XCTAssertEqual(profile, .serviceInteractive)
+        XCTAssertEqual(activeDeviceIDs, [betaDevice.id, alphaDevice.id])
+    }
+
+    func testWindowedAppFastPollingTracksAllVisibleDevices() async {
+        let alphaDevice = makeTestDevice(
+            id: "alpha-device",
+            productName: "Alpha Mouse",
+            transport: .usb,
+            serial: "ALPHA",
+            locationID: 1,
+            profile: .basiliskV3Pro
+        )
+        let betaDevice = makeTestDevice(
+            id: "beta-device",
+            productName: "Beta Mouse",
+            transport: .bluetooth,
+            serial: "BETA",
+            locationID: 2,
+            profile: .basiliskV3XHyperspeed
+        )
+        let backend = MultiDeviceStubBackend(
+            devices: [alphaDevice, betaDevice],
+            stateByDeviceID: [
+                alphaDevice.id: makeTestState(
+                    device: alphaDevice,
+                    connection: "usb",
+                    batteryPercent: 81,
+                    dpiValues: [1200, 2400, 3600],
+                    activeStage: 0,
+                    dpiValue: 1200
+                ),
+                betaDevice.id: makeTestState(
+                    device: betaDevice,
+                    connection: "bluetooth",
+                    batteryPercent: 72,
+                    dpiValues: [3200, 4800, 6400],
+                    activeStage: 1,
+                    dpiValue: 4800
+                ),
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        let activeDeviceIDs = await MainActor.run {
+            appState.deviceStore.devices = [alphaDevice, betaDevice]
+            appState.deviceStore.selectedDeviceID = betaDevice.id
+            return appState.runtimeStore.activeFastPollingDeviceIDs(at: Date())
+        }
+
         XCTAssertEqual(activeDeviceIDs, [betaDevice.id, alphaDevice.id])
     }
 

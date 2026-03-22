@@ -646,6 +646,76 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(selectedProfile, 2)
         XCTAssertEqual(updatedBinding, .rightClick)
     }
+
+    func testSwitchingBetweenUSBDevicesReusesSessionButtonBindingCache() async throws {
+        let alphaDevice = makeRefactorTestDevice(
+            id: "usb-alpha-device",
+            transport: .usb,
+            serial: "USB-ALPHA-\(UUID().uuidString)",
+            onboardProfileCount: 1
+        )
+        let betaDevice = makeRefactorTestDevice(
+            id: "usb-beta-device",
+            transport: .usb,
+            serial: "USB-BETA-\(UUID().uuidString)",
+            onboardProfileCount: 1
+        )
+
+        let backend = AppStateRefactorStubBackend(
+            devices: [alphaDevice, betaDevice],
+            stateByDeviceID: [
+                alphaDevice.id: makeRefactorTestState(
+                    device: alphaDevice,
+                    connection: "usb",
+                    batteryPercent: 77,
+                    dpiValues: [800, 1600, 2400],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300
+                ),
+                betaDevice.id: makeRefactorTestState(
+                    device: betaDevice,
+                    connection: "usb",
+                    batteryPercent: 78,
+                    dpiValues: [900, 1800, 2700],
+                    activeStage: 1,
+                    dpiValue: 1800,
+                    pollRate: 1000,
+                    sleepTimeout: 300
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+
+        try await waitForRefactorCondition {
+            await backend.buttonReadCount(for: alphaDevice.id) > 0
+        }
+        try await Task.sleep(nanoseconds: 250_000_000)
+        let alphaReadCountAfterInitialHydration = await backend.buttonReadCount(for: alphaDevice.id)
+
+        await MainActor.run {
+            appState.deviceStore.selectDevice(betaDevice.id)
+        }
+
+        try await waitForRefactorCondition {
+            await backend.buttonReadCount(for: betaDevice.id) > 0
+        }
+        try await Task.sleep(nanoseconds: 250_000_000)
+
+        await MainActor.run {
+            appState.deviceStore.selectDevice(alphaDevice.id)
+        }
+
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        let alphaReadCountAfterReselect = await backend.buttonReadCount(for: alphaDevice.id)
+        XCTAssertEqual(alphaReadCountAfterReselect, alphaReadCountAfterInitialHydration)
+    }
 }
 
 private actor AppStateRefactorStubBackend: DeviceBackend {
@@ -663,6 +733,7 @@ private actor AppStateRefactorStubBackend: DeviceBackend {
     private var firstApplyStartedContinuation: CheckedContinuation<Void, Never>?
     private var firstApplyReleaseContinuation: CheckedContinuation<Void, Never>?
     private var buttonBindingBlocks: [String: [UInt8]] = [:]
+    private var buttonReadCountByDeviceID: [String: Int] = [:]
     private var fastReadInvocationCount = 0
 
     init(
@@ -759,7 +830,8 @@ private actor AppStateRefactorStubBackend: DeviceBackend {
     }
 
     func debugUSBReadButtonBinding(device: MouseDevice, slot: Int, profile: Int) async throws -> [UInt8]? {
-        buttonBindingBlocks[buttonKey(deviceID: device.id, slot: slot, profile: profile)]
+        buttonReadCountByDeviceID[device.id, default: 0] += 1
+        return buttonBindingBlocks[buttonKey(deviceID: device.id, slot: slot, profile: profile)]
     }
 
     func waitForFirstApplyToStart() async {
@@ -794,6 +866,10 @@ private actor AppStateRefactorStubBackend: DeviceBackend {
 
     func setButtonBindingBlock(_ block: [UInt8], forDeviceID deviceID: String, slot: Int, profile: Int) {
         buttonBindingBlocks[buttonKey(deviceID: deviceID, slot: slot, profile: profile)] = block
+    }
+
+    func buttonReadCount(for deviceID: String) -> Int {
+        buttonReadCountByDeviceID[deviceID, default: 0]
     }
 
     private func buttonKey(deviceID: String, slot: Int, profile: Int) -> String {
