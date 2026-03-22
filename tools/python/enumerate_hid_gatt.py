@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Enumerate all GATT characteristics within the BLE HID service (0x1812).
-Run on Windows where bleak can access the HID service directly.
+Enumerate BLE HID report characteristics on Windows.
 
-Discovers Feature/Output Report characteristics that carry Razer's 90-byte protocol.
+This is primarily for mapping HID Report / Report Reference handles back to
+captured ATT notify handles such as 0x0027, 0x002b, and 0x002f.
 """
 import asyncio
+import argparse
 import sys
 
 try:
@@ -13,9 +14,6 @@ try:
 except ImportError:
     print("Install bleak: pip install bleak")
     sys.exit(1)
-
-# Known Razer BLE mouse address (update if needed)
-DEVICE_ADDRESS = "CE:BF:9B:2A:EF:80"
 
 # Standard BLE HID UUIDs
 HID_SERVICE        = "00001812-0000-1000-8000-00805f9b34fb"
@@ -31,12 +29,78 @@ CCCD_DESC          = "00002902-0000-1000-8000-00805f9b34fb"  # Client Characteri
 VENDOR_SERVICE     = "52401523-f97c-7f90-0e7f-6c6f4e36db1c"
 
 REPORT_TYPES = {1: "Input", 2: "Output", 3: "Feature"}
+RAZER_NAME_KEYWORDS = ("razer", "basilisk", "bsk", "deathadder", "viper")
 
 
-async def enumerate_device():
-    print(f"Connecting to {DEVICE_ADDRESS}...")
+def build_args():
+    parser = argparse.ArgumentParser(
+        description="Enumerate BLE HID report characteristics on Windows."
+    )
+    parser.add_argument(
+        "address",
+        nargs="?",
+        help="Bluetooth address of the mouse. If omitted, scan by name."
+    )
+    parser.add_argument(
+        "--name",
+        default="BSK V3 X",
+        help="Case-insensitive device-name substring to match during scan."
+    )
+    parser.add_argument(
+        "--scan-timeout",
+        type=float,
+        default=8.0,
+        help="Seconds to scan when address is not provided."
+    )
+    return parser.parse_args()
 
-    async with BleakClient(DEVICE_ADDRESS) as client:
+
+async def resolve_address(address: str | None, name_hint: str, scan_timeout: float) -> str:
+    if address:
+        return address
+
+    print(f"Scanning for BLE devices for up to {scan_timeout:.1f}s...")
+    devices = await BleakScanner.discover(timeout=scan_timeout)
+    name_hint_lower = name_hint.lower()
+    candidates = []
+    for device in devices:
+        name = device.name or ""
+        lowered = name.lower()
+        if name_hint_lower in lowered or any(keyword in lowered for keyword in RAZER_NAME_KEYWORDS):
+            candidates.append(device)
+
+    if not candidates:
+        print("No matching BLE devices found.")
+        print("Try re-running with the explicit Bluetooth address:")
+        print("  python tools/python/enumerate_hid_gatt.py XX:XX:XX:XX:XX:XX")
+        sys.exit(1)
+
+    chosen = candidates[0]
+    print(f"Using {chosen.name or '(unnamed)'} at {chosen.address}")
+    return chosen.address
+
+
+def descriptor_handle(characteristic, descriptor_uuid: str) -> int | None:
+    for desc in characteristic.descriptors:
+        if str(desc.uuid).lower() == descriptor_uuid:
+            return desc.handle
+    return None
+
+
+async def read_descriptor_if_present(client: BleakClient, characteristic, descriptor_uuid: str) -> bytes | None:
+    handle = descriptor_handle(characteristic, descriptor_uuid)
+    if handle is None:
+        return None
+    try:
+        return await client.read_gatt_descriptor(handle)
+    except Exception:
+        return None
+
+
+async def enumerate_device(address: str):
+    print(f"Connecting to {address}...")
+
+    async with BleakClient(address) as client:
         print(f"Connected: {client.is_connected}")
         print(f"MTU: {client.mtu_size if hasattr(client, 'mtu_size') else 'unknown'}")
         print()
@@ -84,51 +148,67 @@ async def enumerate_device():
             print("HID service not found!")
             return
 
-        # Read Report Map (HID descriptor)
         report_map_char = None
         feature_reports = []
         output_reports = []
         input_reports = []
+        unknown_reports = []
 
         for char in hid_svc.characteristics:
             if char.uuid == REPORT_MAP_CHAR:
                 report_map_char = char
             elif char.uuid == REPORT_CHAR:
-                # Read Report Reference descriptor
-                for desc in char.descriptors:
-                    if str(desc.uuid) == REPORT_REF_DESC:
-                        try:
-                            val = await client.read_gatt_descriptor(desc.handle)
-                            if len(val) >= 2:
-                                report_id = val[0]
-                                report_type = val[1]
-                                entry = {
-                                    "char": char,
-                                    "report_id": report_id,
-                                    "report_type": report_type,
-                                    "type_name": REPORT_TYPES.get(report_type, f"Unknown({report_type})"),
-                                    "props": list(char.properties),
-                                }
-                                if report_type == 1:
-                                    input_reports.append(entry)
-                                elif report_type == 2:
-                                    output_reports.append(entry)
-                                elif report_type == 3:
-                                    feature_reports.append(entry)
-                        except Exception as e:
-                            print(f"  Error reading Report Reference: {e}")
+                report_ref = await read_descriptor_if_present(client, char, REPORT_REF_DESC)
+                cccd_handle = descriptor_handle(char, CCCD_DESC)
+                entry = {
+                    "char": char,
+                    "props": list(char.properties),
+                    "report_ref_handle": descriptor_handle(char, REPORT_REF_DESC),
+                    "cccd_handle": cccd_handle,
+                }
+                if report_ref and len(report_ref) >= 2:
+                    entry["report_id"] = report_ref[0]
+                    entry["report_type"] = report_ref[1]
+                    entry["type_name"] = REPORT_TYPES.get(report_ref[1], f"Unknown({report_ref[1]})")
+                else:
+                    entry["report_id"] = None
+                    entry["report_type"] = None
+                    entry["type_name"] = "Unknown"
 
-        print(f"\nInput Reports ({len(input_reports)}):")
-        for r in input_reports:
-            print(f"  Report ID {r['report_id']:3d} | Handle {r['char'].handle:3d} | Props: {r['props']}")
+                if entry["report_type"] == 1:
+                    input_reports.append(entry)
+                elif entry["report_type"] == 2:
+                    output_reports.append(entry)
+                elif entry["report_type"] == 3:
+                    feature_reports.append(entry)
+                else:
+                    unknown_reports.append(entry)
 
-        print(f"\nOutput Reports ({len(output_reports)}):")
-        for r in output_reports:
-            print(f"  Report ID {r['report_id']:3d} | Handle {r['char'].handle:3d} | Props: {r['props']}")
+        def print_report_group(title: str, reports):
+            print(f"\n{title} ({len(reports)}):")
+            for report in reports:
+                report_id = "?" if report["report_id"] is None else str(report["report_id"])
+                report_type = report["type_name"]
+                handle = report["char"].handle
+                report_ref_handle = report["report_ref_handle"]
+                cccd_handle = report["cccd_handle"]
+                print(
+                    f"  Report ID {report_id:>3} | Type {report_type:<7} | "
+                    f"CharHandle 0x{handle:04x} | ReportRef "
+                    f"{'0x%04x' % report_ref_handle if report_ref_handle is not None else '-'} | "
+                    f"CCCD {'0x%04x' % cccd_handle if cccd_handle is not None else '-'} | "
+                    f"Props {report['props']}"
+                )
 
-        print(f"\nFeature Reports ({len(feature_reports)}):")
-        for r in feature_reports:
-            print(f"  Report ID {r['report_id']:3d} | Handle {r['char'].handle:3d} | Props: {r['props']}")
+        print_report_group("Input Reports", input_reports)
+        print_report_group("Output Reports", output_reports)
+        print_report_group("Feature Reports", feature_reports)
+        print_report_group("Unknown Report Entries", unknown_reports)
+
+        print("\nTarget capture handles to compare against:")
+        print("  Hypershift press/release notify: 0x0027")
+        print("  Passive DPI / heartbeat notify: 0x002b")
+        print("  Nearby zeroed notify seen during first release: 0x002f")
 
         # Read Report Map
         if report_map_char:
@@ -185,7 +265,8 @@ async def enumerate_device():
 
             for r in feature_reports:
                 if "write" in r['props'] or "write-without-response" in r['props']:
-                    print(f"\n  Writing to Feature Report ID {r['report_id']} (handle {r['char'].handle})...")
+                    report_id = "?" if r["report_id"] is None else r["report_id"]
+                    print(f"\n  Writing to Feature Report ID {report_id} (handle {r['char'].handle})...")
                     print(f"  Payload: {razer_cmd[:10].hex()}...{razer_cmd[88:].hex()}")
                     try:
                         await client.write_gatt_char(r['char'], bytes(razer_cmd), response=True)
@@ -213,13 +294,15 @@ async def enumerate_device():
         print(f"Input Reports:   {len(input_reports)}")
         print(f"Output Reports:  {len(output_reports)}")
         print(f"Feature Reports: {len(feature_reports)}")
+        print(f"Unknown Reports: {len(unknown_reports)}")
 
         if feature_reports:
             print("\n*** FEATURE REPORTS FOUND - Razer protocol likely goes here! ***")
             for r in feature_reports:
                 writable = "write" in r['props'] or "write-without-response" in r['props']
                 readable = "read" in r['props']
-                print(f"  ID {r['report_id']}: {'W' if writable else '-'}{'R' if readable else '-'} handle={r['char'].handle}")
+                report_id = "?" if r["report_id"] is None else r["report_id"]
+                print(f"  ID {report_id}: {'W' if writable else '-'}{'R' if readable else '-'} handle={r['char'].handle}")
         else:
             print("\nNo Feature Reports found in HID service.")
             print("The Razer driver may inject them at the Windows driver level,")
@@ -228,8 +311,11 @@ async def enumerate_device():
         if output_reports:
             print(f"\nOutput Reports found ({len(output_reports)}) - could also carry commands:")
             for r in output_reports:
-                print(f"  ID {r['report_id']}: handle={r['char'].handle} props={r['props']}")
+                report_id = "?" if r["report_id"] is None else r["report_id"]
+                print(f"  ID {report_id}: handle={r['char'].handle} props={r['props']}")
 
 
 if __name__ == "__main__":
-    asyncio.run(enumerate_device())
+    args = build_args()
+    target_address = asyncio.run(resolve_address(args.address, args.name, args.scan_timeout))
+    asyncio.run(enumerate_device(target_address))
