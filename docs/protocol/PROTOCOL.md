@@ -11,6 +11,7 @@ For clarity, documentation is now split:
 - [BLE Protocol Spec](./BLE_PROTOCOL.md)
 - [USB/BLE Parity](./PARITY.md)
 - [BLE Reverse Engineering Notes](../research/BLE_REVERSE_ENGINEERING.md)
+- [BLE Hypershift Stream Support](../research/BLE_HYPERSHIFT_STREAM_SUPPORT.md)
 - [OpenSnek App/Probe Guide](../../OpenSnek/README.md)
 
 Agent fast-path:

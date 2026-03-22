@@ -77,6 +77,19 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - No extra vendor config key beyond `08 04 01 <slot>` appears in this trace.
   - No host ATT write for a slot-`0x06` button-bind command is present.
 
+- `ble/hypershift-hold-2026-03-22.pcapng`
+  - Focused Windows capture for pressing and holding the Basilisk V3 X HyperSpeed Bluetooth Hypershift/DPI-clutch button three times while Synapse was open.
+  - Confirms a separate HID-style notify stream on handle `0x0027`:
+    - press: `04 52 00 00 00 00 00 00`
+    - release: `04 00 00 00 00 00 00 00`
+  - Each press is followed within ~20 to 30 ms by a BLE DPI-stage write/readback sequence:
+    - write key `0B 04 01 00`
+    - read key `0B 84 01 00`
+    - capture-backed write payloads start with active tokens `0x02`, `0x03`, `0x04`
+    - capture-backed readback values still decode the same 5-stage table (`400`, `700`, `1600`, `3200`, `5800` DPI)
+  - No `08 04 01 06` vendor button-remap write appears in the trace, reinforcing that slot `0x06` is outside the validated BLE button-bind family.
+  - Compared with the earlier `full-hid-hypershift-cap.pcapng`, the `0x0027` press byte changed from `0x59` to `0x52`, which suggests the payload is mapping-dependent rather than a fixed physical-button identifier.
+
 - `ble/dpi-cycle-left-click-default.pcapng`
   - Focused capture for DPI-cycle control rebinding.
   - Confirms writable slot `0x60` on the same button-bind key family.
@@ -95,6 +108,10 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
 - `ble/vendor-key-sweeps-2026-03-08.md`
   - In-session automated BLE vendor key sweep report.
   - Documents confirmed mappings, candidate keys, and safety findings from read/writeback probing.
+
+- `ble/hypershift-hold-2026-03-22.md`
+  - Packet-by-packet decode notes for the March 22 focused hold capture.
+  - Includes the `0x0027` press/release timeline and the correlated `0B 04` / `0B 84` DPI-stage transactions.
 
 ## Notes
 

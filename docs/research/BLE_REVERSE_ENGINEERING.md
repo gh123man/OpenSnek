@@ -4,6 +4,10 @@
 
 Reverse engineer the Razer BLE configuration path used by Synapse and implement stable features in `razer_ble.py`.
 
+Related notes:
+
+- [BLE Hypershift Stream Support](./BLE_HYPERSHIFT_STREAM_SUPPORT.md)
+
 ## Device Context
 
 - Primary target: Basilisk V3 X HyperSpeed
@@ -28,6 +32,11 @@ Reverse engineer the Razer BLE configuration path used by Synapse and implement 
 - `captures/ble/right-click-turbo.pcapng`
   - Focused right-click turbo workflow
   - Confirmed turbo payload family (`action 0x0E`) and rate-field changes
+- `captures/ble/hypershift-hold-2026-03-22.pcapng`
+  - Focused Windows hold capture for the Hypershift/DPI-clutch button
+  - Confirmed a separate HID-style notify handle `0x0027` for press/release
+  - Confirmed each press is followed by a `0B 04 01 00` / `0B 84 01 00` DPI-stage write/readback sequence
+  - Reconfirmed that no slot-`0x06` `08 04 01` vendor remap write appears during the clutch interaction
 
 ## Reverse Engineering Strategy
 
@@ -104,8 +113,20 @@ Reverse engineer the Razer BLE configuration path used by Synapse and implement 
 - 2026-03-07: `captures/ble/filteredcap.pcapng` decoded enough to establish Synapse vendor-GATT frame model.
 - 2026-03-08: Live write/readback validation for scalar keys and DPI stages.
 - 2026-03-08: Added focused captures for power/lighting and button rebinding (`captures/ble/power-lighting.pcapng`, `captures/ble/basic-rebind.pcapng`, `captures/ble/right-click-bind.pcapng`).
+- 2026-03-22: Added focused Windows hold capture for the Hypershift/DPI-clutch button (`captures/ble/hypershift-hold-2026-03-22.pcapng`) and decoded the correlated `0x0027` notify path plus DPI-stage vendor writes.
 
 ### Changelog
+
+- **2026-03-22**: Added focused Hypershift/DPI-clutch hold capture from Windows:
+  - new capture: `captures/ble/hypershift-hold-2026-03-22.pcapng`
+  - new decode notes: `captures/ble/hypershift-hold-2026-03-22.md`
+  - observed separate notify handle `0x0027`:
+    - press: `04 52 00 00 00 00 00 00`
+    - release: `04 00 00 00 00 00 00 00`
+  - each press is followed by a `0B 04 01 00` DPI-stage write and `0B 84 01 00` readback
+  - write/readback payloads still carry the same 5-stage table (`400`, `700`, `1600`, `3200`, `5800` DPI), while the active token advances across observed presses (`0x02`, `0x03`, `0x04`)
+  - no `08 04 01 06` slot-`0x06` vendor remap write appears in the hold trace
+  - compared with the older `full-hid-hypershift-cap.pcapng`, the `0x0027` press byte changed from `0x59` to `0x52`, which suggests the byte is mapping dependent
 
 - **2026-03-08**: Added automated vendor-key discovery (`discover_bt_vendor_keys.py`) and live validation:
   - Validated key-space scanner with read-only and same-value writeback modes
