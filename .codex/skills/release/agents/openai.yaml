@@ -1,4 +1,4 @@
 interface:
   display_name: "Release"
   short_description: "Cut and push an OpenSnek release"
-  default_prompt: "Use $release to cut and push a new OpenSnek semver release."
+  default_prompt: "Use $release to recommend a semver bump from CHANGELOG.md and cut a new OpenSnek release."
