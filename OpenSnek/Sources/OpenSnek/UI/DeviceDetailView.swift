@@ -991,7 +991,7 @@ struct DpiStagesCard: View {
         let stageCount = supportsMultiStage ? editorStore.editableStageCount : 1
         return Card(title: "DPI Stages") {
             HStack {
-                Text(supportsMultiStage ? "Enabled stages: \(editorStore.editableStageCount) / 5" : "Single-stage DPI")
+                Text(DpiControlPresentation.stageCountSummary(for: stageCount))
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.82))
                 Spacer()
@@ -1052,21 +1052,21 @@ struct DpiStagesCard: View {
                         .frame(width: 100)
                     }
 
-                    Slider(
+                    DpiQuantizedSlider(
                         value: Binding(
-                            get: { Double(min(editorStore.stageValue(idx), sliderRange.upperBound)) },
+                            get: { DpiControlPresentation.sliderValue(for: editorStore.stageValue(idx), upperBound: sliderRange.upperBound) },
                             set: { newValue in
-                                let quantized = Int(round(newValue / 100.0) * 100.0)
+                                let quantized = DpiControlPresentation.quantizedDpi(from: newValue)
                                 editorStore.updateStage(idx, value: quantized)
                                 editorStore.scheduleAutoApplyDpi()
                             }
                         ),
-                        in: sliderDoubleRange,
+                        range: sliderDoubleRange,
+                        tint: isSelectedStage ? stageColor : Color.white.opacity(0.80),
                         onEditingChanged: { editing in
                             editorStore.isEditingDpiControl = editing
                         }
                     )
-                    .tint(isSelectedStage ? stageColor : Color.white.opacity(0.80))
                 }
                 .padding(8)
                 .background(
@@ -1088,32 +1088,29 @@ struct DpiStagesCard: View {
             Text("DPI")
                 .foregroundStyle(stageColor)
         } else {
-            Button {
-                let selected = index + 1
-                if editorStore.editableActiveStage != selected {
-                    editorStore.editableActiveStage = selected
-                    editorStore.scheduleAutoApplyActiveStage()
-                }
-            } label: {
-                Label(
-                    "Stage \(index + 1)",
-                    systemImage: editorStore.editableActiveStage == (index + 1) ? "checkmark.square.fill" : "square"
-                )
-                .labelStyle(.titleAndIcon)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(isSelectedStage ? stageColor.opacity(0.18) : Color.white.opacity(0.05))
-                )
-                .overlay(
-                    Capsule()
-                        .stroke(isSelectedStage ? stageColor.opacity(0.95) : Color.white.opacity(0.16), lineWidth: 1)
-                )
-                .contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(isSelectedStage ? stageColor : .white)
+            DpiStageChipButton(
+                title: DpiControlPresentation.stageLabel(for: index),
+                systemImage: editorStore.editableActiveStage == (index + 1) ? "checkmark.square.fill" : "square",
+                isSelected: isSelectedStage,
+                accentColor: stageColor,
+                action: {
+                    let selected = index + 1
+                    if editorStore.editableActiveStage != selected {
+                        editorStore.editableActiveStage = selected
+                        editorStore.scheduleAutoApplyActiveStage()
+                    }
+                },
+                selectedForegroundStyle: stageColor,
+                unselectedForegroundStyle: .white,
+                font: .system(size: 12, weight: .bold, design: .rounded),
+                minHeight: 0,
+                horizontalPadding: 10,
+                verticalPadding: 6,
+                selectedBackgroundOpacity: 0.18,
+                unselectedBackgroundOpacity: 0.05,
+                selectedStrokeOpacity: 0.95,
+                unselectedStrokeOpacity: 0.16
+            )
         }
     }
 

@@ -218,29 +218,19 @@ struct ServiceMenuBarView: View {
                 let stage = index + 1
                 let stageValue = editorStore.stageValue(index)
                 let isSelected = editorStore.editableActiveStage == stage
-                Button {
-                    if !isSelected {
-                        editorStore.editableActiveStage = stage
-                        editorStore.scheduleAutoApplyActiveStage()
-                    }
-                } label: {
-                    Text("\(stageValue)")
-                        .font(.system(size: 11, weight: .black, design: .rounded))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .foregroundStyle(isSelected ? Color.accentColor : .primary)
-                        .frame(maxWidth: .infinity, minHeight: 34)
-                        .background(
-                            Capsule()
-                                .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.06))
-                        )
-                        .overlay(
-                            Capsule()
-                                .stroke(isSelected ? Color.accentColor : Color.primary.opacity(0.10), lineWidth: 1)
-                        )
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
+                DpiStageChipButton(
+                    title: "\(stageValue)",
+                    systemImage: nil,
+                    isSelected: isSelected,
+                    accentColor: .accentColor,
+                    action: {
+                        if !isSelected {
+                            editorStore.editableActiveStage = stage
+                            editorStore.scheduleAutoApplyActiveStage()
+                        }
+                    },
+                    expandHorizontally: true
+                )
             }
         }
     }
@@ -261,23 +251,24 @@ struct ServiceMenuBarView: View {
         let sliderDoubleRange = Double(sliderRange.lowerBound)...Double(sliderRange.upperBound)
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Stage \(editorStore.editableActiveStage) DPI")
+                Text("\(DpiControlPresentation.stageLabel(for: editorStore.compactActiveStageIndex)) DPI")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                 Spacer()
                 Text("\(editorStore.compactActiveStageValue)")
                     .font(.system(size: 12, weight: .black, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
-            Slider(
+            DpiQuantizedSlider(
                 value: Binding(
-                    get: { Double(min(editorStore.compactActiveStageValue, sliderRange.upperBound)) },
+                    get: { DpiControlPresentation.sliderValue(for: editorStore.compactActiveStageValue, upperBound: sliderRange.upperBound) },
                     set: { newValue in
-                        let quantized = Int(round(newValue / 100.0) * 100.0)
+                        let quantized = DpiControlPresentation.quantizedDpi(from: newValue)
                         editorStore.updateStage(editorStore.compactActiveStageIndex, value: quantized)
                         editorStore.scheduleAutoApplyDpi()
                     }
                 ),
-                in: sliderDoubleRange,
+                range: sliderDoubleRange,
+                tint: .accentColor,
                 onEditingChanged: { editing in
                     editorStore.isEditingDpiControl = editing
                 }
