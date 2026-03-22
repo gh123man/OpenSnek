@@ -126,6 +126,49 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(finalFastReadCount, 1)
     }
 
+    func testHydratedEditableDpiStagesClampToSelectedDeviceLimit() async throws {
+        let device = makeRefactorTestDevice(
+            id: "dpi-clamp-device",
+            transport: .bluetooth,
+            serial: "DPI-CLAMP-\(UUID().uuidString)",
+            onboardProfileCount: 1
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "bluetooth",
+                    batteryPercent: 74,
+                    dpiValues: [800, 20_000, 24_000],
+                    activeStage: 1,
+                    dpiValue: 20_000,
+                    pollRate: 1000,
+                    sleepTimeout: 300
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+
+        try await waitForRefactorCondition {
+            await MainActor.run { appState.editorStore.stageValue(1) == 18_000 }
+        }
+
+        let editableValues = await MainActor.run {
+            Array(appState.editorStore.editableStageValues.prefix(appState.editorStore.editableStageCount))
+        }
+        let selectedDPIRange = await MainActor.run {
+            DeviceProfiles.dpiRange(for: appState.editorStore.selectedDeviceProfileID)
+        }
+
+        XCTAssertEqual(editableValues, [800, 18_000, 18_000])
+        XCTAssertEqual(selectedDPIRange, 100...18_000)
+    }
+
     func testBluetoothPersistedLightingColorReappliesOnFirstHydration() async throws {
         let device = makeRefactorTestDevice(
             id: "bt-lighting-device",

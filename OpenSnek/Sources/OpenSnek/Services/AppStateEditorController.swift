@@ -82,14 +82,15 @@ final class AppStateEditorController {
 
         if let values = state.dpi_stages.values, !values.isEmpty {
             editorStore.editableStageCount = max(1, min(5, values.count))
+            let profileID = deviceStore.selectedDevice?.profile_id
             for index in 0..<editorStore.editableStageValues.count {
                 if index < values.count {
-                    editorStore.editableStageValues[index] = max(100, min(30000, values[index]))
+                    editorStore.editableStageValues[index] = DeviceProfiles.clampDPI(values[index], profileID: profileID)
                 }
             }
         } else if let dpi = state.dpi?.x {
             editorStore.editableStageCount = 1
-            editorStore.editableStageValues[0] = max(100, min(30000, dpi))
+            editorStore.editableStageValues[0] = DeviceProfiles.clampDPI(dpi, profileID: deviceStore.selectedDevice?.profile_id)
         }
 
         if let active = state.dpi_stages.active_stage {
@@ -565,7 +566,7 @@ final class AppStateEditorController {
         guard deviceStore.visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
         var next = editorStore.editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
         guard next.kind == .dpiClutch else { return }
-        next.clutchDPI = max(100, min(30_000, dpi))
+        next.clutchDPI = DeviceProfiles.clampDPI(dpi, profileID: deviceStore.selectedDevice?.profile_id)
         editorStore.editableButtonBindings[slot] = next
         applyController.scheduleAutoApplyButton(slot: slot)
     }

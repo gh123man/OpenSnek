@@ -257,7 +257,9 @@ struct ServiceMenuBarView: View {
     }
 
     private var dpiSlider: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let sliderRange = DeviceProfiles.sliderDpiRange(for: editorStore.selectedDeviceProfileID)
+        let sliderDoubleRange = Double(sliderRange.lowerBound)...Double(sliderRange.upperBound)
+        return VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Stage \(editorStore.editableActiveStage) DPI")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
@@ -268,14 +270,14 @@ struct ServiceMenuBarView: View {
             }
             Slider(
                 value: Binding(
-                    get: { Double(editorStore.compactActiveStageValue) },
+                    get: { Double(min(editorStore.compactActiveStageValue, sliderRange.upperBound)) },
                     set: { newValue in
                         let quantized = Int(round(newValue / 100.0) * 100.0)
                         editorStore.updateStage(editorStore.compactActiveStageIndex, value: quantized)
                         editorStore.scheduleAutoApplyDpi()
                     }
                 ),
-                in: 100...30000,
+                in: sliderDoubleRange,
                 onEditingChanged: { editing in
                     editorStore.isEditingDpiControl = editing
                 }

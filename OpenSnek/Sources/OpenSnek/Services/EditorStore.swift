@@ -110,7 +110,7 @@ final class EditorStore {
 
     func updateStage(_ index: Int, value: Int) {
         guard index >= 0 && index < editableStageValues.count else { return }
-        editableStageValues[index] = max(100, min(30_000, value))
+        editableStageValues[index] = DeviceProfiles.clampDPI(value, profileID: selectedDeviceProfileID)
     }
 
     func stageValue(_ index: Int) -> Int {

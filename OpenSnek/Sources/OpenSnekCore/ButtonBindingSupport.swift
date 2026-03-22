@@ -4,7 +4,7 @@ public enum ButtonBindingSupport {
     public static let defaultV3ProDPIClutchDPI = 400
 
     private static func basiliskV3ProDPIClutchBlock(dpi: Int = defaultV3ProDPIClutchDPI) -> [UInt8] {
-        let clamped = UInt16(max(100, min(30_000, dpi)))
+        let clamped = UInt16(DeviceProfiles.clampDPI(dpi, profileID: .basiliskV3Pro))
         let hi = UInt8((clamped >> 8) & 0xFF)
         let lo = UInt8(clamped & 0xFF)
         // Observed V3 Pro clutch payload encodes symmetric X/Y DPI.
@@ -22,7 +22,7 @@ public enum ButtonBindingSupport {
         let dpiX = (Int(functionBlock[3]) << 8) | Int(functionBlock[4])
         let dpiY = (Int(functionBlock[5]) << 8) | Int(functionBlock[6])
         guard dpiX == dpiY else { return nil }
-        return max(100, min(30_000, dpiX))
+        return DeviceProfiles.clampDPI(dpiX, profileID: .basiliskV3Pro)
     }
 
     public static func defaultDPIClutchDPI(for profileID: DeviceProfileID?) -> Int? {
@@ -71,7 +71,7 @@ public enum ButtonBindingSupport {
                     hidKey: 4,
                     turboEnabled: false,
                     turboRate: fallbackRate,
-                    clutchDPI: max(100, min(30_000, dpi))
+                    clutchDPI: DeviceProfiles.clampDPI(dpi, profileID: profileID)
                 )
             }
             return nil

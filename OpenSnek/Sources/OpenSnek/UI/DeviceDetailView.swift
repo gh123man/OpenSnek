@@ -989,9 +989,11 @@ struct DpiStagesCard: View {
     let editorStore: EditorStore
 
     var body: some View {
+        let sliderRange = DeviceProfiles.sliderDpiRange(for: editorStore.selectedDeviceProfileID)
+        let sliderDoubleRange = Double(sliderRange.lowerBound)...Double(sliderRange.upperBound)
         let supportsMultiStage = true
         let stageCount = supportsMultiStage ? editorStore.editableStageCount : 1
-        Card(title: "DPI Stages") {
+        return Card(title: "DPI Stages") {
             HStack {
                 Text(supportsMultiStage ? "Enabled stages: \(editorStore.editableStageCount) / 5" : "Single-stage DPI")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -1056,14 +1058,14 @@ struct DpiStagesCard: View {
 
                     Slider(
                         value: Binding(
-                            get: { Double(editorStore.stageValue(idx)) },
+                            get: { Double(min(editorStore.stageValue(idx), sliderRange.upperBound)) },
                             set: { newValue in
                                 let quantized = Int(round(newValue / 100.0) * 100.0)
                                 editorStore.updateStage(idx, value: quantized)
                                 editorStore.scheduleAutoApplyDpi()
                             }
                         ),
-                        in: 100...30000,
+                        in: sliderDoubleRange,
                         onEditingChanged: { editing in
                             editorStore.isEditingDpiControl = editing
                         }
@@ -1424,7 +1426,9 @@ private struct ButtonBindingRow: View {
     let row: ButtonBindingRowModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let sliderRange = DeviceProfiles.sliderDpiRange(for: editorStore.selectedDeviceProfileID)
+        let sliderDoubleRange = Double(sliderRange.lowerBound)...Double(sliderRange.upperBound)
+        return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center, spacing: 12) {
                 Text(row.friendlyName)
                     .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -1513,18 +1517,18 @@ private struct ButtonBindingRow: View {
 
                     Slider(
                         value: Binding(
-                            get: { Double(editorStore.buttonBindingClutchDPI(for: row.slot)) },
+                            get: { Double(min(editorStore.buttonBindingClutchDPI(for: row.slot), sliderRange.upperBound)) },
                             set: { newValue in
                                 let quantized = Int(round(newValue / 100.0) * 100.0)
                                 editorStore.updateButtonBindingClutchDPI(slot: row.slot, dpi: quantized)
                             }
                         ),
-                        in: 100...30000
+                        in: sliderDoubleRange
                     )
                     .frame(width: 140)
                     .disabled(!row.isEditable)
 
-                    Text("30000")
+                    Text("\(sliderRange.upperBound)")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.62))
 

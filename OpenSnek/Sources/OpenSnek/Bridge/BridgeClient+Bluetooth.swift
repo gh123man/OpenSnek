@@ -354,10 +354,11 @@ extension BridgeClient {
                 return nil
             }
 
+            let dpiRange = DeviceProfiles.dpiRange(for: device)
             guard !parsed.values.isEmpty,
                   parsed.active >= 0,
                   parsed.active < parsed.values.count,
-                  parsed.values.allSatisfy({ $0 >= 100 && $0 <= 30_000 }) else {
+                  parsed.values.allSatisfy({ dpiRange.contains($0) }) else {
                 AppLog.debug(
                     "Bridge",
                     "btGetDpiStages ignored invalid payload device=\(device.id) values=\(parsed.values) active=\(parsed.active) attempt=\(attempt + 1)"

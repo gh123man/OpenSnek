@@ -66,7 +66,8 @@ public enum PassiveDPIParser {
 
             let dpiX = (Int(report[payloadStart + 1]) << 8) | Int(report[payloadStart + 2])
             let dpiY = (Int(report[payloadStart + 3]) << 8) | Int(report[payloadStart + 4])
-            guard (100...30_000).contains(dpiX), (100...30_000).contains(dpiY) else { return .other }
+            let dpiRange = DeviceProfiles.minimumDPI...descriptor.maximumDPI
+            guard dpiRange.contains(dpiX), dpiRange.contains(dpiY) else { return .other }
             return .dpi(PassiveDPIReading(dpiX: dpiX, dpiY: dpiY))
         }
 
