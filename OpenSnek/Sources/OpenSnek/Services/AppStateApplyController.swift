@@ -103,7 +103,7 @@ final class AppStateApplyController {
 
     func updateStage(_ index: Int, value: Int) {
         guard index >= 0 && index < editorStore.editableStageValues.count else { return }
-        editorStore.editableStageValues[index] = max(100, min(30000, value))
+        editorStore.editableStageValues[index] = DeviceProfiles.clampDPI(value, profileID: deviceStore.selectedDevice?.profile_id)
     }
 
     func stageValue(_ index: Int) -> Int {
@@ -113,7 +113,8 @@ final class AppStateApplyController {
 
     func applyDpiStages() async {
         let count = max(1, min(5, editorStore.editableStageCount))
-        let values = Array(editorStore.editableStageValues.prefix(count)).map { max(100, min(30000, $0)) }
+        let profileID = deviceStore.selectedDevice?.profile_id
+        let values = Array(editorStore.editableStageValues.prefix(count)).map { DeviceProfiles.clampDPI($0, profileID: profileID) }
         let active = max(0, min(count - 1, editorStore.editableActiveStage - 1))
         enqueueApply(DevicePatch(dpiStages: values, activeStage: active))
     }
@@ -135,7 +136,8 @@ final class AppStateApplyController {
 
     func applyActiveStageOnly() async {
         let count = max(1, min(5, editorStore.editableStageCount))
-        let values = Array(editorStore.editableStageValues.prefix(count)).map { max(100, min(30000, $0)) }
+        let profileID = deviceStore.selectedDevice?.profile_id
+        let values = Array(editorStore.editableStageValues.prefix(count)).map { DeviceProfiles.clampDPI($0, profileID: profileID) }
         let active = max(0, min(count - 1, editorStore.editableActiveStage - 1))
         enqueueApply(DevicePatch(dpiStages: values, activeStage: active))
     }

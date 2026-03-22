@@ -989,9 +989,11 @@ struct DpiStagesCard: View {
     let editorStore: EditorStore
 
     var body: some View {
+        let dpiRange = DeviceProfiles.dpiRange(for: editorStore.selectedDeviceProfileID)
+        let sliderRange = Double(dpiRange.lowerBound)...Double(dpiRange.upperBound)
         let supportsMultiStage = true
         let stageCount = supportsMultiStage ? editorStore.editableStageCount : 1
-        Card(title: "DPI Stages") {
+        return Card(title: "DPI Stages") {
             HStack {
                 Text(supportsMultiStage ? "Enabled stages: \(editorStore.editableStageCount) / 5" : "Single-stage DPI")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -1063,7 +1065,7 @@ struct DpiStagesCard: View {
                                 editorStore.scheduleAutoApplyDpi()
                             }
                         ),
-                        in: 100...30000,
+                        in: sliderRange,
                         onEditingChanged: { editing in
                             editorStore.isEditingDpiControl = editing
                         }
@@ -1424,7 +1426,9 @@ private struct ButtonBindingRow: View {
     let row: ButtonBindingRowModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let dpiRange = DeviceProfiles.dpiRange(for: editorStore.selectedDeviceProfileID)
+        let sliderRange = Double(dpiRange.lowerBound)...Double(dpiRange.upperBound)
+        return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center, spacing: 12) {
                 Text(row.friendlyName)
                     .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -1519,12 +1523,12 @@ private struct ButtonBindingRow: View {
                                 editorStore.updateButtonBindingClutchDPI(slot: row.slot, dpi: quantized)
                             }
                         ),
-                        in: 100...30000
+                        in: sliderRange
                     )
                     .frame(width: 140)
                     .disabled(!row.isEditable)
 
-                    Text("30000")
+                    Text("\(dpiRange.upperBound)")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.62))
 

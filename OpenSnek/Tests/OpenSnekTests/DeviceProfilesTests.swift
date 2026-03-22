@@ -14,6 +14,7 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.passiveDPIInput?.usage, 0x06)
         XCTAssertEqual(profile?.passiveDPIInput?.reportID, 0x05)
         XCTAssertEqual(profile?.passiveDPIInput?.subtype, 0x02)
+        XCTAssertEqual(profile?.passiveDPIInput?.maximumDPI, 18_000)
         XCTAssertEqual(profile?.onboardProfileCount, 1)
     }
 
@@ -35,6 +36,7 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.passiveDPIInput?.usage, 0x06)
         XCTAssertEqual(profile?.passiveDPIInput?.reportID, 0x05)
         XCTAssertEqual(profile?.passiveDPIInput?.subtype, 0x02)
+        XCTAssertEqual(profile?.passiveDPIInput?.maximumDPI, 35_000)
         XCTAssertEqual(profile?.onboardProfileCount, 5)
     }
 
@@ -55,6 +57,7 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.passiveDPIInput?.usage, 0x06)
         XCTAssertEqual(profile?.passiveDPIInput?.reportID, 0x05)
         XCTAssertEqual(profile?.passiveDPIInput?.subtype, 0x02)
+        XCTAssertEqual(profile?.passiveDPIInput?.maximumDPI, 30_000)
         XCTAssertEqual(profile?.onboardProfileCount, 3)
     }
 
@@ -88,6 +91,7 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.passiveDPIInput?.usage, 0x02)
         XCTAssertEqual(profile?.passiveDPIInput?.reportID, 0x05)
         XCTAssertEqual(profile?.passiveDPIInput?.subtype, 0x02)
+        XCTAssertEqual(profile?.passiveDPIInput?.maximumDPI, 18_000)
         XCTAssertEqual(profile?.onboardProfileCount, 1)
     }
 
@@ -107,9 +111,18 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.passiveDPIInput?.reportID, 0x05)
         XCTAssertEqual(profile?.passiveDPIInput?.subtype, 0x02)
         XCTAssertEqual(profile?.passiveDPIInput?.maxFeatureReportSize, 1)
+        XCTAssertEqual(profile?.passiveDPIInput?.maximumDPI, 30_000)
         XCTAssertEqual(profile?.onboardProfileCount, 3)
         XCTAssertEqual(profile?.usbLightingLEDIDs, [0x01, 0x04, 0x0A])
         XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel", "logo", "underglow"])
+    }
+
+    func testDPIRangesMatchSupportedProfiles() {
+        XCTAssertEqual(DeviceProfiles.dpiRange(for: .basiliskV3XHyperspeed), 100...18_000)
+        XCTAssertEqual(DeviceProfiles.dpiRange(for: .basiliskV3Pro), 100...30_000)
+        XCTAssertEqual(DeviceProfiles.dpiRange(for: .basiliskV335K), 100...35_000)
+        XCTAssertEqual(DeviceProfiles.clampDPI(40_000, profileID: .basiliskV335K), 35_000)
+        XCTAssertEqual(DeviceProfiles.clampDPI(24_000, profileID: .basiliskV3XHyperspeed), 18_000)
     }
 
     func testBasiliskV3ProBluetoothShowsLightingControls() {

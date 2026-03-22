@@ -230,8 +230,8 @@ extension BridgeClient {
     }
 
     func setDPI(_ session: USBHIDControlSession, _ device: MouseDevice, dpiX: Int, dpiY: Int, store: Bool) throws -> Bool {
-        let x = max(100, min(30_000, dpiX))
-        let y = max(100, min(30_000, dpiY))
+        let x = DeviceProfiles.clampDPI(dpiX, device: device)
+        let y = DeviceProfiles.clampDPI(dpiY, device: device)
         let storage: UInt8 = store ? 0x01 : 0x00
         let args: [UInt8] = [
             storage,
@@ -251,7 +251,7 @@ extension BridgeClient {
 
     func getDPIStageSnapshot(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> USBDpiStageSnapshot? {
         guard let r = try perform(session, device, classID: 0x04, cmdID: 0x86, size: 0x26, allowTxnRescan: true),
-              let snapshot = parseUSBDpiStageSnapshotResponse(r)
+              let snapshot = parseUSBDpiStageSnapshotResponse(r, device: device)
         else {
             return nil
         }
@@ -284,7 +284,7 @@ extension BridgeClient {
         activeStage: Int,
         stageIDs: [UInt8]? = nil
     ) throws -> Bool {
-        let clipped = Array(stages.prefix(5)).map { max(100, min(30_000, $0)) }
+        let clipped = Array(stages.prefix(5)).map { DeviceProfiles.clampDPI($0, device: device) }
         guard !clipped.isEmpty else { return false }
         let activeClamped = max(0, min(clipped.count - 1, activeStage))
         let writeStageIDs = usbStageIDsForWrite(count: clipped.count, stageIDs: stageIDs)
@@ -308,7 +308,7 @@ extension BridgeClient {
         return r[0] == 0x02
     }
 
-    func parseUSBDpiStageSnapshotResponse(_ response: [UInt8]) -> USBDpiStageSnapshot? {
+    func parseUSBDpiStageSnapshotResponse(_ response: [UInt8], device: MouseDevice? = nil) -> USBDpiStageSnapshot? {
         guard response.count >= 12, response[0] == 0x02 else { return nil }
 
         // USB response layout for 0x04:0x86:
@@ -327,7 +327,7 @@ extension BridgeClient {
             let stageID = response[offset]
             let dpi = (Int(response[offset + 1]) << 8) | Int(response[offset + 2])
             stageIDs.append(stageID)
-            values.append(max(100, min(30_000, dpi)))
+            values.append(DeviceProfiles.clampDPI(dpi, device: device))
         }
 
         guard !values.isEmpty else { return nil }

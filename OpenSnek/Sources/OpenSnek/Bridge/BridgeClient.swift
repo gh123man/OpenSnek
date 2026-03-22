@@ -980,7 +980,9 @@ actor BridgeClient {
                 guard let current else {
                     throw BridgeError.commandFailed("Failed to read current Bluetooth DPI stages")
                 }
-                let stages = patch.dpiStages ?? Array(current.slots.prefix(current.count))
+                let stages = (patch.dpiStages ?? Array(current.slots.prefix(current.count))).map {
+                    DeviceProfiles.clampDPI($0, device: device)
+                }
                 let active = patch.activeStage ?? current.active
                 guard try await btSetDpiStages(device: device, active: active, values: stages) else {
                     throw BridgeError.commandFailed("Failed to set Bluetooth DPI stages")
@@ -1168,7 +1170,7 @@ actor BridgeClient {
 
             if patch.dpiStages != nil || patch.activeStage != nil {
                 let current = try readUSBCurrentDpiStages()
-                let stages = (patch.dpiStages ?? current?.values)?.map { max(100, min(30_000, $0)) }
+                let stages = (patch.dpiStages ?? current?.values)?.map { DeviceProfiles.clampDPI($0, device: device) }
                 let active = patch.activeStage ?? current?.active ?? 0
                 let stageIDs = current?.stageIDs
                 guard let stages, !stages.isEmpty else {
@@ -1249,7 +1251,7 @@ actor BridgeClient {
                                     continue
                                 }
                                 let readbackActive = max(0, min(stages.count - 1, readback.active))
-                                let readbackValues = Array(readback.values.prefix(stages.count)).map { max(100, min(30_000, $0)) }
+                                let readbackValues = Array(readback.values.prefix(stages.count)).map { DeviceProfiles.clampDPI($0, device: device) }
                                 if readbackValues == stages && readbackActive == activeClamped {
                                     stageWriteVerified = true
                                     break
@@ -1346,7 +1348,7 @@ actor BridgeClient {
                 let hidKey = binding.hidKey ?? 4
                 let turboEnabled = binding.kind.supportsTurbo && binding.turboEnabled
                 let turboRate = max(1, min(255, binding.turboRate ?? 0x8E))
-                let clutchDPI = binding.kind == .dpiClutch ? max(100, min(30_000, binding.clutchDPI ?? ButtonBindingSupport.defaultV3ProDPIClutchDPI)) : nil
+                let clutchDPI = binding.kind == .dpiClutch ? DeviceProfiles.clampDPI(binding.clutchDPI ?? ButtonBindingSupport.defaultV3ProDPIClutchDPI, device: device) : nil
                 guard try runUSBWrite({
                     try setButtonBindingUSB(
                         $0,
@@ -1369,7 +1371,7 @@ actor BridgeClient {
                 return try await readStateAfterUSBWrite(device: device)
             } catch {
                 if let cached = lastStateByDeviceID[device.id] {
-                    let projected = projectedState(from: cached, applying: patch)
+                    let projected = projectedState(from: cached, applying: patch, device: device)
                     lastStateByDeviceID[device.id] = projected
                     AppLog.debug(
                         "Bridge",
@@ -1405,8 +1407,8 @@ actor BridgeClient {
         throw firstError ?? BridgeError.commandFailed("USB readback failed after apply")
     }
 
-    private func projectedState(from base: MouseState, applying patch: DevicePatch) -> MouseState {
-        let nextValues = patch.dpiStages ?? base.dpi_stages.values
+    private func projectedState(from base: MouseState, applying patch: DevicePatch, device: MouseDevice) -> MouseState {
+        let nextValues = (patch.dpiStages ?? base.dpi_stages.values)?.map { DeviceProfiles.clampDPI($0, device: device) }
         let requestedActive = patch.activeStage ?? base.dpi_stages.active_stage
 
         let resolvedActive: Int?

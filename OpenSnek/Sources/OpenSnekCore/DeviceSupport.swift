@@ -141,6 +141,7 @@ public struct PassiveDPIInputDescriptor: Hashable, Codable, Sendable {
     public let heartbeatSubtype: UInt8?
     public let minInputReportSize: Int
     public let maxFeatureReportSize: Int?
+    public let maximumDPI: Int
 
     public init(
         usagePage: Int,
@@ -149,7 +150,8 @@ public struct PassiveDPIInputDescriptor: Hashable, Codable, Sendable {
         subtype: UInt8,
         heartbeatSubtype: UInt8? = nil,
         minInputReportSize: Int,
-        maxFeatureReportSize: Int? = nil
+        maxFeatureReportSize: Int? = nil,
+        maximumDPI: Int = 30_000
     ) {
         self.usagePage = usagePage
         self.usage = usage
@@ -158,6 +160,7 @@ public struct PassiveDPIInputDescriptor: Hashable, Codable, Sendable {
         self.heartbeatSubtype = heartbeatSubtype
         self.minInputReportSize = max(1, minInputReportSize)
         self.maxFeatureReportSize = maxFeatureReportSize
+        self.maximumDPI = max(100, maximumDPI)
     }
 }
 
@@ -265,6 +268,9 @@ public struct DeviceProfile: Hashable, Sendable {
 }
 
 public enum DeviceProfiles {
+    public static let minimumDPI = 100
+    public static let defaultMaximumDPI = 30_000
+
     public static let basiliskV3XUSBLightingEffects: [LightingEffectKind] = [
         .off, .staticColor, .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual,
     ]
@@ -398,7 +404,8 @@ public enum DeviceProfiles {
             usage: 0x06,
             reportID: 0x05,
             subtype: 0x02,
-            minInputReportSize: 5
+            minInputReportSize: 5,
+            maximumDPI: 18_000
         ),
         onboardProfileCount: 1
     )
@@ -422,7 +429,8 @@ public enum DeviceProfiles {
             usage: 0x06,
             reportID: 0x05,
             subtype: 0x02,
-            minInputReportSize: 5
+            minInputReportSize: 5,
+            maximumDPI: 35_000
         ),
         onboardProfileCount: 5
     )
@@ -446,7 +454,8 @@ public enum DeviceProfiles {
             usage: 0x06,
             reportID: 0x05,
             subtype: 0x02,
-            minInputReportSize: 5
+            minInputReportSize: 5,
+            maximumDPI: 30_000
         ),
         onboardProfileCount: 3
     )
@@ -472,7 +481,8 @@ public enum DeviceProfiles {
             subtype: 0x02,
             heartbeatSubtype: 0x10,
             minInputReportSize: 7,
-            maxFeatureReportSize: 1
+            maxFeatureReportSize: 1,
+            maximumDPI: 18_000
         ),
         onboardProfileCount: 1
     )
@@ -498,7 +508,8 @@ public enum DeviceProfiles {
             subtype: 0x02,
             heartbeatSubtype: 0x10,
             minInputReportSize: 7,
-            maxFeatureReportSize: 1
+            maxFeatureReportSize: 1,
+            maximumDPI: 30_000
         ),
         onboardProfileCount: 3
     )
@@ -528,5 +539,42 @@ public enum DeviceProfiles {
 
     private static func normalizedBluetoothFallbackName(_ name: String?) -> String? {
         BluetoothNameMatcher.normalized(name)
+    }
+
+    public static func maximumDPI(for profileID: DeviceProfileID?) -> Int {
+        switch profileID {
+        case .basiliskV3XHyperspeed:
+            return 18_000
+        case .basiliskV3Pro:
+            return 30_000
+        case .basiliskV335K:
+            return 35_000
+        case nil:
+            return defaultMaximumDPI
+        }
+    }
+
+    public static func dpiRange(for profileID: DeviceProfileID?) -> ClosedRange<Int> {
+        minimumDPI...maximumDPI(for: profileID)
+    }
+
+    public static func dpiRange(for device: MouseDevice?) -> ClosedRange<Int> {
+        guard let device else { return minimumDPI...defaultMaximumDPI }
+        let resolvedProfileID = resolve(
+            vendorID: device.vendor_id,
+            productID: device.product_id,
+            transport: device.transport
+        )?.id ?? device.profile_id
+        return dpiRange(for: resolvedProfileID)
+    }
+
+    public static func clampDPI(_ value: Int, profileID: DeviceProfileID?) -> Int {
+        let range = dpiRange(for: profileID)
+        return max(range.lowerBound, min(range.upperBound, value))
+    }
+
+    public static func clampDPI(_ value: Int, device: MouseDevice?) -> Int {
+        let range = dpiRange(for: device)
+        return max(range.lowerBound, min(range.upperBound, value))
     }
 }
