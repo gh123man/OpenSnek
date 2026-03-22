@@ -24,7 +24,6 @@ final class EditorStore {
     var editableColor = RGBColor(r: 0, g: 255, b: 0)
     var editableSecondaryColor = RGBColor(r: 0, g: 170, b: 255)
     var editableButtonBindings: [Int: ButtonBindingDraft] = [:]
-    var keyboardTextDraftBySlot: [Int: String] = [:]
     var isEditingDpiControl = false
 
     @ObservationIgnored private weak var editorControllerStorage: AppStateEditorController?
@@ -202,12 +201,20 @@ final class EditorStore {
         ButtonBindingSupport.turboRawToPressesPerSecond(editorController.buttonBindingTurboRate(for: slot))
     }
 
+    func buttonBindingHidKey(for slot: Int) -> Int {
+        editorController.buttonBindingHidKey(for: slot)
+    }
+
     func buttonBindingClutchDPI(for slot: Int) -> Int {
         editorController.buttonBindingClutchDPI(for: slot)
     }
 
     func updateButtonBindingKind(slot: Int, kind: ButtonBindingKind) {
         editorController.updateButtonBindingKind(slot: slot, kind: kind)
+    }
+
+    func updateButtonBindingHidKey(slot: Int, hidKey: Int) {
+        editorController.updateButtonBindingHidKey(slot: slot, hidKey: hidKey)
     }
 
     func updateButtonBindingTurboEnabled(slot: Int, enabled: Bool) {
@@ -224,13 +231,5 @@ final class EditorStore {
 
     func updateButtonBindingClutchDPI(slot: Int, dpi: Int) {
         editorController.updateButtonBindingClutchDPI(slot: slot, dpi: dpi)
-    }
-
-    func keyboardTextDraft(for slot: Int) -> String {
-        editorController.keyboardTextDraft(for: slot)
-    }
-
-    func updateKeyboardTextDraft(slot: Int, text: String) {
-        editorController.updateKeyboardTextDraft(slot: slot, text: text)
     }
 }
