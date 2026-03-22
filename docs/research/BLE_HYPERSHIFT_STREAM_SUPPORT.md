@@ -2,29 +2,31 @@
 
 ## Status
 
-OpenSnek does **not** currently monitor the Bluetooth Hypershift / DPI-clutch press stream.
+OpenSnek now has initial support for the Bluetooth Hypershift / DPI-clutch press stream on the capture-validated Basilisk V3 X HyperSpeed Bluetooth profile.
 
-Current live HID support in OpenSnek is DPI-only:
+Current shipped support includes:
 
-- `OpenSnek/Sources/OpenSnek/Bridge/BridgeClient.swift` keeps only passive-DPI event and heartbeat continuations.
-- `OpenSnek/Sources/OpenSnek/Bridge/BridgeClient.swift` wires the monitor only to `handlePassiveDpiEvent` / `handlePassiveDpiHeartbeat`.
-- `OpenSnek/Sources/OpenSnekHardware/USBPassiveDPIEventMonitor.swift` classifies reports only as `dpi`, `heartbeat`, or `other`.
-- `OpenSnek/Sources/OpenSnekCore/DeviceSupport.swift` defines a single `PassiveDPIInputDescriptor` type.
-- `OpenSnek/Sources/OpenSnekCore/DeviceSupport.swift` gives the Basilisk V3 X HyperSpeed Bluetooth profile only the validated passive-DPI descriptor: usage `0x01:0x02`, report ID `0x05`, subtype `0x02`, heartbeat subtype `0x10`.
-- `OpenSnek/Sources/OpenSnek/Bridge/BridgeClient.swift` only arms HID listeners for devices whose report tuple matches that DPI descriptor.
+- `OpenSnek/Sources/OpenSnekCore/DeviceSupport.swift` defines a `PassiveButtonInputDescriptor` alongside the existing passive-DPI descriptor.
+- `OpenSnek/Sources/OpenSnekCore/DeviceSupport.swift` gives the Basilisk V3 X HyperSpeed Bluetooth profile a capture-backed passive button descriptor for slot `0x06`, usage `0x01:0x02`, report ID `0x04`, subtype `0x04`.
+- `OpenSnek/Sources/OpenSnekHardware/PassiveButtonEventMonitor.swift` classifies passive button reports as `pressed`, `released`, or `other`.
+- `OpenSnek/Sources/OpenSnek/Bridge/BridgeClient.swift` arms passive HID listeners for both the DPI stream and any capture-backed passive button streams on the device profile.
+- `OpenSnek/Sources/OpenSnek/Services/BackendSession.swift` and `OpenSnek/Sources/OpenSnek/Services/AppStateRuntimeController.swift` propagate passive button edges through the existing backend-state update path.
+- `OpenSnek/Sources/OpenSnek/UI/DeviceDetailView.swift` shows the read-only button row and a live `Held` badge while the button is pressed.
 
-That means the current app can:
+That means the current app can now:
 
 - listen for passive DPI stage changes
 - mark the stream as healthy from heartbeat traffic
 - stop fast polling once a real DPI event is observed
+- subscribe to the separate Hypershift-specific HID stream on the validated V3 X Bluetooth path
+- decode press/release edges conservatively from the observed payload pattern
+- expose a live UI pressed/held indicator on the read-only button row
 
-It cannot currently:
+It still cannot:
 
-- subscribe to a separate Hypershift-specific HID stream
-- decode Hypershift press/release events
 - trigger clutch behavior directly from passive HID input
 - expose Hypershift stream health in diagnostics
+- remap the button through a validated BLE vendor command family
 
 ## Capture-Backed Findings
 
@@ -41,98 +43,9 @@ Best current inference:
 - Synapse is not detecting this button with a fast vendor poll loop.
 - The button appears to arrive through a passive HID/report stream, and Synapse reacts by applying the clutch DPI through the existing vendor DPI-stage path.
 
-## What OpenSnek Needs To Support
+## What OpenSnek Still Needs To Support
 
-### 1. A second passive-HID descriptor type
-
-The current `PassiveDPIInputDescriptor` is too narrow for this stream.
-
-Needed:
-
-- a new descriptor type for non-DPI passive HID events, or a generalized passive HID descriptor model
-- support for matching a stream by usage page, usage, report ID, minimum report size, and event-specific decoding rules
-- separate descriptors for:
-  - passive DPI stream
-  - passive Hypershift / clutch stream
-
-Why:
-
-- the Hypershift path does not decode into DPI X/Y values
-- the current parser would classify these packets as `.other` and drop them
-
-### 2. A dedicated Hypershift event model
-
-Needed types:
-
-- `PassiveHypershiftEvent`
-- fields at minimum:
-  - `deviceID`
-  - `isPressed`
-  - raw payload bytes
-  - observed timestamp
-  - optional decoded action byte
-
-Why:
-
-- we need press and release edges, not just a scalar DPI reading
-- keeping raw bytes in the event lets us ship safely before every byte is fully named
-
-### 3. Parser support for the new stream
-
-The current parser in `OpenSnek/Sources/OpenSnekHardware/USBPassiveDPIEventMonitor.swift` only knows:
-
-- `subtype == descriptor.subtype` -> DPI event
-- `subtype == descriptor.heartbeatSubtype` -> heartbeat
-
-Needed:
-
-- a parser path for the Hypershift stream
-- capture-backed rules for at least:
-  - `04 52 00 00 00 00 00 00` -> press
-  - `04 00 00 00 00 00 00 00` -> release
-- tolerant handling for mapping-dependent press byte changes such as older `0x59` versus newer `0x52`
-
-Important:
-
-- do **not** hard-code `0x52` as a universal button ID yet
-- treat the payload conservatively as a press/release pattern on the observed stream until the HID descriptor is captured
-
-### 4. Watch-target selection beyond passive DPI
-
-Today `OpenSnek/Sources/OpenSnek/Bridge/BridgeClient.swift` only builds watch targets from `profile.passiveDPIInput`.
-
-Needed:
-
-- profile metadata for the Hypershift stream candidate
-- bridge logic that can arm more than one passive HID target per Bluetooth device
-- registration bookkeeping that keeps these streams separate
-
-Why:
-
-- the DPI stream and Hypershift stream are distinct
-- OpenSnek needs to subscribe to both without conflating them
-
-### 5. Backend streams for Hypershift events
-
-Today the bridge and backend expose:
-
-- `passiveDpiEventStream()`
-- `passiveDpiHeartbeatStream()`
-
-Needed:
-
-- `passiveHypershiftEventStream()`
-- bridge-side state for:
-  - armed Hypershift targets
-  - observed Hypershift targets
-  - last seen press/release timestamp
-
-Why:
-
-- the rest of the app already consumes asynchronous backend streams
-- we should keep Hypershift aligned with the same architecture instead of sneaking it through polling paths
-
-### 6. Runtime behavior for clutch press/release
+### 1. Runtime behavior for clutch press/release
 
 Supporting the stream is not just capture and decode. The app needs a policy for what to do on press and release.
 
@@ -151,7 +64,7 @@ Needed safeguards:
 - release handling that is robust if a readback is stale
 - reconnect-safe clearing of any “button still held” state
 
-### 7. A separate transport-status surface
+### 2. A separate transport-status surface
 
 Current diagnostics only describe the passive DPI stream through `OpenSnek/Sources/OpenSnek/Services/AppStateTypes.swift`:
 
@@ -173,11 +86,10 @@ Why:
 - a device can have healthy passive DPI streaming while Hypershift remains unsupported
 - mixing the two into one status would be misleading
 
-### 8. Device-profile metadata for supported products
+### 3. Device-profile metadata for additional supported products
 
 Needed:
 
-- a profile field for the Hypershift passive HID descriptor
 - initially only on capture-validated devices
 - likely separate validation for:
   - Basilisk V3 X HyperSpeed Bluetooth (`0x00BA`)
@@ -188,17 +100,16 @@ Why:
 - OpenSnek intentionally gates passive HID features behind capture-backed profile data
 - this avoids subscribing to the wrong HID interface on unrelated devices
 
-### 9. Test coverage
+### 4. Test coverage beyond the initial landing
 
 Minimum tests needed before shipping:
 
 - parser tests for press and release frames
 - regression tests proving DPI packets still parse unchanged
-- watch-target selection tests showing both DPI and Hypershift targets can coexist
 - backend tests for press -> apply clutch -> release -> restore flow
 - duplicate-event / reconnect-state tests
 
-### 10. One more capture before implementation
+### 5. One more capture before clutch implementation
 
 The remaining missing piece is the exact HID descriptor/identity of the `0x0027` stream.
 
@@ -214,23 +125,67 @@ Goal:
 - map `0x0027` to its characteristic UUID and CCCD enable path
 - confirm whether the stream is standard HID-over-GATT input traffic versus a vendor-side notify path that only happens to sit outside the current vendor GATT command family
 
-## Recommended Implementation Order
+### 6. Windows HID GATT enumeration
+
+The reconnect captures showed a consistent limitation: we can see live HID notifications on `0x0027`, `0x002b`, and `0x002f`, but the capture window still starts after Windows has already claimed and subscribed to the HID service.
+
+That means a better next step is direct HID GATT enumeration on Windows instead of another Synapse capture.
+
+Script:
+
+- `tools/python/enumerate_hid_gatt.py`
+
+What it prints:
+
+- all visible GATT services
+- every HID `0x2A4D` Report characteristic
+- each report's:
+  - characteristic handle
+  - `0x2908` Report Reference descriptor handle
+  - `0x2902` CCCD handle if present
+  - report ID / report type
+
+Windows setup:
+
+1. Install Python 3 if needed.
+2. Install Bleak:
+   - `pip install bleak`
+3. Turn the mouse on and make sure Windows can see it on Bluetooth.
+
+Commands:
+
+If you know the Bluetooth address:
+
+```bash
+python tools/python/enumerate_hid_gatt.py XX:XX:XX:XX:XX:XX
+```
+
+If you do not know the address yet:
+
+```bash
+python tools/python/enumerate_hid_gatt.py --name "BSK V3 X"
+```
+
+What to send back:
+
+- the full `HID SERVICE DETAIL` section
+- especially any rows whose characteristic or descriptor handles line up with the capture-backed notify handles:
+  - `0x0027` Hypershift press/release stream
+  - `0x002b` passive DPI / heartbeat stream
+  - `0x002f` nearby zeroed notify seen during the first release edge
+
+If Windows still cannot expose the HID service to Bleak on this host, that itself is useful evidence and we should pivot to Linux with HOGP disabled.
+
+## Recommended Follow-Up Order
 
 1. Capture the stream from connection start and identify the characteristic/descriptor path.
-2. Generalize passive HID descriptors so one device can expose multiple passive input streams.
-3. Add a Hypershift event parser that emits press/release with raw payload preservation.
-4. Add bridge/backend async streams for Hypershift events.
-5. Add clutch press/release runtime behavior using the existing BLE DPI-stage write path.
-6. Add diagnostics and tests.
+2. Add clutch press/release runtime behavior using the existing BLE DPI-stage write path.
+3. Add separate Hypershift transport diagnostics.
+4. Expand profile coverage only after capture-backed validation on each device.
+5. Add reconnect and duplicate-edge hardening tests.
 
 ## Bottom Line
 
 OpenSnek already has the right high-level architecture for passive, non-polling Bluetooth input.
 
-What is missing is not a polling loop. The missing pieces are:
-
-- a second passive HID descriptor
-- a second passive HID parser/event pipeline
-- runtime logic that turns press/release edges into clutch apply/restore behavior
-
-So this looks feasible without introducing a fast poller, but it is not already implemented.
+What is still missing is not a polling loop. The remaining work is the runtime policy that turns validated press/release edges into clutch apply/restore behavior, plus diagnostics and broader device validation.
