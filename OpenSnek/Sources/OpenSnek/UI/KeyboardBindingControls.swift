@@ -19,7 +19,14 @@ struct KeyboardBindingEditor: View {
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.72))
 
-                Text(keyLabel)
+                Button {
+                    isShowingRecorder = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(keyLabel)
+                        Image(systemName: "keyboard")
+                            .font(.system(size: 11, weight: .bold))
+                    }
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.86))
                     .padding(.horizontal, 10)
@@ -32,36 +39,19 @@ struct KeyboardBindingEditor: View {
                                     .stroke(Color.white.opacity(0.12), lineWidth: 1)
                             )
                     )
-
-                Button("Record") {
-                    isShowingRecorder = true
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(!isEditable)
-
-                Menu("Browse") {
-                    ForEach(AppStateKeyboardSupport.groupedKeyOptions, id: \.group.id) { entry in
-                        Section(entry.group.label) {
-                            ForEach(entry.options) { option in
-                                Button(option.label) {
-                                    onSelect(option.hidKey)
-                                }
-                            }
-                        }
-                    }
-                }
+                .buttonStyle(.plain)
                 .controlSize(.small)
                 .disabled(!isEditable)
             }
 
-            Text("Use Record to press a key directly, or Browse for modifiers, arrows, function keys, navigation, and keypad bindings.")
+            Text("Click the current binding to record a new key, then use the popup to browse modifiers, arrows, function keys, navigation, and keypad bindings.")
                 .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.58))
                 .frame(maxWidth: 360, alignment: .trailing)
         }
         .popover(isPresented: $isShowingRecorder) {
-            KeyboardBindingRecorderPopover(currentLabel: keyLabel) { hidKey in
+            KeyboardBindingRecorderPopover(currentHidKey: hidKey) { hidKey in
                 onSelect(hidKey)
                 isShowingRecorder = false
             }
@@ -70,10 +60,14 @@ struct KeyboardBindingEditor: View {
 }
 
 private struct KeyboardBindingRecorderPopover: View {
-    let currentLabel: String
+    let currentHidKey: Int
     let onCapture: (Int) -> Void
 
     @Environment(\.dismiss) private var dismiss
+
+    private var currentLabel: String {
+        AppStateKeyboardSupport.keyboardDisplayLabel(forHidKey: currentHidKey)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -109,6 +103,44 @@ private struct KeyboardBindingRecorderPopover: View {
                 }
             }
             .frame(width: 300, height: 108)
+
+            Menu {
+                ForEach(AppStateKeyboardSupport.groupedKeyOptions, id: \.group.id) { entry in
+                    Section(entry.group.label) {
+                        ForEach(entry.options) { option in
+                            Button {
+                                onCapture(option.hidKey)
+                                dismiss()
+                            } label: {
+                                if option.hidKey == currentHidKey {
+                                    Label(option.label, systemImage: "checkmark")
+                                } else {
+                                    Text(option.label)
+                                }
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "list.bullet")
+                        .font(.system(size: 11, weight: .bold))
+                    Text("Browse Supported Keys")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                }
+                .foregroundStyle(.white.opacity(0.84))
+                .frame(width: 300)
+                .padding(.vertical, 9)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.white.opacity(0.06))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                        )
+                )
+            }
+            .menuStyle(.borderlessButton)
 
             Text("Media and macro families are still hidden until the underlying protocol taxonomy is validated.")
                 .font(.system(size: 11, weight: .medium, design: .rounded))
