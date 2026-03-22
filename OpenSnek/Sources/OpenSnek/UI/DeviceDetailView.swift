@@ -1421,6 +1421,10 @@ private struct ButtonBindingRow: View {
     let editorStore: EditorStore
     let row: ButtonBindingRowModel
 
+    private var showsInlineTurboToggle: Bool {
+        row.selectedKind == .keyboardSimple && row.turboEligible
+    }
+
     var body: some View {
         let sliderRange = DeviceProfiles.sliderDpiRange(for: editorStore.selectedDeviceProfileID)
         let sliderDoubleRange = Double(sliderRange.lowerBound)...Double(sliderRange.upperBound)
@@ -1450,13 +1454,17 @@ private struct ButtonBindingRow: View {
             }
 
             if row.selectedKind == .keyboardSimple {
-                HStack {
+                HStack(alignment: .center, spacing: 12) {
                     Spacer()
                     KeyboardBindingEditor(
                         hidKey: row.keyboardHidKey,
                         isEditable: row.isEditable,
                         onSelect: { editorStore.updateButtonBindingHidKey(slot: row.slot, hidKey: $0) }
                     )
+
+                    if showsInlineTurboToggle {
+                        turboToggle
+                    }
                 }
             }
 
@@ -1517,21 +1525,16 @@ private struct ButtonBindingRow: View {
             }
 
             if row.turboEligible {
-                HStack(spacing: 8) {
-                    Spacer()
-                    Toggle(
-                        "Turbo",
-                        isOn: Binding(
-                            get: { editorStore.buttonBindingTurboEnabled(for: row.slot) },
-                            set: { editorStore.updateButtonBindingTurboEnabled(slot: row.slot, enabled: $0) }
-                        )
-                    )
-                    .toggleStyle(.switch)
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.76))
-                    .disabled(!row.isEditable)
+                if !showsInlineTurboToggle {
+                    HStack(spacing: 8) {
+                        Spacer()
+                        turboToggle
+                    }
+                }
 
-                    if row.turboEnabled {
+                if row.turboEnabled {
+                    HStack(spacing: 8) {
+                        Spacer()
                         Text("Slow")
                             .font(.system(size: 12, weight: .bold, design: .rounded))
                             .foregroundStyle(.white.opacity(0.62))
@@ -1555,10 +1558,7 @@ private struct ButtonBindingRow: View {
                             .foregroundStyle(.white.opacity(0.78))
                             .frame(width: 54, alignment: .trailing)
                     }
-                }
-                .disabled(!row.isEditable)
 
-                if row.turboEnabled {
                     HStack {
                         Spacer()
                         Text("Turbo rate: 1..20 presses per second")
@@ -1587,5 +1587,19 @@ private struct ButtonBindingRow: View {
                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                 )
         )
+    }
+
+    private var turboToggle: some View {
+        Toggle(
+            "Turbo",
+            isOn: Binding(
+                get: { editorStore.buttonBindingTurboEnabled(for: row.slot) },
+                set: { editorStore.updateButtonBindingTurboEnabled(slot: row.slot, enabled: $0) }
+            )
+        )
+        .toggleStyle(.switch)
+        .font(.system(size: 12, weight: .bold, design: .rounded))
+        .foregroundStyle(.white.opacity(0.76))
+        .disabled(!row.isEditable)
     }
 }

@@ -40,6 +40,8 @@ enum ServiceMenuBarPresentation {
 }
 
 struct ServiceMenuBarView: View {
+    private static let menuActionRowHeight: CGFloat = 34
+
     let deviceStore: DeviceStore
     let editorStore: EditorStore
     let runtimeStore: RuntimeStore
@@ -296,7 +298,7 @@ struct ServiceMenuBarView: View {
                 Spacer()
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .frame(height: Self.menuActionRowHeight)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 10)
@@ -324,7 +326,7 @@ struct ServiceMenuBarView: View {
         }
         .toggleStyle(.switch)
         .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .frame(height: Self.menuActionRowHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 10)

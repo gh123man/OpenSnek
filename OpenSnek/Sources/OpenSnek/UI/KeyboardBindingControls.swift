@@ -15,10 +15,6 @@ struct KeyboardBindingEditor: View {
     var body: some View {
         VStack(alignment: .trailing, spacing: 10) {
             HStack(spacing: 8) {
-                Text("Key")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.72))
-
                 Button {
                     isShowingRecorder = true
                 } label: {
@@ -44,11 +40,6 @@ struct KeyboardBindingEditor: View {
                 .controlSize(.small)
                 .disabled(!isEditable)
             }
-
-            Text("Click the current binding to record a new key, then use the popup to browse modifiers, arrows, function keys, navigation, and keypad bindings.")
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.58))
-                .frame(maxWidth: 360, alignment: .trailing)
         }
         .popover(isPresented: $isShowingRecorder) {
             KeyboardBindingRecorderPopover(currentHidKey: hidKey) { hidKey in
