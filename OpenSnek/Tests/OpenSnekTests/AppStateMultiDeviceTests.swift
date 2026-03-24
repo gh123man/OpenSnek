@@ -653,12 +653,12 @@ final class AppStateMultiDeviceTests: XCTestCase {
             transport: .usb,
             serial: "USB-LIGHTING-RECONNECT",
             locationID: 1,
-            profile: .basiliskV3Pro
+            profile: .basiliskV3XHyperspeed
         )
         let persistedColor = RGBColor(r: 11, g: 22, b: 33)
         let preferenceStore = DevicePreferenceStore()
         preferenceStore.persistLightingColor(persistedColor, device: usbDevice)
-        preferenceStore.persistLightingZoneID("logo", device: usbDevice)
+        preferenceStore.persistLightingZoneID("scroll_wheel", device: usbDevice)
         defer { clearMultiDeviceLightingPreferences(for: usbDevice) }
 
         let backend = DeviceListUpdatingStubBackend(
@@ -703,7 +703,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
             transport: .usb,
             serial: "ALPHA-SELECTED",
             locationID: 1,
-            profile: .basiliskV3Pro
+            profile: .basiliskV3XHyperspeed
         )
         let betaDevice = makeTestDevice(
             id: "beta-restore",
@@ -711,12 +711,12 @@ final class AppStateMultiDeviceTests: XCTestCase {
             transport: .usb,
             serial: "BETA-RESTORE",
             locationID: 2,
-            profile: .basiliskV3Pro
+            profile: .basiliskV3XHyperspeed
         )
         let persistedColor = RGBColor(r: 21, g: 31, b: 41)
         let preferenceStore = DevicePreferenceStore()
         preferenceStore.persistLightingColor(persistedColor, device: betaDevice)
-        preferenceStore.persistLightingZoneID("logo", device: betaDevice)
+        preferenceStore.persistLightingZoneID("scroll_wheel", device: betaDevice)
         defer {
             clearMultiDeviceLightingPreferences(for: alphaDevice)
             clearMultiDeviceLightingPreferences(for: betaDevice)

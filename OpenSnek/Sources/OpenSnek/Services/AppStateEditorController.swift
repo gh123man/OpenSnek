@@ -877,6 +877,7 @@ final class AppStateEditorController {
     }
 
     func persistedLightingRestorePlan(device: MouseDevice) -> PersistedLightingRestorePlan? {
+        guard shouldRestorePersistedLightingOnConnect(for: device) else { return nil }
         guard device.showsLightingControls else { return nil }
 
         let normalizedZoneID = normalizedLightingZoneID(
@@ -963,6 +964,10 @@ final class AppStateEditorController {
         } else {
             editorStore.editableLightingEffect = .staticColor
         }
+    }
+
+    private func shouldRestorePersistedLightingOnConnect(for device: MouseDevice) -> Bool {
+        device.profile_id == .basiliskV3XHyperspeed
     }
 
     func currentUSBLightingZoneLEDIDs() -> [UInt8]? {
