@@ -731,6 +731,10 @@ final class AppStateEditorController {
         }
     }
 
+    func writableMouseButtonSources() -> [ButtonProfileSource] {
+        storedMouseButtonSources()
+    }
+
     func isEditingMouseBaseButtonProfile() -> Bool {
         guard let device = deviceStore.selectedDevice else { return false }
         return buttonProfileSource(for: device) == .mouseSlot(1)

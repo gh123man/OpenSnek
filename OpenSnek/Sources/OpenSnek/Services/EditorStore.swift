@@ -28,6 +28,7 @@ final class EditorStore {
     var editableButtonBindings: [Int: ButtonBindingDraft] = [:]
     var isEditingDpiControl = false
     var isButtonProfileOperationInFlight = false
+    var buttonProfileOperationStatusText: String?
     var usbButtonProfilesRevision = 0
 
     @ObservationIgnored private weak var editorControllerStorage: AppStateEditorController?
@@ -61,13 +62,18 @@ final class EditorStore {
     }
 
     private func withButtonProfileOperation<T>(
+        statusText: String,
         _ operation: @escaping @MainActor () async -> T
     ) async -> T {
         buttonProfileOperationDepth += 1
         isButtonProfileOperationInFlight = true
+        buttonProfileOperationStatusText = statusText
         defer {
             buttonProfileOperationDepth = max(0, buttonProfileOperationDepth - 1)
             isButtonProfileOperationInFlight = buttonProfileOperationDepth > 0
+            if buttonProfileOperationDepth == 0 {
+                buttonProfileOperationStatusText = nil
+            }
         }
         return await operation()
     }
@@ -190,6 +196,11 @@ final class EditorStore {
     var storedMouseButtonSources: [ButtonProfileSource] {
         _ = usbButtonProfilesRevision
         return editorController.storedMouseButtonSources()
+    }
+
+    var writableMouseButtonSources: [ButtonProfileSource] {
+        _ = usbButtonProfilesRevision
+        return editorController.writableMouseButtonSources()
     }
 
     var isEditingMouseBaseButtonProfile: Bool {
@@ -329,7 +340,7 @@ final class EditorStore {
     }
 
     func loadButtonProfileSourceIntoLive(_ source: ButtonProfileSource) async {
-        await withButtonProfileOperation { [self] in
+        await withButtonProfileOperation(statusText: "Loading profile…") { [self] in
             await self.editorController.loadButtonProfileSourceIntoLive(source)
         }
     }
@@ -339,49 +350,55 @@ final class EditorStore {
     }
 
     func duplicateSelectedUSBButtonProfile() async {
-        await withButtonProfileOperation { [self] in
+        await withButtonProfileOperation(statusText: "Saving profile…") { [self] in
             await self.applyController.duplicateSelectedUSBButtonProfile()
         }
     }
 
     func duplicateSelectedUSBButtonProfile(to targetProfile: Int) async {
-        await withButtonProfileOperation { [self] in
+        await withButtonProfileOperation(statusText: "Saving profile…") { [self] in
             await self.applyController.duplicateSelectedUSBButtonProfile(to: targetProfile)
         }
     }
 
     func resetSelectedUSBButtonProfile() async {
-        await withButtonProfileOperation { [self] in
+        await withButtonProfileOperation(statusText: "Removing profile…") { [self] in
             await self.applyController.resetSelectedUSBButtonProfile()
         }
     }
 
+    func resetMouseButtonProfile(_ slot: Int) async {
+        await withButtonProfileOperation(statusText: "Removing profile…") { [self] in
+            await self.applyController.resetUSBButtonProfile(slot)
+        }
+    }
+
     func projectSelectedUSBButtonProfileToDirectLayer() async {
-        await withButtonProfileOperation { [self] in
+        await withButtonProfileOperation(statusText: "Applying profile…") { [self] in
             await self.applyController.projectSelectedUSBButtonProfileToDirectLayer()
         }
     }
 
     func saveSelectedUSBButtonProfile(activateAfterSave: Bool = false) async {
-        await withButtonProfileOperation { [self] in
+        await withButtonProfileOperation(statusText: "Saving profile…") { [self] in
             await self.applyController.saveSelectedUSBButtonProfile(activateAfterSave: activateAfterSave)
         }
     }
 
     func applyCurrentButtonWorkspaceToLive() async {
-        await withButtonProfileOperation { [self] in
+        await withButtonProfileOperation(statusText: "Applying profile…") { [self] in
             await self.applyController.applyCurrentButtonWorkspaceToLive()
         }
     }
 
     func writeCurrentButtonWorkspaceToMouseSlot(_ slot: Int) async {
-        await withButtonProfileOperation { [self] in
+        await withButtonProfileOperation(statusText: "Saving profile…") { [self] in
             await self.applyController.writeCurrentButtonWorkspaceToMouseSlot(slot)
         }
     }
 
     func resetLiveButtonsToDeviceDefaultSlot() async {
-        await withButtonProfileOperation { [self] in
+        await withButtonProfileOperation(statusText: "Resetting profile…") { [self] in
             await self.applyController.resetLiveButtonsToDeviceDefaultSlot()
         }
     }

@@ -420,12 +420,16 @@ final class AppStateApplyController {
     }
 
     func resetSelectedUSBButtonProfile() async {
+        await resetUSBButtonProfile(editorStore.editableUSBButtonProfile)
+    }
+
+    func resetUSBButtonProfile(_ targetProfile: Int) async {
         guard let selectedDevice = deviceStore.selectedDevice, editorStore.supportsMultipleOnboardProfiles else { return }
-        let targetProfile = editorStore.editableUSBButtonProfile
+        let clampedTarget = max(1, min(editorStore.visibleOnboardProfileCount, targetProfile))
         let patch = DevicePatch(
             usbButtonProfileAction: USBButtonProfileActionPatch(
                 kind: .resetPersistentSlot,
-                targetProfile: targetProfile
+                targetProfile: clampedTarget
             )
         )
         let succeeded = await apply(
@@ -439,8 +443,8 @@ final class AppStateApplyController {
         )
         guard succeeded else { return }
 
-        editorController.saveCachedButtonBindings(device: selectedDevice, bindings: [:], profile: targetProfile)
-        if targetProfile == editorStore.liveUSBButtonProfile {
+        editorController.saveCachedButtonBindings(device: selectedDevice, bindings: [:], profile: clampedTarget)
+        if clampedTarget == editorStore.liveUSBButtonProfile {
             await projectSelectedUSBButtonProfileToDirectLayer()
         }
     }
