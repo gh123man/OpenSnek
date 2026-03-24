@@ -1663,8 +1663,25 @@ private struct LoadButtonProfilePopover: View {
     let editorStore: EditorStore
     let pickerLabel: (ButtonProfileSource) -> String
     let onSelect: (ButtonProfileSource) -> Void
+    @State private var showsSavedProfiles = false
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if showsSavedProfiles {
+                savedProfilesView
+            } else {
+                rootView
+            }
+        }
+        .padding(14)
+        .frame(width: 320, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color(nsColor: .windowBackgroundColor))
+        )
+    }
+
+    private var rootView: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Saved in OpenSnek")
@@ -1678,18 +1695,12 @@ private struct LoadButtonProfilePopover: View {
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
                 } else {
-                    Menu {
-                        ForEach(editorStore.savedButtonProfiles) { profile in
-                            let source = ButtonProfileSource.openSnekProfile(profile.id)
-                            Button(pickerLabel(source)) {
-                                onSelect(source)
-                            }
-                        }
-                    } label: {
-                        popoverRowLabel(
-                            "Saved Profiles",
-                            trailingSystemImage: "chevron.up.chevron.down"
-                        )
+                    loadActionButton(
+                        "Saved Profiles",
+                        trailingDetail: "\(editorStore.savedButtonProfiles.count)",
+                        trailingSystemImage: "chevron.right"
+                    ) {
+                        showsSavedProfiles = true
                     }
                 }
             }
@@ -1711,21 +1722,45 @@ private struct LoadButtonProfilePopover: View {
                 }
             }
         }
-        .padding(14)
-        .frame(width: 320, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color(nsColor: .windowBackgroundColor))
-        )
+    }
+
+    private var savedProfilesView: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                showsSavedProfiles = false
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text("Saved Profiles")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                }
+                .foregroundStyle(.white.opacity(0.72))
+            }
+            .buttonStyle(.plain)
+
+            ForEach(editorStore.savedButtonProfiles) { profile in
+                let source = ButtonProfileSource.openSnekProfile(profile.id)
+                loadActionButton(pickerLabel(source)) {
+                    onSelect(source)
+                }
+            }
+        }
     }
 
     private func loadActionButton(
         _ title: String,
         isDisabled: Bool = false,
+        trailingDetail: String? = nil,
+        trailingSystemImage: String? = nil,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            popoverRowLabel(title)
+            popoverRowLabel(
+                title,
+                trailingDetail: trailingDetail,
+                trailingSystemImage: trailingSystemImage
+            )
         }
         .buttonStyle(.plain)
         .disabled(isDisabled)
@@ -1734,11 +1769,17 @@ private struct LoadButtonProfilePopover: View {
 
     private func popoverRowLabel(
         _ title: String,
+        trailingDetail: String? = nil,
         trailingSystemImage: String? = nil
     ) -> some View {
         HStack(spacing: 8) {
             Text(title)
             Spacer(minLength: 8)
+            if let trailingDetail {
+                Text(trailingDetail)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.42))
+            }
             if let trailingSystemImage {
                 Image(systemName: trailingSystemImage)
                     .font(.system(size: 11, weight: .semibold))
