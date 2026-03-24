@@ -192,6 +192,10 @@ final class EditorStore {
         return editorController.buttonProfileSourceMatchDescription(source)
     }
 
+    func refreshButtonProfilePresentation() {
+        editorController.refreshButtonProfilePresentation()
+    }
+
     var canDuplicateSelectedUSBButtonProfile: Bool {
         visibleUSBButtonProfiles.contains { $0.profile != editableUSBButtonProfile }
     }

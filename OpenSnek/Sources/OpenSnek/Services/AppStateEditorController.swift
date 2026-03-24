@@ -746,6 +746,10 @@ final class AppStateEditorController {
         }
     }
 
+    func refreshButtonProfilePresentation() {
+        bumpUSBButtonProfilesRevision()
+    }
+
     func liveUSBButtonProfile(for device: MouseDevice) -> Int {
         let count = max(1, device.onboard_profile_count)
         let hardwareActiveProfile = max(1, min(count, editorStore.activeOnboardProfile))
@@ -1041,28 +1045,18 @@ final class AppStateEditorController {
         case .mouseSlot(let profile):
             let clamped = max(1, min(editorStore.visibleOnboardProfileCount, profile))
             setButtonProfileSource(.mouseSlot(clamped), for: selectedDevice)
-            editorStore.editableUSBButtonProfile = clamped
+            editorStore.editableUSBButtonProfile = 1
 
             let hydrationKey = buttonBindingsHydrationKey(device: selectedDevice, profile: clamped)
-            let cached = cachedButtonBindings(device: selectedDevice, profile: clamped)
-            let hasKnownSnapshot = hasKnownButtonBindingsSnapshot(device: selectedDevice, profile: clamped)
-            editorStore.editableButtonBindings = cached
+            var bindings = cachedButtonBindings(device: selectedDevice, profile: clamped)
+            if !hasKnownButtonBindingsSnapshot(device: selectedDevice, profile: clamped),
+               let fromDevice = await loadUSBButtonBindingsFromDevice(device: selectedDevice, profile: clamped) {
+                bindings = fromDevice
+                saveCachedButtonBindings(device: selectedDevice, bindings: fromDevice, profile: clamped)
+            }
+            editorStore.editableButtonBindings = bindings
             hydratedButtonBindingsKey = hydrationKey
             bumpUSBButtonProfilesRevision()
-
-            if selectedDevice.transport == .usb, editorStore.supportsMultipleOnboardProfiles {
-                await applyController.projectSelectedUSBButtonProfileToDirectLayer()
-                if !hasKnownSnapshot {
-                    Task { @MainActor [weak self] in
-                        await self?.refreshSelectedMouseSlotFromDeviceIfNeeded(
-                            device: selectedDevice,
-                            profile: clamped,
-                            hydrationKey: hydrationKey
-                        )
-                    }
-                }
-                return
-            }
         case .openSnekProfile(let id):
             guard let profile = preferenceStore.loadOpenSnekButtonProfiles().first(where: { $0.id == id }) else { return }
             setButtonProfileSource(.openSnekProfile(id), for: selectedDevice)
@@ -1133,9 +1127,6 @@ final class AppStateEditorController {
             name: normalizedButtonProfileName(name),
             bindings: editorStore.editableButtonBindings
         )
-        if let selectedDevice = deviceStore.selectedDevice {
-            setButtonProfileSource(.openSnekProfile(saved.id), for: selectedDevice)
-        }
         bumpUSBButtonProfilesRevision()
         return saved
     }
@@ -1209,11 +1200,7 @@ final class AppStateEditorController {
     }
 
     private func shouldAutoApplyCurrentButtonWorkspaceAfterEdit() -> Bool {
-        guard deviceStore.selectedDevice != nil else { return false }
-        if !editorStore.supportsMultipleOnboardProfiles {
-            return true
-        }
-        return isEditingMouseBaseButtonProfile()
+        deviceStore.selectedDevice != nil
     }
 
     private func handleButtonWorkspaceDidChange() {

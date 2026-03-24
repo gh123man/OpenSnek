@@ -1522,6 +1522,7 @@ private struct ButtonProfileWorkspaceStrip: View {
             Button("Manage") {
                 showsManageProfiles = true
             }
+            .buttonStyle(.bordered)
         }
     }
 
@@ -1529,28 +1530,9 @@ private struct ButtonProfileWorkspaceStrip: View {
         Button {
             showsLoadPopover.toggle()
         } label: {
-            HStack(spacing: 10) {
-                Text(loadingSourceID == nil ? "Load" : "Loading...")
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.55))
-            }
-            .font(.system(size: 13, weight: .semibold, design: .rounded))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
-            .frame(minWidth: 220, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.white.opacity(0.06))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                    )
-            )
+            Text(loadingSourceID == nil ? "Load" : "Loading...")
         }
+        .buttonStyle(.bordered)
         .popover(isPresented: $showsLoadPopover, arrowEdge: .bottom) {
             LoadButtonProfilePopover(
                 editorStore: editorStore,
@@ -1574,6 +1556,11 @@ private struct ButtonProfileWorkspaceStrip: View {
                 }
             )
         }
+        .onChange(of: showsLoadPopover) { _, isPresented in
+            if isPresented {
+                editorStore.refreshButtonProfilePresentation()
+            }
+        }
     }
 
     private var storeButton: some View {
@@ -1582,6 +1569,7 @@ private struct ButtonProfileWorkspaceStrip: View {
         } label: {
             Text("Store")
         }
+        .buttonStyle(.bordered)
         .popover(isPresented: $showsStorePopover, arrowEdge: .bottom) {
             StoreButtonProfilePopover(
                 editorStore: editorStore,
@@ -1697,10 +1685,7 @@ private struct LoadButtonProfilePopover: View {
                 } else {
                     ForEach(editorStore.savedButtonProfiles) { profile in
                         let source = ButtonProfileSource.openSnekProfile(profile.id)
-                        loadActionButton(
-                            pickerLabel(source),
-                            isSelected: currentSource == source
-                        ) {
+                        loadActionButton(pickerLabel(source)) {
                             onSelect(source)
                         }
                     }
@@ -1715,10 +1700,7 @@ private struct LoadButtonProfilePopover: View {
                     .foregroundStyle(.white.opacity(0.62))
 
                 ForEach(editorStore.loadableMouseButtonSources, id: \.id) { source in
-                    loadActionButton(
-                        pickerLabel(source),
-                        isSelected: currentSource == source
-                    ) {
+                    loadActionButton(pickerLabel(source)) {
                         onSelect(source)
                     }
                 }
@@ -1734,25 +1716,18 @@ private struct LoadButtonProfilePopover: View {
 
     private func loadActionButton(
         _ title: String,
-        isSelected: Bool,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack {
-                Text(title)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .foregroundStyle(.white.opacity(0.75))
-                }
-            }
+            Text(title)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(isSelected ? 0.08 : 0.05))
+                .fill(Color.white.opacity(0.05))
         )
     }
 }

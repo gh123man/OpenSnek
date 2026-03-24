@@ -277,11 +277,7 @@ final class AppStateApplyController {
     func applyCurrentButtonWorkspaceToLive() async {
         guard let selectedDevice = deviceStore.selectedDevice else { return }
         let slots = writableButtonSlots(for: selectedDevice)
-        let isEditingMouseBaseProfile = editorController.currentButtonProfileSource() == .mouseSlot(1)
-        let writesUseDirectOnly = selectedDevice.transport == .usb &&
-            editorStore.supportsMultipleOnboardProfiles &&
-            !isEditingMouseBaseProfile
-        let persistentProfile = isEditingMouseBaseProfile
+        let persistentProfile = selectedDevice.transport == .usb && editorStore.supportsMultipleOnboardProfiles
             ? 1
             : (shouldTreatCurrentSourceAsExactMouseSlot(device: selectedDevice) ?? editorStore.activeOnboardProfile)
 
@@ -290,7 +286,7 @@ final class AppStateApplyController {
                 buttonBinding: makeButtonBindingPatch(
                     slot: slot,
                     persistentProfile: persistentProfile,
-                    writePersistentLayer: !writesUseDirectOnly,
+                    writePersistentLayer: true,
                     writeDirectLayer: true
                 )
             )
@@ -306,10 +302,14 @@ final class AppStateApplyController {
             guard succeeded else { return }
         }
 
-        if let exactSlot = shouldTreatCurrentSourceAsExactMouseSlot(device: selectedDevice) {
-            editorController.setLiveUSBButtonProfileOverride(exactSlot, for: selectedDevice)
+        if selectedDevice.transport == .usb && editorStore.supportsMultipleOnboardProfiles {
+            editorController.setLiveUSBButtonProfileOverride(1, for: selectedDevice)
         } else {
-            editorController.setLiveUSBButtonProfileOverride(editorStore.activeOnboardProfile, for: selectedDevice)
+            if let exactSlot = shouldTreatCurrentSourceAsExactMouseSlot(device: selectedDevice) {
+                editorController.setLiveUSBButtonProfileOverride(exactSlot, for: selectedDevice)
+            } else {
+                editorController.setLiveUSBButtonProfileOverride(editorStore.activeOnboardProfile, for: selectedDevice)
+            }
         }
         editorController.markButtonWorkspaceAppliedToLive(
             bindings: editorStore.editableButtonBindings,

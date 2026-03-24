@@ -900,12 +900,26 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(patches.last?.usbButtonProfileAction?.targetProfile, 2)
     }
 
-    func testLoadingStoredUSBButtonProfileUsesDirectProjectionPath() async throws {
+    func testLoadingStoredUSBButtonProfileOverwritesBaseProfile() async throws {
         let device = makeRefactorTestDevice(
             id: "usb-profile-load-device",
             transport: .usb,
             serial: "USB-PROFILE-LOAD-\(UUID().uuidString)",
             onboardProfileCount: 3
+        )
+        let preferenceStore = DevicePreferenceStore()
+        preferenceStore.savePersistedButtonBindings(
+            device: device,
+            bindings: [
+                4: ButtonBindingDraft(
+                    kind: .keyboardSimple,
+                    hidKey: 9,
+                    turboEnabled: false,
+                    turboRate: 0x8E,
+                    clutchDPI: nil
+                )
+            ],
+            profile: 2
         )
         defer { clearRefactorPreferences(for: device) }
 
@@ -934,8 +948,11 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         await appState.editorStore.loadButtonProfileSourceIntoLive(.mouseSlot(2))
 
         let patches = await backend.recordedPatches()
-        XCTAssertEqual(patches.last?.usbButtonProfileAction?.kind, .projectToDirectLayer)
-        XCTAssertEqual(patches.last?.usbButtonProfileAction?.targetProfile, 2)
+        let slotPatch = try XCTUnwrap(patches.last(where: { $0.buttonBinding?.slot == 4 }))
+        XCTAssertEqual(slotPatch.buttonBinding?.persistentProfile, 1)
+        XCTAssertEqual(slotPatch.buttonBinding?.writePersistentLayer, true)
+        XCTAssertEqual(slotPatch.buttonBinding?.writeDirectLayer, true)
+        XCTAssertEqual(slotPatch.buttonBinding?.kind, .keyboardSimple)
     }
 
     func testReloadingKnownStoredUSBButtonProfileSkipsExtraDeviceReadback() async throws {
@@ -1104,7 +1121,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(loadableSlots, [1, 2])
     }
 
-    func testSavingCurrentButtonWorkspaceAsNewProfileSelectsSavedProfileSourceImmediately() async throws {
+    func testSavingCurrentButtonWorkspaceAsNewProfileUpdatesSavedLibraryImmediately() async throws {
         let device = makeRefactorTestDevice(
             id: "usb-profile-save-source-device",
             transport: .usb,
@@ -1136,14 +1153,14 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
 
         await appState.deviceStore.refreshDevices()
 
-        let saved = await MainActor.run {
-            appState.editorStore.saveCurrentButtonWorkspaceAsNewProfile(name: "Bar")
+        await MainActor.run {
+            _ = appState.editorStore.saveCurrentButtonWorkspaceAsNewProfile(name: "Bar")
         }
 
-        let currentSource = await MainActor.run {
-            appState.editorStore.currentButtonProfileSource
+        let savedNames = await MainActor.run {
+            appState.editorStore.savedButtonProfiles.map(\.name)
         }
-        XCTAssertEqual(currentSource, .openSnekProfile(saved.id))
+        XCTAssertTrue(savedNames.contains("Bar"))
     }
 
     func testSavingSelectedUSBButtonProfileUsesExplicitButtonWriteWithoutActivation() async throws {
@@ -1377,7 +1394,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(displayName, "Travel")
     }
 
-    func testApplyCurrentButtonWorkspaceToLiveUsesDirectLayerWithoutOverwritingSavedProfileSource() async throws {
+    func testApplyCurrentButtonWorkspaceToLiveWritesBaseProfileWithoutOverwritingSavedProfileSource() async throws {
         let device = makeRefactorTestDevice(
             id: "saved-button-apply-device",
             transport: .usb,
@@ -1429,7 +1446,8 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         let currentSource = await MainActor.run { appState.editorStore.currentButtonProfileSource }
 
         XCTAssertEqual(slotPatch.buttonBinding?.kind, .rightClick)
-        XCTAssertEqual(slotPatch.buttonBinding?.writePersistentLayer, false)
+        XCTAssertEqual(slotPatch.buttonBinding?.persistentProfile, 1)
+        XCTAssertEqual(slotPatch.buttonBinding?.writePersistentLayer, true)
         XCTAssertEqual(slotPatch.buttonBinding?.writeDirectLayer, true)
         XCTAssertEqual(currentSource, .openSnekProfile(saved.id))
         XCTAssertEqual(liveDisplayName, "Travel")
