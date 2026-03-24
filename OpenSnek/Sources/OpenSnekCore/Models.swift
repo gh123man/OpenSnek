@@ -408,6 +408,7 @@ public struct ButtonBindingPatch: Sendable, Hashable, Codable {
     public let turboRate: Int?
     public let clutchDPI: Int?
     public let persistentProfile: Int
+    public let writePersistentLayer: Bool
     public let writeDirectLayer: Bool
 
     public init(
@@ -418,6 +419,7 @@ public struct ButtonBindingPatch: Sendable, Hashable, Codable {
         turboRate: Int? = nil,
         clutchDPI: Int? = nil,
         persistentProfile: Int = 1,
+        writePersistentLayer: Bool = true,
         writeDirectLayer: Bool = true
     ) {
         self.slot = slot
@@ -427,6 +429,7 @@ public struct ButtonBindingPatch: Sendable, Hashable, Codable {
         self.turboRate = turboRate
         self.clutchDPI = clutchDPI.map { max(100, min(30_000, $0)) }
         self.persistentProfile = max(1, min(5, persistentProfile))
+        self.writePersistentLayer = writePersistentLayer
         self.writeDirectLayer = writeDirectLayer
     }
 }

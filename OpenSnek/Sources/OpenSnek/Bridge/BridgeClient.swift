@@ -968,6 +968,7 @@ actor BridgeClient {
                         turboRate: turboRate,
                         clutchDPI: clutchDPI,
                         persistentProfile: binding.persistentProfile,
+                        writePersistentLayer: binding.writePersistentLayer,
                         writeDirectLayer: binding.writeDirectLayer
                     )
                 }) else {

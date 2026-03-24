@@ -80,6 +80,20 @@ struct RemoteClientPresenceState {
     let selectedDeviceID: String?
 }
 
+enum ButtonProfileSource: Hashable, Codable, Identifiable {
+    case openSnekProfile(UUID)
+    case mouseSlot(Int)
+
+    var id: String {
+        switch self {
+        case .openSnekProfile(let id):
+            return "openSnek:\(id.uuidString)"
+        case .mouseSlot(let slot):
+            return "mouseSlot:\(slot)"
+        }
+    }
+}
+
 struct USBButtonProfileSummary: Identifiable, Hashable {
     let profile: Int
     let isSelected: Bool

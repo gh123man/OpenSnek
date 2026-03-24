@@ -667,6 +667,7 @@ extension BridgeClient {
         turboRate: Int,
         clutchDPI: Int?,
         persistentProfile: Int,
+        writePersistentLayer: Bool,
         writeDirectLayer: Bool
     ) throws -> Bool {
         guard let bindingKind = ButtonBindingKind(rawValue: kind) else { return false }
@@ -683,14 +684,19 @@ extension BridgeClient {
 
         let clampedPersistentProfile = UInt8(max(1, min(5, persistentProfile)))
 
-        let wrotePersistent = try setButtonBindingUSBRaw(
-            session,
-            device,
-            profile: clampedPersistentProfile,
-            slot: clampedSlot,
-            hypershift: 0x00,
-            functionBlock: functionBlock
-        )
+        let wrotePersistent: Bool
+        if writePersistentLayer {
+            wrotePersistent = try setButtonBindingUSBRaw(
+                session,
+                device,
+                profile: clampedPersistentProfile,
+                slot: clampedSlot,
+                hypershift: 0x00,
+                functionBlock: functionBlock
+            )
+        } else {
+            wrotePersistent = false
+        }
         let wroteDirect: Bool
         if writeDirectLayer {
             wroteDirect = try setButtonBindingUSBRaw(

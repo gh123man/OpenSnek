@@ -222,6 +222,7 @@ final class AppStateApplyController {
     private func makeButtonBindingPatch(
         slot: Int,
         persistentProfile: Int,
+        writePersistentLayer: Bool = true,
         writeDirectLayer: Bool
     ) -> ButtonBindingPatch {
         let resolved = editorStore.editableButtonBindings[slot] ?? editorController.defaultButtonBinding(for: slot)
@@ -233,6 +234,7 @@ final class AppStateApplyController {
             turboRate: resolved.kind.supportsTurbo && resolved.turboEnabled ? resolved.turboRate : nil,
             clutchDPI: resolved.kind == .dpiClutch ? resolved.clutchDPI ?? ButtonBindingSupport.defaultDPIClutchDPI(for: deviceStore.selectedDevice?.profile_id) : nil,
             persistentProfile: persistentProfile,
+            writePersistentLayer: writePersistentLayer,
             writeDirectLayer: writeDirectLayer
         )
     }
@@ -250,6 +252,95 @@ final class AppStateApplyController {
         scheduleAutoApply(key: .button, delay: 260_000_000) { [weak self] in
             guard let self else { return }
             await self.applyButtonBinding(slot: slot)
+        }
+    }
+
+    private func writableButtonSlots(for device: MouseDevice) -> [Int] {
+        device.button_layout?.writableSlots ?? deviceStore.visibleButtonSlots.map(\.slot)
+    }
+
+    private func shouldTreatCurrentSourceAsExactMouseSlot(device: MouseDevice) -> Int? {
+        guard case .mouseSlot(let slot)? = editorController.currentButtonProfileSource(),
+              !editorController.buttonWorkspaceHasUnsavedSourceChanges(device: device) else {
+            return nil
+        }
+        return slot
+    }
+
+    func applyCurrentButtonWorkspaceToLive() async {
+        guard let selectedDevice = deviceStore.selectedDevice else { return }
+        let slots = writableButtonSlots(for: selectedDevice)
+        let writesUseDirectOnly = selectedDevice.transport == .usb && editorStore.supportsMultipleOnboardProfiles
+        let persistentProfile = shouldTreatCurrentSourceAsExactMouseSlot(device: selectedDevice) ?? editorStore.activeOnboardProfile
+
+        for slot in slots {
+            let patch = DevicePatch(
+                buttonBinding: makeButtonBindingPatch(
+                    slot: slot,
+                    persistentProfile: persistentProfile,
+                    writePersistentLayer: !writesUseDirectOnly,
+                    writeDirectLayer: true
+                )
+            )
+            let succeeded = await apply(
+                device: selectedDevice,
+                patch: patch,
+                markApplyingState: true,
+                shouldFocusOnActivity: true,
+                shouldSurfaceApplyFailure: true,
+                persistLightingZoneID: editorStore.editableUSBLightingZoneID,
+                clearLocalEditsOnSuccess: false
+            )
+            guard succeeded else { return }
+        }
+
+        if let exactSlot = shouldTreatCurrentSourceAsExactMouseSlot(device: selectedDevice) {
+            editorController.setLiveUSBButtonProfileOverride(exactSlot, for: selectedDevice)
+        } else {
+            editorController.setLiveUSBButtonProfileOverride(editorStore.activeOnboardProfile, for: selectedDevice)
+        }
+        editorController.markButtonWorkspaceAppliedToLive(
+            bindings: editorStore.editableButtonBindings,
+            exactSource: editorController.currentButtonProfileSource()
+        )
+    }
+
+    func writeCurrentButtonWorkspaceToMouseSlot(_ targetProfile: Int) async {
+        guard let selectedDevice = deviceStore.selectedDevice else { return }
+        let clampedTarget = max(1, min(editorStore.visibleOnboardProfileCount, targetProfile))
+
+        for slot in writableButtonSlots(for: selectedDevice) {
+            let patch = DevicePatch(
+                buttonBinding: makeButtonBindingPatch(
+                    slot: slot,
+                    persistentProfile: clampedTarget,
+                    writePersistentLayer: true,
+                    writeDirectLayer: false
+                )
+            )
+            let succeeded = await apply(
+                device: selectedDevice,
+                patch: patch,
+                markApplyingState: true,
+                shouldFocusOnActivity: false,
+                shouldSurfaceApplyFailure: true,
+                persistLightingZoneID: editorStore.editableUSBLightingZoneID,
+                clearLocalEditsOnSuccess: false
+            )
+            guard succeeded else { return }
+        }
+
+        editorController.saveCachedButtonBindings(device: selectedDevice, bindings: editorStore.editableButtonBindings, profile: clampedTarget)
+    }
+
+    func resetLiveButtonsToDeviceDefaultSlot() async {
+        guard editorStore.supportsMultipleOnboardProfiles else { return }
+        let defaultSlot = max(1, editorStore.activeOnboardProfile)
+        editorController.selectButtonProfileSource(.mouseSlot(defaultSlot))
+        await projectSelectedUSBButtonProfileToDirectLayer()
+        if let selectedDevice = deviceStore.selectedDevice {
+            let bindings = editorController.cachedButtonBindings(device: selectedDevice, profile: defaultSlot)
+            editorController.markButtonWorkspaceAppliedToLive(bindings: bindings, exactSource: .mouseSlot(defaultSlot))
         }
     }
 
@@ -272,6 +363,8 @@ final class AppStateApplyController {
         )
         guard succeeded else { return }
         editorController.setLiveUSBButtonProfileOverride(editorStore.editableUSBButtonProfile, for: selectedDevice)
+        let bindings = editorController.cachedButtonBindings(device: selectedDevice, profile: editorStore.editableUSBButtonProfile)
+        editorController.markButtonWorkspaceAppliedToLive(bindings: bindings, exactSource: .mouseSlot(editorStore.editableUSBButtonProfile))
     }
 
     func duplicateSelectedUSBButtonProfile() async {
