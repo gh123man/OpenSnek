@@ -16,6 +16,11 @@ All notable changes to this project are documented in this file.
 - Connect-time lighting restore is now limited to the Basilisk V3 X HyperSpeed. The Basilisk V3 Pro and Basilisk V3 35K keep their own hardware lighting state, while the app hydrates their lighting UI from remembered color/effect values without writing that state back on connect.
 - Choosing `Default` for special USB button slots now writes the correct semantic default action, so device-specific defaults such as the 35K DPI-cycle button behave correctly without manually reassigning them.
 
+## [2026-03-23]
+
+### Fixed
+- Release DMG backgrounds now render at the full default Finder window height, so the styled installer artwork no longer leaves an uncovered vertical strip when the DMG first opens.
+
 ## [2026-03-22]
 
 ### Fixed
