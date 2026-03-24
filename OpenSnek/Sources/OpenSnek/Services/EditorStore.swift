@@ -300,6 +300,10 @@ final class EditorStore {
         editorController.selectButtonProfileSource(source)
     }
 
+    func loadButtonProfileSourceIntoLive(_ source: ButtonProfileSource) async {
+        await editorController.loadButtonProfileSourceIntoLive(source)
+    }
+
     func selectNextOnboardButtonProfile() {
         editorController.selectNextOnboardButtonProfile()
     }

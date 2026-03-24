@@ -991,6 +991,37 @@ final class AppStateEditorController {
         bumpUSBButtonProfilesRevision()
     }
 
+    func loadButtonProfileSourceIntoLive(_ source: ButtonProfileSource) async {
+        guard let selectedDevice = deviceStore.selectedDevice else { return }
+
+        switch source {
+        case .mouseSlot(let profile):
+            let clamped = max(1, min(editorStore.visibleOnboardProfileCount, profile))
+            setButtonProfileSource(.mouseSlot(clamped), for: selectedDevice)
+            editorStore.editableUSBButtonProfile = clamped
+
+            let hydrationKey = buttonBindingsHydrationKey(device: selectedDevice, profile: clamped)
+            let cached = cachedButtonBindings(device: selectedDevice, profile: clamped)
+            editorStore.editableButtonBindings = cached
+            hydratedButtonBindingsKey = hydrationKey
+
+            if selectedDevice.transport == .usb,
+               let fromDevice = await loadUSBButtonBindingsFromDevice(device: selectedDevice, profile: clamped) {
+                saveCachedButtonBindings(device: selectedDevice, bindings: fromDevice, profile: clamped)
+                editorStore.editableButtonBindings = fromDevice
+                hydratedButtonBindingsKey = hydrationKey
+            }
+        case .openSnekProfile(let id):
+            guard let profile = preferenceStore.loadOpenSnekButtonProfiles().first(where: { $0.id == id }) else { return }
+            setButtonProfileSource(.openSnekProfile(id), for: selectedDevice)
+            hydratedButtonBindingsKey = nil
+            editorStore.editableButtonBindings = profile.bindings
+        }
+
+        bumpUSBButtonProfilesRevision()
+        await applyController.applyCurrentButtonWorkspaceToLive()
+    }
+
     func selectNextOnboardButtonProfile() {
         guard let selectedDevice = deviceStore.selectedDevice else { return }
         let sources = onThisMouseButtonSources()
@@ -1020,9 +1051,6 @@ final class AppStateEditorController {
             name: normalizedButtonProfileName(name),
             bindings: editorStore.editableButtonBindings
         )
-        if let selectedDevice = deviceStore.selectedDevice {
-            setButtonProfileSource(.openSnekProfile(saved.id), for: selectedDevice)
-        }
         bumpUSBButtonProfilesRevision()
         return saved
     }
@@ -1049,7 +1077,7 @@ final class AppStateEditorController {
         preferenceStore.deleteOpenSnekButtonProfile(id: id)
         if let selectedDevice = deviceStore.selectedDevice,
            buttonProfileSource(for: selectedDevice) == .openSnekProfile(id) {
-            selectButtonProfileSource(.mouseSlot(defaultMouseButtonProfileSource(for: selectedDevice)))
+            buttonProfileWorkspaceSourceByDeviceID[selectedDevice.id] = .mouseSlot(liveUSBButtonProfile(for: selectedDevice))
         }
         bumpUSBButtonProfilesRevision()
     }

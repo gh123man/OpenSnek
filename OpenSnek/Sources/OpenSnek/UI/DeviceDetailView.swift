@@ -1420,13 +1420,10 @@ struct ButtonMappingTableCard: View {
 private struct ButtonProfileWorkspaceStrip: View {
     let editorStore: EditorStore
 
-    @State private var pendingSourceSelection: ButtonProfileSource?
     @State private var saveProfileName = ""
-    @State private var pendingSelectionAfterSave: ButtonProfileSource?
     @State private var showsManageProfiles = false
     @State private var showsSaveProfileSheet = false
     @State private var showsStorePopover = false
-    @State private var showsSourceSwitchConfirmation = false
 
     private var currentSource: ButtonProfileSource? {
         editorStore.currentButtonProfileSource
@@ -1437,18 +1434,19 @@ private struct ButtonProfileWorkspaceStrip: View {
         return slot
     }
 
-    private var applyButtonTitle: String {
-        editorStore.buttonWorkspaceHasUnsavedSourceChanges ? "Apply" : "Activate"
+    private var loadedFromLabel: String {
+        guard let currentSource else { return "Not loaded yet" }
+        return editorStore.buttonProfileSourceDisplayName(currentSource)
     }
 
     private var currentStatusLine: String {
-        "Live buttons: \(editorStore.liveButtonProfileDisplayName) | Mouse base profile: \(editorStore.deviceDefaultButtonProfileDisplayName)"
+        "Editing: Live Buttons | Loaded from: \(loadedFromLabel)"
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Current Profile")
+                Text("Load Into Live Editor")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.62))
 
@@ -1475,7 +1473,7 @@ private struct ButtonProfileWorkspaceStrip: View {
                         }
                     } label: {
                         HStack(spacing: 10) {
-                            Text(editorStore.currentButtonProfileDisplayName)
+                            Text("Load...")
                                 .lineLimit(1)
                             Spacer(minLength: 0)
                             Image(systemName: "chevron.up.chevron.down")
@@ -1497,15 +1495,6 @@ private struct ButtonProfileWorkspaceStrip: View {
                         )
                     }
                     .menuStyle(.borderlessButton)
-
-                    if editorStore.buttonWorkspaceHasUnappliedLiveChanges && !editorStore.isEditingMouseBaseButtonProfile {
-                        Button(applyButtonTitle) {
-                            Task {
-                                await editorStore.applyCurrentButtonWorkspaceToLive()
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
 
                     Button {
                         showsStorePopover.toggle()
@@ -1567,10 +1556,10 @@ private struct ButtonProfileWorkspaceStrip: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if editorStore.supportsMultipleOnboardProfiles {
-                Text("Base Profile edits apply straight to the mouse. Stored slots are saved button layouts you can load or overwrite.")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.58))
-                    .fixedSize(horizontal: false, vertical: true)
+                Text("Base Profile (Slot 1) is the mouse's always-active profile. Stored Slots 2-5 are presets you can read from the mouse or overwrite explicitly.")
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.58))
+                .fixedSize(horizontal: false, vertical: true)
             }
 
             if editorStore.currentButtonProfileHasUnsupportedBindings {
@@ -1590,47 +1579,11 @@ private struct ButtonProfileWorkspaceStrip: View {
                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                     )
         )
-        .confirmationDialog(
-            "Keep your current button edits?",
-            isPresented: $showsSourceSwitchConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Apply Changes") {
-                guard let pendingSourceSelection else { return }
-                Task {
-                    await editorStore.applyCurrentButtonWorkspaceToLive()
-                    editorStore.selectButtonProfileSource(pendingSourceSelection)
-                    self.pendingSourceSelection = nil
-                }
-            }
-
-            Button("Save as New OpenSnek Profile...") {
-                prepareSaveProfileSheet(pendingSelection: pendingSourceSelection)
-            }
-
-            Button("Discard Changes", role: .destructive) {
-                if let pendingSourceSelection {
-                    editorStore.selectButtonProfileSource(pendingSourceSelection)
-                }
-                self.pendingSourceSelection = nil
-            }
-
-            Button("Cancel", role: .cancel) {
-                pendingSourceSelection = nil
-            }
-        } message: {
-            Text("Switching profiles replaces the current working copy.")
-        }
         .sheet(isPresented: $showsSaveProfileSheet) {
             SaveButtonProfileSheet(
                 initialName: saveProfileName,
                 onSave: { name in
                     _ = editorStore.saveCurrentButtonWorkspaceAsNewProfile(name: name)
-                    if let pendingSelectionAfterSave {
-                        editorStore.selectButtonProfileSource(pendingSelectionAfterSave)
-                    }
-                    self.pendingSelectionAfterSave = nil
-                    self.pendingSourceSelection = nil
                 }
             )
         }
@@ -1639,7 +1592,9 @@ private struct ButtonProfileWorkspaceStrip: View {
                 profiles: editorStore.savedButtonProfiles,
                 selectedSource: editorStore.currentButtonProfileSource,
                 onSelect: { source in
-                    requestSourceSelection(source)
+                    Task {
+                        await editorStore.loadButtonProfileSourceIntoLive(source)
+                    }
                 },
                 onRename: { id, name in
                     _ = editorStore.renameOpenSnekButtonProfile(id: id, name: name)
@@ -1654,7 +1609,9 @@ private struct ButtonProfileWorkspaceStrip: View {
     @ViewBuilder
     private func sourceSelectionButton(label: String, source: ButtonProfileSource) -> some View {
         Button {
-            requestSourceSelection(source)
+            Task {
+                await editorStore.loadButtonProfileSourceIntoLive(source)
+            }
         } label: {
             HStack {
                 Text(label)
@@ -1666,29 +1623,16 @@ private struct ButtonProfileWorkspaceStrip: View {
         }
     }
 
-    private func requestSourceSelection(_ source: ButtonProfileSource) {
-        guard currentSource != source else { return }
-        if editorStore.buttonWorkspaceHasUnsavedSourceChanges {
-            pendingSourceSelection = source
-            showsSourceSwitchConfirmation = true
-            return
-        }
-        editorStore.selectButtonProfileSource(source)
-    }
-
-    private func prepareSaveProfileSheet(pendingSelection: ButtonProfileSource? = nil) {
-        pendingSelectionAfterSave = pendingSelection
+    private func prepareSaveProfileSheet() {
         saveProfileName = suggestedProfileName()
         showsSaveProfileSheet = true
     }
 
     private func suggestedProfileName() -> String {
-        let current = editorStore.currentButtonProfileDisplayName
-        let prefix = "Modified from "
-        if current.hasPrefix(prefix) {
-            return String(current.dropFirst(prefix.count))
+        if let currentSource {
+            return editorStore.buttonProfileSourceDisplayName(currentSource)
         }
-        return current
+        return "Live Buttons"
     }
 
     private func pickerLabel(for source: ButtonProfileSource) -> String {
