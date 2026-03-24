@@ -1539,12 +1539,6 @@ private struct ButtonProfileWorkspaceStrip: View {
             }
             .buttonStyle(.bordered)
             .disabled(isBusy)
-
-            if isBusy {
-                Spacer(minLength: 0)
-                ProgressView()
-                    .controlSize(.small)
-            }
         }
     }
 
@@ -1771,7 +1765,7 @@ private struct StoreButtonProfilePopover: View {
 
                     ForEach(editorStore.storedMouseButtonSources, id: \.id) { source in
                         if case .mouseSlot(let slot) = source {
-                            storeActionButton("Write to \(pickerLabel(source))") {
+                            storeActionButton(pickerLabel(source)) {
                                 onWriteStoredSlot(slot)
                             }
                         }
