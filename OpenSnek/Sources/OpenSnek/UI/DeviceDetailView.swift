@@ -1379,7 +1379,7 @@ struct ButtonMappingTableCard: View {
     let title: String
 
     private var isBusy: Bool {
-        deviceStore.isApplying || editorStore.isButtonProfileOperationInFlight
+        editorStore.isButtonProfileOperationInFlight
     }
 
     private var rows: [ButtonBindingRowModel] {
@@ -1452,9 +1452,6 @@ private struct ButtonProfileWorkspaceStrip: View {
 
     private var statusLabel: String? {
         if editorStore.isButtonProfileOperationInFlight {
-            return "Applying to mouse…"
-        }
-        if deviceStore.isApplying {
             return "Writing to mouse…"
         }
         return nil
