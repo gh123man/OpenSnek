@@ -1425,6 +1425,7 @@ private struct ButtonProfileWorkspaceStrip: View {
     @State private var pendingSelectionAfterSave: ButtonProfileSource?
     @State private var showsManageProfiles = false
     @State private var showsSaveProfileSheet = false
+    @State private var showsStorePopover = false
     @State private var showsSourceSwitchConfirmation = false
 
     private var currentSource: ButtonProfileSource? {
@@ -1441,7 +1442,7 @@ private struct ButtonProfileWorkspaceStrip: View {
     }
 
     private var currentStatusLine: String {
-        "Live on mouse now: \(editorStore.liveButtonProfileDisplayName) | Device default: \(editorStore.deviceDefaultButtonProfileDisplayName)"
+        "Live buttons: \(editorStore.liveButtonProfileDisplayName) | Mouse base profile: \(editorStore.deviceDefaultButtonProfileDisplayName)"
     }
 
     var body: some View {
@@ -1467,7 +1468,7 @@ private struct ButtonProfileWorkspaceStrip: View {
                         Section("On This Mouse") {
                             ForEach(editorStore.onThisMouseButtonSources, id: \.id) { source in
                                 sourceSelectionButton(
-                                    label: editorStore.buttonProfileSourceDisplayName(source),
+                                    label: pickerLabel(for: source),
                                     source: source
                                 )
                             }
@@ -1497,7 +1498,7 @@ private struct ButtonProfileWorkspaceStrip: View {
                     }
                     .menuStyle(.borderlessButton)
 
-                    if editorStore.buttonWorkspaceHasUnappliedLiveChanges {
+                    if editorStore.buttonWorkspaceHasUnappliedLiveChanges && !editorStore.isEditingMouseBaseButtonProfile {
                         Button(applyButtonTitle) {
                             Task {
                                 await editorStore.applyCurrentButtonWorkspaceToLive()
@@ -1506,65 +1507,50 @@ private struct ButtonProfileWorkspaceStrip: View {
                         .buttonStyle(.borderedProminent)
                     }
 
-                    Menu {
-                        Section("Saved in OpenSnek") {
-                            Button("Save as New OpenSnek Profile...") {
-                                prepareSaveProfileSheet()
-                            }
-
-                            if editorStore.canUpdateCurrentSavedButtonProfile {
-                                Button("Update Current Saved Profile") {
-                                    _ = editorStore.updateCurrentOpenSnekButtonProfile()
-                                }
-                            }
-                        }
-
-                        Section("On This Mouse") {
-                            if editorStore.supportsMultipleOnboardProfiles {
-                                Menu("Write to Mouse Slot") {
-                                    ForEach(editorStore.onThisMouseButtonSources, id: \.id) { source in
-                                        if case .mouseSlot(let slot) = source {
-                                            Button(editorStore.buttonProfileSourceDisplayName(source)) {
-                                                Task {
-                                                    await editorStore.writeCurrentButtonWorkspaceToMouseSlot(slot)
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            } else {
-                                Button("Write to This Mouse") {
-                                    Task {
-                                        await editorStore.writeCurrentButtonWorkspaceToMouseSlot(1)
-                                    }
-                                }
-                            }
-
-                            if let currentMouseSlot, editorStore.canReplaceCurrentMouseSlot {
-                                Button("Replace Current Slot") {
-                                    Task {
-                                        await editorStore.writeCurrentButtonWorkspaceToMouseSlot(currentMouseSlot)
-                                    }
-                                }
-                            }
-
-                            if editorStore.supportsMultipleOnboardProfiles {
-                                Button("Reset Live Buttons to Device Default") {
-                                    Task {
-                                        await editorStore.resetLiveButtonsToDeviceDefaultSlot()
-                                    }
-                                }
-                            }
-                        }
-
-                        if editorStore.buttonWorkspaceHasUnsavedSourceChanges {
-                            Divider()
-                            Button("Revert to Source") {
-                                editorStore.revertButtonWorkspaceToSource()
-                            }
-                        }
+                    Button {
+                        showsStorePopover.toggle()
                     } label: {
                         Text("Store...")
+                    }
+                    .popover(isPresented: $showsStorePopover, arrowEdge: .bottom) {
+                        StoreButtonProfilePopover(
+                            editorStore: editorStore,
+                            currentMouseSlot: currentMouseSlot,
+                            pickerLabel: { source in
+                                pickerLabel(for: source)
+                            },
+                            onSaveAsNew: {
+                                showsStorePopover = false
+                                prepareSaveProfileSheet()
+                            },
+                            onUpdateCurrentSaved: {
+                                showsStorePopover = false
+                                _ = editorStore.updateCurrentOpenSnekButtonProfile()
+                            },
+                            onWriteStoredSlot: { slot in
+                                showsStorePopover = false
+                                Task {
+                                    await editorStore.writeCurrentButtonWorkspaceToMouseSlot(slot)
+                                }
+                            },
+                            onReplaceCurrentSlot: {
+                                guard let currentMouseSlot else { return }
+                                showsStorePopover = false
+                                Task {
+                                    await editorStore.writeCurrentButtonWorkspaceToMouseSlot(currentMouseSlot)
+                                }
+                            },
+                            onResetLiveButtons: {
+                                showsStorePopover = false
+                                Task {
+                                    await editorStore.resetLiveButtonsToDeviceDefaultSlot()
+                                }
+                            },
+                            onRevertToSource: {
+                                showsStorePopover = false
+                                editorStore.revertButtonWorkspaceToSource()
+                            }
+                        )
                     }
 
                     if !editorStore.savedButtonProfiles.isEmpty {
@@ -1579,6 +1565,13 @@ private struct ButtonProfileWorkspaceStrip: View {
                 .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.58))
                 .fixedSize(horizontal: false, vertical: true)
+
+            if editorStore.supportsMultipleOnboardProfiles {
+                Text("Base Profile edits apply straight to the mouse. Stored slots are saved button layouts you can load or overwrite.")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             if editorStore.currentButtonProfileHasUnsupportedBindings {
                 Text("Some bindings in this saved profile aren't available on this mouse. OpenSnek will keep them in the profile, but only supported buttons can be applied here.")
@@ -1696,6 +1689,92 @@ private struct ButtonProfileWorkspaceStrip: View {
             return String(current.dropFirst(prefix.count))
         }
         return current
+    }
+
+    private func pickerLabel(for source: ButtonProfileSource) -> String {
+        switch source {
+        case .openSnekProfile:
+            return editorStore.buttonProfileSourceDisplayName(source)
+        case .mouseSlot(let slot):
+            return slot == 1 ? "Base Profile (Slot 1)" : "Stored Slot \(slot)"
+        }
+    }
+}
+
+private struct StoreButtonProfilePopover: View {
+    let editorStore: EditorStore
+    let currentMouseSlot: Int?
+    let pickerLabel: (ButtonProfileSource) -> String
+    let onSaveAsNew: () -> Void
+    let onUpdateCurrentSaved: () -> Void
+    let onWriteStoredSlot: (Int) -> Void
+    let onReplaceCurrentSlot: () -> Void
+    let onResetLiveButtons: () -> Void
+    let onRevertToSource: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Saved in OpenSnek")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.62))
+
+                storeActionButton("Save as New OpenSnek Profile...", action: onSaveAsNew)
+
+                if editorStore.canUpdateCurrentSavedButtonProfile {
+                    storeActionButton("Update Current Saved Profile", action: onUpdateCurrentSaved)
+                }
+            }
+
+            if editorStore.supportsMultipleOnboardProfiles {
+                Divider().overlay(Color.white.opacity(0.08))
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Stored Slots")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.62))
+
+                    ForEach(editorStore.storedMouseButtonSources, id: \.id) { source in
+                        if case .mouseSlot(let slot) = source {
+                            storeActionButton("Write to \(pickerLabel(source))") {
+                                onWriteStoredSlot(slot)
+                            }
+                        }
+                    }
+
+                    if let currentMouseSlot, currentMouseSlot > 1, editorStore.canReplaceCurrentMouseSlot {
+                        storeActionButton("Replace Current Stored Slot", action: onReplaceCurrentSlot)
+                    }
+
+                    storeActionButton("Reset Live Buttons to Base Profile", action: onResetLiveButtons)
+                }
+            }
+
+            if editorStore.buttonWorkspaceHasUnsavedSourceChanges {
+                Divider().overlay(Color.white.opacity(0.08))
+                storeActionButton("Revert to Source", action: onRevertToSource)
+            }
+        }
+        .padding(14)
+        .frame(width: 280, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color(nsColor: .windowBackgroundColor))
+        )
+    }
+
+    private func storeActionButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.white.opacity(0.05))
+        )
     }
 }
 

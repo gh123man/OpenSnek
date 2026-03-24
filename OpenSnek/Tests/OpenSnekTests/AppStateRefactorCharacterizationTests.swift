@@ -1034,6 +1034,52 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(summaries.first(where: { $0.profile == 1 })?.isHardwareActive, true)
     }
 
+    func testEditingBaseProfileAutoAppliesToLiveAndPersistentSlotOne() async throws {
+        let device = makeRefactorTestDevice(
+            id: "usb-profile-base-auto-apply-device",
+            transport: .usb,
+            serial: "USB-PROFILE-BASE-\(UUID().uuidString)",
+            onboardProfileCount: 3
+        )
+        defer { clearRefactorPreferences(for: device) }
+
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 76,
+                    dpiValues: [800, 1600, 2400],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 3
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+        await MainActor.run {
+            appState.editorStore.updateButtonBindingKind(slot: 4, kind: .rightClick)
+        }
+
+        try await waitForRefactorCondition(timeout: 2.0) {
+            await backend.recordedPatches().contains(where: { $0.buttonBinding?.slot == 4 })
+        }
+
+        let patches = await backend.recordedPatches()
+        let patch = try XCTUnwrap(patches.last(where: { $0.buttonBinding?.slot == 4 }))
+        XCTAssertEqual(patch.buttonBinding?.persistentProfile, 1)
+        XCTAssertEqual(patch.buttonBinding?.writePersistentLayer, true)
+        XCTAssertEqual(patch.buttonBinding?.writeDirectLayer, true)
+    }
+
     func testSelectingSavedButtonProfileHydratesWorkingCopy() async throws {
         let device = makeRefactorTestDevice(
             id: "saved-button-profile-device",

@@ -168,6 +168,16 @@ final class EditorStore {
         return editorController.onThisMouseButtonSources()
     }
 
+    var storedMouseButtonSources: [ButtonProfileSource] {
+        _ = usbButtonProfilesRevision
+        return editorController.storedMouseButtonSources()
+    }
+
+    var isEditingMouseBaseButtonProfile: Bool {
+        _ = usbButtonProfilesRevision
+        return editorController.isEditingMouseBaseButtonProfile()
+    }
+
     func buttonProfileSourceDisplayName(_ source: ButtonProfileSource) -> String {
         editorController.buttonProfileSourceDisplayName(source)
     }

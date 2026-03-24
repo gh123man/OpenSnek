@@ -149,7 +149,7 @@ final class AppStateEditorController {
             return preferenceStore.loadOpenSnekButtonProfiles().first(where: { $0.id == id })?.name ?? "Deleted Profile"
         case .mouseSlot(let slot):
             if editorStore.supportsMultipleOnboardProfiles {
-                return "Slot \(slot)"
+                return slot == 1 ? "Base Profile" : "Stored Slot \(slot)"
             }
             return "This Mouse"
         }
@@ -666,7 +666,8 @@ final class AppStateEditorController {
 
     func canReplaceCurrentMouseSlot() -> Bool {
         guard let device = deviceStore.selectedDevice,
-              case .mouseSlot = buttonProfileSource(for: device) else {
+              case .mouseSlot(let slot) = buttonProfileSource(for: device),
+              slot > 1 else {
             return false
         }
         return buttonWorkspaceHasUnsavedSourceChanges(device: device)
@@ -676,6 +677,18 @@ final class AppStateEditorController {
         guard deviceStore.selectedDevice != nil else { return [] }
         let count = editorStore.supportsMultipleOnboardProfiles ? editorStore.visibleOnboardProfileCount : 1
         return (1...max(1, count)).map { .mouseSlot($0) }
+    }
+
+    func storedMouseButtonSources() -> [ButtonProfileSource] {
+        onThisMouseButtonSources().filter {
+            guard case .mouseSlot(let slot) = $0 else { return false }
+            return slot > 1
+        }
+    }
+
+    func isEditingMouseBaseButtonProfile() -> Bool {
+        guard let device = deviceStore.selectedDevice else { return false }
+        return buttonProfileSource(for: device) == .mouseSlot(1)
     }
 
     func buttonProfileSourceDisplayName(_ source: ButtonProfileSource) -> String {
@@ -1082,6 +1095,20 @@ final class AppStateEditorController {
             ?? 400
     }
 
+    private func shouldAutoApplyCurrentButtonWorkspaceAfterEdit() -> Bool {
+        guard deviceStore.selectedDevice != nil else { return false }
+        if !editorStore.supportsMultipleOnboardProfiles {
+            return true
+        }
+        return isEditingMouseBaseButtonProfile()
+    }
+
+    private func handleButtonWorkspaceDidChange() {
+        bumpUSBButtonProfilesRevision()
+        guard shouldAutoApplyCurrentButtonWorkspaceAfterEdit() else { return }
+        applyController.scheduleAutoApplyCurrentButtonWorkspaceToLive()
+    }
+
     func updateButtonBindingKind(slot: Int, kind: ButtonBindingKind) {
         guard deviceStore.visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
         var next = editorStore.editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
@@ -1096,7 +1123,7 @@ final class AppStateEditorController {
             next.turboEnabled = false
         }
         editorStore.editableButtonBindings[slot] = next
-        bumpUSBButtonProfilesRevision()
+        handleButtonWorkspaceDidChange()
     }
 
     func updateButtonBindingHidKey(slot: Int, hidKey: Int) {
@@ -1105,7 +1132,7 @@ final class AppStateEditorController {
         next.kind = .keyboardSimple
         next.hidKey = max(4, min(231, hidKey))
         editorStore.editableButtonBindings[slot] = next
-        bumpUSBButtonProfilesRevision()
+        handleButtonWorkspaceDidChange()
     }
 
     func updateButtonBindingTurboEnabled(slot: Int, enabled: Bool) {
@@ -1114,7 +1141,7 @@ final class AppStateEditorController {
         guard next.kind.supportsTurbo else { return }
         next.turboEnabled = enabled
         editorStore.editableButtonBindings[slot] = next
-        bumpUSBButtonProfilesRevision()
+        handleButtonWorkspaceDidChange()
     }
 
     func updateButtonBindingTurboRate(slot: Int, rate: Int) {
@@ -1123,7 +1150,7 @@ final class AppStateEditorController {
         guard next.kind.supportsTurbo else { return }
         next.turboRate = max(1, min(255, rate))
         editorStore.editableButtonBindings[slot] = next
-        bumpUSBButtonProfilesRevision()
+        handleButtonWorkspaceDidChange()
     }
 
     func updateButtonBindingClutchDPI(slot: Int, dpi: Int) {
@@ -1132,6 +1159,6 @@ final class AppStateEditorController {
         guard next.kind == .dpiClutch else { return }
         next.clutchDPI = DeviceProfiles.clampDPI(dpi, profileID: deviceStore.selectedDevice?.profile_id)
         editorStore.editableButtonBindings[slot] = next
-        bumpUSBButtonProfilesRevision()
+        handleButtonWorkspaceDidChange()
     }
 }

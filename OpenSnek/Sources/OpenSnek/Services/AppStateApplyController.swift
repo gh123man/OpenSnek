@@ -255,6 +255,13 @@ final class AppStateApplyController {
         }
     }
 
+    func scheduleAutoApplyCurrentButtonWorkspaceToLive() {
+        scheduleAutoApply(key: .button, delay: 260_000_000) { [weak self] in
+            guard let self else { return }
+            await self.applyCurrentButtonWorkspaceToLive()
+        }
+    }
+
     private func writableButtonSlots(for device: MouseDevice) -> [Int] {
         device.button_layout?.writableSlots ?? deviceStore.visibleButtonSlots.map(\.slot)
     }
@@ -270,8 +277,13 @@ final class AppStateApplyController {
     func applyCurrentButtonWorkspaceToLive() async {
         guard let selectedDevice = deviceStore.selectedDevice else { return }
         let slots = writableButtonSlots(for: selectedDevice)
-        let writesUseDirectOnly = selectedDevice.transport == .usb && editorStore.supportsMultipleOnboardProfiles
-        let persistentProfile = shouldTreatCurrentSourceAsExactMouseSlot(device: selectedDevice) ?? editorStore.activeOnboardProfile
+        let isEditingMouseBaseProfile = editorController.currentButtonProfileSource() == .mouseSlot(1)
+        let writesUseDirectOnly = selectedDevice.transport == .usb &&
+            editorStore.supportsMultipleOnboardProfiles &&
+            !isEditingMouseBaseProfile
+        let persistentProfile = isEditingMouseBaseProfile
+            ? 1
+            : (shouldTreatCurrentSourceAsExactMouseSlot(device: selectedDevice) ?? editorStore.activeOnboardProfile)
 
         for slot in slots {
             let patch = DevicePatch(
