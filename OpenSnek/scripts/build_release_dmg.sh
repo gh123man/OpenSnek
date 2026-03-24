@@ -300,13 +300,13 @@ echo "[open-snek] Rendering DMG background"
 swift "$SCRIPT_DIR/render_dmg_background.swift" \
   --output "$DMG_BACKGROUND" \
   --width 780 \
-  --height 460 \
+  --height 520 \
   --icon "$APP_ICON_SOURCE"
 
 swift "$SCRIPT_DIR/render_dmg_background.swift" \
   --output "$DMG_BACKGROUND_RETINA" \
   --width 780 \
-  --height 460 \
+  --height 520 \
   --scale 2 \
   --icon "$APP_ICON_SOURCE"
 
