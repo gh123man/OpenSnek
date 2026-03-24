@@ -6,7 +6,7 @@ import Foundation
 struct Options {
     var outputPath: String = ""
     var width: Int = 780
-    var height: Int = 460
+    var height: Int = 520
     var scale: Int = 1
     var iconPath: String = ""
 }

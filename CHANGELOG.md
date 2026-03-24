@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [2026-03-23]
+
+### Fixed
+- Release DMG backgrounds now render at the full default Finder window height, so the styled installer artwork no longer leaves an uncovered vertical strip when the DMG first opens.
+
 ## [2026-03-22]
 
 ### Fixed
