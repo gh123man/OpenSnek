@@ -1435,6 +1435,11 @@ private struct ButtonProfileWorkspaceStrip: View {
         return slot
     }
 
+    private var loadedFromLabel: String? {
+        guard let currentSource else { return nil }
+        return loadedFromDisplayLabel(for: currentSource)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 8) {
@@ -1443,6 +1448,13 @@ private struct ButtonProfileWorkspaceStrip: View {
                     .foregroundStyle(.white.opacity(0.62))
 
                 headerControls
+            }
+
+            if let loadedFromLabel {
+                Text("Loaded from \(loadedFromLabel)")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if editorStore.currentButtonProfileHasUnsupportedBindings {
@@ -1498,6 +1510,12 @@ private struct ButtonProfileWorkspaceStrip: View {
         HStack(alignment: .center, spacing: 10) {
             loadButton
             storeButton
+            Button("Reset to Defaults") {
+                Task {
+                    await editorStore.resetLiveButtonsToDeviceDefaultSlot()
+                }
+            }
+            .buttonStyle(.bordered)
             Button("Manage") {
                 showsManageProfiles = true
             }
@@ -1564,12 +1582,6 @@ private struct ButtonProfileWorkspaceStrip: View {
                         await editorStore.writeCurrentButtonWorkspaceToMouseSlot(currentMouseSlot)
                     }
                 },
-                onResetLiveButtons: {
-                    showsStorePopover = false
-                    Task {
-                        await editorStore.resetLiveButtonsToDeviceDefaultSlot()
-                    }
-                },
                 onRevertToSource: {
                     showsStorePopover = false
                     editorStore.revertButtonWorkspaceToSource()
@@ -1618,6 +1630,15 @@ private struct ButtonProfileWorkspaceStrip: View {
         return "\(baseLabel) (\(matchDescription))"
     }
 
+    private func loadedFromDisplayLabel(for source: ButtonProfileSource) -> String {
+        switch source {
+        case .openSnekProfile:
+            return editorStore.buttonProfileSourceDisplayName(source)
+        case .mouseSlot(let slot):
+            return slot == 1 ? "Current Buttons" : "Stored Slot \(slot)"
+        }
+    }
+
 }
 
 private struct LoadButtonProfilePopover: View {
@@ -1656,7 +1677,10 @@ private struct LoadButtonProfilePopover: View {
                     .foregroundStyle(.white.opacity(0.62))
 
                 ForEach(editorStore.loadableMouseButtonSources, id: \.id) { source in
-                    loadActionButton(pickerLabel(source)) {
+                    loadActionButton(
+                        pickerLabel(source),
+                        isDisabled: source == .mouseSlot(1)
+                    ) {
                         onSelect(source)
                     }
                 }
@@ -1672,6 +1696,7 @@ private struct LoadButtonProfilePopover: View {
 
     private func loadActionButton(
         _ title: String,
+        isDisabled: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -1679,12 +1704,14 @@ private struct LoadButtonProfilePopover: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
+        .disabled(isDisabled)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(0.05))
+                .fill(Color.white.opacity(isDisabled ? 0.025 : 0.05))
         )
+        .opacity(isDisabled ? 0.45 : 1.0)
     }
 }
 
@@ -1695,7 +1722,6 @@ private struct StoreButtonProfilePopover: View {
     let onSave: () -> Void
     let onWriteStoredSlot: (Int) -> Void
     let onReplaceCurrentSlot: () -> Void
-    let onResetLiveButtons: () -> Void
     let onRevertToSource: () -> Void
 
     var body: some View {
@@ -1727,8 +1753,6 @@ private struct StoreButtonProfilePopover: View {
                     if let currentMouseSlot, currentMouseSlot > 1, editorStore.canReplaceCurrentMouseSlot {
                         storeActionButton("Replace Current Stored Slot", action: onReplaceCurrentSlot)
                     }
-
-                    storeActionButton("Reset Live Buttons", action: onResetLiveButtons)
                 }
             }
 

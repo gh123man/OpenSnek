@@ -17,6 +17,7 @@ All notable changes to this project are documented in this file.
 - Stored mouse button slots in the macOS `Buttons` card now show exact matches against saved OpenSnek button profiles using the saved profile name directly, so `Stored Slot 3` can surface `Travel` when the slot contents are an identical local saved profile.
 - The macOS `Buttons` card now uses explicit `Load`, `Store`, and `Manage` actions instead of a profile-selection dropdown, and the `Load` popover hides default/unconfigured stored slots until they have real non-default button mappings.
 - Saving a local button profile from the macOS `Buttons` card now goes through a single `Save` dialog that can either create a new saved profile or overwrite an existing one.
+- The macOS `Buttons` card now shows a persistent `Loaded from ...` label for the current source, disables reloading the always-live slot `1` from the `Load` popover, and moves reset-to-defaults into a dedicated top-level action instead of hiding it under `Store`.
 
 ## [2026-03-22]
 
