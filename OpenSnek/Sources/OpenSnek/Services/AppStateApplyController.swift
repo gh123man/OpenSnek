@@ -72,8 +72,16 @@ final class AppStateApplyController {
     }
 
     var shouldHydrateEditable: Bool {
-        guard !deviceStore.isApplying, !editorStore.isEditingDpiControl, !hasPendingLocalEdits else { return false }
+        shouldHydrateEditable(for: deviceStore.selectedDevice)
+    }
+
+    func shouldHydrateEditable(for device: MouseDevice?) -> Bool {
+        guard !deviceStore.isApplying, !editorStore.isEditingDpiControl else { return false }
+        guard let device else { return !hasPendingLocalEdits }
+        guard !hasPendingLocalEditsAffecting(device) else { return false }
         guard let lastLocalEditAt else { return true }
+        guard let localEditDeviceIdentityKey else { return true }
+        guard localEditDeviceIdentityKey == deviceController.deviceIdentityKey(device) else { return true }
         return Date().timeIntervalSince(lastLocalEditAt) > 0.8
     }
 
@@ -524,6 +532,17 @@ final class AppStateApplyController {
         guard hasPendingLocalEdits else { return false }
         guard let localEditDeviceIdentityKey else { return false }
         return localEditDeviceIdentityKey == deviceController.deviceIdentityKey(device)
+    }
+
+    func cancelPendingLocalEditsForSelectionChange() {
+        for task in applyTasks.values {
+            task.cancel()
+        }
+        applyTasks.removeAll()
+        applyCoordinator.clearPending()
+        hasPendingLocalEdits = false
+        lastLocalEditAt = nil
+        localEditDeviceIdentityKey = nil
     }
 
     func enqueueApply(_ patch: DevicePatch) {

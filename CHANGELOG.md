@@ -9,6 +9,7 @@ All notable changes to this project are documented in this file.
 - OpenSnek now has a saved button-profile library. Button layouts can be named, reused across devices, hydrated into the live working copy, and written back into mouse storage slots without treating onboard slots as the only source of truth.
 
 ### Fixed
+- USB button-binding hydration no longer leaves the macOS editor stuck on stale/default values when you switch devices or reconnect a mouse with custom mappings already on the device. Pending debounced local edits are now cleared on device-selection changes, and in-flight USB button readback no longer overwrites newer local edits that landed while the read was still running.
 - Button remap edits in the macOS `Profiles` flow now auto-apply only the slot you actually changed instead of rewriting every writable button slot on the mouse, which cuts the visible delay when changing a binding and avoids extra UI churn.
 - Turbo controls in the macOS button editor now behave consistently for turbo-capable mouse actions as well as keyboard bindings.
 - The macOS `Profiles` flow now shows an explicit busy state while profile loads and slot writes are still reading from or applying to the mouse, and it temporarily disables the button-editing controls until the hardware catches up with the UI.

@@ -143,7 +143,7 @@ final class AppStateDeviceController {
            let selectedDevice = deviceStore.selectedDevice {
             deviceStore.state = selectedState
             deviceStore.lastUpdated = lastUpdatedByDeviceID[selectedDeviceID]
-            if applyController.shouldHydrateEditable {
+            if applyController.shouldHydrateEditable(for: selectedDevice) {
                 editorController.hydrateEditable(from: selectedState)
                 scheduleSelectedDeviceButtonBindingHydration(device: selectedDevice)
             }
@@ -203,7 +203,7 @@ final class AppStateDeviceController {
             if deviceStore.state != merged {
                 deviceStore.state = merged
             }
-            if applyController.shouldHydrateEditable {
+            if applyController.shouldHydrateEditable(for: presentationDevice) {
                 editorController.hydrateEditable(from: merged)
                 scheduleSelectedDeviceButtonBindingHydration(device: presentationDevice)
             }
@@ -363,6 +363,10 @@ final class AppStateDeviceController {
             )
         }
 
+        if previousSelectedID != deviceStore.selectedDeviceID {
+            _applyController.optionalValue?.cancelPendingLocalEditsForSelectionChange()
+        }
+
         if let selectedDeviceID = deviceStore.selectedDeviceID {
             syncSelectedDevicePresentation(deviceID: selectedDeviceID)
         } else {
@@ -429,6 +433,7 @@ final class AppStateDeviceController {
         guard !isTearingDown else { return }
         guard let runtimeController = _runtimeController.optionalValue else { return }
         guard deviceStore.selectedDeviceID != deviceID else { return }
+        _applyController.optionalValue?.cancelPendingLocalEditsForSelectionChange()
         runtimeController.clearStatusItemTransientDpi()
         deviceStore.selectedDeviceID = deviceID
         syncSelectedDevicePresentation(deviceID: deviceID)
@@ -459,7 +464,7 @@ final class AppStateDeviceController {
         }
 
         deviceStore.isRefreshingState = refreshingStateDeviceIDs.contains(deviceID)
-        if applyController.shouldHydrateEditable {
+        if applyController.shouldHydrateEditable(for: device) {
             editorController.hydratePersistedLightingStateIfNeeded(device: device)
         }
         if unavailableDeviceIDs.contains(deviceID) {
@@ -473,13 +478,13 @@ final class AppStateDeviceController {
             deviceStore.state = cached
             deviceStore.lastUpdated = lastUpdatedByDeviceID[deviceID]
             deviceStore.warningMessage = editorController.telemetryWarning(for: cached, device: device)
-            if applyController.shouldHydrateEditable {
+            if applyController.shouldHydrateEditable(for: device) {
                 editorController.hydrateEditable(from: cached)
                 scheduleSelectedDeviceButtonBindingHydration(device: device)
             }
         } else if let state = deviceStore.state, stateSummaryMatchesDevice(state, device: device) {
             deviceStore.warningMessage = editorController.telemetryWarning(for: state, device: device)
-            if applyController.shouldHydrateEditable {
+            if applyController.shouldHydrateEditable(for: device) {
                 editorController.hydrateEditable(from: state)
                 scheduleSelectedDeviceButtonBindingHydration(device: device)
             }
@@ -918,7 +923,7 @@ final class AppStateDeviceController {
                 if deviceStore.state != merged {
                     deviceStore.state = merged
                 }
-                if applyController.shouldHydrateEditable {
+                if applyController.shouldHydrateEditable(for: presentationDevice) {
                     editorController.hydrateEditable(from: merged)
                     await editorController.hydrateLightingStateIfNeeded(device: presentationDevice)
                     await editorController.hydrateButtonBindingsIfNeeded(device: presentationDevice)
@@ -1113,7 +1118,7 @@ final class AppStateDeviceController {
                 if deviceStore.state != updated {
                     deviceStore.state = updated
                 }
-                if applyController.shouldHydrateEditable {
+                if applyController.shouldHydrateEditable(for: presentationDevice) {
                     editorController.hydrateEditable(from: updated)
                 }
             }
@@ -1211,7 +1216,7 @@ final class AppStateDeviceController {
         }
         guard pendingLightingRestoreDeviceIDs.contains(device.id) else { return }
         guard !restoringLightingDeviceIDs.contains(device.id) else { return }
-        guard !(deviceStore.selectedDeviceID == device.id && !applyController.shouldHydrateEditable) else { return }
+        guard !(deviceStore.selectedDeviceID == device.id && !applyController.shouldHydrateEditable(for: device)) else { return }
         guard !applyController.hasPendingLocalEditsAffecting(device) else { return }
 
         guard let restorePlan = editorController.persistedLightingRestorePlan(device: device) else {

@@ -1361,6 +1361,107 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(patches.compactMap(\.buttonBinding).map(\.slot), [4])
     }
 
+    func testSwitchingUSBDevicesDoesNotPreserveUnsavedButtonWorkspaceAcrossDevices() async throws {
+        let firstDevice = makeRefactorTestDevice(
+            id: "usb-workspace-a",
+            transport: .usb,
+            serial: "USB-WORKSPACE-A-\(UUID().uuidString)",
+            onboardProfileCount: 5
+        )
+        let secondDevice = makeRefactorTestDevice(
+            id: "usb-workspace-b",
+            transport: .usb,
+            serial: "USB-WORKSPACE-B-\(UUID().uuidString)",
+            onboardProfileCount: 5
+        )
+        defer {
+            clearRefactorPreferences(for: firstDevice)
+            clearRefactorPreferences(for: secondDevice)
+        }
+
+        let backend = AppStateRefactorStubBackend(
+            devices: [firstDevice, secondDevice],
+            stateByDeviceID: [
+                firstDevice.id: makeRefactorTestState(
+                    device: firstDevice,
+                    connection: "usb",
+                    batteryPercent: 76,
+                    dpiValues: [800, 1600, 2400],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                ),
+                secondDevice.id: makeRefactorTestState(
+                    device: secondDevice,
+                    connection: "usb",
+                    batteryPercent: 81,
+                    dpiValues: [800, 1600, 2400],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+
+        await backend.setButtonBindingBlock(
+            try XCTUnwrap(ButtonBindingSupport.defaultUSBFunctionBlock(for: 4, profileID: .basiliskV3Pro)),
+            forDeviceID: firstDevice.id,
+            slot: 4,
+            profile: 1
+        )
+        await backend.setButtonBindingBlock(
+            try XCTUnwrap(ButtonBindingSupport.defaultUSBFunctionBlock(for: 4, profileID: .basiliskV3Pro)),
+            forDeviceID: firstDevice.id,
+            slot: 4,
+            profile: 0
+        )
+        await backend.setButtonBindingBlock(
+            [0x02, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00],
+            forDeviceID: secondDevice.id,
+            slot: 4,
+            profile: 1
+        )
+        await backend.setButtonBindingBlock(
+            [0x02, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00],
+            forDeviceID: secondDevice.id,
+            slot: 4,
+            profile: 0
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+        await MainActor.run {
+            appState.deviceStore.selectDevice(firstDevice.id)
+        }
+
+        await MainActor.run {
+            appState.editorStore.updateButtonBindingKind(slot: 4, kind: .rightClick)
+            appState.deviceStore.selectDevice(secondDevice.id)
+        }
+
+        try await waitForRefactorCondition(timeout: 2.0) {
+            await MainActor.run {
+                appState.editorStore.buttonBindingKind(for: 4) == .keyboardSimple &&
+                    appState.editorStore.buttonBindingHidKey(for: 4) == 4
+            }
+        }
+
+        let bindingKind = await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) }
+        let hidKey = await MainActor.run { appState.editorStore.buttonBindingHidKey(for: 4) }
+
+        XCTAssertEqual(bindingKind, .keyboardSimple)
+        XCTAssertEqual(hidKey, 4)
+    }
+
     func testEditingMouseTurboBindingAutoAppliesToBaseProfile() async throws {
         let device = makeRefactorTestDevice(
             id: "usb-profile-mouse-turbo-device",

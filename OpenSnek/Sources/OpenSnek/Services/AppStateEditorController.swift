@@ -23,6 +23,7 @@ final class AppStateEditorController {
     private var buttonProfileLiveSourceByDeviceID: [String: ButtonProfileSource] = [:]
     private var buttonProfileLiveBindingsByDeviceID: [String: [Int: ButtonBindingDraft]] = [:]
     private var softwareActiveUSBButtonProfileOverrideByDeviceID: [String: Int] = [:]
+    private var buttonWorkspaceEditRevision: UInt64 = 0
     private var isTearingDown = false
 
     init(
@@ -140,7 +141,16 @@ final class AppStateEditorController {
     private func shouldPreserveLocalButtonWorkspace(device: MouseDevice) -> Bool {
         let hasInitializedWorkspace = hydratedButtonBindingsKey != nil || !editorStore.editableButtonBindings.isEmpty
         guard hasInitializedWorkspace else { return false }
+        guard buttonWorkspaceBelongsToDevice(device) else { return false }
         return buttonWorkspaceHasUnsavedSourceChanges(device: device)
+    }
+
+    private func buttonWorkspaceBelongsToDevice(_ device: MouseDevice) -> Bool {
+        if let hydratedButtonBindingsKey,
+           let hydratedDeviceID = hydratedButtonBindingsKey.split(separator: "#").first {
+            return String(hydratedDeviceID) == device.id
+        }
+        return buttonProfileWorkspaceSourceByDeviceID[device.id] != nil
     }
 
     private func workspaceSourceDisplayName(_ source: ButtonProfileSource, device: MouseDevice) -> String {
@@ -450,6 +460,8 @@ final class AppStateEditorController {
             bumpUSBButtonProfilesRevision()
         }
         guard !isTearingDown else { return }
+        let shouldPreserveWorkspace = shouldPreserveLocalButtonWorkspace(device: device)
+        let workspaceEditRevisionAtStart = buttonWorkspaceEditRevision
 
         guard let fromDevice = await loadUSBButtonBindingsFromDevice(device: device, profile: profile) else {
             let cached = buttonBindingsCacheByHydrationKey[hydrationKey] ?? [:]
@@ -467,7 +479,8 @@ final class AppStateEditorController {
         savePersistedButtonBindings(device: device, bindings: hydrated, profile: profile)
 
         if hydratedButtonBindingsKey == hydrationKey,
-           (!editorStore.supportsMultipleOnboardProfiles || !usbButtonProfileHasUnsavedChanges(device: device, profile: profile)) {
+           (!editorStore.supportsMultipleOnboardProfiles ||
+            (!shouldPreserveWorkspace && buttonWorkspaceEditRevision == workspaceEditRevisionAtStart)) {
             editorStore.editableButtonBindings = hydrated
         }
         if liveButtonProfileSource(for: device) == .mouseSlot(profile) {
@@ -787,8 +800,8 @@ final class AppStateEditorController {
 
     func selectedUSBButtonProfileHasUnsavedChanges() -> Bool {
         guard let device = deviceStore.selectedDevice else { return false }
-        guard case .mouseSlot(let profile) = buttonProfileSource(for: device), editorStore.supportsMultipleOnboardProfiles else { return false }
-        return usbButtonProfileHasUnsavedChanges(device: device, profile: profile)
+        guard editorStore.supportsMultipleOnboardProfiles else { return false }
+        return usbButtonProfileHasUnsavedChanges(device: device, profile: editorStore.editableUSBButtonProfile)
     }
 
     func usbButtonProfileHasUnsavedChanges(device: MouseDevice, profile: Int) -> Bool {
@@ -1230,6 +1243,7 @@ final class AppStateEditorController {
     }
 
     private func handleButtonWorkspaceDidChange(slot: Int) {
+        buttonWorkspaceEditRevision &+= 1
         bumpUSBButtonProfilesRevision()
         guard shouldAutoApplyCurrentButtonWorkspaceAfterEdit() else { return }
         applyController.scheduleAutoApplyButton(slot: slot)
