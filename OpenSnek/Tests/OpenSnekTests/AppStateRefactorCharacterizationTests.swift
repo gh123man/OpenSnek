@@ -1435,10 +1435,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
 
         let patches = await backend.recordedPatches()
         let patch = try XCTUnwrap(patches.last(where: { $0.buttonBinding?.slot == 96 }))
+        let selectedKind = await MainActor.run { appState.editorStore.buttonBindingKind(for: 96) }
         XCTAssertEqual(patch.buttonBinding?.kind, .dpiCycle)
         XCTAssertEqual(patch.buttonBinding?.persistentProfile, 1)
         XCTAssertEqual(patch.buttonBinding?.writePersistentLayer, true)
         XCTAssertEqual(patch.buttonBinding?.writeDirectLayer, true)
+        XCTAssertEqual(selectedKind, .default)
     }
 
     func testSwitchingUSBDevicesDoesNotPreserveUnsavedButtonWorkspaceAcrossDevices() async throws {

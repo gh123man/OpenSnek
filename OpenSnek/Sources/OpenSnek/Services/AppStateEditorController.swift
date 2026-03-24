@@ -593,17 +593,21 @@ final class AppStateEditorController {
 
     func cachePersistedButtonBinding(_ binding: ButtonBindingPatch, device: MouseDevice, profile: Int) {
         let hydrationKey = buttonBindingsHydrationKey(device: device, profile: profile)
-        let updatedDraft = ButtonBindingDraft(
-            kind: binding.kind,
-            hidKey: binding.kind == .keyboardSimple ? max(4, min(231, binding.hidKey ?? 4)) : 4,
-            turboEnabled: binding.kind.supportsTurbo ? binding.turboEnabled : false,
-            turboRate: max(1, min(255, binding.turboRate ?? 0x8E)),
-            clutchDPI: binding.kind == .dpiClutch
-                ? DeviceProfiles.clampDPI(
-                    binding.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI,
-                    device: device
-                )
-                : nil
+        let updatedDraft = ButtonBindingSupport.normalizedDefaultRepresentation(
+            for: binding.slot,
+            draft: ButtonBindingDraft(
+                kind: binding.kind,
+                hidKey: binding.kind == .keyboardSimple ? max(4, min(231, binding.hidKey ?? 4)) : 4,
+                turboEnabled: binding.kind.supportsTurbo ? binding.turboEnabled : false,
+                turboRate: max(1, min(255, binding.turboRate ?? 0x8E)),
+                clutchDPI: binding.kind == .dpiClutch
+                    ? DeviceProfiles.clampDPI(
+                        binding.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI,
+                        device: device
+                    )
+                    : nil
+            ),
+            profileID: device.profile_id
         )
         var merged = buttonBindingsCacheByHydrationKey[hydrationKey]
             ?? loadPersistedButtonBindings(device: device, profile: profile)

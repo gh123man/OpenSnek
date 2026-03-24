@@ -70,6 +70,20 @@ public enum ButtonBindingSupport {
         }
     }
 
+    public static func normalizedDefaultRepresentation(
+        for slot: Int,
+        draft: ButtonBindingDraft,
+        profileID: DeviceProfileID? = nil
+    ) -> ButtonBindingDraft {
+        guard let semanticDefault = semanticDefaultButtonBinding(for: slot, profileID: profileID) else {
+            return draft
+        }
+        guard draft == semanticDefault || draft.kind == .default else {
+            return draft
+        }
+        return defaultButtonBinding(for: slot, profileID: profileID)
+    }
+
     public static func buttonBindingDraftFromUSBFunctionBlock(
         slot: Int,
         functionBlock: [UInt8],
@@ -79,7 +93,20 @@ public enum ButtonBindingSupport {
         let fallbackRate = 0x8E
 
         if let defaultBlock = defaultUSBFunctionBlock(for: slot, profileID: profileID), functionBlock == defaultBlock {
-            return ButtonBindingDraft(kind: .default, hidKey: 4, turboEnabled: false, turboRate: fallbackRate)
+            return defaultButtonBinding(for: slot, profileID: profileID)
+        }
+
+        if let semanticDefault = semanticDefaultButtonBinding(for: slot, profileID: profileID),
+           functionBlock == buildUSBFunctionBlock(
+               slot: slot,
+               kind: semanticDefault.kind,
+               hidKey: semanticDefault.hidKey,
+               turboEnabled: semanticDefault.turboEnabled,
+               turboRate: semanticDefault.turboRate,
+               clutchDPI: semanticDefault.clutchDPI,
+               profileID: profileID
+           ) {
+            return defaultButtonBinding(for: slot, profileID: profileID)
         }
 
         let fnClass = functionBlock[0]

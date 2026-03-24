@@ -149,12 +149,16 @@ public final class DevicePreferenceStore: @unchecked Sendable {
 
     public func persistButtonBinding(_ binding: ButtonBindingPatch, device: MouseDevice, profile: Int? = nil) {
         var persisted = loadPersistedButtonBindings(device: device, profile: profile)
-        persisted[binding.slot] = ButtonBindingDraft(
-            kind: binding.kind,
-            hidKey: binding.kind == .keyboardSimple ? max(4, min(231, binding.hidKey ?? 4)) : 4,
-            turboEnabled: binding.kind.supportsTurbo ? binding.turboEnabled : false,
-            turboRate: max(1, min(255, binding.turboRate ?? 0x8E)),
-            clutchDPI: binding.kind == .dpiClutch ? DeviceProfiles.clampDPI(binding.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI, device: device) : nil
+        persisted[binding.slot] = ButtonBindingSupport.normalizedDefaultRepresentation(
+            for: binding.slot,
+            draft: ButtonBindingDraft(
+                kind: binding.kind,
+                hidKey: binding.kind == .keyboardSimple ? max(4, min(231, binding.hidKey ?? 4)) : 4,
+                turboEnabled: binding.kind.supportsTurbo ? binding.turboEnabled : false,
+                turboRate: max(1, min(255, binding.turboRate ?? 0x8E)),
+                clutchDPI: binding.kind == .dpiClutch ? DeviceProfiles.clampDPI(binding.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI, device: device) : nil
+            ),
+            profileID: device.profile_id
         )
         savePersistedButtonBindings(device: device, bindings: persisted, profile: profile)
     }
@@ -195,12 +199,16 @@ public final class DevicePreferenceStore: @unchecked Sendable {
             else {
                 return
             }
-            partialResult[slot] = ButtonBindingDraft(
-                kind: kind,
-                hidKey: max(4, min(231, pair.value.hidKey)),
-                turboEnabled: kind.supportsTurbo ? pair.value.turboEnabled : false,
-                turboRate: max(1, min(255, pair.value.turboRate)),
-                clutchDPI: kind == .dpiClutch ? DeviceProfiles.clampDPI(pair.value.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI, device: device) : nil
+            partialResult[slot] = ButtonBindingSupport.normalizedDefaultRepresentation(
+                for: slot,
+                draft: ButtonBindingDraft(
+                    kind: kind,
+                    hidKey: max(4, min(231, pair.value.hidKey)),
+                    turboEnabled: kind.supportsTurbo ? pair.value.turboEnabled : false,
+                    turboRate: max(1, min(255, pair.value.turboRate)),
+                    clutchDPI: kind == .dpiClutch ? DeviceProfiles.clampDPI(pair.value.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI, device: device) : nil
+                ),
+                profileID: device.profile_id
             )
         }
     }

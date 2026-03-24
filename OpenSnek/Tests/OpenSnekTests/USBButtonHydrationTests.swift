@@ -264,6 +264,15 @@ final class USBButtonHydrationTests: XCTestCase {
         XCTAssertEqual(draft?.kind, .dpiCycle)
     }
 
+    func test35KGenericDPICycleBlockOnTopButtonStillMapsToDefaultKind() {
+        let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
+            slot: 96,
+            functionBlock: [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00],
+            profileID: .basiliskV335K
+        )
+        XCTAssertEqual(draft?.kind, .default)
+    }
+
     func testSemanticDefaultBindingResolvesV3ProClutchToDPIClutch() {
         let draft = ButtonBindingSupport.semanticDefaultButtonBinding(
             for: 15,
