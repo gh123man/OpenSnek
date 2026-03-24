@@ -1063,7 +1063,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         let matchDescription = await MainActor.run {
             appState.editorStore.buttonProfileSourceMatchDescription(.mouseSlot(2))
         }
-        XCTAssertEqual(matchDescription, "matches Travel")
+        XCTAssertEqual(matchDescription, "Travel")
     }
 
     func testLoadableMouseButtonSourcesHideDefaultStoredSlots() async throws {

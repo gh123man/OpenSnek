@@ -149,7 +149,7 @@ final class AppStateEditorController {
             return preferenceStore.loadOpenSnekButtonProfiles().first(where: { $0.id == id })?.name ?? "Deleted Profile"
         case .mouseSlot(let slot):
             if editorStore.supportsMultipleOnboardProfiles {
-                return slot == 1 ? "Base Profile" : "Stored Slot \(slot)"
+                return slot == 1 ? "Current Buttons" : "Stored Slot \(slot)"
             }
             return "This Mouse"
         }
@@ -169,9 +169,9 @@ final class AppStateEditorController {
         let matches = matchingSavedButtonProfiles(for: bindings, device: device)
         guard let first = matches.first else { return nil }
         if matches.count == 1 {
-            return "matches \(first.name)"
+            return first.name
         }
-        return "matches \(first.name) +\(matches.count - 1)"
+        return "\(first.name) +\(matches.count - 1)"
     }
 
     struct PersistedLightingRestorePlan {
@@ -1138,6 +1138,13 @@ final class AppStateEditorController {
             return nil
         }
         let updated = preferenceStore.updateOpenSnekButtonProfile(id: id, bindings: editorStore.editableButtonBindings)
+        bumpUSBButtonProfilesRevision()
+        return updated
+    }
+
+    @discardableResult
+    func updateOpenSnekButtonProfile(id: UUID, bindings: [Int: ButtonBindingDraft]) -> OpenSnekButtonProfile? {
+        let updated = preferenceStore.updateOpenSnekButtonProfile(id: id, bindings: bindings)
         bumpUSBButtonProfilesRevision()
         return updated
     }

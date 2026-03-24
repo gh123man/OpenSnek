@@ -1420,7 +1420,6 @@ struct ButtonMappingTableCard: View {
 private struct ButtonProfileWorkspaceStrip: View {
     let editorStore: EditorStore
 
-    @State private var loadingSourceID: String?
     @State private var saveProfileName = ""
     @State private var showsLoadPopover = false
     @State private var showsManageProfiles = false
@@ -1436,38 +1435,14 @@ private struct ButtonProfileWorkspaceStrip: View {
         return slot
     }
 
-    private var loadedFromLabel: String {
-        guard currentSource != nil else { return "Not loaded yet" }
-        return editorStore.currentButtonProfileDisplayName
-    }
-
-    private var currentStatusLine: String {
-        if let loadingSourceID {
-            return "Editing: Live Buttons | Loading \(loadingSourceLabel(for: loadingSourceID))..."
-        }
-        return "Editing: Live Buttons | Loaded from: \(loadedFromLabel)"
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Load Into Live Editor")
+                Text("Profiles")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.62))
 
                 headerControls
-            }
-
-            Text(currentStatusLine)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.58))
-                .fixedSize(horizontal: false, vertical: true)
-
-            if editorStore.supportsMultipleOnboardProfiles {
-                Text("Base Profile (Slot 1) is the mouse's always-active profile. Stored Slots 2-5 are presets you can read from the mouse or overwrite explicitly.")
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.58))
-                .fixedSize(horizontal: false, vertical: true)
             }
 
             if editorStore.currentButtonProfileHasUnsupportedBindings {
@@ -1490,8 +1465,12 @@ private struct ButtonProfileWorkspaceStrip: View {
         .sheet(isPresented: $showsSaveProfileSheet) {
             SaveButtonProfileSheet(
                 initialName: saveProfileName,
-                onSave: { name in
+                existingProfiles: editorStore.savedButtonProfiles,
+                onSaveNew: { name in
                     _ = editorStore.saveCurrentButtonWorkspaceAsNewProfile(name: name)
+                },
+                onOverwrite: { id in
+                    _ = editorStore.updateOpenSnekButtonProfile(id: id)
                 }
             )
         }
@@ -1530,28 +1509,19 @@ private struct ButtonProfileWorkspaceStrip: View {
         Button {
             showsLoadPopover.toggle()
         } label: {
-            Text(loadingSourceID == nil ? "Load" : "Loading...")
+            Text("Load")
         }
         .buttonStyle(.bordered)
         .popover(isPresented: $showsLoadPopover, arrowEdge: .bottom) {
             LoadButtonProfilePopover(
                 editorStore: editorStore,
-                currentSource: currentSource,
                 pickerLabel: { source in
                     sourceDisplayLabel(for: source)
                 },
                 onSelect: { source in
                     Task {
-                        await MainActor.run {
-                            showsLoadPopover = false
-                            loadingSourceID = source.id
-                        }
+                        await MainActor.run { showsLoadPopover = false }
                         await editorStore.loadButtonProfileSourceIntoLive(source)
-                        await MainActor.run {
-                            if loadingSourceID == source.id {
-                                loadingSourceID = nil
-                            }
-                        }
                     }
                 }
             )
@@ -1577,13 +1547,9 @@ private struct ButtonProfileWorkspaceStrip: View {
                 pickerLabel: { source in
                     pickerLabel(for: source)
                 },
-                onSaveAsNew: {
+                onSave: {
                     showsStorePopover = false
                     prepareSaveProfileSheet()
-                },
-                onUpdateCurrentSaved: {
-                    showsStorePopover = false
-                    _ = editorStore.updateCurrentOpenSnekButtonProfile()
                 },
                 onWriteStoredSlot: { slot in
                     showsStorePopover = false
@@ -1639,7 +1605,7 @@ private struct ButtonProfileWorkspaceStrip: View {
         case .openSnekProfile:
             baseLabel = editorStore.buttonProfileSourceDisplayName(source)
         case .mouseSlot(let slot):
-            baseLabel = slot == 1 ? "Base Profile (Slot 1)" : "Stored Slot \(slot)"
+            baseLabel = slot == 1 ? "Current Buttons (Slot 1)" : "Stored Slot \(slot)"
         }
 
         if source == currentSource, editorStore.buttonWorkspaceHasUnsavedSourceChanges {
@@ -1652,20 +1618,10 @@ private struct ButtonProfileWorkspaceStrip: View {
         return "\(baseLabel) (\(matchDescription))"
     }
 
-    private func loadingSourceLabel(for id: String) -> String {
-        if let saved = editorStore.savedButtonProfiles.first(where: { ButtonProfileSource.openSnekProfile($0.id).id == id }) {
-            return saved.name
-        }
-        if let slot = editorStore.onThisMouseButtonSources.first(where: { $0.id == id }) {
-            return pickerLabel(for: slot)
-        }
-        return "profile"
-    }
 }
 
 private struct LoadButtonProfilePopover: View {
     let editorStore: EditorStore
-    let currentSource: ButtonProfileSource?
     let pickerLabel: (ButtonProfileSource) -> String
     let onSelect: (ButtonProfileSource) -> Void
 
@@ -1736,8 +1692,7 @@ private struct StoreButtonProfilePopover: View {
     let editorStore: EditorStore
     let currentMouseSlot: Int?
     let pickerLabel: (ButtonProfileSource) -> String
-    let onSaveAsNew: () -> Void
-    let onUpdateCurrentSaved: () -> Void
+    let onSave: () -> Void
     let onWriteStoredSlot: (Int) -> Void
     let onReplaceCurrentSlot: () -> Void
     let onResetLiveButtons: () -> Void
@@ -1750,11 +1705,7 @@ private struct StoreButtonProfilePopover: View {
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.62))
 
-                storeActionButton("Save as New OpenSnek Profile...", action: onSaveAsNew)
-
-                if editorStore.canUpdateCurrentSavedButtonProfile {
-                    storeActionButton("Update Current Saved Profile", action: onUpdateCurrentSaved)
-                }
+                storeActionButton("Save", action: onSave)
             }
 
             if editorStore.supportsMultipleOnboardProfiles {
@@ -1777,7 +1728,7 @@ private struct StoreButtonProfilePopover: View {
                         storeActionButton("Replace Current Stored Slot", action: onReplaceCurrentSlot)
                     }
 
-                    storeActionButton("Reset Live Buttons to Base Profile", action: onResetLiveButtons)
+                    storeActionButton("Reset Live Buttons", action: onResetLiveButtons)
                 }
             }
 
@@ -1811,13 +1762,26 @@ private struct StoreButtonProfilePopover: View {
 
 private struct SaveButtonProfileSheet: View {
     let initialName: String
-    let onSave: (String) -> Void
+    let existingProfiles: [OpenSnekButtonProfile]
+    let onSaveNew: (String) -> Void
+    let onOverwrite: (UUID) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @State private var mode: SaveButtonProfileMode = .newProfile
     @State private var name = ""
+    @State private var selectedProfileID: UUID?
 
     private var trimmedName: String {
         name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSave: Bool {
+        switch mode {
+        case .newProfile:
+            return !trimmedName.isEmpty
+        case .overwriteExisting:
+            return selectedProfileID != nil
+        }
     }
 
     var body: some View {
@@ -1830,8 +1794,30 @@ private struct SaveButtonProfileSheet: View {
                 .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.68))
 
-            TextField("Profile Name", text: $name)
-                .textFieldStyle(.roundedBorder)
+            Picker("Save Mode", selection: $mode) {
+                Text("New").tag(SaveButtonProfileMode.newProfile)
+                Text("Overwrite").tag(SaveButtonProfileMode.overwriteExisting)
+            }
+            .pickerStyle(.segmented)
+
+            if mode == .newProfile {
+                TextField("Profile Name", text: $name)
+                    .textFieldStyle(.roundedBorder)
+            } else {
+                Picker(
+                    "Existing Profile",
+                    selection: Binding(
+                        get: { selectedProfileID ?? existingProfiles.first?.id },
+                        set: { selectedProfileID = $0 }
+                    )
+                ) {
+                    ForEach(existingProfiles) { profile in
+                        Text(profile.name).tag(Optional(profile.id))
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+            }
 
             HStack {
                 Spacer()
@@ -1841,22 +1827,40 @@ private struct SaveButtonProfileSheet: View {
                 }
 
                 Button("Save") {
-                    onSave(trimmedName)
+                    switch mode {
+                    case .newProfile:
+                        onSaveNew(trimmedName)
+                    case .overwriteExisting:
+                        if let selectedProfileID {
+                            onOverwrite(selectedProfileID)
+                        }
+                    }
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(trimmedName.isEmpty)
+                .disabled(!canSave)
             }
         }
         .padding(20)
-        .frame(width: 360)
+        .frame(width: 380)
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             if name.isEmpty {
                 name = initialName
             }
+            if selectedProfileID == nil {
+                selectedProfileID = existingProfiles.first?.id
+            }
+            if existingProfiles.isEmpty {
+                mode = .newProfile
+            }
         }
     }
+}
+
+private enum SaveButtonProfileMode: Hashable {
+    case newProfile
+    case overwriteExisting
 }
 
 private struct ManageButtonProfilesSheet: View {

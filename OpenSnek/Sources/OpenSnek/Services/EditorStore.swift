@@ -368,6 +368,10 @@ final class EditorStore {
         editorController.updateCurrentOpenSnekButtonProfile()
     }
 
+    func updateOpenSnekButtonProfile(id: UUID) -> OpenSnekButtonProfile? {
+        editorController.updateOpenSnekButtonProfile(id: id, bindings: editableButtonBindings)
+    }
+
     @discardableResult
     func renameOpenSnekButtonProfile(id: UUID, name: String) -> OpenSnekButtonProfile? {
         editorController.renameOpenSnekButtonProfile(id: id, name: name)

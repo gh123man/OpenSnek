@@ -9,13 +9,14 @@ All notable changes to this project are documented in this file.
 - OpenSnek now has a saved button-profile library. Button layouts can be named, reused across devices, hydrated into the live working copy, and written back into mouse storage slots without treating onboard slots as the only source of truth.
 
 ### Fixed
-- The macOS button-remap UI now uses a single live-editor model. The `Buttons` card makes it explicit that you are always editing the live mouse layout, loading a saved OpenSnek profile or mouse slot immediately hydrates that live editor, slot `1` is presented as the always-active `Base Profile`, slots `2...5` stay explicit stored presets, and saving/writing actions live in a stable popover instead of the older slot-chip grid and transient activation controls.
+- The macOS button-remap UI now uses a simpler live-editor flow. The `Buttons` card now exposes `Profiles`, `Load`, `Store`, and `Manage`, loading a saved OpenSnek profile or mouse slot immediately hydrates the live mouse layout, and the older transient activation/selection controls are gone.
 - OpenSnek can now duplicate a stored USB button profile into the next empty/default slot, reset any stored slot back to factory-default button mappings, and project the selected stored slot into the live direct layer for software-side profile switching without relying on the still-unresolved hardware active-profile setter.
 - The shared USB/device docs now record that the tested Basilisk V3 35K `0x00:0x07` active-profile write candidates (`02`, `02 00`, `02 00 05`, `02 00 00`) all returned `0x05` (`not supported`) on the attached device, so the shipped profile actions stay on the validated `0x02:0x8C` / `0x02:0x0C` path.
 - The USB protocol docs now spell out the confirmed Basilisk V3 35K profile model from live write/readback: persistent slot `1` mirrors into the live direct layer when it is the hardware-default active store, while slots `2...5` behave like isolated storage. The docs also add a future-device bring-up checklist for distinguishing true hardware profile switching from software-side projection.
 - The macOS profile UI and protocol docs now explicitly scope the 35K feature to onboard button-profile slots. Additional probing showed DPI and lighting use separate `0x00`/`0x01` live-vs-persisted storage layers rather than the slot-addressed profile store used by button mappings.
-- Stored mouse button slots in the macOS `Buttons` card now show exact matches against saved OpenSnek button profiles, so loading `Stored Slot 3` can also surface `matches Travel` when the slot contents are an identical local saved profile.
+- Stored mouse button slots in the macOS `Buttons` card now show exact matches against saved OpenSnek button profiles using the saved profile name directly, so `Stored Slot 3` can surface `Travel` when the slot contents are an identical local saved profile.
 - The macOS `Buttons` card now uses explicit `Load`, `Store`, and `Manage` actions instead of a profile-selection dropdown, and the `Load` popover hides default/unconfigured stored slots until they have real non-default button mappings.
+- Saving a local button profile from the macOS `Buttons` card now goes through a single `Save` dialog that can either create a new saved profile or overwrite an existing one.
 
 ## [2026-03-22]
 
