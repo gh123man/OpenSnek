@@ -646,6 +646,66 @@ final class AppStateMultiDeviceTests: XCTestCase {
         XCTAssertEqual(activeStage, 2)
     }
 
+    func testUSBReconnectWithNewDeviceIDSeedsPreviousState() async throws {
+        let originalDevice = makeTestDevice(
+            id: "usb-reconnect-original",
+            productName: "Alpha Mouse",
+            transport: .usb,
+            serial: "USB-RECONNECT-SERIAL",
+            locationID: 1,
+            profile: .basiliskV335K
+        )
+        let replacementDevice = makeTestDevice(
+            id: "usb-reconnect-replacement",
+            productName: "Alpha Mouse",
+            transport: .usb,
+            serial: "USB-RECONNECT-SERIAL",
+            locationID: 2,
+            profile: .basiliskV335K
+        )
+        let originalState = makeTestState(
+            device: originalDevice,
+            connection: "usb",
+            batteryPercent: 81,
+            dpiValues: [800, 1600, 3200],
+            activeStage: 0,
+            dpiValue: 800
+        )
+        let replacementState = makeTestState(
+            device: replacementDevice,
+            connection: "usb",
+            batteryPercent: 81,
+            dpiValues: [800, 1600, 3200],
+            activeStage: 2,
+            dpiValue: 3200
+        )
+        let backend = DeviceListUpdatingStubBackend(
+            devices: [originalDevice],
+            stateByDeviceID: [
+                originalDevice.id: originalState,
+                replacementDevice.id: replacementState,
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+        await backend.setTransientReadFailures([
+            "USB device telemetry unavailable. Feature-report interface did not return usable responses.",
+        ], for: replacementDevice.id)
+        await backend.emitDeviceListUpdate([replacementDevice])
+
+        try await waitForAppStateCondition {
+            await MainActor.run { appState.deviceStore.selectedDeviceID == replacementDevice.id }
+        }
+
+        let seededDeviceID = await MainActor.run { appState.deviceStore.state?.device.id }
+        let seededDpi = await MainActor.run { appState.deviceStore.state?.dpi?.x }
+        XCTAssertEqual(seededDeviceID, replacementDevice.id)
+        XCTAssertEqual(seededDpi, 800)
+    }
+
     func testBackendDeviceListUpdateRearmsLightingRestoreForStableReconnect() async throws {
         let usbDevice = makeTestDevice(
             id: "usb-lighting-reconnect",
@@ -1449,6 +1509,7 @@ private actor DeviceListUpdatingStubBackend: DeviceBackend {
     private var dpiUpdateTransportStatusOverride: DpiUpdateTransportStatus?
     private var hidAccessAuthorization: HIDAccessAuthorization
     private var readCountByDeviceID: [String: Int] = [:]
+    private var transientReadFailuresByDeviceID: [String: [String]] = [:]
     private var applyPatches: [DevicePatch] = []
     private var applyDeviceIDs: [String] = []
     private let stateUpdateStreamPair = AsyncStream.makeStream(of: BackendStateUpdate.self)
@@ -1473,6 +1534,13 @@ private actor DeviceListUpdatingStubBackend: DeviceBackend {
 
     func readState(device: MouseDevice) async throws -> MouseState {
         readCountByDeviceID[device.id, default: 0] += 1
+        if var failures = transientReadFailuresByDeviceID[device.id], !failures.isEmpty {
+            let message = failures.removeFirst()
+            transientReadFailuresByDeviceID[device.id] = failures
+            throw NSError(domain: "AppStateMultiDeviceTests", code: 8, userInfo: [
+                NSLocalizedDescriptionKey: message
+            ])
+        }
         guard let state = stateByDeviceID[device.id] else {
             throw NSError(domain: "AppStateMultiDeviceTests", code: 9, userInfo: [
                 NSLocalizedDescriptionKey: "Missing stub state for \(device.id)"
@@ -1534,6 +1602,10 @@ private actor DeviceListUpdatingStubBackend: DeviceBackend {
 
     func setState(_ state: MouseState, for deviceID: String) {
         stateByDeviceID[deviceID] = state
+    }
+
+    func setTransientReadFailures(_ messages: [String], for deviceID: String) {
+        transientReadFailuresByDeviceID[deviceID] = messages
     }
 
     func emitDeviceListUpdate(_ devices: [MouseDevice], updatedAt: Date = Date()) {
