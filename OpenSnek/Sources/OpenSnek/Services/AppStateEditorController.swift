@@ -1002,14 +1002,23 @@ final class AppStateEditorController {
 
             let hydrationKey = buttonBindingsHydrationKey(device: selectedDevice, profile: clamped)
             let cached = cachedButtonBindings(device: selectedDevice, profile: clamped)
+            let hasKnownSnapshot = hasKnownButtonBindingsSnapshot(device: selectedDevice, profile: clamped)
             editorStore.editableButtonBindings = cached
             hydratedButtonBindingsKey = hydrationKey
+            bumpUSBButtonProfilesRevision()
 
-            if selectedDevice.transport == .usb,
-               let fromDevice = await loadUSBButtonBindingsFromDevice(device: selectedDevice, profile: clamped) {
-                saveCachedButtonBindings(device: selectedDevice, bindings: fromDevice, profile: clamped)
-                editorStore.editableButtonBindings = fromDevice
-                hydratedButtonBindingsKey = hydrationKey
+            if selectedDevice.transport == .usb, editorStore.supportsMultipleOnboardProfiles {
+                await applyController.projectSelectedUSBButtonProfileToDirectLayer()
+                if !hasKnownSnapshot {
+                    Task { @MainActor [weak self] in
+                        await self?.refreshSelectedMouseSlotFromDeviceIfNeeded(
+                            device: selectedDevice,
+                            profile: clamped,
+                            hydrationKey: hydrationKey
+                        )
+                    }
+                }
+                return
             }
         case .openSnekProfile(let id):
             guard let profile = preferenceStore.loadOpenSnekButtonProfiles().first(where: { $0.id == id }) else { return }
@@ -1020,6 +1029,36 @@ final class AppStateEditorController {
 
         bumpUSBButtonProfilesRevision()
         await applyController.applyCurrentButtonWorkspaceToLive()
+    }
+
+    private func hasKnownButtonBindingsSnapshot(device: MouseDevice, profile: Int) -> Bool {
+        let hydrationKey = buttonBindingsHydrationKey(device: device, profile: profile)
+        if buttonBindingsCacheByHydrationKey[hydrationKey] != nil {
+            return true
+        }
+        if !loadPersistedButtonBindings(device: device, profile: profile).isEmpty {
+            return true
+        }
+        return buttonBindingsReadbackAttemptedKeys.contains(hydrationKey)
+    }
+
+    private func refreshSelectedMouseSlotFromDeviceIfNeeded(
+        device: MouseDevice,
+        profile: Int,
+        hydrationKey: String
+    ) async {
+        guard buttonProfileSource(for: device) == .mouseSlot(profile) else { return }
+        guard let fromDevice = await loadUSBButtonBindingsFromDevice(device: device, profile: profile) else { return }
+
+        saveCachedButtonBindings(device: device, bindings: fromDevice, profile: profile)
+        guard buttonProfileSource(for: device) == .mouseSlot(profile),
+              !shouldPreserveLocalButtonWorkspace(device: device) else {
+            return
+        }
+
+        editorStore.editableButtonBindings = fromDevice
+        hydratedButtonBindingsKey = hydrationKey
+        bumpUSBButtonProfilesRevision()
     }
 
     func selectNextOnboardButtonProfile() {

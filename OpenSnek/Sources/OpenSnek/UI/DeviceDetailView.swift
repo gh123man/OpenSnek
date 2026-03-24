@@ -1420,6 +1420,7 @@ struct ButtonMappingTableCard: View {
 private struct ButtonProfileWorkspaceStrip: View {
     let editorStore: EditorStore
 
+    @State private var loadingSourceID: String?
     @State private var saveProfileName = ""
     @State private var showsManageProfiles = false
     @State private var showsSaveProfileSheet = false
@@ -1440,7 +1441,10 @@ private struct ButtonProfileWorkspaceStrip: View {
     }
 
     private var currentStatusLine: String {
-        "Editing: Live Buttons | Loaded from: \(loadedFromLabel)"
+        if let loadingSourceID {
+            return "Editing: Live Buttons | Loading \(loadingSourceLabel(for: loadingSourceID))..."
+        }
+        return "Editing: Live Buttons | Loaded from: \(loadedFromLabel)"
     }
 
     var body: some View {
@@ -1450,104 +1454,7 @@ private struct ButtonProfileWorkspaceStrip: View {
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.62))
 
-                HStack(alignment: .center, spacing: 10) {
-                    Menu {
-                        if !editorStore.savedButtonProfiles.isEmpty {
-                            Section("Saved in OpenSnek") {
-                                ForEach(editorStore.savedButtonProfiles) { profile in
-                                    sourceSelectionButton(
-                                        label: profile.name,
-                                        source: .openSnekProfile(profile.id)
-                                    )
-                                }
-                            }
-                        }
-
-                        Section("On This Mouse") {
-                            ForEach(editorStore.onThisMouseButtonSources, id: \.id) { source in
-                                sourceSelectionButton(
-                                    label: pickerLabel(for: source),
-                                    source: source
-                                )
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 10) {
-                            Text("Load...")
-                                .lineLimit(1)
-                            Spacer(minLength: 0)
-                            Image(systemName: "chevron.up.chevron.down")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.55))
-                        }
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 9)
-                        .frame(minWidth: 220, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color.white.opacity(0.06))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                                )
-                        )
-                    }
-                    .menuStyle(.borderlessButton)
-
-                    Button {
-                        showsStorePopover.toggle()
-                    } label: {
-                        Text("Store...")
-                    }
-                    .popover(isPresented: $showsStorePopover, arrowEdge: .bottom) {
-                        StoreButtonProfilePopover(
-                            editorStore: editorStore,
-                            currentMouseSlot: currentMouseSlot,
-                            pickerLabel: { source in
-                                pickerLabel(for: source)
-                            },
-                            onSaveAsNew: {
-                                showsStorePopover = false
-                                prepareSaveProfileSheet()
-                            },
-                            onUpdateCurrentSaved: {
-                                showsStorePopover = false
-                                _ = editorStore.updateCurrentOpenSnekButtonProfile()
-                            },
-                            onWriteStoredSlot: { slot in
-                                showsStorePopover = false
-                                Task {
-                                    await editorStore.writeCurrentButtonWorkspaceToMouseSlot(slot)
-                                }
-                            },
-                            onReplaceCurrentSlot: {
-                                guard let currentMouseSlot else { return }
-                                showsStorePopover = false
-                                Task {
-                                    await editorStore.writeCurrentButtonWorkspaceToMouseSlot(currentMouseSlot)
-                                }
-                            },
-                            onResetLiveButtons: {
-                                showsStorePopover = false
-                                Task {
-                                    await editorStore.resetLiveButtonsToDeviceDefaultSlot()
-                                }
-                            },
-                            onRevertToSource: {
-                                showsStorePopover = false
-                                editorStore.revertButtonWorkspaceToSource()
-                            }
-                        )
-                    }
-
-                    if !editorStore.savedButtonProfiles.isEmpty {
-                        Button("Manage") {
-                            showsManageProfiles = true
-                        }
-                    }
-                }
+                headerControls
             }
 
             Text(currentStatusLine)
@@ -1607,10 +1514,131 @@ private struct ButtonProfileWorkspaceStrip: View {
     }
 
     @ViewBuilder
+    private var headerControls: some View {
+        HStack(alignment: .center, spacing: 10) {
+            loadMenu
+            storeButton
+
+            if !editorStore.savedButtonProfiles.isEmpty {
+                Button("Manage") {
+                    showsManageProfiles = true
+                }
+            }
+        }
+    }
+
+    private var loadMenu: some View {
+        Menu {
+            if !editorStore.savedButtonProfiles.isEmpty {
+                Section("Saved in OpenSnek") {
+                    ForEach(editorStore.savedButtonProfiles) { profile in
+                        sourceSelectionButton(
+                            label: profile.name,
+                            source: .openSnekProfile(profile.id)
+                        )
+                    }
+                }
+            }
+
+            Section("On This Mouse") {
+                ForEach(editorStore.onThisMouseButtonSources, id: \.id) { source in
+                    sourceSelectionButton(
+                        label: pickerLabel(for: source),
+                        source: source
+                    )
+                }
+            }
+        } label: {
+            loadMenuLabel
+        }
+        .menuStyle(.borderlessButton)
+    }
+
+    private var loadMenuLabel: some View {
+        HStack(spacing: 10) {
+            Text(loadingSourceID == nil ? "Load..." : "Loading...")
+                .lineLimit(1)
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.55))
+        }
+        .font(.system(size: 13, weight: .semibold, design: .rounded))
+        .foregroundStyle(.white)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .frame(minWidth: 220, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.white.opacity(0.06))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+        )
+    }
+
+    private var storeButton: some View {
+        Button {
+            showsStorePopover.toggle()
+        } label: {
+            Text("Store...")
+        }
+        .popover(isPresented: $showsStorePopover, arrowEdge: .bottom) {
+            StoreButtonProfilePopover(
+                editorStore: editorStore,
+                currentMouseSlot: currentMouseSlot,
+                pickerLabel: { source in
+                    pickerLabel(for: source)
+                },
+                onSaveAsNew: {
+                    showsStorePopover = false
+                    prepareSaveProfileSheet()
+                },
+                onUpdateCurrentSaved: {
+                    showsStorePopover = false
+                    _ = editorStore.updateCurrentOpenSnekButtonProfile()
+                },
+                onWriteStoredSlot: { slot in
+                    showsStorePopover = false
+                    Task {
+                        await editorStore.writeCurrentButtonWorkspaceToMouseSlot(slot)
+                    }
+                },
+                onReplaceCurrentSlot: {
+                    guard let currentMouseSlot else { return }
+                    showsStorePopover = false
+                    Task {
+                        await editorStore.writeCurrentButtonWorkspaceToMouseSlot(currentMouseSlot)
+                    }
+                },
+                onResetLiveButtons: {
+                    showsStorePopover = false
+                    Task {
+                        await editorStore.resetLiveButtonsToDeviceDefaultSlot()
+                    }
+                },
+                onRevertToSource: {
+                    showsStorePopover = false
+                    editorStore.revertButtonWorkspaceToSource()
+                }
+            )
+        }
+    }
+
+    @ViewBuilder
     private func sourceSelectionButton(label: String, source: ButtonProfileSource) -> some View {
         Button {
             Task {
+                await MainActor.run {
+                    loadingSourceID = source.id
+                }
                 await editorStore.loadButtonProfileSourceIntoLive(source)
+                await MainActor.run {
+                    if loadingSourceID == source.id {
+                        loadingSourceID = nil
+                    }
+                }
             }
         } label: {
             HStack {
@@ -1642,6 +1670,16 @@ private struct ButtonProfileWorkspaceStrip: View {
         case .mouseSlot(let slot):
             return slot == 1 ? "Base Profile (Slot 1)" : "Stored Slot \(slot)"
         }
+    }
+
+    private func loadingSourceLabel(for id: String) -> String {
+        if let saved = editorStore.savedButtonProfiles.first(where: { ButtonProfileSource.openSnekProfile($0.id).id == id }) {
+            return saved.name
+        }
+        if let slot = editorStore.onThisMouseButtonSources.first(where: { $0.id == id }) {
+            return pickerLabel(for: slot)
+        }
+        return "profile"
     }
 }
 
