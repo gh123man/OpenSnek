@@ -80,6 +80,18 @@ struct RemoteClientPresenceState {
     let selectedDeviceID: String?
 }
 
+struct USBButtonProfileSummary: Identifiable, Hashable {
+    let profile: Int
+    let isSelected: Bool
+    let isHardwareActive: Bool
+    let isLiveActive: Bool
+    let isCustomized: Bool?
+    let hasPendingChanges: Bool
+
+    var id: Int { profile }
+    var isLoaded: Bool { isCustomized != nil }
+}
+
 enum PollingProfile: Equatable {
     case foreground
     case serviceIdle
@@ -193,6 +205,14 @@ extension DevicePatch {
             }
             if buttonBinding.kind == .dpiClutch {
                 detail += ",dpi=\(buttonBinding.clutchDPI ?? ButtonBindingSupport.defaultV3ProDPIClutchDPI)"
+            }
+            detail += ")"
+            parts.append(detail)
+        }
+        if let usbButtonProfileAction {
+            var detail = "usbProfileAction(kind=\(usbButtonProfileAction.kind.rawValue),target=\(usbButtonProfileAction.targetProfile)"
+            if let sourceProfile = usbButtonProfileAction.sourceProfile {
+                detail += ",source=\(sourceProfile)"
             }
             detail += ")"
             parts.append(detail)

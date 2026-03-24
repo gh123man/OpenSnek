@@ -244,11 +244,33 @@ TxnID:    0x1F
 
 Observed on Basilisk V3 35K (`0x00CB`):
 - response payload `01 00 05` on USB, indicating active profile `1` and `5` onboard profiles
-- the corresponding low-bit write candidate (`0x00:0x07`) is not yet validated for active-profile switching
+- tested write candidates `0x00:0x07` with payloads `02`, `02 00`, `02 00 05`, and `02 00 00` all returned status `0x05` (`not supported`) on the attached device
+- the hardware active-profile write path therefore remains unresolved
+- confirmed profile-model behavior from live write/readback on slot `0x04`:
+  - writing persistent profile `0x05` is isolated storage: profile `0x05` reads back the new block while persistent profile `0x01` and direct/live profile `0x00` stay unchanged
+  - writing persistent profile `0x01` while the device reports active profile `1` also changes direct/live profile `0x00`
+  - writing direct/live profile `0x00` afterward does not write back into persistent profile `0x01`
+- practical interpretation:
+  - profile `1` is the hardware-default active backing store
+  - profiles `2...5` behave like dumb persistent storage slots
+  - profile `0` (`NOSTORE` / direct) is a writable live layer
+  - software can project a stored slot into the live layer, but that is not the same thing as changing a hardware-selected active profile number
+  - this slot-addressed model is currently validated only for button mappings; DPI and lighting use separate storage keys below and should not be assumed to participate in profiles `2...5`
 
 Observed on Basilisk V3 Pro (`0x00AB`):
 - response payload `01 00 03` on USB, indicating active profile `1` and `3` onboard profiles
 - the corresponding low-bit write candidate (`0x00:0x07`) is not yet validated for active-profile switching
+
+Client note:
+- OpenSnek's shipped multi-profile UI uses the validated per-slot button-function protocol (`0x02:0x8C` / `0x02:0x0C`) for profile inspection, duplication, reset-to-default, and software-side live projection into the direct layer (`profile 0x00`).
+- That gives reliable software-managed switching for button mappings without claiming that the device's hardware active-profile register can be written yet.
+
+Bring-up checklist for future devices:
+- read `0x00:0x87` before and after changing profiles in vendor software; if the reported active slot never changes, do not assume the device has a writable hardware active-profile register
+- test `0x02:0x0C` / `0x02:0x8C` on one non-active stored slot and confirm whether the write is isolated or leaks into direct/live state
+- test persistent profile `0x01` and direct/live profile `0x00` separately; some devices alias or mirror those paths when profile `1` is the hardware-default active store
+- test a direct/live write after a persistent profile `0x01` write to learn whether the mirroring is one-way or fully aliased
+- only claim true hardware profile switching after validating both the reported active-profile state and the effective live behavior across reconnects / vendor-software exit
 
 ---
 
@@ -263,6 +285,12 @@ Response: args[0] = storage
           args[3-4] = DPI Y (big-endian)
 TxnID:    0x1F (Basilisk V3 X), 0x3F or 0xFF (others)
 ```
+
+Observed on Basilisk V3 35K (`0x00CB`):
+- both `0x00` and `0x01` read back successfully
+- writing `0x01` updates the persisted DPI state and also mirrors into `0x00` live state
+- writing `0x00` updates only the live state and does not write back into `0x01`
+- no slot-indexed DPI storage path is currently known beyond this `0x00`/`0x01` live-vs-persisted split
 
 #### Set DPI
 ```
@@ -399,7 +427,7 @@ Validated on Basilisk V3 X HyperSpeed (`0x00B9`), Basilisk V3 Pro (`0x00AB`), an
 ```
 Get:      Class 0x0F, ID 0x84, Size 0x03
 Set:      Class 0x0F, ID 0x04, Size 0x03
-Args:     [0] = VARSTORE (0x01), [1] = LED ID (0x01 scroll wheel), [2] = brightness (0..255)
+Args:     [0] = storage (`0x00` direct/live observed on `0x00CB`, `0x01` persisted/VARSTORE), [1] = LED ID, [2] = brightness (0..255)
 ```
 
 Validated LED IDs on `0x00B9`:
@@ -418,6 +446,7 @@ Validated LED IDs on `0x00AB`:
 
 Client note:
 - For whole-device USB lighting on Basilisk V3 Pro and Basilisk V3 35K, apply brightness/effect writes to all validated LED IDs (`0x01`, `0x04`, and `0x0A`).
+- On the attached Basilisk V3 35K, brightness reads on `0x0F:0x84` succeed for both storage `0x00` and `0x01`. Treat lighting the same way as DPI until proven otherwise: a separate live/persisted layer, not a slot-addressed onboard-profile store.
 
 #### Set Scroll LED Effects
 ```

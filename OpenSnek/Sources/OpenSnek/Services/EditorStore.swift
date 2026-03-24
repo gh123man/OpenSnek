@@ -25,6 +25,7 @@ final class EditorStore {
     var editableSecondaryColor = RGBColor(r: 0, g: 170, b: 255)
     var editableButtonBindings: [Int: ButtonBindingDraft] = [:]
     var isEditingDpiControl = false
+    var usbButtonProfilesRevision = 0
 
     @ObservationIgnored private weak var editorControllerStorage: AppStateEditorController?
     @ObservationIgnored private weak var applyControllerStorage: AppStateApplyController?
@@ -91,8 +92,45 @@ final class EditorStore {
         max(1, min(visibleOnboardProfileCount, deviceStore.state?.active_onboard_profile ?? 1))
     }
 
+    var liveUSBButtonProfile: Int {
+        editorController.liveUSBButtonProfile()
+    }
+
     var supportsMultipleOnboardProfiles: Bool {
         deviceStore.selectedDevice?.transport == .usb && visibleOnboardProfileCount > 1
+    }
+
+    var visibleUSBButtonProfiles: [USBButtonProfileSummary] {
+        _ = usbButtonProfilesRevision
+        return editorController.usbButtonProfileSummaries()
+    }
+
+    var canDuplicateSelectedUSBButtonProfile: Bool {
+        visibleUSBButtonProfiles.contains { $0.profile != editableUSBButtonProfile }
+    }
+
+    var canResetSelectedUSBButtonProfile: Bool {
+        supportsMultipleOnboardProfiles && (
+            selectedUSBButtonProfileHasUnsavedChanges ||
+            visibleUSBButtonProfiles.contains { $0.profile == editableUSBButtonProfile && $0.isCustomized != false }
+        )
+    }
+
+    var selectedUSBButtonProfileHasUnsavedChanges: Bool {
+        _ = usbButtonProfilesRevision
+        return editorController.selectedUSBButtonProfileHasUnsavedChanges()
+    }
+
+    var canSaveSelectedUSBButtonProfile: Bool {
+        supportsMultipleOnboardProfiles && selectedUSBButtonProfileHasUnsavedChanges
+    }
+
+    var canActivateSelectedUSBButtonProfile: Bool {
+        supportsMultipleOnboardProfiles && editableUSBButtonProfile != liveUSBButtonProfile
+    }
+
+    var duplicateTargetProfiles: [USBButtonProfileSummary] {
+        visibleUSBButtonProfiles.filter { $0.profile != editableUSBButtonProfile }
     }
 
     var compactActiveStageIndex: Int {
@@ -179,6 +217,26 @@ final class EditorStore {
 
     func updateUSBButtonProfile(_ profile: Int) {
         editorController.updateUSBButtonProfile(profile)
+    }
+
+    func duplicateSelectedUSBButtonProfile() async {
+        await applyController.duplicateSelectedUSBButtonProfile()
+    }
+
+    func duplicateSelectedUSBButtonProfile(to targetProfile: Int) async {
+        await applyController.duplicateSelectedUSBButtonProfile(to: targetProfile)
+    }
+
+    func resetSelectedUSBButtonProfile() async {
+        await applyController.resetSelectedUSBButtonProfile()
+    }
+
+    func projectSelectedUSBButtonProfileToDirectLayer() async {
+        await applyController.projectSelectedUSBButtonProfileToDirectLayer()
+    }
+
+    func saveSelectedUSBButtonProfile(activateAfterSave: Bool = false) async {
+        await applyController.saveSelectedUSBButtonProfile(activateAfterSave: activateAfterSave)
     }
 
     func updateLightingWaveDirection(_ direction: LightingWaveDirection) {

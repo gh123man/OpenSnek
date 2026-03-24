@@ -103,7 +103,7 @@ struct DeviceDetailView: View {
         case .scrollControls:
             ScrollControlsCard(editorStore: editorStore, state: state)
         case .buttonRemap:
-            ButtonMappingTableCard(deviceStore: deviceStore, editorStore: editorStore, title: "Button Remap")
+            ButtonMappingTableCard(deviceStore: deviceStore, editorStore: editorStore, title: "Buttons")
         }
     }
 
@@ -1398,8 +1398,12 @@ struct ButtonMappingTableCard: View {
     }
 
     var body: some View {
-        Card(title: title) {
+        Card(title: editorStore.supportsMultipleOnboardProfiles ? "Button Profiles" : title) {
             VStack(alignment: .leading, spacing: 12) {
+                if editorStore.supportsMultipleOnboardProfiles {
+                    USBButtonProfilesPanel(editorStore: editorStore)
+                }
+
                 LazyVStack(alignment: .leading, spacing: 10) {
                     ForEach(rows) { row in
                         ButtonBindingRow(editorStore: editorStore, row: row)
@@ -1411,6 +1415,170 @@ struct ButtonMappingTableCard: View {
                 }
             }
         }
+    }
+}
+
+private struct USBButtonProfilesPanel: View {
+    let editorStore: EditorStore
+
+    private let profileColumns = [
+        GridItem(.adaptive(minimum: 110, maximum: 180), spacing: 10)
+    ]
+
+    private var summaries: [USBButtonProfileSummary] {
+        editorStore.visibleUSBButtonProfiles
+    }
+
+    private var actionTitle: String {
+        editorStore.canSaveSelectedUSBButtonProfile ? "Save + Activate" : "Activate"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 10) {
+                Text("Editing Profile \(editorStore.editableUSBButtonProfile)")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+
+                Spacer(minLength: 12)
+
+                if editorStore.selectedUSBButtonProfileHasUnsavedChanges {
+                    ProfileBadge(label: "Unsaved")
+                }
+            }
+
+            HStack(spacing: 8) {
+                ProfileBadge(label: "Live \(editorStore.liveUSBButtonProfile)")
+                ProfileBadge(label: "Device \(editorStore.activeOnboardProfile)")
+            }
+
+            LazyVGrid(columns: profileColumns, alignment: .leading, spacing: 10) {
+                ForEach(summaries) { summary in
+                    USBButtonProfileChip(editorStore: editorStore, summary: summary)
+                }
+            }
+
+            HStack(spacing: 10) {
+                if editorStore.canSaveSelectedUSBButtonProfile {
+                    Button("Save") {
+                        Task {
+                            await editorStore.saveSelectedUSBButtonProfile()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+
+                if editorStore.canActivateSelectedUSBButtonProfile {
+                    Button(actionTitle) {
+                        Task {
+                            await editorStore.saveSelectedUSBButtonProfile(activateAfterSave: true)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+
+                Menu {
+                    ForEach(editorStore.duplicateTargetProfiles) { summary in
+                        Button("Profile \(summary.profile)") {
+                            Task {
+                                await editorStore.duplicateSelectedUSBButtonProfile(to: summary.profile)
+                            }
+                        }
+                    }
+                } label: {
+                    Text("Copy To")
+                }
+                .disabled(!editorStore.canDuplicateSelectedUSBButtonProfile)
+
+                Button("Reset") {
+                    Task {
+                        await editorStore.resetSelectedUSBButtonProfile()
+                    }
+                }
+                .disabled(!editorStore.canResetSelectedUSBButtonProfile)
+            }
+
+            Text("Profiles 2-5 are stored button layouts. Activate copies the selected slot into the live button layer; DPI and lighting still use separate global storage.")
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.58))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white.opacity(0.035))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct USBButtonProfileChip: View {
+    let editorStore: EditorStore
+    let summary: USBButtonProfileSummary
+
+    var body: some View {
+        Button {
+            editorStore.updateUSBButtonProfile(summary.profile)
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .center, spacing: 8) {
+                    Text("Profile \(summary.profile)")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                    Spacer(minLength: 0)
+                    if summary.isSelected {
+                        ProfileBadge(label: "Edit")
+                    }
+                }
+
+                HStack(spacing: 6) {
+                    if summary.isLiveActive {
+                        ProfileBadge(label: "Live")
+                    }
+                    if summary.isHardwareActive {
+                        ProfileBadge(label: "Device")
+                    }
+                    if summary.hasPendingChanges {
+                        ProfileBadge(label: "Unsaved")
+                    }
+                    if summary.isLoaded == false {
+                        ProfileBadge(label: "Reading")
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(summary.isSelected ? Color.white.opacity(0.12) : Color.white.opacity(0.045))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(summary.isSelected ? Color.white.opacity(0.28) : Color.white.opacity(0.08), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct ProfileBadge: View {
+    let label: String
+
+    var body: some View {
+        Text(label)
+            .font(.system(size: 10, weight: .black, design: .rounded))
+            .foregroundStyle(.white.opacity(0.82))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                Capsule()
+                    .fill(Color.white.opacity(0.12))
+            )
     }
 }
 

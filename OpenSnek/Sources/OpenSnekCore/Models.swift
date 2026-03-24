@@ -431,6 +431,28 @@ public struct ButtonBindingPatch: Sendable, Hashable, Codable {
     }
 }
 
+public enum USBButtonProfileActionKind: String, Codable, Hashable, Sendable {
+    case projectToDirectLayer = "project_to_direct_layer"
+    case duplicateToPersistentSlot = "duplicate_to_persistent_slot"
+    case resetPersistentSlot = "reset_persistent_slot"
+}
+
+public struct USBButtonProfileActionPatch: Sendable, Hashable, Codable {
+    public let kind: USBButtonProfileActionKind
+    public let sourceProfile: Int?
+    public let targetProfile: Int
+
+    public init(
+        kind: USBButtonProfileActionKind,
+        sourceProfile: Int? = nil,
+        targetProfile: Int
+    ) {
+        self.kind = kind
+        self.sourceProfile = sourceProfile.map { max(1, min(5, $0)) }
+        self.targetProfile = max(1, min(5, targetProfile))
+    }
+}
+
 public struct DevicePatch: Sendable, Hashable, Codable {
     public var pollRate: Int? = nil
     public var sleepTimeout: Int? = nil
@@ -446,6 +468,7 @@ public struct DevicePatch: Sendable, Hashable, Codable {
     public var lightingEffect: LightingEffectPatch? = nil
     public var usbLightingZoneLEDIDs: [UInt8]? = nil
     public var buttonBinding: ButtonBindingPatch? = nil
+    public var usbButtonProfileAction: USBButtonProfileActionPatch? = nil
 
     public init(
         pollRate: Int? = nil,
@@ -461,7 +484,8 @@ public struct DevicePatch: Sendable, Hashable, Codable {
         ledRGB: RGBPatch? = nil,
         lightingEffect: LightingEffectPatch? = nil,
         usbLightingZoneLEDIDs: [UInt8]? = nil,
-        buttonBinding: ButtonBindingPatch? = nil
+        buttonBinding: ButtonBindingPatch? = nil,
+        usbButtonProfileAction: USBButtonProfileActionPatch? = nil
     ) {
         self.pollRate = pollRate
         self.sleepTimeout = sleepTimeout
@@ -477,6 +501,7 @@ public struct DevicePatch: Sendable, Hashable, Codable {
         self.lightingEffect = lightingEffect
         self.usbLightingZoneLEDIDs = usbLightingZoneLEDIDs
         self.buttonBinding = buttonBinding
+        self.usbButtonProfileAction = usbButtonProfileAction
     }
 }
 
@@ -496,7 +521,8 @@ public extension DevicePatch {
             ledRGB: newer.ledRGB ?? ledRGB,
             lightingEffect: newer.lightingEffect ?? lightingEffect,
             usbLightingZoneLEDIDs: newer.usbLightingZoneLEDIDs ?? usbLightingZoneLEDIDs,
-            buttonBinding: newer.buttonBinding ?? buttonBinding
+            buttonBinding: newer.buttonBinding ?? buttonBinding,
+            usbButtonProfileAction: newer.usbButtonProfileAction ?? usbButtonProfileAction
         )
     }
 }

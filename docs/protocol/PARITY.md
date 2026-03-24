@@ -83,7 +83,10 @@ Validated in-session over USB:
 - shipped client behavior: normalize `0x60` to a user-facing `DPI Cycle` action and allow binding `DPI Cycle` to any writable USB slot
 - observed HID candidates on an attached `0x00CB`: `0x01:0x06` interfaces with `input=16/8` and `feature=1/0`, matching the tuple already used for the shipped V3 Pro USB passive DPI listener
 - client note: `0x02:0x8C` response layout is not identical to `0x00B9`; clients must validate echoed `profile`/`slot` bytes before choosing the 35K function-block offset
-- observed profile summary getter on `0x00CB`: `0x00:0x87` -> `<active,0x00,count>`; active-profile write path remains unresolved
+- observed profile summary getter on `0x00CB`: `0x00:0x87` -> `<active,0x00,count>`
+- tested active-profile write candidates on `0x00CB`: `0x00:0x07` with payloads `02`, `02 00`, `02 00 05`, and `02 00 00` all returned status `0x05` (`not supported`)
+- observed profile-model behavior on `0x00CB`: persistent slot `0x05` writes stay isolated, persistent slot `0x01` writes mirror into direct/live `0x00` while profile `1` is active, and later direct/live writes do not write back into persistent slot `0x01`
+- shipped client behavior: multi-slot onboard button-profile actions now use validated `0x02:0x8C` / `0x02:0x0C` reads/writes plus direct-layer projection instead of claiming an unresolved hardware active-profile setter
 
 ## Validated Device Profile (Basilisk V3 Pro, USB PID `0x00AB`)
 
