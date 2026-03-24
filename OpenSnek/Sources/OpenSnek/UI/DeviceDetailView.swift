@@ -1678,11 +1678,18 @@ private struct LoadButtonProfilePopover: View {
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
                 } else {
-                    ForEach(editorStore.savedButtonProfiles) { profile in
-                        let source = ButtonProfileSource.openSnekProfile(profile.id)
-                        loadActionButton(pickerLabel(source)) {
-                            onSelect(source)
+                    Menu {
+                        ForEach(editorStore.savedButtonProfiles) { profile in
+                            let source = ButtonProfileSource.openSnekProfile(profile.id)
+                            Button(pickerLabel(source)) {
+                                onSelect(source)
+                            }
                         }
+                    } label: {
+                        popoverRowLabel(
+                            "Saved Profiles",
+                            trailingSystemImage: "chevron.up.chevron.down"
+                        )
                     }
                 }
             }
@@ -1718,18 +1725,34 @@ private struct LoadButtonProfilePopover: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Text(title)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            popoverRowLabel(title)
         }
         .buttonStyle(.plain)
         .disabled(isDisabled)
+        .opacity(isDisabled ? 0.45 : 1.0)
+    }
+
+    private func popoverRowLabel(
+        _ title: String,
+        trailingSystemImage: String? = nil
+    ) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+            Spacer(minLength: 8)
+            if let trailingSystemImage {
+                Image(systemName: trailingSystemImage)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.52))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
+        .contentShape(Rectangle())
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(isDisabled ? 0.025 : 0.05))
+                .fill(Color.white.opacity(0.05))
         )
-        .opacity(isDisabled ? 0.45 : 1.0)
     }
 }
 
@@ -1789,16 +1812,20 @@ private struct StoreButtonProfilePopover: View {
 
     private func storeActionButton(_ title: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 8) {
+                Text(title)
+                Spacer(minLength: 8)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.white.opacity(0.05))
+            )
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(0.05))
-        )
     }
 }
 
