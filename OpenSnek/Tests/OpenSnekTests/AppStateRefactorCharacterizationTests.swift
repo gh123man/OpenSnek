@@ -1336,11 +1336,17 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             await backend.recordedPatches().contains(where: { $0.buttonBinding?.slot == 4 })
         }
 
+        try await waitForRefactorCondition(timeout: 2.0) {
+            await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) == .rightClick }
+        }
+
         let patches = await backend.recordedPatches()
         let patch = try XCTUnwrap(patches.last(where: { $0.buttonBinding?.slot == 4 }))
+        let binding = await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) }
         XCTAssertEqual(patch.buttonBinding?.persistentProfile, 1)
         XCTAssertEqual(patch.buttonBinding?.writePersistentLayer, true)
         XCTAssertEqual(patch.buttonBinding?.writeDirectLayer, true)
+        XCTAssertEqual(binding, .rightClick)
     }
 
     func testSelectingSavedButtonProfileHydratesWorkingCopy() async throws {

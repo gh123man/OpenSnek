@@ -567,14 +567,29 @@ final class AppStateEditorController {
 
     func cachePersistedButtonBinding(_ binding: ButtonBindingPatch, device: MouseDevice, profile: Int) {
         let hydrationKey = buttonBindingsHydrationKey(device: device, profile: profile)
-        buttonBindingsCacheByHydrationKey[hydrationKey] = loadPersistedButtonBindings(device: device, profile: profile)
+        let updatedDraft = ButtonBindingDraft(
+            kind: binding.kind,
+            hidKey: binding.kind == .keyboardSimple ? max(4, min(231, binding.hidKey ?? 4)) : 4,
+            turboEnabled: binding.kind.supportsTurbo ? binding.turboEnabled : false,
+            turboRate: max(1, min(255, binding.turboRate ?? 0x8E)),
+            clutchDPI: binding.kind == .dpiClutch
+                ? DeviceProfiles.clampDPI(
+                    binding.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI,
+                    device: device
+                )
+                : nil
+        )
+        var merged = buttonBindingsCacheByHydrationKey[hydrationKey]
+            ?? loadPersistedButtonBindings(device: device, profile: profile)
+        merged[binding.slot] = updatedDraft
+        buttonBindingsCacheByHydrationKey[hydrationKey] = merged
         if editorStore.editableUSBButtonProfile == profile,
            hydratedButtonBindingsKey == hydrationKey,
-           let cached = buttonBindingsCacheByHydrationKey[hydrationKey] {
-            editorStore.editableButtonBindings = cached
+           deviceStore.selectedDevice?.id == device.id {
+            editorStore.editableButtonBindings[binding.slot] = updatedDraft
         }
         if liveButtonProfileSource(for: device) == .mouseSlot(profile), binding.writeDirectLayer {
-            setLiveButtonProfileSource(.mouseSlot(profile), bindings: buttonBindingsCacheByHydrationKey[hydrationKey] ?? [:], for: device)
+            setLiveButtonProfileSource(.mouseSlot(profile), bindings: merged, for: device)
         }
         buttonBindingsReadbackAttemptedKeys.insert(hydrationKey)
         bumpUSBButtonProfilesRevision()
