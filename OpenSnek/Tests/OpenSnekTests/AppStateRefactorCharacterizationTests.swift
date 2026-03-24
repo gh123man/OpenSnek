@@ -1049,6 +1049,48 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(matchDescription, "matches Travel")
     }
 
+    func testSavingCurrentButtonWorkspaceAsNewProfileSelectsSavedProfileSourceImmediately() async throws {
+        let device = makeRefactorTestDevice(
+            id: "usb-profile-save-source-device",
+            transport: .usb,
+            serial: "USB-PROFILE-SAVE-SOURCE-\(UUID().uuidString)",
+            onboardProfileCount: 3
+        )
+        defer { clearRefactorPreferences(for: device) }
+
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 82,
+                    dpiValues: [800, 1600, 2400],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 3
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+
+        let saved = await MainActor.run {
+            appState.editorStore.saveCurrentButtonWorkspaceAsNewProfile(name: "Bar")
+        }
+
+        let currentSource = await MainActor.run {
+            appState.editorStore.currentButtonProfileSource
+        }
+        XCTAssertEqual(currentSource, .openSnekProfile(saved.id))
+    }
+
     func testSavingSelectedUSBButtonProfileUsesExplicitButtonWriteWithoutActivation() async throws {
         let device = makeRefactorTestDevice(
             id: "usb-profile-save-device",

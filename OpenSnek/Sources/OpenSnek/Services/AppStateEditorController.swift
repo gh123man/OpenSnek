@@ -1122,6 +1122,9 @@ final class AppStateEditorController {
             name: normalizedButtonProfileName(name),
             bindings: editorStore.editableButtonBindings
         )
+        if let selectedDevice = deviceStore.selectedDevice {
+            setButtonProfileSource(.openSnekProfile(saved.id), for: selectedDevice)
+        }
         bumpUSBButtonProfilesRevision()
         return saved
     }

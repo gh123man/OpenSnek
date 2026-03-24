@@ -1436,8 +1436,8 @@ private struct ButtonProfileWorkspaceStrip: View {
     }
 
     private var loadedFromLabel: String {
-        guard let currentSource else { return "Not loaded yet" }
-        return sourceDisplayLabel(for: currentSource)
+        guard currentSource != nil else { return "Not loaded yet" }
+        return editorStore.currentButtonProfileDisplayName
     }
 
     private var currentStatusLine: String {
@@ -1679,6 +1679,10 @@ private struct ButtonProfileWorkspaceStrip: View {
             baseLabel = editorStore.buttonProfileSourceDisplayName(source)
         case .mouseSlot(let slot):
             baseLabel = slot == 1 ? "Base Profile (Slot 1)" : "Stored Slot \(slot)"
+        }
+
+        if source == currentSource, editorStore.buttonWorkspaceHasUnsavedSourceChanges {
+            return baseLabel
         }
 
         guard let matchDescription = editorStore.buttonProfileSourceMatchDescription(source) else {
