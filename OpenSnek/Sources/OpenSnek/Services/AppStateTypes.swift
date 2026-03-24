@@ -218,7 +218,7 @@ extension DevicePatch {
                 detail += ",turbo=on,rate=\(buttonBinding.turboRate ?? 0x8E)"
             }
             if buttonBinding.kind == .dpiClutch {
-                detail += ",dpi=\(buttonBinding.clutchDPI ?? ButtonBindingSupport.defaultV3ProDPIClutchDPI)"
+                detail += ",dpi=\(buttonBinding.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI)"
             }
             detail += ")"
             parts.append(detail)

@@ -1489,12 +1489,6 @@ private struct ButtonProfileWorkspaceStrip: View {
         .sheet(isPresented: $showsManageProfiles) {
             ManageButtonProfilesSheet(
                 profiles: editorStore.savedButtonProfiles,
-                selectedSource: editorStore.currentButtonProfileSource,
-                onSelect: { source in
-                    Task {
-                        await editorStore.loadButtonProfileSourceIntoLive(source)
-                    }
-                },
                 onRename: { id, name in
                     _ = editorStore.renameOpenSnekButtonProfile(id: id, name: name)
                 },
@@ -1510,12 +1504,6 @@ private struct ButtonProfileWorkspaceStrip: View {
         HStack(alignment: .center, spacing: 10) {
             loadButton
             storeButton
-            Button("Reset to Defaults") {
-                Task {
-                    await editorStore.resetLiveButtonsToDeviceDefaultSlot()
-                }
-            }
-            .buttonStyle(.bordered)
             Button("Manage") {
                 showsManageProfiles = true
             }
@@ -1889,8 +1877,6 @@ private enum SaveButtonProfileMode: Hashable {
 
 private struct ManageButtonProfilesSheet: View {
     let profiles: [OpenSnekButtonProfile]
-    let selectedSource: ButtonProfileSource?
-    let onSelect: (ButtonProfileSource) -> Void
     let onRename: (UUID, String) -> Void
     let onDelete: (UUID) -> Void
 
@@ -1922,7 +1908,7 @@ private struct ManageButtonProfilesSheet: View {
                     Text("No saved profiles yet.")
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white)
-                    Text("Use Store... to save the current button layout into OpenSnek.")
+                    Text("Use Store to save the current button layout into OpenSnek.")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(.white.opacity(0.65))
                 }
@@ -1936,7 +1922,6 @@ private struct ManageButtonProfilesSheet: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 10) {
                         ForEach(profiles) { profile in
-                            let source = ButtonProfileSource.openSnekProfile(profile.id)
                             HStack(spacing: 10) {
                                 TextField(
                                     "Profile Name",
@@ -1946,11 +1931,6 @@ private struct ManageButtonProfilesSheet: View {
                                     )
                                 )
                                 .textFieldStyle(.roundedBorder)
-
-                                Button(selectedSource == source ? "Selected" : "Load") {
-                                    onSelect(source)
-                                }
-                                .disabled(selectedSource == source)
 
                                 Button("Rename") {
                                     onRename(profile.id, draftNames[profile.id] ?? profile.name)
@@ -1965,10 +1945,10 @@ private struct ManageButtonProfilesSheet: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color.white.opacity(selectedSource == source ? 0.08 : 0.04))
+                                    .fill(Color.white.opacity(0.04))
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 12)
-                                            .stroke(Color.white.opacity(selectedSource == source ? 0.16 : 0.06), lineWidth: 1)
+                                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
                                     )
                             )
                         }

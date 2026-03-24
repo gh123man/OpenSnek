@@ -141,12 +141,32 @@ final class USBButtonHydrationTests: XCTestCase {
         XCTAssertEqual(draft?.kind, .default)
     }
 
+    func testBasiliskV335KClutchDefaultBlockMapsToDefaultKind() {
+        let block: [UInt8] = [0x06, 0x01, 0x05, 0x01, 0x90, 0x01, 0x90]
+        let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
+            slot: 15,
+            functionBlock: block,
+            profileID: .basiliskV335K
+        )
+        XCTAssertEqual(draft?.kind, .default)
+    }
+
     func testBasiliskV3ProClutchBlockMapsToDPIClutchOnOtherSlots() {
         let block: [UInt8] = [0x06, 0x05, 0x05, 0x01, 0x90, 0x01, 0x90]
         let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
             slot: 4,
             functionBlock: block,
             profileID: .basiliskV3Pro
+        )
+        XCTAssertEqual(draft?.kind, .dpiClutch)
+    }
+
+    func testBasiliskV335KClutchBlockMapsToDPIClutchOnOtherSlots() {
+        let block: [UInt8] = [0x06, 0x05, 0x05, 0x01, 0x90, 0x01, 0x90]
+        let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
+            slot: 4,
+            functionBlock: block,
+            profileID: .basiliskV335K
         )
         XCTAssertEqual(draft?.kind, .dpiClutch)
     }
@@ -186,6 +206,24 @@ final class USBButtonHydrationTests: XCTestCase {
             profileID: .basiliskV3Pro
         )
         XCTAssertEqual(block, [0x06, 0x05, 0x05, 0x03, 0x20, 0x03, 0x20])
+    }
+
+    func testBuildUSBFunctionBlockSupports35KDPIClutchValue() {
+        let block = ButtonBindingSupport.buildUSBFunctionBlock(
+            slot: 4,
+            kind: .dpiClutch,
+            hidKey: 4,
+            turboEnabled: false,
+            turboRate: 0x8E,
+            clutchDPI: 800,
+            profileID: .basiliskV335K
+        )
+        XCTAssertEqual(block, [0x06, 0x05, 0x05, 0x03, 0x20, 0x03, 0x20])
+    }
+
+    func testBasiliskV335KDefaultClutchFunctionBlockIsPreserved() {
+        let block = ButtonBindingSupport.defaultUSBFunctionBlock(for: 15, profileID: .basiliskV335K)
+        XCTAssertEqual(block, [0x06, 0x01, 0x05, 0x01, 0x90, 0x01, 0x90])
     }
 
     func testBasiliskV3ProDoesNotExpose35KTopDPIButtonDefault() {

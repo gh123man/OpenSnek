@@ -77,8 +77,9 @@ Validated in-session over USB:
 - working: serial, firmware, device mode read/write, poll-rate read/write, DPI/stages, battery, core USB telemetry
 - working: OpenSnek now arms the shared passive HID DPI listener on the observed `0x01:0x06` USB interfaces and upgrades to real-time HID updates once the host delivers a live callback
 - working: matrix brightness/effect writes on all validated LED IDs (`0x01` scroll wheel, `0x04` logo, `0x0A` underglow)
-- working: button remap read/write/readback on standard slots plus the additional wheel-tilt (`0x34`, `0x35`) and top DPI-button (`0x60`) slots
-- observed non-remappable controls on `0x00CB`: scroll-mode (`0x0E`, protocol-read-only), sensitivity clutch (`0x0F`, software-read-only via report-4 `0x51`), profile button (`0x6A`, software-read-only via report-4 `0x50`)
+- working: button remap read/write/readback on standard slots plus the additional sensitivity clutch / DPI clutch (`0x0F`), wheel-tilt (`0x34`, `0x35`), and top DPI-button (`0x60`) slots
+- observed clutch behavior on `0x00CB`: native slot `0x0F` default reads back as `06 01 05 01 90 01 90`, accepts remap writes, and also accepts the V3 Pro-style `06 05 05 <dpi> <dpi>` DPI-clutch payload; the same DPI-clutch payload also round-trips on slot `0x04`
+- observed non-remappable controls on `0x00CB`: scroll-mode (`0x0E`, protocol-read-only), profile button (`0x6A`, software-read-only via report-4 `0x50`)
 - observed alternate USB DPI-button payload on slot `0x60`: `04 02 0F 7B 00 00 00`
 - shipped client behavior: normalize `0x60` to a user-facing `DPI Cycle` action and allow binding `DPI Cycle` to any writable USB slot
 - observed HID candidates on an attached `0x00CB`: `0x01:0x06` interfaces with `input=16/8` and `feature=1/0`, matching the tuple already used for the shipped V3 Pro USB passive DPI listener
