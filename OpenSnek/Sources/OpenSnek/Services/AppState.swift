@@ -16,6 +16,9 @@ final class AppState {
     init(
         launchRole: OpenSnekProcessRole = .current,
         backend: (any DeviceBackend)? = nil,
+        releaseUpdateChecker: (any ReleaseUpdateChecking)? = nil,
+        currentAppVersion: String? = ReleaseUpdateChecker.currentAppVersion(),
+        shouldCheckForReleaseUpdates: Bool = ReleaseUpdateChecker.shouldCheckForUpdates(),
         serviceCoordinator: BackgroundServiceCoordinator = .shared,
         autoStart: Bool = true,
         statusItemDpiDisplayDuration: TimeInterval = 3.0
@@ -26,6 +29,9 @@ final class AppState {
         )
         let environment = AppEnvironment(
             launchRole: launchRole,
+            releaseUpdateChecker: releaseUpdateChecker ?? ReleaseUpdateChecker(),
+            currentAppVersion: currentAppVersion,
+            shouldCheckForReleaseUpdates: shouldCheckForReleaseUpdates,
             backend: initialBackend,
             serviceCoordinator: serviceCoordinator
         )

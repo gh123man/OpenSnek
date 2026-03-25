@@ -369,7 +369,7 @@ final class AppStateRuntimeController {
             await deviceController.refreshDevices()
         }
         if !environment.launchRole.isService {
-            await checkForUpdates()
+            await checkForUpdates(now: Date())
         }
 
         runtimeTask = Task { [weak self] in
@@ -515,7 +515,7 @@ final class AppStateRuntimeController {
         Task { @MainActor [weak self] in
             guard let self else { return }
             await self.refreshHIDAccessStatus(forceRefresh: false)
-            await self.pollRuntimeOnce()
+            await self.pollRuntimeOnce(now: now)
         }
     }
 
@@ -538,16 +538,21 @@ final class AppStateRuntimeController {
         }
     }
 
-    private func checkForUpdates(force: Bool = false) async {
-        guard force || !environment.hasCheckedForUpdates else { return }
-        environment.hasCheckedForUpdates = true
+    private func checkForUpdates(now: Date = Date(), force: Bool = false) async {
+        guard force || ReleaseUpdateChecker.isPeriodicCheckDue(
+            lastCheckedAt: environment.lastReleaseUpdateCheckAt,
+            now: now
+        ) else {
+            return
+        }
+        environment.lastReleaseUpdateCheckAt = now
 
-        guard ReleaseUpdateChecker.shouldCheckForUpdates() else {
+        guard environment.shouldCheckForReleaseUpdates else {
             deviceStore.availableUpdate = nil
             return
         }
 
-        guard let currentVersion = ReleaseUpdateChecker.currentAppVersion() else { return }
+        guard let currentVersion = environment.currentAppVersion else { return }
 
         do {
             deviceStore.availableUpdate = try await environment.releaseUpdateChecker.checkForUpdate(currentVersion: currentVersion)
@@ -594,14 +599,16 @@ final class AppStateRuntimeController {
         )
     }
 
-    private func pollRuntimeOnce() async {
+    func pollRuntimeOnce(now: Date = Date()) async {
         guard !isTearingDown else { return }
         guard powerState == .active else { return }
-        let now = Date()
         let profile = pollingProfile(at: now)
         let effectiveDevicePresenceInterval = effectiveDevicePresenceInterval(at: now, profile: profile)
         let effectiveRefreshStateInterval = effectiveRefreshStateInterval(at: now, profile: profile)
         pruneExpiredRemoteClientPresence(now: now)
+        if !environment.launchRole.isService {
+            await checkForUpdates(now: now)
+        }
 
         if environment.usesRemoteServiceTransport {
             if now.timeIntervalSince(lastRemoteClientPresencePingAt) >= 1.0 {
