@@ -60,6 +60,39 @@ enum OpenSnekBranding {
         return image
     }
 
+    static func menuBarSymbolIcon(symbolName: String, color: NSColor? = nil) -> NSImage? {
+        let side = menuBarIconSide
+        let targetHeight = max(10, floor(side * 0.6))
+        let config = NSImage.SymbolConfiguration(pointSize: targetHeight, weight: .bold)
+        guard let base = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+            .withSymbolConfiguration(config) else {
+            return nil
+        }
+
+        let sourceSize = base.size
+        let width = max(targetHeight, ceil(sourceSize.width * (targetHeight / max(sourceSize.height, 1))))
+        let image = NSImage(size: NSSize(width: width, height: side))
+        image.lockFocus()
+        let rect = NSRect(
+            x: 0,
+            y: floor((side - targetHeight) / 2),
+            width: width,
+            height: targetHeight
+        )
+        base.draw(in: rect)
+        if let color {
+            color.set()
+            rect.fill(using: .sourceAtop)
+        }
+        image.unlockFocus()
+        image.isTemplate = false
+        return image
+    }
+
+    static func menuBarSymbolWidth(symbolName: String) -> CGFloat {
+        menuBarSymbolIcon(symbolName: symbolName)?.size.width ?? menuBarIconSide
+    }
+
     private static func loadSourceIcon() -> NSImage? {
         guard let url = Bundle.main.url(forResource: "snek-menu", withExtension: "png"),
               let image = NSImage(contentsOf: url) else {

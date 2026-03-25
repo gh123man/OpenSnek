@@ -3,17 +3,81 @@ import OpenSnekCore
 import SwiftUI
 
 struct BatteryIconPresentation: Equatable {
+    enum Accent: Equatable {
+        case normal
+        case low
+    }
+
     let symbolName: String
     let variableValue: Double
+    let accent: Accent
 }
 
 enum BatteryPresentation {
-    static func icon(percent: Int, charging: Bool?) -> BatteryIconPresentation {
+    static let lowBatteryNSColor = NSColor(calibratedRed: 1.0, green: 0.36, blue: 0.39, alpha: 1.0)
+    static let lowBatteryColor = Color(nsColor: lowBatteryNSColor)
+
+    static func icon(percent: Int, charging: Bool?, thresholdRaw: Int? = nil) -> BatteryIconPresentation {
         let clampedPercent = max(0, min(100, percent))
+        let isLow = isLowBattery(percent: clampedPercent, charging: charging, thresholdRaw: thresholdRaw)
         return BatteryIconPresentation(
-            symbolName: charging == true ? "battery.100percent.bolt" : "battery.100percent",
-            variableValue: Double(clampedPercent) / 100.0
+            symbolName: symbolName(percent: clampedPercent, charging: charging),
+            variableValue: tieredBatteryValue(percent: clampedPercent, charging: charging),
+            accent: isLow ? .low : .normal
         )
+    }
+
+    static func symbolName(percent: Int, charging: Bool?) -> String {
+        if charging == true {
+            return "battery.100percent.bolt"
+        }
+
+        switch percent {
+        case ..<13:
+            return "battery.0percent"
+        case ..<38:
+            return "battery.25percent"
+        case ..<63:
+            return "battery.50percent"
+        case ..<88:
+            return "battery.75percent"
+        default:
+            return "battery.100percent"
+        }
+    }
+
+    static func tieredBatteryValue(percent: Int, charging: Bool?) -> Double {
+        if charging == true {
+            return Double(max(0, min(100, percent))) / 100.0
+        }
+
+        switch percent {
+        case ..<13:
+            return 0.0
+        case ..<38:
+            return 0.25
+        case ..<63:
+            return 0.50
+        case ..<88:
+            return 0.75
+        default:
+            return 1.0
+        }
+    }
+
+    static func isLowBattery(percent: Int, charging: Bool?, thresholdRaw: Int?) -> Bool {
+        guard charging != true,
+              let thresholdPercent = approximateThresholdPercent(raw: thresholdRaw) else {
+            return false
+        }
+        return max(0, min(100, percent)) <= thresholdPercent
+    }
+
+    static func approximateThresholdPercent(raw: Int?) -> Int? {
+        guard let raw else { return nil }
+        let clamped = max(0x0C, min(0x3F, raw))
+        let ratio = Double(clamped - 0x0C) / Double(0x3F - 0x0C)
+        return Int(round(5.0 + (ratio * 20.0)))
     }
 }
 
@@ -23,8 +87,21 @@ enum ServiceMenuBarPresentation {
         case split(DpiPair)
     }
 
-    static func batteryIcon(percent: Int, charging: Bool?) -> BatteryIconPresentation {
-        BatteryPresentation.icon(percent: percent, charging: charging)
+    static func batteryIcon(percent: Int, charging: Bool?, thresholdRaw: Int? = nil) -> BatteryIconPresentation {
+        BatteryPresentation.icon(percent: percent, charging: charging, thresholdRaw: thresholdRaw)
+    }
+
+    static func statusGlyphBatteryIcon(state: MouseState?) -> BatteryIconPresentation? {
+        guard let state,
+              let percent = state.battery_percent else {
+            return nil
+        }
+        let icon = batteryIcon(
+            percent: percent,
+            charging: state.charging,
+            thresholdRaw: state.low_battery_threshold_raw
+        )
+        return icon.accent == .low ? icon : nil
     }
 
     static func compactDpiText(for dpi: Int?) -> String? {
@@ -214,7 +291,8 @@ struct ServiceMenuBarView: View {
             if let battery = deviceStore.state?.battery_percent {
                 let batteryIcon = ServiceMenuBarPresentation.batteryIcon(
                     percent: battery,
-                    charging: deviceStore.state?.charging
+                    charging: deviceStore.state?.charging,
+                    thresholdRaw: deviceStore.state?.low_battery_threshold_raw
                 )
                 HStack(spacing: 4) {
                     Image(
@@ -224,7 +302,7 @@ struct ServiceMenuBarView: View {
                     Text("\(battery)%")
                 }
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(batteryIcon.accent == .low ? BatteryPresentation.lowBatteryColor : .secondary)
             }
         }
     }
@@ -479,8 +557,11 @@ struct ServiceMenuBarStatusItemLabel: View {
                 ServiceMenuBarStatusDpiBadge(dpi: transientDpi)
                     .frame(width: OpenSnekBranding.menuBarIconSide, height: OpenSnekBranding.menuBarIconSide)
             } else {
-                ServiceMenuBarStatusGlyph(isConnected: deviceStore.selectedDevice != nil)
-                    .frame(width: OpenSnekBranding.menuBarIconSide, height: OpenSnekBranding.menuBarIconSide)
+                ServiceMenuBarStatusGlyph(
+                    isConnected: deviceStore.selectedDevice != nil,
+                    batteryPresentation: ServiceMenuBarPresentation.statusGlyphBatteryIcon(state: deviceStore.state)
+                )
+                    .frame(height: OpenSnekBranding.menuBarIconSide)
                     .fixedSize()
             }
         }
@@ -511,16 +592,44 @@ private struct ServiceMenuBarStatusDpiBadge: View {
 
 private struct ServiceMenuBarStatusGlyph: View {
     let isConnected: Bool
+    let batteryPresentation: BatteryIconPresentation?
 
     private var iconOpacity: Double {
         isConnected ? 0.88 : 0.46
     }
 
+    private var statusImage: NSImage? {
+        if let batteryPresentation {
+            return OpenSnekBranding.menuBarSymbolIcon(
+                symbolName: batteryPresentation.symbolName,
+                color: BatteryPresentation.lowBatteryNSColor
+            )
+        }
+        return OpenSnekBranding.menuIcon
+    }
+
+    private var statusImageID: String {
+        if let batteryPresentation {
+            return "battery:\(batteryPresentation.symbolName)"
+        }
+        return "menu"
+    }
+
+    private var statusImageWidth: CGFloat {
+        if let batteryPresentation {
+            return OpenSnekBranding.menuBarSymbolWidth(symbolName: batteryPresentation.symbolName)
+        }
+        return OpenSnekBranding.menuBarIconSide
+    }
+
     var body: some View {
         Group {
-            if let menuIcon = OpenSnekBranding.menuIcon {
-                Image(nsImage: menuIcon)
+            if let statusImage {
+                Image(nsImage: statusImage)
+                    .interpolation(.high)
+                    .antialiased(true)
                     .renderingMode(.original)
+                    .id(statusImageID)
             } else {
                 ZStack {
                     Circle()
@@ -541,6 +650,6 @@ private struct ServiceMenuBarStatusGlyph: View {
             }
         }
         .opacity(iconOpacity)
-        .frame(width: OpenSnekBranding.menuBarIconSide, height: OpenSnekBranding.menuBarIconSide)
+        .frame(width: statusImageWidth, height: OpenSnekBranding.menuBarIconSide)
     }
 }
