@@ -1,5 +1,4 @@
 import Foundation
-import OpenSnekAppSupport
 import OpenSnekCore
 
 @MainActor
@@ -521,7 +520,6 @@ final class AppStateDeviceController {
     }
 
     private func scheduleSelectedDeviceButtonBindingHydration(device: MouseDevice) {
-        guard !selectedDeviceNeedsRecovery(device) else { return }
         Task { [weak self] in
             guard let self, !self.isTearingDown,
                   let editorController = self._editorController.optionalValue else {
@@ -538,9 +536,7 @@ final class AppStateDeviceController {
 
         let hasNoCachedState = stateCacheByDeviceID[device.id] == nil
         let lacksPresentedState = deviceStore.state == nil
-        let hasSeededReconnectState = seededReconnectStateDeviceIDs.contains(device.id)
-        let needsRecoveryRefresh =
-            hasNoCachedState || lacksPresentedState || unavailableDeviceIDs.contains(device.id) || hasSeededReconnectState
+        let needsRecoveryRefresh = hasNoCachedState || lacksPresentedState || unavailableDeviceIDs.contains(device.id)
         guard needsRecoveryRefresh else { return }
 
         scheduleSelectedRecoveryRefresh(
@@ -568,10 +564,6 @@ final class AppStateDeviceController {
 
         if unavailableDeviceIDs.contains(device.id) {
             return .disconnected
-        }
-
-        if seededReconnectStateDeviceIDs.contains(device.id) {
-            return .reconnecting
         }
 
         if device.id == deviceStore.selectedDeviceID, let errorMessage = deviceStore.errorMessage, !errorMessage.isEmpty {
@@ -683,9 +675,6 @@ final class AppStateDeviceController {
     }
 
     func selectedDeviceNeedsRecovery(_ device: MouseDevice) -> Bool {
-        if seededReconnectStateDeviceIDs.contains(device.id) {
-            return true
-        }
         if unavailableDeviceIDs.contains(device.id) {
             return true
         }

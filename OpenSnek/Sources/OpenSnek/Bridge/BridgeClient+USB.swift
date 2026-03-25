@@ -39,12 +39,6 @@ extension BridgeClient {
         hypershift: Int = 0x00
     ) async throws -> [UInt8]? {
         guard device.transport != .bluetooth else { return nil }
-        let presenceGeneration = currentDevicePresenceGeneration(for: device.id)
-        try await deferUSBReconnectReadIfNeeded(
-            deviceID: device.id,
-            presenceGeneration: presenceGeneration,
-            operation: "button-readback"
-        )
         let sessions = sessionsFor(device: device)
         guard !sessions.isEmpty else {
             throw BridgeError.commandFailed("Device not available")
@@ -103,11 +97,7 @@ extension BridgeClient {
         return false
     }
 
-    func readUSBState(
-        device: MouseDevice,
-        session: USBHIDControlSession,
-        presenceGeneration: Int
-    ) async throws -> MouseState {
+    func readUSBState(device: MouseDevice, session: USBHIDControlSession) async throws -> MouseState {
         if hidAccessDenied {
             throw BridgeError.commandFailed(
                 "USB HID feature reports are blocked by macOS permissions. " +
@@ -115,7 +105,6 @@ extension BridgeClient {
             )
         }
 
-        try ensureUSBReadContextValid(deviceID: device.id, presenceGeneration: presenceGeneration)
         guard let dpi = try getDPI(session, device) else {
             if hidAccessDenied {
                 throw BridgeError.commandFailed(
@@ -127,10 +116,8 @@ extension BridgeClient {
                 "USB device telemetry unavailable. Feature-report interface did not return usable responses."
             )
         }
-        try ensureUSBReadContextValid(deviceID: device.id, presenceGeneration: presenceGeneration)
 
         let serial = try getSerial(session, device)
-        try ensureUSBReadContextValid(deviceID: device.id, presenceGeneration: presenceGeneration)
         if hidAccessDenied {
             throw BridgeError.commandFailed(
                 "USB HID feature reports are blocked by macOS permissions. " +
@@ -138,27 +125,16 @@ extension BridgeClient {
             )
         }
         let fw = try getFirmware(session, device)
-        try ensureUSBReadContextValid(deviceID: device.id, presenceGeneration: presenceGeneration)
         let mode = try getDeviceMode(session, device)
-        try ensureUSBReadContextValid(deviceID: device.id, presenceGeneration: presenceGeneration)
         let battery = try getBattery(session, device)
-        try ensureUSBReadContextValid(deviceID: device.id, presenceGeneration: presenceGeneration)
         let stages = try getDPIStages(session, device)
-        try ensureUSBReadContextValid(deviceID: device.id, presenceGeneration: presenceGeneration)
         let poll = try getPollRate(session, device)
-        try ensureUSBReadContextValid(deviceID: device.id, presenceGeneration: presenceGeneration)
         let sleepTimeout = try getIdleTime(session, device)
-        try ensureUSBReadContextValid(deviceID: device.id, presenceGeneration: presenceGeneration)
         let lowBatteryThreshold = try getLowBatteryThreshold(session, device)
-        try ensureUSBReadContextValid(deviceID: device.id, presenceGeneration: presenceGeneration)
         let scrollMode = try getScrollMode(session, device)
-        try ensureUSBReadContextValid(deviceID: device.id, presenceGeneration: presenceGeneration)
         let scrollAcceleration = try getScrollAcceleration(session, device)
-        try ensureUSBReadContextValid(deviceID: device.id, presenceGeneration: presenceGeneration)
         let scrollSmartReel = try getScrollSmartReel(session, device)
-        try ensureUSBReadContextValid(deviceID: device.id, presenceGeneration: presenceGeneration)
         let onboardProfile = try getOnboardProfileInfo(session, device)
-        try ensureUSBReadContextValid(deviceID: device.id, presenceGeneration: presenceGeneration)
         let led = try getScrollLEDBrightness(session, device)
         let profile = usbDeviceProfile(for: device)
         let capabilities = resolvedUSBStateCapabilities(
@@ -196,55 +172,6 @@ extension BridgeClient {
             active_onboard_profile: onboardProfile?.active,
             onboard_profile_count: onboardProfile?.count ?? max(1, device.onboard_profile_count),
             led_value: led,
-            capabilities: capabilities
-        )
-    }
-
-    func readUSBWarmupState(
-        device: MouseDevice,
-        session: USBHIDControlSession,
-        presenceGeneration: Int
-    ) async throws -> MouseState {
-        try ensureUSBReadContextValid(deviceID: device.id, presenceGeneration: presenceGeneration)
-        guard let dpi = try getDPI(session, device) else {
-            throw BridgeError.commandFailed(
-                "USB device telemetry unavailable. Feature-report interface did not return usable responses."
-            )
-        }
-        try ensureUSBReadContextValid(deviceID: device.id, presenceGeneration: presenceGeneration)
-        let profile = usbDeviceProfile(for: device)
-        let capabilities = resolvedUSBStateCapabilities(
-            device: device,
-            profile: profile,
-            stages: nil,
-            poll: nil,
-            sleepTimeout: nil,
-            led: nil
-        )
-
-        return MouseState(
-            device: DeviceSummary(
-                id: device.id,
-                product_name: device.product_name,
-                serial: device.serial,
-                transport: device.transport,
-                firmware: device.firmware
-            ),
-            connection: "USB",
-            battery_percent: nil,
-            charging: nil,
-            dpi: DpiPair(x: dpi.0, y: dpi.1),
-            dpi_stages: DpiStages(active_stage: 0, values: [dpi.0]),
-            poll_rate: nil,
-            sleep_timeout: nil,
-            device_mode: nil,
-            low_battery_threshold_raw: nil,
-            scroll_mode: nil,
-            scroll_acceleration: nil,
-            scroll_smart_reel: nil,
-            active_onboard_profile: nil,
-            onboard_profile_count: max(1, device.onboard_profile_count),
-            led_value: nil,
             capabilities: capabilities
         )
     }

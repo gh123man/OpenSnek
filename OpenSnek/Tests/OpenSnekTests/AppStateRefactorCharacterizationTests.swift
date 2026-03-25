@@ -526,7 +526,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(applyCount, 0)
     }
 
-    func testUSBButtonHydrationUsesPersistedCacheDuringHotplugIsolation() async throws {
+    func testUSBButtonHydrationPrefersDeviceReadbackOverPersistedCache() async throws {
         let device = makeRefactorTestDevice(
             id: "usb-button-device",
             transport: .usb,
@@ -564,6 +564,19 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 )
             ]
         )
+        await backend.setButtonBindingBlock(
+            [0x01, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00],
+            forDeviceID: device.id,
+            slot: 4,
+            profile: 1
+        )
+        await backend.setButtonBindingBlock(
+            [0x01, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00],
+            forDeviceID: device.id,
+            slot: 4,
+            profile: 0
+        )
+
         let appState = await MainActor.run {
             AppState(launchRole: .app, backend: backend, autoStart: false)
         }
@@ -571,11 +584,11 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         await appState.deviceStore.refreshDevices()
 
         try await waitForRefactorCondition {
-            await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) == .leftClick }
+            await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) == .rightClick }
         }
 
         let binding = await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) }
-        XCTAssertEqual(binding, .leftClick)
+        XCTAssertEqual(binding, .rightClick)
     }
 
     func testSwitchingUSBButtonProfileInvalidatesHydrationCache() async throws {
@@ -654,7 +667,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(updatedBinding, .rightClick)
     }
 
-    func testUSBButtonProfileSummariesUseCachedStateWithoutStoredSlotDeviceSweep() async throws {
+    func testUSBButtonProfileSummariesReflectDefaultAndCustomSlots() async throws {
         let device = makeRefactorTestDevice(
             id: "usb-profile-summary-device",
             transport: .usb,
@@ -662,47 +675,6 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             onboardProfileCount: 3
         )
         defer { clearRefactorPreferences(for: device) }
-
-        let preferenceStore = DevicePreferenceStore()
-        preferenceStore.savePersistedButtonBindings(
-            device: device,
-            bindings: [
-                4: ButtonBindingDraft(
-                    kind: .default,
-                    hidKey: 4,
-                    turboEnabled: false,
-                    turboRate: 0x8E,
-                    clutchDPI: nil
-                )
-            ],
-            profile: 1
-        )
-        preferenceStore.savePersistedButtonBindings(
-            device: device,
-            bindings: [
-                4: ButtonBindingDraft(
-                    kind: .rightClick,
-                    hidKey: 4,
-                    turboEnabled: false,
-                    turboRate: 0x8E,
-                    clutchDPI: nil
-                )
-            ],
-            profile: 2
-        )
-        preferenceStore.savePersistedButtonBindings(
-            device: device,
-            bindings: [
-                4: ButtonBindingDraft(
-                    kind: .default,
-                    hidKey: 4,
-                    turboEnabled: false,
-                    turboRate: 0x8E,
-                    clutchDPI: nil
-                )
-            ],
-            profile: 3
-        )
 
         let backend = AppStateRefactorStubBackend(
             devices: [device],
@@ -720,6 +692,32 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                     onboardProfileCount: 3
                 )
             ]
+        )
+        await backend.setButtonBindingBlock(
+            try XCTUnwrap(ButtonBindingSupport.defaultUSBFunctionBlock(for: 4, profileID: .basiliskV3Pro)),
+            forDeviceID: device.id,
+            slot: 4,
+            profile: 1
+        )
+        await backend.setButtonBindingBlock(
+            ButtonBindingSupport.buildUSBFunctionBlock(
+                slot: 4,
+                kind: .rightClick,
+                hidKey: 4,
+                turboEnabled: false,
+                turboRate: 0x8E,
+                clutchDPI: nil,
+                profileID: .basiliskV3Pro
+            ),
+            forDeviceID: device.id,
+            slot: 4,
+            profile: 2
+        )
+        await backend.setButtonBindingBlock(
+            try XCTUnwrap(ButtonBindingSupport.defaultUSBFunctionBlock(for: 4, profileID: .basiliskV3Pro)),
+            forDeviceID: device.id,
+            slot: 4,
+            profile: 3
         )
 
         let appState = await MainActor.run {
@@ -1463,21 +1461,6 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             clearRefactorPreferences(for: secondDevice)
         }
 
-        let preferenceStore = DevicePreferenceStore()
-        preferenceStore.savePersistedButtonBindings(
-            device: secondDevice,
-            bindings: [
-                4: ButtonBindingDraft(
-                    kind: .keyboardSimple,
-                    hidKey: 4,
-                    turboEnabled: false,
-                    turboRate: 0x8E,
-                    clutchDPI: nil
-                )
-            ],
-            profile: 1
-        )
-
         let backend = AppStateRefactorStubBackend(
             devices: [firstDevice, secondDevice],
             stateByDeviceID: [
@@ -1955,7 +1938,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         }
     }
 
-    func testSwitchingBetweenUSBDevicesRehydratesButtonBindingsOnReselect() async throws {
+    func testSwitchingBetweenUSBDevicesReusesSessionButtonBindingCache() async throws {
         let alphaDevice = makeRefactorTestDevice(
             id: "usb-alpha-device",
             transport: .usb,
@@ -1999,6 +1982,11 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         }
 
         await appState.deviceStore.refreshDevices()
+
+        try await waitForRefactorCondition {
+            await backend.buttonReadCount(for: alphaDevice.id) > 0
+        }
+        try await Task.sleep(nanoseconds: 250_000_000)
         let alphaReadCountAfterInitialHydration = await backend.buttonReadCount(for: alphaDevice.id)
 
         await MainActor.run {
@@ -2017,8 +2005,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         try await Task.sleep(nanoseconds: 200_000_000)
 
         let alphaReadCountAfterReselect = await backend.buttonReadCount(for: alphaDevice.id)
-        XCTAssertGreaterThan(alphaReadCountAfterInitialHydration, 0)
-        XCTAssertGreaterThan(alphaReadCountAfterReselect, alphaReadCountAfterInitialHydration)
+        XCTAssertEqual(alphaReadCountAfterReselect, alphaReadCountAfterInitialHydration)
     }
 }
 
@@ -2038,7 +2025,6 @@ private actor AppStateRefactorStubBackend: DeviceBackend {
     private var firstApplyReleaseContinuation: CheckedContinuation<Void, Never>?
     private var buttonBindingBlocks: [String: [UInt8]] = [:]
     private var buttonReadCountByDeviceID: [String: Int] = [:]
-    private var buttonReadCountByDeviceIDAndProfile: [String: [Int: Int]] = [:]
     private var fastReadInvocationCount = 0
 
     init(
@@ -2136,7 +2122,6 @@ private actor AppStateRefactorStubBackend: DeviceBackend {
 
     func debugUSBReadButtonBinding(device: MouseDevice, slot: Int, profile: Int) async throws -> [UInt8]? {
         buttonReadCountByDeviceID[device.id, default: 0] += 1
-        buttonReadCountByDeviceIDAndProfile[device.id, default: [:]][profile, default: 0] += 1
         return buttonBindingBlocks[buttonKey(deviceID: device.id, slot: slot, profile: profile)]
     }
 
@@ -2176,10 +2161,6 @@ private actor AppStateRefactorStubBackend: DeviceBackend {
 
     func buttonReadCount(for deviceID: String) -> Int {
         buttonReadCountByDeviceID[deviceID, default: 0]
-    }
-
-    func buttonReadCount(for deviceID: String, profile: Int) -> Int {
-        buttonReadCountByDeviceIDAndProfile[deviceID, default: [:]][profile, default: 0]
     }
 
     private func buttonKey(deviceID: String, slot: Int, profile: Int) -> String {

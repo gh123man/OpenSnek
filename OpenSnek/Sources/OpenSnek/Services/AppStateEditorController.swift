@@ -18,6 +18,7 @@ final class AppStateEditorController {
     private var buttonBindingsCacheByHydrationKey: [String: [Int: ButtonBindingDraft]] = [:]
     private var buttonBindingsReadbackAttemptedKeys: Set<String> = []
     private var buttonBindingsReadbackInFlightKeys: Set<String> = []
+    private var buttonProfileSummaryHydrationInFlightDeviceIDs: Set<String> = []
     private var buttonProfileWorkspaceSourceByDeviceID: [String: ButtonProfileSource] = [:]
     private var buttonProfileLiveSourceByDeviceID: [String: ButtonProfileSource] = [:]
     private var buttonProfileLiveBindingsByDeviceID: [String: [Int: ButtonBindingDraft]] = [:]
@@ -217,6 +218,7 @@ final class AppStateEditorController {
             guard let hydratedDeviceID = key.split(separator: "#").first else { return true }
             return !removedDeviceIDs.contains(String(hydratedDeviceID))
         }
+        buttonProfileSummaryHydrationInFlightDeviceIDs.subtract(removedDeviceIDs)
         if let hydratedButtonBindingsKey,
            let hydratedDeviceID = hydratedButtonBindingsKey.split(separator: "#").first,
            removedDeviceIDs.contains(String(hydratedDeviceID)) {
@@ -442,6 +444,7 @@ final class AppStateEditorController {
         Task { @MainActor [weak self] in
             await self?.refreshUSBButtonBindingsFromDevice(device: device, hydrationKey: hydrationKey, profile: profile)
         }
+
     }
 
     func markButtonBindingsHydrated(device: MouseDevice, profile: Int) {
@@ -501,6 +504,42 @@ final class AppStateEditorController {
             "AppState",
             "hydrated button bindings from USB readback id=\(device.id) profile=\(profile) slots=\(fromDevice.keys.sorted())"
         )
+    }
+
+    private func primeUSBButtonProfileSummariesIfNeeded(device: MouseDevice) {
+        guard device.transport == .usb, editorStore.supportsMultipleOnboardProfiles else { return }
+        guard !buttonProfileSummaryHydrationInFlightDeviceIDs.contains(device.id) else { return }
+
+        buttonProfileSummaryHydrationInFlightDeviceIDs.insert(device.id)
+        Task { @MainActor [weak self] in
+            await self?.primeUSBButtonProfileSummaries(device: device)
+        }
+    }
+
+    private func primeUSBButtonProfileSummaries(device: MouseDevice) async {
+        defer {
+            buttonProfileSummaryHydrationInFlightDeviceIDs.remove(device.id)
+            bumpUSBButtonProfilesRevision()
+        }
+        guard !isTearingDown else { return }
+
+        let count = max(1, editorStore.visibleOnboardProfileCount)
+        for profile in 1...count where profile != editorStore.editableUSBButtonProfile {
+            let hydrationKey = buttonBindingsHydrationKey(device: device, profile: profile)
+            guard !buttonBindingsReadbackAttemptedKeys.contains(hydrationKey),
+                  !buttonBindingsReadbackInFlightKeys.contains(hydrationKey) else {
+                continue
+            }
+
+            buttonBindingsReadbackAttemptedKeys.insert(hydrationKey)
+            buttonBindingsReadbackInFlightKeys.insert(hydrationKey)
+            bumpUSBButtonProfilesRevision()
+            await refreshUSBButtonBindingsFromDevice(
+                device: device,
+                hydrationKey: hydrationKey,
+                profile: profile
+            )
+        }
     }
 
     func loadUSBButtonBindingsFromDevice(device: MouseDevice, profile: Int) async -> [Int: ButtonBindingDraft]? {
@@ -757,9 +796,9 @@ final class AppStateEditorController {
     }
 
     func refreshButtonProfilePresentation() {
-        // Keep presentation refresh cache-only. Stored-slot USB reads are
-        // deferred until the user explicitly loads a slot, which avoids
-        // hidden reconnect/startup traffic against unstable devices.
+        if let device = deviceStore.selectedDevice {
+            primeUSBButtonProfileSummariesIfNeeded(device: device)
+        }
         bumpUSBButtonProfilesRevision()
     }
 

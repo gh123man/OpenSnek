@@ -2,7 +2,6 @@ import AppKit
 import Darwin
 import Foundation
 import Network
-import OpenSnekAppSupport
 
 @MainActor
 final class BackgroundServiceCoordinator {
@@ -10,9 +9,9 @@ final class BackgroundServiceCoordinator {
 
     nonisolated static let backgroundServiceEnabledDefaultsKey = "backgroundServiceEnabled"
     nonisolated static let launchAtStartupDefaultsKey = "launchServiceAtStartup"
-    nonisolated static let endpointDefaultsKey = BackgroundServiceDefaultsKeys.endpoint
-    nonisolated static let portDefaultsKey = BackgroundServiceDefaultsKeys.port
-    nonisolated static let pidDefaultsKey = BackgroundServiceDefaultsKeys.pid
+    nonisolated static let endpointDefaultsKey = "backgroundServiceEndpoint"
+    nonisolated static let portDefaultsKey = "backgroundServicePort"
+    nonisolated static let pidDefaultsKey = "backgroundServicePID"
     struct RunningAppSnapshot: Equatable {
         let processIdentifier: pid_t
         let activationPolicy: NSApplication.ActivationPolicy

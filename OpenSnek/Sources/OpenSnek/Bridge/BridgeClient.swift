@@ -21,7 +21,6 @@ actor BridgeClient {
 
     var deviceSessions: [String: USBHIDControlSession] = [:]
     var deviceSessionCandidates: [String: [USBHIDControlSession]] = [:]
-    var devicePresenceGenerationByDeviceID: [String: Int] = [:]
     var lastStateByDeviceID: [String: MouseState] = [:]
     var usbReconnectSettleUntilByDeviceID: [String: Date] = [:]
     let devicePresenceEvents = BroadcastStream<HIDDevicePresenceEvent>()
@@ -77,7 +76,6 @@ actor BridgeClient {
 
     private func handleHIDDevicePresenceEvent(_ event: HIDDevicePresenceEvent) {
         updateUSBReconnectSettleDeadline(for: event)
-        noteDevicePresenceGenerationChange(for: event.deviceID)
         AppLog.event(
             "Bridge",
             "hidPresence change=\(event.change.rawValue) device=\(event.deviceID)"
@@ -331,17 +329,6 @@ actor BridgeClient {
         return now < settleDeadline
     }
 
-    nonisolated static func shouldUseUSBWarmupStateRead(until settleDeadline: Date?, now: Date = Date()) -> Bool {
-        shouldDeferUSBReconnectRead(until: settleDeadline, now: now)
-    }
-
-    nonisolated static func usbReadPresenceChanged(
-        currentPresenceGeneration: Int,
-        expectedPresenceGeneration: Int
-    ) -> Bool {
-        currentPresenceGeneration != expectedPresenceGeneration
-    }
-
     private func updateUSBReconnectSettleDeadline(for event: HIDDevicePresenceEvent) {
         guard event.transport == .usb else { return }
         if let settleDeadline = Self.usbReconnectSettleDeadline(for: event) {
@@ -351,31 +338,7 @@ actor BridgeClient {
         }
     }
 
-    private func noteDevicePresenceGenerationChange(for deviceID: String) {
-        devicePresenceGenerationByDeviceID[deviceID, default: 0] += 1
-    }
-
-    func currentDevicePresenceGeneration(for deviceID: String) -> Int {
-        devicePresenceGenerationByDeviceID[deviceID, default: 0]
-    }
-
-    func ensureUSBReadContextValid(deviceID: String, presenceGeneration: Int) throws {
-        if Task.isCancelled {
-            throw CancellationError()
-        }
-        if Self.usbReadPresenceChanged(
-            currentPresenceGeneration: currentDevicePresenceGeneration(for: deviceID),
-            expectedPresenceGeneration: presenceGeneration
-        ) {
-            throw BridgeError.commandFailed("USB device presence changed during read")
-        }
-    }
-
-    func deferUSBReconnectReadIfNeeded(
-        deviceID: String,
-        presenceGeneration: Int,
-        operation: String
-    ) async throws {
+    func deferUSBReconnectReadIfNeeded(deviceID: String, operation: String) async throws {
         let now = Date()
         guard let settleDeadline = usbReconnectSettleUntilByDeviceID[deviceID] else { return }
         guard Self.shouldDeferUSBReconnectRead(until: settleDeadline, now: now) else {
@@ -390,7 +353,6 @@ actor BridgeClient {
             "remaining=\(String(format: "%.3f", remaining))s"
         )
         try await Task.sleep(nanoseconds: UInt64(max(0, remaining) * 1_000_000_000))
-        try ensureUSBReadContextValid(deviceID: deviceID, presenceGeneration: presenceGeneration)
         usbReconnectSettleUntilByDeviceID.removeValue(forKey: deviceID)
     }
 
@@ -481,6 +443,8 @@ actor BridgeClient {
             }
         }
 
+        try await deferUSBReconnectReadIfNeeded(deviceID: device.id, operation: "read-state")
+
         let sessions = sessionsFor(device: device)
         guard !sessions.isEmpty else {
             if hidAccessDenied || managerAccessDenied {
@@ -491,12 +455,6 @@ actor BridgeClient {
             }
             throw BridgeError.commandFailed("Device not available")
         }
-        let presenceGeneration = currentDevicePresenceGeneration(for: device.id)
-        try await deferUSBReconnectReadIfNeeded(
-            deviceID: device.id,
-            presenceGeneration: presenceGeneration,
-            operation: "read-state"
-        )
 
         var firstError: Error?
         for scanAttempt in 0..<2 {
@@ -504,11 +462,7 @@ actor BridgeClient {
             var scanErrors: [any Error] = []
             for (index, session) in sessions.enumerated() {
                 do {
-                    let state = try await readUSBState(
-                        device: device,
-                        session: session,
-                        presenceGeneration: presenceGeneration
-                    )
+                    let state = try await readUSBState(device: device, session: session)
                     if index > 0 {
                         deviceSessions[device.id] = session
                         AppLog.debug("Bridge", "readState usb switched to alternate session index=\(index) device=\(device.id)")
@@ -573,12 +527,6 @@ actor BridgeClient {
         }
 
         guard device.transport == .usb else { return nil }
-        let presenceGeneration = currentDevicePresenceGeneration(for: device.id)
-        try await deferUSBReconnectReadIfNeeded(
-            deviceID: device.id,
-            presenceGeneration: presenceGeneration,
-            operation: "fast-dpi"
-        )
         let orderedSessions = sessionsFor(device: device)
         guard !orderedSessions.isEmpty else { return nil }
 

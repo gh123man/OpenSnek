@@ -69,37 +69,6 @@ final class UnsupportedDeviceHandlingTests: XCTestCase {
         XCTAssertFalse(BridgeClient.shouldDeferUSBReconnectRead(until: nil, now: now))
     }
 
-    func testUSBReconnectWarmupReadUsesSameDeadlineWindow() {
-        let now = Date(timeIntervalSince1970: 2000)
-        XCTAssertTrue(
-            BridgeClient.shouldUseUSBWarmupStateRead(
-                until: now.addingTimeInterval(1.0),
-                now: now
-            )
-        )
-        XCTAssertFalse(
-            BridgeClient.shouldUseUSBWarmupStateRead(
-                until: now.addingTimeInterval(-0.1),
-                now: now
-            )
-        )
-    }
-
-    func testUSBReadPresenceChangedDetectsGenerationMismatch() {
-        XCTAssertFalse(
-            BridgeClient.usbReadPresenceChanged(
-                currentPresenceGeneration: 3,
-                expectedPresenceGeneration: 3
-            )
-        )
-        XCTAssertTrue(
-            BridgeClient.usbReadPresenceChanged(
-                currentPresenceGeneration: 4,
-                expectedPresenceGeneration: 3
-            )
-        )
-    }
-
     func testUSBReconnectSettleIntervalIsTwoSeconds() {
         XCTAssertEqual(BridgeClient.usbReconnectSettleInterval, 2.0)
     }
