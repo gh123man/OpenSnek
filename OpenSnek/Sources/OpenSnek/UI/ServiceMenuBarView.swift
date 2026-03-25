@@ -14,7 +14,8 @@ struct BatteryIconPresentation: Equatable {
 }
 
 enum BatteryPresentation {
-    static let lowBatteryColor = Color(hex: 0xFF5C64)
+    static let lowBatteryNSColor = NSColor(calibratedRed: 1.0, green: 0.36, blue: 0.39, alpha: 1.0)
+    static let lowBatteryColor = Color(nsColor: lowBatteryNSColor)
 
     static func icon(percent: Int, charging: Bool?, thresholdRaw: Int? = nil) -> BatteryIconPresentation {
         let clampedPercent = max(0, min(100, percent))
@@ -600,12 +601,21 @@ private struct ServiceMenuBarStatusGlyph: View {
     var body: some View {
         Group {
             if let batteryPresentation {
-                Image(
-                    systemName: batteryPresentation.symbolName,
-                    variableValue: batteryPresentation.variableValue
-                )
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(BatteryPresentation.lowBatteryColor)
+                if let icon = OpenSnekBranding.menuBarSymbolIcon(
+                    symbolName: batteryPresentation.symbolName,
+                    color: BatteryPresentation.lowBatteryNSColor
+                ) {
+                    Image(nsImage: icon)
+                        .interpolation(.high)
+                        .antialiased(true)
+                } else {
+                    Image(
+                        systemName: batteryPresentation.symbolName,
+                        variableValue: batteryPresentation.variableValue
+                    )
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(BatteryPresentation.lowBatteryColor)
+                }
             } else if let menuIcon = OpenSnekBranding.menuIcon {
                 Image(nsImage: menuIcon)
                     .renderingMode(.original)
