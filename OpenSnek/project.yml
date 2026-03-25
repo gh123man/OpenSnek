@@ -119,6 +119,24 @@ targets:
     scheme:
       gatherCoverageData: false
 
+  OpenSnekServiceClient:
+    type: tool
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Sources/OpenSnekServiceClient
+    settings:
+      base:
+        PRODUCT_NAME: OpenSnekServiceClient
+        GENERATE_INFOPLIST_FILE: YES
+        OTHER_SWIFT_FLAGS:
+          - -parse-as-library
+    dependencies:
+      - target: OpenSnekCore
+      - target: OpenSnekAppSupport
+    scheme:
+      gatherCoverageData: false
+
   OpenSnekTests:
     type: bundle.unit-test
     platform: macOS

@@ -6,13 +6,18 @@ All notable changes to this project are documented in this file.
 
 ### Added
 - OpenSnek now has a saved button-profile library. Button layouts can be named, reused across devices, loaded into the live editor, and written into onboard mouse storage slots.
+- `OpenSnekServiceClient` is a new CLI that connects to the running background service over the same loopback transport as the app, making it easier to inspect device lists, live state updates, and reconnect behavior while debugging hot-plug issues.
 
 ### Fixed
 - USB button-profile support on the Basilisk V3 Pro and Basilisk V3 35K now follows the same five-slot model: slot 1 is the live/base profile and slots 2 through 5 are stored button layouts.
 - The macOS button-remap UI now uses an explicit `Profiles` load/store workflow with local saved profiles, onboard slot loading, slot-to-profile name matching, and direct editing of the live/base profile.
 - Button remap edits now auto-apply only the slot you changed, keep the editor stable during readback, and show profile-operation busy state only for full profile loads and saves.
+- Profile-menu presentation is now cache-only, so opening the button-profile UI no longer triggers hidden stored-slot USB sweeps during startup or reconnect on multi-profile mice.
 - Turbo configuration now works consistently for turbo-capable mouse bindings as well as keyboard bindings, and the 35K now exposes `DPI Clutch` like the V3 Pro.
-- USB button hydration and reconnect recovery are more reliable: switching devices or reconnecting no longer leaves stale/default bindings on screen, reconnects no longer wait as long for usable state, and USB multi-profile mice no longer eagerly sweep every stored slot on connect.
+- USB button hydration and reconnect recovery are more reliable: switching devices or reconnecting no longer leaves stale/default bindings on screen, seeded reconnect state now still triggers an immediate real refresh instead of being treated as stable telemetry, remote service reads time out instead of leaving the UI stuck loading indefinitely, and USB multi-profile mice no longer eagerly sweep every stored slot while the selected device is still reconnecting.
+- Hot-plug recovery is less aggressive on USB mice: reconnect now cancels stale in-flight full-state reads, aborts any USB telemetry sweep whose device presence changed mid-read, and uses a lighter warmup telemetry pass for the first few seconds after reconnect instead of immediately running the full feature-report sweep that was destabilizing the 35K.
+- For current hot-plug isolation work, USB startup/reconnect telemetry is temporarily reduced to DPI-only reads, USB fast-DPI polling is disabled, and automatic USB button readback is skipped so the remaining crash path can be bisected safely.
+- The Basilisk V3 35K hot-plug debug path now re-enables only the first USB feature read (`getDPI`) while passive DPI HID registration remains disabled, so reconnect testing can isolate whether the very first feature-report read alone is enough to destabilize the device.
 - Connect-time lighting restore is now limited to the Basilisk V3 X HyperSpeed. The Basilisk V3 Pro and Basilisk V3 35K keep their own hardware lighting state, while the app hydrates their lighting UI from remembered color/effect values without writing that state back on connect.
 - Choosing `Default` for special USB button slots now writes the correct semantic default action, so device-specific defaults such as the 35K DPI-cycle button behave correctly without manually reassigning them.
 
@@ -326,3 +331,5 @@ All notable changes to this project are documented in this file.
 - Native app asset catalog + AppIcon set under `OpenSnek/App/Resources/Assets.xcassets`.
 - `OpenSnek/scripts/generate_appiconset.sh` to reproducibly regenerate all macOS app icon sizes from a single generated source.
 - `OpenSnekProbe` USB HID commands for button remap validation (`usb-info`, `usb-button-read`, `usb-button-set`, `usb-button-set-raw`).
+## 2026-03-24
+- Added a targeted 2-second USB reconnect settle window before the first feature-report reads after a device connect/reconnect, while keeping device discovery immediate. Fast DPI polling and USB button hydration now honor the same settle window so the initial reconnect path does not send feature reports too early.

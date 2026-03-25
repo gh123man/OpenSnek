@@ -12,7 +12,8 @@ let package = Package(
         .library(name: "OpenSnekHardware", targets: ["OpenSnekHardware"]),
         .library(name: "OpenSnekAppSupport", targets: ["OpenSnekAppSupport"]),
         .executable(name: "OpenSnek", targets: ["OpenSnek"]),
-        .executable(name: "OpenSnekProbe", targets: ["OpenSnekProbe"])
+        .executable(name: "OpenSnekProbe", targets: ["OpenSnekProbe"]),
+        .executable(name: "OpenSnekServiceClient", targets: ["OpenSnekServiceClient"])
     ],
     targets: [
         .target(
@@ -43,6 +44,11 @@ let package = Package(
             name: "OpenSnekProbe",
             dependencies: ["OpenSnekCore", "OpenSnekProtocols", "OpenSnekHardware"],
             path: "Sources/OpenSnekProbe"
+        ),
+        .executableTarget(
+            name: "OpenSnekServiceClient",
+            dependencies: ["OpenSnekCore", "OpenSnekAppSupport"],
+            path: "Sources/OpenSnekServiceClient"
         ),
         .testTarget(
             name: "OpenSnekTests",

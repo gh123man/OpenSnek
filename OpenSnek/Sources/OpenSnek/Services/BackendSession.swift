@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import OpenSnekAppSupport
 import OpenSnekCore
 import OpenSnekHardware
 
@@ -81,79 +82,6 @@ extension DeviceBackend {
     }
 }
 
-struct DpiFastSnapshot: Codable, Hashable, Sendable {
-    let active: Int
-    let values: [Int]
-}
-
-enum HIDAccessAuthorization: String, Codable, Sendable {
-    case unknown
-    case granted
-    case denied
-    case unavailable
-}
-
-struct HIDAccessStatus: Codable, Equatable, Sendable {
-    let authorization: HIDAccessAuthorization
-    let hostLabel: String
-    let bundleIdentifier: String?
-    let detail: String?
-
-    static func unknown(detail: String? = nil) -> HIDAccessStatus {
-        HIDAccessStatus(
-            authorization: .unknown,
-            hostLabel: PermissionSupport.currentHostLabel(),
-            bundleIdentifier: Bundle.main.bundleIdentifier,
-            detail: detail
-        )
-    }
-
-    static func unavailable(detail: String? = nil) -> HIDAccessStatus {
-        HIDAccessStatus(
-            authorization: .unavailable,
-            hostLabel: PermissionSupport.currentHostLabel(),
-            bundleIdentifier: Bundle.main.bundleIdentifier,
-            detail: detail
-        )
-    }
-
-    var isDenied: Bool {
-        authorization == .denied
-    }
-
-    var diagnosticsLabel: String {
-        switch authorization {
-        case .unknown:
-            return "Checking"
-        case .granted:
-            return "Granted"
-        case .denied:
-            return "Denied"
-        case .unavailable:
-            return "Unavailable"
-        }
-    }
-}
-
-struct SharedServiceSnapshot: Codable, Sendable {
-    let devices: [MouseDevice]
-    let stateByDeviceID: [String: MouseState]
-    let lastUpdatedByDeviceID: [String: Date]
-}
-
-struct CrossProcessClientPresence: Codable, Sendable {
-    let sourceProcessID: Int32
-    let selectedDeviceID: String?
-}
-
-enum BackendStateUpdate: Codable, Sendable {
-    case deviceList([MouseDevice], updatedAt: Date)
-    case deviceState(deviceID: String, state: MouseState, updatedAt: Date)
-    case dpiTransportStatus(deviceID: String, status: DpiUpdateTransportStatus, updatedAt: Date)
-    case snapshot(SharedServiceSnapshot)
-    case openSettingsRequested
-}
-
 func mergedStateFromPassiveDpiEvent(
     previous: MouseState?,
     event: PassiveDPIEvent
@@ -210,6 +138,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend {
     private var cachedFastByDeviceID: [String: DpiFastSnapshot] = [:]
     private var cachedFastAtByDeviceID: [String: Date] = [:]
     private var reconnectSeedStateByDeviceID: [String: MouseState] = [:]
+    private var stateReadTasksByDeviceID: [String: (token: UUID, task: Task<MouseState, Error>)] = [:]
     private var bluetoothControlReadyDeviceIDs: Set<String> = []
     private let stateUpdatesStream = BroadcastStream<BackendStateUpdate>()
     private var devicePresenceRefreshTask: Task<Void, Never>?
@@ -274,7 +203,29 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend {
             }
         }
 
-        let state = try await client.readState(device: device)
+        let stateReadTask: Task<MouseState, Error>
+        let stateReadToken: UUID
+        if let existingTask = stateReadTasksByDeviceID[device.id] {
+            stateReadTask = existingTask.task
+            stateReadToken = existingTask.token
+            AppLog.debug("Backend", "readState coalesced device=\(device.id)")
+        } else {
+            let client = self.client
+            let task = Task {
+                try await client.readState(device: device)
+            }
+            let token = UUID()
+            stateReadTasksByDeviceID[device.id] = (token: token, task: task)
+            stateReadTask = task
+            stateReadToken = token
+        }
+        defer {
+            if stateReadTasksByDeviceID[device.id]?.token == stateReadToken {
+                stateReadTasksByDeviceID.removeValue(forKey: device.id)
+            }
+        }
+
+        let state = try await stateReadTask.value
         if Self.completedReadWasSuperseded(startedAt: readStartedAt, latestCachedAt: cachedStateAtByDeviceID[device.id]),
            let cached = cachedStateByDeviceID[device.id] {
             AppLog.debug(
@@ -683,6 +634,9 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend {
         if let cached = cachedStateByDeviceID[deviceID] {
             reconnectSeedStateByDeviceID[deviceID] = cached
         }
+        if let inFlight = stateReadTasksByDeviceID.removeValue(forKey: deviceID) {
+            inFlight.task.cancel()
+        }
         cachedDevicesAt = nil
         cachedStateByDeviceID.removeValue(forKey: deviceID)
         cachedStateAtByDeviceID.removeValue(forKey: deviceID)
@@ -789,6 +743,8 @@ private actor BackgroundServiceRequestHandler {
 }
 
 final actor IPCDeviceBackend: HIDAccessRefreshControllingBackend {
+    nonisolated static let requestTimeoutInterval: TimeInterval = 2.5
+
     private let host: NWEndpoint.Host = .ipv4(.loopback)
     private let port: NWEndpoint.Port
     private var latestRemoteClientPresence: CrossProcessClientPresence
@@ -911,24 +867,43 @@ final actor IPCDeviceBackend: HIDAccessRefreshControllingBackend {
         let connection = NWConnection(host: host, port: port, using: BackgroundServiceTransport.clientParameters())
         defer { connection.cancel() }
 
-        try await BackgroundServiceTransport.awaitReady(connection: connection)
+        return try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await BackgroundServiceTransport.awaitReady(connection: connection)
 
-        let request = BackgroundServiceRequestEnvelope(method: method, payload: payload)
-        try await BackgroundServiceTransport.sendFrame(try BackendCodec.encode(request), over: connection)
+                let request = BackgroundServiceRequestEnvelope(method: method, payload: payload)
+                try await BackgroundServiceTransport.sendFrame(try BackendCodec.encode(request), over: connection)
 
-        let responseData = try await BackgroundServiceTransport.receiveFrame(from: connection)
-        let response = try BackendCodec.decode(BackgroundServiceResponseEnvelope.self, from: responseData)
-        if let error = response.error {
-            throw NSError(domain: "OpenSnek.Service", code: 2, userInfo: [
-                NSLocalizedDescriptionKey: error
-            ])
+                let responseData = try await BackgroundServiceTransport.receiveFrame(from: connection)
+                let response = try BackendCodec.decode(BackgroundServiceResponseEnvelope.self, from: responseData)
+                if let error = response.error {
+                    throw NSError(domain: "OpenSnek.Service", code: 2, userInfo: [
+                        NSLocalizedDescriptionKey: error
+                    ])
+                }
+                guard let payload = response.payload else {
+                    throw NSError(domain: "OpenSnek.Service", code: 3, userInfo: [
+                        NSLocalizedDescriptionKey: "Background service returned no payload"
+                    ])
+                }
+                return try BackendCodec.decode(responseType, from: payload)
+            }
+
+            group.addTask {
+                try await Task.sleep(
+                    nanoseconds: UInt64(Self.requestTimeoutInterval * 1_000_000_000)
+                )
+                connection.cancel()
+                throw NSError(domain: "OpenSnek.Service", code: 4, userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Background service request timed out after \(String(format: "%.1f", Self.requestTimeoutInterval))s"
+                ])
+            }
+
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
         }
-        guard let payload = response.payload else {
-            throw NSError(domain: "OpenSnek.Service", code: 3, userInfo: [
-                NSLocalizedDescriptionKey: "Background service returned no payload"
-            ])
-        }
-        return try BackendCodec.decode(responseType, from: payload)
     }
 }
 

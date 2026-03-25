@@ -1,4 +1,5 @@
 import Foundation
+import OpenSnekAppSupport
 import OpenSnekCore
 import SwiftUI
 
@@ -45,32 +46,6 @@ enum DeviceConnectionState: Equatable {
             "Unsupported"
         case .error:
             "Error"
-        }
-    }
-}
-
-enum DpiUpdateTransportStatus: String, Codable, Equatable, Sendable {
-    case unknown
-    case listening
-    case streamActive
-    case pollingFallback
-    case realTimeHID
-    case unsupported
-
-    var diagnosticsLabel: String {
-        switch self {
-        case .unknown:
-            "Checking"
-        case .listening:
-            "Listening for first HID event"
-        case .streamActive:
-            "HID stream active"
-        case .pollingFallback:
-            "Polling fallback active"
-        case .realTimeHID:
-            "Real-time HID active"
-        case .unsupported:
-            "Unsupported"
         }
     }
 }

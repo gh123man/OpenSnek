@@ -176,6 +176,85 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         XCTAssertEqual(selectedDpi, 2400)
     }
 
+    func testReconnectSeededRemoteSnapshotStillTriggersImmediateReadWithoutButtonHydration() async throws {
+        let originalDevice = makeSnapshotDevice(
+            id: "snapshot-reconnect-original-device",
+            productName: "Snapshot Remote Mouse",
+            transport: .usb,
+            serial: "SNAPSHOT-RECONNECT",
+            locationID: 1,
+            profile: .basiliskV3Pro
+        )
+        let reconnectedDevice = makeSnapshotDevice(
+            id: "snapshot-reconnect-replacement-device",
+            productName: "Snapshot Remote Mouse",
+            transport: .usb,
+            serial: "SNAPSHOT-RECONNECT",
+            locationID: 2,
+            profile: .basiliskV3Pro
+        )
+        let originalState = makeSnapshotState(
+            device: originalDevice,
+            connection: "usb",
+            batteryPercent: 81,
+            dpiValues: [800, 2400, 6400],
+            activeStage: 1,
+            dpiValue: 2400
+        )
+        let reconnectedState = makeSnapshotState(
+            device: reconnectedDevice,
+            connection: "usb",
+            batteryPercent: 79,
+            dpiValues: [1200, 2600, 6800],
+            activeStage: 0,
+            dpiValue: 1200
+        )
+        let backend = SnapshotReadbackRemoteBackend(
+            stateByDeviceID: [reconnectedDevice.id: reconnectedState],
+            holdFirstReadDeviceID: reconnectedDevice.id
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await MainActor.run {
+            appState.deviceStore.applyRemoteServiceSnapshot(
+                SharedServiceSnapshot(
+                    devices: [originalDevice],
+                    stateByDeviceID: [originalDevice.id: originalState],
+                    lastUpdatedByDeviceID: [originalDevice.id: Date(timeIntervalSince1970: 1_773_320_000)]
+                )
+            )
+        }
+
+        await MainActor.run {
+            appState.deviceStore.applyRemoteServiceSnapshot(
+                SharedServiceSnapshot(
+                    devices: [reconnectedDevice],
+                    stateByDeviceID: [:],
+                    lastUpdatedByDeviceID: [:]
+                )
+            )
+        }
+
+        await backend.waitForHeldReadToStart()
+
+        let buttonReadCountWhileRecovering = await backend.buttonReadCount(for: reconnectedDevice.id)
+        XCTAssertEqual(buttonReadCountWhileRecovering, 0)
+
+        await backend.releaseHeldRead()
+
+        try await waitUntil {
+            await backend.readCount(for: reconnectedDevice.id) == 1
+        }
+
+        let selectedDeviceID = await MainActor.run { appState.deviceStore.selectedDeviceID }
+        let selectedDpi = await MainActor.run { appState.deviceStore.state?.dpi?.x }
+
+        XCTAssertEqual(selectedDeviceID, reconnectedDevice.id)
+        XCTAssertEqual(selectedDpi, 1200)
+    }
+
     func testApplyRemoteServiceSnapshotHydratesPersistedButtonBindingsForSelectedDevice() async throws {
         let device = makeSnapshotDevice(
             id: "snapshot-button-device",
@@ -661,16 +740,28 @@ private actor SnapshotReadbackRemoteBackend: DeviceBackend {
     nonisolated var usesRemoteServiceTransport: Bool { true }
 
     private let stateByDeviceID: [String: MouseState]
+    private let holdFirstReadDeviceID: String?
     private var readCountsByDeviceID: [String: Int] = [:]
+    private var buttonReadCountsByDeviceID: [String: Int] = [:]
+    private var heldReadStartedContinuation: CheckedContinuation<Void, Never>?
+    private var heldReadReleaseContinuation: CheckedContinuation<Void, Never>?
 
-    init(stateByDeviceID: [String: MouseState]) {
+    init(stateByDeviceID: [String: MouseState], holdFirstReadDeviceID: String? = nil) {
         self.stateByDeviceID = stateByDeviceID
+        self.holdFirstReadDeviceID = holdFirstReadDeviceID
     }
 
     func listDevices() async throws -> [MouseDevice] { [] }
 
     func readState(device: MouseDevice) async throws -> MouseState {
         readCountsByDeviceID[device.id, default: 0] += 1
+        if device.id == holdFirstReadDeviceID, readCountsByDeviceID[device.id] == 1 {
+            heldReadStartedContinuation?.resume()
+            heldReadStartedContinuation = nil
+            await withCheckedContinuation { continuation in
+                heldReadReleaseContinuation = continuation
+            }
+        }
         guard let state = stateByDeviceID[device.id] else {
             throw SnapshotBackendError.unimplemented
         }
@@ -694,10 +785,32 @@ private actor SnapshotReadbackRemoteBackend: DeviceBackend {
     }
     func apply(device _: MouseDevice, patch _: DevicePatch) async throws -> MouseState { throw SnapshotBackendError.unimplemented }
     func readLightingColor(device _: MouseDevice) async throws -> RGBPatch? { nil }
-    func debugUSBReadButtonBinding(device _: MouseDevice, slot _: Int, profile _: Int) async throws -> [UInt8]? { nil }
+    func debugUSBReadButtonBinding(device: MouseDevice, slot _: Int, profile _: Int) async throws -> [UInt8]? {
+        buttonReadCountsByDeviceID[device.id, default: 0] += 1
+        return nil
+    }
 
     func readCount(for deviceID: String) -> Int {
         readCountsByDeviceID[deviceID] ?? 0
+    }
+
+    func buttonReadCount(for deviceID: String) -> Int {
+        buttonReadCountsByDeviceID[deviceID, default: 0]
+    }
+
+    func waitForHeldReadToStart() async {
+        if let heldDeviceID = holdFirstReadDeviceID,
+           (readCountsByDeviceID[heldDeviceID] ?? 0) > 0 {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            heldReadStartedContinuation = continuation
+        }
+    }
+
+    func releaseHeldRead() {
+        heldReadReleaseContinuation?.resume()
+        heldReadReleaseContinuation = nil
     }
 }
 

@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import OpenSnekAppSupport
 import OpenSnekCore
 @testable import OpenSnek
 
