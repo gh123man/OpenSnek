@@ -62,17 +62,23 @@ enum OpenSnekBranding {
 
     static func menuBarSymbolIcon(symbolName: String, color: NSColor? = nil) -> NSImage? {
         let side = menuBarIconSide
-        let config = NSImage.SymbolConfiguration(pointSize: side - 1, weight: .bold)
+        let targetHeight = max(10, floor(side * 0.6))
+        let config = NSImage.SymbolConfiguration(pointSize: targetHeight, weight: .bold)
         guard let base = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
             .withSymbolConfiguration(config) else {
             return nil
         }
 
         let sourceSize = base.size
-        let width = max(side, ceil(sourceSize.width * (side / max(sourceSize.height, 1))))
+        let width = max(targetHeight, ceil(sourceSize.width * (targetHeight / max(sourceSize.height, 1))))
         let image = NSImage(size: NSSize(width: width, height: side))
         image.lockFocus()
-        let rect = NSRect(x: 0, y: 0, width: width, height: side)
+        let rect = NSRect(
+            x: 0,
+            y: floor((side - targetHeight) / 2),
+            width: width,
+            height: targetHeight
+        )
         base.draw(in: rect)
         if let color {
             color.set()
