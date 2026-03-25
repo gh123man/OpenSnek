@@ -454,15 +454,15 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
     }
 
     func testUSBLightingZoneSwitchLoadsPersistedZoneSpecificColor() async throws {
-        let device = makeRefactorUSBLightingRestoreDevice(
+        let device = makeRefactorMultiZoneUSBLightingDevice(
             id: "usb-zone-switch-lighting-device",
             serial: "USB-ZONE-SWITCH-\(UUID().uuidString)"
         )
-        let allColor = RGBColor(r: 10, g: 20, b: 30)
         let wheelColor = RGBColor(r: 40, g: 50, b: 60)
+        let logoColor = RGBColor(r: 70, g: 80, b: 90)
         let preferenceStore = DevicePreferenceStore()
-        preferenceStore.persistLightingColor(allColor, device: device)
         preferenceStore.persistLightingColor(wheelColor, device: device, zoneID: "scroll_wheel")
+        preferenceStore.persistLightingColor(logoColor, device: device, zoneID: "logo")
         preferenceStore.persistLightingZoneID("scroll_wheel", device: device)
         defer { clearRefactorPreferences(for: device) }
 
@@ -481,13 +481,97 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(initialColor, wheelColor)
 
         await MainActor.run {
-            appState.editorStore.updateUSBLightingZoneID("all")
+            appState.editorStore.updateUSBLightingZoneID("logo")
         }
 
-        let allZonesColor = await MainActor.run { appState.editorStore.editableColor }
-        let allZones = await MainActor.run { appState.editorStore.editableUSBLightingZoneID }
-        XCTAssertEqual(allZones, "all")
-        XCTAssertEqual(allZonesColor, allColor)
+        let selectedZoneColor = await MainActor.run { appState.editorStore.editableColor }
+        let selectedZone = await MainActor.run { appState.editorStore.editableUSBLightingZoneID }
+        let applyCount = await backend.applyCount()
+
+        XCTAssertEqual(selectedZone, "logo")
+        XCTAssertEqual(selectedZoneColor, logoColor)
+        XCTAssertEqual(applyCount, 0)
+    }
+
+    func testUSBStaticMultiZonePresentationDoesNotLeaveEditorOnAllZones() async throws {
+        let device = makeRefactorMultiZoneUSBLightingDevice(
+            id: "usb-multizone-static-presentation-device",
+            serial: "USB-MULTIZONE-\(UUID().uuidString)"
+        )
+        let globalColor = RGBColor(r: 10, g: 20, b: 30)
+        let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistLightingColor(globalColor, device: device)
+        preferenceStore.persistLightingZoneID("all", device: device)
+        defer { clearRefactorPreferences(for: device) }
+
+        let backend = AppStateRefactorStubBackend(devices: [], stateByDeviceID: [:])
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await MainActor.run {
+            _ = appState.deviceController.applyDeviceList([device], source: "refresh")
+        }
+
+        let editableZone = await MainActor.run { appState.editorStore.editableUSBLightingZoneID }
+        let editableColor = await MainActor.run { appState.editorStore.editableColor }
+
+        XCTAssertEqual(editableZone, "scroll_wheel")
+        XCTAssertEqual(editableColor, globalColor)
+    }
+
+    func testApplyCurrentStaticColorToAllZonesWritesGlobalPatchAndPersistsEveryZone() async throws {
+        let device = makeRefactorMultiZoneUSBLightingDevice(
+            id: "usb-apply-all-zones-device",
+            serial: "USB-APPLY-ALL-\(UUID().uuidString)"
+        )
+        defer { clearRefactorPreferences(for: device) }
+
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 79,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 1,
+                    dpiValue: 1600,
+                    pollRate: 1000,
+                    sleepTimeout: 300
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+        await MainActor.run {
+            appState.editorStore.updateUSBLightingZoneID("logo")
+            appState.editorStore.editableColor = RGBColor(r: 111, g: 122, b: 133)
+        }
+
+        await appState.editorStore.applyCurrentStaticColorToAllZones()
+
+        try await waitForRefactorCondition {
+            await backend.applyCount() == 1
+        }
+
+        let patches = await backend.recordedPatches()
+        let patch = try XCTUnwrap(patches.first)
+        let editableZone = await MainActor.run { appState.editorStore.editableUSBLightingZoneID }
+        let preferenceStore = DevicePreferenceStore()
+        let expectedColor = RGBColor(r: 111, g: 122, b: 133)
+
+        XCTAssertEqual(patch.lightingEffect?.kind, .staticColor)
+        XCTAssertNil(patch.usbLightingZoneLEDIDs)
+        XCTAssertEqual(editableZone, "logo")
+        XCTAssertEqual(preferenceStore.loadPersistedLightingZoneID(device: device), "logo")
+        XCTAssertEqual(preferenceStore.loadPersistedLightingColor(device: device), expectedColor)
+        XCTAssertEqual(preferenceStore.loadPersistedLightingColor(device: device, zoneID: "scroll_wheel"), expectedColor)
+        XCTAssertEqual(preferenceStore.loadPersistedLightingColor(device: device, zoneID: "logo"), expectedColor)
+        XCTAssertEqual(preferenceStore.loadPersistedLightingColor(device: device, zoneID: "underglow"), expectedColor)
     }
 
     func testUSBPersistedLightingEffectReappliesOnFirstHydration() async throws {
@@ -2348,6 +2432,26 @@ private func makeRefactorUSBLightingRestoreDevice(
         firmware: "1.0.0",
         location_id: 1,
         profile_id: .basiliskV3XHyperspeed,
+        supports_advanced_lighting_effects: true,
+        onboard_profile_count: 1
+    )
+}
+
+private func makeRefactorMultiZoneUSBLightingDevice(
+    id: String,
+    serial: String
+) -> MouseDevice {
+    MouseDevice(
+        id: id,
+        vendor_id: 0x1532,
+        product_id: 0x00AB,
+        product_name: "Refactor Multi-Zone USB Lighting Mouse",
+        transport: .usb,
+        path_b64: "",
+        serial: serial,
+        firmware: "1.0.0",
+        location_id: 1,
+        profile_id: .basiliskV3Pro,
         supports_advanced_lighting_effects: true,
         onboard_profile_count: 1
     )

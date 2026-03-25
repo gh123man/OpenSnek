@@ -284,12 +284,11 @@ struct DeviceOverviewBar: View {
             HStack(spacing: 10) {
                 Pill(
                     text: state.connection,
-                    color: selected.transport == .bluetooth ? Color(hex: 0x66D9FF) : Color(hex: 0xA8F46A),
-                    helpText: deviceStore.currentDeviceConnectionTooltip
+                    color: selected.transport == .bluetooth ? Color(hex: 0x66D9FF) : Color(hex: 0xA8F46A)
                 )
                 DeviceStatusBadge(
                     indicator: deviceStore.currentDeviceStatusIndicator,
-                    helpText: deviceStore.currentDeviceStatusTooltip
+                    helpText: deviceStore.currentDeviceConnectionTooltip
                 )
             }
 
@@ -521,12 +520,11 @@ struct GenericDeviceOverviewBar: View {
             HStack(spacing: 10) {
                 Pill(
                     text: selected.connectionLabel,
-                    color: selected.transport == .bluetooth ? Color(hex: 0x66D9FF) : Color(hex: 0xA8F46A),
-                    helpText: deviceStore.currentDeviceConnectionTooltip
+                    color: selected.transport == .bluetooth ? Color(hex: 0x66D9FF) : Color(hex: 0xA8F46A)
                 )
                 DeviceStatusBadge(
                     indicator: deviceStore.currentDeviceStatusIndicator,
-                    helpText: deviceStore.currentDeviceStatusTooltip
+                    helpText: deviceStore.currentDeviceConnectionTooltip
                 )
             }
 
@@ -772,33 +770,44 @@ struct LightingCard: View {
     }
 
     @ViewBuilder
-    private func staticLightingZonePicker(applyOnChange: Bool) -> some View {
+    private func staticLightingZoneEditor() -> some View {
         if showsStaticLightingZonePicker {
-            HStack {
-                Text("Zone")
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Editing Zone")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.82))
-                Spacer()
+
                 Picker(
-                    "",
+                    "Editing Zone",
                     selection: Binding(
                         get: { editorStore.editableUSBLightingZoneID },
                         set: {
                             editorStore.updateUSBLightingZoneID($0)
-                            if applyOnChange {
-                                editorStore.scheduleAutoApplyLightingEffect()
-                            }
                         }
                     )
                 ) {
-                    Text("All Zones").tag("all")
                     ForEach(editorStore.visibleUSBLightingZones) { zone in
                         Text(zone.label).tag(zone.id)
                     }
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(width: 220, alignment: .trailing)
+                .pickerStyle(.segmented)
+
+                HStack(alignment: .center, spacing: 12) {
+                    Text("Color edits affect only the selected zone.")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.58))
+
+                    Spacer()
+
+                    Button("Apply Color to All Zones") {
+                        Task {
+                            await editorStore.applyCurrentStaticColorToAllZones()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .tint(accentBase)
+                }
             }
         }
     }
@@ -830,7 +839,7 @@ struct LightingCard: View {
             .padding(.vertical, 8)
 
             if !selected.supports_advanced_lighting_effects {
-                staticLightingZonePicker(applyOnChange: false)
+                staticLightingZoneEditor()
 
                 LightingColorEditor(
                     title: "Color",
@@ -919,7 +928,7 @@ struct LightingCard: View {
                 }
 
                 if editorStore.editableLightingEffect.usesPrimaryColor {
-                    staticLightingZonePicker(applyOnChange: true)
+                    staticLightingZoneEditor()
 
                     LightingColorEditor(
                         title: "Primary Color",

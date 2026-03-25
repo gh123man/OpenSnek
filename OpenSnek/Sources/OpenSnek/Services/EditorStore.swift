@@ -403,6 +403,10 @@ final class EditorStore {
         applyController.scheduleAutoApplyLightingEffect()
     }
 
+    func applyCurrentStaticColorToAllZones() async {
+        await applyController.applyCurrentStaticColorToAllZones()
+    }
+
     func updateLightingEffect(_ kind: LightingEffectKind) {
         editorController.updateLightingEffect(kind)
     }

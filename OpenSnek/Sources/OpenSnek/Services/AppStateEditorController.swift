@@ -335,12 +335,14 @@ final class AppStateEditorController {
             if !device.supports_advanced_lighting_effects {
                 editorStore.editableLightingEffect = .staticColor
             }
+            ensureEditableStaticLightingZoneSelection()
             AppLog.debug("AppState", "hydrated Bluetooth lighting color from device id=\(device.id) rgb=(\(rgb.r),\(rgb.g),\(rgb.b))")
         } else {
             editorStore.editableUSBLightingZoneID = "all"
             if !device.supports_advanced_lighting_effects {
                 editorStore.editableLightingEffect = .staticColor
             }
+            ensureEditableStaticLightingZoneSelection()
             AppLog.debug("AppState", "lighting color read unavailable for device id=\(device.id)")
         }
 
@@ -992,6 +994,7 @@ final class AppStateEditorController {
         } else {
             editorStore.editableLightingEffect = .staticColor
         }
+        ensureEditableStaticLightingZoneSelection()
     }
 
     private func shouldRestorePersistedLightingOnConnect(for device: MouseDevice) -> Bool {
@@ -1002,6 +1005,24 @@ final class AppStateEditorController {
         guard editorStore.editableLightingEffect == .staticColor else { return nil }
         guard editorStore.editableUSBLightingZoneID != "all" else { return nil }
         return editorStore.visibleUSBLightingZones.first(where: { $0.id == editorStore.editableUSBLightingZoneID })?.ledIDs
+    }
+
+    func ensureEditableStaticLightingZoneSelection() {
+        guard editorStore.editableLightingEffect == .staticColor,
+              editorStore.visibleUSBLightingZones.count > 1 else { return }
+
+        let visibleZoneIDs = Set(editorStore.visibleUSBLightingZones.map(\.id))
+        let currentZoneID = editorStore.editableUSBLightingZoneID
+        guard currentZoneID == "all" || !visibleZoneIDs.contains(currentZoneID) else { return }
+
+        if let selectedDevice = deviceStore.selectedDevice {
+            updateUSBLightingZoneID(defaultEditableStaticLightingZoneID(for: selectedDevice))
+            return
+        }
+
+        if let firstZoneID = editorStore.visibleUSBLightingZones.first?.id {
+            editorStore.editableUSBLightingZoneID = firstZoneID
+        }
     }
 
     private func normalizedLightingZoneID(for device: MouseDevice, preferredZoneID: String?) -> String {
@@ -1064,19 +1085,29 @@ final class AppStateEditorController {
         guard deviceStore.selectedDevice?.supports_advanced_lighting_effects == true else {
             editorStore.editableLightingEffect = .staticColor
             editorStore.editableUSBLightingZoneID = "all"
+            ensureEditableStaticLightingZoneSelection()
             return
         }
         let supportedEffects = editorStore.visibleLightingEffects
         editorStore.editableLightingEffect = supportedEffects.contains(kind) ? kind : (supportedEffects.first ?? .staticColor)
         if kind != .staticColor {
             editorStore.editableUSBLightingZoneID = "all"
+        } else {
+            ensureEditableStaticLightingZoneSelection()
         }
     }
 
     func updateUSBLightingZoneID(_ zoneID: String) {
         let resolvedZoneID: String
         if let selectedDevice = deviceStore.selectedDevice {
-            resolvedZoneID = normalizedLightingZoneID(for: selectedDevice, preferredZoneID: zoneID)
+            let normalizedZoneID = normalizedLightingZoneID(for: selectedDevice, preferredZoneID: zoneID)
+            if editorStore.editableLightingEffect == .staticColor,
+               editorStore.visibleUSBLightingZones.count > 1,
+               normalizedZoneID == "all" {
+                resolvedZoneID = defaultEditableStaticLightingZoneID(for: selectedDevice)
+            } else {
+                resolvedZoneID = normalizedLightingZoneID(for: selectedDevice, preferredZoneID: zoneID)
+            }
             if editorStore.editableLightingEffect == .staticColor,
                let persistedColor = loadPersistedLightingColor(device: selectedDevice, zoneID: resolvedZoneID) {
                 editorStore.editableColor = persistedColor
@@ -1085,6 +1116,21 @@ final class AppStateEditorController {
             resolvedZoneID = zoneID
         }
         editorStore.editableUSBLightingZoneID = resolvedZoneID
+    }
+
+    private func defaultEditableStaticLightingZoneID(for device: MouseDevice) -> String {
+        let visibleZones = DeviceProfiles
+            .resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?
+            .usbLightingZones ?? []
+
+        let persistedZoneID = normalizedLightingZoneID(
+            for: device,
+            preferredZoneID: loadPersistedLightingZoneID(device: device)
+        )
+        if persistedZoneID != "all", visibleZones.contains(where: { $0.id == persistedZoneID }) {
+            return persistedZoneID
+        }
+        return visibleZones.first?.id ?? "all"
     }
 
     func updateUSBButtonProfile(_ profile: Int) {

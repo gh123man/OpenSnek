@@ -233,6 +233,31 @@ final class AppStateApplyController {
         }
     }
 
+    func applyCurrentStaticColorToAllZones() async {
+        guard editorStore.editableLightingEffect == .staticColor else { return }
+        guard deviceStore.selectedDevice != nil else {
+            deviceStore.errorMessage = "No device selected"
+            return
+        }
+
+        cancelScheduledApply(for: .ledColor)
+        cancelScheduledApply(for: .lightingEffect)
+
+        if deviceStore.selectedDevice?.supports_advanced_lighting_effects == true {
+            enqueueApply(DevicePatch(lightingEffect: editorController.currentLightingEffectPatch()))
+        } else {
+            enqueueApply(
+                DevicePatch(
+                    ledRGB: RGBPatch(
+                        r: editorStore.editableColor.r,
+                        g: editorStore.editableColor.g,
+                        b: editorStore.editableColor.b
+                    )
+                )
+            )
+        }
+    }
+
     private func makeButtonBindingPatch(
         slot: Int,
         persistentProfile: Int,
@@ -537,6 +562,11 @@ final class AppStateApplyController {
         }
     }
 
+    private func cancelScheduledApply(for key: ApplyTaskKey) {
+        applyTasks[key]?.cancel()
+        applyTasks.removeValue(forKey: key)
+    }
+
     func markLocalEditsPending() {
         hasPendingLocalEdits = true
         lastLocalEditAt = Date()
@@ -741,28 +771,39 @@ final class AppStateApplyController {
         usbLightingZoneID: String
     ) {
         if let rgb = patch.ledRGB {
-            let colorZoneID = usbLightingZoneID == "all" ? nil : usbLightingZoneID
-            editorController.persistLightingColor(
-                RGBColor(r: rgb.r, g: rgb.g, b: rgb.b),
-                device: device,
-                zoneID: colorZoneID
-            )
+            let color = RGBColor(r: rgb.r, g: rgb.g, b: rgb.b)
+            if patch.usbLightingZoneLEDIDs == nil && editorStore.visibleUSBLightingZones.count > 1 {
+                persistLightingColorForAllZones(color, device: device)
+            } else {
+                let colorZoneID = usbLightingZoneID == "all" ? nil : usbLightingZoneID
+                editorController.persistLightingColor(color, device: device, zoneID: colorZoneID)
+            }
             editorController.persistLightingZoneID(usbLightingZoneID, device: device)
         }
         if let lightingEffect = patch.lightingEffect {
-            let colorZoneID = lightingEffect.kind == .staticColor && usbLightingZoneID != "all"
-                ? usbLightingZoneID
-                : nil
             editorController.persistLightingEffect(lightingEffect, device: device)
-            editorController.persistLightingColor(
-                RGBColor(r: lightingEffect.primary.r, g: lightingEffect.primary.g, b: lightingEffect.primary.b),
-                device: device,
-                zoneID: colorZoneID
-            )
+            let color = RGBColor(r: lightingEffect.primary.r, g: lightingEffect.primary.g, b: lightingEffect.primary.b)
+            if lightingEffect.kind == .staticColor,
+               patch.usbLightingZoneLEDIDs == nil,
+               editorStore.visibleUSBLightingZones.count > 1 {
+                persistLightingColorForAllZones(color, device: device)
+            } else {
+                let colorZoneID = lightingEffect.kind == .staticColor && usbLightingZoneID != "all"
+                    ? usbLightingZoneID
+                    : nil
+                editorController.persistLightingColor(color, device: device, zoneID: colorZoneID)
+            }
             editorController.persistLightingZoneID(
                 lightingEffect.kind == .staticColor ? usbLightingZoneID : "all",
                 device: device
             )
+        }
+    }
+
+    private func persistLightingColorForAllZones(_ color: RGBColor, device: MouseDevice) {
+        editorController.persistLightingColor(color, device: device)
+        for zone in editorStore.visibleUSBLightingZones {
+            editorController.persistLightingColor(color, device: device, zoneID: zone.id)
         }
     }
 }

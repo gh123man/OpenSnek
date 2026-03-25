@@ -8,6 +8,8 @@ All notable changes to this project are documented in this file.
 - The menu bar DPI editor once again shows a live slider for scalar stages on supported mice, while X/Y-capable stages now expand to separate `X` and `Y` sliders only when the active stage is actually split across axes.
 - DPI text entry fields now keep exact integer values instead of snapping the visible editor back through the slider's 100-DPI step size while you type.
 - The `Start at login` toggle now stays synchronized between the full app Settings window and the menu bar service menu, even when one process changes the shared preference while the other is already running.
+- The device header now shows its connection diagnostics from the connection-status badge instead of the adjacent USB/Bluetooth transport pill, so the hover target matches the actual connection state and no duplicate transport hover remains.
+- Static multi-zone lighting now edits one concrete zone at a time, switching zones no longer writes color changes on its own, and `Apply Color to All Zones` is now a separate explicit action instead of a fragile `All Zones` picker state.
 
 ## [2026-03-24]
 
