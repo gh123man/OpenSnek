@@ -465,7 +465,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         }
 
         await MainActor.run {
-            appState.environment.hasCheckedForUpdates = true
+            appState.environment.lastReleaseUpdateCheckAt = Date()
         }
         await appState.runtimeStore.start()
 
@@ -497,7 +497,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         }
 
         await MainActor.run {
-            appState.environment.hasCheckedForUpdates = true
+            appState.environment.lastReleaseUpdateCheckAt = Date()
         }
         await appState.runtimeStore.start()
 

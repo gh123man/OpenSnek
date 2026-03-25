@@ -1,5 +1,9 @@
 import Foundation
 
+protocol ReleaseUpdateChecking: Sendable {
+    func checkForUpdate(currentVersion: String) async throws -> ReleaseAvailability?
+}
+
 enum AppBuildChannel: String, Equatable {
     case dev
     case release
@@ -110,12 +114,13 @@ struct ReleaseAvailability: Equatable {
     let releaseURL: URL
 }
 
-struct ReleaseUpdateChecker: Sendable {
+struct ReleaseUpdateChecker: ReleaseUpdateChecking, Sendable {
     private struct LatestReleaseResponse: Decodable {
         let tag_name: String
         let html_url: String?
     }
 
+    static let periodicCheckInterval: TimeInterval = 60 * 60 * 24
     static let releasesPageURL = URL(string: "https://github.com/gh123man/OpenSnek/releases")!
 
     private let session: URLSession
@@ -157,5 +162,10 @@ struct ReleaseUpdateChecker: Sendable {
 
     static func shouldCheckForUpdates(bundle: Bundle = .main) -> Bool {
         currentBuildChannel(bundle: bundle) == .release
+    }
+
+    static func isPeriodicCheckDue(lastCheckedAt: Date?, now: Date = Date()) -> Bool {
+        guard let lastCheckedAt else { return true }
+        return now.timeIntervalSince(lastCheckedAt) >= periodicCheckInterval
     }
 }

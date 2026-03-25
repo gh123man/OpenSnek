@@ -29,6 +29,7 @@ All notable changes to this project are documented in this file.
 - Passive HID DPI fallback/correction scheduling now tracks every visible local device instead of only the selected one, so concurrent USB and Bluetooth mice can both keep their passive-stream upgrade path and real-time watchdog active in the same app/service session.
 - Switching device tabs no longer blocks on fresh USB button-binding readback for a device that was already hydrated earlier in the session. The UI now reuses cached per-device editor state immediately and refreshes any USB button readback in the background instead of tying tab selection responsiveness to control-transport reads.
 - Keyboard button-remap rows now keep the `Turbo` toggle inline with the key picker, while the turbo-rate slider stays on its own line underneath so enabling turbo does not reshuffle the key-selection controls.
+- Release builds now re-check GitHub for app updates once every 24 hours while the foreground app keeps running, instead of only checking again after a restart.
 
 ## [2026-03-21]
 
