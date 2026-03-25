@@ -70,7 +70,22 @@ enum OpenSnekBranding {
 
         let image = NSImage(size: NSSize(width: side, height: side))
         image.lockFocus()
-        let rect = NSRect(x: 0, y: 0, width: side, height: side)
+        let canvasRect = NSRect(x: 0, y: 0, width: side, height: side)
+        let sourceSize = base.size
+        let scale = min(
+            canvasRect.width / max(sourceSize.width, 1),
+            canvasRect.height / max(sourceSize.height, 1)
+        )
+        let drawSize = NSSize(
+            width: floor(sourceSize.width * scale),
+            height: floor(sourceSize.height * scale)
+        )
+        let rect = NSRect(
+            x: floor((canvasRect.width - drawSize.width) / 2),
+            y: floor((canvasRect.height - drawSize.height) / 2),
+            width: drawSize.width,
+            height: drawSize.height
+        )
         base.draw(in: rect)
         if let color {
             color.set()
