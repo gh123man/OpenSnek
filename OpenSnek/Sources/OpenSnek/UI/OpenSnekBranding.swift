@@ -68,24 +68,11 @@ enum OpenSnekBranding {
             return nil
         }
 
-        let image = NSImage(size: NSSize(width: side, height: side))
-        image.lockFocus()
-        let canvasRect = NSRect(x: 0, y: 0, width: side, height: side)
         let sourceSize = base.size
-        let scale = min(
-            canvasRect.width / max(sourceSize.width, 1),
-            canvasRect.height / max(sourceSize.height, 1)
-        )
-        let drawSize = NSSize(
-            width: floor(sourceSize.width * scale),
-            height: floor(sourceSize.height * scale)
-        )
-        let rect = NSRect(
-            x: floor((canvasRect.width - drawSize.width) / 2),
-            y: floor((canvasRect.height - drawSize.height) / 2),
-            width: drawSize.width,
-            height: drawSize.height
-        )
+        let width = max(side, ceil(sourceSize.width * (side / max(sourceSize.height, 1))))
+        let image = NSImage(size: NSSize(width: width, height: side))
+        image.lockFocus()
+        let rect = NSRect(x: 0, y: 0, width: width, height: side)
         base.draw(in: rect)
         if let color {
             color.set()
@@ -94,6 +81,10 @@ enum OpenSnekBranding {
         image.unlockFocus()
         image.isTemplate = false
         return image
+    }
+
+    static func menuBarSymbolWidth(symbolName: String) -> CGFloat {
+        menuBarSymbolIcon(symbolName: symbolName)?.size.width ?? menuBarIconSide
     }
 
     private static func loadSourceIcon() -> NSImage? {

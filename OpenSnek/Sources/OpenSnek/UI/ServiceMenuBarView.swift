@@ -561,7 +561,7 @@ struct ServiceMenuBarStatusItemLabel: View {
                     isConnected: deviceStore.selectedDevice != nil,
                     batteryPresentation: ServiceMenuBarPresentation.statusGlyphBatteryIcon(state: deviceStore.state)
                 )
-                    .frame(width: OpenSnekBranding.menuBarIconSide, height: OpenSnekBranding.menuBarIconSide)
+                    .frame(height: OpenSnekBranding.menuBarIconSide)
                     .fixedSize()
             }
         }
@@ -615,6 +615,13 @@ private struct ServiceMenuBarStatusGlyph: View {
         return "menu"
     }
 
+    private var statusImageWidth: CGFloat {
+        if let batteryPresentation {
+            return OpenSnekBranding.menuBarSymbolWidth(symbolName: batteryPresentation.symbolName)
+        }
+        return OpenSnekBranding.menuBarIconSide
+    }
+
     var body: some View {
         Group {
             if let statusImage {
@@ -643,6 +650,6 @@ private struct ServiceMenuBarStatusGlyph: View {
             }
         }
         .opacity(iconOpacity)
-        .frame(width: OpenSnekBranding.menuBarIconSide, height: OpenSnekBranding.menuBarIconSide)
+        .frame(width: statusImageWidth, height: OpenSnekBranding.menuBarIconSide)
     }
 }
