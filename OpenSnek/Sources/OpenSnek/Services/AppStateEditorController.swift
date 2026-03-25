@@ -422,8 +422,19 @@ final class AppStateEditorController {
 
         let profile = editorStore.editableUSBButtonProfile
         let hydrationKey = buttonBindingsHydrationKey(device: device, profile: profile)
+        if device.transport == .usb,
+           buttonBindingsCacheByHydrationKey[hydrationKey] == nil,
+           !buttonBindingsReadbackAttemptedKeys.contains(hydrationKey),
+           !buttonBindingsReadbackInFlightKeys.contains(hydrationKey) {
+            buttonBindingsReadbackAttemptedKeys.insert(hydrationKey)
+            buttonBindingsReadbackInFlightKeys.insert(hydrationKey)
+            bumpUSBButtonProfilesRevision()
+            await refreshUSBButtonBindingsFromDevice(device: device, hydrationKey: hydrationKey, profile: profile)
+        }
         let cached = cachedButtonBindings(device: device, profile: profile)
-        buttonBindingsCacheByHydrationKey[hydrationKey] = cached
+        if device.transport != .usb || buttonBindingsCacheByHydrationKey[hydrationKey] != nil {
+            buttonBindingsCacheByHydrationKey[hydrationKey] = cached
+        }
         bumpUSBButtonProfilesRevision()
 
         if (!shouldPreserveLocalButtonWorkspace(device: device) && hydratedButtonBindingsKey != hydrationKey) ||
@@ -445,22 +456,13 @@ final class AppStateEditorController {
             return
         }
 
-        guard !buttonBindingsReadbackAttemptedKeys.contains(hydrationKey),
-              !buttonBindingsReadbackInFlightKeys.contains(hydrationKey) else {
+        guard buttonBindingsCacheByHydrationKey[hydrationKey] != nil else {
             AppLog.debug(
                 "AppState",
-                "hydrated button bindings from session cache id=\(device.id) profile=\(profile) slots=\(cached.keys.sorted())"
+                "usb button hydration has no device snapshot id=\(device.id) profile=\(profile)"
             )
             return
         }
-
-        buttonBindingsReadbackAttemptedKeys.insert(hydrationKey)
-        buttonBindingsReadbackInFlightKeys.insert(hydrationKey)
-        bumpUSBButtonProfilesRevision()
-        Task { @MainActor [weak self] in
-            await self?.refreshUSBButtonBindingsFromDevice(device: device, hydrationKey: hydrationKey, profile: profile)
-        }
-
     }
 
     func markButtonBindingsHydrated(device: MouseDevice, profile: Int) {
@@ -468,8 +470,6 @@ final class AppStateEditorController {
         if editorStore.editableUSBButtonProfile == profile {
             hydratedButtonBindingsKey = hydrationKey
             buttonBindingsCacheByHydrationKey[hydrationKey] = editorStore.editableButtonBindings
-        } else {
-            buttonBindingsCacheByHydrationKey[hydrationKey] = loadPersistedButtonBindings(device: device, profile: profile)
         }
         buttonBindingsReadbackAttemptedKeys.insert(hydrationKey)
         bumpUSBButtonProfilesRevision()
@@ -487,7 +487,7 @@ final class AppStateEditorController {
             let cached = buttonBindingsCacheByHydrationKey[hydrationKey] ?? [:]
             AppLog.debug(
                 "AppState",
-                "hydrated button bindings from persisted cache id=\(device.id) profile=\(profile) slots=\(cached.keys.sorted())"
+                "usb button hydration read unavailable id=\(device.id) profile=\(profile) cachedSlots=\(cached.keys.sorted())"
             )
             return
         }
@@ -504,7 +504,7 @@ final class AppStateEditorController {
         }
 
         var hydrated = buttonBindingsCacheByHydrationKey[hydrationKey]
-            ?? loadPersistedButtonBindings(device: device, profile: profile)
+            ?? [:]
         hydrated.merge(fromDevice) { _, readback in readback }
         buttonBindingsCacheByHydrationKey[hydrationKey] = hydrated
         savePersistedButtonBindings(device: device, bindings: hydrated, profile: profile)
@@ -604,6 +604,7 @@ final class AppStateEditorController {
     }
 
     func persistButtonBinding(_ binding: ButtonBindingPatch, device: MouseDevice, profile: Int) {
+        guard device.transport != .usb else { return }
         preferenceStore.persistButtonBinding(binding, device: device, profile: profile)
     }
 
@@ -626,7 +627,7 @@ final class AppStateEditorController {
             profileID: device.profile_id
         )
         var merged = buttonBindingsCacheByHydrationKey[hydrationKey]
-            ?? loadPersistedButtonBindings(device: device, profile: profile)
+            ?? [:]
         merged[binding.slot] = updatedDraft
         buttonBindingsCacheByHydrationKey[hydrationKey] = merged
         if editorStore.editableUSBButtonProfile == profile,
@@ -642,6 +643,7 @@ final class AppStateEditorController {
     }
 
     func savePersistedButtonBindings(device: MouseDevice, bindings: [Int: ButtonBindingDraft], profile: Int) {
+        guard device.transport != .usb else { return }
         preferenceStore.savePersistedButtonBindings(device: device, bindings: bindings, profile: profile)
     }
 
@@ -661,7 +663,8 @@ final class AppStateEditorController {
     }
 
     func loadPersistedButtonBindings(device: MouseDevice, profile: Int) -> [Int: ButtonBindingDraft] {
-        preferenceStore.loadPersistedButtonBindings(device: device, profile: profile)
+        guard device.transport != .usb else { return [:] }
+        return preferenceStore.loadPersistedButtonBindings(device: device, profile: profile)
     }
 
     func cachedButtonBindings(device: MouseDevice, profile: Int) -> [Int: ButtonBindingDraft] {
@@ -676,14 +679,11 @@ final class AppStateEditorController {
 
     func profileHasCustomBindings(device: MouseDevice, profile: Int) -> Bool? {
         let hydrationKey = buttonBindingsHydrationKey(device: device, profile: profile)
-        let hasLoadedCache = buttonBindingsCacheByHydrationKey[hydrationKey] != nil
         let persisted = loadPersistedButtonBindings(device: device, profile: profile)
-        let hasPersistedState = !persisted.isEmpty
-        guard hasLoadedCache || hasPersistedState || buttonBindingsReadbackAttemptedKeys.contains(hydrationKey) else {
+        guard let bindings = buttonBindingsCacheByHydrationKey[hydrationKey] ?? (!persisted.isEmpty ? persisted : nil) else {
             return nil
         }
 
-        let bindings = buttonBindingsCacheByHydrationKey[hydrationKey] ?? persisted
         let writableSlots = device.button_layout?.writableSlots ?? buttonSlots.map(\.slot)
         return writableSlots.contains { slot in
             (bindings[slot] ?? defaultButtonBinding(for: slot, device: device)) != defaultButtonBinding(for: slot, device: device)
@@ -1165,16 +1165,19 @@ final class AppStateEditorController {
         switch source {
         case .mouseSlot(let profile):
             let clamped = max(1, min(editorStore.visibleOnboardProfileCount, profile))
-            setButtonProfileSource(.mouseSlot(clamped), for: selectedDevice)
-            editorStore.editableUSBButtonProfile = 1
-
-            let hydrationKey = buttonBindingsHydrationKey(device: selectedDevice, profile: clamped)
             var bindings = cachedButtonBindings(device: selectedDevice, profile: clamped)
-            if !hasKnownButtonBindingsSnapshot(device: selectedDevice, profile: clamped),
-               let fromDevice = await loadUSBButtonBindingsFromDevice(device: selectedDevice, profile: clamped) {
+            if !hasKnownButtonBindingsSnapshot(device: selectedDevice, profile: clamped) {
+                guard let fromDevice = await loadUSBButtonBindingsFromDevice(device: selectedDevice, profile: clamped) else {
+                    deviceStore.errorMessage = "Could not read button profile \(clamped) from the mouse."
+                    return
+                }
                 bindings = fromDevice
                 saveCachedButtonBindings(device: selectedDevice, bindings: fromDevice, profile: clamped)
             }
+            deviceStore.errorMessage = nil
+            setButtonProfileSource(.mouseSlot(clamped), for: selectedDevice)
+            editorStore.editableUSBButtonProfile = 1
+            let hydrationKey = buttonBindingsHydrationKey(device: selectedDevice, profile: clamped)
             editorStore.editableButtonBindings = bindings
             hydratedButtonBindingsKey = hydrationKey
             bumpUSBButtonProfilesRevision()
@@ -1194,10 +1197,10 @@ final class AppStateEditorController {
         if buttonBindingsCacheByHydrationKey[hydrationKey] != nil {
             return true
         }
-        if !loadPersistedButtonBindings(device: device, profile: profile).isEmpty {
+        if device.transport != .usb, !loadPersistedButtonBindings(device: device, profile: profile).isEmpty {
             return true
         }
-        return buttonBindingsReadbackAttemptedKeys.contains(hydrationKey)
+        return false
     }
 
     private func refreshSelectedMouseSlotFromDeviceIfNeeded(

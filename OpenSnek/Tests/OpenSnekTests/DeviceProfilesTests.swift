@@ -269,4 +269,20 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(DevicePersistenceKeys.key(for: device), "serial:abc123")
         XCTAssertEqual(DevicePersistenceKeys.legacyKey(for: device), "dev")
     }
+
+    func testPersistenceKeysIgnorePlaceholderZeroSerial() {
+        let device = MouseDevice(
+            id: "dev",
+            vendor_id: 0x1532,
+            product_id: 0x00AB,
+            product_name: "Mouse",
+            transport: .usb,
+            path_b64: "",
+            serial: "000000000000",
+            firmware: nil
+        )
+
+        XCTAssertNil(DevicePersistenceKeys.normalizedStableSerial(device.serial))
+        XCTAssertEqual(DevicePersistenceKeys.key(for: device), "vp:1532:00ab:usb")
+    }
 }

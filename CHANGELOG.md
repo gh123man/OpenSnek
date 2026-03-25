@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 - Battery readouts now turn red when the live charge falls at or below the device's configured low-battery threshold, and the menu bar status icon switches from the normal OpenSnek glyph to a low-battery indicator in that state.
+- USB button-binding caches and reconnect identity now ignore placeholder serials like `000000000000`, which prevents stale remap snapshots from being reused as if they belonged to a uniquely identified mouse.
+- USB button profiles now hydrate strictly from mouse readback instead of local cached bindings, so reconnects no longer auto-reapply stale USB remaps; Bluetooth still remembers the last known button state in the UI when readback is unavailable.
 - DPI sliders now use a multi-stage curve tuned for high-DPI mice: `2K` lands at `50%`, `10K` lands at `75%`, higher ranges ramp in additional coarser stages up to each device max, and the slider shows tick markers at every scale-change anchor.
 - The menu bar DPI editor once again shows a live slider for scalar stages on supported mice, while X/Y-capable stages now expand to separate `X` and `Y` sliders only when the active stage is actually split across axes.
 - DPI text entry fields now keep exact integer values instead of snapping the visible editor back through the slider's 100-DPI step size while you type.

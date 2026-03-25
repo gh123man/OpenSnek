@@ -1,11 +1,26 @@
 import Foundation
 
 public enum DevicePersistenceKeys {
+    public static func normalizedStableSerial(_ rawValue: String?) -> String? {
+        guard let trimmed = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+
+        let lowered = trimmed.lowercased()
+        let alphanumeric = lowered.unicodeScalars.filter(CharacterSet.alphanumerics.contains)
+        guard !alphanumeric.isEmpty else { return nil }
+
+        if alphanumeric.allSatisfy({ $0 == "0" }) || alphanumeric.allSatisfy({ $0 == "f" }) {
+            return nil
+        }
+
+        return lowered
+    }
+
     public static func key(for device: MouseDevice) -> String {
-        if let serial = device.serial?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !serial.isEmpty {
-            return "serial:\(serial.lowercased())"
+        if let serial = normalizedStableSerial(device.serial) {
+            return "serial:\(serial)"
         }
         return String(
             format: "vp:%04x:%04x:%@",
