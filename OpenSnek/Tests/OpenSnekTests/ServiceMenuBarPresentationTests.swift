@@ -74,6 +74,7 @@ final class ServiceMenuBarPresentationTests: XCTestCase {
         let healthyState = makeBatteryState(percent: 60)
 
         XCTAssertEqual(ServiceMenuBarPresentation.statusGlyphBatteryIcon(state: lowState)?.accent, .low)
+        XCTAssertEqual(ServiceMenuBarPresentation.statusGlyphBatteryIcon(state: lowState)?.symbolName, "battery.25percent")
         XCTAssertNil(ServiceMenuBarPresentation.statusGlyphBatteryIcon(state: healthyState))
     }
 

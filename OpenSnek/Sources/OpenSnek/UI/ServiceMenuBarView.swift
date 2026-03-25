@@ -56,12 +56,18 @@ enum ServiceMenuBarPresentation {
               let percent = state.battery_percent else {
             return nil
         }
-        let presentation = batteryIcon(
+        guard BatteryPresentation.isLowBattery(
             percent: percent,
             charging: state.charging,
             thresholdRaw: state.low_battery_threshold_raw
+        ) else {
+            return nil
+        }
+        return BatteryIconPresentation(
+            symbolName: "battery.25percent",
+            variableValue: 0.25,
+            accent: .low
         )
-        return presentation.accent == .low ? presentation : nil
     }
 
     static func compactDpiText(for dpi: Int?) -> String? {
