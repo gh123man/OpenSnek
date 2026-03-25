@@ -35,12 +35,16 @@ final class AppStateRuntimeController {
     private var powerState: PowerState = .active
     private var systemWillSleepObserver: NSObjectProtocol?
     private var systemDidWakeObserver: NSObjectProtocol?
+    private var launchAtStartupObserver: NSObjectProtocol?
     private var isTearingDown = false
 
     init(environment: AppEnvironment, deviceStore: DeviceStore, runtimeStore: RuntimeStore) {
         self.environment = environment
         self.deviceStore = deviceStore
         self.runtimeStore = runtimeStore
+        launchAtStartupObserver = environment.serviceCoordinator.addLaunchAtStartupObserver { [weak self] in
+            self?.syncLaunchAtStartupPreference()
+        }
     }
 
     func tearDown() {
@@ -57,6 +61,10 @@ final class AppStateRuntimeController {
             NSWorkspace.shared.notificationCenter.removeObserver(systemDidWakeObserver)
         }
         systemDidWakeObserver = nil
+        if let launchAtStartupObserver {
+            environment.serviceCoordinator.removePreferencesObserver(launchAtStartupObserver)
+        }
+        launchAtStartupObserver = nil
     }
 
     func bind(deviceController: AppStateDeviceController) {
@@ -735,6 +743,10 @@ final class AppStateRuntimeController {
         guard environment.launchRole.isService else { return }
         compactInteractionUntil = Date().addingTimeInterval(3.0)
         requestImmediateRuntimePoll(resetPollingDeadlines: false)
+    }
+
+    private func syncLaunchAtStartupPreference() {
+        runtimeStore.launchAtStartupEnabled = environment.serviceCoordinator.launchAtStartupEnabled
     }
 
     private func hasActiveRemoteClients(at now: Date) -> Bool {

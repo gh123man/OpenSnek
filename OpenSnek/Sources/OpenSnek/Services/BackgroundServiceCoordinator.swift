@@ -9,6 +9,9 @@ final class BackgroundServiceCoordinator {
 
     nonisolated static let backgroundServiceEnabledDefaultsKey = "backgroundServiceEnabled"
     nonisolated static let launchAtStartupDefaultsKey = "launchServiceAtStartup"
+    nonisolated static let launchAtStartupDidChangeNotification = Notification.Name(
+        "io.opensnek.OpenSnek.launchAtStartupDidChange"
+    )
     nonisolated static let endpointDefaultsKey = "backgroundServiceEndpoint"
     nonisolated static let portDefaultsKey = "backgroundServicePort"
     nonisolated static let pidDefaultsKey = "backgroundServicePID"
@@ -21,6 +24,7 @@ final class BackgroundServiceCoordinator {
 
     private let defaults: UserDefaults
     private let defaultsDomainName: String?
+    private let preferencesNotificationCenter: NotificationCenter
     private let fileManager: FileManager
     private let launchAgentsDirectoryURL: URL?
     private var serviceHost: BackgroundServiceHost?
@@ -28,11 +32,13 @@ final class BackgroundServiceCoordinator {
     init(
         defaults: UserDefaults = .standard,
         defaultsDomainName: String? = Bundle.main.bundleIdentifier,
+        preferencesNotificationCenter: NotificationCenter = DistributedNotificationCenter.default(),
         fileManager: FileManager = .default,
         launchAgentsDirectoryURL: URL? = nil
     ) {
         self.defaults = defaults
         self.defaultsDomainName = defaultsDomainName
+        self.preferencesNotificationCenter = preferencesNotificationCenter
         self.fileManager = fileManager
         self.launchAgentsDirectoryURL = launchAgentsDirectoryURL
         self.defaults.register(defaults: [
@@ -97,6 +103,23 @@ final class BackgroundServiceCoordinator {
         } else {
             try removeLaunchAgent()
         }
+        postLaunchAtStartupDidChangeNotification()
+    }
+
+    func addLaunchAtStartupObserver(_ handler: @escaping @MainActor () -> Void) -> NSObjectProtocol {
+        preferencesNotificationCenter.addObserver(
+            forName: Self.launchAtStartupDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            MainActor.assumeIsolated {
+                handler()
+            }
+        }
+    }
+
+    func removePreferencesObserver(_ observer: NSObjectProtocol) {
+        preferencesNotificationCenter.removeObserver(observer)
     }
 
     func synchronizeLaunchAgentIfNeeded() throws {
@@ -291,6 +314,20 @@ final class BackgroundServiceCoordinator {
 
     private var executableURL: URL {
         URL(fileURLWithPath: ProcessInfo.processInfo.arguments[0]).resolvingSymlinksInPath()
+    }
+
+    private func postLaunchAtStartupDidChangeNotification() {
+        if let distributedCenter = preferencesNotificationCenter as? DistributedNotificationCenter {
+            distributedCenter.postNotificationName(
+                Self.launchAtStartupDidChangeNotification,
+                object: defaultsDomainName,
+                userInfo: nil,
+                deliverImmediately: true
+            )
+            return
+        }
+
+        preferencesNotificationCenter.post(name: Self.launchAtStartupDidChangeNotification, object: nil)
     }
 
     private func existingForegroundAppInstance() -> NSRunningApplication? {

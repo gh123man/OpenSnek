@@ -7,6 +7,7 @@ All notable changes to this project are documented in this file.
 ### Fixed
 - The menu bar DPI editor once again shows a live slider for scalar stages on supported mice, while X/Y-capable stages now expand to separate `X` and `Y` sliders only when the active stage is actually split across axes.
 - DPI text entry fields now keep exact integer values instead of snapping the visible editor back through the slider's 100-DPI step size while you type.
+- The `Start at login` toggle now stays synchronized between the full app Settings window and the menu bar service menu, even when one process changes the shared preference while the other is already running.
 
 ## [2026-03-24]
 

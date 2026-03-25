@@ -89,6 +89,47 @@ final class ServiceModeTests: XCTestCase {
         XCTAssertFalse(appState.runtimeController.isBackendReady)
     }
 
+    @MainActor
+    func testLaunchAtStartupToggleSynchronizesAcrossAppAndServiceRuntimeStores() throws {
+        let suiteName = UUID().uuidString
+        let notificationCenter = NotificationCenter()
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let launchAgentsDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: launchAgentsDirectory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: launchAgentsDirectory) }
+
+        let appCoordinator = BackgroundServiceCoordinator(
+            defaults: UserDefaults(suiteName: suiteName)!,
+            preferencesNotificationCenter: notificationCenter,
+            launchAgentsDirectoryURL: launchAgentsDirectory
+        )
+        let serviceCoordinator = BackgroundServiceCoordinator(
+            defaults: UserDefaults(suiteName: suiteName)!,
+            preferencesNotificationCenter: notificationCenter,
+            launchAgentsDirectoryURL: launchAgentsDirectory
+        )
+        let appState = AppState(launchRole: .app, serviceCoordinator: appCoordinator, autoStart: false)
+        let serviceState = AppState(launchRole: .service, serviceCoordinator: serviceCoordinator, autoStart: false)
+
+        XCTAssertFalse(appState.runtimeStore.launchAtStartupEnabled)
+        XCTAssertFalse(serviceState.runtimeStore.launchAtStartupEnabled)
+
+        appState.runtimeStore.setLaunchAtStartupEnabled(true)
+
+        XCTAssertTrue(appState.runtimeStore.launchAtStartupEnabled)
+        XCTAssertTrue(serviceState.runtimeStore.launchAtStartupEnabled)
+
+        serviceState.runtimeStore.setLaunchAtStartupEnabled(false)
+
+        XCTAssertFalse(appState.runtimeStore.launchAtStartupEnabled)
+        XCTAssertFalse(serviceState.runtimeStore.launchAtStartupEnabled)
+    }
+
     func testRuntimeWakeScheduleBacksOffToIdlePresenceDeadline() {
         let now = Date(timeIntervalSince1970: 1_773_400_000)
 
