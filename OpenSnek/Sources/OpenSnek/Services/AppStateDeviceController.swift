@@ -649,9 +649,8 @@ final class AppStateDeviceController {
     }
 
     func deviceIdentityKey(_ device: MouseDevice) -> String {
-        if let serial = device.serial?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !serial.isEmpty {
-            return "serial:\(serial.lowercased())"
+        if let serial = DevicePersistenceKeys.normalizedStableSerial(device.serial) {
+            return "serial:\(serial)"
         }
         return String(
             format: "vp:%04x:%04x:%@",
@@ -662,8 +661,8 @@ final class AppStateDeviceController {
     }
 
     func stateSummaryMatchesDevice(_ state: MouseState, device: MouseDevice) -> Bool {
-        let deviceSerial = device.serial?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let stateSerial = state.device.serial?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let deviceSerial = DevicePersistenceKeys.normalizedStableSerial(device.serial)
+        let stateSerial = DevicePersistenceKeys.normalizedStableSerial(state.device.serial)
 
         if let deviceSerial, !deviceSerial.isEmpty,
            let stateSerial, !stateSerial.isEmpty {
@@ -696,11 +695,7 @@ final class AppStateDeviceController {
     }
 
     func normalizedSerial(for device: MouseDevice) -> String? {
-        guard let serial = device.serial?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-              !serial.isEmpty else {
-            return nil
-        }
-        return serial
+        DevicePersistenceKeys.normalizedStableSerial(device.serial)
     }
 
     func isStrictlyUnsupported(_ device: MouseDevice) -> Bool {
