@@ -524,16 +524,20 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(gradientColors, [wheelColor, logoColor, underglowColor])
     }
 
-    func testLightingGradientCollapsesToSingleColorWhenEditingAllZones() async throws {
+    func testLightingGradientUsesPersistedZoneColorsWhenEditingAllZones() async throws {
         let device = makeRefactorMultiZoneUSBLightingDevice(
             id: "usb-lighting-gradient-all-zones-device",
             serial: "USB-GRADIENT-ALL-\(UUID().uuidString)"
         )
         let globalColor = RGBColor(r: 80, g: 90, b: 100)
+        let wheelColor = RGBColor(r: 255, g: 0, b: 0)
+        let logoColor = RGBColor(r: 0, g: 255, b: 0)
+        let underglowColor = RGBColor(r: 0, g: 0, b: 255)
         let preferenceStore = DevicePreferenceStore()
-        preferenceStore.persistLightingColor(RGBColor(r: 255, g: 0, b: 0), device: device, zoneID: "scroll_wheel")
-        preferenceStore.persistLightingColor(RGBColor(r: 0, g: 255, b: 0), device: device, zoneID: "logo")
-        preferenceStore.persistLightingColor(RGBColor(r: 0, g: 0, b: 255), device: device, zoneID: "underglow")
+        preferenceStore.persistLightingColor(globalColor, device: device)
+        preferenceStore.persistLightingColor(wheelColor, device: device, zoneID: "scroll_wheel")
+        preferenceStore.persistLightingColor(logoColor, device: device, zoneID: "logo")
+        preferenceStore.persistLightingColor(underglowColor, device: device, zoneID: "underglow")
         defer { clearRefactorPreferences(for: device) }
 
         let backend = AppStateRefactorStubBackend(devices: [], stateByDeviceID: [:])
@@ -549,7 +553,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
 
         let gradientColors = await MainActor.run { appState.editorStore.lightingGradientDisplayColors }
 
-        XCTAssertEqual(gradientColors, [globalColor])
+        XCTAssertEqual(gradientColors, [wheelColor, logoColor, underglowColor])
     }
 
     func testUSBStaticMultiZonePresentationDoesNotLeaveEditorOnAllZones() async throws {

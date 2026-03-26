@@ -745,15 +745,26 @@ struct LightingCard: View {
             editorStore.visibleUSBLightingZones.count > 1
     }
 
+    private var defaultGradientColors: [Color] {
+        [
+            accentBase.opacity(accentOpacity),
+            Color.white.opacity(0.05),
+        ]
+    }
+
     private var zoneGradientColors: [Color] {
+        let displayColors = editorStore.lightingGradientDisplayColors
+        guard let firstColor = displayColors.first else {
+            return defaultGradientColors
+        }
+        guard displayColors.dropFirst().contains(where: { $0 != firstColor }) else {
+            return defaultGradientColors
+        }
+
         let overlayOpacity = max(0.10, accentOpacity * 0.9)
-        let resolvedColors = editorStore.lightingGradientDisplayColors.map {
+        return displayColors.map {
             Color(rgb: $0).opacity(overlayOpacity)
         }
-        if resolvedColors.count <= 1, let color = resolvedColors.first {
-            return [color, color]
-        }
-        return resolvedColors
     }
 
     private var brightnessPercent: Int {
@@ -1601,10 +1612,6 @@ struct ButtonMappingTableCard: View {
     var body: some View {
         Card(title: title) {
             VStack(alignment: .leading, spacing: 12) {
-                if editorStore.supportsMultipleOnboardProfiles || !editorStore.savedButtonProfiles.isEmpty {
-                    ButtonProfileSupportDisabledNote()
-                }
-
                 LazyVStack(alignment: .leading, spacing: 10) {
                     ForEach(rows) { row in
                         ButtonBindingRow(editorStore: editorStore, row: row)
@@ -1616,31 +1623,6 @@ struct ButtonMappingTableCard: View {
                 }
             }
         }
-    }
-}
-
-private struct ButtonProfileSupportDisabledNote: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Profiles")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.62))
-
-            Text("Button profile load/store controls are temporarily disabled while OpenSnek revalidates onboard profile selection on Basilisk V3-family USB mice. Button edits still apply directly to the current mouse state.")
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.58))
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white.opacity(0.035))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-        )
     }
 }
 
