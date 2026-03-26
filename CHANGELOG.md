@@ -12,7 +12,7 @@ All notable changes to this project are documented in this file.
 - Battery readouts now turn red when the live charge falls at or below the device's configured low-battery threshold, and the menu bar status icon switches from the normal OpenSnek glyph to a low-battery indicator in that state.
 - In the device detail two-column layout, the right column now contains only the `Lighting` and `Buttons` cards so the control stack reads with a more balanced split.
 - The main app window now restores its last saved size on relaunch instead of always reopening at the default dimensions.
-- The lighting card background for multi-zone static colors now reflects the real per-zone colors in mouse order instead of using placeholder accent slices, and `all zones` falls back to a single-color background.
+- The lighting card background for multi-zone static colors now reflects the real per-zone colors in mouse order instead of using placeholder accent slices, while uniform or `all zones` states keep the styled accent gradient instead of flattening into a solid fill.
 - USB button-binding caches and reconnect identity now ignore placeholder serials like `000000000000`, which prevents stale remap snapshots from being reused as if they belonged to a uniquely identified mouse.
 - USB button profiles now hydrate strictly from mouse readback instead of local cached bindings, so reconnects no longer auto-reapply stale USB remaps; Bluetooth still remembers the last known button state in the UI when readback is unavailable.
 - USB button writes now fail unless every requested layer succeeds, so OpenSnek no longer treats a volatile direct-layer-only update as a successful persistent remap.
@@ -22,6 +22,7 @@ All notable changes to this project are documented in this file.
 - DPI text entry fields now keep exact integer values instead of snapping the visible editor back through the slider's 100-DPI step size while you type.
 - The `Start at login` toggle now stays synchronized between the full app Settings window and the menu bar service menu, even when one process changes the shared preference while the other is already running.
 - The device header now shows its connection diagnostics from the connection-status badge instead of the adjacent USB/Bluetooth transport pill, so the hover target matches the actual connection state and no duplicate transport hover remains.
+- The button bindings card no longer shows a stale `Profiles` notice banner when there are no profile load/store controls present.
 - Static multi-zone lighting now edits one concrete zone at a time, switching zones no longer writes color changes on its own, and `Apply Color to All Zones` is now a separate explicit action instead of a fragile `All Zones` picker state.
 
 ## [2026-03-24]

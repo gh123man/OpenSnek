@@ -1020,13 +1020,9 @@ final class AppStateEditorController {
             for: selectedDevice,
             preferredZoneID: editorStore.editableUSBLightingZoneID
         )
-        guard selectedZoneID != "all" else {
-            return [editorStore.editableColor]
-        }
-
         let globalColor = loadPersistedLightingColor(device: selectedDevice)
         return editorStore.visibleUSBLightingZones.map { zone in
-            if zone.id == selectedZoneID {
+            if selectedZoneID != "all", zone.id == selectedZoneID {
                 return editorStore.editableColor
             }
             return loadPersistedLightingColor(device: selectedDevice, zoneID: zone.id)
