@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [2026-03-25]
 
 ### Fixed
+- The Basilisk V3 X HyperSpeed Bluetooth battery indicator no longer shows a charging bolt all the time; OpenSnek now treats that AA-powered profile as not charging instead of reusing the Basilisk V3 Pro's Bluetooth status-byte interpretation.
 - Fresh main-window launches now default to the smallest width that still lands in the intended two-column detail layout, instead of opening wider than necessary.
 - In dev builds, Settings now includes a debug-only `Remember window size` switch, and relaunching the full app from the menu bar now restores the saved frame before the window is shown so the main window no longer pops from the default size to the remembered size.
 - The main window now saves its latest frame explicitly on move, resize, and close, so relaunches restore the last size reliably instead of falling back to the default window dimensions.

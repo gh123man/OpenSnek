@@ -55,6 +55,7 @@ extension BridgeClient {
     }
 
     static func resolveBluetoothBatteryState(
+        device: MouseDevice,
         vendorRaw: Int?,
         vendorStatus: Int?,
         usbFallback: (Int, Bool)?
@@ -62,10 +63,17 @@ extension BridgeClient {
         let vendorPercent = vendorRaw.map { raw in
             raw <= 100 ? raw : Int((Double(raw) / 255.0) * 100.0)
         }
+        let charging: Bool?
+        if device.transport == .bluetooth,
+           device.profile_id == .basiliskV3XHyperspeed || device.product_id == 0x00BA {
+            charging = false
+        } else {
+            charging = vendorStatus.map { $0 == 1 } ?? usbFallback?.1
+        }
 
         return BluetoothBatteryState(
             percent: vendorPercent ?? usbFallback?.0,
-            charging: vendorStatus.map { $0 == 1 } ?? usbFallback?.1
+            charging: charging
         )
     }
 
@@ -141,6 +149,7 @@ extension BridgeClient {
 
         let usbBatteryFallback = session.flatMap { try? getBattery($0, device) }
         let batteryState = Self.resolveBluetoothBatteryState(
+            device: device,
             vendorRaw: batteryRaw,
             vendorStatus: batteryStatus,
             usbFallback: usbBatteryFallback

@@ -4,8 +4,26 @@ import OpenSnekCore
 import OpenSnekHardware
 
 final class BridgeClientBluetoothFallbackTests: XCTestCase {
-    func testResolveBluetoothBatteryStatePreservesKnownVendorFields() {
+    private func makeBluetoothDevice(
+        productID: Int,
+        profileID: DeviceProfileID?
+    ) -> MouseDevice {
+        MouseDevice(
+            id: "bt-device-\(productID)",
+            vendor_id: 0x068E,
+            product_id: productID,
+            product_name: "Test Device",
+            transport: .bluetooth,
+            path_b64: "",
+            serial: nil,
+            firmware: nil,
+            profile_id: profileID
+        )
+    }
+
+    func testResolveBluetoothBatteryStateUsesVendorChargingForBasiliskV3ProBluetooth() {
         let resolved = BridgeClient.resolveBluetoothBatteryState(
+            device: makeBluetoothDevice(productID: 0x00AC, profileID: .basiliskV3Pro),
             vendorRaw: 77,
             vendorStatus: 1,
             usbFallback: (12, false)
@@ -15,8 +33,21 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
         XCTAssertEqual(resolved.charging, true)
     }
 
+    func testResolveBluetoothBatteryStateForcesNotChargingForBasiliskV3XBluetooth() {
+        let resolved = BridgeClient.resolveBluetoothBatteryState(
+            device: makeBluetoothDevice(productID: 0x00BA, profileID: .basiliskV3XHyperspeed),
+            vendorRaw: 77,
+            vendorStatus: 1,
+            usbFallback: (12, true)
+        )
+
+        XCTAssertEqual(resolved.percent, 77)
+        XCTAssertEqual(resolved.charging, false)
+    }
+
     func testResolveBluetoothBatteryStateKeepsChargingUnknownWhenStatusMissing() {
         let resolved = BridgeClient.resolveBluetoothBatteryState(
+            device: makeBluetoothDevice(productID: 0x00AC, profileID: .basiliskV3Pro),
             vendorRaw: 87,
             vendorStatus: nil,
             usbFallback: nil
@@ -28,6 +59,7 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
 
     func testResolveBluetoothBatteryStateFillsOnlyMissingFieldsFromUSBFallback() {
         let resolved = BridgeClient.resolveBluetoothBatteryState(
+            device: makeBluetoothDevice(productID: 0x00AC, profileID: .basiliskV3Pro),
             vendorRaw: 240,
             vendorStatus: nil,
             usbFallback: (20, true)
@@ -39,6 +71,7 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
 
     func testResolveBluetoothBatteryStateUsesUSBFallbackWhenVendorBatteryMissing() {
         let resolved = BridgeClient.resolveBluetoothBatteryState(
+            device: makeBluetoothDevice(productID: 0x00AC, profileID: .basiliskV3Pro),
             vendorRaw: nil,
             vendorStatus: 0,
             usbFallback: (64, true)
