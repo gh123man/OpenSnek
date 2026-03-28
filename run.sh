@@ -8,9 +8,10 @@ usage() {
 Build and launch OpenSnek from the repo root.
 
 Usage:
-  ./run.sh [--no-build]
+  ./run.sh [--clean] [--no-build]
 
 Options:
+  --clean       Do a clean rebuild before launch
   --no-build    Launch the existing app bundle without rebuilding
   -h, --help    Show this help
 USAGE
@@ -45,27 +46,41 @@ terminate_existing_opensnek() {
   pkill -9 -x OpenSnek >/dev/null 2>&1 || true
 }
 
-if [[ $# -gt 1 ]]; then
-  usage >&2
-  exit 1
-fi
+RUN_ARGS=(--rebuild)
+SKIP_BUILD=false
 
-case "${1:-}" in
-  "")
-    terminate_existing_opensnek
-    exec "$SCRIPT_DIR/OpenSnek/scripts/run_macos_app.sh" --rebuild
-    ;;
-  --no-build)
-    terminate_existing_opensnek
-    exec "$SCRIPT_DIR/OpenSnek/scripts/run_macos_app.sh"
-    ;;
-  -h|--help)
-    usage
-    exit 0
-    ;;
-  *)
-    echo "Unknown argument: $1" >&2
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --clean)
+      RUN_ARGS+=(--clean)
+      shift
+      ;;
+    --no-build)
+      SKIP_BUILD=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ "$SKIP_BUILD" == true ]]; then
+  if [[ "${#RUN_ARGS[@]}" -gt 1 ]]; then
+    echo "--clean cannot be combined with --no-build" >&2
     usage >&2
     exit 1
-    ;;
-esac
+  fi
+
+  terminate_existing_opensnek
+  exec "$SCRIPT_DIR/OpenSnek/scripts/run_macos_app.sh"
+fi
+
+terminate_existing_opensnek
+exec "$SCRIPT_DIR/OpenSnek/scripts/run_macos_app.sh" "${RUN_ARGS[@]}"

@@ -13,6 +13,7 @@ Usage:
   build_macos_app.sh [options]
 
 Options:
+  --clean                          Clean the existing build products before rebuilding
   --configuration <debug|release>   Build configuration (default: debug)
   --output <dir>                    Output directory for .app (default: OpenSnek/.dist)
   --bundle-id <id>                  CFBundleIdentifier override (default: io.opensnek.OpenSnek)
@@ -40,9 +41,14 @@ BUILD_NUMBER="${OPEN_SNEK_BUILD_NUMBER:-1}"
 BUILD_CHANNEL="${OPEN_SNEK_BUILD_CHANNEL:-}"
 SIGN_IDENTITY="${OPEN_SNEK_SIGN_IDENTITY:-auto}"
 OPEN_AFTER_BUILD=false
+CLEAN_BUILD=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --clean)
+      CLEAN_BUILD=true
+      shift
+      ;;
     --configuration)
       CONFIGURATION="${2:-}"
       shift 2
@@ -283,15 +289,18 @@ ACTIVE_PROJECT_FILE="$(generate_ephemeral_project "$EPHEMERAL_PROJECT_PARENT")"
 echo "[open-snek] Generated temporary Xcode project from project.yml"
 
 echo "[open-snek] Building $PRODUCT_NAME ($CONFIGURATION) via Xcode target..."
-rm -rf "$DERIVED_DATA_PATH"
 XCODEBUILD_LOG="$(mktemp "${TMPDIR:-/tmp}/open_snek_xcodebuild.XXXXXX")"
+XCODEBUILD_ACTIONS=(build)
+if [[ "$CLEAN_BUILD" == true ]]; then
+  XCODEBUILD_ACTIONS=(clean build)
+fi
 if ! xcodebuild \
   -project "$ACTIVE_PROJECT_FILE" \
   -scheme OpenSnek \
   -configuration "$XCODE_CONFIGURATION" \
   -destination "generic/platform=macOS" \
   -derivedDataPath "$DERIVED_DATA_PATH" \
-  build \
+  "${XCODEBUILD_ACTIONS[@]}" \
   CODE_SIGNING_ALLOWED=NO \
   CODE_SIGNING_REQUIRED=NO \
   CODE_SIGN_IDENTITY="" \
