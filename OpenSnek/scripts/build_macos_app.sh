@@ -201,17 +201,12 @@ resolve_sign_identity() {
   esac
 }
 
-generate_ephemeral_project() {
-  local project_parent="$1"
-  ln -s "$PACKAGE_DIR/App" "$project_parent/App"
-  ln -s "$PACKAGE_DIR/Sources" "$project_parent/Sources"
-  ln -s "$PACKAGE_DIR/Tests" "$project_parent/Tests"
+ensure_generated_project() {
   xcodegen \
     --quiet \
+    --use-cache \
     --spec "$SPEC_FILE" \
-    --project "$project_parent" \
-    --project-root "$project_parent"
-  printf '%s\n' "$project_parent/OpenSnek.xcodeproj"
+    --project "$PACKAGE_DIR"
 }
 
 print_xcodebuild_failure() {
@@ -233,15 +228,7 @@ PRODUCT_NAME="OpenSnek"
 DISPLAY_NAME="OpenSnek"
 APP_BUNDLE="$OUTPUT_DIR/$DISPLAY_NAME.app"
 DERIVED_DATA_PATH="$OUTPUT_DIR/.derived-data"
-EPHEMERAL_PROJECT_PARENT=""
 XCODEBUILD_LOG=""
-
-cleanup() {
-  if [[ -n "$EPHEMERAL_PROJECT_PARENT" && -d "$EPHEMERAL_PROJECT_PARENT" ]]; then
-    rm -rf "$EPHEMERAL_PROJECT_PARENT"
-  fi
-}
-trap cleanup EXIT
 
 require_cmd xcodebuild
 require_cmd xcodegen
@@ -284,9 +271,8 @@ fi
 
 XCODE_CONFIGURATION="$(tr '[:lower:]' '[:upper:]' <<< "${CONFIGURATION:0:1}")${CONFIGURATION:1}"
 ACTIVE_PROJECT_FILE="$PROJECT_FILE"
-EPHEMERAL_PROJECT_PARENT="$(mktemp -d "${TMPDIR:-/tmp}/open_snek_xcodeproj.XXXXXX")"
-ACTIVE_PROJECT_FILE="$(generate_ephemeral_project "$EPHEMERAL_PROJECT_PARENT")"
-echo "[open-snek] Generated temporary Xcode project from project.yml"
+ensure_generated_project
+echo "[open-snek] Ensured generated Xcode project at: $ACTIVE_PROJECT_FILE"
 
 echo "[open-snek] Building $PRODUCT_NAME ($CONFIGURATION) via Xcode target..."
 XCODEBUILD_LOG="$(mktemp "${TMPDIR:-/tmp}/open_snek_xcodebuild.XXXXXX")"

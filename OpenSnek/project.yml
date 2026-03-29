@@ -13,19 +13,18 @@ settings:
     MARKETING_VERSION: 0.1.0
 targets:
   OpenSnekCore:
-    type: framework
+    type: library.static
     platform: macOS
     deploymentTarget: "14.0"
     sources:
       - path: Sources/OpenSnekCore
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: io.opensnek.OpenSnekCore
         PRODUCT_NAME: OpenSnekCore
-        GENERATE_INFOPLIST_FILE: YES
+        DEFINES_MODULE: YES
 
   OpenSnekProtocols:
-    type: framework
+    type: library.static
     platform: macOS
     deploymentTarget: "14.0"
     sources:
@@ -34,12 +33,11 @@ targets:
       - target: OpenSnekCore
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: io.opensnek.OpenSnekProtocols
         PRODUCT_NAME: OpenSnekProtocols
-        GENERATE_INFOPLIST_FILE: YES
+        DEFINES_MODULE: YES
 
   OpenSnekHardware:
-    type: framework
+    type: library.static
     platform: macOS
     deploymentTarget: "14.0"
     sources:
@@ -49,12 +47,11 @@ targets:
       - target: OpenSnekProtocols
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: io.opensnek.OpenSnekHardware
         PRODUCT_NAME: OpenSnekHardware
-        GENERATE_INFOPLIST_FILE: YES
+        DEFINES_MODULE: YES
 
   OpenSnekAppSupport:
-    type: framework
+    type: library.static
     platform: macOS
     deploymentTarget: "14.0"
     sources:
@@ -64,9 +61,8 @@ targets:
       - target: OpenSnekHardware
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: io.opensnek.OpenSnekAppSupport
         PRODUCT_NAME: OpenSnekAppSupport
-        GENERATE_INFOPLIST_FILE: YES
+        DEFINES_MODULE: YES
 
   OpenSnek:
     type: application

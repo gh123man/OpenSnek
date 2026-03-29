@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   cat <<'USAGE'
-Build and launch OpenSnek from the repo root.
+Incrementally build and launch OpenSnek from the repo root.
 
 Usage:
   ./run.sh [--clean] [--no-build]
@@ -46,13 +46,14 @@ terminate_existing_opensnek() {
   pkill -9 -x OpenSnek >/dev/null 2>&1 || true
 }
 
-RUN_ARGS=(--rebuild)
+BUILD_ARGS=()
 SKIP_BUILD=false
+CLEAN_BUILD=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --clean)
-      RUN_ARGS+=(--clean)
+      CLEAN_BUILD=true
       shift
       ;;
     --no-build)
@@ -72,7 +73,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "$SKIP_BUILD" == true ]]; then
-  if [[ "${#RUN_ARGS[@]}" -gt 1 ]]; then
+  if [[ "$CLEAN_BUILD" == true ]]; then
     echo "--clean cannot be combined with --no-build" >&2
     usage >&2
     exit 1
@@ -83,4 +84,13 @@ if [[ "$SKIP_BUILD" == true ]]; then
 fi
 
 terminate_existing_opensnek
-exec "$SCRIPT_DIR/OpenSnek/scripts/run_macos_app.sh" "${RUN_ARGS[@]}"
+if [[ "$CLEAN_BUILD" == true ]]; then
+  BUILD_ARGS+=(--clean)
+fi
+
+if [[ ${#BUILD_ARGS[@]} -gt 0 ]]; then
+  "$SCRIPT_DIR/OpenSnek/scripts/build_macos_app.sh" "${BUILD_ARGS[@]}"
+else
+  "$SCRIPT_DIR/OpenSnek/scripts/build_macos_app.sh"
+fi
+exec "$SCRIPT_DIR/OpenSnek/scripts/run_macos_app.sh"
