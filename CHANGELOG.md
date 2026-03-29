@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 - Bluetooth battery and other full-state telemetry no longer get stuck behind newer DPI-only cache updates. When a slower full read finishes after a passive HID or fast-DPI refresh, OpenSnek now preserves the newer DPI stage state while still applying the fresh battery and stable telemetry fields instead of dropping that full read as stale until restart.
+- HID feature-report reads now require the response transaction ID to match the request transaction ID, so repeated battery polls can no longer accept an older cached `07:80` reply as fresh telemetry just because the command class, command ID, and CRC still match.
 
 ## [2026-03-25]
 

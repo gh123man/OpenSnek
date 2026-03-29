@@ -157,7 +157,9 @@ public final class USBHIDControlSession {
             }
 
             if candidate[0] == 0x00 { continue }
-            if !USBHIDProtocol.isValidResponse(candidate, classID: expectedClassID, cmdID: expectedCmdID) { continue }
+            if !USBHIDProtocol.isValidResponse(candidate, txn: report[1], classID: expectedClassID, cmdID: expectedCmdID) {
+                continue
+            }
             return candidate
         }
         return nil
