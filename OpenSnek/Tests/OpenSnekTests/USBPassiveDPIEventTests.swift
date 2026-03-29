@@ -241,7 +241,8 @@ final class USBPassiveDPIEventTests: XCTestCase {
                 transport: .bluetooth,
                 transportStatus: .realTimeHID,
                 lastHeartbeatAt: now.addingTimeInterval(-0.2),
-                lastFullStateRefreshAt: now.addingTimeInterval(-2.0),
+                lastFullStateRefreshStartedAt: now.addingTimeInterval(-1.9),
+                minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
                 now: now
             )
         )
@@ -250,7 +251,8 @@ final class USBPassiveDPIEventTests: XCTestCase {
                 transport: .bluetooth,
                 transportStatus: .streamActive,
                 lastHeartbeatAt: now.addingTimeInterval(-0.2),
-                lastFullStateRefreshAt: now.addingTimeInterval(-2.0),
+                lastFullStateRefreshStartedAt: now.addingTimeInterval(-1.9),
+                minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
                 now: now
             )
         )
@@ -259,7 +261,8 @@ final class USBPassiveDPIEventTests: XCTestCase {
                 transport: .bluetooth,
                 transportStatus: .realTimeHID,
                 lastHeartbeatAt: now.addingTimeInterval(-1.0),
-                lastFullStateRefreshAt: now.addingTimeInterval(-2.0),
+                lastFullStateRefreshStartedAt: now.addingTimeInterval(-1.9),
+                minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
                 now: now
             )
         )
@@ -268,7 +271,8 @@ final class USBPassiveDPIEventTests: XCTestCase {
                 transport: .bluetooth,
                 transportStatus: .realTimeHID,
                 lastHeartbeatAt: now.addingTimeInterval(-0.2),
-                lastFullStateRefreshAt: now.addingTimeInterval(-9.0),
+                lastFullStateRefreshStartedAt: now.addingTimeInterval(-2.0),
+                minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
                 now: now
             )
         )
@@ -277,7 +281,8 @@ final class USBPassiveDPIEventTests: XCTestCase {
                 transport: .bluetooth,
                 transportStatus: .pollingFallback,
                 lastHeartbeatAt: now.addingTimeInterval(-0.2),
-                lastFullStateRefreshAt: now.addingTimeInterval(-2.0),
+                lastFullStateRefreshStartedAt: now.addingTimeInterval(-1.9),
+                minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
                 now: now
             )
         )
@@ -286,7 +291,8 @@ final class USBPassiveDPIEventTests: XCTestCase {
                 transport: .usb,
                 transportStatus: .realTimeHID,
                 lastHeartbeatAt: now.addingTimeInterval(-0.2),
-                lastFullStateRefreshAt: now.addingTimeInterval(-2.0),
+                lastFullStateRefreshStartedAt: now.addingTimeInterval(-1.9),
+                minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
                 now: now
             )
         )
@@ -896,6 +902,49 @@ final class USBPassiveDPIEventTests: XCTestCase {
 
         let fastReadCount = await backend.fastReadCount()
         XCTAssertEqual(fastReadCount, 1)
+    }
+
+    func testRefreshDpiFastPreservesLastStableUpdateTimestamp() async {
+        let device = makePassiveTestDevice(id: "usb-fast-last-updated", transport: .usb)
+        let backend = PassiveUpdateStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makePassiveTestState(
+                    device: device,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 1,
+                    dpiValue: 1600
+                )
+            ],
+            shouldUseFastPolling: true
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await Task.yield()
+        await appState.deviceStore.refreshDevices()
+        let initialLastUpdated = await MainActor.run { appState.deviceStore.lastUpdated }
+        XCTAssertNotNil(initialLastUpdated)
+
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        await appState.deviceStore.refreshDpiFast()
+
+        let refreshedLastUpdated = await MainActor.run { appState.deviceStore.lastUpdated }
+        let fastReadCount = await backend.fastReadCount()
+        guard let initialLastUpdated else {
+            XCTFail("Expected initial selected-state timestamp")
+            return
+        }
+        guard let refreshedLastUpdated else {
+            XCTFail("Expected selected-state timestamp after fast refresh")
+            return
+        }
+        let initialTimestamp = initialLastUpdated.timeIntervalSince1970
+        let refreshedTimestamp = refreshedLastUpdated.timeIntervalSince1970
+
+        XCTAssertEqual(fastReadCount, 1)
+        XCTAssertEqual(refreshedTimestamp, initialTimestamp, accuracy: 0.001)
     }
 
     func testRefreshStateDoesNotOverwriteNewerPassiveBluetoothUpdateWithStaleRead() async {

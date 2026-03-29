@@ -22,7 +22,7 @@ final class AppStateDeviceController {
     private var lastUSBFastDpiAtByDeviceID: [String: Date] = [:]
     private var lastRealtimeCorrectionAtByDeviceID: [String: Date] = [:]
     private var lastPassiveHeartbeatAtByDeviceID: [String: Date] = [:]
-    private var lastFullStateRefreshAtByDeviceID: [String: Date] = [:]
+    private var lastFullStateRefreshStartedAtByDeviceID: [String: Date] = [:]
     private var isPollingDevices = false
     private var refreshFailureCountByDeviceID: [String: Int] = [:]
     private var stateRefreshSuppressedUntilByDeviceID: [String: Date] = [:]
@@ -333,7 +333,7 @@ final class AppStateDeviceController {
                 unavailableDeviceIDs.remove(id)
                 setDpiUpdateTransportStatus(nil, for: id)
                 lastUpdatedByDeviceID[id] = nil
-                lastFullStateRefreshAtByDeviceID[id] = nil
+                lastFullStateRefreshStartedAtByDeviceID[id] = nil
                 suppressFastDpiUntilByDeviceID[id] = nil
                 lastUSBFastDpiAtByDeviceID[id] = nil
                 refreshingStateDeviceIDs.remove(id)
@@ -1007,7 +1007,11 @@ final class AppStateDeviceController {
             transport: device.transport,
             transportStatus: dpiUpdateTransportStatusByDeviceID[device.id],
             lastHeartbeatAt: lastPassiveHeartbeatAtByDeviceID[device.id],
-            lastFullStateRefreshAt: lastFullStateRefreshAtByDeviceID[device.id],
+            lastFullStateRefreshStartedAt: lastFullStateRefreshStartedAtByDeviceID[device.id],
+            minimumRefreshInterval: runtimeController.effectiveRefreshStateInterval(
+                at: now,
+                profile: runtimeController.pollingProfile(at: now)
+            ),
             now: now
         ) {
             AppLog.debug("AppState", "refreshState deferred active-bt-realtime device=\(device.id)")
@@ -1055,8 +1059,11 @@ final class AppStateDeviceController {
                     let merged = latestCachedState.mergedWithStableReadTelemetry(from: fetched)
                     let updatedAt = Date()
                     cacheState(merged, sourceDeviceID: refreshDeviceID, presentationDeviceID: presentationDeviceID, updatedAt: updatedAt)
-                    lastFullStateRefreshAtByDeviceID[refreshDeviceID] = updatedAt
-                    lastFullStateRefreshAtByDeviceID[presentationDeviceID] = updatedAt
+                    // Track when the full read started so passive-HID throttling
+                    // preserves the configured poll cadence instead of adding the
+                    // vendor-read latency to every interval.
+                    lastFullStateRefreshStartedAtByDeviceID[refreshDeviceID] = start
+                    lastFullStateRefreshStartedAtByDeviceID[presentationDeviceID] = start
                     refreshFailureCountByDeviceID[refreshDeviceID] = 0
                     refreshFailureCountByDeviceID[presentationDeviceID] = 0
                     stateRefreshSuppressedUntilByDeviceID[refreshDeviceID] = nil
@@ -1093,8 +1100,8 @@ final class AppStateDeviceController {
             cacheState(merged, sourceDeviceID: refreshDeviceID, presentationDeviceID: presentationDeviceID, updatedAt: updatedAt)
             seededReconnectStateDeviceIDs.remove(refreshDeviceID)
             seededReconnectStateDeviceIDs.remove(presentationDeviceID)
-            lastFullStateRefreshAtByDeviceID[refreshDeviceID] = updatedAt
-            lastFullStateRefreshAtByDeviceID[presentationDeviceID] = updatedAt
+            lastFullStateRefreshStartedAtByDeviceID[refreshDeviceID] = start
+            lastFullStateRefreshStartedAtByDeviceID[presentationDeviceID] = start
             refreshFailureCountByDeviceID[refreshDeviceID] = 0
             refreshFailureCountByDeviceID[presentationDeviceID] = 0
             stateRefreshSuppressedUntilByDeviceID[refreshDeviceID] = nil
@@ -1294,7 +1301,14 @@ final class AppStateDeviceController {
             )
 
             let shouldFocusOnActivity = shouldFocusServiceSelectionOnActivity(previous: previous, next: updated)
-            cacheState(updated, sourceDeviceID: device.id, presentationDeviceID: presentationDeviceID, updatedAt: readAt)
+            // Fast DPI snapshots should not advance the stable-state freshness
+            // timestamp; the slow poller uses that timestamp to decide when a
+            // full telemetry read is overdue.
+            let stableUpdatedAt = latestCachedUpdateAt(
+                sourceDeviceID: device.id,
+                presentationDeviceID: presentationDeviceID
+            ) ?? readAt
+            cacheState(updated, sourceDeviceID: device.id, presentationDeviceID: presentationDeviceID, updatedAt: stableUpdatedAt)
             if correctionOnly {
                 let stillUsesFastPolling = await environment.backend.shouldUseFastDPIPolling(device: device)
                 let nextStatus: DpiUpdateTransportStatus = stillUsesFastPolling ? .pollingFallback : .realTimeHID
@@ -1394,7 +1408,8 @@ final class AppStateDeviceController {
         transport: DeviceTransportKind,
         transportStatus: DpiUpdateTransportStatus?,
         lastHeartbeatAt: Date?,
-        lastFullStateRefreshAt: Date?,
+        lastFullStateRefreshStartedAt: Date?,
+        minimumRefreshInterval: TimeInterval,
         now: Date
     ) -> Bool {
         guard transport == .bluetooth else { return false }
@@ -1403,8 +1418,8 @@ final class AppStateDeviceController {
               now.timeIntervalSince(lastHeartbeatAt) < 0.8 else {
             return false
         }
-        guard let lastFullStateRefreshAt else { return false }
-        return now.timeIntervalSince(lastFullStateRefreshAt) < 8.0
+        guard let lastFullStateRefreshStartedAt else { return false }
+        return now.timeIntervalSince(lastFullStateRefreshStartedAt) < minimumRefreshInterval
     }
 
     private func restorePersistedLightingIfNeeded(for device: MouseDevice) async {

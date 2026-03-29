@@ -39,6 +39,12 @@ struct USBLightingWriteResult: Sendable {
     let succeeded: Bool
 }
 
+struct USBBatteryReadResult: Sendable {
+    let charging: Bool
+    let rawLevel: UInt8
+    let percent: Int
+}
+
 struct BTLightingReadResult: Sendable {
     let target: USBLightingTargetDescriptor
     let brightness: Int?
@@ -262,6 +268,26 @@ final class USBProbeClient {
                 succeeded: try writeLightingCommand(cmdID: 0x02, args: args)
             )
         }
+    }
+
+    func readBattery() throws -> USBBatteryReadResult? {
+        guard let response = try session.perform(
+            classID: 0x07,
+            cmdID: 0x80,
+            size: 0x02,
+            args: []
+        ), response[0] == 0x02, response.count > 9 else {
+            return nil
+        }
+
+        let charging = response[8] == 0x01
+        let rawLevel = response[9]
+        let percent = Int((Double(rawLevel) / 255.0) * 100.0)
+        return USBBatteryReadResult(
+            charging: charging,
+            rawLevel: rawLevel,
+            percent: percent
+        )
     }
 
     func readButtonFunction(profile: UInt8, slot: UInt8, hypershift: UInt8 = 0x00) throws -> [UInt8]? {

@@ -175,6 +175,18 @@ enum OpenSnekProbe {
         case "usb-info":
             let usb = try USBProbeClient(productID: try parseOptionalUSBPID(Array(args.dropFirst())))
             print("usb \(usb.describe())")
+        case "usb-battery-read":
+            let usb = try USBProbeClient(productID: try parseOptionalUSBPID(Array(args.dropFirst())))
+            print("usb \(usb.describe())")
+            if let battery = try usb.readBattery() {
+                print(
+                    "battery charging=\(battery.charging ? "yes" : "no") " +
+                    "raw=0x\(String(format: "%02x", battery.rawLevel)) " +
+                    "percent=\(battery.percent)"
+                )
+            } else {
+                print("battery: unavailable")
+            }
         case "usb-lighting-info":
             let parsed = try parseUSBLightingZoneArgs(Array(args.dropFirst()))
             let usb = try USBProbeClient(productID: parsed.productID)
@@ -391,6 +403,7 @@ enum OpenSnekProbe {
           OpenSnekProbe bt-lighting-brightness --value 128 [--zone all|scroll_wheel|logo|underglow] [--name "BSK V3 PRO"]
           OpenSnekProbe bt-lighting-color --color ff6600 [--zone all|scroll_wheel|logo|underglow] [--name "BSK V3 PRO"]
           OpenSnekProbe usb-info [--pid 0x00ab]
+          OpenSnekProbe usb-battery-read [--pid 0x00ab]
           OpenSnekProbe usb-lighting-info [--zone all|scroll_wheel|logo|underglow] [--pid 0x00ab]
           OpenSnekProbe usb-lighting-read [--zone all|scroll_wheel|logo|underglow] [--pid 0x00ab]
           OpenSnekProbe usb-lighting-brightness --value 128 [--zone all|scroll_wheel|logo|underglow] [--pid 0x00ab]

@@ -617,7 +617,6 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend {
             capabilities: previous.capabilities
         )
         cachedStateByDeviceID[deviceID] = updated
-        cachedStateAtByDeviceID[deviceID] = Date()
         reconnectSeedStateByDeviceID[deviceID] = updated
     }
 

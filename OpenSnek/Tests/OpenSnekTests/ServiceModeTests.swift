@@ -187,6 +187,41 @@ final class ServiceModeTests: XCTestCase {
         XCTAssertEqual(sleep, 1.0, accuracy: 0.001)
     }
 
+    func testBluetoothRealtimeStateRefreshDelayUsesConfiguredCadence() {
+        let now = Date(timeIntervalSince1970: 1_773_400_210)
+
+        XCTAssertTrue(
+            AppStateDeviceController.shouldDelayBluetoothRealtimeStateRefresh(
+                transport: .bluetooth,
+                transportStatus: .streamActive,
+                lastHeartbeatAt: now.addingTimeInterval(-0.2),
+                lastFullStateRefreshStartedAt: now.addingTimeInterval(-1.9),
+                minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
+                now: now
+            )
+        )
+        XCTAssertFalse(
+            AppStateDeviceController.shouldDelayBluetoothRealtimeStateRefresh(
+                transport: .bluetooth,
+                transportStatus: .streamActive,
+                lastHeartbeatAt: now.addingTimeInterval(-0.2),
+                lastFullStateRefreshStartedAt: now.addingTimeInterval(-2.0),
+                minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
+                now: now
+            )
+        )
+        XCTAssertFalse(
+            AppStateDeviceController.shouldDelayBluetoothRealtimeStateRefresh(
+                transport: .bluetooth,
+                transportStatus: .streamActive,
+                lastHeartbeatAt: now.addingTimeInterval(-0.2),
+                lastFullStateRefreshStartedAt: now.addingTimeInterval(-8.0),
+                minimumRefreshInterval: PollingProfile.serviceIdle.refreshStateInterval,
+                now: now
+            )
+        )
+    }
+
     func testHIDAccessStatusDeniedUsesExpectedDiagnosticsAndResetCommand() {
         let status = HIDAccessStatus(
             authorization: .denied,
@@ -450,6 +485,40 @@ final class ServiceModeTests: XCTestCase {
         XCTAssertEqual(appState.runtimeStore.activeFastPollingDeviceIDs(at: queryNow), [device.id])
     }
 
+    @MainActor
+    func testServiceInteractiveSlowPollRefreshesBatteryWhilePassiveHeartbeatIsFresh() async {
+        let backend = SequencedServiceModeTransportBackend(
+            transportStatus: .realTimeHID,
+            batterySequence: [80, 79]
+        )
+        let appState = AppState(launchRole: .service, backend: backend, autoStart: false)
+        let device = backend.device
+        let firstRefreshStartedAt = Date(timeIntervalSince1970: 1_773_400_500)
+        let pollNow = firstRefreshStartedAt.addingTimeInterval(PollingProfile.serviceInteractive.refreshStateInterval)
+
+        _ = appState.deviceController.applyDeviceList([device], source: "test")
+        appState.runtimeController.setCompactMenuPresented(true)
+
+        let refreshed = await appState.deviceController.refreshState(for: device)
+        let readStateCount = await backend.readStateCountValue()
+
+        XCTAssertTrue(refreshed)
+        XCTAssertEqual(readStateCount, 1)
+        XCTAssertEqual(appState.deviceStore.state?.battery_percent, 80)
+
+        appState.deviceController.applyBackendDpiTransportStatusUpdate(
+            deviceID: device.id,
+            status: .streamActive,
+            updatedAt: pollNow.addingTimeInterval(-0.1)
+        )
+
+        await appState.runtimeController.pollRuntimeOnce(now: pollNow)
+
+        let refreshedReadCount = await backend.readStateCountValue()
+        XCTAssertEqual(refreshedReadCount, 2)
+        XCTAssertEqual(appState.deviceStore.state?.battery_percent, 79)
+    }
+
 }
 
 private actor ServiceModeTransportBackend: DeviceBackend {
@@ -472,31 +541,7 @@ private actor ServiceModeTransportBackend: DeviceBackend {
     }
 
     func readState(device _: MouseDevice) async throws -> MouseState {
-        return MouseState(
-            device: DeviceSummary(
-                id: device.id,
-                product_name: device.product_name,
-                serial: device.serial,
-                transport: device.transport,
-                firmware: device.firmware
-            ),
-            connection: "Bluetooth",
-            battery_percent: 80,
-            charging: false,
-            dpi: DpiPair(x: 1600, y: 1600),
-            dpi_stages: DpiStages(active_stage: 1, values: [800, 1600, 3200]),
-            poll_rate: nil,
-            sleep_timeout: 300,
-            device_mode: nil,
-            led_value: 64,
-            capabilities: Capabilities(
-                dpi_stages: true,
-                poll_rate: false,
-                power_management: true,
-                button_remap: true,
-                lighting: true
-            )
-        )
+        makeServiceModeState(device: device, batteryPercent: 80)
     }
 
     func readDpiStagesFast(device _: MouseDevice) async throws -> DpiFastSnapshot? {
@@ -599,6 +644,75 @@ private actor HIDAccessRefreshRecordingBackend: HIDAccessRefreshControllingBacke
     }
 }
 
+private actor SequencedServiceModeTransportBackend: DeviceBackend {
+    nonisolated var usesRemoteServiceTransport: Bool { false }
+
+    let device: MouseDevice
+
+    private let transportStatus: DpiUpdateTransportStatus
+    private let batterySequence: [Int]
+    private var readStateCount = 0
+
+    init(
+        transportStatus: DpiUpdateTransportStatus,
+        batterySequence: [Int],
+        device: MouseDevice = makeServiceModeDevice(id: "service-test-device", transport: .bluetooth, productID: 0x00AC)
+    ) {
+        self.transportStatus = transportStatus
+        self.batterySequence = batterySequence
+        self.device = device
+    }
+
+    func listDevices() async throws -> [MouseDevice] {
+        [device]
+    }
+
+    func readState(device _: MouseDevice) async throws -> MouseState {
+        let index = min(readStateCount, max(0, batterySequence.count - 1))
+        let batteryPercent = batterySequence.isEmpty ? 80 : batterySequence[index]
+        readStateCount += 1
+        return makeServiceModeState(device: device, batteryPercent: batteryPercent)
+    }
+
+    func readDpiStagesFast(device _: MouseDevice) async throws -> DpiFastSnapshot? {
+        DpiFastSnapshot(active: 1, values: [800, 1600, 3200])
+    }
+
+    func shouldUseFastDPIPolling(device _: MouseDevice) async -> Bool {
+        transportStatus != .realTimeHID
+    }
+
+    func dpiUpdateTransportStatus(device _: MouseDevice) async -> DpiUpdateTransportStatus {
+        transportStatus
+    }
+
+    func hidAccessStatus() async -> HIDAccessStatus {
+        .unknown()
+    }
+
+    func stateUpdates() async -> AsyncStream<BackendStateUpdate> {
+        AsyncStream { continuation in
+            continuation.finish()
+        }
+    }
+
+    func apply(device targetDevice: MouseDevice, patch _: DevicePatch) async throws -> MouseState {
+        try await readState(device: targetDevice)
+    }
+
+    func readLightingColor(device _: MouseDevice) async throws -> RGBPatch? {
+        nil
+    }
+
+    func debugUSBReadButtonBinding(device _: MouseDevice, slot _: Int, profile _: Int) async throws -> [UInt8]? {
+        nil
+    }
+
+    func readStateCountValue() -> Int {
+        readStateCount
+    }
+}
+
 private func makeServiceModeDevice(id: String, transport: DeviceTransportKind, productID: Int) -> MouseDevice {
     MouseDevice(
         id: id,
@@ -613,5 +727,33 @@ private func makeServiceModeDevice(id: String, transport: DeviceTransportKind, p
         profile_id: .basiliskV3Pro,
         supports_advanced_lighting_effects: true,
         onboard_profile_count: 1
+    )
+}
+
+private func makeServiceModeState(device: MouseDevice, batteryPercent: Int) -> MouseState {
+    MouseState(
+        device: DeviceSummary(
+            id: device.id,
+            product_name: device.product_name,
+            serial: device.serial,
+            transport: device.transport,
+            firmware: device.firmware
+        ),
+        connection: "Bluetooth",
+        battery_percent: batteryPercent,
+        charging: false,
+        dpi: DpiPair(x: 1600, y: 1600),
+        dpi_stages: DpiStages(active_stage: 1, values: [800, 1600, 3200]),
+        poll_rate: nil,
+        sleep_timeout: 300,
+        device_mode: nil,
+        led_value: 64,
+        capabilities: Capabilities(
+            dpi_stages: true,
+            poll_rate: false,
+            power_management: true,
+            button_remap: true,
+            lighting: true
+        )
     )
 }

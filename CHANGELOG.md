@@ -7,6 +7,10 @@ All notable changes to this project are documented in this file.
 ### Added
 - Added `docs/DEVICE_SUPPORT.md`, a per-device USB/Bluetooth support matrix that highlights shipped coverage and the main missing features for each supported profile.
 
+### Fixed
+- Bluetooth passive-HID battery refreshes in the background service now honor the active slow-poll cadence instead of an older fixed defer window, so the Basilisk V3 Pro battery meter updates regularly in the menu bar and other service-driven UI even while passive DPI heartbeats are healthy.
+- Fast DPI-only refreshes no longer advance the stable telemetry freshness timestamp, so USB battery reads keep surfacing through the slow poller and the menu bar battery meter does not get stuck behind repeated DPI cache updates.
+
 ## [2026-03-28]
 
 ### Fixed
