@@ -8,9 +8,7 @@
   Configure supported Razer mice on macOS without Synapse, Windows, or vendor lock-in.
 </p>
 
-<a href="https://github.com/gh123man/OpenSnek/releases"><h2 align="center">
-Download
-</h2></a>
+<h2 align="center"><a href="https://github.com/gh123man/OpenSnek/releases">Download</a></h2>
 
 ![Screenshot](/docs/media/screenshot.png)
 
