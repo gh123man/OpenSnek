@@ -8,6 +8,10 @@
   Configure supported Razer mice on macOS without Synapse, Windows, or vendor lock-in.
 </p>
 
+<a href="https://github.com/gh123man/OpenSnek/releases"><h2 align="center">
+Download
+</h2></a>
+
 ![Screenshot](/docs/media/screenshot.png)
 
 OpenSnek is an open source native macOS app for configuring supported Razer mice over USB or Bluetooth.
