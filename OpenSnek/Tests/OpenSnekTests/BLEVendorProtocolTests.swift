@@ -149,12 +149,12 @@ final class BLEVendorProtocolTests: XCTestCase {
 
     func testButtonPayloadScrollLeft() {
         let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x34, kind: .scrollLeft, hidKey: nil)
-        XCTAssertEqual(Array(payload), [0x01, 0x34, 0x00, 0x01, 0x01, 0x68, 0x00, 0x00, 0x00, 0x00])
+        XCTAssertEqual(Array(payload), [0x01, 0x34, 0x00, 0x0E, 0x03, 0x68, 0x00, 0x14, 0x00, 0x00])
     }
 
     func testButtonPayloadScrollRight() {
         let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x35, kind: .scrollRight, hidKey: nil)
-        XCTAssertEqual(Array(payload), [0x01, 0x35, 0x00, 0x01, 0x01, 0x69, 0x00, 0x00, 0x00, 0x00])
+        XCTAssertEqual(Array(payload), [0x01, 0x35, 0x00, 0x0E, 0x03, 0x69, 0x00, 0x14, 0x00, 0x00])
     }
 
     func testButtonPayloadMouseBack() {
@@ -196,8 +196,20 @@ final class BLEVendorProtocolTests: XCTestCase {
     func testButtonPayloadDefaultWheelTiltSlotsRestoreHorizontalScroll() {
         let leftPayload = BLEVendorProtocol.buildButtonPayload(slot: 0x34, kind: .default, hidKey: nil)
         let rightPayload = BLEVendorProtocol.buildButtonPayload(slot: 0x35, kind: .default, hidKey: nil)
-        XCTAssertEqual(Array(leftPayload), [0x01, 0x34, 0x00, 0x01, 0x01, 0x68, 0x00, 0x00, 0x00, 0x00])
-        XCTAssertEqual(Array(rightPayload), [0x01, 0x35, 0x00, 0x01, 0x01, 0x69, 0x00, 0x00, 0x00, 0x00])
+        XCTAssertEqual(Array(leftPayload), [0x01, 0x34, 0x00, 0x0E, 0x03, 0x68, 0x00, 0x14, 0x00, 0x00])
+        XCTAssertEqual(Array(rightPayload), [0x01, 0x35, 0x00, 0x0E, 0x03, 0x69, 0x00, 0x14, 0x00, 0x00])
+    }
+
+    func testButtonPayloadTurboHorizontalScrollUsesRawTurboForm() {
+        let payload = BLEVendorProtocol.buildButtonPayload(
+            slot: 0x34,
+            kind: .scrollLeft,
+            hidKey: nil,
+            turboEnabled: true,
+            turboRate: 0x0032
+        )
+
+        XCTAssertEqual(Array(payload), [0x01, 0x34, 0x00, 0x0E, 0x03, 0x68, 0x00, 0x32, 0x00, 0x00])
     }
 
     func testButtonPayloadDefaultSlot60UsesCaptureBackedDpiRestore() {

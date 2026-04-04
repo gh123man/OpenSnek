@@ -443,6 +443,11 @@ Field meanings:
 | `0x0D` | keyboard turbo action | `p0 = 0x0004`, `p1 = HID key`, `p2 = turbo rate` |
 | `0x0E` | mouse turbo action | `p0 = ((button_id - 1) << 8) | 0x0003`, `p1 = turbo rate` |
 
+Observed Basilisk V3 Pro Bluetooth exception:
+- wheel-tilt horizontal scroll does not use the older plain mouse-action form on the validated BT path
+- a working Synapse-written V3 Pro Bluetooth rebind on `0x34` / `0x35` reads back as the raw function blocks `0e036800140000` / `0e036900140000`
+- OpenSnek writes that same raw `0x0E` block for Bluetooth `Scroll Left` / `Scroll Right` and for wheel-tilt default restore
+
 #### 6.5.2 Mouse Button IDs Used by Swift
 
 | Meaning | Button ID |
@@ -472,9 +477,9 @@ Examples:
 - slot `0x05` default:
   - `01 05 00 01 01 05 00 00 00 00`
 - slot `0x34` default:
-  - `01 34 00 01 01 68 00 00 00 00`
+  - `01 34 00 0e 03 68 00 14 00 00`
 - slot `0x35` default:
-  - `01 35 00 01 01 69 00 00 00 00`
+  - `01 35 00 0e 03 69 00 14 00 00`
 - slot `0x09` default:
   - `01 09 00 01 01 09 00 00 00 00`
 - slot `0x0A` default:

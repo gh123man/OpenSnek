@@ -148,6 +148,8 @@ Validated in-session over Bluetooth:
 - working read: battery raw (`05 81 00 01`), battery status (`05 80 00 01`)
 - working write ACKs on tested BLE button-remap slots: `0x01..0x05`, `0x09`, `0x0A`, `0x34`, `0x35`
 - observed V3 Pro Bluetooth button-layout shape now matches the shared Basilisk family on the tested slots, so OpenSnek ships the core buttons plus wheel-tilt controls on the BT profile
+- observed V3 Pro Bluetooth wheel-tilt scroll blocks on 2026-04-03 after a working Synapse rebind: slot `0x34` / `0x35` read from BLE key `08 84 01 34` / `08 84 01 35` resolve to the raw function blocks `0e036800140000` / `0e036900140000`
+- shipped client behavior: OpenSnek now uses that same raw `0x0E` wheel-tilt block for Bluetooth `Scroll Left` / `Scroll Right` writes and for wheel-tilt default restore on the V3 Pro BT path
 - observed V3 Pro Bluetooth lighting zone catalog: `10 80 00 01` -> `04 01 0a`, matching the validated zone map `scroll_wheel`, `logo`, `underglow`
 - not yet decoded enough to ship: sensitivity clutch (`0x0F`) restore/remap payloads, profile button (`0x6A`) restore/remap payloads
 - legacy lighting frame-color readback on `10 84 00 00` still does not return a usable payload on the V3 Pro path; OpenSnek now treats that frame family as legacy-only and uses the validated zone-state keys instead

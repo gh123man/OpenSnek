@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 - Basilisk V3-family USB wheel-tilt defaults and `Scroll Left` / `Scroll Right` remaps now use the observed working Synapse-written function blocks `0e036800140000` / `0e036900140000` instead of the older plain mouse-action assumption. The exact block was read back from an attached Basilisk V3 Pro and is now applied across the shared V3 / V3 Pro / 35K USB family.
+- Basilisk V3 Pro Bluetooth `Scroll Left` / `Scroll Right` and wheel-tilt default restore now use the observed working raw function blocks `0e036800140000` / `0e036900140000` instead of the older plain mouse-action BLE encoding.
 
 ## [2026-03-30]
 

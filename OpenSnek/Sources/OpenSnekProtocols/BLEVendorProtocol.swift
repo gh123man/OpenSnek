@@ -5,6 +5,7 @@ public enum BLEVendorProtocol {
     public static let serviceUUID = UUID(uuidString: "52401523-F97C-7F90-0E7F-6C6F4E36DB1C")!
     public static let writeUUID = UUID(uuidString: "52401524-F97C-7F90-0E7F-6C6F4E36DB1C")!
     public static let notifyUUID = UUID(uuidString: "52401525-F97C-7F90-0E7F-6C6F4E36DB1C")!
+    private static let basiliskV3FamilyHorizontalScrollTurboRate: UInt8 = 0x14
 
     public struct Key: Equatable, Sendable {
         public let b0: UInt8
@@ -275,6 +276,20 @@ public enum BLEVendorProtocol {
                 let key = hidKey ?? 0x04
                 return Data([0x01, slot, 0x00, 0x0D, 0x04, 0x00, key, 0x00, UInt8(clampedTurboRate & 0xFF), UInt8((clampedTurboRate >> 8) & 0xFF)])
             }
+            if let buttonID = horizontalScrollButtonID(for: kind) {
+                return buildRawFunctionBlockPayload(
+                    slot: slot,
+                    functionBlock: [
+                        0x0E,
+                        0x03,
+                        buttonID,
+                        0x00,
+                        UInt8(clampedTurboRate & 0xFF),
+                        0x00,
+                        0x00,
+                    ]
+                )
+            }
             if let buttonID = mouseButtonID(for: kind) {
                 let index = UInt16(max(0, Int(buttonID) - 1))
                 let p0 = UInt16((index << 8) | 0x0003)
@@ -286,6 +301,20 @@ public enum BLEVendorProtocol {
         case .default:
             if slot == 0x60 {
                 return Data([0x01, slot, 0x00, 0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00])
+            }
+            if let buttonID = defaultHorizontalScrollButtonID(forSlot: slot) {
+                return buildRawFunctionBlockPayload(
+                    slot: slot,
+                    functionBlock: [
+                        0x0E,
+                        0x03,
+                        buttonID,
+                        0x00,
+                        basiliskV3FamilyHorizontalScrollTurboRate,
+                        0x00,
+                        0x00,
+                    ]
+                )
             }
             if let buttonID = defaultMouseButtonID(forSlot: slot) {
                 return Data([0x01, slot, 0x00, 0x01, 0x01, buttonID, 0x00, 0x00, 0x00, 0x00])
@@ -307,9 +336,31 @@ public enum BLEVendorProtocol {
         case .scrollDown:
             return Data([0x01, slot, 0x00, 0x01, 0x01, 0x0A, 0x00, 0x00, 0x00, 0x00])
         case .scrollLeft:
-            return Data([0x01, slot, 0x00, 0x01, 0x01, 0x68, 0x00, 0x00, 0x00, 0x00])
+            return buildRawFunctionBlockPayload(
+                slot: slot,
+                functionBlock: [
+                    0x0E,
+                    0x03,
+                    0x68,
+                    0x00,
+                    basiliskV3FamilyHorizontalScrollTurboRate,
+                    0x00,
+                    0x00,
+                ]
+            )
         case .scrollRight:
-            return Data([0x01, slot, 0x00, 0x01, 0x01, 0x69, 0x00, 0x00, 0x00, 0x00])
+            return buildRawFunctionBlockPayload(
+                slot: slot,
+                functionBlock: [
+                    0x0E,
+                    0x03,
+                    0x69,
+                    0x00,
+                    basiliskV3FamilyHorizontalScrollTurboRate,
+                    0x00,
+                    0x00,
+                ]
+            )
         case .mouseBack:
             return Data([0x01, slot, 0x00, 0x01, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00])
         case .mouseForward:
@@ -406,9 +457,33 @@ public enum BLEVendorProtocol {
         case 5: return 0x05
         case 9: return 0x09
         case 10: return 0x0A
-        case 0x34: return 0x68
-        case 0x35: return 0x69
         default: return nil
+        }
+    }
+
+    private static func buildRawFunctionBlockPayload(slot: UInt8, functionBlock: [UInt8]) -> Data {
+        Data([0x01, slot, 0x00] + functionBlock)
+    }
+
+    private static func horizontalScrollButtonID(for kind: ButtonBindingKind) -> UInt8? {
+        switch kind {
+        case .scrollLeft:
+            return 0x68
+        case .scrollRight:
+            return 0x69
+        default:
+            return nil
+        }
+    }
+
+    private static func defaultHorizontalScrollButtonID(forSlot slot: UInt8) -> UInt8? {
+        switch slot {
+        case 0x34:
+            return 0x68
+        case 0x35:
+            return 0x69
+        default:
+            return nil
         }
     }
 
