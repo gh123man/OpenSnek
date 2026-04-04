@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [2026-04-04]
+
+### Fixed
+- Basilisk V3 Pro Bluetooth battery UI no longer treats the BLE `batteryStatus` byte as a reliable charging flag. Standalone BT sessions now show the regular battery indicator instead of a charging bolt unless an available USB fallback session confirms that the mouse is actually charging.
+
 ## [2026-04-03]
 
 ### Fixed

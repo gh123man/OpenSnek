@@ -67,6 +67,9 @@ extension BridgeClient {
         if device.transport == .bluetooth,
            device.profile_id == .basiliskV3XHyperspeed || device.product_id == 0x00BA {
             charging = false
+        } else if device.transport == .bluetooth,
+                  device.profile_id == .basiliskV3Pro || device.product_id == 0x00AC {
+            charging = usbFallback?.1
         } else {
             charging = vendorStatus.map { $0 == 1 } ?? usbFallback?.1
         }

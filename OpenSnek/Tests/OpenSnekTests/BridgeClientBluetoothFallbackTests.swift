@@ -21,7 +21,7 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
         )
     }
 
-    func testResolveBluetoothBatteryStateUsesVendorChargingForBasiliskV3ProBluetooth() {
+    func testResolveBluetoothBatteryStateIgnoresVendorChargingForBasiliskV3ProBluetooth() {
         let resolved = BridgeClient.resolveBluetoothBatteryState(
             device: makeBluetoothDevice(productID: 0x00AC, profileID: .basiliskV3Pro),
             vendorRaw: 77,
@@ -30,7 +30,7 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
         )
 
         XCTAssertEqual(resolved.percent, 77)
-        XCTAssertEqual(resolved.charging, true)
+        XCTAssertEqual(resolved.charging, false)
     }
 
     func testResolveBluetoothBatteryStateForcesNotChargingForBasiliskV3XBluetooth() {
@@ -69,6 +69,18 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
         XCTAssertEqual(resolved.charging, true)
     }
 
+    func testResolveBluetoothBatteryStateKeepsV3ProChargingUnknownWithoutUSBFallback() {
+        let resolved = BridgeClient.resolveBluetoothBatteryState(
+            device: makeBluetoothDevice(productID: 0x00AC, profileID: .basiliskV3Pro),
+            vendorRaw: 77,
+            vendorStatus: 1,
+            usbFallback: nil
+        )
+
+        XCTAssertEqual(resolved.percent, 77)
+        XCTAssertNil(resolved.charging)
+    }
+
     func testResolveBluetoothBatteryStateUsesUSBFallbackWhenVendorBatteryMissing() {
         let resolved = BridgeClient.resolveBluetoothBatteryState(
             device: makeBluetoothDevice(productID: 0x00AC, profileID: .basiliskV3Pro),
@@ -78,7 +90,7 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
         )
 
         XCTAssertEqual(resolved.percent, 64)
-        XCTAssertEqual(resolved.charging, false)
+        XCTAssertEqual(resolved.charging, true)
     }
 
     func testSupportedBluetoothFallbackUsesResolvedProfile() {

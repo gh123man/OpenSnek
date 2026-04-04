@@ -89,7 +89,7 @@ USB PIDs `0x00AA` / `0x00AB`, Bluetooth PID `0x00AC`
 | Poll rate | `Shipped` | `Hidden` | USB uses the shared `getPollRate` / `setPollRate` path; BT hard-codes `poll_rate: nil` and `capabilities.poll_rate: false` |
 | Sleep timeout | `Shipped` | `Shipped` | USB reads idle time; BT reads `powerTimeoutGet` and exposes the same power-management card |
 | Low battery threshold | `Shipped` | `Hidden` | USB reads and writes threshold values; BT does not populate `low_battery_threshold_raw`, so the current app never shows the threshold card there |
-| Battery telemetry | `Shipped` | `Shipped` | BT state publishes percent and charging through `resolveBluetoothBatteryState` |
+| Battery telemetry | `Shipped` | `Shipped` | BT state publishes battery percent; BT charging is only surfaced when a USB fallback session can verify it |
 | Lighting: brightness + static color | `Shipped` | `Shipped` | USB ships three zones with advanced effects; BT ships per-zone brightness and per-zone static color on `0x01`, `0x04`, and `0x0A` |
 | Lighting: extra effects | `Shipped` | `Limited` | USB advertises `off`, `static`, `spectrum`, and `wave`; BT is static-only because the BT profile advertises only `.staticColor` |
 | Button remap: shipped editable slots | `Shipped` | `Shipped` | USB writable slots are `1-5`, `9`, `10`, `15`, `52`, `53`; BT writable slots are `1-5`, `9`, `10`, `52`, `53` |
