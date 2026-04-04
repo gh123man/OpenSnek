@@ -149,7 +149,7 @@ final class USBButtonHydrationTests: XCTestCase {
     }
 
     func testBasiliskV335KWheelTiltLeftDefaultBlockMapsToDefaultKind() {
-        let block: [UInt8] = [0x01, 0x01, 0x68, 0x00, 0x00, 0x00, 0x00]
+        let block: [UInt8] = [0x0E, 0x03, 0x68, 0x00, 0x14, 0x00, 0x00]
         let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
             slot: 52,
             functionBlock: block,
@@ -159,7 +159,7 @@ final class USBButtonHydrationTests: XCTestCase {
     }
 
     func testBasiliskV3ProWheelTiltRightDefaultBlockMapsToDefaultKind() {
-        let block: [UInt8] = [0x01, 0x01, 0x69, 0x00, 0x00, 0x00, 0x00]
+        let block: [UInt8] = [0x0E, 0x03, 0x69, 0x00, 0x14, 0x00, 0x00]
         let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
             slot: 53,
             functionBlock: block,
@@ -171,11 +171,11 @@ final class USBButtonHydrationTests: XCTestCase {
     func testWheelTiltDefaultBlocksRestoreHorizontalScroll() {
         XCTAssertEqual(
             ButtonBindingSupport.defaultUSBFunctionBlock(for: 52, profileID: .basiliskV3Pro),
-            [0x01, 0x01, 0x68, 0x00, 0x00, 0x00, 0x00]
+            [0x0E, 0x03, 0x68, 0x00, 0x14, 0x00, 0x00]
         )
         XCTAssertEqual(
             ButtonBindingSupport.defaultUSBFunctionBlock(for: 53, profileID: .basiliskV335K),
-            [0x01, 0x01, 0x69, 0x00, 0x00, 0x00, 0x00]
+            [0x0E, 0x03, 0x69, 0x00, 0x14, 0x00, 0x00]
         )
     }
 
@@ -196,8 +196,20 @@ final class USBButtonHydrationTests: XCTestCase {
             turboRate: 0x8E,
             profileID: .basiliskV3Pro
         )
-        XCTAssertEqual(leftBlock, [0x01, 0x01, 0x68, 0x00, 0x00, 0x00, 0x00])
-        XCTAssertEqual(rightBlock, [0x01, 0x01, 0x69, 0x00, 0x00, 0x00, 0x00])
+        XCTAssertEqual(leftBlock, [0x0E, 0x03, 0x68, 0x00, 0x14, 0x00, 0x00])
+        XCTAssertEqual(rightBlock, [0x0E, 0x03, 0x69, 0x00, 0x14, 0x00, 0x00])
+    }
+
+    func testBuildUSBFunctionBlockSupportsTurboHorizontalScrollBindingsOnV3Pro() {
+        let block = ButtonBindingSupport.buildUSBFunctionBlock(
+            slot: 52,
+            kind: .scrollLeft,
+            hidKey: 4,
+            turboEnabled: true,
+            turboRate: 0x40,
+            profileID: .basiliskV3Pro
+        )
+        XCTAssertEqual(block, [0x0E, 0x03, 0x68, 0x00, 0x40, 0x00, 0x00])
     }
 
     func testBasiliskV3ProClutchDefaultBlockMapsToDefaultKind() {

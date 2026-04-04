@@ -2,9 +2,10 @@ import Foundation
 
 public enum ButtonBindingSupport {
     public static let defaultBasiliskDPIClutchDPI = 400
-    // Wheel-tilt remap captures use the 0x68/0x69 mouse-function pair for horizontal scroll.
+    // Basilisk V3-family USB wheel tilt stores 0x68/0x69 inside a mouse-turbo block.
     private static let horizontalScrollLeftButtonID: UInt8 = 0x68
     private static let horizontalScrollRightButtonID: UInt8 = 0x69
+    private static let basiliskV3FamilyHorizontalScrollTurboRate = 0x14
 
     private static func basiliskDPIClutchBlock(
         dpi: Int = defaultBasiliskDPIClutchDPI,
@@ -29,6 +30,25 @@ public enum ButtonBindingSupport {
         let dpiY = (Int(functionBlock[5]) << 8) | Int(functionBlock[6])
         guard dpiX == dpiY else { return nil }
         return DeviceProfiles.clampDPI(dpiX, profileID: profileID)
+    }
+
+    private static func basiliskV3FamilyHorizontalScrollBlock(
+        buttonID: UInt8,
+        turboRate: Int = basiliskV3FamilyHorizontalScrollTurboRate
+    ) -> [UInt8] {
+        let turbo = UInt16(max(1, min(255, turboRate)))
+        let turboHi = UInt8((turbo >> 8) & 0xFF)
+        let turboLo = UInt8(turbo & 0xFF)
+        return [0x0E, 0x03, buttonID, turboHi, turboLo, 0x00, 0x00]
+    }
+
+    private static func usesBasiliskV3FamilyHorizontalScrollBlock(_ profileID: DeviceProfileID?) -> Bool {
+        switch profileID {
+        case .basiliskV3, .basiliskV3Pro, .basiliskV335K:
+            return true
+        case .basiliskV3XHyperspeed, .none:
+            return false
+        }
     }
 
     public static func defaultDPIClutchDPI(for profileID: DeviceProfileID?) -> Int? {
@@ -298,6 +318,12 @@ public enum ButtonBindingSupport {
             return [0x02, 0x02, 0x00, clampedKey, 0x00, 0x00, 0x00]
         default:
             if let buttonID = usbMouseButtonID(for: kind) {
+                if usesBasiliskV3FamilyHorizontalScrollBlock(profileID), kind == .scrollLeft || kind == .scrollRight {
+                    return basiliskV3FamilyHorizontalScrollBlock(
+                        buttonID: buttonID,
+                        turboRate: turboEnabled ? turboRate : basiliskV3FamilyHorizontalScrollTurboRate
+                    )
+                }
                 if turboEnabled {
                     return [0x0E, 0x03, buttonID, turboHi, turboLo, 0x00, 0x00]
                 }
@@ -316,9 +342,9 @@ public enum ButtonBindingSupport {
         case 15 where profileID == .basiliskV3Pro:
             return basiliskDPIClutchBlock(profileID: .basiliskV3Pro)
         case 52 where usesExtendedBasiliskUSBReadLayout(profileID):
-            return [0x01, 0x01, horizontalScrollLeftButtonID, 0x00, 0x00, 0x00, 0x00]
+            return basiliskV3FamilyHorizontalScrollBlock(buttonID: horizontalScrollLeftButtonID)
         case 53 where usesExtendedBasiliskUSBReadLayout(profileID):
-            return [0x01, 0x01, horizontalScrollRightButtonID, 0x00, 0x00, 0x00, 0x00]
+            return basiliskV3FamilyHorizontalScrollBlock(buttonID: horizontalScrollRightButtonID)
         case 96:
             switch profileID {
             case .basiliskV3, .basiliskV335K:

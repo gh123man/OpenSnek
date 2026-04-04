@@ -108,6 +108,8 @@ Validated in-session over USB:
 - observed V3 Pro clutch default block on `0x0F`: `06 05 05 01 90 01 90`
 - observed V3 Pro clutch DPI parameterization: writing `06 05 05 03 20 03 20` read back cleanly as an 800-DPI clutch payload on slot `0x04`
 - observed V3 Pro clutch remap portability: the same block was written/read back successfully on slot `0x04`, so OpenSnek treats `DPI Clutch` as a V3 Pro USB remap action and not only as the native clutch button's default
+- observed V3 Pro wheel-tilt scroll blocks on 2026-04-03 after a working Synapse rebind: slot `0x34` read back `0e036800140000` and slot `0x35` read back `0e036900140000` on both persistent and direct layers
+- inferred client behavior: OpenSnek now uses that same wheel-tilt block for the shared Basilisk V3 / V3 Pro / 35K USB family because those profiles already share the same tilt slots and action taxonomy; only the V3 Pro form is directly hardware-validated so far
 - observed profile-button default block on `0x6A`: `12 01 01 00 00 00 00`
 - observed profile-button remap behavior on `0x6A`: right-click writes/readback can succeed, but repeated write/readback cycles later returned timeout/no-response frames; OpenSnek keeps this slot hidden until the USB ACK/readback path is reliable
 - observed non-match on `0x60`: it does not read back like the 35K top DPI-button block and is not exposed as a validated V3 Pro slot
