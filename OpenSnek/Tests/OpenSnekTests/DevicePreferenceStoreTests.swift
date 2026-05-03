@@ -112,4 +112,71 @@ final class DevicePreferenceStoreTests: XCTestCase {
         let loaded = store.loadPersistedButtonBindings(device: device, profile: 1)
         XCTAssertEqual(loaded[96]?.kind, .default)
     }
+
+    func testConnectBehaviorPersistsPerDevice() {
+        let suiteName = "DevicePreferenceStoreTests.ConnectBehavior.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = DevicePreferenceStore(defaults: defaults)
+        let device = MouseDevice(
+            id: "usb-connect-behavior",
+            vendor_id: 0x1532,
+            product_id: 0x00AB,
+            product_name: "Basilisk V3 Pro",
+            transport: .usb,
+            path_b64: "",
+            serial: "CONNECT-BEHAVIOR",
+            firmware: nil,
+            profile_id: .basiliskV3Pro
+        )
+
+        store.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
+
+        XCTAssertEqual(store.loadConnectBehavior(device: device), .restoreOpenSnekSettings)
+    }
+
+    func testDeviceSettingsSnapshotRoundTrips() {
+        let suiteName = "DevicePreferenceStoreTests.SettingsSnapshot.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = DevicePreferenceStore(defaults: defaults)
+        let device = MouseDevice(
+            id: "usb-settings-snapshot",
+            vendor_id: 0x1532,
+            product_id: 0x00AB,
+            product_name: "Basilisk V3 Pro",
+            transport: .usb,
+            path_b64: "",
+            serial: "SETTINGS-SNAPSHOT",
+            firmware: nil,
+            profile_id: .basiliskV3Pro
+        )
+        let snapshot = PersistedDeviceSettingsSnapshot(
+            stageCount: 3,
+            stageValues: [800, 1600, 3200],
+            stagePairs: [DpiPair(x: 800, y: 800), DpiPair(x: 1600, y: 1600), DpiPair(x: 3200, y: 3200)],
+            activeStage: 2,
+            pollRate: 500,
+            sleepTimeout: 420,
+            lowBatteryThresholdRaw: 0x24,
+            scrollMode: 1,
+            scrollAcceleration: true,
+            scrollSmartReel: false,
+            ledBrightness: 77,
+            primaryLightingColor: RGBColor(r: 10, g: 20, b: 30),
+            lightingEffect: LightingEffectPatch(kind: .wave, primary: RGBPatch(r: 10, g: 20, b: 30), waveDirection: .right),
+            usbLightingZoneID: "logo",
+            buttonBindings: [
+                5: ButtonBindingDraft(kind: .keyboardSimple, hidKey: 80, turboEnabled: false, turboRate: 0x8E, clutchDPI: nil)
+            ]
+        )
+
+        store.persistDeviceSettingsSnapshot(snapshot, device: device)
+
+        XCTAssertEqual(store.loadPersistedDeviceSettingsSnapshot(device: device), snapshot)
+    }
 }

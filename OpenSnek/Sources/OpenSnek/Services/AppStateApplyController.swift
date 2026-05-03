@@ -287,6 +287,38 @@ final class AppStateApplyController {
         )
     }
 
+    private func makeButtonBindingPatch(
+        slot: Int,
+        draft: ButtonBindingDraft,
+        profileID: DeviceProfileID?,
+        persistentProfile: Int,
+        writePersistentLayer: Bool = true,
+        writeDirectLayer: Bool
+    ) -> ButtonBindingPatch {
+        let applied: ButtonBindingDraft
+        if draft.kind == .default {
+            applied = ButtonBindingSupport.semanticDefaultButtonBinding(
+                for: slot,
+                profileID: profileID
+            ) ?? draft
+        } else {
+            applied = draft
+        }
+        return ButtonBindingPatch(
+            slot: slot,
+            kind: applied.kind,
+            hidKey: applied.kind == .keyboardSimple ? applied.hidKey : nil,
+            turboEnabled: applied.kind.supportsTurbo ? applied.turboEnabled : false,
+            turboRate: applied.kind.supportsTurbo && applied.turboEnabled ? applied.turboRate : nil,
+            clutchDPI: applied.kind == .dpiClutch
+                ? applied.clutchDPI ?? ButtonBindingSupport.defaultDPIClutchDPI(for: profileID)
+                : nil,
+            persistentProfile: persistentProfile,
+            writePersistentLayer: writePersistentLayer,
+            writeDirectLayer: writeDirectLayer
+        )
+    }
+
     func applyButtonBinding(slot: Int) async {
         guard let selectedDevice = deviceStore.selectedDevice else { return }
         let binding = makeButtonBindingPatch(
@@ -326,6 +358,13 @@ final class AppStateApplyController {
     private func persistentProfileForSingleButtonApply(device: MouseDevice) -> Int {
         guard device.transport == .usb, editorStore.supportsMultipleOnboardProfiles else {
             return editorStore.editableUSBButtonProfile
+        }
+        return 1
+    }
+
+    private func persistentProfileForRestoredLiveButtons(device: MouseDevice) -> Int {
+        guard device.transport == .usb, device.onboard_profile_count > 1 else {
+            return 1
         }
         return 1
     }
@@ -610,23 +649,62 @@ final class AppStateApplyController {
     }
 
     @discardableResult
-    func applyPersistedLightingRestore(
-        _ patch: DevicePatch,
-        to device: MouseDevice,
-        usbLightingZoneID: String
+    func applyPersistedSettingsRestore(
+        _ plan: AppStateEditorController.PersistedSettingsRestorePlan,
+        to device: MouseDevice
     ) async -> Bool {
         let selectedIdentity = deviceStore.selectedDevice.map(deviceController.deviceIdentityKey)
         let targetIdentity = deviceController.deviceIdentityKey(device)
         let targetsSelectedDevice = selectedIdentity == targetIdentity
-        return await apply(
-            device: device,
-            patch: patch,
-            markApplyingState: targetsSelectedDevice,
-            shouldFocusOnActivity: false,
-            shouldSurfaceApplyFailure: targetsSelectedDevice,
-            persistLightingZoneID: usbLightingZoneID,
-            clearLocalEditsOnSuccess: false
-        )
+        let persistLightingZoneID = plan.snapshot.lightingEffect?.kind == .staticColor
+            ? plan.snapshot.usbLightingZoneID
+            : "all"
+
+        if !plan.patch.isEmpty {
+            let restoredState = await apply(
+                device: device,
+                patch: plan.patch,
+                markApplyingState: targetsSelectedDevice,
+                shouldFocusOnActivity: false,
+                shouldSurfaceApplyFailure: targetsSelectedDevice,
+                persistLightingZoneID: persistLightingZoneID,
+                clearLocalEditsOnSuccess: false
+            )
+            guard restoredState else { return false }
+        }
+
+        let persistentProfile = persistentProfileForRestoredLiveButtons(device: device)
+        let writableSlots = (device.button_layout?.writableSlots ?? ButtonSlotDescriptor.defaults.map(\.slot)).sorted()
+        for slot in writableSlots {
+            let draft = plan.buttonBindings[slot] ?? editorController.defaultButtonBinding(for: slot, device: device)
+            let restoredButton = await apply(
+                device: device,
+                patch: DevicePatch(
+                    buttonBinding: makeButtonBindingPatch(
+                        slot: slot,
+                        draft: draft,
+                        profileID: device.profile_id,
+                        persistentProfile: persistentProfile,
+                        writePersistentLayer: true,
+                        writeDirectLayer: true
+                    )
+                ),
+                markApplyingState: targetsSelectedDevice,
+                shouldFocusOnActivity: false,
+                shouldSurfaceApplyFailure: targetsSelectedDevice,
+                persistLightingZoneID: persistLightingZoneID,
+                clearLocalEditsOnSuccess: false
+            )
+            guard restoredButton else { return false }
+        }
+
+        if targetsSelectedDevice {
+            editorController.setLiveUSBButtonProfileOverride(1, for: device)
+            editorController.markButtonWorkspaceAppliedToLive(bindings: plan.buttonBindings, exactSource: nil)
+        } else {
+            editorController.persistSettingsSnapshot(plan.snapshot, device: device)
+        }
+        return true
     }
 
     private func drainApplyQueue() async {
@@ -729,6 +807,9 @@ final class AppStateApplyController {
             if let buttonBinding = patch.buttonBinding {
                 editorController.persistButtonBinding(buttonBinding, device: presentationDevice, profile: buttonBinding.persistentProfile)
                 editorController.cachePersistedButtonBinding(buttonBinding, device: presentationDevice, profile: buttonBinding.persistentProfile)
+            }
+            if deviceStore.selectedDeviceID == presentationDeviceID {
+                editorController.persistCurrentSettingsSnapshot(for: presentationDevice)
             }
 
             if deviceStore.selectedDeviceID == presentationDeviceID {

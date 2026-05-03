@@ -66,6 +66,9 @@ struct DeviceDetailView: View {
         if state.capabilities.dpi_stages {
             sections.append(.dpiStages)
         }
+        if editorStore.showsConnectBehaviorCard {
+            sections.append(.onConnect)
+        }
         if selected.showsLightingControls, state.capabilities.lighting {
             sections.append(.lighting)
         }
@@ -93,6 +96,8 @@ struct DeviceDetailView: View {
         switch section {
         case .dpiStages:
             DpiStagesCard(editorStore: editorStore)
+        case .onConnect:
+            OnConnectBehaviorCard(editorStore: editorStore)
         case .lighting:
             LightingCard(editorStore: editorStore, selected: selected, swatches: swatches)
         case .pollRate:
@@ -124,6 +129,7 @@ struct DeviceDetailView: View {
 
 private enum DetailSection: Hashable {
     case dpiStages
+    case onConnect
     case lighting
     case pollRate
     case powerManagement
@@ -723,6 +729,39 @@ struct DeviceDiagnosticsSheet: View {
     private func copyDiagnostics() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(diagnosticsText, forType: .string)
+    }
+}
+
+struct OnConnectBehaviorCard: View {
+    let editorStore: EditorStore
+
+    private var connectBehaviorBinding: Binding<DeviceConnectBehavior> {
+        Binding(
+            get: { editorStore.connectBehavior },
+            set: { editorStore.updateConnectBehavior($0) }
+        )
+    }
+
+    var body: some View {
+        Card(title: "On Connect") {
+            VStack(alignment: .leading, spacing: 12) {
+                Picker("On Connect Behavior", selection: connectBehaviorBinding) {
+                    Text("Use Mouse Settings").tag(DeviceConnectBehavior.useMouseSettings)
+                    Text("Restore OpenSnek Settings").tag(DeviceConnectBehavior.restoreOpenSnekSettings)
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Use Mouse Settings: OpenSnek reads the current settings from the mouse when it connects and does not rewrite them automatically.")
+                        .hintTextStyle()
+                    Text("Restore OpenSnek Settings: OpenSnek reapplies the last settings you changed here when this mouse connects.")
+                        .hintTextStyle()
+                    Text("Turn this on if you use this mouse with another computer or with Synapse. Vendor software can overwrite the live settings on reconnect, and this restores your OpenSnek setup.")
+                        .hintTextStyle()
+                }
+            }
+        }
     }
 }
 

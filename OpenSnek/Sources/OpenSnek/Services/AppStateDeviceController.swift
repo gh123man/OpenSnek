@@ -28,8 +28,9 @@ final class AppStateDeviceController {
     private var stateRefreshSuppressedUntilByDeviceID: [String: Date] = [:]
     private var unavailableDeviceIDs: Set<String> = []
     private var dpiUpdateTransportStatusByDeviceID: [String: DpiUpdateTransportStatus] = [:]
-    private var pendingLightingRestoreDeviceIDs: Set<String> = []
-    private var restoringLightingDeviceIDs: Set<String> = []
+    private var pendingSettingsRestoreDeviceIDs: Set<String> = []
+    private var pendingSettingsRestoreGenerationByDeviceID: [String: Int] = [:]
+    private var restoringSettingsDeviceIDs: Set<String> = []
     private var seededReconnectStateDeviceIDs: Set<String> = []
     private var selectedRecoveryRefreshTask: Task<Void, Never>?
     private var selectedRecoveryRefreshDeviceID: String?
@@ -59,6 +60,13 @@ final class AppStateDeviceController {
 
     func cachedState(for deviceID: String) -> MouseState? {
         stateCacheByDeviceID[deviceID]
+    }
+
+    private func armPendingSettingsRestore(for deviceIDs: some Sequence<String>) {
+        for deviceID in deviceIDs {
+            pendingSettingsRestoreDeviceIDs.insert(deviceID)
+            pendingSettingsRestoreGenerationByDeviceID[deviceID, default: 0] += 1
+        }
     }
 
     func storeState(_ state: MouseState, for deviceID: String, updatedAt: Date) {
@@ -149,7 +157,12 @@ final class AppStateDeviceController {
            let selectedDevice = deviceStore.selectedDevice {
             deviceStore.state = selectedState
             deviceStore.lastUpdated = lastUpdatedByDeviceID[selectedDeviceID]
-            if applyController.shouldHydrateEditable(for: selectedDevice) {
+            let holdsPersistedConnectPresentation = primeSelectedConnectPresentationIfNeeded(
+                device: selectedDevice,
+                applyController: applyController,
+                editorController: editorController
+            )
+            if applyController.shouldHydrateEditable(for: selectedDevice), !holdsPersistedConnectPresentation {
                 editorController.hydrateEditable(from: selectedState)
                 scheduleSelectedDeviceButtonBindingHydration(device: selectedDevice)
             }
@@ -209,7 +222,12 @@ final class AppStateDeviceController {
             if deviceStore.state != merged {
                 deviceStore.state = merged
             }
-            if applyController.shouldHydrateEditable(for: presentationDevice) {
+            let holdsPersistedConnectPresentation = primeSelectedConnectPresentationIfNeeded(
+                device: presentationDevice,
+                applyController: applyController,
+                editorController: editorController
+            )
+            if applyController.shouldHydrateEditable(for: presentationDevice), !holdsPersistedConnectPresentation {
                 editorController.hydrateEditable(from: merged)
                 scheduleSelectedDeviceButtonBindingHydration(device: presentationDevice)
             }
@@ -338,18 +356,19 @@ final class AppStateDeviceController {
                 lastUSBFastDpiAtByDeviceID[id] = nil
                 refreshingStateDeviceIDs.remove(id)
                 refreshingFastDpiDeviceIDs.remove(id)
-                pendingLightingRestoreDeviceIDs.remove(id)
-                restoringLightingDeviceIDs.remove(id)
+                pendingSettingsRestoreDeviceIDs.remove(id)
+                pendingSettingsRestoreGenerationByDeviceID[id] = nil
+                restoringSettingsDeviceIDs.remove(id)
                 seededReconnectStateDeviceIDs.remove(id)
             }
         }
 
         let newlyVisibleIDs = newIDs.subtracting(previousIDs)
         if !newlyVisibleIDs.isEmpty {
-            pendingLightingRestoreDeviceIDs.formUnion(newlyVisibleIDs)
+            armPendingSettingsRestore(for: newlyVisibleIDs)
         }
         if source == "subscription", previousIDs == newIDs, !newIDs.isEmpty {
-            pendingLightingRestoreDeviceIDs.formUnion(newIDs)
+            armPendingSettingsRestore(for: newIDs)
         }
 
         deviceStore.devices = sorted
@@ -482,9 +501,11 @@ final class AppStateDeviceController {
         }
 
         deviceStore.isRefreshingState = refreshingStateDeviceIDs.contains(deviceID)
-        if applyController.shouldHydrateEditable(for: device) {
-            editorController.hydratePersistedLightingStateIfNeeded(device: device)
-        }
+        let holdsPersistedConnectPresentation = primeSelectedConnectPresentationIfNeeded(
+            device: device,
+            applyController: applyController,
+            editorController: editorController
+        )
         if unavailableDeviceIDs.contains(deviceID) {
             deviceStore.state = nil
             deviceStore.lastUpdated = nil
@@ -496,7 +517,7 @@ final class AppStateDeviceController {
             deviceStore.state = cached
             deviceStore.lastUpdated = lastUpdatedByDeviceID[deviceID]
             deviceStore.warningMessage = editorController.telemetryWarning(for: cached, device: device)
-            if applyController.shouldHydrateEditable(for: device) {
+            if applyController.shouldHydrateEditable(for: device), !holdsPersistedConnectPresentation {
                 editorController.hydrateEditable(from: cached)
                 scheduleSelectedDeviceButtonBindingHydration(device: device)
             }
@@ -505,7 +526,7 @@ final class AppStateDeviceController {
                 deviceStore.state = stateForPresentation(state, device: device)
             }
             deviceStore.warningMessage = editorController.telemetryWarning(for: state, device: device)
-            if applyController.shouldHydrateEditable(for: device) {
+            if applyController.shouldHydrateEditable(for: device), !holdsPersistedConnectPresentation {
                 editorController.hydrateEditable(from: deviceStore.state ?? state)
                 scheduleSelectedDeviceButtonBindingHydration(device: device)
             }
@@ -517,6 +538,16 @@ final class AppStateDeviceController {
         if !unavailableDeviceIDs.contains(deviceID) {
             deviceStore.errorMessage = nil
         }
+    }
+
+    private func primeSelectedConnectPresentationIfNeeded(
+        device: MouseDevice,
+        applyController: AppStateApplyController,
+        editorController: AppStateEditorController
+    ) -> Bool {
+        guard applyController.shouldHydrateEditable(for: device) else { return false }
+        let hydratedPersistedSnapshot = editorController.hydrateConnectPresentationIfNeeded(device: device)
+        return hydratedPersistedSnapshot && pendingSettingsRestoreDeviceIDs.contains(device.id)
     }
 
     private func scheduleSelectedDeviceButtonBindingHydration(device: MouseDevice) {
@@ -1075,7 +1106,12 @@ final class AppStateDeviceController {
                         if deviceStore.state != merged {
                             deviceStore.state = merged
                         }
-                        if applyController.shouldHydrateEditable(for: presentationDevice) {
+                        let holdsPersistedConnectPresentation = primeSelectedConnectPresentationIfNeeded(
+                            device: presentationDevice,
+                            applyController: applyController,
+                            editorController: editorController
+                        )
+                        if applyController.shouldHydrateEditable(for: presentationDevice), !holdsPersistedConnectPresentation {
                             editorController.hydrateEditable(from: merged)
                             await editorController.hydrateLightingStateIfNeeded(device: presentationDevice)
                             await editorController.hydrateButtonBindingsIfNeeded(device: presentationDevice)
@@ -1083,7 +1119,7 @@ final class AppStateDeviceController {
                         deviceStore.errorMessage = nil
                         setTelemetryWarning(editorController.telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)
                     }
-                    await restorePersistedLightingIfNeeded(for: presentationDevice)
+                    await restorePersistedSettingsIfNeeded(for: presentationDevice)
                     return true
                 }
                 AppLog.debug(
@@ -1117,7 +1153,12 @@ final class AppStateDeviceController {
                 if deviceStore.state != merged {
                     deviceStore.state = merged
                 }
-                if applyController.shouldHydrateEditable(for: presentationDevice) {
+                let holdsPersistedConnectPresentation = primeSelectedConnectPresentationIfNeeded(
+                    device: presentationDevice,
+                    applyController: applyController,
+                    editorController: editorController
+                )
+                if applyController.shouldHydrateEditable(for: presentationDevice), !holdsPersistedConnectPresentation {
                     editorController.hydrateEditable(from: merged)
                     await editorController.hydrateLightingStateIfNeeded(device: presentationDevice)
                     await editorController.hydrateButtonBindingsIfNeeded(device: presentationDevice)
@@ -1125,7 +1166,7 @@ final class AppStateDeviceController {
                 deviceStore.errorMessage = nil
                 setTelemetryWarning(editorController.telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)
             }
-            await restorePersistedLightingIfNeeded(for: presentationDevice)
+            await restorePersistedSettingsIfNeeded(for: presentationDevice)
 
             AppLog.debug(
                 "AppState",
@@ -1331,7 +1372,12 @@ final class AppStateDeviceController {
                 if deviceStore.state != updated {
                     deviceStore.state = updated
                 }
-                if applyController.shouldHydrateEditable(for: presentationDevice) {
+                let holdsPersistedConnectPresentation = primeSelectedConnectPresentationIfNeeded(
+                    device: presentationDevice,
+                    applyController: applyController,
+                    editorController: editorController
+                )
+                if applyController.shouldHydrateEditable(for: presentationDevice), !holdsPersistedConnectPresentation {
                     editorController.hydrateEditable(from: updated)
                 }
             }
@@ -1422,32 +1468,41 @@ final class AppStateDeviceController {
         return now.timeIntervalSince(lastFullStateRefreshStartedAt) < minimumRefreshInterval
     }
 
-    private func restorePersistedLightingIfNeeded(for device: MouseDevice) async {
+    private func restorePersistedSettingsIfNeeded(for device: MouseDevice) async {
         guard !isTearingDown else { return }
         guard let applyController = _applyController.optionalValue,
               let editorController = _editorController.optionalValue else {
             return
         }
-        guard pendingLightingRestoreDeviceIDs.contains(device.id) else { return }
-        guard !restoringLightingDeviceIDs.contains(device.id) else { return }
+        guard pendingSettingsRestoreDeviceIDs.contains(device.id) else { return }
+        guard !restoringSettingsDeviceIDs.contains(device.id) else { return }
         guard !(deviceStore.selectedDeviceID == device.id && !applyController.shouldHydrateEditable(for: device)) else { return }
         guard !applyController.hasPendingLocalEditsAffecting(device) else { return }
+        let pendingGeneration = pendingSettingsRestoreGenerationByDeviceID[device.id, default: 0]
 
-        guard let restorePlan = editorController.persistedLightingRestorePlan(device: device) else {
-            pendingLightingRestoreDeviceIDs.remove(device.id)
+        guard let restorePlan = editorController.persistedSettingsRestorePlan(device: device) else {
+            if pendingSettingsRestoreGenerationByDeviceID[device.id, default: 0] == pendingGeneration {
+                pendingSettingsRestoreDeviceIDs.remove(device.id)
+            }
             return
         }
 
-        restoringLightingDeviceIDs.insert(device.id)
-        defer { restoringLightingDeviceIDs.remove(device.id) }
+        restoringSettingsDeviceIDs.insert(device.id)
+        defer { restoringSettingsDeviceIDs.remove(device.id) }
 
-        let restored = await applyController.applyPersistedLightingRestore(
-            restorePlan.patch,
-            to: device,
-            usbLightingZoneID: restorePlan.usbLightingZoneID
+        let restored = await applyController.applyPersistedSettingsRestore(
+            restorePlan,
+            to: device
         )
         if restored {
-            pendingLightingRestoreDeviceIDs.remove(device.id)
+            let currentGeneration = pendingSettingsRestoreGenerationByDeviceID[device.id, default: 0]
+            if currentGeneration == pendingGeneration {
+                pendingSettingsRestoreDeviceIDs.remove(device.id)
+            } else {
+                Task { @MainActor [weak self] in
+                    await self?.restorePersistedSettingsIfNeeded(for: device)
+                }
+            }
         }
     }
 }
