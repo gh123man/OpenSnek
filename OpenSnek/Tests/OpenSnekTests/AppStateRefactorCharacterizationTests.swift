@@ -355,6 +355,84 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertTrue(showsCard)
     }
 
+    func testRestoreInProgressSkipsAdditionalRefreshReadsForSameDevice() async throws {
+        let alphaDevice = makeRefactorTestDevice(
+            id: "restore-refresh-selected-device",
+            transport: .usb,
+            serial: "RESTORE-REFRESH-SELECTED-\(UUID().uuidString)",
+            onboardProfileCount: 1
+        )
+        let betaDevice = makeRefactorTestDevice(
+            id: "restore-refresh-target-device",
+            transport: .usb,
+            serial: "RESTORE-REFRESH-TARGET-\(UUID().uuidString)",
+            onboardProfileCount: 1
+        )
+        let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: betaDevice)
+        preferenceStore.persistDeviceSettingsSnapshot(
+            makeRefactorSettingsSnapshot(color: RGBColor(r: 10, g: 20, b: 30)),
+            device: betaDevice
+        )
+        defer {
+            clearRefactorPreferences(for: alphaDevice)
+            clearRefactorPreferences(for: betaDevice)
+        }
+
+        let backend = AppStateRefactorStubBackend(
+            devices: [alphaDevice, betaDevice],
+            stateByDeviceID: [
+                alphaDevice.id: makeRefactorTestState(
+                    device: alphaDevice,
+                    connection: "usb",
+                    batteryPercent: 81,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300
+                ),
+                betaDevice.id: makeRefactorTestState(
+                    device: betaDevice,
+                    connection: "usb",
+                    batteryPercent: 74,
+                    dpiValues: [1000, 2000, 3000],
+                    activeStage: 1,
+                    dpiValue: 2000,
+                    pollRate: 1000,
+                    sleepTimeout: 300
+                ),
+            ],
+            shouldUseFastPolling: true,
+            holdFirstApply: true
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        let refreshTask = Task {
+            await appState.deviceStore.refreshDevices()
+        }
+
+        await backend.waitForFirstApplyToStart()
+
+        let readCountBefore = await backend.readCount(for: betaDevice.id)
+        let fastReadCountBefore = await backend.fastReadCount(for: betaDevice.id)
+
+        let refreshed = await appState.deviceController.refreshState(for: betaDevice)
+        await appState.deviceStore.refreshDpiFast()
+
+        let readCountAfter = await backend.readCount(for: betaDevice.id)
+        let fastReadCountAfter = await backend.fastReadCount(for: betaDevice.id)
+
+        XCTAssertFalse(refreshed)
+        XCTAssertEqual(readCountAfter, readCountBefore)
+        XCTAssertEqual(fastReadCountAfter, fastReadCountBefore)
+
+        await backend.releaseFirstApply()
+        await refreshTask.value
+    }
+
     func testHyperspeedForcesRestoreBehaviorAndHidesConnectBehaviorCard() async throws {
         let device = makeRefactorTestDevice(
             id: "bt-hyperspeed-connect-behavior",
@@ -2776,7 +2854,9 @@ private actor AppStateRefactorStubBackend: DeviceBackend {
     private var firstApplyReleaseContinuation: CheckedContinuation<Void, Never>?
     private var buttonBindingBlocks: [String: [UInt8]] = [:]
     private var buttonReadCountByDeviceID: [String: Int] = [:]
+    private var readCountByDeviceID: [String: Int] = [:]
     private var fastReadInvocationCount = 0
+    private var fastReadCountByDeviceID: [String: Int] = [:]
 
     init(
         devices: [MouseDevice],
@@ -2801,6 +2881,7 @@ private actor AppStateRefactorStubBackend: DeviceBackend {
     }
 
     func readState(device: MouseDevice) async throws -> MouseState {
+        readCountByDeviceID[device.id, default: 0] += 1
         guard let state = stateByDeviceID[device.id] else {
             throw NSError(domain: "AppStateRefactorCharacterizationTests", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "Missing state for \(device.id)"
@@ -2811,6 +2892,7 @@ private actor AppStateRefactorStubBackend: DeviceBackend {
 
     func readDpiStagesFast(device: MouseDevice) async throws -> DpiFastSnapshot? {
         fastReadInvocationCount += 1
+        fastReadCountByDeviceID[device.id, default: 0] += 1
         return fastByDeviceID[device.id]
     }
 
@@ -2902,8 +2984,16 @@ private actor AppStateRefactorStubBackend: DeviceBackend {
         maxObservedConcurrentApplies
     }
 
+    func readCount(for deviceID: String) -> Int {
+        readCountByDeviceID[deviceID, default: 0]
+    }
+
     func fastReadCount() -> Int {
         fastReadInvocationCount
+    }
+
+    func fastReadCount(for deviceID: String) -> Int {
+        fastReadCountByDeviceID[deviceID, default: 0]
     }
 
     func setButtonBindingBlock(_ block: [UInt8], forDeviceID deviceID: String, slot: Int, profile: Int) {

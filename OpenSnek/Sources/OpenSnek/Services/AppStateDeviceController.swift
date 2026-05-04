@@ -31,6 +31,7 @@ final class AppStateDeviceController {
     private var pendingSettingsRestoreDeviceIDs: Set<String> = []
     private var pendingSettingsRestoreGenerationByDeviceID: [String: Int] = [:]
     private var restoringSettingsDeviceIDs: Set<String> = []
+    private var settingsRestoreRevisionByDeviceID: [String: Int] = [:]
     private var seededReconnectStateDeviceIDs: Set<String> = []
     private var selectedRecoveryRefreshTask: Task<Void, Never>?
     private var selectedRecoveryRefreshDeviceID: String?
@@ -66,6 +67,30 @@ final class AppStateDeviceController {
         for deviceID in deviceIDs {
             pendingSettingsRestoreDeviceIDs.insert(deviceID)
             pendingSettingsRestoreGenerationByDeviceID[deviceID, default: 0] += 1
+        }
+    }
+
+    private func deviceIDsSharingIdentity(with device: MouseDevice) -> Set<String> {
+        let identityKey = deviceIdentityKey(device)
+        let matchingDeviceIDs = deviceStore.devices
+            .filter { deviceIdentityKey($0) == identityKey }
+            .map(\.id)
+        return Set(matchingDeviceIDs).union([device.id])
+    }
+
+    private func isRestoringSettings(for device: MouseDevice) -> Bool {
+        !deviceIDsSharingIdentity(with: device).isDisjoint(with: restoringSettingsDeviceIDs)
+    }
+
+    private func settingsRestoreRevision(for device: MouseDevice) -> Int {
+        deviceIDsSharingIdentity(with: device).reduce(0) { partialResult, deviceID in
+            max(partialResult, settingsRestoreRevisionByDeviceID[deviceID, default: 0])
+        }
+    }
+
+    private func bumpSettingsRestoreRevision(for device: MouseDevice) {
+        for deviceID in deviceIDsSharingIdentity(with: device) {
+            settingsRestoreRevisionByDeviceID[deviceID, default: 0] += 1
         }
     }
 
@@ -359,6 +384,7 @@ final class AppStateDeviceController {
                 pendingSettingsRestoreDeviceIDs.remove(id)
                 pendingSettingsRestoreGenerationByDeviceID[id] = nil
                 restoringSettingsDeviceIDs.remove(id)
+                settingsRestoreRevisionByDeviceID[id] = nil
                 seededReconnectStateDeviceIDs.remove(id)
             }
         }
@@ -1024,6 +1050,10 @@ final class AppStateDeviceController {
         guard !isTearingDown else { return false }
         guard !isStrictlyUnsupported(device) else { return false }
         guard !refreshingStateDeviceIDs.contains(device.id) else { return false }
+        guard !isRestoringSettings(for: device) else {
+            AppLog.debug("AppState", "refreshState skipped restoring-settings device=\(device.id)")
+            return false
+        }
         guard !deviceStore.isApplying else {
             AppLog.debug("AppState", "refreshState skipped applying device=\(device.id)")
             return false
@@ -1065,6 +1095,7 @@ final class AppStateDeviceController {
         }
 
         let refreshRevision = applyController.stateRevision
+        let restoreRevision = settingsRestoreRevision(for: device)
         let refreshDeviceID = device.id
         let cachedStateBeforeRefresh = stateCacheByDeviceID[device.id]
         let start = Date()
@@ -1074,6 +1105,13 @@ final class AppStateDeviceController {
             guard !isTearingDown else { return false }
             guard refreshRevision == applyController.stateRevision else {
                 AppLog.debug("AppState", "refreshState stale-drop rev=\(refreshRevision) current=\(applyController.stateRevision)")
+                return false
+            }
+            guard restoreRevision == settingsRestoreRevision(for: device) else {
+                AppLog.debug(
+                    "AppState",
+                    "refreshState stale-drop restore-rev=\(restoreRevision) current=\(settingsRestoreRevision(for: device)) device=\(device.id)"
+                )
                 return false
             }
             guard let presentationDevice = presentationDevice(for: device) else {
@@ -1258,6 +1296,7 @@ final class AppStateDeviceController {
         guard !isStrictlyUnsupported(device) else { return }
         guard !refreshingFastDpiDeviceIDs.contains(device.id) else { return }
         guard !refreshingStateDeviceIDs.contains(device.id) else { return }
+        guard !isRestoringSettings(for: device) else { return }
         guard !applyController.hasPendingLocalEditsAffecting(device) else { return }
         let usesFastPolling = await environment.backend.shouldUseFastDPIPolling(device: device)
         guard !isTearingDown else { return }
@@ -1293,6 +1332,7 @@ final class AppStateDeviceController {
         refreshingFastDpiDeviceIDs.insert(device.id)
         defer { refreshingFastDpiDeviceIDs.remove(device.id) }
         let fastRevision = applyController.stateRevision
+        let restoreRevision = settingsRestoreRevision(for: device)
 
         do {
             guard let fast = try await environment.backend.readDpiStagesFast(device: device) else { return }
@@ -1305,6 +1345,13 @@ final class AppStateDeviceController {
             }
             guard fastRevision == applyController.stateRevision else {
                 AppLog.debug("AppState", "refreshDpiFast stale-drop rev=\(fastRevision) current=\(applyController.stateRevision)")
+                return
+            }
+            guard restoreRevision == settingsRestoreRevision(for: device) else {
+                AppLog.debug(
+                    "AppState",
+                    "refreshDpiFast stale-drop restore-rev=\(restoreRevision) current=\(settingsRestoreRevision(for: device)) device=\(device.id)"
+                )
                 return
             }
             let presentationDeviceID = presentationDevice.id
@@ -1487,8 +1534,12 @@ final class AppStateDeviceController {
             return
         }
 
+        bumpSettingsRestoreRevision(for: device)
         restoringSettingsDeviceIDs.insert(device.id)
-        defer { restoringSettingsDeviceIDs.remove(device.id) }
+        defer {
+            restoringSettingsDeviceIDs.remove(device.id)
+            bumpSettingsRestoreRevision(for: device)
+        }
 
         let restored = await applyController.applyPersistedSettingsRestore(
             restorePlan,

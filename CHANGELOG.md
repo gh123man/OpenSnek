@@ -8,7 +8,7 @@ All notable changes to this project are documented in this file.
 - Device detail views now include a per-mouse `On Connect` setting that lets you either read the current live settings from the mouse or restore the last full OpenSnek-owned setup when that mouse reconnects. The restore mode is intended for shared-device and Synapse workflows where vendor software can overwrite DPI, lighting, and button mappings on reconnect.
 
 ### Fixed
-- Reconnect restores now reapply the full last OpenSnek-owned device snapshot instead of only remembered lighting state. When enabled, reconnects restore DPI stages, active DPI, poll rate, power settings, scroll settings, lighting, and button bindings without replacing that snapshot from passive device readback.
+- Reconnect restores now reapply the full last OpenSnek-owned device snapshot instead of only remembered lighting state. When enabled, reconnects restore DPI stages, active DPI, poll rate, power settings, scroll settings, lighting, and button bindings without replacing that snapshot from passive device readback, and foreground refresh polls now stay paused until that restore finishes so reconnects do not briefly snap back to stale DPI state mid-apply.
 - Basilisk V3 X HyperSpeed now always uses the local restore-on-connect path internally, because OpenSnek cannot fully read its live settings back from the mouse after reconnect.
 
 ## [2026-04-06]
