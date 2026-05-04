@@ -675,6 +675,7 @@ final class AppStateApplyController {
 
         let persistentProfile = persistentProfileForRestoredLiveButtons(device: device)
         let writableSlots = (device.button_layout?.writableSlots ?? ButtonSlotDescriptor.defaults.map(\.slot)).sorted()
+        let restoreButtonApplyOptions = ApplyOptions(readbackPolicy: .skipStateReadback)
         for slot in writableSlots {
             let draft = plan.buttonBindings[slot] ?? editorController.defaultButtonBinding(for: slot, device: device)
             let restoredButton = await apply(
@@ -693,10 +694,16 @@ final class AppStateApplyController {
                 shouldFocusOnActivity: false,
                 shouldSurfaceApplyFailure: targetsSelectedDevice,
                 persistLightingZoneID: persistLightingZoneID,
-                clearLocalEditsOnSuccess: false
+                clearLocalEditsOnSuccess: false,
+                backendApplyOptions: restoreButtonApplyOptions
             )
             guard restoredButton else { return false }
         }
+
+        await verifyRestoreStateAfterDeferredButtonWrites(
+            device: device,
+            targetsSelectedDevice: targetsSelectedDevice
+        )
 
         if targetsSelectedDevice {
             editorController.setLiveUSBButtonProfileOverride(1, for: device)
@@ -742,7 +749,8 @@ final class AppStateApplyController {
         shouldFocusOnActivity: Bool,
         shouldSurfaceApplyFailure: Bool,
         persistLightingZoneID: String,
-        clearLocalEditsOnSuccess: Bool
+        clearLocalEditsOnSuccess: Bool,
+        backendApplyOptions: ApplyOptions = ApplyOptions()
     ) async -> Bool {
         applyCoordinator.bumpRevision()
         AppLog.event("AppState", "apply start device=\(targetDevice.id) patch=\(patch.describe)")
@@ -759,7 +767,16 @@ final class AppStateApplyController {
         let applyDeviceID = targetDevice.id
 
         do {
-            let next = try await environment.backend.apply(device: targetDevice, patch: patch)
+            let next: MouseState
+            if let configurableBackend = environment.backend as? any ApplyOptionsSupportingBackend {
+                next = try await configurableBackend.apply(
+                    device: targetDevice,
+                    patch: patch,
+                    options: backendApplyOptions
+                )
+            } else {
+                next = try await environment.backend.apply(device: targetDevice, patch: patch)
+            }
             guard let presentationDevice = deviceController.presentationDevice(for: targetDevice) else {
                 let merged = next.merged(with: deviceController.cachedState(for: applyDeviceID))
                 deviceController.storeState(merged, for: applyDeviceID, updatedAt: Date())
@@ -851,6 +868,45 @@ final class AppStateApplyController {
                 AppLog.debug("AppState", "apply failure masked for non-selected restore device=\(targetDevice.id)")
             }
             return false
+        }
+    }
+
+    private func verifyRestoreStateAfterDeferredButtonWrites(
+        device targetDevice: MouseDevice,
+        targetsSelectedDevice: Bool
+    ) async {
+        do {
+            let next = try await environment.backend.readState(device: targetDevice)
+            guard let presentationDevice = deviceController.presentationDevice(for: targetDevice) else {
+                let merged = next.merged(with: deviceController.cachedState(for: targetDevice.id))
+                deviceController.storeState(merged, for: targetDevice.id, updatedAt: Date())
+                return
+            }
+
+            let presentationDeviceID = presentationDevice.id
+            let merged = next.merged(
+                with: deviceController.cachedState(for: presentationDeviceID) ?? deviceController.cachedState(for: targetDevice.id)
+            )
+            deviceController.cacheState(merged, sourceDeviceID: targetDevice.id, presentationDeviceID: presentationDeviceID)
+
+            if deviceStore.selectedDeviceID == presentationDeviceID, deviceStore.state != merged {
+                deviceStore.state = merged
+            }
+
+            if targetsSelectedDevice {
+                deviceStore.errorMessage = nil
+                deviceController.setTelemetryWarning(
+                    editorController.telemetryWarning(for: merged, device: presentationDevice),
+                    device: presentationDevice
+                )
+            }
+
+            AppLog.debug("AppState", "restore final state verify ok device=\(presentationDeviceID)")
+        } catch {
+            AppLog.debug(
+                "AppState",
+                "restore final state verify skipped device=\(targetDevice.id): \(error.localizedDescription)"
+            )
         }
     }
 

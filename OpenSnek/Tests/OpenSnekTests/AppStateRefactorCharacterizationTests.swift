@@ -433,6 +433,65 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         await refreshTask.value
     }
 
+    func testRestoreButtonReplayDefersIntermediateReadbacksAndVerifiesOnceAtEnd() async throws {
+        let device = makeRefactorUSBLightingRestoreDevice(
+            id: "usb-restore-button-readback-device",
+            serial: "USB-RESTORE-BUTTON-READBACK-\(UUID().uuidString)"
+        )
+        let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
+        preferenceStore.persistDeviceSettingsSnapshot(
+            makeRefactorSettingsSnapshot(
+                color: RGBColor(r: 10, g: 20, b: 30),
+                buttonBindings: [
+                    4: ButtonBindingDraft(
+                        kind: .mouseForward,
+                        hidKey: 4,
+                        turboEnabled: false,
+                        turboRate: 0x8E,
+                        clutchDPI: nil
+                    )
+                ]
+            ),
+            device: device
+        )
+        defer { clearRefactorPreferences(for: device) }
+
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 81,
+                    dpiValues: [1200, 2400, 3600],
+                    activeStage: 1,
+                    dpiValue: 2400,
+                    pollRate: 1000,
+                    sleepTimeout: 300
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+
+        try await waitForRefactorCondition {
+            await backend.applyCount() >= 2
+        }
+
+        let readCount = await backend.readCount(for: device.id)
+        let policies = await backend.recordedApplyReadbackPolicies()
+        XCTAssertEqual(readCount, 2)
+        XCTAssertTrue(policies.contains(.skipStateReadback))
+        if let first = policies.first, policies.count > 1 {
+            XCTAssertEqual(first, .immediateStateReadback)
+            XCTAssertTrue(policies.dropFirst().allSatisfy { $0 == .skipStateReadback })
+        }
+    }
+
     func testHyperspeedForcesRestoreBehaviorAndHidesConnectBehaviorCard() async throws {
         let device = makeRefactorTestDevice(
             id: "bt-hyperspeed-connect-behavior",
@@ -2908,7 +2967,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
     }
 }
 
-private actor AppStateRefactorStubBackend: DeviceBackend {
+private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupportingBackend {
     nonisolated var usesRemoteServiceTransport: Bool { false }
 
     private let devices: [MouseDevice]
@@ -2917,6 +2976,7 @@ private actor AppStateRefactorStubBackend: DeviceBackend {
     private let shouldUseFastPolling: Bool
     private let holdFirstApply: Bool
     private var applyPatches: [DevicePatch] = []
+    private var applyReadbackPolicies: [ApplyReadbackPolicy] = []
     private var applyInvocationCount = 0
     private var activeApplyCount = 0
     private var maxObservedConcurrentApplies = 0
@@ -2985,10 +3045,11 @@ private actor AppStateRefactorStubBackend: DeviceBackend {
         }
     }
 
-    func apply(device: MouseDevice, patch: DevicePatch) async throws -> MouseState {
+    func apply(device: MouseDevice, patch: DevicePatch, options: ApplyOptions) async throws -> MouseState {
         applyInvocationCount += 1
         activeApplyCount += 1
         maxObservedConcurrentApplies = max(maxObservedConcurrentApplies, activeApplyCount)
+        applyReadbackPolicies.append(options.readbackPolicy)
 
         defer {
             activeApplyCount -= 1
@@ -3044,6 +3105,10 @@ private actor AppStateRefactorStubBackend: DeviceBackend {
 
     func recordedPatches() -> [DevicePatch] {
         applyPatches
+    }
+
+    func recordedApplyReadbackPolicies() -> [ApplyReadbackPolicy] {
+        applyReadbackPolicies
     }
 
     func applyCount() -> Int {
