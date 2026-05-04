@@ -717,6 +717,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
         )
         let persistedColor = RGBColor(r: 11, g: 22, b: 33)
         let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: usbDevice)
         preferenceStore.persistDeviceSettingsSnapshot(makeMultiDeviceSettingsSnapshot(color: persistedColor), device: usbDevice)
         defer { clearMultiDeviceLightingPreferences(for: usbDevice) }
 
@@ -782,6 +783,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
         )
         let persistedColor = RGBColor(r: 21, g: 31, b: 41)
         let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: betaDevice)
         preferenceStore.persistDeviceSettingsSnapshot(makeMultiDeviceSettingsSnapshot(color: persistedColor), device: betaDevice)
         defer {
             clearMultiDeviceLightingPreferences(for: alphaDevice)

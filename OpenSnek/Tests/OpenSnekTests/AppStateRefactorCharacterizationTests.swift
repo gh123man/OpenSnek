@@ -391,6 +391,43 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertFalse(showsCard)
     }
 
+    func testUSBHyperspeedDoesNotForceRestoreBehavior() async throws {
+        let device = makeRefactorTestDevice(
+            id: "usb-hyperspeed-connect-behavior",
+            transport: .usb,
+            serial: "USB-CONNECT-BEHAVIOR-\(UUID().uuidString)",
+            onboardProfileCount: 1,
+            profileID: .basiliskV3XHyperspeed
+        )
+        defer { clearRefactorPreferences(for: device) }
+
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 71,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 1,
+                    dpiValue: 1600,
+                    pollRate: 1000,
+                    sleepTimeout: 300
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+
+        let connectBehavior = await MainActor.run { appState.editorStore.connectBehavior }
+        let showsCard = await MainActor.run { appState.editorStore.showsConnectBehaviorCard }
+        XCTAssertEqual(connectBehavior, .useMouseSettings)
+        XCTAssertTrue(showsCard)
+    }
+
     func testUSBV3ProUsesRememberedLightingStateWithoutAutoApply() async throws {
         let device = MouseDevice(
             id: "usb-v3-pro-lighting-zone",
@@ -449,6 +486,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         )
         let persistedColor = RGBColor(r: 40, g: 50, b: 60)
         let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
         preferenceStore.persistDeviceSettingsSnapshot(
             makeRefactorSettingsSnapshot(color: persistedColor, zoneID: "scroll_wheel"),
             device: device
@@ -501,6 +539,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         )
         let persistedColor = RGBColor(r: 91, g: 102, b: 113)
         let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
         preferenceStore.persistDeviceSettingsSnapshot(
             makeRefactorSettingsSnapshot(color: persistedColor, zoneID: "scroll_wheel"),
             device: device
@@ -730,6 +769,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             reactiveSpeed: 4
         )
         let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
         preferenceStore.persistDeviceSettingsSnapshot(
             makeRefactorSettingsSnapshot(
                 color: persistedColor,

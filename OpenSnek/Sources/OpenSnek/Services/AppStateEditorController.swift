@@ -60,7 +60,7 @@ final class AppStateEditorController {
     }
 
     private func forcesRestoreOpenSnekSettingsOnConnect(for device: MouseDevice) -> Bool {
-        device.profile_id == .basiliskV3XHyperspeed
+        device.transport == .bluetooth && device.profile_id == .basiliskV3XHyperspeed
     }
 
     private func buttonProfileSource(for device: MouseDevice) -> ButtonProfileSource {
