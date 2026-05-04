@@ -99,6 +99,88 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         XCTAssertEqual(pollRate, 1000)
     }
 
+    func testRemoteServiceSnapshotsKeepSelectedEditorHydratedFromLiveState() async {
+        let device = makeSnapshotDevice(
+            id: "snapshot-live-dpi-device",
+            productName: "Snapshot Live DPI Mouse",
+            transport: .usb,
+            serial: "SNAPSHOT-LIVE-DPI",
+            locationID: 1,
+            profile: .basiliskV3Pro
+        )
+        let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
+        preferenceStore.persistDeviceSettingsSnapshot(
+            PersistedDeviceSettingsSnapshot(
+                stageCount: 3,
+                stageValues: [900, 1800, 3600],
+                stagePairs: [
+                    DpiPair(x: 900, y: 900),
+                    DpiPair(x: 1800, y: 1800),
+                    DpiPair(x: 3600, y: 3600),
+                ],
+                activeStage: 3,
+                pollRate: 500,
+                sleepTimeout: 420,
+                lowBatteryThresholdRaw: 0x20,
+                scrollMode: 1,
+                scrollAcceleration: true,
+                scrollSmartReel: false,
+                ledBrightness: 84,
+                primaryLightingColor: RGBColor(r: 10, g: 20, b: 30),
+                lightingEffect: nil,
+                usbLightingZoneID: "all",
+                buttonBindings: [:]
+            ),
+            device: device
+        )
+        defer { clearSnapshotPreferences(for: device) }
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: SnapshotTestRemoteBackend(), autoStart: false)
+        }
+
+        let initialState = makeSnapshotState(
+            device: device,
+            connection: "usb",
+            batteryPercent: 81,
+            dpiValues: [800, 1600, 3200],
+            activeStage: 1,
+            dpiValue: 1600
+        )
+        let laterState = makeSnapshotState(
+            device: device,
+            connection: "usb",
+            batteryPercent: 81,
+            dpiValues: [800, 1600, 3200],
+            activeStage: 2,
+            dpiValue: 3200
+        )
+
+        await MainActor.run {
+            appState.deviceStore.applyRemoteServiceSnapshot(
+                SharedServiceSnapshot(
+                    devices: [device],
+                    stateByDeviceID: [device.id: initialState],
+                    lastUpdatedByDeviceID: [device.id: Date(timeIntervalSince1970: 1_773_320_000)]
+                )
+            )
+            appState.deviceStore.applyRemoteServiceSnapshot(
+                SharedServiceSnapshot(
+                    devices: [device],
+                    stateByDeviceID: [device.id: laterState],
+                    lastUpdatedByDeviceID: [device.id: Date(timeIntervalSince1970: 1_773_320_001)]
+                )
+            )
+        }
+
+        let selectedDpi = await MainActor.run { appState.deviceStore.state?.dpi?.x }
+        let activeStage = await MainActor.run { appState.editorStore.editableActiveStage }
+
+        XCTAssertEqual(selectedDpi, 3200)
+        XCTAssertEqual(activeStage, 3)
+    }
+
     func testRemoteServiceAppDoesNotAutoRestorePersistedLightingOnRefreshForV3Pro() async throws {
         let device = makeSnapshotDevice(
             id: "remote-lighting-restore-device",

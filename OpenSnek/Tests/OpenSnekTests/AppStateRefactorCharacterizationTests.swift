@@ -646,6 +646,76 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(applyCount, 0)
     }
 
+    func testSelectedDeviceLiveDpiStillHydratesWhilePersistedConnectPresentationIsHeld() async throws {
+        let device = makeRefactorUSBLightingRestoreDevice(
+            id: "usb-selected-live-dpi-device",
+            serial: "USB-SELECTED-LIVE-DPI-\(UUID().uuidString)"
+        )
+        let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
+        preferenceStore.persistDeviceSettingsSnapshot(
+            PersistedDeviceSettingsSnapshot(
+                stageCount: 5,
+                stageValues: [600, 900, 1000, 1200, 1400],
+                stagePairs: [
+                    DpiPair(x: 600, y: 600),
+                    DpiPair(x: 900, y: 900),
+                    DpiPair(x: 1000, y: 1000),
+                    DpiPair(x: 1200, y: 1200),
+                    DpiPair(x: 1400, y: 1400),
+                ],
+                activeStage: 3,
+                pollRate: 500,
+                sleepTimeout: 420,
+                lowBatteryThresholdRaw: 0x20,
+                scrollMode: 1,
+                scrollAcceleration: true,
+                scrollSmartReel: false,
+                ledBrightness: 77,
+                primaryLightingColor: RGBColor(r: 91, g: 102, b: 113),
+                lightingEffect: nil,
+                usbLightingZoneID: "scroll_wheel",
+                buttonBindings: [:]
+            ),
+            device: device
+        )
+        defer { clearRefactorPreferences(for: device) }
+
+        let backend = AppStateRefactorStubBackend(devices: [], stateByDeviceID: [:])
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await MainActor.run {
+            _ = appState.deviceController.applyDeviceList([device], source: "refresh")
+        }
+
+        let persistedActiveStage = await MainActor.run { appState.editorStore.editableActiveStage }
+        XCTAssertEqual(persistedActiveStage, 3)
+
+        let liveState = makeRefactorTestState(
+            device: device,
+            connection: "usb",
+            batteryPercent: 81,
+            dpiValues: [600, 900, 1000, 1200, 1400],
+            activeStage: 0,
+            dpiValue: 600,
+            pollRate: 1000,
+            sleepTimeout: 300
+        )
+
+        await MainActor.run {
+            appState.deviceController.applyBackendDeviceStateUpdate(
+                deviceID: device.id,
+                state: liveState,
+                updatedAt: Date(timeIntervalSince1970: 1_777_909_776)
+            )
+        }
+
+        let liveActiveStage = await MainActor.run { appState.editorStore.editableActiveStage }
+        XCTAssertEqual(liveActiveStage, 1)
+    }
+
     func testUSBLightingZoneSwitchLoadsPersistedZoneSpecificColor() async throws {
         let device = makeRefactorMultiZoneUSBLightingDevice(
             id: "usb-zone-switch-lighting-device",

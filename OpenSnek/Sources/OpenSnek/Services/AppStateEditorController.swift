@@ -396,6 +396,27 @@ final class AppStateEditorController {
         syncUSBButtonProfileSelection(from: state)
     }
 
+    func hydrateLiveDpiPresentation(from state: MouseState) {
+        guard !isTearingDown else { return }
+        isHydrating = true
+        defer { isHydrating = false }
+
+        if let active = state.dpi_stages.active_stage {
+            let maxStage = max(1, editorStore.editableStageCount)
+            editorStore.editableActiveStage = max(1, min(maxStage, active + 1))
+        } else {
+            editorStore.editableActiveStage = 1
+        }
+
+        if editorStore.editableStageCount == 1, let dpi = state.dpi?.x {
+            let clampedX = DeviceProfiles.clampDPI(dpi, profileID: deviceStore.selectedDevice?.profile_id)
+            let clampedY = DeviceProfiles.clampDPI(state.dpi?.y ?? dpi, profileID: deviceStore.selectedDevice?.profile_id)
+            editorStore.editableStagePairs[0] = DpiPair(x: clampedX, y: clampedY)
+        }
+
+        editorStore.normalizeExpandedXYStages()
+    }
+
     func hydrateLightingStateIfNeeded(device: MouseDevice) async {
         guard !isTearingDown else { return }
         guard device.showsLightingControls else {
