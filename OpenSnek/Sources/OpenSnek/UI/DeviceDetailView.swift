@@ -734,12 +734,22 @@ struct DeviceDiagnosticsSheet: View {
 
 struct OnConnectBehaviorCard: View {
     let editorStore: EditorStore
+    @State private var showsExpandedInfo = false
 
     private var connectBehaviorBinding: Binding<DeviceConnectBehavior> {
         Binding(
             get: { editorStore.connectBehavior },
             set: { editorStore.updateConnectBehavior($0) }
         )
+    }
+
+    private var selectedDescription: String {
+        switch editorStore.connectBehavior {
+        case .useMouseSettings:
+            return "OpenSnek reads the current settings from the mouse when it connects and does not rewrite them automatically."
+        case .restoreOpenSnekSettings:
+            return "OpenSnek reapplies the last settings you changed here when this mouse connects."
+        }
     }
 
     var body: some View {
@@ -752,11 +762,23 @@ struct OnConnectBehaviorCard: View {
                 .labelsHidden()
                 .pickerStyle(.segmented)
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Use Mouse Settings: OpenSnek reads the current settings from the mouse when it connects and does not rewrite them automatically.")
+                HStack(alignment: .top, spacing: 10) {
+                    Text(selectedDescription)
                         .hintTextStyle()
-                    Text("Restore OpenSnek Settings: OpenSnek reapplies the last settings you changed here when this mouse connects.")
-                        .hintTextStyle()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Button {
+                        showsExpandedInfo.toggle()
+                    } label: {
+                        Image(systemName: showsExpandedInfo ? "info.circle.fill" : "info.circle")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.72))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(showsExpandedInfo ? "Hide on connect details" : "Show on connect details")
+                }
+
+                if showsExpandedInfo {
                     Text("Turn this on if you use this mouse with another computer or with Synapse. Vendor software can overwrite the live settings on reconnect, and this restores your OpenSnek setup.")
                         .hintTextStyle()
                 }
