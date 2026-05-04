@@ -779,7 +779,7 @@ struct OnConnectBehaviorCard: View {
                 }
 
                 if showsExpandedInfo {
-                    Text("Turn this on if you use this mouse with another computer or with Synapse. Vendor software can overwrite the live settings on reconnect, and this restores your OpenSnek setup.")
+                    Text("Choose Use OpenSnek Settings if you use this mouse with another computer or with Synapse. Vendor software can overwrite the live settings on reconnect, and this restores your OpenSnek setup.")
                         .hintTextStyle()
                 }
             }
