@@ -799,7 +799,11 @@ final class AppStateRuntimeController {
             }
         }
         guard !environment.usesRemoteServiceTransport else { return [] }
-        return orderedDevices.map(\.id)
+        if let selectedDeviceID = deviceStore.selectedDeviceID,
+           orderedDevices.contains(where: { $0.id == selectedDeviceID }) {
+            return [selectedDeviceID]
+        }
+        return Array(orderedDevices.prefix(1)).map(\.id)
     }
 
     private func shouldFastPollSelectedDevice(_ device: MouseDevice) -> Bool {

@@ -1086,7 +1086,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
         XCTAssertEqual(activeDeviceIDs, [betaDevice.id, alphaDevice.id])
     }
 
-    func testWindowedAppFastPollingTracksAllVisibleDevices() async {
+    func testWindowedAppFastPollingTracksOnlySelectedDevice() async {
         let alphaDevice = makeTestDevice(
             id: "alpha-device",
             productName: "Alpha Mouse",
@@ -1134,7 +1134,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
             return appState.runtimeStore.activeFastPollingDeviceIDs(at: Date())
         }
 
-        XCTAssertEqual(activeDeviceIDs, [betaDevice.id, alphaDevice.id])
+        XCTAssertEqual(activeDeviceIDs, [betaDevice.id])
     }
 
     func testServiceSelectionFollowsDeviceWithMeaningfulRefreshChange() async {
