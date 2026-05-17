@@ -164,11 +164,27 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel", "logo", "underglow"])
     }
 
+    func testResolveBluetoothProfileForOrochiV2() {
+        let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x0095, transport: .bluetooth)
+        XCTAssertEqual(profile?.id, .orochiV2)
+        XCTAssertEqual(profile?.productName, "Orochi V2")
+        XCTAssertEqual(profile?.buttonLayout.writableSlots, [1, 2, 3, 4, 5, 9, 10, 96])
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots.map(\.slot), [1, 2, 3, 4, 5, 9, 10, 96])
+        XCTAssertEqual(profile?.supportsAdvancedLightingEffects, false)
+        XCTAssertEqual(profile?.supportedLightingEffects, [])
+        XCTAssertEqual(profile?.usbLightingZones.count, 0)
+        XCTAssertEqual(profile?.passiveDPIInput?.maximumDPI, 18_000)
+        XCTAssertEqual(profile?.onboardProfileCount, 1)
+        XCTAssertFalse(ButtonBindingSupport.availableButtonBindingKinds(profileID: .orochiV2).contains(.dpiClutch))
+        XCTAssertNil(ButtonBindingSupport.defaultDPIClutchDPI(for: .orochiV2))
+    }
+
     func testDPIRangesMatchSupportedProfiles() {
         XCTAssertEqual(DeviceProfiles.dpiRange(for: .basiliskV3XHyperspeed), 100...18_000)
         XCTAssertEqual(DeviceProfiles.dpiRange(for: .basiliskV3), 100...26_000)
         XCTAssertEqual(DeviceProfiles.dpiRange(for: .basiliskV3Pro), 100...30_000)
         XCTAssertEqual(DeviceProfiles.dpiRange(for: .basiliskV335K), 100...35_000)
+        XCTAssertEqual(DeviceProfiles.dpiRange(for: .orochiV2), 100...18_000)
         XCTAssertEqual(DeviceProfiles.sliderDpiRange(for: .basiliskV3XHyperspeed), 100...18_000)
         XCTAssertEqual(DeviceProfiles.sliderDpiRange(for: .basiliskV3), 100...26_000)
         XCTAssertEqual(DeviceProfiles.sliderDpiRange(for: .basiliskV3Pro), 100...30_000)
@@ -258,6 +274,12 @@ final class DeviceProfilesTests: XCTestCase {
 
         let shorthand = DeviceProfiles.resolveBluetoothFallback(name: "BSK V3 PRO")
         XCTAssertEqual(shorthand?.id, .basiliskV3Pro)
+
+        let orochi = DeviceProfiles.resolveBluetoothFallback(name: "Orochi V2")
+        XCTAssertEqual(orochi?.id, .orochiV2)
+
+        let razerOrochi = DeviceProfiles.resolveBluetoothFallback(name: "Razer Orochi V2")
+        XCTAssertEqual(razerOrochi?.id, .orochiV2)
 
         let unknown = DeviceProfiles.resolveBluetoothFallback(name: "Razer Cobra Pro")
         XCTAssertNil(unknown)

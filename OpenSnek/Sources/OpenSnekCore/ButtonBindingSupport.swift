@@ -46,7 +46,7 @@ public enum ButtonBindingSupport {
         switch profileID {
         case .basiliskV3, .basiliskV3Pro, .basiliskV335K:
             return true
-        case .basiliskV3XHyperspeed, .none:
+        case .basiliskV3XHyperspeed, .orochiV2, .none:
             return false
         }
     }
@@ -55,7 +55,7 @@ public enum ButtonBindingSupport {
         switch profileID {
         case .basiliskV3, .basiliskV3Pro, .basiliskV335K:
             return defaultBasiliskDPIClutchDPI
-        case .basiliskV3XHyperspeed, .none:
+        case .basiliskV3XHyperspeed, .orochiV2, .none:
             return nil
         }
     }
@@ -87,7 +87,7 @@ public enum ButtonBindingSupport {
             return ButtonBindingDraft(kind: .scrollRight, hidKey: 4, turboEnabled: false, turboRate: fallbackRate)
         case 96:
             switch profileID {
-            case .basiliskV3, .basiliskV335K, .basiliskV3XHyperspeed, .none:
+            case .basiliskV3, .basiliskV335K, .basiliskV3XHyperspeed, .orochiV2, .none:
                 return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: fallbackRate)
             case .basiliskV3Pro:
                 return nil
@@ -351,7 +351,7 @@ public enum ButtonBindingSupport {
                 return [0x04, 0x02, 0x0F, 0x7B, 0x00, 0x00, 0x00]
             case .basiliskV3Pro:
                 return nil
-            case .basiliskV3XHyperspeed, .none:
+            case .basiliskV3XHyperspeed, .orochiV2, .none:
                 return [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
             }
         default:
@@ -402,6 +402,8 @@ public enum ButtonBindingSupport {
             return DeviceProfiles.basiliskV335KUSBButtonSlots
         case .basiliskV3XHyperspeed, .none:
             return DeviceProfiles.basiliskV3XButtonSlots
+        case .orochiV2:
+            return DeviceProfiles.orochiV2BluetoothButtonSlots
         }
     }
 
@@ -409,7 +411,7 @@ public enum ButtonBindingSupport {
         switch profileID {
         case .basiliskV3, .basiliskV3Pro, .basiliskV335K:
             return true
-        case .basiliskV3XHyperspeed, .none:
+        case .basiliskV3XHyperspeed, .orochiV2, .none:
             return false
         }
     }
