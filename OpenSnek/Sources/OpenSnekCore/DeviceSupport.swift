@@ -568,6 +568,43 @@ public enum DeviceProfiles {
         onboardProfileCount: 3
     )
 
+    public static let orochiV2BluetoothButtonSlots: [ButtonSlotDescriptor] = [
+        ButtonSlotDescriptor(slot: 1, friendlyName: "Left Click", defaultKind: .leftClick),
+        ButtonSlotDescriptor(slot: 2, friendlyName: "Right Click", defaultKind: .rightClick),
+        ButtonSlotDescriptor(slot: 3, friendlyName: "Middle Click", defaultKind: .middleClick),
+        ButtonSlotDescriptor(slot: 4, friendlyName: "Back Button", defaultKind: .mouseBack),
+        ButtonSlotDescriptor(slot: 5, friendlyName: "Forward Button", defaultKind: .mouseForward),
+        ButtonSlotDescriptor(slot: 9, friendlyName: "Scroll Up", defaultKind: .scrollUp),
+        ButtonSlotDescriptor(slot: 10, friendlyName: "Scroll Down", defaultKind: .scrollDown),
+        ButtonSlotDescriptor(slot: 96, friendlyName: "DPI Cycle", defaultKind: .default),
+    ]
+
+    public static let orochiV2Bluetooth = DeviceProfile(
+        id: .orochiV2,
+        productName: "Orochi V2",
+        transport: .bluetooth,
+        supportedProducts: [0x0095],
+        buttonLayout: ButtonSlotLayout(
+            visibleSlots: orochiV2BluetoothButtonSlots,
+            writableSlots: [1, 2, 3, 4, 5, 9, 10, 96]
+        ),
+        supportsAdvancedLightingEffects: false,
+        supportedLightingEffects: [],
+        usbLightingLEDIDs: [],
+        usbLightingZones: [],
+        passiveDPIInput: PassiveDPIInputDescriptor(
+            usagePage: 0x01,
+            usage: 0x02,
+            reportID: 0x05,
+            subtype: 0x02,
+            heartbeatSubtype: 0x10,
+            minInputReportSize: 7,
+            maxFeatureReportSize: 1,
+            maximumDPI: 18_000
+        ),
+        onboardProfileCount: 1
+    )
+
     public static let all: [DeviceProfile] = [
         basiliskV3XUSB,
         basiliskV3USB,
@@ -575,6 +612,7 @@ public enum DeviceProfiles {
         basiliskV335KUSB,
         basiliskV3XBluetooth,
         basiliskV3ProBluetooth,
+        orochiV2Bluetooth,
     ]
 
     public static func resolve(vendorID: Int, productID: Int, transport: DeviceTransportKind) -> DeviceProfile? {
@@ -606,6 +644,8 @@ public enum DeviceProfiles {
             return 30_000
         case .basiliskV335K:
             return 35_000
+        case .orochiV2:
+            return 18_000
         case nil:
             return defaultMaximumDPI
         }
@@ -776,7 +816,7 @@ public enum DeviceProfiles {
         switch profileID {
         case .basiliskV3Pro, .basiliskV335K:
             return true
-        case .basiliskV3XHyperspeed, .basiliskV3, nil:
+        case .basiliskV3XHyperspeed, .basiliskV3, .orochiV2, nil:
             return false
         }
     }
