@@ -11,6 +11,7 @@ For clarity, documentation is now split:
 - [BLE Protocol Spec](./BLE_PROTOCOL.md)
 - [USB/BLE Parity](./PARITY.md)
 - [BLE Reverse Engineering Notes](../research/BLE_REVERSE_ENGINEERING.md)
+- [Basilisk V3 Pro BT Extended Notes](../research/BASILISK_V3_PRO_BT_EXTENDED.md)
 - [OpenSnek App/Probe Guide](../../OpenSnek/README.md)
 
 Agent fast-path:
@@ -18,3 +19,4 @@ Agent fast-path:
 - BLE-only change: open `BLE_PROTOCOL.md`
 - support matrix / shipped-status change: open `PARITY.md`
 - reverse-engineering context only when needed: open `BLE_REVERSE_ENGINEERING.md`
+- V3 Pro Bluetooth profile work: also open `BASILISK_V3_PRO_BT_EXTENDED.md`

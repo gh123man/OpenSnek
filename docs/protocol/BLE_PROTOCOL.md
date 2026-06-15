@@ -445,6 +445,20 @@ Field meanings:
 
 Bluetooth button-binding payloads wrap the same 7-byte function block used by USB. For keyboard actions, OpenSnek writes the Basilisk-family keyboard modifier byte at the same position used by USB captures: `0x01` left Ctrl, `0x02` left Shift, `0x04` left Alt/Option, `0x08` left GUI/Command, `0x10` right Ctrl, `0x20` right Shift, `0x40` right Alt/Option, `0x80` right GUI/Command.
 
+Observed Basilisk V3 Pro Bluetooth button-read format:
+- read key family: `08 84 01 <slot>`
+- observed payload shape on slots `0x0F`, `0x34`, and `0x6A`:
+
+```text
+[slot][00][b0][b0][b1][b1][b2][b2][b3][b3][b4][b4][b5][b5][b6][b6]
+```
+
+- recover the usual 7-byte function block by taking every other byte starting at offset `2`
+- observed examples:
+  - `08 84 01 34` -> payload `34 00 0e 0e 03 03 68 68 00 00 14 14 00 00 00 00` -> function block `0e 03 68 00 14 00 00`
+  - `08 84 01 0f` -> payload `0f 00 06 06 05 05 05 05 01 01 90 90 01 01 90 90` -> function block `06 05 05 01 90 01 90`
+  - `08 84 01 6a` -> payload `6a 00 12 12 01 01 01 01 00 00 00 00 00 00 00 00` -> function block `12 01 01 00 00 00 00`
+
 Observed Basilisk V3 Pro Bluetooth exception:
 - wheel-tilt horizontal scroll does not use the older plain mouse-action form on the validated BT path
 - a working Synapse-written V3 Pro Bluetooth rebind on `0x34` / `0x35` reads back as the raw function blocks `0e036800140000` / `0e036900140000`

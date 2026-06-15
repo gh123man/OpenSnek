@@ -4,6 +4,9 @@
 
 Reverse engineer the Razer BLE configuration path used by Synapse and implement stable features in `razer_ble.py`.
 
+See also:
+- `docs/research/BASILISK_V3_PRO_BT_EXTENDED.md` for the V3 Pro-specific Bluetooth profile/profiles-button work that goes beyond the earlier V3 X HyperSpeed baseline.
+
 ## Device Context
 
 - Primary target: Basilisk V3 X HyperSpeed

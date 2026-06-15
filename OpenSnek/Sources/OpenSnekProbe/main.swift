@@ -62,6 +62,13 @@ enum OpenSnekProbe {
             print(describeBTNotifyFrames(result.notifies))
             if let payload = result.payload {
                 print("payload[\(payload.count)]: \(hexString(Array(payload)))")
+                if let decoded = decodeBTButtonReadFunctionBlock(
+                    key: parsed.key,
+                    payload: payload,
+                    notifies: result.notifies
+                ) {
+                    print("decoded-button-function[\(decoded.count)]: \(hexString(decoded))")
+                }
             } else {
                 print("payload: nil")
             }
@@ -788,6 +795,41 @@ enum OpenSnekProbe {
 
     private static func describeUSBFunctionBlock(_ block: [UInt8]) -> String {
         ButtonBindingSupport.describeUSBFunctionBlock(block)
+    }
+
+    private static func decodeBTButtonReadFunctionBlock(
+        key: [UInt8],
+        payload: Data,
+        notifies: [Data]
+    ) -> [UInt8]? {
+        guard key.count == 4, key[0] == 0x08, key[1] == 0x84, key[2] == 0x01 else {
+            return nil
+        }
+        if let decoded = decodeDuplicatedBTButtonReadFrame(bytes: Array(payload), slot: key[3]) {
+            return decoded
+        }
+        for frame in notifies {
+            if let decoded = decodeDuplicatedBTButtonReadFrame(bytes: Array(frame), slot: key[3]) {
+                return decoded
+            }
+        }
+        return nil
+    }
+
+    private static func decodeDuplicatedBTButtonReadFrame(bytes: [UInt8], slot: UInt8) -> [UInt8]? {
+        guard bytes.count >= 16, bytes[0] == slot, bytes[1] == 0x00 else {
+            return nil
+        }
+
+        var block: [UInt8] = []
+        block.reserveCapacity(7)
+        for index in stride(from: 2, through: 14, by: 2) {
+            guard index + 1 < bytes.count, bytes[index] == bytes[index + 1] else {
+                return nil
+            }
+            block.append(bytes[index])
+        }
+        return block
     }
 
     private static func hexString(_ bytes: [UInt8]) -> String {
