@@ -21,6 +21,16 @@ final class USBButtonHydrationTests: XCTestCase {
         let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 4, functionBlock: block)
         XCTAssertEqual(draft?.kind, .keyboardSimple)
         XCTAssertEqual(draft?.hidKey, 4)
+        XCTAssertEqual(draft?.hidModifiers, 0)
+        XCTAssertEqual(draft?.turboEnabled, false)
+    }
+
+    func testKeyboardShortcutBlockMapsToKeyboardKindWithModifiers() {
+        let block: [UInt8] = [0x02, 0x02, 0x08, 0x2F, 0x00, 0x00, 0x00]
+        let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 4, functionBlock: block)
+        XCTAssertEqual(draft?.kind, .keyboardSimple)
+        XCTAssertEqual(draft?.hidKey, 0x2F)
+        XCTAssertEqual(draft?.hidModifiers, 0x08)
         XCTAssertEqual(draft?.turboEnabled, false)
     }
 
@@ -29,6 +39,17 @@ final class USBButtonHydrationTests: XCTestCase {
         let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 4, functionBlock: block)
         XCTAssertEqual(draft?.kind, .keyboardSimple)
         XCTAssertEqual(draft?.hidKey, 4)
+        XCTAssertEqual(draft?.hidModifiers, 0)
+        XCTAssertEqual(draft?.turboEnabled, true)
+        XCTAssertEqual(draft?.turboRate, 142)
+    }
+
+    func testKeyboardTurboBlockMapsModifiers() {
+        let block: [UInt8] = [0x0D, 0x04, 0x08, 0x2F, 0x00, 0x8E, 0x00]
+        let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 4, functionBlock: block)
+        XCTAssertEqual(draft?.kind, .keyboardSimple)
+        XCTAssertEqual(draft?.hidKey, 0x2F)
+        XCTAssertEqual(draft?.hidModifiers, 0x08)
         XCTAssertEqual(draft?.turboEnabled, true)
         XCTAssertEqual(draft?.turboRate, 142)
     }
@@ -198,6 +219,19 @@ final class USBButtonHydrationTests: XCTestCase {
         )
         XCTAssertEqual(leftBlock, [0x0E, 0x03, 0x68, 0x00, 0x14, 0x00, 0x00])
         XCTAssertEqual(rightBlock, [0x0E, 0x03, 0x69, 0x00, 0x14, 0x00, 0x00])
+    }
+
+    func testBuildUSBFunctionBlockSupportsKeyboardShortcutModifiers() {
+        let block = ButtonBindingSupport.buildUSBFunctionBlock(
+            slot: 4,
+            kind: .keyboardSimple,
+            hidKey: 0x2F,
+            hidModifiers: 0x08,
+            turboEnabled: false,
+            turboRate: 0x8E
+        )
+
+        XCTAssertEqual(block, [0x02, 0x02, 0x08, 0x2F, 0x00, 0x00, 0x00])
     }
 
     func testBuildUSBFunctionBlockSupportsTurboHorizontalScrollBindingsOnV3Pro() {

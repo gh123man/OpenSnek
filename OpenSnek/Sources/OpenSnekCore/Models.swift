@@ -504,6 +504,7 @@ public struct ButtonBindingPatch: Sendable, Hashable, Codable {
     public let slot: Int
     public let kind: ButtonBindingKind
     public let hidKey: Int?
+    public let hidModifiers: Int?
     public let turboEnabled: Bool
     public let turboRate: Int?
     public let clutchDPI: Int?
@@ -515,6 +516,7 @@ public struct ButtonBindingPatch: Sendable, Hashable, Codable {
         slot: Int,
         kind: ButtonBindingKind,
         hidKey: Int?,
+        hidModifiers: Int? = nil,
         turboEnabled: Bool = false,
         turboRate: Int? = nil,
         clutchDPI: Int? = nil,
@@ -525,6 +527,7 @@ public struct ButtonBindingPatch: Sendable, Hashable, Codable {
         self.slot = slot
         self.kind = kind
         self.hidKey = hidKey
+        self.hidModifiers = hidModifiers.map { max(0, min(255, $0)) }
         self.turboEnabled = turboEnabled
         self.turboRate = turboRate
         self.clutchDPI = clutchDPI.map { max(100, min(30_000, $0)) }

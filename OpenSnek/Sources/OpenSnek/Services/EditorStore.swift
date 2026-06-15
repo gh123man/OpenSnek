@@ -559,6 +559,10 @@ final class EditorStore {
         editorController.buttonBindingHidKey(for: slot)
     }
 
+    func buttonBindingHidModifiers(for slot: Int) -> Int {
+        editorController.buttonBindingHidModifiers(for: slot)
+    }
+
     func buttonBindingClutchDPI(for slot: Int) -> Int {
         editorController.buttonBindingClutchDPI(for: slot)
     }
@@ -569,6 +573,14 @@ final class EditorStore {
 
     func updateButtonBindingHidKey(slot: Int, hidKey: Int) {
         editorController.updateButtonBindingHidKey(slot: slot, hidKey: hidKey)
+    }
+
+    func updateButtonBindingKeyboardShortcut(slot: Int, hidKey: Int, hidModifiers: Int) {
+        editorController.updateButtonBindingKeyboardShortcut(
+            slot: slot,
+            hidKey: hidKey,
+            hidModifiers: hidModifiers
+        )
     }
 
     func updateButtonBindingTurboEnabled(slot: Int, enabled: Bool) {

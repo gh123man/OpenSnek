@@ -278,6 +278,7 @@ final class AppStateApplyController {
             slot: slot,
             kind: applied.kind,
             hidKey: applied.kind == .keyboardSimple ? applied.hidKey : nil,
+            hidModifiers: applied.kind == .keyboardSimple ? applied.hidModifiers : nil,
             turboEnabled: applied.kind.supportsTurbo ? applied.turboEnabled : false,
             turboRate: applied.kind.supportsTurbo && applied.turboEnabled ? applied.turboRate : nil,
             clutchDPI: applied.kind == .dpiClutch ? applied.clutchDPI ?? ButtonBindingSupport.defaultDPIClutchDPI(for: deviceStore.selectedDevice?.profile_id) : nil,
@@ -308,6 +309,7 @@ final class AppStateApplyController {
             slot: slot,
             kind: applied.kind,
             hidKey: applied.kind == .keyboardSimple ? applied.hidKey : nil,
+            hidModifiers: applied.kind == .keyboardSimple ? applied.hidModifiers : nil,
             turboEnabled: applied.kind.supportsTurbo ? applied.turboEnabled : false,
             turboRate: applied.kind.supportsTurbo && applied.turboEnabled ? applied.turboRate : nil,
             clutchDPI: applied.kind == .dpiClutch

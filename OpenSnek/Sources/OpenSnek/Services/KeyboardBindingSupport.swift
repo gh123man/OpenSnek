@@ -177,6 +177,30 @@ enum AppStateKeyboardSupport {
         optionsByHidKey[hidKey]?.label ?? String(format: "HID 0x%02X", hidKey)
     }
 
+    static func keyboardDisplayLabel(forHidKey hidKey: Int, hidModifiers: Int) -> String {
+        let keyLabel = keyboardDisplayLabel(forHidKey: hidKey)
+        let modifierLabels = keyboardModifierLabels(forHidModifiers: hidModifiers)
+        guard !modifierLabels.isEmpty else { return keyLabel }
+        return (modifierLabels + [keyLabel]).joined(separator: " + ")
+    }
+
+    static func keyboardModifierLabels(forHidModifiers hidModifiers: Int) -> [String] {
+        let bits = max(0, min(255, hidModifiers))
+        let ordered: [(Int, String)] = [
+            (0x01, "Control"),
+            (0x02, "Shift"),
+            (0x04, "Option"),
+            (0x08, "Command"),
+            (0x10, "Right Control"),
+            (0x20, "Right Shift"),
+            (0x40, "Right Option"),
+            (0x80, "Right Command"),
+        ]
+        return ordered.compactMap { bit, label in
+            bits & bit == bit ? label : nil
+        }
+    }
+
     private static func option(_ hidKey: Int, _ label: String, aliases: [String], group: KeyboardBindingGroup) -> KeyboardBindingOption {
         KeyboardBindingOption(hidKey: hidKey, label: label, aliases: aliases, group: group)
     }

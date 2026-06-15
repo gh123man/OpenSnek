@@ -3,13 +3,15 @@ import SwiftUI
 
 struct KeyboardBindingEditor: View {
     let hidKey: Int
+    let hidModifiers: Int
+    let supportsModifierChords: Bool
     let isEditable: Bool
-    let onSelect: (Int) -> Void
+    let onSelect: (KeyboardBindingSelection) -> Void
 
     @State private var isShowingRecorder = false
 
     private var keyLabel: String {
-        AppStateKeyboardSupport.keyboardDisplayLabel(forHidKey: hidKey)
+        AppStateKeyboardSupport.keyboardDisplayLabel(forHidKey: hidKey, hidModifiers: hidModifiers)
     }
 
     var body: some View {
@@ -42,22 +44,36 @@ struct KeyboardBindingEditor: View {
             }
         }
         .popover(isPresented: $isShowingRecorder) {
-            KeyboardBindingRecorderPopover(currentHidKey: hidKey) { hidKey in
-                onSelect(hidKey)
+            KeyboardBindingRecorderPopover(
+                currentHidKey: hidKey,
+                currentHidModifiers: hidModifiers,
+                supportsModifierChords: supportsModifierChords
+            ) { selection in
+                onSelect(selection)
                 isShowingRecorder = false
             }
         }
     }
 }
 
+struct KeyboardBindingSelection: Equatable {
+    let hidKey: Int
+    let hidModifiers: Int
+}
+
 private struct KeyboardBindingRecorderPopover: View {
     let currentHidKey: Int
-    let onCapture: (Int) -> Void
+    let currentHidModifiers: Int
+    let supportsModifierChords: Bool
+    let onCapture: (KeyboardBindingSelection) -> Void
 
     @Environment(\.dismiss) private var dismiss
 
     private var currentLabel: String {
-        AppStateKeyboardSupport.keyboardDisplayLabel(forHidKey: currentHidKey)
+        AppStateKeyboardSupport.keyboardDisplayLabel(
+            forHidKey: currentHidKey,
+            hidModifiers: currentHidModifiers
+        )
     }
 
     var body: some View {
@@ -79,17 +95,17 @@ private struct KeyboardBindingRecorderPopover: View {
                     )
 
                 VStack(spacing: 6) {
-                    Text("Press any supported key")
+                    Text("Press one supported key")
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.86))
 
-                    Text("Modifiers can be captured on their own.")
+                    Text(supportsModifierChords ? "Shortcuts can include modifiers." : "Modifiers can be captured on their own.")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(.white.opacity(0.58))
                 }
 
-                KeyboardBindingCaptureField { hidKey in
-                    onCapture(hidKey)
+                KeyboardBindingCaptureField(supportsModifierChords: supportsModifierChords) { selection in
+                    onCapture(selection)
                     dismiss()
                 }
             }
@@ -100,7 +116,7 @@ private struct KeyboardBindingRecorderPopover: View {
                     Section(entry.group.label) {
                         ForEach(entry.options) { option in
                             Button {
-                                onCapture(option.hidKey)
+                                onCapture(KeyboardBindingSelection(hidKey: option.hidKey, hidModifiers: 0))
                                 dismiss()
                             } label: {
                                 if option.hidKey == currentHidKey {
@@ -153,15 +169,18 @@ private struct KeyboardBindingRecorderPopover: View {
 }
 
 private struct KeyboardBindingCaptureField: NSViewRepresentable {
-    let onCapture: (Int) -> Void
+    let supportsModifierChords: Bool
+    let onCapture: (KeyboardBindingSelection) -> Void
 
     func makeNSView(context: Context) -> KeyboardBindingCaptureView {
         let view = KeyboardBindingCaptureView()
+        view.supportsModifierChords = supportsModifierChords
         view.onCapture = onCapture
         return view
     }
 
     func updateNSView(_ nsView: KeyboardBindingCaptureView, context: Context) {
+        nsView.supportsModifierChords = supportsModifierChords
         nsView.onCapture = onCapture
         DispatchQueue.main.async {
             nsView.window?.makeFirstResponder(nsView)
@@ -170,7 +189,9 @@ private struct KeyboardBindingCaptureField: NSViewRepresentable {
 }
 
 private final class KeyboardBindingCaptureView: NSView {
-    var onCapture: ((Int) -> Void)?
+    var supportsModifierChords = false
+    var onCapture: ((KeyboardBindingSelection) -> Void)?
+    private var pendingModifierCapture: DispatchWorkItem?
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -183,16 +204,39 @@ private final class KeyboardBindingCaptureView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
+        pendingModifierCapture?.cancel()
+        pendingModifierCapture = nil
+
+        let hidModifiers = KeyboardBindingCaptureSupport.hidModifiers(from: event)
+        guard supportsModifierChords || hidModifiers == 0 else {
+            NSSound.beep()
+            return
+        }
+
         guard let hidKey = KeyboardBindingCaptureSupport.hidKey(from: event) else {
             NSSound.beep()
             return
         }
-        onCapture?(hidKey)
+        onCapture?(KeyboardBindingSelection(hidKey: hidKey, hidModifiers: hidModifiers))
     }
 
     override func flagsChanged(with event: NSEvent) {
         guard let hidKey = KeyboardBindingCaptureSupport.hidKey(from: event) else { return }
-        onCapture?(hidKey)
+        pendingModifierCapture?.cancel()
+        guard KeyboardBindingCaptureSupport.isModifierPressed(in: event) else {
+            pendingModifierCapture = nil
+            return
+        }
+
+        var workItem: DispatchWorkItem?
+        workItem = DispatchWorkItem { [weak self, weak workItem] in
+            guard workItem?.isCancelled == false else { return }
+            self?.onCapture?(KeyboardBindingSelection(hidKey: hidKey, hidModifiers: 0))
+            self?.pendingModifierCapture = nil
+        }
+        guard let workItem else { return }
+        pendingModifierCapture = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: workItem)
     }
 }
 
@@ -280,5 +324,39 @@ private enum KeyboardBindingCaptureSupport {
         }
         guard let characters = event.charactersIgnoringModifiers else { return nil }
         return AppStateKeyboardSupport.hidKey(fromKeyboardText: characters)
+    }
+
+    static func isModifierPressed(in event: NSEvent) -> Bool {
+        switch event.keyCode {
+        case 54, 55:
+            return event.modifierFlags.contains(.command)
+        case 56, 60:
+            return event.modifierFlags.contains(.shift)
+        case 57:
+            return event.modifierFlags.contains(.capsLock)
+        case 58, 61:
+            return event.modifierFlags.contains(.option)
+        case 59, 62:
+            return event.modifierFlags.contains(.control)
+        default:
+            return false
+        }
+    }
+
+    static func hidModifiers(from event: NSEvent) -> Int {
+        var modifiers = 0
+        if event.modifierFlags.contains(.control) {
+            modifiers |= 0x01
+        }
+        if event.modifierFlags.contains(.shift) {
+            modifiers |= 0x02
+        }
+        if event.modifierFlags.contains(.option) {
+            modifiers |= 0x04
+        }
+        if event.modifierFlags.contains(.command) {
+            modifiers |= 0x08
+        }
+        return modifiers
     }
 }

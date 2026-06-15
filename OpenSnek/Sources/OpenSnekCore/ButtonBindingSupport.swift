@@ -128,6 +128,7 @@ public enum ButtonBindingSupport {
                slot: slot,
                kind: semanticDefault.kind,
                hidKey: semanticDefault.hidKey,
+               hidModifiers: semanticDefault.hidModifiers,
                turboEnabled: semanticDefault.turboEnabled,
                turboRate: semanticDefault.turboRate,
                clutchDPI: semanticDefault.clutchDPI,
@@ -172,20 +173,24 @@ public enum ButtonBindingSupport {
             return ButtonBindingDraft(kind: kind, hidKey: 4, turboEnabled: false, turboRate: fallbackRate)
         case 0x02:
             guard !data.isEmpty else { return nil }
+            let hidModifiers = data.count >= 2 ? Int(data[0]) : 0
             let hidKey = data.count >= 2 ? Int(data[1]) : Int(data[0])
             return ButtonBindingDraft(
                 kind: .keyboardSimple,
                 hidKey: max(4, min(231, hidKey)),
+                hidModifiers: max(0, min(255, hidModifiers)),
                 turboEnabled: false,
                 turboRate: fallbackRate
             )
         case 0x0D:
             guard data.count >= 4 else { return nil }
+            let hidModifiers = Int(data[0])
             let hidKey = Int(data[1])
             let rawRate = (Int(data[2]) << 8) | Int(data[3])
             return ButtonBindingDraft(
                 kind: .keyboardSimple,
                 hidKey: max(4, min(231, hidKey)),
+                hidModifiers: max(0, min(255, hidModifiers)),
                 turboEnabled: true,
                 turboRate: max(1, min(255, rawRate))
             )
@@ -289,12 +294,14 @@ public enum ButtonBindingSupport {
         slot: Int,
         kind: ButtonBindingKind,
         hidKey: Int,
+        hidModifiers: Int = 0,
         turboEnabled: Bool,
         turboRate: Int,
         clutchDPI: Int? = nil,
         profileID: DeviceProfileID? = nil
     ) -> [UInt8] {
         let clampedKey = UInt8(max(0, min(255, hidKey)))
+        let clampedModifiers = UInt8(max(0, min(255, hidModifiers)))
         let turbo = UInt16(max(1, min(255, turboRate)))
         let turboHi = UInt8((turbo >> 8) & 0xFF)
         let turboLo = UInt8(turbo & 0xFF)
@@ -313,9 +320,9 @@ public enum ButtonBindingSupport {
             return [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
         case .keyboardSimple:
             if turboEnabled {
-                return [0x0D, 0x04, 0x00, clampedKey, turboHi, turboLo, 0x00]
+                return [0x0D, 0x04, clampedModifiers, clampedKey, turboHi, turboLo, 0x00]
             }
-            return [0x02, 0x02, 0x00, clampedKey, 0x00, 0x00, 0x00]
+            return [0x02, 0x02, clampedModifiers, clampedKey, 0x00, 0x00, 0x00]
         default:
             if let buttonID = usbMouseButtonID(for: kind) {
                 if usesBasiliskV3FamilyHorizontalScrollBlock(profileID), kind == .scrollLeft || kind == .scrollRight {
