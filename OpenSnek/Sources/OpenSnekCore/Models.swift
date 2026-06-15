@@ -24,6 +24,7 @@ public enum DeviceProfileID: String, Codable, Hashable, Sendable {
     case basiliskV3 = "basilisk_v3"
     case basiliskV3Pro = "basilisk_v3_pro"
     case basiliskV335K = "basilisk_v3_35k"
+    case orochiV2 = "orochi_v2"
 }
 
 public struct DeviceIdentity: Codable, Hashable, Sendable {
@@ -90,7 +91,15 @@ public struct MouseDevice: Codable, Identifiable, Hashable, Sendable {
     }
 
     public var showsLightingControls: Bool {
-        return true
+        let profile = DeviceProfiles.resolve(
+            vendorID: vendor_id,
+            productID: product_id,
+            transport: transport
+        )
+        guard let profile else { return true }
+        return !profile.supportedLightingEffects.isEmpty ||
+            !profile.usbLightingZones.isEmpty ||
+            !profile.usbLightingLEDIDs.isEmpty
     }
 
     public var identity: DeviceIdentity {

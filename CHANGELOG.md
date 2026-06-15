@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## [2026-05-17]
+
+### Added
+- Added Bluetooth support for the Razer Orochi V2 (`BT PID 0x0095`). DPI stages (up to 18,000), the six on-mouse buttons (left/right/middle/back/forward/DPI), and battery level are now read and written through OpenSnek. The mouse has no RGB, so no lighting controls are exposed. The 2.4 GHz HyperSpeed dongle path is not yet supported.
+
+### Fixed
+- Device detail views now hide the lighting card for mice whose shipped profile declares no lighting zones, effects, or LED IDs, instead of always showing the controls regardless of hardware capability.
+
 ## [2026-05-03]
 
 ### Added

@@ -69,6 +69,7 @@ Status key:
 | Basilisk V3 | Mapped | No | OpenRazer-backed USB profile, modeled after the Basilisk V3 35K with a `26,000` DPI ceiling |
 | Basilisk V3 Pro | Validated | Validated | |
 | Basilisk V3 35K | Validated | No | |
+| Orochi V2 | Not yet | Validated | Bluetooth path validated; 2.4 GHz HyperSpeed dongle not yet supported. Mouse has no RGB lighting. |
 
 Not every feature is fully supported on every listed transport yet. Some controls and readback paths are still partial while capture, testing, and validation continue.
 
