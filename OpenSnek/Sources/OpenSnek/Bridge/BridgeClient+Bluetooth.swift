@@ -611,6 +611,7 @@ extension BridgeClient {
         slot: UInt8,
         kind: ButtonBindingKind,
         hidKey: UInt8,
+        hidModifiers: UInt8,
         turboEnabled: Bool,
         turboRate: UInt16
     ) async throws -> Bool {
@@ -618,6 +619,7 @@ extension BridgeClient {
             slot: slot,
             kind: kind,
             hidKey: hidKey,
+            hidModifiers: hidModifiers,
             turboEnabled: turboEnabled,
             turboRate: turboRate
         )

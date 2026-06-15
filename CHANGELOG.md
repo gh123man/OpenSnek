@@ -8,7 +8,7 @@ All notable changes to this project are documented in this file.
 - Added Bluetooth support for the Razer Orochi V2 (`BT PID 0x0095`) based on contributor-validated hardware behavior. The contributor validated Bluetooth DPI stages (up to 18,000) and battery level, and the profile maps the six on-mouse buttons (left/right/middle/back/forward/DPI) pending button-remap readback validation. The mouse has no RGB, so no lighting controls are exposed. The 2.4 GHz HyperSpeed dongle path is not yet supported.
 
 ### Fixed
-- USB keyboard binding capture now supports modifier shortcuts such as `Command + [` by writing the Basilisk-family keyboard modifier byte instead of silently capturing only the base key. Bluetooth keyboard remaps remain single-key until their modifier payload is validated.
+- USB and Bluetooth keyboard binding capture now support modifier shortcuts such as `Command + [` by writing the Basilisk-family keyboard modifier byte instead of silently capturing only the base key.
 - Device detail views now hide the lighting card for mice whose shipped profile declares no lighting zones, effects, or LED IDs, instead of always showing the controls regardless of hardware capability.
 - Bluetooth state now reports lighting as unsupported for no-RGB profiles instead of exposing a stale lighting capability to backend and snapshot consumers.
 

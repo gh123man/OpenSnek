@@ -1664,7 +1664,9 @@ struct ButtonMappingTableCard: View {
                 clutchDPI: editorStore.buttonBindingClutchDPI(for: slot.slot),
                 keyboardHidKey: editorStore.buttonBindingHidKey(for: slot.slot),
                 keyboardHidModifiers: editorStore.buttonBindingHidModifiers(for: slot.slot),
-                supportsKeyboardModifierChords: deviceStore.selectedDevice?.transport == .usb,
+                supportsKeyboardModifierChords: deviceStore.selectedDevice.map { device in
+                    device.transport == .usb || device.transport == .bluetooth
+                } ?? false,
                 turboEnabled: turboEnabled,
                 turboRatePressesPerSecond: turboRate,
                 notice: deviceStore.buttonSlotNotice(slot.slot)

@@ -651,10 +651,8 @@ actor BridgeClient {
             if let binding = patch.buttonBinding {
                 let slot = UInt8(max(0, min(255, binding.slot)))
                 let kind = binding.kind
-                if kind == .keyboardSimple, (binding.hidModifiers ?? 0) != 0 {
-                    throw BridgeError.commandFailed("Bluetooth keyboard modifier chords are not supported")
-                }
                 let hidKey = UInt8(max(0, min(255, binding.hidKey ?? 4)))
+                let hidModifiers = UInt8(max(0, min(255, binding.hidModifiers ?? 0)))
                 let turboEnabled = kind.supportsTurbo && binding.turboEnabled
                 let turboRate = UInt16(max(1, min(255, binding.turboRate ?? 0x8E)))
                 guard try await btSetButtonBinding(
@@ -662,6 +660,7 @@ actor BridgeClient {
                     slot: slot,
                     kind: kind,
                     hidKey: hidKey,
+                    hidModifiers: hidModifiers,
                     turboEnabled: turboEnabled,
                     turboRate: turboRate
                 ) else {

@@ -99,7 +99,7 @@ private struct KeyboardBindingRecorderPopover: View {
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.86))
 
-                    Text(supportsModifierChords ? "USB shortcuts can include modifiers." : "Modifiers can be captured on their own.")
+                    Text(supportsModifierChords ? "Shortcuts can include modifiers." : "Modifiers can be captured on their own.")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(.white.opacity(0.58))
                 }

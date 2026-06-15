@@ -438,12 +438,12 @@ Field meanings:
 |---:|---|---|
 | `0x00` | clear layer override | uses `layer=0x01`, params all zero |
 | `0x01` | mouse button action | `p0 = (button_id << 8) | 0x01` |
-| `0x02` | simple keyboard action | `p0 = 0x0002`, `p1 = HID key` |
+| `0x02` | simple keyboard action | function data is `modifier byte, HID key` |
 | `0x06` | DPI-cycle default restore | used only for slot `0x60` default |
-| `0x0D` | keyboard turbo action | `p0 = 0x0004`, `p1 = HID key`, `p2 = turbo rate` |
+| `0x0D` | keyboard turbo action | function data is `modifier byte, HID key, turbo rate` |
 | `0x0E` | mouse turbo action | `p0 = ((button_id - 1) << 8) | 0x0003`, `p1 = turbo rate` |
 
-Keyboard actions are currently validated over BLE only as a single HID key, with optional turbo. USB Basilisk-family devices use an explicit keyboard modifier byte, but OpenSnek does not apply that USB inference to Bluetooth until a capture-backed BLE modifier payload is decoded and validated.
+Bluetooth button-binding payloads wrap the same 7-byte function block used by USB. For keyboard actions, OpenSnek writes the Basilisk-family keyboard modifier byte at the same position used by USB captures: `0x01` left Ctrl, `0x02` left Shift, `0x04` left Alt/Option, `0x08` left GUI/Command, `0x10` right Ctrl, `0x20` right Shift, `0x40` right Alt/Option, `0x80` right GUI/Command.
 
 Observed Basilisk V3 Pro Bluetooth exception:
 - wheel-tilt horizontal scroll does not use the older plain mouse-action form on the validated BT path
@@ -766,6 +766,12 @@ Example: slot `0x03` -> keyboard key `0x08` with turbo rate `0x008E`
 01 03 00 0D 04 00 08 00 8E 00
 ```
 
+Example: slot `0x02` -> keyboard shortcut `Command + [` (modifier `0x08`, HID `0x2F`)
+
+```text
+01 02 00 02 02 08 2F 00 00 00
+```
+
 ## 8. Feature Semantics Used by OpenSnek
 
 These behaviors are not pure wire-format rules, but they are part of what you need if you want a client that behaves like the current app.
@@ -837,7 +843,7 @@ The app may still expose richer lighting on USB HID, but this BLE document only 
 - No source-of-truth BLE vendor key for low-battery-threshold control in Swift
 - No source-of-truth BLE vendor key for poll-rate control in Swift
 - No decoded BLE vendor path for slot `0x06` / Hypershift-Boss-sniper control remap; treat it as software-read-only on the current BLE path until a separate HID/report command family is validated
-- No complete button action taxonomy for modifier shortcuts, media, macro, or system families
+- No complete button action taxonomy for media, macro, or system families
 - No multi-device validation beyond the Basilisk V3 X Bluetooth family
 
 ## 11. Cross-References
