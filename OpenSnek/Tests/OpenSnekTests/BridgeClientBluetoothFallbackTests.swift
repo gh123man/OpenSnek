@@ -45,6 +45,31 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
         XCTAssertEqual(resolved.charging, false)
     }
 
+    func testResolveBluetoothBatteryStateForcesNotChargingForOrochiV2Bluetooth() {
+        let resolved = BridgeClient.resolveBluetoothBatteryState(
+            device: makeBluetoothDevice(productID: 0x0095, profileID: .orochiV2),
+            vendorRaw: 77,
+            vendorStatus: 1,
+            usbFallback: (12, true)
+        )
+
+        XCTAssertEqual(resolved.percent, 77)
+        XCTAssertEqual(resolved.charging, false)
+    }
+
+    func testBluetoothDeltaStateDisablesLightingForOrochiV2() async throws {
+        let client = BridgeClient(startHIDMonitoring: false)
+        let state = try await client.buildBluetoothDeltaState(
+            device: makeBluetoothDevice(productID: 0x0095, profileID: .orochiV2),
+            includeDpi: false,
+            includeLighting: false,
+            includePower: false
+        )
+
+        XCTAssertFalse(state.capabilities.lighting)
+        XCTAssertNil(state.led_value)
+    }
+
     func testResolveBluetoothBatteryStateKeepsChargingUnknownWhenStatusMissing() {
         let resolved = BridgeClient.resolveBluetoothBatteryState(
             device: makeBluetoothDevice(productID: 0x00AC, profileID: .basiliskV3Pro),

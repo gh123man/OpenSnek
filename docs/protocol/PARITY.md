@@ -10,6 +10,7 @@ Target device baseline:
 - Basilisk V3 Pro (`USB PIDs 0x00AA, 0x00AB`)
 - Basilisk V3 Pro Bluetooth (`BT PID 0x00AC`)
 - Basilisk V3 35K (`USB PID 0x00CB`)
+- Orochi V2 Bluetooth (`BT PID 0x0095`)
 
 Transport paths:
 - USB/2.4GHz: 90-byte HID report protocol
@@ -157,6 +158,15 @@ Validated in-session over Bluetooth:
 Validation notes:
 - the required hardware XCTest gate (`OPEN_SNEK_HW=1 swift test --package-path OpenSnek --filter HardwareDpiReliabilityTests`) currently aborts under macOS TCC before CoreBluetooth can start in the unbundled test runner on this host
 - the same five-step DPI stability sequence was rerun successfully through the bundled OpenSnek app/service host, and every step converged for three consecutive reads before restore
+
+## Contributor-Validated BT Profile (Orochi V2 BT PID `0x0095`, macOS stack)
+
+Validated by the PR contributor over Bluetooth:
+- contributor-validated read: DPI stages + active stage returned `active=3`, `count=5`, and values `[400, 800, 1600, 3200, 6400]`
+- contributor-validated profile behavior: scalar DPI range is capped at `18,000`, onboard profile count is `1`, and the profile declares no lighting effects, zones, or LED IDs
+- contributor-validated battery behavior: vendor battery reads are used and the AAA-powered profile reports `charging = false`
+- profile-mapped button layout: slots `0x01..0x05`, `0x09`, `0x0A`, and `0x60` are exposed from metadata, but Orochi-specific button-remap write/readback validation is still pending
+- not shipped: 2.4 GHz HyperSpeed dongle path until its USB PID and protocol behavior are probed
 
 ## Validation Checklist
 

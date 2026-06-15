@@ -36,7 +36,8 @@ Protocol behavior changes require docs, tests, and `CHANGELOG.md` updates in the
 5. For BLE DPI stages, preserve stage IDs on write, resolve active stage from stage IDs, and do not reintroduce stage nudge/toggle writes.
 6. Keep `CHANGELOG.md` up to date for user-visible or protocol-visible changes.
 7. Treat `OpenSnek/project.yml` as the Xcode source of truth; generate `OpenSnek/OpenSnek.xcodeproj` on demand and do not commit it.
-8. Before saying work is done or pushing code, run the complete unit test suite with `swift test --package-path OpenSnek` and ensure it passes locally.
+8. Use `Validated` only for maintainer/local OpenSnek hardware validation. For device support validated by an outside contributor but not by maintainers, use `Contributor validated` and credit the contributor source in docs.
+9. Before saying work is done or pushing code, run the complete unit test suite with `swift test --package-path OpenSnek` and ensure it passes locally.
 
 ## Quick Commands
 

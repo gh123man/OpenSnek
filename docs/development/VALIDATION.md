@@ -27,6 +27,16 @@ OPEN_SNEK_HW=1 swift test --package-path OpenSnek --filter HardwareDpiReliabilit
 
 Report the result explicitly as `pass`, `fail`, or `skipped`.
 
+## Validation Labels
+
+Use validation labels consistently in support docs and changelog entries:
+
+- `Validated`: OpenSnek maintainers locally validated the behavior with hardware, captures, or probes.
+- `Contributor validated`: an outside contributor validated the behavior with their hardware, but OpenSnek maintainers have not locally reproduced it.
+- `Mapped`: OpenSnek ships metadata or an implementation based on known protocol shape, ecosystem sources, or profile similarity, but the behavior is not hardware-validated.
+
+Do not describe contributor-only hardware results as simply `Validated`; credit them as contributor-validated until maintainers reproduce the behavior locally.
+
 ## Probe Cheat Sheet
 
 ### BLE DPI
