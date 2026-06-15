@@ -4,6 +4,6 @@
 
 - `REPO_MAP.md`: fastest file-routing guide by feature area
 - `VALIDATION.md`: focused build/test/probe commands, hardware gates, TCC notes, and runtime log tips
-- `ADDING_DEVICE_SUPPORT.md`: human-only and LLM-guided starting paths for unsupported devices
+- `ADDING_DEVICE_SUPPORT.md`: recommended LLM-guided and human-only starting paths for unsupported devices
 
 Use `docs/protocol/PROTOCOL.md` for transport/protocol work.

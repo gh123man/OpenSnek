@@ -30,7 +30,75 @@ Gather as much of this as you can:
 - Probe output or captures from default state and from one changed setting at a time.
 - Whether validation is from your hardware. Contributor hardware results should be described as `Contributor validated`, not `Validated`.
 
-## Path 1: Human-Only Workflow
+## Path 1: LLM-Guided Workflow
+
+This is the recommended path if you have access to Codex, Claude Code, or another coding agent with local repository access.
+
+This repository is optimized for coding-agent workflows. A capable agent can often inspect the existing support matrix, route itself through the right files, add a profile, write tests, and ask you to run hardware probes when it needs data from your mouse.
+
+### 1. Give The Agent Concrete Context
+
+Clone the repo, open it in your agent, connect the mouse, and start with a prompt like:
+
+```text
+Add OpenSnek support for the Razer <exact model name>.
+
+I have the hardware connected over <USB/Bluetooth/both>.
+The model number is <model>.
+The USB product ID is <0x....> if known.
+The Bluetooth name is "<name>" if known.
+
+Please inspect the existing OpenSnek device-support docs and code, add the smallest safe support change, and walk me through any probe commands you need me to run.
+Do not mark the device as Validated unless the repo rules allow it; use Contributor validated for my hardware results.
+```
+
+If you are starting from an issue with little data, ask the agent to gather requirements first:
+
+```text
+Help me collect the information needed to add this unsupported Razer mouse to OpenSnek.
+Start from the new-device support guide and ask me for the next probe or capture output one step at a time.
+```
+
+### 2. Let The Agent Use The Repo Routing
+
+The repo includes `AGENTS.md` instructions for common task areas. A good agent should read those instructions and then open the relevant files, especially:
+
+- `CONTRIBUTING.md`
+- `docs/development/VALIDATION.md`
+- `docs/protocol/PROTOCOL.md`
+- `OpenSnek/Sources/OpenSnekCore/DeviceSupport.swift`
+- protocol and bridge files for the transport being changed
+
+You should expect the agent to prefer focused tests and focused probe commands while developing, then run the full test suite before publishing.
+
+### 3. Run Hardware Commands Locally
+
+The agent cannot invent hardware validation. When it asks you to run a command, run it with your mouse connected and paste back the full output.
+
+Common examples:
+
+```bash
+swift build --package-path OpenSnek --product OpenSnekProbe
+swift run --package-path OpenSnek OpenSnekProbe dpi-read
+swift run --package-path OpenSnek OpenSnekProbe bt-lighting-info --name "YOUR MOUSE NAME"
+swift run --package-path OpenSnek OpenSnekProbe usb-lighting-info --pid 0x00ab
+```
+
+If a Bluetooth probe crashes with `__TCC_CRASHING_DUE_TO_PRIVACY_VIOLATION__`, fix macOS Bluetooth permission for the launching terminal or app before debugging protocol logic. See [docs/development/VALIDATION.md](./VALIDATION.md#permissions--tcc).
+
+### 4. Review What The Agent Changes
+
+Before opening a pull request, check that the agent did not overclaim support:
+
+- status labels match the evidence
+- unsupported or untested features stay hidden
+- protocol behavior changes include tests and docs
+- `CHANGELOG.md` is updated for user-visible or protocol-visible changes
+- the full unit test suite passes locally
+
+Ask the agent to summarize hardware validation as `pass`, `fail`, or `skipped`, including which commands produced that result.
+
+## Path 2: Human-Only Workflow
 
 Use this path if you want to work through the repo manually without an LLM or coding agent.
 
@@ -134,74 +202,6 @@ Update these docs when applicable:
 - [docs/protocol/BLE_PROTOCOL.md](../protocol/BLE_PROTOCOL.md)
 - [docs/protocol/PARITY.md](../protocol/PARITY.md)
 - [CHANGELOG.md](../../CHANGELOG.md)
-
-## Path 2: LLM-Guided Workflow
-
-This repository is optimized for coding-agent workflows. A capable agent can often inspect the existing support matrix, route itself through the right files, add a profile, write tests, and ask you to run hardware probes when it needs data from your mouse.
-
-Use this path if you have Codex, Claude Code, or another coding agent with local repository access.
-
-### 1. Give The Agent Concrete Context
-
-Clone the repo, open it in your agent, connect the mouse, and start with a prompt like:
-
-```text
-Add OpenSnek support for the Razer <exact model name>.
-
-I have the hardware connected over <USB/Bluetooth/both>.
-The model number is <model>.
-The USB product ID is <0x....> if known.
-The Bluetooth name is "<name>" if known.
-
-Please inspect the existing OpenSnek device-support docs and code, add the smallest safe support change, and walk me through any probe commands you need me to run.
-Do not mark the device as Validated unless the repo rules allow it; use Contributor validated for my hardware results.
-```
-
-If you are starting from an issue with little data, ask the agent to gather requirements first:
-
-```text
-Help me collect the information needed to add this unsupported Razer mouse to OpenSnek.
-Start from the new-device support guide and ask me for the next probe or capture output one step at a time.
-```
-
-### 2. Let The Agent Use The Repo Routing
-
-The repo includes `AGENTS.md` instructions for common task areas. A good agent should read those instructions and then open the relevant files, especially:
-
-- `CONTRIBUTING.md`
-- `docs/development/VALIDATION.md`
-- `docs/protocol/PROTOCOL.md`
-- `OpenSnek/Sources/OpenSnekCore/DeviceSupport.swift`
-- protocol and bridge files for the transport being changed
-
-You should expect the agent to prefer focused tests and focused probe commands while developing, then run the full test suite before publishing.
-
-### 3. Run Hardware Commands Locally
-
-The agent cannot invent hardware validation. When it asks you to run a command, run it with your mouse connected and paste back the full output.
-
-Common examples:
-
-```bash
-swift build --package-path OpenSnek --product OpenSnekProbe
-swift run --package-path OpenSnek OpenSnekProbe dpi-read
-swift run --package-path OpenSnek OpenSnekProbe bt-lighting-info --name "YOUR MOUSE NAME"
-swift run --package-path OpenSnek OpenSnekProbe usb-lighting-info --pid 0x00ab
-```
-
-If a Bluetooth probe crashes with `__TCC_CRASHING_DUE_TO_PRIVACY_VIOLATION__`, fix macOS Bluetooth permission for the launching terminal or app before debugging protocol logic. See [docs/development/VALIDATION.md](./VALIDATION.md#permissions--tcc).
-
-### 4. Review What The Agent Changes
-
-Before opening a pull request, check that the agent did not overclaim support:
-
-- status labels match the evidence
-- unsupported or untested features stay hidden
-- protocol behavior changes include tests and docs
-- `CHANGELOG.md` is updated for user-visible or protocol-visible changes
-- the full unit test suite passes locally
-
-Ask the agent to summarize hardware validation as `pass`, `fail`, or `skipped`, including which commands produced that result.
 
 ## Opening A Good Issue Or PR
 
