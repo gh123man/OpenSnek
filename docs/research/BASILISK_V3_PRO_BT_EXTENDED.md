@@ -73,6 +73,43 @@ Examples:
 
 Live capture from Synapse's product middleware / UI / mapping logs on the same macOS host exposed more of the V3 Pro BLE profile model than raw HCI access did.
 
+### How To Capture These Logs On macOS
+
+For future profile/protocol work, capture Synapse's product logs directly on the macOS host that is actively talking to the mouse.
+
+Observed files for the V3 Pro product page:
+
+- `$HOME/Library/Application Support/Razer/RazerAppEngine/User Data/Logs/products_170_mw id-1018332309.log`
+- `$HOME/Library/Application Support/Razer/RazerAppEngine/User Data/Logs/products_170_ui id-1018332309.log`
+
+Live tail:
+
+```bash
+tail -n0 -F \
+  "$HOME/Library/Application Support/Razer/RazerAppEngine/User Data/Logs/products_170_mw id-1018332309.log" \
+  "$HOME/Library/Application Support/Razer/RazerAppEngine/User Data/Logs/products_170_ui id-1018332309.log"
+```
+
+Action-scoped capture to file:
+
+```bash
+mkdir -p captures/synapse-v3pro/<capture-name>
+tail -n0 -F \
+  "$HOME/Library/Application Support/Razer/RazerAppEngine/User Data/Logs/products_170_mw id-1018332309.log" \
+  "$HOME/Library/Application Support/Razer/RazerAppEngine/User Data/Logs/products_170_ui id-1018332309.log" \
+  | tee "captures/synapse-v3pro/<capture-name>/live.log"
+```
+
+These logs are especially valuable for:
+
+- `activeProfileGuid` / `selectedProfileGuid` changes
+- profile CRUD events
+- `obmSlotId` observations
+- `setSingleButtonAssignment` writes
+- serialized JSON snapshots of Synapse's current profile model
+
+Treat them as host-side telemetry, not authoritative BLE wire bytes. Use them to discover candidate behaviors, then confirm the actual device state with `OpenSnekProbe` readback.
+
 ### Profile Create Path
 
 Creating a second profile and making it active produced a clear onboard-memory workflow:
@@ -165,6 +202,91 @@ For OpenSnek, this capture shifts the near-term goal:
   - stored-slot identification
   - live-slot readback validation after profile changes
   - careful separation between "selected profile in software" and "current live button state on the mouse"
+
+### Confirmed Stored OBM Slots
+
+The earlier create / rename / delete pass was useful for understanding Synapse's software-side model, but it did not fully prove true hardware-slot assignment because the new profiles had not all been explicitly assigned to onboard slots yet.
+
+After an explicit slot-assignment pass, Synapse's own serialized `obmData.profiles` state converged on this stored OBM table:
+
+- slot `2` -> `Brian’s MacBook Pro (2)-Default`
+  - GUID `26a33407-4094-469b-b3b1-f3caae38693b`
+- slot `3` -> `OPENSNEK_CAPTURE_1`
+  - GUID `cbb11d67-38cd-46db-bc16-a95424aaee61`
+- slot `4` -> `OS_P4_RENAMED`
+  - GUID `27530668-c3e2-4e0a-a06e-a4854383c4e9`
+- slot `5` -> `OS_P5`
+  - GUID `18f2a4cc-ecb8-4765-b532-9df401a686d6`
+
+This came from the explicit slot-backed capture:
+
+- `captures/synapse-v3pro/2026-06-15-obm-slot-mapping-pass-1/live.log`
+
+Two practical conclusions fall out of that capture:
+
+- on this V3 Pro Bluetooth path, Synapse's stored onboard slots appear to start at `2`, not `1`
+- slot `1` still appears throughout mapping/apply traffic and is likely a separate live or projected layer rather than just "profile slot 1"
+
+That second point matters because the same capture also logged apply operations against mixed targets such as:
+
+- `obmSlotIds:[3,1]`
+
+So the best current model is:
+
+- slots `2..5` are the persistent stored OBM profiles
+- slot `1` is a transient apply/projection target Synapse uses while making one of those stored profiles live
+
+One oddity from the same pass: assigning `Brian’s MacBook Pro (2)-Default` to hardware caused Synapse to log `obmEngineMouse.addProfile() profileId:2` followed immediately by `obmEngineMouse.deleteProfile(2)` while rebuilding its OBM JSON. That churn does not appear to be the final truth. The stable source of truth is the later `obmData.profiles` snapshot showing the four stored `slotId` entries above.
+
+### Physical Profile-Cycle Button
+
+With the profiles explicitly assigned to stored OBM slots, the physical profile-cycle button finally produced clean, useful evidence.
+
+Capture:
+
+- `captures/synapse-v3pro/2026-06-15-profile-button-pass-2-slot-backed/live.log`
+
+Observed behavior:
+
+- Synapse logged the profile-cycle control as `razerKey key 80`
+- `flag 0` decoded to `disable`
+- `flag 1` decoded to `navigateProfile` with `name:"CycleUp"`
+- pressing the physical button changed both:
+  - `activeProfileGuid`
+  - `selectedProfileGuid`
+- the Synapse UI visibly followed the cycle through the slot-backed profiles
+
+Representative log events from that pass:
+
+- `unsupportedmapping` input `{"flag":1,"key":80,"modifiers":0,"type":"razerKey"}`
+  -> output `{"name":"CycleUp","type":"navigateProfile"}`
+- `set active profile ... cbb11d67-38cd-46db-bc16-a95424aaee61`
+- `set device metadata ... {"activeProfileGuid":"cbb11d67-38cd-46db-bc16-a95424aaee61"}`
+- `@@@ event onload {"selectedProfileGuid":"cbb11d67-38cd-46db-bc16-a95424aaee61"}`
+
+That is the strongest evidence so far that the physical button is not just a remappable logical action inside Synapse. It really does drive profile changes that Synapse observes on the Bluetooth path.
+
+The same pass also reinforced the slot-`1` live-layer theory. While Synapse was restoring the default profile's `Button4 -> F12` override, it logged:
+
+- `deviceSwitchProfile` with `activeProfile:"26a33407-4094-469b-b3b1-f3caae38693b"`
+- `set OBM result ... obmSlotIds:[2,1]`
+
+So even during a confirmed hardware-profile switch, Synapse still appears to project profile content into a combined `[storedSlot, 1]` target rather than treating the active profile as a single opaque slot number.
+
+Current best model for V3 Pro BLE profile switching:
+
+- the mouse has real persistent OBM profile records in slots `2..5`
+- the hardware profile button cycles between those stored records
+- Synapse tracks the active profile by GUID in software metadata
+- Synapse also mirrors or projects the selected profile into a live layer associated with slot `1`
+
+OpenSnek should therefore avoid modeling the V3 Pro Bluetooth path as a simple `activeSlot = N` selector until we confirm the exact BLE reads and writes that back this behavior.
+
+### Open Questions For Future Capture Work
+
+- Are equivalent USB payload/model logs emitted by Synapse on macOS, or is this level of payload detail primarily visible for Bluetooth work?
+- Does Synapse on Windows expose the same product middleware / UI logs with comparable payload detail?
+- If Windows logging exists, does it cover both Bluetooth and USB transports, or only one of them?
 
 ## Best Capture Strategy
 
