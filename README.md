@@ -23,6 +23,37 @@ OpenSnek is an open source native macOS app for configuring supported Razer mice
 - Rebind all supported mouse buttons and write to onboard stoarge  
   <img src="docs/media/bindings.png" alt="open-snek app icon" width="300">
 
+## Supported Devices
+
+Support is transport-specific. A mouse may be supported over USB, Bluetooth, or both, depending on what has been captured, tested, and validated in the app.
+
+| Device | USB | Bluetooth | Notes |
+|---|---|---|---|
+| Basilisk V3 X HyperSpeed | Validated | Validated | |
+| Basilisk V3 | Mapped | No | OpenRazer-backed USB profile, modeled after the Basilisk V3 35K with a `26,000` DPI ceiling |
+| Basilisk V3 Pro | Validated | Validated | |
+| Basilisk V3 35K | Validated | No | |
+| Orochi V2 | Not yet | Contributor validated | Contributor validated Bluetooth DPI stages and battery; button remap is profile-mapped pending hardware readback validation. 2.4 GHz HyperSpeed dongle not yet supported. Mouse has no RGB lighting. |
+
+Status key:
+- `Validated` = supported and locally capture/test validated in OpenSnek
+- `Contributor validated` = support is based on external contributor hardware validation and has not been locally validated by OpenSnek maintainers
+- `Mapped` = supported through a shipped profile, but not yet locally validated on OpenSnek hardware
+- `Not yet` = the transport exists on the hardware but OpenSnek does not support it yet
+- `No` = that transport is not available on the device
+
+Not every feature is fully supported on every listed transport yet. Some controls and readback paths are still partial while capture, testing, and validation continue.
+
+Support docs:
+- Per-device USB/BT feature matrix: [docs/DEVICE_SUPPORT.md](docs/DEVICE_SUPPORT.md)
+- Getting started with new device support: [docs/development/ADDING_DEVICE_SUPPORT.md](docs/development/ADDING_DEVICE_SUPPORT.md)
+- Protocol and transport docs: [docs/protocol/PROTOCOL.md](docs/protocol/PROTOCOL.md)
+- Contribution and new-device workflow: [CONTRIBUTING.md](CONTRIBUTING.md)
+
+Unsupported Razer mice still get a best-effort experience when possible. OpenSnek will probe for controls that already match known behavior, show a light warning that the device is not fully supported, and avoid exposing UI for features that have not been mapped safely yet.
+
+Support for more devices is welcome. New device support can land either through outside contributors or as more hardware becomes available for capture, testing, and validation.
+
 ## Motivation
 
 Razer does not support the Basilisk V3 X HyperSpeed on macOS at all, so this project started by reverse engineering the BLE protocol from Windows traffic between the mouse and Synapse.
@@ -52,37 +83,6 @@ If macOS asks for permissions:
 
 - For USB control, grant `Input Monitoring` to `OpenSnek` in `System Settings > Privacy & Security`.
 - For Bluetooth control, allow Bluetooth access when prompted.
-
-## Supported Devices
-
-Support is transport-specific. A mouse may be supported over USB, Bluetooth, or both, depending on what has been captured, tested, and validated in the app.
-
-Status key:
-- `Validated` = supported and locally capture/test validated in OpenSnek
-- `Contributor validated` = support is based on external contributor hardware validation and has not been locally validated by OpenSnek maintainers
-- `Mapped` = supported through a shipped profile, but not yet locally validated on OpenSnek hardware
-- `Not yet` = the transport exists on the hardware but OpenSnek does not support it yet
-- `No` = that transport is not available on the device
-
-| Device | USB | Bluetooth | Notes |
-|---|---|---|---|
-| Basilisk V3 X HyperSpeed | Validated | Validated | |
-| Basilisk V3 | Mapped | No | OpenRazer-backed USB profile, modeled after the Basilisk V3 35K with a `26,000` DPI ceiling |
-| Basilisk V3 Pro | Validated | Validated | |
-| Basilisk V3 35K | Validated | No | |
-| Orochi V2 | Not yet | Contributor validated | Contributor validated Bluetooth DPI stages and battery; button remap is profile-mapped pending hardware readback validation. 2.4 GHz HyperSpeed dongle not yet supported. Mouse has no RGB lighting. |
-
-Not every feature is fully supported on every listed transport yet. Some controls and readback paths are still partial while capture, testing, and validation continue.
-
-Support docs:
-- Per-device USB/BT feature matrix: [docs/DEVICE_SUPPORT.md](docs/DEVICE_SUPPORT.md)
-- Getting started with new device support: [docs/development/ADDING_DEVICE_SUPPORT.md](docs/development/ADDING_DEVICE_SUPPORT.md)
-- Protocol and transport docs: [docs/protocol/PROTOCOL.md](docs/protocol/PROTOCOL.md)
-- Contribution and new-device workflow: [CONTRIBUTING.md](CONTRIBUTING.md)
-
-Unsupported Razer mice still get a best-effort experience when possible. OpenSnek will probe for controls that already match known behavior, show a light warning that the device is not fully supported, and avoid exposing UI for features that have not been mapped safely yet.
-
-Support for more devices is welcome. New device support can land either through outside contributors or as more hardware becomes available for capture, testing, and validation.
 
 ## Build From Source
 
