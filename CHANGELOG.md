@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [2026-06-15]
+
+### Added
+- `OpenSnekProbe` now includes `bt-profile-watch`, a Basilisk V3 Pro Bluetooth live-profile fingerprint helper that polls button slot `0x04` plus the DPI-stage snapshot and reports when the active live projected profile changes. This is intended for validating Synapse-driven and physical profile-cycle changes on the V3 Pro BT path even though persistent stored slots still do not have a direct read API.
+
 ## [2026-05-17]
 
 ### Added

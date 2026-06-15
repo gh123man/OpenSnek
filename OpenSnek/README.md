@@ -255,6 +255,19 @@ swift run --package-path OpenSnek OpenSnekProbe bt-lighting-color --color ff6600
 
 The Bluetooth probe now prints one per-zone write for each targeted LED ID so you can confirm that an `all` write really fans out to every validated zone.
 
+### Watch V3 Pro Bluetooth live-profile changes
+
+```bash
+swift run --package-path OpenSnek OpenSnekProbe bt-profile-watch --name "BSK V3 PRO" --slot 4 --poll-ms 1000 --samples 20
+```
+
+This helper fingerprints the current live Bluetooth layer by polling:
+
+- button slot `0x04` (`08 84 01 04`)
+- the DPI-stage snapshot (`0b 84 01 00`)
+
+It is useful when validating whether Synapse or the physical profile-cycle button changed the active live profile. It does not read the persistent stored OBM slots directly; it only reports changes that become visible on the live projected layer.
+
 ### Read current BLE DPI
 
 ```bash

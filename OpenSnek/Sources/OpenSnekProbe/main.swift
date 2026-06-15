@@ -88,6 +88,55 @@ enum OpenSnekProbe {
             } else {
                 print("ack: nil")
             }
+        case "bt-profile-watch":
+            let bridge = ProbeBridge()
+            let parsed = try parseBTProfileWatchArgs(Array(args.dropFirst()))
+            print(
+                "bt-profile-watch name=\"\(parsed.preferredPeripheralName ?? "")\" " +
+                "slot=\(parsed.buttonSlot) polls=\(parsed.samples) pollMs=\(parsed.pollMs)"
+            )
+            print("note: this fingerprints the live projected Bluetooth layer, not the persistent stored slots.")
+
+            var previous: BTProfileWatchSnapshot?
+            var seenSignatures: [String: Int] = [:]
+
+            for pollIndex in 0..<parsed.samples {
+                let snapshot = try await readBTProfileWatchSnapshot(
+                    bridge: bridge,
+                    preferredPeripheralName: parsed.preferredPeripheralName,
+                    timeoutSeconds: parsed.timeoutSeconds,
+                    buttonSlot: parsed.buttonSlot
+                )
+                let signatureID = seenSignatures[snapshot.signature] ?? {
+                    let next = seenSignatures.count + 1
+                    seenSignatures[snapshot.signature] = next
+                    return next
+                }()
+
+                let prefix: String
+                if let previous, previous.signature != snapshot.signature {
+                    prefix = "CHANGE"
+                } else if previous == nil {
+                    prefix = "BASE"
+                } else {
+                    prefix = "SAME"
+                }
+
+                print(
+                    "[poll \(pollIndex + 1)/\(parsed.samples)] \(prefix) " +
+                    "signature#\(signatureID) \(snapshot.summary)"
+                )
+
+                if let previous, previous.signature != snapshot.signature {
+                    print("  from: \(previous.summary)")
+                    print("  to:   \(snapshot.summary)")
+                }
+
+                previous = snapshot
+                if pollIndex + 1 < parsed.samples, parsed.pollMs > 0 {
+                    try await Task.sleep(nanoseconds: UInt64(parsed.pollMs) * 1_000_000)
+                }
+            }
         case "bt-lighting-info":
             let bridge = ProbeBridge()
             let parsed = try parseBTLightingZoneArgs(Array(args.dropFirst()))
@@ -405,6 +454,7 @@ enum OpenSnekProbe {
           OpenSnekProbe bt-info
           OpenSnekProbe bt-raw-read --key 10840000 [--name "BSK V3 PRO"] [--timeout-ms 600]
           OpenSnekProbe bt-raw-write --key 10040000 --payload 0400000000ff4010 [--name "BSK V3 PRO"] [--timeout-ms 900]
+          OpenSnekProbe bt-profile-watch [--name "BSK V3 PRO"] [--slot 4] [--poll-ms 1000] [--samples 20] [--timeout-ms 900]
           OpenSnekProbe bt-lighting-info [--zone all|scroll_wheel|logo|underglow] [--name "BSK V3 PRO"]
           OpenSnekProbe bt-lighting-read [--zone all|scroll_wheel|logo|underglow] [--name "BSK V3 PRO"]
           OpenSnekProbe bt-lighting-brightness --value 128 [--zone all|scroll_wheel|logo|underglow] [--name "BSK V3 PRO"]
@@ -546,6 +596,16 @@ enum OpenSnekProbe {
         let timeoutSeconds = max(0.1, Double(flags["--timeout-ms"] ?? "900").map { $0 / 1000.0 } ?? 0.9)
         let preferredPeripheralName = parsePeripheralName(flags["--name"])
         return (key, payload, preferredPeripheralName, timeoutSeconds)
+    }
+
+    private static func parseBTProfileWatchArgs(_ args: [String]) throws -> (preferredPeripheralName: String?, buttonSlot: UInt8, pollMs: Int, samples: Int, timeoutSeconds: TimeInterval) {
+        let flags = parseFlags(args)
+        let buttonSlot = UInt8(max(0, min(255, Int(flags["--slot"] ?? "4") ?? 4)))
+        let pollMs = max(0, Int(flags["--poll-ms"] ?? "1000") ?? 1000)
+        let samples = max(1, Int(flags["--samples"] ?? "20") ?? 20)
+        let timeoutSeconds = max(0.1, Double(flags["--timeout-ms"] ?? "900").map { $0 / 1000.0 } ?? 0.9)
+        let preferredPeripheralName = parsePeripheralName(flags["--name"])
+        return (preferredPeripheralName, buttonSlot, pollMs, samples, timeoutSeconds)
     }
 
     private static func parseBTLightingZoneArgs(_ args: [String]) throws -> (zoneID: String?, preferredPeripheralName: String?) {
@@ -830,6 +890,128 @@ enum OpenSnekProbe {
             block.append(bytes[index])
         }
         return block
+    }
+
+    private struct BTProfileWatchSnapshot: Equatable {
+        let buttonPayloadHex: String
+        let buttonDescription: String
+        let dpiPayloadHex: String
+        let dpiActive: Int?
+        let dpiCount: Int?
+        let dpiValues: [Int]
+        let dpiStageIDs: [UInt8]
+
+        var signature: String {
+            [
+                buttonPayloadHex,
+                dpiPayloadHex,
+                dpiActive.map(String.init) ?? "nil",
+                dpiCount.map(String.init) ?? "nil",
+                dpiValues.map(String.init).joined(separator: ","),
+                dpiStageIDs.map { String(format: "%02x", $0) }.joined(separator: ","),
+            ].joined(separator: "|")
+        }
+
+        var summary: String {
+            let dpiSummary: String
+            if let dpiActive, let dpiCount {
+                let stageIDs = dpiStageIDs.map { String(format: "%02x", $0) }.joined(separator: ",")
+                dpiSummary = "dpi(active=\(dpiActive + 1)/\(dpiCount) values=\(dpiValues) stageIDs=[\(stageIDs)])"
+            } else {
+                dpiSummary = "dpi(payload=\(dpiPayloadHex))"
+            }
+            return "button=\(buttonDescription) \(dpiSummary)"
+        }
+    }
+
+    private static func readBTProfileWatchSnapshot(
+        bridge: ProbeBridge,
+        preferredPeripheralName: String?,
+        timeoutSeconds: TimeInterval,
+        buttonSlot: UInt8
+    ) async throws -> BTProfileWatchSnapshot {
+        let buttonKey = BLEVendorProtocol.Key.buttonBind(slot: buttonSlot).bytes
+        let buttonResult = try await bridge.rawRead(
+            key: buttonKey,
+            timeout: timeoutSeconds,
+            preferredPeripheralName: preferredPeripheralName
+        )
+        let buttonPayload = bestEffortBTButtonPayload(
+            payload: buttonResult.payload,
+            notifies: buttonResult.notifies,
+            slot: buttonSlot
+        )
+        let buttonPayloadHex = hexString(Array(buttonPayload))
+        let buttonDescription = describeBTProfileWatchButtonPayload(
+            slot: buttonSlot,
+            payload: buttonPayload,
+            notifies: buttonResult.notifies
+        )
+
+        let dpiResult = try await bridge.rawRead(
+            key: BLEVendorProtocol.Key.dpiStagesGet.bytes,
+            timeout: timeoutSeconds,
+            preferredPeripheralName: preferredPeripheralName
+        )
+        let dpiPayload = dpiResult.payload ?? Data()
+        let dpiPayloadHex = hexString(Array(dpiPayload))
+        let dpiSnapshot = BLEVendorProtocol.parseDpiStageSnapshot(blob: dpiPayload)
+
+        return BTProfileWatchSnapshot(
+            buttonPayloadHex: buttonPayloadHex,
+            buttonDescription: buttonDescription,
+            dpiPayloadHex: dpiPayloadHex,
+            dpiActive: dpiSnapshot?.active,
+            dpiCount: dpiSnapshot?.count,
+            dpiValues: dpiSnapshot.map { Array($0.slots.prefix($0.count)) } ?? [],
+            dpiStageIDs: dpiSnapshot.map { Array($0.stageIDs.prefix($0.count)) } ?? []
+        )
+    }
+
+    private static func describeBTProfileWatchButtonPayload(
+        slot: UInt8,
+        payload: Data,
+        notifies: [Data]
+    ) -> String {
+        let key = BLEVendorProtocol.Key.buttonBind(slot: slot).bytes
+        if let decoded = decodeBTButtonReadFunctionBlock(key: key, payload: payload, notifies: notifies) {
+            return "decoded[\(hexString(decoded))]"
+        }
+
+        let bytes = Array(payload)
+        if bytes.isEmpty {
+            return "no-payload"
+        }
+        if bytes.count >= 9,
+           bytes[0] == slot,
+           bytes[1] == 0x00,
+           bytes[2] == 0x02,
+           bytes[3] == 0x01,
+           bytes[4] == 0x02,
+           bytes[5] == 0x01,
+           bytes[6] == 0x00,
+           bytes[7] == 0x04,
+           bytes[8] == 0x45 {
+            return "f12-variant[\(hexString(bytes))]"
+        }
+
+        return "raw[\(hexString(bytes))]"
+    }
+
+    private static func bestEffortBTButtonPayload(
+        payload: Data?,
+        notifies: [Data],
+        slot: UInt8
+    ) -> Data {
+        if let payload, !payload.isEmpty {
+            return payload
+        }
+        if let frame = notifies.first(where: { frame in
+            frame.count >= 16 && frame.first == slot
+        }) {
+            return frame
+        }
+        return payload ?? Data()
     }
 
     private static func hexString(_ bytes: [UInt8]) -> String {
