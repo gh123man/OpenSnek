@@ -167,16 +167,56 @@ public struct PassiveDPIInputDescriptor: Hashable, Codable, Sendable {
 public struct ButtonBindingDraft: Hashable, Codable, Sendable {
     public var kind: ButtonBindingKind
     public var hidKey: Int
+    public var hidModifiers: Int
     public var turboEnabled: Bool
     public var turboRate: Int
     public var clutchDPI: Int?
 
-    public init(kind: ButtonBindingKind, hidKey: Int, turboEnabled: Bool, turboRate: Int, clutchDPI: Int? = nil) {
+    public init(
+        kind: ButtonBindingKind,
+        hidKey: Int,
+        hidModifiers: Int = 0,
+        turboEnabled: Bool,
+        turboRate: Int,
+        clutchDPI: Int? = nil
+    ) {
         self.kind = kind
         self.hidKey = hidKey
+        self.hidModifiers = max(0, min(255, hidModifiers))
         self.turboEnabled = turboEnabled
         self.turboRate = turboRate
         self.clutchDPI = clutchDPI.map { max(100, min(30_000, $0)) }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind
+        case hidKey
+        case hidModifiers
+        case turboEnabled
+        case turboRate
+        case clutchDPI
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.kind = try container.decode(ButtonBindingKind.self, forKey: .kind)
+        self.hidKey = try container.decode(Int.self, forKey: .hidKey)
+        self.hidModifiers = max(0, min(255, try container.decodeIfPresent(Int.self, forKey: .hidModifiers) ?? 0))
+        self.turboEnabled = try container.decode(Bool.self, forKey: .turboEnabled)
+        self.turboRate = try container.decode(Int.self, forKey: .turboRate)
+        self.clutchDPI = try container.decodeIfPresent(Int.self, forKey: .clutchDPI).map { max(100, min(30_000, $0)) }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(hidKey, forKey: .hidKey)
+        if hidModifiers != 0 {
+            try container.encode(hidModifiers, forKey: .hidModifiers)
+        }
+        try container.encode(turboEnabled, forKey: .turboEnabled)
+        try container.encode(turboRate, forKey: .turboRate)
+        try container.encodeIfPresent(clutchDPI, forKey: .clutchDPI)
     }
 }
 

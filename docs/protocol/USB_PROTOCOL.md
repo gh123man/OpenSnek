@@ -206,6 +206,7 @@ Validated function block examples:
 - right click: `01 01 02 00 00 00 00`
 - back button (default for slot `0x04`): `01 01 04 00 00 00 00`
 - keyboard key `A` (HID `0x04`): `02 02 00 04 00 00 00`
+- keyboard key with modifier, for example `Command + [` (modifier `0x08`, HID `0x2F`): `02 02 08 2f 00 00 00`
 - disable: `00 00 00 00 00 00 00`
 - DPI cycle action: `06 01 06 00 00 00 00`
 - Basilisk V3-family observed/inferred working scroll left action: `0e 03 68 00 14 00 00`
@@ -233,6 +234,7 @@ Client note:
 - On the attached Basilisk V3 35K (`0x00CB`) on March 24, 2026, the native clutch slot `0x0F` accepted both a right-click remap and the same `06 05 05 03 20 03 20` 800-DPI clutch payload on persistent profile `0x01`, and slot `0x04` also accepted the `DPI Clutch` payload on direct/live profile `0x00`.
 - Preserve the observed 35K native clutch restore block `06 01 05 01 90 01 90` when restoring slot `0x0F`; the 35K default differs from the V3 Pro default even though both devices accept the same `DPI Clutch` action payload.
 - On the observed V3 Pro profile-button slot (`0x6A`), remap writes can land, but repeated `0x02:0x0C` / `0x02:0x8C` cycles eventually returned timeout/no-response frames during probing. Keep this slot out of shipped UI until that write/readback path is stable.
+- Keyboard category function data is `modifier byte, HID key`. The modifier byte follows the Razer/Basilisk convention documented from Synapse captures: `0x01` left Ctrl, `0x02` left Shift, `0x04` left Alt/Option, `0x08` left GUI/Command, `0x10` right Ctrl, `0x20` right Shift, `0x40` right Alt/Option, `0x80` right GUI/Command.
 - Treat button access as three separate categories during new-device bring-up:
   - `editable`: validated over `0x02:0x0C`
   - `protocol-read-only`: readable from `0x02:0x8C`, but no validated writable path

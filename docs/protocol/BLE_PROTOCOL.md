@@ -443,6 +443,8 @@ Field meanings:
 | `0x0D` | keyboard turbo action | `p0 = 0x0004`, `p1 = HID key`, `p2 = turbo rate` |
 | `0x0E` | mouse turbo action | `p0 = ((button_id - 1) << 8) | 0x0003`, `p1 = turbo rate` |
 
+Keyboard actions are currently validated over BLE only as a single HID key, with optional turbo. USB Basilisk-family devices use an explicit keyboard modifier byte, but OpenSnek does not apply that USB inference to Bluetooth until a capture-backed BLE modifier payload is decoded and validated.
+
 Observed Basilisk V3 Pro Bluetooth exception:
 - wheel-tilt horizontal scroll does not use the older plain mouse-action form on the validated BT path
 - a working Synapse-written V3 Pro Bluetooth rebind on `0x34` / `0x35` reads back as the raw function blocks `0e036800140000` / `0e036900140000`
@@ -835,7 +837,7 @@ The app may still expose richer lighting on USB HID, but this BLE document only 
 - No source-of-truth BLE vendor key for low-battery-threshold control in Swift
 - No source-of-truth BLE vendor key for poll-rate control in Swift
 - No decoded BLE vendor path for slot `0x06` / Hypershift-Boss-sniper control remap; treat it as software-read-only on the current BLE path until a separate HID/report command family is validated
-- No complete button action taxonomy for media/macro/system families
+- No complete button action taxonomy for modifier shortcuts, media, macro, or system families
 - No multi-device validation beyond the Basilisk V3 X Bluetooth family
 
 ## 11. Cross-References
