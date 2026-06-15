@@ -139,6 +139,7 @@ extension BridgeClient {
     }
 
     func readBluetoothState(device: MouseDevice, session: USBHIDControlSession?) async throws -> MouseState {
+        let supportsLighting = device.showsLightingControls
         let btStages = (try? await btGetDpiStages(device: device))
             ?? btDpiSnapshotByDeviceID[device.id].map { snapshot in
                 (
@@ -150,7 +151,7 @@ extension BridgeClient {
             }
         let batteryRaw = (try? await btGetScalar(device: device, key: .batteryRaw, size: 1)) ?? nil
         let batteryStatus = (try? await btGetScalar(device: device, key: .batteryStatus, size: 1)) ?? nil
-        let lighting = (try? await btGetLightingValue(device: device)) ?? nil
+        let lighting = supportsLighting ? (try? await btGetLightingValue(device: device)) : nil
         let sleepTimeout = (try? await btGetScalar(device: device, key: .powerTimeoutGet, size: 2)) ?? nil
 
         let usbBatteryFallback = session.flatMap { try? getBattery($0, device) }
@@ -195,7 +196,7 @@ extension BridgeClient {
                 poll_rate: false,
                 power_management: true,
                 button_remap: true,
-                lighting: true
+                lighting: supportsLighting
             )
         )
     }
@@ -206,6 +207,7 @@ extension BridgeClient {
         includeLighting: Bool,
         includePower: Bool
     ) async throws -> MouseState {
+        let supportsLighting = device.showsLightingControls
         let btStages: (active: Int, values: [Int], pairs: [DpiPair], marker: UInt8)?
         if includeDpi {
             btStages = try await btGetDpiStages(device: device)
@@ -214,7 +216,7 @@ extension BridgeClient {
         }
 
         let lighting: Int?
-        if includeLighting {
+        if includeLighting, supportsLighting {
             lighting = try await btGetLightingValue(device: device)
         } else {
             lighting = nil
@@ -263,7 +265,7 @@ extension BridgeClient {
                 poll_rate: false,
                 power_management: true,
                 button_remap: true,
-                lighting: true
+                lighting: supportsLighting
             )
         )
     }

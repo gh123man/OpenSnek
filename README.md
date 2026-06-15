@@ -59,6 +59,7 @@ Support is transport-specific. A mouse may be supported over USB, Bluetooth, or 
 
 Status key:
 - `Validated` = supported and locally capture/test validated in OpenSnek
+- `Contributor validated` = support is based on external contributor hardware validation and has not been locally validated by OpenSnek maintainers
 - `Mapped` = supported through a shipped profile, but not yet locally validated on OpenSnek hardware
 - `Not yet` = the transport exists on the hardware but OpenSnek does not support it yet
 - `No` = that transport is not available on the device
@@ -69,7 +70,7 @@ Status key:
 | Basilisk V3 | Mapped | No | OpenRazer-backed USB profile, modeled after the Basilisk V3 35K with a `26,000` DPI ceiling |
 | Basilisk V3 Pro | Validated | Validated | |
 | Basilisk V3 35K | Validated | No | |
-| Orochi V2 | Not yet | Validated | Bluetooth path validated; 2.4 GHz HyperSpeed dongle not yet supported. Mouse has no RGB lighting. |
+| Orochi V2 | Not yet | Contributor validated | Contributor validated Bluetooth DPI stages and battery; button remap is profile-mapped pending hardware readback validation. 2.4 GHz HyperSpeed dongle not yet supported. Mouse has no RGB lighting. |
 
 Not every feature is fully supported on every listed transport yet. Some controls and readback paths are still partial while capture, testing, and validation continue.
 

@@ -16,11 +16,14 @@ Use [docs/protocol/PARITY.md](./protocol/PARITY.md) for lower-level reverse-engi
 
 Overall transport status:
 - `Validated`: the shipped profile is locally validated in `DeviceSupport.swift`
+- `Contributor validated`: the shipped profile is based on external contributor hardware validation and has not been locally validated by OpenSnek maintainers
 - `Mapped`: the shipped profile exists, but the profile metadata is still marked unvalidated
+- `Not shipped`: the hardware transport may exist, but OpenSnek does not claim support for it yet
 - `No transport`: that device does not offer that transport
 
 Feature rows:
 - `Shipped`: implemented in the backend and surfaced by the current app for that device/transport
+- `Contributor validated`: implemented based on contributor-validated hardware behavior, but not locally validated by OpenSnek maintainers
 - `Limited`: shipped, but with reduced scope such as static-only lighting or documented read-only button slots
 - `Mapped`: comes from a shipped but still unvalidated mapped profile
 - `Not shipped`: the app intentionally does not claim or expose this hardware feature as supported yet
@@ -36,6 +39,7 @@ Feature rows:
 | Basilisk V3 | `Mapped` | `No transport` | The whole USB profile is still the unvalidated mapped profile |
 | Basilisk V3 Pro | `Validated` | `Validated` | Bluetooth keeps lighting static-only, hides poll-rate and threshold controls, and does not ship clutch/profile-button remap |
 | Basilisk V3 35K | `Validated` | `No transport` | Onboard hardware profiles are still not shipped, and a few buttons remain unsupported footnotes instead of editable controls |
+| Orochi V2 | `Not shipped` | `Contributor validated` | Contributor validated Bluetooth DPI stages, battery, and no-RGB behavior; button remap is profile-mapped pending hardware readback validation |
 
 ## Basilisk V3 X HyperSpeed
 
@@ -116,6 +120,26 @@ USB PID `0x00CB`, no Bluetooth transport
 | Button remap: unsupported slots | `Hidden` | `No transport` | Slot `14` and slot `106` are documented as unsupported footnote entries rather than editable controls |
 | Scroll controls | `Shipped` | `No transport` | The 35K USB profile uses the shared `get/setScrollMode`, `get/setScrollAcceleration`, and `get/setScrollSmartReel` implementation |
 | Onboard hardware profiles | `Not shipped` | `No transport` | OpenSnek does not currently claim shipped onboard hardware-profile support for the 35K |
+
+## Orochi V2
+
+Bluetooth PID `0x0095`; 2.4 GHz HyperSpeed dongle path not yet shipped.
+
+| Feature Area | USB | BT | Notes |
+|---|---|---|---|
+| Overall transport status | `Not shipped` | `Contributor validated` | Bluetooth profile is based on contributor-validated DPI stages, battery, and no-RGB capability behavior |
+| DPI stages + active stage | `Not shipped` | `Contributor validated` | Contributor validated Bluetooth stage readback with five stages up to `18,000` DPI |
+| Independent X/Y DPI | `Not shipped` | `Scalar only` | The profile ships scalar DPI only because `supportsIndependentXYDPI` is false |
+| Poll rate | `Not shipped` | `Hidden` | Bluetooth state hard-codes `poll_rate: nil` and `capabilities.poll_rate: false` |
+| Sleep timeout | `Not shipped` | `Mapped` | Rides the shared Bluetooth `powerTimeoutGet` / `powerTimeoutSet` path; Orochi-specific read/write validation is still pending |
+| Low battery threshold | `Not shipped` | `Hidden` | Bluetooth does not populate `low_battery_threshold_raw`, so the app never renders the threshold card |
+| Battery telemetry | `Not shipped` | `Contributor validated` | Contributor validated Bluetooth battery reads; OpenSnek reports `charging = false` for this AAA-powered profile |
+| Lighting: brightness + static color | `Not shipped` | `Hidden` | The profile declares no lighting effects, zones, or LED IDs; Bluetooth state reports `capabilities.lighting = false` |
+| Lighting: extra effects | `Not shipped` | `Hidden` | Orochi V2 has no RGB lighting |
+| Button remap: shipped editable slots | `Not shipped` | `Mapped` | Profile metadata maps slots `1-5`, `9`, `10`, and `96`, but hardware read/write/readback validation is still pending |
+| Button remap: unsupported slots | `Not shipped` | `Hidden` | No extra unsupported Orochi-specific slots are documented yet |
+| Scroll controls | `Not shipped` | `Hidden` | Bluetooth never publishes scroll-control state fields and the UI excludes BT scroll controls |
+| Onboard hardware profiles | `Not shipped` | `Single slot` | Profile ships with `onboardProfileCount = 1` |
 
 ## References
 
