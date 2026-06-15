@@ -76,6 +76,7 @@ Not every feature is fully supported on every listed transport yet. Some control
 
 Support docs:
 - Per-device USB/BT feature matrix: [docs/DEVICE_SUPPORT.md](docs/DEVICE_SUPPORT.md)
+- Getting started with new device support: [docs/development/ADDING_DEVICE_SUPPORT.md](docs/development/ADDING_DEVICE_SUPPORT.md)
 - Protocol and transport docs: [docs/protocol/PROTOCOL.md](docs/protocol/PROTOCOL.md)
 - Contribution and new-device workflow: [CONTRIBUTING.md](CONTRIBUTING.md)
 
@@ -123,6 +124,7 @@ swift test --package-path OpenSnek
 
 - App build, run, probe, and validation details: [OpenSnek/README.md](OpenSnek/README.md)
 - Device support and reverse-engineering workflow: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Getting started with new device support: [docs/development/ADDING_DEVICE_SUPPORT.md](docs/development/ADDING_DEVICE_SUPPORT.md)
 - Device support matrix by feature and transport: [docs/DEVICE_SUPPORT.md](docs/DEVICE_SUPPORT.md)
 - DMG release and notarization setup: [docs/release/DMG_RELEASE.md](docs/release/DMG_RELEASE.md)
 - Protocol documentation: [docs/protocol/PROTOCOL.md](docs/protocol/PROTOCOL.md)
