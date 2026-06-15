@@ -258,6 +258,7 @@ public final class DevicePreferenceStore: @unchecked Sendable {
             draft: ButtonBindingDraft(
                 kind: binding.kind,
                 hidKey: binding.kind == .keyboardSimple ? max(4, min(231, binding.hidKey ?? 4)) : 4,
+                hidModifiers: binding.kind == .keyboardSimple ? max(0, min(255, binding.hidModifiers ?? 0)) : 0,
                 turboEnabled: binding.kind.supportsTurbo ? binding.turboEnabled : false,
                 turboRate: max(1, min(255, binding.turboRate ?? 0x8E)),
                 clutchDPI: binding.kind == .dpiClutch ? DeviceProfiles.clampDPI(binding.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI, device: device) : nil
@@ -274,6 +275,7 @@ public final class DevicePreferenceStore: @unchecked Sendable {
             partialResult[String(pair.key)] = PersistedButtonBinding(
                 kindRaw: pair.value.kind.rawValue,
                 hidKey: pair.value.hidKey,
+                hidModifiers: pair.value.hidModifiers,
                 turboEnabled: pair.value.turboEnabled,
                 turboRate: pair.value.turboRate,
                 clutchDPI: pair.value.clutchDPI
@@ -313,6 +315,7 @@ public final class DevicePreferenceStore: @unchecked Sendable {
                 draft: ButtonBindingDraft(
                     kind: kind,
                     hidKey: max(4, min(231, pair.value.hidKey)),
+                    hidModifiers: kind == .keyboardSimple ? max(0, min(255, pair.value.hidModifiers ?? 0)) : 0,
                     turboEnabled: kind.supportsTurbo ? pair.value.turboEnabled : false,
                     turboRate: max(1, min(255, pair.value.turboRate)),
                     clutchDPI: kind == .dpiClutch ? DeviceProfiles.clampDPI(pair.value.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI, device: device) : nil
@@ -389,6 +392,7 @@ public final class DevicePreferenceStore: @unchecked Sendable {
 private struct PersistedButtonBinding: Codable {
     let kindRaw: String
     let hidKey: Int
+    let hidModifiers: Int?
     let turboEnabled: Bool
     let turboRate: Int
     let clutchDPI: Int?

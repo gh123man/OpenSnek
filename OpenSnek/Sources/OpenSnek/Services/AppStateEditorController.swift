@@ -850,6 +850,7 @@ final class AppStateEditorController {
             draft: ButtonBindingDraft(
                 kind: binding.kind,
                 hidKey: binding.kind == .keyboardSimple ? max(4, min(231, binding.hidKey ?? 4)) : 4,
+                hidModifiers: binding.kind == .keyboardSimple ? max(0, min(255, binding.hidModifiers ?? 0)) : 0,
                 turboEnabled: binding.kind.supportsTurbo ? binding.turboEnabled : false,
                 turboRate: max(1, min(255, binding.turboRate ?? 0x8E)),
                 clutchDPI: binding.kind == .dpiClutch
@@ -1618,6 +1619,10 @@ final class AppStateEditorController {
         editorStore.editableButtonBindings[slot]?.hidKey ?? defaultButtonBinding(for: slot).hidKey
     }
 
+    func buttonBindingHidModifiers(for slot: Int) -> Int {
+        editorStore.editableButtonBindings[slot]?.hidModifiers ?? defaultButtonBinding(for: slot).hidModifiers
+    }
+
     func buttonBindingTurboEnabled(for slot: Int) -> Bool {
         editorStore.editableButtonBindings[slot]?.turboEnabled ?? defaultButtonBinding(for: slot).turboEnabled
     }
@@ -1649,6 +1654,7 @@ final class AppStateEditorController {
         next.kind = kind
         if kind != .keyboardSimple {
             next.hidKey = 4
+            next.hidModifiers = 0
         }
         if kind == .dpiClutch {
             next.clutchDPI = next.clutchDPI ?? ButtonBindingSupport.defaultDPIClutchDPI(for: deviceStore.selectedDevice?.profile_id)
@@ -1661,10 +1667,15 @@ final class AppStateEditorController {
     }
 
     func updateButtonBindingHidKey(slot: Int, hidKey: Int) {
+        updateButtonBindingKeyboardShortcut(slot: slot, hidKey: hidKey, hidModifiers: 0)
+    }
+
+    func updateButtonBindingKeyboardShortcut(slot: Int, hidKey: Int, hidModifiers: Int) {
         guard deviceStore.visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
         var next = editorStore.editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
         next.kind = .keyboardSimple
         next.hidKey = max(4, min(231, hidKey))
+        next.hidModifiers = max(0, min(255, hidModifiers))
         editorStore.editableButtonBindings[slot] = next
         handleButtonWorkspaceDidChange(slot: slot)
     }

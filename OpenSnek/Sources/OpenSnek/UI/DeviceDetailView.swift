@@ -1663,6 +1663,10 @@ struct ButtonMappingTableCard: View {
                 turboEligible: kind != .default && kind.supportsTurbo,
                 clutchDPI: editorStore.buttonBindingClutchDPI(for: slot.slot),
                 keyboardHidKey: editorStore.buttonBindingHidKey(for: slot.slot),
+                keyboardHidModifiers: editorStore.buttonBindingHidModifiers(for: slot.slot),
+                supportsKeyboardModifierChords: deviceStore.selectedDevice.map { device in
+                    device.transport == .usb || device.transport == .bluetooth
+                } ?? false,
                 turboEnabled: turboEnabled,
                 turboRatePressesPerSecond: turboRate,
                 notice: deviceStore.buttonSlotNotice(slot.slot)
@@ -2396,6 +2400,8 @@ private struct ButtonBindingRowModel: Identifiable, Equatable {
     let turboEligible: Bool
     let clutchDPI: Int
     let keyboardHidKey: Int
+    let keyboardHidModifiers: Int
+    let supportsKeyboardModifierChords: Bool
     let turboEnabled: Bool
     let turboRatePressesPerSecond: Int
     let notice: String?
@@ -2440,8 +2446,16 @@ private struct ButtonBindingRow: View {
                     Spacer()
                     KeyboardBindingEditor(
                         hidKey: row.keyboardHidKey,
+                        hidModifiers: row.keyboardHidModifiers,
+                        supportsModifierChords: row.supportsKeyboardModifierChords,
                         isEditable: row.isEditable,
-                        onSelect: { editorStore.updateButtonBindingHidKey(slot: row.slot, hidKey: $0) }
+                        onSelect: {
+                            editorStore.updateButtonBindingKeyboardShortcut(
+                                slot: row.slot,
+                                hidKey: $0.hidKey,
+                                hidModifiers: $0.hidModifiers
+                            )
+                        }
                     )
                 }
             }

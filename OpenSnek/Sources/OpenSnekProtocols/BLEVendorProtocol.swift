@@ -267,6 +267,7 @@ public enum BLEVendorProtocol {
         slot: UInt8,
         kind: ButtonBindingKind,
         hidKey: UInt8?,
+        hidModifiers: UInt8 = 0,
         turboEnabled: Bool = false,
         turboRate: UInt16? = nil
     ) -> Data {
@@ -274,7 +275,7 @@ public enum BLEVendorProtocol {
         if turboEnabled {
             if kind == .keyboardSimple {
                 let key = hidKey ?? 0x04
-                return Data([0x01, slot, 0x00, 0x0D, 0x04, 0x00, key, 0x00, UInt8(clampedTurboRate & 0xFF), UInt8((clampedTurboRate >> 8) & 0xFF)])
+                return Data([0x01, slot, 0x00, 0x0D, 0x04, hidModifiers, key, 0x00, UInt8(clampedTurboRate & 0xFF), UInt8((clampedTurboRate >> 8) & 0xFF)])
             }
             if let buttonID = horizontalScrollButtonID(for: kind) {
                 return buildRawFunctionBlockPayload(
@@ -366,7 +367,7 @@ public enum BLEVendorProtocol {
         case .mouseForward:
             return Data([0x01, slot, 0x00, 0x01, 0x01, 0x05, 0x00, 0x00, 0x00, 0x00])
         case .keyboardSimple:
-            return Data([0x01, slot, 0x00, 0x02, 0x02, 0x00, hidKey ?? 0x04, 0x00, 0x00, 0x00])
+            return Data([0x01, slot, 0x00, 0x02, 0x02, hidModifiers, hidKey ?? 0x04, 0x00, 0x00, 0x00])
         case .clearLayer:
             return Data([0x01, slot, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
         }

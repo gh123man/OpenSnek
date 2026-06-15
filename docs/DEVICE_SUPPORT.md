@@ -31,6 +31,8 @@ Feature rows:
 - `Scalar only`: the profile does not ship independent X/Y DPI editing
 - `Single slot`: no multi-slot onboard button-profile workflow exists for that device/transport
 
+Button remap keyboard actions support modifier chords on shipped USB and Bluetooth profiles through the shared `modifier byte + HID key` function block.
+
 ## Quick Summary
 
 | Device | USB | BT | Biggest Gaps |

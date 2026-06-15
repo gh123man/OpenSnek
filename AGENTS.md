@@ -37,7 +37,8 @@ Protocol behavior changes require docs, tests, and `CHANGELOG.md` updates in the
 6. Keep `CHANGELOG.md` up to date for user-visible or protocol-visible changes.
 7. Treat `OpenSnek/project.yml` as the Xcode source of truth; generate `OpenSnek/OpenSnek.xcodeproj` on demand and do not commit it.
 8. Use `Validated` only for maintainer/local OpenSnek hardware validation. For device support validated by an outside contributor but not by maintainers, use `Contributor validated` and credit the contributor source in docs.
-9. Before saying work is done or pushing code, run the complete unit test suite with `swift test --package-path OpenSnek` and ensure it passes locally.
+9. Before creating a new topic branch, fetch `origin` and branch from an up-to-date `origin/main`. Before opening or updating a PR, check whether the branch is behind `origin/main`; if it is, merge or rebase `origin/main`, resolve conflicts, rerun validation, and push the updated branch.
+10. Before saying work is done or pushing code, run the complete unit test suite with `swift test --package-path OpenSnek` and ensure it passes locally.
 
 ## Quick Commands
 

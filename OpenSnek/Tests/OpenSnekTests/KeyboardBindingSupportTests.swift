@@ -24,4 +24,11 @@ final class KeyboardBindingSupportTests: XCTestCase {
     func testDisplayLabelFallsBackForUnknownHidKey() {
         XCTAssertEqual(AppStateKeyboardSupport.keyboardDisplayLabel(forHidKey: 200), "HID 0xC8")
     }
+
+    func testDisplayLabelIncludesKeyboardModifiers() {
+        XCTAssertEqual(
+            AppStateKeyboardSupport.keyboardDisplayLabel(forHidKey: 47, hidModifiers: 0x08),
+            "Command + ["
+        )
+    }
 }

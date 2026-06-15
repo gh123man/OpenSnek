@@ -121,6 +121,16 @@ final class BLEVendorProtocolTests: XCTestCase {
         XCTAssertEqual(Array(payload), [0x01, 0x02, 0x00, 0x02, 0x02, 0x00, 0x2C, 0x00, 0x00, 0x00])
     }
 
+    func testButtonPayloadKeyboardShortcutIncludesModifiers() {
+        let payload = BLEVendorProtocol.buildButtonPayload(
+            slot: 0x02,
+            kind: .keyboardSimple,
+            hidKey: 0x2F,
+            hidModifiers: 0x08
+        )
+        XCTAssertEqual(Array(payload), [0x01, 0x02, 0x00, 0x02, 0x02, 0x08, 0x2F, 0x00, 0x00, 0x00])
+    }
+
     func testButtonPayloadKeyboardTurbo() {
         let payload = BLEVendorProtocol.buildButtonPayload(
             slot: 0x03,
@@ -130,6 +140,18 @@ final class BLEVendorProtocolTests: XCTestCase {
             turboRate: 0x008E
         )
         XCTAssertEqual(Array(payload), [0x01, 0x03, 0x00, 0x0D, 0x04, 0x00, 0x08, 0x00, 0x8E, 0x00])
+    }
+
+    func testButtonPayloadKeyboardTurboShortcutIncludesModifiers() {
+        let payload = BLEVendorProtocol.buildButtonPayload(
+            slot: 0x03,
+            kind: .keyboardSimple,
+            hidKey: 0x2F,
+            hidModifiers: 0x08,
+            turboEnabled: true,
+            turboRate: 0x008E
+        )
+        XCTAssertEqual(Array(payload), [0x01, 0x03, 0x00, 0x0D, 0x04, 0x08, 0x2F, 0x00, 0x8E, 0x00])
     }
 
     func testButtonPayloadMiddleClick() {
