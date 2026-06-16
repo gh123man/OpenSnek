@@ -453,6 +453,20 @@ final class USBProbeClient {
         return Array(response[8...10])
     }
 
+    func readProfileCount() throws -> UInt8? {
+        guard let response = try rawCommand(classID: 0x05, cmdID: 0x80, size: 0x00, args: []) else {
+            return nil
+        }
+        return USBHIDProtocol.onboardProfileCount(from: response)
+    }
+
+    func readProfileInventory() throws -> USBHIDProtocol.OnboardProfileInventory? {
+        guard let response = try rawCommand(classID: 0x05, cmdID: 0x81, size: 0x00, args: []) else {
+            return nil
+        }
+        return USBHIDProtocol.onboardProfileInventory(from: response)
+    }
+
     func readActiveProfileID() throws -> UInt8? {
         guard let response = try rawCommand(classID: 0x05, cmdID: 0x84, size: 0x00, args: []),
               let active = USBHIDProtocol.activeProfileID(from: response) else {
@@ -639,9 +653,8 @@ final class USBProbeClient {
     }
 
     func readProfileMetadata(profile: UInt8) throws -> (chunks: [USBHIDProtocol.OnboardProfileMetadataChunk], metadata: USBHIDProtocol.OnboardProfileMetadata)? {
-        let offsets = [0x0000, 0x0040, 0x0080, 0x00C0]
         var chunks: [USBHIDProtocol.OnboardProfileMetadataChunk] = []
-        for offset in offsets {
+        for offset in USBHIDProtocol.onboardProfileMetadataChunkOffsets {
             let args = USBHIDProtocol.onboardProfileMetadataReadArgs(slot: profile, offset: offset)
             guard let response = try rawCommand(
                 classID: 0x05,

@@ -442,7 +442,7 @@ enum OpenSnekProbe {
             print("usb-profile-verify-changed-writes \(usb.describe()) profile=\(parsed.profile)")
             try verifyUSBProfileChangedValueWrites(usb: usb, profile: parsed.profile)
         case "usb-profile-verify-metadata-write":
-            throw ProbeError.protocolError("usb-profile-verify-metadata-write is disabled: 05:08 behaves like an unsafe bulk profile write without a mapped full-profile blob")
+            throw ProbeError.protocolError("usb-profile-verify-metadata-write is disabled: 05:08 metadata chunks are mapped, but create/assign can disturb profile content and needs a guarded rewrite/readback probe")
         case "usb-profile-delete":
             let parsed = try parseUSBProfileDeleteArgs(Array(args.dropFirst()))
             let usb = try USBProbeClient(productID: parsed.productID)
@@ -697,7 +697,7 @@ enum OpenSnekProbe {
           OpenSnekProbe usb-profile-active-set --profile 3 --yes [--pid 0x00ab]
           OpenSnekProbe usb-profile-verify-writes --profile 5 --yes [--pid 0x00ab]
           OpenSnekProbe usb-profile-verify-changed-writes --profile 5 --yes [--pid 0x00ab]
-          OpenSnekProbe usb-profile-verify-metadata-write [disabled: unsafe 05:08 bulk profile write]
+          OpenSnekProbe usb-profile-verify-metadata-write [disabled: needs guarded content rewrite/readback flow]
           OpenSnekProbe usb-profile-delete --profile 2 --yes [--pid 0x00ab]
           OpenSnekProbe usb-input-listen [--pid 0x00ab] [--duration 15] [--max-reports 0]
           OpenSnekProbe usb-input-values [--pid 0x00ab] [--duration 15] [--max-reports 0]
@@ -1453,6 +1453,21 @@ enum OpenSnekProbe {
             print("summary class=00 cmd=87 payload=\(hexString(summary)) activeHint=\(activeHint) countHint=\(countHint)")
         } else {
             print("summary class=00 cmd=87 read_failed")
+        }
+
+        if let profileCount = try usb.readProfileCount() {
+            print("profile-count class=05 cmd=80 value=\(profileCount)")
+        } else {
+            print("profile-count class=05 cmd=80 read_failed")
+        }
+
+        if let inventory = try usb.readProfileInventory() {
+            let profiles = inventory.assignedProfiles
+                .map { String(format: "0x%02x", $0) }
+                .joined(separator: ",")
+            print("profile-inventory class=05 cmd=81 maxProfile=0x\(String(format: "%02x", inventory.maxProfileID)) assigned=[\(profiles)]")
+        } else {
+            print("profile-inventory class=05 cmd=81 read_failed")
         }
 
         if let active = try usb.readActiveProfileID() {

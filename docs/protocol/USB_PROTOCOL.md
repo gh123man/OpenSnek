@@ -536,7 +536,9 @@ Current known USB profile support is setting-bank oriented:
 - lighting brightness: `0x0F:0x84/0x04` with storage/profile IDs
 - active profile ID read: `0x05:0x84`, size `0x00`
 - active profile selector: `0x05:0x04` with a profile ID
-- metadata reads: `0x05:0x88` chunk reads with slot IDs `0x02..0x05`
+- assigned profile inventory: `0x05:0x81`, with count hint `0x05:0x80`
+- metadata reads/writes: `0x05:0x88` / `0x05:0x08` chunks with slot IDs `0x02..0x05`
+- metadata create/assign prelude: `0x05:0x02 <profile>` before full `0x05:0x08` chunks
 - delete/unassign from the hardware cycle ring: `0x05:0x03` with a stored profile ID
 
 #### Get Active Onboard Profile
@@ -561,21 +563,44 @@ Response: success echoes the requested profile ID
 Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
 - `0x05:0x04`, args `01`, ACKed and left/reported active profile `1`.
 - `0x05:0x04`, args `03`, ACKed, `0x05:0x84` changed to `03`, and effective profile `0` matched stored profile `3`.
-- `0x05:0x04`, args `02`, `04`, and `05`, returned status `0x03` in the current device state, even though those banks remained readable.
+- `0x05:0x04`, args `02`, `04`, and `05`, returned status `0x03` when those profiles were unassigned or had invalid metadata, even though those banks remained readable.
+- after `0x05:0x02 04` plus four full `0x05:0x08` chunks, `0x05:0x04 04` ACKed; after `0x05:0x03 04`, it rejected again.
 
 Client note:
-- Treat `0x05:0x04` as the active selector for assigned/cycleable USB profiles. It can infer whether a readable bank is assigned only by changing active state and restoring the previous active profile afterward, so prefer `0x05:0x84` for passive refresh and do not use `0x05:0x04` as normal inventory polling.
+- Treat `0x05:0x04` as the active selector for assigned/cycleable USB profiles. Prefer `0x05:0x81` for inventory and `0x05:0x84` for passive active-profile refresh.
 
-#### Get Onboard Profile Metadata Chunk
+#### Get Assigned Onboard Profiles
 ```
-Command:  Class 0x05, ID 0x88, Size 0x50
+Count:    Class 0x05, ID 0x80, Size 0x00
+Response: args[0] = assigned profile count
+
+List:     Class 0x05, ID 0x81, Size 0x00
+Response: args[0] = max profile ID
+          args[1...] = assigned profile IDs
+```
+
+Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
+- after cleanup, `0x05:0x80` returned `02` and `0x05:0x81` returned `05 01 03`.
+- after `0x05:0x02 04` plus full `0x05:0x08` metadata chunks, `0x05:0x80` returned `04` and `0x05:0x81` returned `05 01 03 04 05`.
+- after `0x05:0x03 04` and `0x05:0x03 05`, `0x05:0x80` returned `02` and `0x05:0x81` returned `05 01 03`.
+- `0x05:0x8A` returned `05` and is treated as a max-bank hint, not the assigned list.
+
+#### Onboard Profile Metadata Bulk Object
+```
+Read:     Class 0x05, ID 0x88, Size 0x50
+Write:    Class 0x05, ID 0x08, Size 0x50
 Args:     [0] = slot/profile ID
           [1-2] = offset bytes as used by Synapse/OpenRazer chunks
           [3] = 0x00
           [4] = 0xFA marker
+          [5...] = metadata bytes for writes
 Response: args[0-4] echo the chunk header
           args[5...] = metadata bytes
 ```
+
+The object length is `0x00FA` bytes. Use four full `0x50` chunks with offsets
+`0x0000`, `0x004B`, `0x0096`, and `0x00E1`; pad write data past the object end
+with zeroes.
 
 Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
 - slot `0x02`, offset `00 00`: UUID `3a35ec93-bee1-4b29-9d3d-0d2b88f9edef`, name `OPENSNEK_MAC_SLOT_1`
@@ -583,7 +608,10 @@ Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
 - slot `0x03`, offsets `00 40` and `00 80`: owner-hash chunks matching the Bluetooth metadata structure
 - slot `0x04`, offset `00 00`: UUID `27530668-c3e2-4e0a-a06e-a4854383c4e9`, name `OS_P4_RENAMED`
 - slot `0x05`, offset `00 00`: UUID `18f2a4cc-ecb8-4765-b532-9df401a686d6`, name `OS_P5`
-- after an unsafe `0x05:0x08` bulk-write probe, slot `0x05` metadata read back as UUID `ffffffff-ffff-ffff-ffff-ffffffffffff`, name `nil`; DPI/lighting settings were restored through validated profile-addressed writes, but metadata was not recovered.
+- after an unsafe partial `0x05:0x08` probe, slot `0x05` metadata read back as UUID `ffffffff-ffff-ffff-ffff-ffffffffffff`, name `nil`.
+- a later full-object `0x05:0x08` repair restored slot `0x05` to UUID `18f2a4cc-ecb8-4765-b532-9df401a686d6`, name `OS_P5_BULK_MAP`, without changing mapped DPI/brightness/button settings.
+- direct `0x05:0x08` on unassigned slot `0x04` returned status `0x03`; `0x05:0x02 04` followed by four full `0x05:0x08` chunks assigned it and made `0x05:0x04 04` ACK.
+- the `0x05:0x02` assignment path disturbed profile `4` DPI/brightness and required profile-addressed content restore. Treat create as metadata assignment followed by explicit content writes/readback.
 
 #### Delete / Unassign Onboard Profile
 ```
@@ -595,24 +623,25 @@ Response: echoes the stored profile ID
 Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
 - `0x05:0x03`, args `05`, ACKed and did not erase profile `5`'s readable settings/metadata bank.
 - `0x05:0x03`, args `02`, ACKed; profile `2` remained readable, but the next physical profile-cycle press skipped profile `2` and moved effective profile `0` to stored profile `3`.
+- `0x05:0x03`, args `04` and `05`, ACKed after temporary create/repair probes; `0x05:0x81` returned to `05 01 03`, and selectors for `04`/`05` rejected again.
 
 Delete note:
 - Treat this as cycle-ring unassign, not storage erase. It matches the USB role of Bluetooth `03 06 <target> 00` closely enough for guarded research tooling, but production UI should avoid promising destructive erase semantics.
 
 Client note:
-- `0x05:0x88` is read-side validated. `0x05:0x08` behaves like a bulk profile write, not a safe metadata-only write; a fuller `0x06:0x8E` / `0x05:0x02` / multi-chunk `0x05:0x08` probe erased profile `5` metadata and disturbed settings when only known metadata chunks were supplied. OpenSnek must not ship metadata writes until the full profile blob and commit transaction are mapped.
+- `0x05:0x88` / `0x05:0x08` map the UUID/name/owner metadata object, not a whole settings blob. Use only full-object chunks.
+- `0x05:0x02` + full `0x05:0x08` can create/assign a named profile, but the profile content must be rewritten and verified after assignment.
 - `OpenSnekProbe usb-profile-read` is the current read-only diagnostic path for collecting `00:87`, profile metadata chunks, DPI scalar/stages, brightness zones, and selected button slots in one serial USB pass.
 - `OpenSnekProbe usb-profile-active-read` reads the direct active-profile ID via `0x05:0x84`.
 - `OpenSnekProbe usb-profile-active-set --profile 3 --yes` wraps the validated `0x05:0x04` selector for assigned profiles.
 - `OpenSnekProbe usb-profile-verify-writes --profile 5 --yes` is the current guarded same-value write verifier for stored-profile DPI scalar, DPI stages, and brightness. It validates echoed profile/LED bytes on readback to reject stale USB feature-report replies.
 - `OpenSnekProbe usb-profile-verify-changed-writes --profile 5 --yes` is the guarded changed-value verifier. It snapshots profile `5`, writes temporary DPI scalar/stage/brightness changes, validates readback, and restores the original values before exit.
-- `OpenSnekProbe usb-profile-verify-metadata-write` is disabled because `0x05:0x08` is unsafe without the complete mapped profile blob.
 - `OpenSnekProbe usb-profile-delete --profile 2 --yes` is the guarded delete/unassign probe path. Confirm the physical profile-cycle behavior after running it, because the profile bank remains readable.
 - In the reconnect persistence pass, profile `5` retained temporary scalar `900x900`, first stage `500x500`, and `0x55` brightness on all three zones after USB unplug/replug, then restored to the original `800x800`, `400/800/1600/3200/6400`, and `0x54` brightness values.
 
 Unresolved:
-- safe UUID/name metadata or full-profile bulk write
-- side-effect-free inventory/list equivalent to BLE `03 80`
+- power-cycle and cross-transport persistence for full create/rename/delete flows
+- static/effect lighting, macro, and any other Synapse-only per-profile surfaces
 
 ### RGB Lighting (Class 0x0F)
 

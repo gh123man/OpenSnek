@@ -18,6 +18,11 @@ final class USBHIDProtocolTests: XCTestCase {
     }
 
     func testOnboardProfileMetadataReadArgsUseOpenRazerChunkHeaderOrder() {
+        XCTAssertEqual(USBHIDProtocol.onboardProfileMetadataChunkDataLength, 0x4B)
+        XCTAssertEqual(
+            USBHIDProtocol.onboardProfileMetadataChunkOffsets,
+            [0x0000, 0x004B, 0x0096, 0x00E1]
+        )
         XCTAssertEqual(
             USBHIDProtocol.onboardProfileMetadataReadArgs(slot: 0x03, offset: 0x0040),
             [0x03, 0x00, 0x40, 0x00, 0xFA]
@@ -71,6 +76,38 @@ final class USBHIDProtocolTests: XCTestCase {
         XCTAssertTrue(USBHIDProtocol.activeProfileSetAccepted(from: accepted, profile: 0x03))
         XCTAssertFalse(USBHIDProtocol.activeProfileSetAccepted(from: accepted, profile: 0x02))
         XCTAssertFalse(USBHIDProtocol.activeProfileSetAccepted(from: rejected, profile: 0x03))
+    }
+
+    func testOnboardProfileInventoryParsesMaxAndAssignedProfiles() {
+        var response = USBHIDProtocol.createReport(
+            txn: 0x1F,
+            classID: 0x05,
+            cmdID: 0x81,
+            size: 0x05,
+            args: [0x05, 0x01, 0x03, 0x04, 0x05]
+        )
+        response[0] = 0x02
+
+        XCTAssertEqual(
+            USBHIDProtocol.onboardProfileInventory(from: response),
+            USBHIDProtocol.OnboardProfileInventory(
+                maxProfileID: 0x05,
+                assignedProfiles: [0x01, 0x03, 0x04, 0x05]
+            )
+        )
+    }
+
+    func testOnboardProfileCountParsesPayloadByteEvenWhenResponseSizeIsZero() {
+        var response = USBHIDProtocol.createReport(
+            txn: 0x1F,
+            classID: 0x05,
+            cmdID: 0x80,
+            size: 0x00,
+            args: [0x02]
+        )
+        response[0] = 0x02
+
+        XCTAssertEqual(USBHIDProtocol.onboardProfileCount(from: response), 0x02)
     }
 
     func testOnboardProfileMetadataChunkParsesEchoedHeaderAndData() {

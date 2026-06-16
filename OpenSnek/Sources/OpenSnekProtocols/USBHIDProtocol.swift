@@ -27,8 +27,26 @@ public enum USBHIDProtocol {
         }
     }
 
+    public struct OnboardProfileInventory: Equatable, Sendable {
+        public let maxProfileID: UInt8
+        public let assignedProfiles: [UInt8]
+
+        public init(maxProfileID: UInt8, assignedProfiles: [UInt8]) {
+            self.maxProfileID = maxProfileID
+            self.assignedProfiles = assignedProfiles
+        }
+    }
+
     public static let onboardProfileMetadataLength = 0xFA
     public static let onboardProfileMetadataReadSize: UInt8 = 0x50
+    public static let onboardProfileMetadataChunkDataLength = Int(onboardProfileMetadataReadSize) - 5
+    public static let onboardProfileMetadataChunkOffsets = Array(
+        stride(
+            from: 0,
+            to: onboardProfileMetadataLength,
+            by: onboardProfileMetadataChunkDataLength
+        )
+    )
 
     public static func activeProfileID(from response: [UInt8]) -> UInt8? {
         guard response.count > 8,
@@ -53,6 +71,32 @@ public enum USBHIDProtocol {
             return false
         }
         return response[8] == profile
+    }
+
+    public static func onboardProfileCount(from response: [UInt8]) -> UInt8? {
+        guard response.count > 8,
+              response[0] == 0x02,
+              response[6] == 0x05,
+              response[7] == 0x80 else {
+            return nil
+        }
+        return response[8]
+    }
+
+    public static func onboardProfileInventory(from response: [UInt8]) -> OnboardProfileInventory? {
+        guard response.count > 8,
+              response[0] == 0x02,
+              response[6] == 0x05,
+              response[7] == 0x81 else {
+            return nil
+        }
+        let argCount = max(0, min(Int(response[5]), min(80, response.count - 8)))
+        guard argCount >= 1 else { return nil }
+        let payload = Array(response[8..<(8 + argCount)])
+        return OnboardProfileInventory(
+            maxProfileID: payload[0],
+            assignedProfiles: Array(payload.dropFirst()).filter { $0 != 0x00 }
+        )
     }
 
     public static func createReport(txn: UInt8, classID: UInt8, cmdID: UInt8, size: UInt8, args: [UInt8]) -> [UInt8] {
