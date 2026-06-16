@@ -14,6 +14,7 @@ All notable changes to this project are documented in this file.
 - Added a Windows active-profile button-update capture. The draft spec now documents the fast two-write update shape: write the stored profile target first (`08 04 02 <slot>` in this capture), then immediately project the same binding to live target `1`.
 - Added Windows rename-only profile captures. The draft spec now treats profile display-name rename as host-side metadata for OpenSnek because observed Synapse rename-only events did not emit BLE metadata rewrites.
 - Added a Windows saved-slot `None` capture for Basilisk V3 Pro Bluetooth. The draft spec now maps onboard profile unassign/delete to `03 06 <target> 00` and documents a Synapse rename/unassign UI caveat.
+- Added a Windows active saved-slot unassign plus physical-button capture. The draft spec now notes that `03 06` does not immediately project a replacement live profile, and that Synapse-handled profile-button navigation appears to cycle a hybrid local/on-device host profile list that can revisit stale profiles after OBM unassign.
 
 ## [2026-05-17]
 

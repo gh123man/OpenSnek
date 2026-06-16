@@ -181,6 +181,14 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - The in-window operation is `03 06 03 00` with empty payload and success status `02`.
   - This capture backs the delete/unassign section of `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
 
+- `ble/windows/2026-06-15-210321-profile-active-slot-unassign-cycle-pass-1/`
+  - Windows BTVS/tshark capture of replacing active saved/onboard target `2` with `None`, then pressing the physical profile button.
+  - Synapse logged `obmEngineMouse.deleteProfile(2)`, `profileIdList":[1,4,5]`, and `numOfProfiles":3`.
+  - The delete operation is `03 06 02 00` with empty payload and success status `02`.
+  - The delete itself did not immediately project a replacement profile to live target `1`.
+  - Subsequent physical profile-button presses were handled by Synapse as software `navigateProfile` events. With Synapse open, that path appears to cycle a hybrid host profile list containing local/Synapse profiles and on-device-backed profiles, and it can still select stale host profiles not present in the OBM `profileIdList`.
+  - This capture backs the active-delete and Synapse stale-host-cycle caveat in `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
+
 ## Notes
 
 - Captures are intentionally action-scoped for faster diffing.

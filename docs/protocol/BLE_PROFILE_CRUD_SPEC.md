@@ -268,6 +268,7 @@ Status: mapped for saved-slot unassign/`None` on one target.
 Capture:
 
 - `captures/ble/windows/2026-06-15-205659-profile-slot-unassign-none-pass-1/`
+- `captures/ble/windows/2026-06-15-210321-profile-active-slot-unassign-cycle-pass-1/`
 
 Setting an assigned saved/onboard slot to `None` in Synapse logged:
 
@@ -287,6 +288,33 @@ one non-lighting vendor operation in the actual 60-second capture window:
 The Synapse `deleteProfile(3)` event followed at `20:58:06.175`, about 181 ms
 after the BLE write.
 
+Active-target unassign capture:
+
+- Synapse logged `obmEngineMouse.deleteProfile(2)`.
+- The OBM profile list changed to `profileIdList":[1,4,5]` and
+  `numOfProfiles":3`.
+- The delete write was `03 06 02 00` with empty payload and status `02`.
+- No immediate replacement live projection was sent by the delete itself.
+
+After the active target was unassigned, pressing the physical profile button
+while Synapse was open produced Synapse software `navigateProfile` events. This
+path appears to cycle over a hybrid Synapse host profile list, not only the
+mouse's OBM/on-device `profileIdList`: it can select locally stored Synapse
+profiles, on-device-backed profiles, and stale host profiles that are no longer
+present in the OBM list. Observed post-delete selections included:
+
+| Rel s | GUID | Name |
+|---:|---|---|
+| `3.269` | `cbb11d67-38cd-46db-bc16-a95424aaee61` | `OPENSNEK_CAPTURE_1_foo` |
+| `5.903` | `a5c15916-b5fd-4f33-8408-d978cd3bf37c` | `OPENSNEK_RENAME_PROBE_1` |
+| `8.324` | `27530668-c3e2-4e0a-a06e-a4854383c4e9` | `OS_P4_RENAMED` |
+| `10.116` | `18f2a4cc-ecb8-4765-b532-9df401a686d6` | `OS_P5` |
+
+Treat those post-delete `navigateProfile` selections as Synapse host-state/UI
+behavior, not as authoritative onboard-cycle inventory. A firmware-only cycle
+test should be done with Synapse closed if we need to prove exactly what the
+mouse does without Synapse's software profile navigator.
+
 Current implementation guidance:
 
 - Treat saved-slot `None` as a target delete/unassign operation.
@@ -294,14 +322,20 @@ Current implementation guidance:
   the mouse's physical profile-cycle list.
 - After deletion, remove the target from OpenSnek's host profile inventory and
   do not include it when cycling profiles.
+- If the deleted target is active, `03 06` alone does not appear to force a
+  replacement live projection. OpenSnek should explicitly select/project a
+  remaining profile when it wants the active view to move immediately.
 - Do not infer target deletion from a Synapse rename alone. Synapse currently
   appears to have a UI/state bug where renaming can unassign a profile from a
-  saved slot while the physical profile button may still select that stale slot.
+  saved slot while the Synapse-handled physical profile button may still select
+  that stale host profile.
 
 Open questions:
 
-- Whether deleting the active target also changes the live projection target or
-  merely removes the stored target from the cycle list.
+- Whether the firmware's onboard cycle list, with Synapse closed, skips deleted
+  targets exactly as the OBM list implies. Captures with Synapse open include a
+  hybrid Synapse software `navigateProfile` path that can cycle across both
+  local/Synapse profiles and on-device-backed profiles.
 - Whether `03 06` clears target metadata/settings immediately or only removes
   the target from the onboard profile list; create captures suggest Synapse may
   later recycle and rewrite the same target.
