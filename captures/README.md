@@ -137,6 +137,21 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - Confirms that Synapse profile selection is active projection rather than passive inventory read. The wire trace shows DPI and button projection onto live target `1`, with stored/profile target candidates such as `08 04 02 04` and `08 04 03 05` appearing alongside live `08 04 01 <slot>` writes.
   - This capture backs the draft implementation model in `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
 
+- `ble/windows/2026-06-15-203420-profile-create-disposable-pass-1/`
+  - Windows BTVS/tshark capture of creating one disposable Basilisk V3 Pro Bluetooth profile in Synapse.
+  - Synapse created GUID `a5c15916-b5fd-4f33-8408-d978cd3bf37c`, first as `BRIAN-DESKTOP-Default 1`, then with user-supplied name `OPENSNEK_CREATE_PROBE_1`.
+  - Synapse mapped the new profile to OBM/profile target `2` and logged `obmEngineMouse.addProfile() profileId:2`.
+  - The wire trace shows the first capture-backed stored-profile create sequence:
+    - `03 06 02 00`
+    - `08 05 02 00`
+    - `01 8C 02 00`
+    - `08 07 02 00`
+    - `03 05 02 00`
+    - chunked metadata writes on `03 04 02 00`
+    - stored target DPI writes on `0B 01 02 00` and `0B 04 02 00`
+    - stored target brightness write on `10 05 02 00`
+  - This capture is the source for the create section of `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
+
 ## Notes
 
 - Captures are intentionally action-scoped for faster diffing.

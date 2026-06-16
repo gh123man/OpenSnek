@@ -10,6 +10,7 @@ All notable changes to this project are documented in this file.
 - Windows BTVS captures now also emit Synapse log correlation artifacts (`metadata.json`, `synapse-events.csv`, `synapse-events.md`, and `correlation.md`) so future reverse-engineering passes can jump from Synapse feature events to nearby BLE vendor exchanges automatically. The wrapper avoids stale listeners by choosing a fresh port when needed and uses faster request/notify matching for large captures.
 - Documented practical Windows BTVS capture usage, including idle baselines, focused feature passes, common script options, and the preferred artifact inspection order.
 - Added a draft Basilisk V3 Pro Bluetooth profile CRUD spec and a Windows profile-selection capture. The current model treats Synapse profile selection as active setting projection onto live target `1`, with stored/profile target bytes still marked research-only until create/update/delete captures are mapped.
+- Added a Windows profile-create capture for a disposable Basilisk V3 Pro Bluetooth profile. The draft spec now documents the observed target-`2` create flow, including `03 04` chunked GUID/name/owner metadata writes and stored-target DPI/brightness writes.
 
 ## [2026-05-17]
 

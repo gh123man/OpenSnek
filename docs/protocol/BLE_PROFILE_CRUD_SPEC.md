@@ -41,8 +41,14 @@ The Windows profile-inventory capture shows that UI profile selection logs
 | `08 05 <target> 00` | write | `00` | profile/apply control candidate |
 | `08 06 01 00` | write | `00` | profile/apply control candidate |
 | `08 07 <target> 00` | write/read-like ACK | `00`, response `50` | profile/apply control candidate |
+| `03 04 <target> 00` | write | chunked profile metadata | profile name/GUID/owner structure write |
+| `03 05 <target> 00` | write | none | profile metadata/apply candidate |
+| `03 06 <target> 00` | write | none | profile clear/delete/prepare candidate |
+| `0B 01 <target> 00` | write | 6-byte DPI scalar | stored/profile DPI scalar write candidate |
 | `0B 04 01 00` | write | 38-byte DPI table | live DPI projection |
+| `0B 04 <target> 00` | write | 38-byte DPI table | stored/profile DPI table write candidate |
 | `0B 84 01 00` | read | 36-byte DPI table | live DPI readback after projection |
+| `10 05 <target> 00` | write | brightness byte | stored/profile brightness write candidate |
 
 The `01 xx` and `08 05` / `08 06` / `08 07` families are still research-only.
 Do not ship writes to those keys until we safely probe them outside Synapse.
@@ -130,20 +136,80 @@ Current implementation direction:
 
 ## Create
 
-Status: not mapped.
+Status: mapped for one Synapse-created profile into stored/profile target `2`.
 
-Needed capture:
+Capture:
 
-- Create a new profile in Synapse, with no setting edits beyond whatever Synapse
-  does automatically.
-- Prefer starting from a known profile count and record the new GUID/name.
+- `captures/ble/windows/2026-06-15-203420-profile-create-disposable-pass-1/`
 
-Questions to answer:
+Synapse first created/activated a host profile:
 
-- Does Synapse allocate a new stored/profile target byte on the device?
-- Is there an explicit create/allocate command, or only host-side GUID creation
-  followed by writes to an existing target?
-- Are `08 05`, `08 06`, `08 07`, or `01 8C` involved in allocation?
+- GUID: `a5c15916-b5fd-4f33-8408-d978cd3bf37c`
+- Initial name: `BRIAN-DESKTOP-Default 1`
+- Final user-supplied name: `OPENSNEK_CREATE_PROBE_1`
+- OBM slot/profile ID: `2`
+- Owner hash: `31933b5452df5708882d4fb55d0b2905f16d829500fe936c56f98d5cd0241a76`
+
+Important Synapse log lines:
+
+- `obmEngineMouse.addProfile() profileId:2, guid:a5c15916-b5fd-4f33-8408-d978cd3bf37c, name:OPENSNEK_CREATE_PROBE_1`
+- `addProfileNameStructure profileId:2, guid:a5c15916-b5fd-4f33-8408-d978cd3bf37c, name:OPENSNEK_CREATE_PROBE_1`
+- `set OBM result ... slot":2,"guid":"a5c15916-b5fd-4f33-8408-d978cd3bf37c","name":"OPENSNEK_CREATE_PROBE_1"`
+
+Observed create/write sequence around the `addProfile` event:
+
+| Key | Len | Payload / response | Working role |
+|---|---:|---|---|
+| `03 06 02 00` | 0 | none | prepare/clear target `2` candidate |
+| `08 05 02 00` | 1 | `00` | profile/apply control candidate |
+| `01 8C 02 00` | 0 | response `01` | target `2` state check |
+| `08 07 02 00` | 1 | `00`, response `50` | profile/apply control candidate |
+| `03 05 02 00` | 0 | none | metadata/apply candidate |
+| `03 04 02 00` | 80/80/80/26 | chunked profile metadata | profile GUID/name/owner structure |
+| `0B 01 02 00` | 6 | `40 06 40 06 00 00` | stored target `2` current DPI scalar candidate (`1600`, `1600`) |
+| `0B 04 02 00` | 38 | DPI stage table | stored target `2` DPI stage table |
+| `08 05 02 00` | 1 | `00` | follow-up profile/apply control candidate |
+| `10 05 02 00` | 1 | `54` | stored target `2` brightness |
+
+### `03 04 <target> 00` Profile Metadata Chunks
+
+The create capture writes the profile metadata as four chunks to `03 04 02 00`.
+Each payload starts with:
+
+```text
+fa 00 <offset_le16> <data bytes...>
+```
+
+Observed offsets:
+
+- `0x0000`
+- `0x004C`
+- `0x0098`
+- `0x00E4`
+
+Reconstructed non-zero fields:
+
+| Offset | Length | Meaning |
+|---:|---:|---|
+| `0x0000` | 16 | GUID bytes, Windows/GUID little-endian layout: `a5c15916-b5fd-4f33-8408-d978cd3bf37c` |
+| `0x0010` | 22 | ASCII profile name: `OPENSNEK_CREATE_PROBE_1` |
+| `0x0074` | 64 | ASCII owner hash: `31933b5452df5708882d4fb55d0b2905f16d829500fe936c56f98d5cd0241a76` |
+
+The remaining observed bytes in the 247-byte reconstructed structure were zero
+padding in this capture. The fixed field sizes are not proven yet; treat the
+offsets and padding as capture-backed for this profile, not a finalized binary
+schema.
+
+Open questions:
+
+- Whether Synapse chose target `2` because it was the first recyclable/free OBM
+  slot, because a previous slot `2` profile was replaced, or because creation
+  always starts there in this state.
+- Whether `03 06 02 00` is a delete/clear/prepare command. Synapse logs mention
+  `obmEngineMouse.deleteProfile(2)` before the add completes, suggesting it may
+  clear the target before rewriting it.
+- Whether create without a rename prompt would write the same metadata once with
+  the default duplicated name.
 
 ## Update
 
