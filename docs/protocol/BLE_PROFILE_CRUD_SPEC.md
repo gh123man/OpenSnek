@@ -480,6 +480,7 @@ Synapse-closed Bluetooth cycle captures:
 - `captures/ble/windows/2026-06-15-215545-profile-bt-hardware-cycle-synapse-closed-pass-1/`
 - `captures/ble/windows/2026-06-15-222336-profile-cycle-event-driven-followup-read/`
 - `captures/ble/windows/2026-06-15-225000-profile-active-target0-dpi-surface/`
+- `captures/ble/windows/2026-06-15-224531-profile-synapse-startup-takeover-pass-1/`
 
 The user closed/crashed Synapse and pressed the physical profile button during
 60-second BTVS captures. The first capture contained no decoded BLE vendor
@@ -585,6 +586,66 @@ clarified that only stored slots `1` and `2` were intentionally mapped and slots
 `3`/`4` were unmapped, so treat that pass as consistent with unmapped slots
 being skipped or ignored rather than as a failure of the active-target model.
 
+Synapse startup takeover capture:
+
+The startup capture launched Synapse/AppEngine during a 60-second BTVS capture
+while the mouse was in Bluetooth mode. BTVS emitted some buffered packets with
+timestamps before the wrapper's `captureStart`; the analysis below filters to
+the actual wall-clock capture window only.
+
+Synapse logs first reported an active software profile:
+
+- `activeProfile: 18f2a4cc-ecb8-4765-b532-9df401a686d6`
+- name: `OS_P5`
+
+The matching in-window BLE traffic did not contain a simple profile-button
+binding rewrite such as `08 04 <target> 6A`. Instead, startup ownership looked
+like a profile/apply and projection sequence:
+
+| Rel s | Key | Payload / response | Working role |
+|---:|---|---|---|
+| `14.061` | `08 05 01 00` | write `00`, success | live target profile/apply control candidate |
+| `14.094` | `08 07 01 00` | write `00`, response `50` | live target profile/apply control candidate |
+| `14.122` | `08 06 01 00` | write `00`, success | live target profile/apply control candidate |
+| `14.147` | `0B 04 01 00` | table `100,100,100,100,800` | live DPI projection to target `1` / slot `0` |
+| `14.175` | `00 81 00 00` | response `02 32 03 00` | device/profile state read candidate |
+| `14.213` | `01 8C 01 00` | response `01` | live/stored target state check |
+| `14.350` | `08 05 01 00` | write `00`, success | repeated live apply |
+| `14.370` | `08 07 01 00` | write `00`, response `50` | repeated live apply |
+| `14.394` | `08 06 01 00` | write `00`, success | repeated live apply |
+| `14.470` | `0B 04 01 00` | table `100,100,100,100,800` | repeated live DPI projection |
+| `14.589` | `03 80 00 00` | response `01 02 03` | onboard profile list / target inventory candidate |
+| `14.670..14.972` | `03 84 02/03 00` | metadata chunks | profile metadata reads for stored targets |
+| `15.001..15.145` | `0B 81/84 01/02/03 00` | DPI scalar/table reads | live and stored DPI inspection |
+| `15.386..17.678` | `08 84 <target> <slot>` | button readbacks | button inventory reads for targets `1`, `2`, and `3`, including slot `0x6A` |
+| `17.783` | `08 04 01 01` | button write | live target button rewrite during startup mapping restore |
+| `17.880` | `08 04 01 05` | button write | live target Button5 rewrite |
+| `18.039` | `08 04 03 05` | button write | stored target `3` Button5 rewrite |
+
+Observed profile-button binding reads:
+
+| Key | Response payload | Interpretation |
+|---|---|---|
+| `08 84 01 6A` | `6A 00 12 12 01 01 01 01 00 00 00 00 00 00 00 00` | live target profile-button binding read |
+| `08 84 02 6A` | same shape | stored target `2` profile-button binding read |
+| `08 84 03 6A` | same shape | stored target `3` profile-button binding read |
+
+No `08 04 <target> 6A` write was observed in the filtered startup window. That
+means Synapse's "software takeover" of the physical profile button is not
+currently explained as a simple remap of slot `0x6A`. The most likely current
+model is:
+
+- Synapse starts by applying/projecting its selected software profile onto the
+  live target.
+- Synapse reads the hardware/profile-button binding and other button slots.
+- Profile-button ownership may be host-side event handling of the hardware
+  event stream, or a side effect of the `08 05` / `08 07` / `08 06` live apply
+  sequence, rather than a dedicated `0x6A` binding rewrite.
+
+OpenSnek should not copy this behavior by default. Firmware-first behavior means
+leaving hardware profile cycling alone and using passive HID hints plus
+`0B 82 00 00` active-DPI readback to refresh UI state.
+
 User observation during these passes:
 
 - In Bluetooth mode, the physical profile button does work as an onboard
@@ -634,6 +695,9 @@ Current implementation guidance:
 - If multiple stored slots have identical DPI tables, DPI-only identity is
   ambiguous. Add another fingerprint axis before claiming exact profile
   identity.
+- Do not send the Synapse startup takeover/apply sequence (`08 05` / `08 07` /
+  `08 06`) as part of normal OpenSnek profile monitoring. It appears tied to
+  Synapse software ownership and live projection.
 - Host-side cycling should be an explicit OpenSnek-owned mode, not the default
   behavior for onboard profile slots.
 - Do not infer target deletion from a Synapse rename alone. Synapse currently
@@ -650,6 +714,11 @@ Open questions:
 - Whether there is a direct active-slot/profile ID read. For now, profile
   identity is inferred by matching the active DPI table (`0B 82 00 00`) against
   stored target DPI tables.
+- Whether Synapse's startup `08 05` / `08 07` / `08 06` live apply sequence is
+  what disables firmware-visible profile-button cycling, or whether Synapse
+  simply handles a host HID event before firmware changes the onboard slot.
+  A focused "press profile button while Synapse is open" capture is still needed
+  to distinguish those possibilities.
 - Whether `03 06` clears target metadata/settings immediately or only removes
   the target from the onboard profile list; create captures suggest Synapse may
   later recycle and rewrite the same target.

@@ -260,6 +260,14 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - The later slot2-to-slot3 pass did not change active target `0`; the user clarified only slots `1` and `2` were intentionally mapped, so treat slots `3`/`4` as unmapped in this setup.
   - This capture backs the current event-driven UI model: HID hint detects the change, then `0B 82 00 00` identifies the active profile by matching active DPI stages against stored slot tables when those tables are unique.
 
+- `ble/windows/2026-06-15-224531-profile-synapse-startup-takeover-pass-1/`
+  - Windows BTVS/tshark capture of launching Synapse/AppEngine while the Basilisk V3 Pro was connected over Bluetooth.
+  - The pcap contains some buffered/stale BTVS traffic before the wrapper's wall-clock `captureStart`; `analysis.md` filters to the actual capture window.
+  - In-window startup traffic did not include an `08 04 <target> 6A` profile-button binding write.
+  - Synapse did read `08 84 <target> 6A` for live/stored targets and performed live target apply/projection traffic (`08 05 01 00`, `08 07 01 00`, `08 06 01 00`, `0B 04 01 00`) as it loaded the selected software profile.
+  - Current interpretation: Synapse's software takeover is likely host event ownership or a side effect of the live apply/projection sequence, not a simple profile-button remap write.
+  - This backs the firmware-first OpenSnek guidance: do not copy Synapse startup takeover behavior for profile monitoring.
+
 ## Notes
 
 - Captures are intentionally action-scoped for faster diffing.
