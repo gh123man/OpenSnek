@@ -340,11 +340,14 @@ Heartbeat notes:
 Profile-cycle notes:
 - `04 04 ...` followed by `05 05 39 ...` is capture-backed on Basilisk V3 Pro Bluetooth in firmware/onboard cycling mode with Synapse closed
 - no profile target ID has been decoded from these reports
-- use these reports to trigger an immediate live-state refresh/fingerprint, not to directly select a profile
+- use these reports to trigger an immediate one-shot live-state refresh/fingerprint, not to directly select a profile
+- this should be event-driven; do not continuously poll the current profile just to notice onboard profile-button changes
 
 Current app policy:
 - subscribe to passive HID DPI reports only on capture-validated Bluetooth profiles
 - treat passive Bluetooth heartbeat frames as stream-liveness only
+- treat passive Bluetooth profile-cycle reports as refresh hints only
+- after a profile-cycle hint, perform a debounced one-shot live-state read/fingerprint to identify the active profile
 - update cached `dpi.x/y` immediately from the HID report
 - recompute `active_stage` only when the reported DPI uniquely matches one cached stage value
 - keep Bluetooth fast DPI polling enabled until the first passive HID event is actually observed at runtime, then disable the fast-poll fallback for that device

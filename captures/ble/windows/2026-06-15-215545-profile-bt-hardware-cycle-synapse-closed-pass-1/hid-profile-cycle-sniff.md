@@ -28,6 +28,7 @@ Interpretation:
 - The first report was `04 04 00 00 00 00 00 00 00`.
 - The follow-up report was `05 05 39 00 00 00 00 00 00`, about 200 ms later.
 - These reports are a profile-cycle hint, not a decoded target/profile ID.
-- OpenSnek should use them to trigger an immediate live target `1`
-  fingerprint refresh, then match that live state against known onboard profile
-  snapshots.
+- OpenSnek should use them to trigger an immediate debounced, one-shot live
+  target `1` fingerprint refresh, then match that live state against known
+  onboard profile snapshots. This avoids continuous current-profile polling
+  while still updating the UI reactively.

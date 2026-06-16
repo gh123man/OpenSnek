@@ -514,8 +514,10 @@ Bluetooth HID collection with usage page `0x01`, usage `0x00`:
 | `3` | `04 04 00 00 00 00 00 00 00` | `05 05 39 00 00 00 00 00 00` | `0.203s` |
 
 Treat these passive HID reports as a firmware profile-cycle hint, not as a
-decoded active profile ID. OpenSnek can use them to refresh the UI immediately
-after onboard profile changes by polling/fingerprinting live target `1`.
+decoded active profile ID. This is enough for a real-time OpenSnek UI without
+continuous current-profile polling: the HID hint is the event, and OpenSnek
+should perform a small one-shot follow-up read/fingerprint of live target `1`
+only after that event arrives.
 
 User observation during these passes:
 
@@ -550,11 +552,14 @@ Current implementation guidance:
 - On Bluetooth, listen for passive HID profile-cycle hint reports such as
   `04 04 00 00 00 00 00 00 00` and `05 05 39 00 00 00 00 00 00` where the HID
   topology is capture-validated. Use them only as refresh triggers.
-- After a profile-cycle hint, poll/fingerprint live target `1` instead of
-  expecting the HID report to carry a target ID. Known fingerprint inputs are
-  the live DPI table (`0B 84 01 00`) and representative button mappings such as
-  slot `0x04` (`08 84 01 04`). Match those live values against OpenSnek's known
-  onboard profile snapshots to update the selected profile in the UI.
+- Do not continuously poll the current profile just to detect onboard
+  profile-button changes. The passive HID report is the detection path.
+- After a profile-cycle hint, perform a debounced, one-shot live-target `1`
+  fingerprint refresh instead of expecting the HID report to carry a target ID.
+  Known fingerprint inputs are the live DPI table (`0B 84 01 00`) and
+  representative button mappings such as slot `0x04` (`08 84 01 04`). Match
+  those live values against OpenSnek's known onboard profile snapshots to update
+  the selected profile in the UI.
 - Host-side cycling should be an explicit OpenSnek-owned mode, not the default
   behavior for onboard profile slots.
 - Do not infer target deletion from a Synapse rename alone. Synapse currently
@@ -566,8 +571,8 @@ Open questions:
 
 - Whether passive profile-cycle hint reports encode any additional state beyond
   "a profile-cycle event happened." The current Windows HID sniff did not decode
-  a target ID, so OpenSnek should poll/fingerprint live target `1` after the
-  hint.
+  a target ID, so OpenSnek should do a one-shot live target `1` fingerprint
+  refresh after the hint.
 - Whether `03 06` clears target metadata/settings immediately or only removes
   the target from the onboard profile list; create captures suggest Synapse may
   later recycle and rewrite the same target.

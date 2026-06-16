@@ -35,4 +35,6 @@ profile-button activity:
 See `hid-profile-cycle-sniff.md`. The HID sniff observed the useful signal:
 each physical press produced `04 04 00 00 00 00 00 00 00`, then
 `05 05 39 00 00 00 00 00 00` about 200 ms later. Treat those reports as
-profile-cycle refresh hints, not decoded target IDs.
+profile-cycle refresh hints, not decoded target IDs. They are enough to avoid
+continuous current-profile polling: use the hint as the event and perform a
+debounced one-shot live target `1` fingerprint refresh after it.
