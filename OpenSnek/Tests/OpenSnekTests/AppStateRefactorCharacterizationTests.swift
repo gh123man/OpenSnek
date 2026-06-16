@@ -3336,7 +3336,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(alphaReadCountAfterReselect, alphaReadCountAfterInitialHydration)
     }
 
-    func testOnboardProfileSelectionKeepsInactiveSelectionUntilHardwareActiveChanges() async throws {
+    func testOnboardProfileSelectionActivatesAndHardwareProfileChangesHydrateUI() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-selection-device",
             transport: .bluetooth,
@@ -3410,30 +3410,13 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         try await waitForRefactorCondition {
             await MainActor.run {
                 appState.editorStore.selectedOnboardProfileID == 2 &&
+                    appState.editorStore.onboardProfileSummaries.first(where: { $0.isActive })?.profileID == 2 &&
+                    appState.deviceStore.state?.active_onboard_profile == 2 &&
                     appState.editorStore.stagePair(0).x == 1200
             }
         }
-
-        await MainActor.run {
-            appState.editorController.hydrateEditable(
-                from: makeRefactorTestState(
-                    device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
-                )
-            )
-        }
-        let selectedAfterSameActiveHydration = await MainActor.run {
-            appState.editorStore.selectedOnboardProfileID
-        }
-        XCTAssertEqual(selectedAfterSameActiveHydration, 2)
+        let selectionActivations = await backend.recordedOnboardActivations()
+        XCTAssertEqual(selectionActivations.map(\.profileID), [2])
 
         await backend.holdOnboardProfileRead(deviceID: device.id, profileID: 3)
         await MainActor.run {
@@ -3553,12 +3536,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         try await waitForRefactorCondition {
             await MainActor.run {
                 appState.editorStore.onboardProfileSummaries.first(where: { $0.profileID == 2 })?.isAssigned == true &&
-                    appState.editorStore.onboardProfileSummaries.first(where: { $0.profileID == 2 })?.displayName == "Work"
+                    appState.editorStore.onboardProfileSummaries.first(where: { $0.profileID == 2 })?.displayName == "Work" &&
+                    appState.editorStore.onboardProfileSummaries.first(where: { $0.profileID == 2 })?.isActive == true &&
+                    appState.deviceStore.state?.active_onboard_profile == 2
             }
         }
 
         let creates = await backend.recordedOnboardCreates()
         XCTAssertEqual(creates.first?.targetProfileID, 2)
+        let activations = await backend.recordedOnboardActivations()
+        XCTAssertEqual(activations.map(\.profileID), [2])
         let listCountAfterCreate = await backend.onboardListCount(deviceID: device.id)
         XCTAssertEqual(listCountAfterCreate, 1)
         let errorMessage = await MainActor.run { appState.deviceStore.errorMessage }
@@ -3639,6 +3626,8 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         let profile2ReadCountAfterCachedSelect = await backend.onboardReadCount(deviceID: device.id, profileID: 2)
         XCTAssertEqual(profile2ReadCountAfterCachedSelect, 1)
         XCTAssertEqual(cachedStage, 1200)
+        let activations = await backend.recordedOnboardActivations()
+        XCTAssertEqual(activations.map(\.profileID), [2, 3, 2])
     }
 
     func testCreatingOnboardProfileCanCopyExistingSlot() async throws {
@@ -3721,6 +3710,8 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(create.mutation.staticColorByLEDID, sourceSnapshot.staticColorByLEDID)
         let sourceReadCount = await backend.onboardReadCount(deviceID: device.id, profileID: 3)
         XCTAssertEqual(sourceReadCount, 1)
+        let activations = await backend.recordedOnboardActivations()
+        XCTAssertEqual(activations.map(\.profileID), [2])
     }
 
     func testRenamingOnboardProfileUpdatesCachedSummaryWithoutRefreshingInventory() async throws {
@@ -3860,7 +3851,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(activations.map(\.profileID), [3])
     }
 
-    func testInactiveOnboardProfileDpiEditUpdatesStoredProfileOnly() async throws {
+    func testSelectedOnboardProfileDpiEditUpdatesActiveOnboardProfile() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-inactive-edit-device",
             transport: .usb,
@@ -3908,6 +3899,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         await appState.deviceStore.refreshDevices()
         await appState.editorStore.refreshOnboardProfiles()
         await appState.editorStore.selectOnboardProfile(2)
+        try await waitForRefactorCondition {
+            await MainActor.run {
+                appState.editorStore.onboardProfileSummaries.first(where: { $0.profileID == 2 })?.isActive == true &&
+                    appState.deviceStore.state?.active_onboard_profile == 2
+            }
+        }
         await MainActor.run {
             appState.editorStore.editableStageCount = 2
             appState.editorStore.editableStagePairs = [
@@ -3927,8 +3924,10 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         }
 
         let updates = await backend.recordedOnboardUpdates()
+        let activations = await backend.recordedOnboardActivations()
         let applyCount = await backend.applyCount()
         XCTAssertEqual(applyCount, 0)
+        XCTAssertEqual(activations.map(\.profileID), [2])
         XCTAssertEqual(updates.first?.profileID, 2)
         XCTAssertEqual(updates.first?.mutation.dpi?.pairs.map(\.x), [1500, 2600])
         XCTAssertEqual(updates.first?.mutation.dpi?.activeStage, 1)

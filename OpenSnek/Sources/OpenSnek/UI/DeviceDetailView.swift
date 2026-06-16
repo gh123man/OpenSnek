@@ -1938,12 +1938,6 @@ private struct OnboardProfileManagerCard: View {
                     createAction(selectedProfileID: selectedProfileID)
                 }
 
-                if selectedSummary.isAssigned {
-                    Text(editorStore.selectedOnboardProfileIsActive ? "Editing the active onboard profile" : "Editing a stored onboard profile")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.52))
-                }
-
                 if let statusLabel {
                     HStack(spacing: 8) {
                         ProgressView()
@@ -1994,36 +1988,17 @@ private struct OnboardProfileManagerCard: View {
                     .foregroundStyle(.white.opacity(0.52))
             }
             Spacer(minLength: 0)
-            if summary.isActive {
-                Text("active")
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color(hex: 0x30D158))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(
-                        Capsule()
-                            .fill(Color(hex: 0x30D158).opacity(0.14))
-                    )
-            }
         }
     }
 
     private func assignedActions(selectedProfileID: Int) -> some View {
         HStack(spacing: 8) {
             Button {
-                Task { await editorStore.activateOnboardProfile(selectedProfileID) }
-            } label: {
-                Label("Activate", systemImage: "checkmark.circle.fill")
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(isBusy || editorStore.selectedOnboardProfileIsActive)
-
-            Button {
                 Task { await editorStore.renameSelectedOnboardProfile(name: renameName) }
             } label: {
                 Label("Rename", systemImage: "pencil")
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderedProminent)
             .disabled(isBusy || selectedNameIsEmpty)
 
             Button {

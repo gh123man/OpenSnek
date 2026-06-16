@@ -1309,9 +1309,14 @@ final class AppStateEditorController {
                 bumpOnboardProfilesRevision()
                 return
             }
+            guard isOnboardProfileActive(deviceID: device.id, profileID: profileID) else {
+                await activateOnboardProfile(profileID)
+                return
+            }
             let snapshot = try await readAndCacheOnboardProfileSnapshot(device: device, profileID: profileID)
             selectedOnboardProfileIDByDeviceID[device.id] = profileID
             hydrateEditable(from: snapshot, device: device)
+            deviceStore.errorMessage = nil
             bumpOnboardProfilesRevision()
         } catch {
             deviceStore.errorMessage = "Failed to load onboard profile: \(error.localizedDescription)"
@@ -1358,8 +1363,15 @@ final class AppStateEditorController {
                 replaceAssignedProfile: false
             )
             cacheOnboardProfileSnapshot(snapshot, device: device)
-            selectedOnboardProfileIDByDeviceID[device.id] = snapshot.profileID
-            hydrateEditable(from: snapshot, device: device)
+            let state = try await environment.backend.activateOnboardProfile(device: device, profileID: snapshot.profileID)
+            let active = storeActiveOnboardProfileState(state, for: device, fallbackActiveProfileID: snapshot.profileID)
+            selectedOnboardProfileIDByDeviceID[device.id] = active
+            if active == snapshot.profileID {
+                hydrateEditable(from: snapshot, device: device)
+            } else {
+                let activeSnapshot = try await readAndCacheOnboardProfileSnapshot(device: device, profileID: active)
+                hydrateEditable(from: activeSnapshot, device: device)
+            }
             deviceStore.errorMessage = nil
             bumpOnboardProfilesRevision()
         } catch {

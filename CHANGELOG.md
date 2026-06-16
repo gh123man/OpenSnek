@@ -14,6 +14,7 @@ All notable changes to this project are documented in this file.
 ### Changed
 - Devices with multiple onboard profile slots now hide and ignore the legacy On Connect restore setting so profile-backed settings remain the source of truth.
 - Onboard profile slot selection now reuses in-memory profile snapshots during a connection instead of rereading a loaded slot on every click.
+- Selecting an assigned onboard profile now activates it immediately, and creating a profile activates the new slot.
 
 ### Fixed
 - Onboard profile create and rename now update the cached slot inventory immediately without a second full refresh, and deleting the active stored profile now activates the next assigned slot.
