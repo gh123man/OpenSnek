@@ -3559,6 +3559,10 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
 
         let creates = await backend.recordedOnboardCreates()
         XCTAssertEqual(creates.first?.targetProfileID, 2)
+        let listCountAfterCreate = await backend.onboardListCount(deviceID: device.id)
+        XCTAssertEqual(listCountAfterCreate, 1)
+        let errorMessage = await MainActor.run { appState.deviceStore.errorMessage }
+        XCTAssertNil(errorMessage)
         XCTAssertEqual(
             creates.first?.mutation.staticColorByLEDID,
             [
@@ -3719,6 +3723,143 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(sourceReadCount, 1)
     }
 
+    func testRenamingOnboardProfileUpdatesCachedSummaryWithoutRefreshingInventory() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-rename-device",
+            transport: .usb,
+            serial: "ONBOARD-RENAME-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1, 2],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(profileID: 2, name: "Stored 2", dpiValues: [1200, 2400]),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+        await appState.editorStore.selectOnboardProfile(2)
+
+        await appState.editorStore.renameSelectedOnboardProfile(name: "Renamed")
+
+        try await waitForRefactorCondition {
+            await MainActor.run {
+                appState.editorStore.selectedOnboardProfileName == "Renamed" &&
+                    appState.editorStore.onboardProfileSummaries.first(where: { $0.profileID == 2 })?.displayName == "Renamed"
+            }
+        }
+
+        let renames = await backend.recordedOnboardRenames()
+        XCTAssertEqual(renames.map(\.profileID), [2])
+        XCTAssertEqual(renames.first?.name, "Renamed")
+        let listCountAfterRename = await backend.onboardListCount(deviceID: device.id)
+        XCTAssertEqual(listCountAfterRename, 1)
+    }
+
+    func testDeletingActiveOnboardProfileActivatesNextAssignedSlot() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-delete-active-device",
+            transport: .usb,
+            serial: "ONBOARD-DELETE-ACTIVE-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 74,
+                    dpiValues: [1200, 2400],
+                    activeStage: 0,
+                    dpiValue: 1200,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 2,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 2,
+                maxProfileID: 5,
+                assignedProfileIDs: [1, 2, 3],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 3, name: "Stored 3", isActive: false),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(profileID: 2, name: "Stored 2", dpiValues: [1200, 2400]),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(profileID: 3, name: "Stored 3", dpiValues: [3200, 6400]),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+        await appState.editorStore.selectOnboardProfile(2)
+
+        await appState.editorStore.deleteSelectedOnboardProfile()
+
+        try await waitForRefactorCondition {
+            await MainActor.run {
+                appState.editorStore.selectedOnboardProfileID == 3 &&
+                    appState.editorStore.onboardProfileSummaries.first(where: { $0.profileID == 2 })?.isAssigned == false &&
+                    appState.editorStore.onboardProfileSummaries.first(where: { $0.profileID == 3 })?.isActive == true &&
+                    appState.deviceStore.state?.active_onboard_profile == 3 &&
+                    appState.editorStore.stageValue(0) == 3200
+            }
+        }
+
+        let deletes = await backend.recordedOnboardDeletes()
+        XCTAssertEqual(deletes.map(\.profileID), [2])
+        let activations = await backend.recordedOnboardActivations()
+        XCTAssertEqual(activations.map(\.profileID), [3])
+    }
+
     func testInactiveOnboardProfileDpiEditUpdatesStoredProfileOnly() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-inactive-edit-device",
@@ -3816,9 +3957,13 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
     private var fastReadCountByDeviceID: [String: Int] = [:]
     private var onboardInventoryByDeviceID: [String: OnboardProfileInventory] = [:]
     private var onboardSnapshotsByKey: [String: OnboardProfileSnapshot] = [:]
+    private var onboardListCountByDeviceID: [String: Int] = [:]
     private var onboardReadCountByKey: [String: Int] = [:]
     private var onboardUpdates: [(deviceID: String, profileID: Int, mutation: OnboardProfileMutation)] = []
     private var onboardCreates: [(deviceID: String, targetProfileID: Int?, mutation: OnboardProfileMutation)] = []
+    private var onboardRenames: [(deviceID: String, profileID: Int, name: String)] = []
+    private var onboardDeletes: [(deviceID: String, profileID: Int)] = []
+    private var onboardActivations: [(deviceID: String, profileID: Int)] = []
     private var heldOnboardProfileReads: Set<String> = []
     private var startedHeldOnboardProfileReads: Set<String> = []
     private var onboardProfileReadStartedContinuations: [String: CheckedContinuation<Void, Never>] = [:]
@@ -3926,6 +4071,11 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
     }
 
     func listOnboardProfiles(device: MouseDevice) async throws -> OnboardProfileInventory {
+        onboardListCountByDeviceID[device.id, default: 0] += 1
+        return currentOnboardInventory(for: device)
+    }
+
+    private func currentOnboardInventory(for device: MouseDevice) -> OnboardProfileInventory {
         if let inventory = onboardInventoryByDeviceID[device.id] {
             return inventory
         }
@@ -3965,7 +4115,7 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
         targetProfileID: Int?,
         replaceAssignedProfile: Bool
     ) async throws -> OnboardProfileSnapshot {
-        let inventory = try await listOnboardProfiles(device: device)
+        let inventory = currentOnboardInventory(for: device)
         let target = targetProfileID ?? inventory.assignableProfileIDs.first ?? 2
         guard target >= 2, target <= inventory.maxProfileID else {
             throw NSError(domain: "AppStateRefactorCharacterizationTests", code: 92, userInfo: [
@@ -4005,6 +4155,37 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
         return snapshot
     }
 
+    func renameOnboardProfile(device: MouseDevice, profileID: Int, name: String) async throws -> OnboardProfileSnapshot {
+        onboardRenames.append((device.id, profileID, name))
+        let current = try await readOnboardProfile(device: device, profileID: profileID)
+        let updated = OnboardProfileSnapshot(
+            profileID: profileID,
+            metadata: current.metadata.renamed(name),
+            dpi: current.dpi,
+            buttonBindings: current.buttonBindings,
+            brightnessByLEDID: current.brightnessByLEDID,
+            staticColorByLEDID: current.staticColorByLEDID
+        )
+        onboardSnapshotsByKey[onboardSnapshotKey(deviceID: device.id, profileID: profileID)] = updated
+        let inventory = currentOnboardInventory(for: device)
+        let summaries = inventory.profiles.filter { $0.profileID != profileID } + [
+            OnboardProfileSummary(
+                profileID: profileID,
+                metadata: updated.metadata,
+                isAssigned: true,
+                isActive: profileID == inventory.activeProfileID,
+                isBaseProfile: profileID == 1
+            )
+        ]
+        onboardInventoryByDeviceID[device.id] = OnboardProfileInventory(
+            activeProfileID: inventory.activeProfileID,
+            maxProfileID: inventory.maxProfileID,
+            assignedProfileIDs: inventory.assignedProfileIDs,
+            profiles: summaries
+        )
+        return updated
+    }
+
     func updateOnboardProfile(
         device: MouseDevice,
         profileID: Int,
@@ -4021,6 +4202,71 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
             staticColorByLEDID: mutation.staticColorByLEDID ?? current.staticColorByLEDID
         )
         onboardSnapshotsByKey[onboardSnapshotKey(deviceID: device.id, profileID: profileID)] = updated
+        return updated
+    }
+
+    func deleteOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileInventory {
+        onboardDeletes.append((device.id, profileID))
+        let inventory = currentOnboardInventory(for: device)
+        let assigned = inventory.assignedProfileIDs.filter { $0 != profileID }
+        let summaries = inventory.profiles.map { summary in
+            if summary.profileID == profileID {
+                return OnboardProfileSummary(
+                    profileID: profileID,
+                    metadata: nil,
+                    isAssigned: false,
+                    isActive: false,
+                    isBaseProfile: false
+                )
+            }
+            return OnboardProfileSummary(
+                profileID: summary.profileID,
+                metadata: summary.metadata,
+                isAssigned: summary.isAssigned,
+                isActive: summary.isActive && summary.profileID != profileID,
+                isBaseProfile: summary.isBaseProfile
+            )
+        }
+        let next = OnboardProfileInventory(
+            activeProfileID: inventory.activeProfileID,
+            maxProfileID: inventory.maxProfileID,
+            assignedProfileIDs: assigned,
+            profiles: summaries
+        )
+        onboardInventoryByDeviceID[device.id] = next
+        return next
+    }
+
+    func activateOnboardProfile(device: MouseDevice, profileID: Int) async throws -> MouseState {
+        let inventory = currentOnboardInventory(for: device)
+        guard inventory.assignedProfileIDs.contains(profileID) else {
+            throw NSError(domain: "AppStateRefactorCharacterizationTests", code: 94, userInfo: [
+                NSLocalizedDescriptionKey: "Profile \(profileID) is not assigned"
+            ])
+        }
+        onboardActivations.append((device.id, profileID))
+        let summaries = inventory.profiles.map { summary in
+            OnboardProfileSummary(
+                profileID: summary.profileID,
+                metadata: summary.metadata,
+                isAssigned: summary.isAssigned,
+                isActive: summary.profileID == profileID,
+                isBaseProfile: summary.isBaseProfile
+            )
+        }
+        onboardInventoryByDeviceID[device.id] = OnboardProfileInventory(
+            activeProfileID: profileID,
+            maxProfileID: inventory.maxProfileID,
+            assignedProfileIDs: inventory.assignedProfileIDs,
+            profiles: summaries
+        )
+        guard let current = stateByDeviceID[device.id] else {
+            throw NSError(domain: "AppStateRefactorCharacterizationTests", code: 95, userInfo: [
+                NSLocalizedDescriptionKey: "Missing state for \(device.id)"
+            ])
+        }
+        let updated = stateWithActiveOnboardProfile(profileID, from: current)
+        stateByDeviceID[device.id] = updated
         return updated
     }
 
@@ -4090,6 +4336,10 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
         onboardReadCountByKey[onboardSnapshotKey(deviceID: deviceID, profileID: profileID), default: 0]
     }
 
+    func onboardListCount(deviceID: String) -> Int {
+        onboardListCountByDeviceID[deviceID, default: 0]
+    }
+
     func holdOnboardProfileRead(deviceID: String, profileID: Int) {
         heldOnboardProfileReads.insert(onboardSnapshotKey(deviceID: deviceID, profileID: profileID))
     }
@@ -4119,12 +4369,46 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
         onboardCreates
     }
 
+    func recordedOnboardRenames() -> [(deviceID: String, profileID: Int, name: String)] {
+        onboardRenames
+    }
+
+    func recordedOnboardDeletes() -> [(deviceID: String, profileID: Int)] {
+        onboardDeletes
+    }
+
+    func recordedOnboardActivations() -> [(deviceID: String, profileID: Int)] {
+        onboardActivations
+    }
+
     private func buttonKey(deviceID: String, slot: Int, profile: Int) -> String {
         "\(deviceID)#\(slot)#\(profile)"
     }
 
     private func onboardSnapshotKey(deviceID: String, profileID: Int) -> String {
         "\(deviceID)#\(profileID)"
+    }
+
+    private func stateWithActiveOnboardProfile(_ profileID: Int, from current: MouseState) -> MouseState {
+        MouseState(
+            device: current.device,
+            connection: current.connection,
+            battery_percent: current.battery_percent,
+            charging: current.charging,
+            dpi: current.dpi,
+            dpi_stages: current.dpi_stages,
+            poll_rate: current.poll_rate,
+            sleep_timeout: current.sleep_timeout,
+            device_mode: current.device_mode,
+            low_battery_threshold_raw: current.low_battery_threshold_raw,
+            scroll_mode: current.scroll_mode,
+            scroll_acceleration: current.scroll_acceleration,
+            scroll_smart_reel: current.scroll_smart_reel,
+            active_onboard_profile: profileID,
+            onboard_profile_count: current.onboard_profile_count,
+            led_value: current.led_value,
+            capabilities: current.capabilities
+        )
     }
 
     private func stateApplying(_ patch: DevicePatch, to current: MouseState) -> MouseState {

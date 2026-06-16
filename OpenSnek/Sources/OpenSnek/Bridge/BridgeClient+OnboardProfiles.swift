@@ -79,11 +79,28 @@ extension BridgeClient {
                     profileID: target,
                     mutation: createMutation.withoutMetadata
                 )
-                let readbackInventory = try self.usbListOnboardProfiles(session, device, profile: profile)
-                guard readbackInventory.assignedProfileIDs.contains(target) else {
-                    throw BridgeError.commandFailed("USB onboard profile create readback did not list profile \(target).")
-                }
-                return try self.usbReadOnboardProfile(session, device, profile: profile, profileID: target)
+                _ = try self.retryUSBOnboardProfileReadback(
+                    device: device,
+                    operation: "USB onboard profile create inventory",
+                    failureMessage: "USB onboard profile create readback did not list profile \(target).",
+                    read: {
+                        try self.usbListOnboardProfiles(session, device, profile: profile)
+                    },
+                    accepts: { inventory in
+                        inventory.assignedProfileIDs.contains(target)
+                    }
+                )
+                return try self.retryUSBOnboardProfileReadback(
+                    device: device,
+                    operation: "USB onboard profile create snapshot",
+                    failureMessage: "USB onboard profile create snapshot readback failed for profile \(target).",
+                    read: {
+                        try self.usbReadOnboardProfile(session, device, profile: profile, profileID: target)
+                    },
+                    accepts: { snapshot in
+                        snapshot.profileID == target
+                    }
+                )
             }
         case .bluetooth:
             try await btCreateOnboardProfilePrelude(device: device, target: target)
@@ -94,11 +111,28 @@ extension BridgeClient {
                 target: target,
                 mutation: createMutation.withoutMetadata
             )
-            let readbackInventory = try await btListOnboardProfiles(device: device, profile: profile)
-            guard readbackInventory.assignedProfileIDs.contains(target) else {
-                throw BridgeError.commandFailed("Bluetooth onboard profile create readback did not list target \(target).")
-            }
-            return try await btReadOnboardProfile(device: device, profile: profile, target: target)
+            _ = try await retryOnboardProfileReadback(
+                device: device,
+                operation: "Bluetooth onboard profile create inventory",
+                failureMessage: "Bluetooth onboard profile create readback did not list target \(target).",
+                read: {
+                    try await self.btListOnboardProfiles(device: device, profile: profile)
+                },
+                accepts: { inventory in
+                    inventory.assignedProfileIDs.contains(target)
+                }
+            )
+            return try await retryOnboardProfileReadback(
+                device: device,
+                operation: "Bluetooth onboard profile create snapshot",
+                failureMessage: "Bluetooth onboard profile create snapshot readback failed for target \(target).",
+                read: {
+                    try await self.btReadOnboardProfile(device: device, profile: profile, target: target)
+                },
+                accepts: { snapshot in
+                    snapshot.profileID == target
+                }
+            )
         }
     }
 
@@ -115,11 +149,31 @@ extension BridgeClient {
         case .usb:
             return try await withUSBProfileSession(device: device) { session in
                 try self.usbWriteOnboardProfileMetadata(session, device, profileID: profileID, metadata: renamed)
-                return try self.usbReadOnboardProfile(session, device, profile: profile, profileID: profileID)
+                return try self.retryUSBOnboardProfileReadback(
+                    device: device,
+                    operation: "USB onboard profile rename",
+                    failureMessage: "USB onboard profile rename readback did not match profile \(profileID).",
+                    read: {
+                        try self.usbReadOnboardProfile(session, device, profile: profile, profileID: profileID)
+                    },
+                    accepts: { snapshot in
+                        snapshot.profileID == profileID && snapshot.metadata.name == renamed.name
+                    }
+                )
             }
         case .bluetooth:
             try await btWriteOnboardProfileMetadata(device: device, target: profileID, metadata: renamed)
-            return try await btReadOnboardProfile(device: device, profile: profile, target: profileID)
+            return try await retryOnboardProfileReadback(
+                device: device,
+                operation: "Bluetooth onboard profile rename",
+                failureMessage: "Bluetooth onboard profile rename readback did not match target \(profileID).",
+                read: {
+                    try await self.btReadOnboardProfile(device: device, profile: profile, target: profileID)
+                },
+                accepts: { snapshot in
+                    snapshot.profileID == profileID && snapshot.metadata.name == renamed.name
+                }
+            )
         }
     }
 
@@ -183,11 +237,17 @@ extension BridgeClient {
                       USBHIDProtocol.onboardProfileDeleteAccepted(from: response, profile: UInt8(profileID)) else {
                     throw BridgeError.commandFailed("USB onboard profile delete was rejected.")
                 }
-                let inventory = try self.usbListOnboardProfiles(session, device, profile: profile)
-                guard !inventory.assignedProfileIDs.contains(profileID) else {
-                    throw BridgeError.commandFailed("USB onboard profile delete readback still lists profile \(profileID).")
-                }
-                return inventory
+                return try self.retryUSBOnboardProfileReadback(
+                    device: device,
+                    operation: "USB onboard profile delete",
+                    failureMessage: "USB onboard profile delete readback still lists profile \(profileID).",
+                    read: {
+                        try self.usbListOnboardProfiles(session, device, profile: profile)
+                    },
+                    accepts: { inventory in
+                        !inventory.assignedProfileIDs.contains(profileID)
+                    }
+                )
             }
         case .bluetooth:
             let req = nextBTReq()
@@ -200,11 +260,17 @@ extension BridgeClient {
             guard btAckSuccess(notifies: notifies, req: req) else {
                 throw BridgeError.commandFailed("Bluetooth onboard profile delete was rejected.")
             }
-            let inventory = try await btListOnboardProfiles(device: device, profile: profile)
-            guard !inventory.assignedProfileIDs.contains(profileID) else {
-                throw BridgeError.commandFailed("Bluetooth onboard profile delete readback still lists target \(profileID).")
-            }
-            return inventory
+            return try await retryOnboardProfileReadback(
+                device: device,
+                operation: "Bluetooth onboard profile delete",
+                failureMessage: "Bluetooth onboard profile delete readback still lists target \(profileID).",
+                read: {
+                    try await self.btListOnboardProfiles(device: device, profile: profile)
+                },
+                accepts: { inventory in
+                    !inventory.assignedProfileIDs.contains(profileID)
+                }
+            )
         }
     }
 
@@ -321,6 +387,88 @@ extension BridgeClient {
             }
         }
         throw firstError ?? BridgeError.commandFailed("USB onboard profile operation failed.")
+    }
+
+    func retryUSBOnboardProfileReadback<T>(
+        device: MouseDevice,
+        operation: String,
+        failureMessage: String,
+        attempts: Int = 4,
+        read: () throws -> T,
+        accepts: (T) -> Bool
+    ) throws -> T {
+        var firstError: Error?
+        let totalAttempts = max(1, attempts)
+        for attempt in 0..<totalAttempts {
+            do {
+                let value = try read()
+                if accepts(value) {
+                    return value
+                }
+                if firstError == nil {
+                    firstError = BridgeError.commandFailed(failureMessage)
+                }
+                AppLog.debug(
+                    "Bridge",
+                    "\(operation) readback validation failed device=\(device.id) attempt=\(attempt + 1)/\(totalAttempts)"
+                )
+            } catch {
+                if firstError == nil {
+                    firstError = error
+                }
+                AppLog.debug(
+                    "Bridge",
+                    "\(operation) readback attempt \(attempt + 1)/\(totalAttempts) failed device=\(device.id): \(error.localizedDescription)"
+                )
+            }
+
+            if attempt + 1 < totalAttempts {
+                let backoffMs = UInt64(120 + (attempt * 120))
+                Thread.sleep(forTimeInterval: Double(backoffMs) / 1000.0)
+            }
+        }
+        throw firstError ?? BridgeError.commandFailed(failureMessage)
+    }
+
+    func retryOnboardProfileReadback<T>(
+        device: MouseDevice,
+        operation: String,
+        failureMessage: String,
+        attempts: Int = 4,
+        read: () async throws -> T,
+        accepts: (T) -> Bool
+    ) async throws -> T {
+        var firstError: Error?
+        let totalAttempts = max(1, attempts)
+        for attempt in 0..<totalAttempts {
+            do {
+                let value = try await read()
+                if accepts(value) {
+                    return value
+                }
+                if firstError == nil {
+                    firstError = BridgeError.commandFailed(failureMessage)
+                }
+                AppLog.debug(
+                    "Bridge",
+                    "\(operation) readback validation failed device=\(device.id) attempt=\(attempt + 1)/\(totalAttempts)"
+                )
+            } catch {
+                if firstError == nil {
+                    firstError = error
+                }
+                AppLog.debug(
+                    "Bridge",
+                    "\(operation) readback attempt \(attempt + 1)/\(totalAttempts) failed device=\(device.id): \(error.localizedDescription)"
+                )
+            }
+
+            if attempt + 1 < totalAttempts {
+                let backoffMs = UInt64(120 + (attempt * 120))
+                try? await Task.sleep(nanoseconds: backoffMs * 1_000_000)
+            }
+        }
+        throw firstError ?? BridgeError.commandFailed(failureMessage)
     }
 
     func usbListOnboardProfiles(

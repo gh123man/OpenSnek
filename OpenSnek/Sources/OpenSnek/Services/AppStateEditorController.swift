@@ -1128,6 +1128,38 @@ final class AppStateEditorController {
         )
     }
 
+    private func storeSelectedDeviceState(_ state: MouseState, for device: MouseDevice) -> MouseState {
+        let merged = state.merged(with: deviceStore.state)
+        guard deviceStore.selectedDeviceID == device.id else { return merged }
+        deviceStore.state = merged
+        deviceStore.lastUpdated = Date()
+        return merged
+    }
+
+    private func storeActiveOnboardProfileState(
+        _ state: MouseState,
+        for device: MouseDevice,
+        fallbackActiveProfileID: Int
+    ) -> Int {
+        let merged = storeSelectedDeviceState(state, for: device)
+        let active = merged.active_onboard_profile ?? fallbackActiveProfileID
+        updateCachedOnboardInventoryActiveProfile(deviceID: device.id, activeProfileID: active)
+        lastHardwareActiveOnboardProfileIDByDeviceID[device.id] = active
+        return active
+    }
+
+    private func isOnboardProfileActive(deviceID: String, profileID: Int) -> Bool {
+        if let inventory = onboardProfileInventoryByDeviceID[deviceID] {
+            return inventory.activeProfileID == profileID || inventory.summary(for: profileID)?.isActive == true
+        }
+        return deviceStore.state?.active_onboard_profile == profileID
+    }
+
+    private func nextAssignedOnboardProfile(afterDeleting profileID: Int, in inventory: OnboardProfileInventory) -> Int? {
+        let assigned = inventory.assignedProfileIDs.filter { $0 != profileID }.sorted()
+        return assigned.first(where: { $0 > profileID }) ?? assigned.first
+    }
+
     private func handleActiveOnboardProfilePresentation(from state: MouseState) {
         guard let device = deviceStore.selectedDevice,
               supportsOnboardProfileCRUD(device: device),
@@ -1234,7 +1266,7 @@ final class AppStateEditorController {
     func selectedOnboardProfileIsActive() -> Bool {
         guard let device = deviceStore.selectedDevice,
               let selected = selectedOnboardProfileID() else { return false }
-        return selected == (deviceStore.state?.active_onboard_profile ?? onboardProfileInventoryByDeviceID[device.id]?.activeProfileID)
+        return isOnboardProfileActive(deviceID: device.id, profileID: selected)
     }
 
     func refreshOnboardProfiles() async {
@@ -1290,11 +1322,12 @@ final class AppStateEditorController {
         guard !isTearingDown, let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return }
         do {
             let state = try await environment.backend.activateOnboardProfile(device: device, profileID: profileID)
-            selectedOnboardProfileIDByDeviceID[device.id] = profileID
-            hydrateEditable(from: state)
-            let snapshot = try await readAndCacheOnboardProfileSnapshot(device: device, profileID: profileID)
+            let active = storeActiveOnboardProfileState(state, for: device, fallbackActiveProfileID: profileID)
+            selectedOnboardProfileIDByDeviceID[device.id] = active
+            let snapshot = try await readAndCacheOnboardProfileSnapshot(device: device, profileID: active)
             hydrateEditable(from: snapshot, device: device)
-            await refreshOnboardProfiles()
+            deviceStore.errorMessage = nil
+            bumpOnboardProfilesRevision()
         } catch {
             deviceStore.errorMessage = "Failed to activate onboard profile: \(error.localizedDescription)"
         }
@@ -1327,8 +1360,8 @@ final class AppStateEditorController {
             cacheOnboardProfileSnapshot(snapshot, device: device)
             selectedOnboardProfileIDByDeviceID[device.id] = snapshot.profileID
             hydrateEditable(from: snapshot, device: device)
+            deviceStore.errorMessage = nil
             bumpOnboardProfilesRevision()
-            await refreshOnboardProfiles()
         } catch {
             deviceStore.errorMessage = "Failed to create onboard profile: \(error.localizedDescription)"
         }
@@ -1346,8 +1379,9 @@ final class AppStateEditorController {
                 name: name
             )
             cacheOnboardProfileSnapshot(snapshot, device: device)
+            selectedOnboardProfileIDByDeviceID[device.id] = selected
+            deviceStore.errorMessage = nil
             bumpOnboardProfilesRevision()
-            await refreshOnboardProfiles()
         } catch {
             deviceStore.errorMessage = "Failed to rename onboard profile: \(error.localizedDescription)"
         }
@@ -1360,13 +1394,43 @@ final class AppStateEditorController {
               let selected = selectedOnboardProfileID(),
               selected >= 2 else { return }
         do {
-            let inventory = try await environment.backend.deleteOnboardProfile(device: device, profileID: selected)
+            let wasActive = isOnboardProfileActive(deviceID: device.id, profileID: selected)
+            var inventory = try await environment.backend.deleteOnboardProfile(device: device, profileID: selected)
             onboardProfileInventoryByDeviceID[device.id] = inventory
             onboardProfileSnapshotsByKey.removeValue(forKey: onboardProfileSnapshotKey(device: device, profileID: selected))
+
+            var nextSelected: Int?
+            if wasActive {
+                nextSelected = nextAssignedOnboardProfile(afterDeleting: selected, in: inventory)
+            } else if inventory.assignedProfileIDs.contains(inventory.activeProfileID) {
+                nextSelected = inventory.activeProfileID
+            } else {
+                nextSelected = nextAssignedOnboardProfile(afterDeleting: selected, in: inventory)
+            }
+
+            if wasActive, let activationTarget = nextSelected {
+                let state = try await environment.backend.activateOnboardProfile(device: device, profileID: activationTarget)
+                let active = storeActiveOnboardProfileState(state, for: device, fallbackActiveProfileID: activationTarget)
+                nextSelected = active
+                let profiles = synthesizedOnboardProfileSummaries(from: inventory).map { summary in
+                    OnboardProfileSummary(
+                        profileID: summary.profileID,
+                        metadata: summary.metadata,
+                        isAssigned: summary.isAssigned,
+                        isActive: summary.profileID == active,
+                        isBaseProfile: summary.isBaseProfile
+                    )
+                }
+                inventory = OnboardProfileInventory(
+                    activeProfileID: active,
+                    maxProfileID: inventory.maxProfileID,
+                    assignedProfileIDs: inventory.assignedProfileIDs,
+                    profiles: profiles
+                )
+                onboardProfileInventoryByDeviceID[device.id] = inventory
+            }
+
             lastHardwareActiveOnboardProfileIDByDeviceID[device.id] = inventory.activeProfileID
-            let nextSelected = inventory.assignedProfileIDs.contains(inventory.activeProfileID)
-                ? inventory.activeProfileID
-                : inventory.assignedProfileIDs.first
             if let nextSelected {
                 selectedOnboardProfileIDByDeviceID[device.id] = nextSelected
                 if let snapshot = try? await readAndCacheOnboardProfileSnapshot(device: device, profileID: nextSelected) {
@@ -1375,6 +1439,7 @@ final class AppStateEditorController {
             } else {
                 selectedOnboardProfileIDByDeviceID.removeValue(forKey: device.id)
             }
+            deviceStore.errorMessage = nil
             bumpOnboardProfilesRevision()
         } catch {
             deviceStore.errorMessage = "Failed to delete onboard profile: \(error.localizedDescription)"
