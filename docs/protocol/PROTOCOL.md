@@ -9,8 +9,8 @@ For clarity, documentation is now split:
 
 - [USB Protocol](./USB_PROTOCOL.md)
 - [BLE Protocol Spec](./BLE_PROTOCOL.md)
-- [BLE Profile CRUD Draft](./BLE_PROFILE_CRUD_SPEC.md)
-- [USB Profile CRUD Draft](./USB_PROFILE_CRUD_SPEC.md)
+- [BLE Profile CRUD Spec](./BLE_PROFILE_CRUD_SPEC.md)
+- [USB Profile CRUD Spec](./USB_PROFILE_CRUD_SPEC.md)
 - [USB/BLE Parity](./PARITY.md)
 - [BLE Reverse Engineering Notes](../research/BLE_REVERSE_ENGINEERING.md)
 - [Basilisk V3 Pro BT Extended Notes](../research/BASILISK_V3_PRO_BT_EXTENDED.md)

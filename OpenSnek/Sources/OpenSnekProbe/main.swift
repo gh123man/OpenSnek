@@ -1924,7 +1924,12 @@ enum OpenSnekProbe {
             print(describeBTProfileDPIRead(read))
         }
 
-        let activePairs = dpiReads.first(where: { $0.target == 0x00 })?.pairs ?? []
+        let activePairs: [DpiPair]
+        if let activeDPIRead = dpiReads.first(where: { $0.target == 0x00 }) {
+            activePairs = activeDPIRead.pairs
+        } else {
+            activePairs = []
+        }
         let storedMatches = dpiReads
             .filter { $0.target >= 0x02 && !$0.pairs.isEmpty && $0.pairs == activePairs }
             .map(\.target)
