@@ -47,6 +47,14 @@ public enum BLEVendorProtocol {
             Key(b0: 0x03, b1: 0x82, b2: 0x00, b3: 0x00)
         }
 
+        public static func profileActiveTargetSet() -> Key {
+            Key(b0: 0x03, b1: 0x02, b2: 0x00, b3: 0x00)
+        }
+
+        public static func profileActiveTargetSetPayload(target: UInt8) -> Data {
+            Data([target])
+        }
+
         public static func profileMetadataGet(target: UInt8) -> Key {
             Key(b0: 0x03, b1: 0x84, b2: target, b3: 0x00)
         }

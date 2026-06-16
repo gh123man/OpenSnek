@@ -26,6 +26,8 @@ final class BLEVendorProtocolTests: XCTestCase {
     func testProfileTargetKeyBuilders() {
         XCTAssertEqual(BLEVendorProtocol.Key.profileTargetsGet().bytes, [0x03, 0x80, 0x00, 0x00])
         XCTAssertEqual(BLEVendorProtocol.Key.profileActiveTargetGet().bytes, [0x03, 0x82, 0x00, 0x00])
+        XCTAssertEqual(BLEVendorProtocol.Key.profileActiveTargetSet().bytes, [0x03, 0x02, 0x00, 0x00])
+        XCTAssertEqual(Array(BLEVendorProtocol.Key.profileActiveTargetSetPayload(target: 0x03)), [0x03])
         XCTAssertEqual(BLEVendorProtocol.Key.profileMetadataGet(target: 0x03).bytes, [0x03, 0x84, 0x03, 0x00])
         XCTAssertEqual(BLEVendorProtocol.Key.profileMetadataSet(target: 0x02).bytes, [0x03, 0x04, 0x02, 0x00])
         XCTAssertEqual(BLEVendorProtocol.Key.profileTargetDelete(target: 0x02).bytes, [0x03, 0x06, 0x02, 0x00])

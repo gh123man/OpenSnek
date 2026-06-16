@@ -104,6 +104,37 @@ enum OpenSnekProbe {
                 buttonSlots: parsed.buttonSlots,
                 includeLiveButtons: parsed.includeLiveButtons
             )
+        case "bt-profile-active-set":
+            let bridge = ProbeBridge()
+            let parsed = try parseBTProfileActiveSetArgs(Array(args.dropFirst()))
+            let readKey = BLEVendorProtocol.Key.profileActiveTargetGet().bytes
+            let before = try await bridge.rawRead(
+                key: readKey,
+                timeout: parsed.timeoutSeconds,
+                preferredPeripheralName: parsed.preferredPeripheralName
+            )
+            let write = try await bridge.rawWrite(
+                key: BLEVendorProtocol.Key.profileActiveTargetSet().bytes,
+                payload: BLEVendorProtocol.Key.profileActiveTargetSetPayload(target: parsed.target),
+                timeout: parsed.timeoutSeconds,
+                preferredPeripheralName: parsed.preferredPeripheralName
+            )
+            let after = try await bridge.rawRead(
+                key: readKey,
+                timeout: parsed.timeoutSeconds,
+                preferredPeripheralName: parsed.preferredPeripheralName
+            )
+            let beforeTarget = before.payload?.first
+            let afterTarget = after.payload?.first
+            print(
+                "bt-profile-active-set target=\(parsed.target) \(btProfileTargetLabel(parsed.target)) " +
+                "before=\(beforeTarget.map(String.init) ?? "nil") " +
+                "ack=\(describeBTAckStatus(write.ack)) " +
+                "after=\(afterTarget.map(String.init) ?? "nil")"
+            )
+            guard write.ack?.status == 0x02, afterTarget == parsed.target else {
+                throw ProbeError.protocolError("BT active-target selector did not select target \(parsed.target)")
+            }
         case "bt-profile-create":
             let bridge = ProbeBridge()
             let parsed = try parseBTProfileCreateArgs(Array(args.dropFirst()))
@@ -645,6 +676,7 @@ enum OpenSnekProbe {
           OpenSnekProbe bt-raw-read --key 10840000 [--name "BSK V3 PRO"] [--timeout-ms 600]
           OpenSnekProbe bt-raw-write --key 10040000 --payload 0400000000ff4010 [--name "BSK V3 PRO"] [--timeout-ms 900]
           OpenSnekProbe bt-profile-read [--stored-slots 1,2,3,4] [--button-slots 5,106] [--include-live-buttons on|off] [--name "BSK V3 PRO"]
+          OpenSnekProbe bt-profile-active-set --target 3 --yes [--name "BSK V3 PRO"]
           OpenSnekProbe bt-profile-create --stored-slot 1 --profile-name OPENSNEK_MAC_SLOT_1 --yes [--name "BSK V3 PRO"]
           OpenSnekProbe bt-profile-button-read --stored-slot 1 --button-slot 5 [--name "BSK V3 PRO"]
           OpenSnekProbe bt-profile-button-set --stored-slot 1 --button-slot 5 [--kind keyboard_simple] [--hid-key 0x09] [--project-live on|off] --yes [--name "BSK V3 PRO"]
@@ -915,6 +947,20 @@ enum OpenSnekProbe {
         let timeoutSeconds = max(0.1, Double(flags["--timeout-ms"] ?? "900").map { $0 / 1000.0 } ?? 0.9)
         let preferredPeripheralName = parsePeripheralName(flags["--name"])
         return (preferredPeripheralName, targets, buttonSlots, includeLiveButtons, timeoutSeconds)
+    }
+
+    private static func parseBTProfileActiveSetArgs(_ args: [String]) throws -> (preferredPeripheralName: String?, target: UInt8, timeoutSeconds: TimeInterval) {
+        let flags = parseFlags(args)
+        guard parseBoolean(flags["--yes"] ?? "off") else {
+            throw ProbeError.usage("bt-profile-active-set changes the hardware-active Bluetooth target; pass --yes to continue\n\(usageText)")
+        }
+        let target = try parseBTProfileTarget(flags: flags)
+        guard (0x01...0x05).contains(target) else {
+            throw ProbeError.usage("bt-profile-active-set targets known Bluetooth profile targets 1..5, not target \(target)")
+        }
+        let timeoutSeconds = max(0.1, Double(flags["--timeout-ms"] ?? "1200").map { $0 / 1000.0 } ?? 1.2)
+        let preferredPeripheralName = parsePeripheralName(flags["--name"])
+        return (preferredPeripheralName, target, timeoutSeconds)
     }
 
     private static func parseBTProfileCreateArgs(_ args: [String]) throws -> (preferredPeripheralName: String?, target: UInt8, guid: UUID, profileName: String, owner: String, values: [Int], active: Int, brightness: UInt8, timeoutSeconds: TimeInterval) {

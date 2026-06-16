@@ -192,7 +192,7 @@ therefore covered by this spec as product behavior.
 
 Not source-of-truth in Swift:
 - older Python tooling also contains additional candidate keys such as `05 82 00 00`, `05 02 00 00`, `01 82 00 00`, and `01 83 00 00`
-- Basilisk V3 Pro Bluetooth Windows Synapse captures now show research-only profile/projection traffic on `01 86 00 00`, `01 82 00 00`, `01 8C <target> 00`, `03 04 <target> 00`, `03 05 <target> 00`, `03 06 <target> 00`, `03 80 00 00`, `03 84 <target> 00`, `08 05 <target> 00`, `08 06 01 00`, and `08 07 <target> 00`; live macOS probing additionally validated `03 82 00 00` as the current active target read; see [BLE Profile CRUD Draft](./BLE_PROFILE_CRUD_SPEC.md) and [Basilisk V3 Pro BT Extended Notes](../research/BASILISK_V3_PRO_BT_EXTENDED.md)
+- Basilisk V3 Pro Bluetooth Windows Synapse captures now show research-only profile/projection traffic on `01 86 00 00`, `01 82 00 00`, `01 8C <target> 00`, `03 04 <target> 00`, `03 05 <target> 00`, `03 06 <target> 00`, `03 80 00 00`, `03 84 <target> 00`, `08 05 <target> 00`, `08 06 01 00`, and `08 07 <target> 00`; live macOS probing additionally validated `03 82 00 00` as the current active target read and `03 02 00 00` plus a one-byte target payload as the active target selector; see [BLE Profile CRUD Draft](./BLE_PROFILE_CRUD_SPEC.md) and [Basilisk V3 Pro BT Extended Notes](../research/BASILISK_V3_PRO_BT_EXTENDED.md)
 - those keys are intentionally omitted from the main spec because current Swift OpenSnek does not rely on them
 
 Capture-backed V3 Pro Bluetooth profile-cycle read candidates:
@@ -200,6 +200,7 @@ Capture-backed V3 Pro Bluetooth profile-cycle read candidates:
 | Feature | Read key | Payload shape | Status |
 |---|---|---|---|
 | Active profile target | `03 82 00 00` | 1-byte target ID | live macOS probe evidence, preferred active-profile read |
+| Active profile selector | write `03 02 00 00` | 1-byte target ID payload | target `3` ACKed and moved `03 82`; non-inventory target `2` rejected with status `0x03` |
 | Profile metadata UUID/name | `03 84 <target> 00` with 4-byte `<offset_le16><length_le16>` request payload | chunked metadata bytes | live macOS probe read back UUID/name for created targets `2` and `3` |
 | Hardware-active button binding | `08 84 00 <slot>` | 16-byte packed button readback | mirrors active stored target after firmware profile-cycle |
 | Stored profile brightness | read `10 85 <target> <led>`, write `10 05 <target> 00` | 1-byte brightness payload | live macOS stored-only update/readback validated on target `3` |
@@ -212,10 +213,13 @@ Capture-backed V3 Pro Bluetooth profile-cycle read candidates:
 | Stored target DPI scalar/stages/token | `0B 81/82/83 <target> 00`, targets `2..5` | same as active forms | research/probe evidence, useful for fingerprint matching |
 
 `03 82 00 00` is the current best path for event-driven V3 Pro Bluetooth
-profile UI refresh after a passive profile-button HID hint. The `0B 81/82/83`
-reads remain useful as validation/fallback surfaces and should move into
-product Swift only with tests and guarded device-profile support. After firmware
-cycling, target `0` reads are the active hardware surfaces for mapped setting
+profile UI refresh after a passive profile-button HID hint. `03 02 00 00`
+selects an assigned target directly when written with the target byte as its
+payload; the live probe selected target `3`, restored target `1`, and rejected
+non-inventory target `2` with status `0x03`. The `0B 81/82/83` reads remain
+useful as validation/fallback surfaces and should move into product Swift only
+with tests and guarded device-profile support. After firmware cycling or direct
+selection, target `0` reads are the active hardware surfaces for mapped setting
 families (`0B 81/82/83`, `08 84`, `10 85`, and `10 83`), while target `1`
 remains a separate live/projection bank.
 
@@ -407,6 +411,7 @@ Profile-monitoring implementation guidance:
 - treat passive Bluetooth profile-cycle reports as refresh hints only
 - after a profile-cycle hint, perform only bounded/event-scoped follow-up work; do not run a continuous current-profile polling loop
 - on the V3 Pro BT path, read `03 82 00 00` for the current active target
+- on the V3 Pro BT path, write `03 02 00 00` with a one-byte target payload to select an assigned/cycleable target, then confirm with `03 82 00 00`
 - use `0B 82 00 00` and stored target tables (`0B 82 02 00` through `0B 82 05 00`) only as validation/fallback when inventory-listed DPI tables are unique
 - prefer cycleable targets listed by `03 80 00 00` when matching active fingerprints; hidden/stale target banks can remain readable and may duplicate an active table
 - if multiple stored targets have identical DPI tables, mark the selected profile ambiguous until another fingerprint axis is available

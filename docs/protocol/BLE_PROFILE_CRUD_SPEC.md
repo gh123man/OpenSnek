@@ -25,6 +25,8 @@ What is now strong enough to build against experimentally:
 - stored target delete/unassign is `03 06 <target> 00` with an empty payload
 - target inventory has a strong read candidate: `03 80 00 00`
 - active target ID has a live-validated read: `03 82 00 00`
+- active target selection has a live-validated write: `03 02 00 00` with a
+  one-byte target payload
 - target metadata has a strong read candidate: `03 84 <target> 00` with
   offset/length payloads
 - button edits use the stored target first and then project to target `1`
@@ -41,7 +43,6 @@ What is now strong enough to build against experimentally:
 
 What is still not strong enough to ship by default:
 
-- a direct active profile selector write
 - complete create target allocation rules
 - a proven device-side rename/update path for existing profile metadata
 - exact behavior when multiple onboard slots have identical DPI fingerprints
@@ -82,6 +83,7 @@ The Windows profile-inventory capture shows that UI profile selection logs
 | `01 8C <target> 00` | read | `01` for observed targets | stored/profile target state candidate |
 | `03 80 00 00` | read | `01 02 03` in the filtered startup window | onboard target/profile list candidate |
 | `03 82 00 00` | read | one-byte target ID (`01`, `02`, `03` live-validated) | current active profile target |
+| `03 02 00 00` | write | one-byte target ID payload; target `3` ACKed, target `2` rejected with status `0x03` when not in `03 80` | active profile target selector |
 | `03 84 <target> 00` | read | offset/length request, chunked response | stored target metadata read candidate |
 | `08 04 <target> <slot>` | write | 10-byte button action payload | button binding for stored/profile target or live target |
 | `08 84 00 <slot>` | read | 16-byte packed button readback | hardware-active button binding after firmware profile cycling |
@@ -209,7 +211,7 @@ Implementation guidance:
 
 ## Activate / Select
 
-Status: projection behavior mapped; minimal activation command not mapped.
+Status: direct onboard selector and Synapse-style projection behavior mapped.
 
 Profile selection through Synapse appears to:
 
@@ -227,13 +229,16 @@ Profile selection through Synapse appears to:
 
 Current implementation direction:
 
-- First implementation can model "activate profile" as applying the stored
-  OpenSnek profile snapshot to live target `1`.
-- Do not assume a hidden BLE active-slot selector until a focused capture proves
-  one exists.
-- Firmware/onboard profile-button activation is a separate path: detect the
-  passive HID hint, then read `03 82 00 00` for the active target. Use
-  `0B 82 00 00` only as a fallback or validation fingerprint.
+- Prefer firmware/onboard activation by writing `03 02 00 00` with a one-byte
+  target payload for assigned targets, then read `03 82 00 00` for confirmation.
+- Treat rejected status `0x03` as "not assignable/cycleable in the current
+  inventory"; in the live probe, target `2` was readable but rejected because
+  it was not listed by `03 80`.
+- Synapse-style live projection remains useful for host-managed profile modes or
+  immediate edit preview, but it is not required to select the onboard target.
+- Firmware profile-button activation remains the passive path: detect the HID
+  hint, then read `03 82 00 00` for the active target. Use `0B 82 00 00` only as
+  a fallback or validation fingerprint.
 
 ## Create
 
@@ -1151,7 +1156,7 @@ stored-profile data.
 | Surface | Current scope | Evidence | Implementation guidance |
 |---|---|---|---|
 | Target inventory | Device profile list | `03 80 00 00` returns target bytes such as `01 02 03` | Use to discover cycleable/known targets; not a user setting. |
-| Active target | Device runtime pointer | `03 82 00 00` live-read `01`, `02`, and `03` as the firmware-selected target changed | Use after passive profile-button hints; not stored inside a profile. |
+| Active target | Device runtime pointer | `03 82 00 00` live-read `01`, `02`, and `03` as the firmware-selected target changed; `03 02 00 00` selected assigned target `3` and rejected non-inventory target `2` | Use after passive profile-button hints and after selector writes; not stored inside a profile. |
 | UUID/name/owner metadata | Stored target/profile | `03 84 <target> 00` read back the GUID/name written by `03 04 <target> 00` for targets `2` and `3` | Device-backed for created targets, but standalone rename remains unvalidated. |
 | DPI scalar/stage/token | Stored target plus hardware-active mirror | `0B 81/82/83 <target> 00` read stored targets; `0B 81/82/83 00 00` read the hardware-active surface | Read stored targets for hydration/fingerprint fallback. Use target `0` for firmware-active state after profile cycling; target `1` is projection. |
 | Button bindings | Stored target plus hardware-active mirror plus live projection | `08 84/08 04 <target> <slot>` works for stored targets; `08 84 00 <slot>` mirrors the active firmware target after cycling | Store per profile in OpenSnek; after profile-cycle, hydrate active state from target `0`. |
@@ -1175,7 +1180,7 @@ What we have is a set of profile-scoped surfaces:
 | Surface | Read | Write | Notes |
 |---|---|---|---|
 | Target inventory | `03 80 00 00` | not mapped | Returns cycleable/known target bytes such as `01 02 03`. |
-| Active target | `03 82 00 00` | not mapped | Preferred current-profile read after a profile-button HID hint. |
+| Active target | `03 82 00 00` | `03 02 00 00` + one-byte target payload | Preferred current-profile read after a profile-button HID hint; selector write ACKs assigned/cycleable targets. |
 | Hardware-active state | `0B 81/82/83 00 00`, `08 84 00 <slot>`, `10 85 00 <led>`, `10 83 00 <led>` | not mapped as a direct target | Mirrors the active firmware-selected target after profile cycling. |
 | Metadata UUID/name/owner | `03 84 <target> 00` + `<offset><length>` request payload | `03 04 <target> 00` chunk payloads | Device-backed for live-created targets `2` and `3`; standalone rename not validated. |
 | Stored DPI scalar/stages/token | `0B 81/82/83 <target> 00` | `0B 01 <target> 00`, `0B 04 <target> 00` | Stored-target writes validated as part of create/rewrite flows. |
@@ -1209,9 +1214,10 @@ Current OpenSnek app behavior:
   through target `1` `08 04 01 <slot>`.
 - The new profile CRUD surfaces are currently probe/documentation-backed. A
   future app implementation should use `03 82` for reactive active-profile UI,
-  `03 80`/`03 84` for inventory/identity hydration, target `0` reads to hydrate
-  active firmware-selected state, and stored target reads only when it needs to
-  hydrate a full stored profile snapshot.
+  `03 02` for explicit profile selection, `03 80`/`03 84` for inventory/identity
+  hydration, target `0` reads to hydrate active firmware-selected state, and
+  stored target reads only when it needs to hydrate a full stored profile
+  snapshot.
 
 ## OpenSnek Implementation Shape
 
@@ -1242,7 +1248,9 @@ Proposed behavior:
   00` for device-backed UUID/name metadata where available. Product UI should
   still reconcile against OpenSnek-owned host metadata until reconnect, target
   churn, and rename semantics are validated.
-- `activateProfile(id)` applies the stored snapshot to target `1`.
+- `activateProfile(id)` should write `03 02 00 00` with the target byte for
+  assigned/cycleable targets. Follow with `03 82 00 00` and target `0` reads to
+  hydrate the active state.
 - `updateProfile(id, changes)` updates OpenSnek storage and, if active, applies
   changed settings to target `1`.
 - Inactive profile edits in OpenSnek should update the host-side profile
@@ -1290,6 +1298,6 @@ confirms the remaining edge cases.
 5. Stored lighting remains partial. Brightness and static color now have
    target-scoped read/write paths and firmware-cycle application validation, but
    advanced/effect semantics are not mapped.
-6. `03 82 00 00` still needs reconnect/recreate validation before
-   shipping by default. DPI fingerprinting remains the fallback path and is only
-   usable when inventory-listed DPI tables are unique.
+6. Active target select/read should still get reconnect/power-cycle validation
+   before product UI enablement. DPI fingerprinting remains the fallback path
+   and is only usable when inventory-listed DPI tables are unique.
