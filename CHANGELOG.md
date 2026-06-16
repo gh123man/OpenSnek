@@ -16,6 +16,7 @@ All notable changes to this project are documented in this file.
 - Added a Windows saved-slot `None` capture for Basilisk V3 Pro Bluetooth. The draft spec now maps onboard profile unassign/delete to `03 06 <target> 00` and documents a Synapse rename/unassign UI caveat.
 - Added a Windows active saved-slot unassign plus physical-button capture. The draft spec now notes that `03 06` does not immediately project a replacement live profile, and that Synapse-handled profile-button navigation appears to cycle a hybrid local/on-device host profile list that can revisit stale profiles after OBM unassign.
 - Added a noisy Windows active saved-slot DPI update capture. The draft spec now records that Synapse used live target `1` (`0B 04 01 00`) for observed DPI edits/projections in that pass, while the only stored-target DPI table write belonged to a broader target add/rewrite, so clean active/inactive DPI captures are still required before implementing stored-slot DPI persistence.
+- Added a clean Windows active saved-slot DPI update capture. The draft spec now maps active saved/onboard DPI edits to live target `1` (`0B 04 01 00`) with no stored-target DPI table write observed, so OpenSnek should keep profile DPI persistence host-side until the inactive stored-target update path is captured.
 
 ## [2026-05-17]
 

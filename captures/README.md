@@ -196,6 +196,13 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - Later DPI edits/projections in the capture used live target `1` via `0B 04 01 00`, including observed tables with edited stages `7150` and `5250`.
   - This capture backs the noisy active saved-slot DPI update caveat in `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
 
+- `ble/windows/2026-06-15-213027-profile-active-saved-slot-dpi-update-clean-pass-1/`
+  - Windows BTVS/tshark capture of updating one DPI stage on the active saved/onboard profile `Brian's MacBook Pro (2)-Default`.
+  - Synapse identified GUID `26a33407-4094-469b-b3b1-f3caae38693b` with `"obmSlotId":[2]`.
+  - The actual DPI edit changed stage 1 from `400` to `7650` and changed the active stage token from `2` to `1`.
+  - The BLE write was live-only: `0B 04 01 00` with table `7650`, `800`, `1600`, `3200`, `6400`, followed by `0B 84 01 00` readback. No `0B 04 02 00` stored-target DPI table write occurred in this pass.
+  - This capture backs the active saved-slot DPI update section of `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
+
 ## Notes
 
 - Captures are intentionally action-scoped for faster diffing.
