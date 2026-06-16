@@ -25,6 +25,7 @@ final class AppStateEditorController {
     private var softwareActiveUSBButtonProfileOverrideByDeviceID: [String: Int] = [:]
     private var onboardProfileInventoryByDeviceID: [String: OnboardProfileInventory] = [:]
     private var onboardProfileSnapshotsByKey: [String: OnboardProfileSnapshot] = [:]
+    private var onboardProfileLightingColorsByDeviceID: [String: [String: RGBColor]] = [:]
     private var selectedOnboardProfileIDByDeviceID: [String: Int] = [:]
     private var lastHardwareActiveOnboardProfileIDByDeviceID: [String: Int] = [:]
     private var buttonWorkspaceEditRevision: UInt64 = 0
@@ -235,6 +236,9 @@ final class AppStateEditorController {
             guard let hydratedDeviceID = key.split(separator: "#").first else { return true }
             return !removedDeviceIDs.contains(String(hydratedDeviceID))
         }
+        onboardProfileLightingColorsByDeviceID = onboardProfileLightingColorsByDeviceID.filter { key, _ in
+            !removedDeviceIDs.contains(key)
+        }
         selectedOnboardProfileIDByDeviceID = selectedOnboardProfileIDByDeviceID.filter { key, _ in
             !removedDeviceIDs.contains(key)
         }
@@ -410,25 +414,7 @@ final class AppStateEditorController {
         isHydrating = true
         defer { isHydrating = false }
 
-        if let device = deviceStore.selectedDevice,
-           supportsOnboardProfileCRUD(device: device),
-           let active = state.active_onboard_profile {
-            let previousActive = lastHardwareActiveOnboardProfileIDByDeviceID[device.id]
-            let selected = selectedOnboardProfileIDByDeviceID[device.id]
-            let activeChanged = previousActive != nil && active != previousActive
-            let shouldFollowActive = selected == nil || selected == previousActive || activeChanged
-            if shouldFollowActive {
-                selectedOnboardProfileIDByDeviceID[device.id] = active
-            }
-            lastHardwareActiveOnboardProfileIDByDeviceID[device.id] = active
-            updateCachedOnboardInventoryActiveProfile(deviceID: device.id, activeProfileID: active)
-            bumpOnboardProfilesRevision()
-            if activeChanged, shouldFollowActive {
-                Task { @MainActor [weak self] in
-                    await self?.selectOnboardProfile(active)
-                }
-            }
-        }
+        handleActiveOnboardProfilePresentation(from: state)
 
         if let pairs = state.dpi_stages.pairs, !pairs.isEmpty {
             editorStore.editableStageCount = max(1, min(5, pairs.count))
@@ -503,6 +489,8 @@ final class AppStateEditorController {
         guard !isTearingDown else { return }
         isHydrating = true
         defer { isHydrating = false }
+
+        handleActiveOnboardProfilePresentation(from: state)
 
         if let active = state.dpi_stages.active_stage {
             let maxStage = max(1, editorStore.editableStageCount)
@@ -1119,6 +1107,30 @@ final class AppStateEditorController {
         )
     }
 
+    private func handleActiveOnboardProfilePresentation(from state: MouseState) {
+        guard let device = deviceStore.selectedDevice,
+              supportsOnboardProfileCRUD(device: device),
+              let active = state.active_onboard_profile else {
+            return
+        }
+        let previousActive = lastHardwareActiveOnboardProfileIDByDeviceID[device.id]
+        let selected = selectedOnboardProfileIDByDeviceID[device.id]
+        let activeChanged = previousActive != nil && active != previousActive
+        let shouldFollowActive = selected == nil || selected == previousActive || activeChanged
+        if shouldFollowActive {
+            selectedOnboardProfileIDByDeviceID[device.id] = active
+        }
+        lastHardwareActiveOnboardProfileIDByDeviceID[device.id] = active
+        updateCachedOnboardInventoryActiveProfile(deviceID: device.id, activeProfileID: active)
+        bumpOnboardProfilesRevision()
+        guard activeChanged, shouldFollowActive else { return }
+
+        applyController.cancelPendingLocalEditsForSelectionChange()
+        Task { @MainActor [weak self] in
+            await self?.selectOnboardProfile(active)
+        }
+    }
+
     private func synthesizedOnboardProfileSummaries(from inventory: OnboardProfileInventory) -> [OnboardProfileSummary] {
         (1...inventory.maxProfileID).map { profileID in
             if let summary = inventory.summary(for: profileID) {
@@ -1342,7 +1354,10 @@ final class AppStateEditorController {
                 profileID: selected,
                 mutation: mutation
             )
-            onboardProfileSnapshotsByKey[onboardProfileSnapshotKey(device: device, profileID: selected)] = snapshot
+            cacheOnboardProfileSnapshot(snapshot, device: device)
+            if selectedOnboardProfileIDByDeviceID[device.id] == selected {
+                hydrateEditableLighting(from: snapshot, device: device)
+            }
             if selectedOnboardProfileIsActive() {
                 _ = try await environment.backend.refreshActiveOnboardProfile(device: device)
             }
@@ -1399,24 +1414,95 @@ final class AppStateEditorController {
         return onboardProfileSnapshotsByKey[onboardProfileSnapshotKey(device: device, profileID: selected)]
     }
 
+    private func rgbColor(from patch: RGBPatch) -> RGBColor {
+        RGBColor(r: patch.r, g: patch.g, b: patch.b)
+    }
+
+    private func onboardProfileLightingZoneColors(from snapshot: OnboardProfileSnapshot, device: MouseDevice) -> [String: RGBColor] {
+        guard !snapshot.staticColorByLEDID.isEmpty else { return [:] }
+        let profile = resolvedDeviceProfile(for: device)
+        let targets = profile?.lightingTargets() ?? lightingLEDIDs(for: device).map { ledID in
+            USBLightingTargetDescriptor(
+                zoneID: String(format: "led_%02x", ledID),
+                zoneLabel: String(format: "LED 0x%02X", ledID),
+                ledID: ledID
+            )
+        }
+
+        var colors: [String: RGBColor] = [:]
+        for target in targets where colors[target.zoneID] == nil {
+            guard let patch = snapshot.staticColorByLEDID[Int(target.ledID)] else { continue }
+            colors[target.zoneID] = rgbColor(from: patch)
+        }
+        if colors.isEmpty, let first = snapshot.staticColorByLEDID.sorted(by: { $0.key < $1.key }).first {
+            colors["all"] = rgbColor(from: first.value)
+        }
+        return colors
+    }
+
+    private func hydrateEditableDPI(from dpi: OnboardDPIProfileSnapshot, device: MouseDevice) {
+        let sourcePairs = !dpi.pairs.isEmpty
+            ? dpi.pairs
+            : dpi.scalar.map { [$0] } ?? []
+        guard !sourcePairs.isEmpty else { return }
+
+        let count = max(1, min(5, sourcePairs.count))
+        var nextPairs = editorStore.editableStagePairs
+        for index in 0..<nextPairs.count where index < count {
+            let pair = sourcePairs[index]
+            nextPairs[index] = DpiPair(
+                x: DeviceProfiles.clampDPI(pair.x, device: device),
+                y: DeviceProfiles.clampDPI(pair.y, device: device)
+            )
+        }
+        editorStore.editableStageCount = count
+        editorStore.editableStagePairs = nextPairs
+        editorStore.editableActiveStage = max(1, min(count, (dpi.activeStage ?? 0) + 1))
+        editorStore.normalizeExpandedXYStages()
+    }
+
+    private func hydrateEditableLighting(from snapshot: OnboardProfileSnapshot, device: MouseDevice) {
+        if let brightness = snapshot.brightnessByLEDID.values.max() {
+            editorStore.editableLedBrightness = brightness
+        }
+
+        let zoneColors = onboardProfileLightingZoneColors(from: snapshot, device: device)
+        guard !zoneColors.isEmpty else {
+            onboardProfileLightingColorsByDeviceID.removeValue(forKey: device.id)
+            return
+        }
+
+        onboardProfileLightingColorsByDeviceID[device.id] = zoneColors
+        if !device.supports_advanced_lighting_effects {
+            editorStore.editableLightingEffect = .staticColor
+        }
+
+        let visibleZoneIDs = editorStore.visibleUSBLightingZones.map(\.id)
+        let currentZoneID = normalizedLightingZoneID(for: device, preferredZoneID: editorStore.editableUSBLightingZoneID)
+        let resolvedZoneID: String
+        if currentZoneID != "all", zoneColors[currentZoneID] != nil {
+            resolvedZoneID = currentZoneID
+        } else if let firstVisibleZoneID = visibleZoneIDs.first(where: { zoneColors[$0] != nil }) {
+            resolvedZoneID = firstVisibleZoneID
+        } else {
+            resolvedZoneID = "all"
+        }
+
+        editorStore.editableUSBLightingZoneID = resolvedZoneID
+        if let color = zoneColors[resolvedZoneID] ?? zoneColors["all"] ?? zoneColors.sorted(by: { $0.key < $1.key }).first?.value {
+            editorStore.editableColor = color
+        }
+        editorStore.noteLightingGradientColorsChanged()
+    }
+
     private func hydrateEditable(from snapshot: OnboardProfileSnapshot, device: MouseDevice) {
         isHydrating = true
         defer { isHydrating = false }
 
-        if let dpi = snapshot.dpi, !dpi.pairs.isEmpty {
-            editorStore.editableStageCount = max(1, min(5, dpi.pairs.count))
-            for index in 0..<editorStore.editableStagePairs.count where index < dpi.pairs.count {
-                editorStore.editableStagePairs[index] = dpi.pairs[index]
-            }
-            editorStore.editableActiveStage = max(1, min(editorStore.editableStageCount, (dpi.activeStage ?? 0) + 1))
-            editorStore.normalizeExpandedXYStages()
+        if let dpi = snapshot.dpi {
+            hydrateEditableDPI(from: dpi, device: device)
         }
-        if let brightness = snapshot.brightnessByLEDID.values.max() {
-            editorStore.editableLedBrightness = brightness
-        }
-        if let color = snapshot.staticColorByLEDID.values.first {
-            editorStore.editableColor = RGBColor(r: color.r, g: color.g, b: color.b)
-        }
+        hydrateEditableLighting(from: snapshot, device: device)
         editorStore.editableButtonBindings = snapshot.buttonBindings
         let hydrationKey = buttonBindingsHydrationKey(device: device, profile: max(1, snapshot.profileID))
         buttonBindingsCacheByHydrationKey[hydrationKey] = snapshot.buttonBindings
@@ -1670,10 +1756,14 @@ final class AppStateEditorController {
             for: selectedDevice,
             preferredZoneID: editorStore.editableUSBLightingZoneID
         )
+        let onboardProfileColors = onboardProfileLightingColorsByDeviceID[selectedDevice.id]
         let globalColor = loadPersistedLightingColor(device: selectedDevice)
         return editorStore.visibleUSBLightingZones.map { zone in
             if selectedZoneID != "all", zone.id == selectedZoneID {
                 return editorStore.editableColor
+            }
+            if let profileColor = onboardProfileColors?[zone.id] {
+                return profileColor
             }
             return loadPersistedLightingColor(device: selectedDevice, zoneID: zone.id)
                 ?? globalColor
@@ -1783,6 +1873,9 @@ final class AppStateEditorController {
                 resolvedZoneID = normalizedLightingZoneID(for: selectedDevice, preferredZoneID: zoneID)
             }
             if editorStore.editableLightingEffect == .staticColor,
+               let profileColor = onboardProfileLightingColorsByDeviceID[selectedDevice.id]?[resolvedZoneID] {
+                editorStore.editableColor = profileColor
+            } else if editorStore.editableLightingEffect == .staticColor,
                let persistedColor = loadPersistedLightingColor(device: selectedDevice, zoneID: resolvedZoneID) {
                 editorStore.editableColor = persistedColor
             }

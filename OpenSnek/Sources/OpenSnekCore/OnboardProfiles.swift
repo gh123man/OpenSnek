@@ -124,7 +124,7 @@ public struct OnboardProfileSnapshot: Codable, Hashable, Sendable {
         self.metadata = metadata
         self.dpi = dpi
         self.buttonBindings = buttonBindings
-        self.brightnessByLEDID = brightnessByLEDID.mapValues { max(0, min(100, $0)) }
+        self.brightnessByLEDID = brightnessByLEDID.mapValues { max(0, min(255, $0)) }
         self.staticColorByLEDID = staticColorByLEDID
     }
 
@@ -156,7 +156,7 @@ public struct OnboardProfileMutation: Codable, Hashable, Sendable {
         self.metadata = metadata
         self.dpi = dpi
         self.buttonBindings = buttonBindings
-        self.brightnessByLEDID = brightnessByLEDID?.mapValues { max(0, min(100, $0)) }
+        self.brightnessByLEDID = brightnessByLEDID?.mapValues { max(0, min(255, $0)) }
         self.staticColorByLEDID = staticColorByLEDID
     }
 

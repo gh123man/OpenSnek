@@ -3291,17 +3291,20 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
     func testOnboardProfileSelectionKeepsInactiveSelectionUntilHardwareActiveChanges() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-selection-device",
-            transport: .usb,
+            transport: .bluetooth,
             serial: "ONBOARD-SELECTION-\(UUID().uuidString)",
             onboardProfileCount: 5,
             profileID: .basiliskV3Pro
         )
+        let wheelColor = RGBColor(r: 10, g: 20, b: 30)
+        let logoColor = RGBColor(r: 40, g: 50, b: 60)
+        let underglowColor = RGBColor(r: 70, g: 80, b: 90)
         let backend = AppStateRefactorStubBackend(
             devices: [device],
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
+                    connection: "bluetooth",
                     batteryPercent: 74,
                     dpiValues: [800, 1600, 3200],
                     activeStage: 0,
@@ -3337,6 +3340,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 dpiValues: [3200, 6400],
                 buttonBindings: [
                     4: ButtonBindingDraft(kind: .mouseForward, hidKey: 4, turboEnabled: false, turboRate: 0x8E)
+                ],
+                brightnessByLEDID: [1: 220, 4: 220, 10: 220],
+                staticColorByLEDID: [
+                    1: RGBPatch(r: wheelColor.r, g: wheelColor.g, b: wheelColor.b),
+                    4: RGBPatch(r: logoColor.r, g: logoColor.g, b: logoColor.b),
+                    10: RGBPatch(r: underglowColor.r, g: underglowColor.g, b: underglowColor.b),
                 ]
             ),
             forDeviceID: device.id
@@ -3360,7 +3369,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             appState.editorController.hydrateEditable(
                 from: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
+                    connection: "bluetooth",
                     batteryPercent: 74,
                     dpiValues: [800, 1600, 3200],
                     activeStage: 0,
@@ -3378,10 +3387,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(selectedAfterSameActiveHydration, 2)
 
         await MainActor.run {
-            appState.editorController.hydrateEditable(
-                from: makeRefactorTestState(
+            appState.applyController.markLocalEditsPending()
+            appState.deviceController.applyBackendDeviceStateUpdate(
+                deviceID: device.id,
+                state: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
+                    connection: "bluetooth",
                     batteryPercent: 74,
                     dpiValues: [3200, 6400],
                     activeStage: 1,
@@ -3390,7 +3401,8 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                     sleepTimeout: 300,
                     activeOnboardProfile: 3,
                     onboardProfileCount: 5
-                )
+                ),
+                updatedAt: Date()
             )
         }
 
@@ -3398,6 +3410,11 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             await MainActor.run {
                 appState.editorStore.selectedOnboardProfileID == 3 &&
                     appState.editorStore.onboardProfileSummaries.first(where: { $0.isActive })?.profileID == 3 &&
+                    appState.editorStore.stageValue(0) == 3200 &&
+                    appState.editorStore.stageValue(1) == 6400 &&
+                    appState.editorStore.editableLedBrightness == 220 &&
+                    appState.editorStore.editableColor == wheelColor &&
+                    appState.editorStore.lightingGradientDisplayColors == [wheelColor, logoColor, underglowColor] &&
                     appState.editorStore.buttonBindingKind(for: 4) == .mouseForward
             }
         }
@@ -3969,7 +3986,9 @@ private func makeRefactorOnboardProfileSnapshot(
     activeStage: Int = 0,
     buttonBindings: [Int: ButtonBindingDraft] = [
         4: ButtonBindingDraft(kind: .rightClick, hidKey: 4, turboEnabled: false, turboRate: 0x8E)
-    ]
+    ],
+    brightnessByLEDID: [Int: Int] = [1: 64, 4: 64, 10: 64],
+    staticColorByLEDID: [Int: RGBPatch] = [:]
 ) -> OnboardProfileSnapshot {
     let pairs = dpiValues.map { DpiPair(x: $0, y: $0) }
     return OnboardProfileSnapshot(
@@ -3981,8 +4000,8 @@ private func makeRefactorOnboardProfileSnapshot(
             pairs: pairs
         ),
         buttonBindings: buttonBindings,
-        brightnessByLEDID: [1: 64, 4: 64, 10: 64],
-        staticColorByLEDID: [:]
+        brightnessByLEDID: brightnessByLEDID,
+        staticColorByLEDID: staticColorByLEDID
     )
 }
 
