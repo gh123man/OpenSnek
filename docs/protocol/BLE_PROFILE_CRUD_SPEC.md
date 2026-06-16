@@ -474,14 +474,50 @@ behavior, not as authoritative onboard-cycle inventory. A firmware-only cycle
 test should be done with Synapse closed if we need to prove exactly what the
 mouse does without Synapse's software profile navigator.
 
-Synapse-closed Bluetooth cycle capture:
+Synapse-closed Bluetooth cycle captures:
 
 - `captures/ble/windows/2026-06-15-214518-profile-synapse-closed-physical-cycle-pass-1/`
+- `captures/ble/windows/2026-06-15-215545-profile-bt-hardware-cycle-synapse-closed-pass-1/`
 
-The user closed/crashed Synapse and pressed the physical profile button during a
-60-second BTVS capture. The capture contained no decoded BLE vendor writes or
-notify responses, and no matching Synapse events occurred in the capture window.
-User observation during this pass:
+The user closed/crashed Synapse and pressed the physical profile button during
+60-second BTVS captures. The first capture contained no decoded BLE vendor
+writes or notify responses, and no matching Synapse events occurred in the
+capture window. During the second capture, the user confirmed that the bottom
+LED advanced, so the mouse did perform a firmware/onboard profile cycle.
+
+Important timing note for the second capture: `summary.md` lists three decoded
+vendor reads (`01 86 00 00`, `01 90 00 01`, `05 81 00 01`), but absolute
+packet timestamps place those frames before the wrapper's `captureStart`. Treat
+them as buffered/stale BTVS traffic, not as in-window profile-cycle behavior.
+In the actual 60-second window, no decoded vendor write/read/notify identified
+the new active profile.
+
+BTVS did show malformed/short ATT notifications on handle `0x001b` during the
+wall-clock capture window. These clustered near the button-press activity but
+BTVS did not expose payload bytes:
+
+| Cluster | Count | Start | End | Duration |
+|---:|---:|---|---|---:|
+| `1` | `21` | `21:55:57.009` | `21:55:57.196` | `0.187s` |
+| `2` | `73` | `21:56:01.608` | `21:56:02.289` | `0.681s` |
+| `3` | `122` | `21:56:08.164` | `21:56:09.969` | `1.805s` |
+
+Companion Windows HID sniffing of the Basilisk V3 Pro Bluetooth HID collections
+captured a clearer passive signal. With Synapse closed, three physical
+profile-button presses produced exactly two 9-byte reports per press on the
+Bluetooth HID collection with usage page `0x01`, usage `0x00`:
+
+| Press | First report | Follow-up report | Gap |
+|---:|---|---|---:|
+| `1` | `04 04 00 00 00 00 00 00 00` | `05 05 39 00 00 00 00 00 00` | `0.201s` |
+| `2` | `04 04 00 00 00 00 00 00 00` | `05 05 39 00 00 00 00 00 00` | `0.203s` |
+| `3` | `04 04 00 00 00 00 00 00 00` | `05 05 39 00 00 00 00 00 00` | `0.203s` |
+
+Treat these passive HID reports as a firmware profile-cycle hint, not as a
+decoded active profile ID. OpenSnek can use them to refresh the UI immediately
+after onboard profile changes by polling/fingerprinting live target `1`.
+
+User observation during these passes:
 
 - In Bluetooth mode, the physical profile button does work as an onboard
   firmware profile switch when the mouse is not connected to Synapse.
@@ -511,6 +547,14 @@ Current implementation guidance:
 - On Bluetooth and USB, OpenSnek should prefer the firmware/onboard profile
   cycle behavior. Do not copy Synapse's software interception of the physical
   profile button by default.
+- On Bluetooth, listen for passive HID profile-cycle hint reports such as
+  `04 04 00 00 00 00 00 00 00` and `05 05 39 00 00 00 00 00 00` where the HID
+  topology is capture-validated. Use them only as refresh triggers.
+- After a profile-cycle hint, poll/fingerprint live target `1` instead of
+  expecting the HID report to carry a target ID. Known fingerprint inputs are
+  the live DPI table (`0B 84 01 00`) and representative button mappings such as
+  slot `0x04` (`08 84 01 04`). Match those live values against OpenSnek's known
+  onboard profile snapshots to update the selected profile in the UI.
 - Host-side cycling should be an explicit OpenSnek-owned mode, not the default
   behavior for onboard profile slots.
 - Do not infer target deletion from a Synapse rename alone. Synapse currently
@@ -520,10 +564,10 @@ Current implementation guidance:
 
 Open questions:
 
-- Whether the host can passively observe firmware profile changes in Bluetooth
-  mode without polling/fingerprinting live target `1`. The Synapse-closed
-  capture produced no decoded vendor profile-cycle traffic, even though the
-  physical button can cycle onboard profiles when Synapse is not connected.
+- Whether passive profile-cycle hint reports encode any additional state beyond
+  "a profile-cycle event happened." The current Windows HID sniff did not decode
+  a target ID, so OpenSnek should poll/fingerprint live target `1` after the
+  hint.
 - Whether `03 06` clears target metadata/settings immediately or only removes
   the target from the onboard profile list; create captures suggest Synapse may
   later recycle and rewrite the same target.

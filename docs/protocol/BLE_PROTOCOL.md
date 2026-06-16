@@ -310,6 +310,8 @@ Observed passive frame shapes in the existing Python HID sniff path and live mac
 ```text
 05 05 02 <x_hi> <x_lo> <y_hi> <y_lo> ...
 05 05 10 00 00 00 00 00 00
+04 04 00 00 00 00 00 00 00
+05 05 39 00 00 00 00 00 00
 ```
 
 Where:
@@ -317,13 +319,16 @@ Where:
 - second `0x05`: duplicated report ID on the current hidapi path
 - `0x02`: DPI subtype
 - `0x10`: heartbeat/status subtype
+- `0x39`: Basilisk V3 Pro Bluetooth profile-cycle/status subtype observed after a physical onboard profile-button press
 - X/Y DPI are big-endian 16-bit values
+- `04 04 ...`: Basilisk V3 Pro Bluetooth profile-cycle hint report observed immediately before `05 05 39 ...`
 
 Observed V3 Pro Bluetooth examples:
 - `05 05 02 03 84 03 84 00 00` -> `900 / 900 DPI`
 - `05 05 02 07 D0 07 D0 00 00` -> `2000 / 2000 DPI`
 - `05 05 02 04 4C 04 4C 00 00` -> `1100 / 1100 DPI`
 - `05 05 10 00 00 00 00 00 00` -> heartbeat / stream-alive status frame, not a DPI payload
+- `04 04 00 00 00 00 00 00 00`, then `05 05 39 00 00 00 00 00 00` about 200 ms later -> physical onboard profile-button press with Synapse closed; use as a refresh hint, not as a decoded profile ID
 
 OpenSnek's parser also accepts `05 02 ...` and `02 ...` report prefixes because macOS `IOHIDDeviceRegisterInputReportCallback` can normalize away one or both leading report-ID bytes. That normalization detail is an inference from current host behavior, not a separate wire-format claim.
 
@@ -331,6 +336,11 @@ Heartbeat notes:
 - the `0x10` subtype is useful as a liveness signal for the passive Bluetooth HID stream
 - it does not encode a DPI change and should not be treated as a DPI-bearing frame
 - OpenSnek uses heartbeat to distinguish `HID stream active` from `waiting for first DPI event`, while still treating only subtype `0x02` as a DPI update
+
+Profile-cycle notes:
+- `04 04 ...` followed by `05 05 39 ...` is capture-backed on Basilisk V3 Pro Bluetooth in firmware/onboard cycling mode with Synapse closed
+- no profile target ID has been decoded from these reports
+- use these reports to trigger an immediate live-state refresh/fingerprint, not to directly select a profile
 
 Current app policy:
 - subscribe to passive HID DPI reports only on capture-validated Bluetooth profiles

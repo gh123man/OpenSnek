@@ -233,6 +233,15 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - OpenSnek should prefer firmware/onboard profile cycling by default and treat Synapse's software takeover as a vendor UI behavior, not the target model.
   - This capture backs the Synapse-closed Bluetooth physical-cycle note in `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
 
+- `ble/windows/2026-06-15-215545-profile-bt-hardware-cycle-synapse-closed-pass-1/`
+  - Windows BTVS/tshark capture of three Basilisk V3 Pro Bluetooth physical profile-button presses with Synapse closed.
+  - User confirmed the bottom LED advanced during the pass, so the mouse performed firmware/onboard profile cycling.
+  - Absolute timestamp filtering shows the decoded vendor reads in `summary.md` were buffered/stale frames from before `captureStart`; no in-window BLE vendor profile-cycle write/read/notify identified the new active profile.
+  - BTVS showed in-window malformed/short notifications on handle `0x001b` clustered near the button activity, but without exposed payload bytes.
+  - A companion Windows HID sniff observed two 9-byte passive reports per physical press on the Bluetooth HID collection with usage page `0x01`, usage `0x00`: `04 04 00 00 00 00 00 00 00`, then about 200 ms later `05 05 39 00 00 00 00 00 00`.
+  - Use those HID reports as profile-cycle refresh hints only; the active profile still needs to be inferred by polling/fingerprinting live target `1`.
+  - This capture backs the firmware-first Bluetooth profile-cycle hint notes in `docs/protocol/BLE_PROFILE_CRUD_SPEC.md` and `docs/protocol/BLE_PROTOCOL.md`.
+
 ## Notes
 
 - Captures are intentionally action-scoped for faster diffing.
