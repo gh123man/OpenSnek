@@ -494,10 +494,11 @@ Client note:
 - On the attached Basilisk V3 35K, brightness reads on `0x0F:0x84` succeed for both storage `0x00` and `0x01`. Treat lighting the same way as DPI until proven otherwise: a separate live/persisted layer, not a slot-addressed onboard-profile store.
 - On the attached Basilisk V3 Pro on June 16, 2026, brightness reads on `0x0F:0x84` succeeded for storage/profile IDs `0..5` and all validated LED IDs. Storage `3` returned `0x60`, matching the Bluetooth-recreated target-`3` profile, while the other banks returned `0x54`. Treat brightness as profile-scoped on this device. Changed-value `0x0F:0x04` stored-bank write/readback with restore is validated on profile `5`, and those values persisted across USB reconnect. Cross-transport readback and power-cycle persistence still need guarded validation before shipping.
 
-#### Set Scroll LED Effects
+#### Get/Set Scroll LED Effects
 ```
-Command:  Class 0x0F, ID 0x02, Size varies
-Common:   [0] = VARSTORE (0x01), [1] = LED ID (0x01 scroll wheel), [2] = effect id
+Get:      Class 0x0F, ID 0x82, Size 0x0C
+Set:      Class 0x0F, ID 0x02, Size varies
+Common:   [0] = storage/profile ID, [1] = LED ID, [2] = effect id
 ```
 
 Observed-working payload families:
@@ -509,6 +510,13 @@ Observed-working payload families:
 - breath random: `01 01 02 00 00 00`
 - breath single: `01 01 02 01 00 01 <R> <G> <B>`
 - breath dual: `01 01 02 02 00 02 <R1> <G1> <B1> <R2> <G2> <B2>`
+
+Validated on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
+- `0x0F:0x82`, size `0x0C`, args `<profile> <led> 00 00 00 00 00 00 00 00 00 00` returns a 12-byte effect-state payload for profile IDs `0..5` and LED IDs `0x01`, `0x04`, and `0x0A`.
+- static-color readback shape: `00 <led> 01 00 00 01 <R> <G> <B> 00 00 00`. The first response byte stayed `00` even for stored profile reads; use the requested profile plus the LED echo, not that storage echo, to associate the response.
+- assigned stored profile `2` accepted per-zone static-color writes through `0x0F:0x02`, size `0x09`, payload `<profile> <led> 01 00 00 01 <R> <G> <B>`.
+- after selecting profile `2` with `0x05:0x04`, effective profile `0` returned the same per-zone static colors through `0x0F:0x82`; selecting profile `1` restored effective profile `0` to profile `1`'s static red state.
+- non-static payloads are readable raw effect state. OpenSnek currently decodes/writes static colors in onboard profile snapshots and leaves non-static effect editing outside the v1 profile CRUD model.
 
 ---
 
@@ -641,7 +649,7 @@ Client note:
 
 Unresolved:
 - power-cycle and cross-transport persistence for full create/rename/delete flows
-- static/effect lighting, macro, and any other Synapse-only per-profile surfaces
+- non-static effect payload editing, macro, and any other Synapse-only per-profile surfaces
 
 ### RGB Lighting (Class 0x0F)
 

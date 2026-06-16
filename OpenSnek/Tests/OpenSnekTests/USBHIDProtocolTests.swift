@@ -1,5 +1,6 @@
 import XCTest
 import Foundation
+import OpenSnekCore
 import OpenSnekProtocols
 
 final class USBHIDProtocolTests: XCTestCase {
@@ -108,6 +109,57 @@ final class USBHIDProtocolTests: XCTestCase {
         response[0] = 0x02
 
         XCTAssertEqual(USBHIDProtocol.onboardProfileCount(from: response), 0x02)
+    }
+
+    func testProfileLightingEffectReadAndStaticWriteArgs() {
+        XCTAssertEqual(
+            USBHIDProtocol.profileLightingEffectReadArgs(profile: 0x02, ledID: 0x0A),
+            [0x02, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        )
+        XCTAssertEqual(
+            USBHIDProtocol.profileLightingStaticColorSetArgs(
+                profile: 0x02,
+                ledID: 0x04,
+                color: RGBPatch(r: 0x23, g: 0x45, b: 0x67)
+            ),
+            [0x02, 0x04, 0x01, 0x00, 0x00, 0x01, 0x23, 0x45, 0x67]
+        )
+    }
+
+    func testProfileLightingEffectStateParsesStaticColorReadback() throws {
+        var response = USBHIDProtocol.createReport(
+            txn: 0x1F,
+            classID: 0x0F,
+            cmdID: 0x82,
+            size: 0x0C,
+            args: [0x00, 0x04, 0x01, 0x00, 0x00, 0x01, 0x23, 0x45, 0x67, 0x00, 0x00, 0x00]
+        )
+        response[0] = 0x02
+
+        let state = try XCTUnwrap(USBHIDProtocol.profileLightingEffectState(from: response, expectedLEDID: 0x04))
+
+        XCTAssertEqual(state.storageEcho, 0x00)
+        XCTAssertEqual(state.ledID, 0x04)
+        XCTAssertEqual(state.effectID, 0x01)
+        XCTAssertEqual(state.staticColor, RGBPatch(r: 0x23, g: 0x45, b: 0x67))
+        XCTAssertNil(USBHIDProtocol.profileLightingEffectState(from: response, expectedLEDID: 0x01))
+    }
+
+    func testProfileLightingEffectStateKeepsNonStaticPayloadRaw() throws {
+        var response = USBHIDProtocol.createReport(
+            txn: 0x1F,
+            classID: 0x0F,
+            cmdID: 0x82,
+            size: 0x0C,
+            args: [0x00, 0x01, 0x03, 0x01, 0x28, 0x01, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00]
+        )
+        response[0] = 0x02
+
+        let state = try XCTUnwrap(USBHIDProtocol.profileLightingEffectState(from: response, expectedLEDID: 0x01))
+
+        XCTAssertEqual(state.effectID, 0x03)
+        XCTAssertEqual(state.payload, [0x00, 0x01, 0x03, 0x01, 0x28, 0x01, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00])
+        XCTAssertNil(state.staticColor)
     }
 
     func testOnboardProfileMetadataChunkParsesEchoedHeaderAndData() {

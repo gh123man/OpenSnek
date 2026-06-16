@@ -223,24 +223,8 @@ final class AppStateApplyController {
     }
 
     func applyLedColor() async {
-        if let selectedDevice = deviceStore.selectedDevice,
-           selectedDevice.transport == .bluetooth,
-           supportsOnboardProfileCRUD(device: selectedDevice) {
-            let colors = Dictionary(
-                uniqueKeysWithValues: onboardProfileLEDIDs(for: selectedDevice).map { ledID in
-                    (
-                        Int(ledID),
-                        RGBPatch(
-                            r: editorStore.editableColor.r,
-                            g: editorStore.editableColor.g,
-                            b: editorStore.editableColor.b
-                        )
-                    )
-                }
-            )
-            if await editorController.applyOnboardProfileMutationForCurrentSelection(
-                OnboardProfileMutation(staticColorByLEDID: colors)
-            ) {
+        if let selectedDevice = deviceStore.selectedDevice {
+            if await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice) {
                 return
             }
         }
@@ -263,7 +247,14 @@ final class AppStateApplyController {
         guard let selectedDevice = deviceStore.selectedDevice else { return }
         if !selectedDevice.supports_advanced_lighting_effects {
             editorStore.editableLightingEffect = .staticColor
+            if await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice) {
+                return
+            }
             enqueueApply(DevicePatch(ledRGB: RGBPatch(r: editorStore.editableColor.r, g: editorStore.editableColor.g, b: editorStore.editableColor.b)))
+            return
+        }
+        if editorStore.editableLightingEffect == .staticColor,
+           await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice) {
             return
         }
         enqueueApply(
@@ -290,6 +281,11 @@ final class AppStateApplyController {
 
         cancelScheduledApply(for: .ledColor)
         cancelScheduledApply(for: .lightingEffect)
+
+        if let selectedDevice = deviceStore.selectedDevice,
+           await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice) {
+            return
+        }
 
         if deviceStore.selectedDevice?.supports_advanced_lighting_effects == true {
             enqueueApply(DevicePatch(lightingEffect: editorController.currentLightingEffectPatch()))
@@ -420,6 +416,31 @@ final class AppStateApplyController {
             transport: device.transport
         )?.allUSBLightingLEDIDs ?? [0x01]
         return ids.isEmpty ? [0x01] : ids
+    }
+
+    private func currentStaticOnboardProfileColors(for device: MouseDevice) -> [Int: RGBPatch] {
+        Dictionary(
+            uniqueKeysWithValues: onboardProfileLEDIDs(for: device).map { ledID in
+                (
+                    Int(ledID),
+                    RGBPatch(
+                        r: editorStore.editableColor.r,
+                        g: editorStore.editableColor.g,
+                        b: editorStore.editableColor.b
+                    )
+                )
+            }
+        )
+    }
+
+    private func applyCurrentStaticOnboardProfileColorsIfSupported(for device: MouseDevice) async -> Bool {
+        guard supportsOnboardProfileCRUD(device: device),
+              (editorStore.editableLightingEffect == .staticColor || !device.supports_advanced_lighting_effects) else {
+            return false
+        }
+        return await editorController.applyOnboardProfileMutationForCurrentSelection(
+            OnboardProfileMutation(staticColorByLEDID: currentStaticOnboardProfileColors(for: device))
+        )
     }
 
     private func shouldTreatCurrentSourceAsExactMouseSlot(device: MouseDevice) -> Int? {

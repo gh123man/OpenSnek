@@ -3469,6 +3469,11 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         }
         await appState.deviceStore.refreshDevices()
         await appState.editorStore.refreshOnboardProfiles()
+        let profileColor = RGBColor(r: 18, g: 52, b: 86)
+        await MainActor.run {
+            appState.editorStore.editableLightingEffect = .staticColor
+            appState.editorStore.editableColor = profileColor
+        }
 
         let initialSummaries = await MainActor.run { appState.editorStore.onboardProfileSummaries }
         XCTAssertEqual(initialSummaries.map(\.profileID), [1, 2, 3, 4, 5])
@@ -3492,6 +3497,14 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
 
         let creates = await backend.recordedOnboardCreates()
         XCTAssertEqual(creates.first?.targetProfileID, 2)
+        XCTAssertEqual(
+            creates.first?.mutation.staticColorByLEDID,
+            [
+                1: RGBPatch(r: profileColor.r, g: profileColor.g, b: profileColor.b),
+                4: RGBPatch(r: profileColor.r, g: profileColor.g, b: profileColor.b),
+                10: RGBPatch(r: profileColor.r, g: profileColor.g, b: profileColor.b),
+            ]
+        )
     }
 
     func testInactiveOnboardProfileDpiEditUpdatesStoredProfileOnly() async throws {

@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Added
 - Added mapped onboard profile CRUD support for validated Basilisk V3 Pro USB and Bluetooth devices, including inventory-backed list/read/create/rename/update/delete/activate flows, metadata UUID/name/owner handling, mapped DPI/button/brightness profile snapshots, and Bluetooth profile static-color snapshots.
+- Added USB onboard profile static-color snapshots and writes for validated Basilisk V3 Pro devices, using `0F:82` readback and `0F:02` static-color writes so USB profile changes can rehydrate the lighting color UI.
 - Added passive profile-cycle HID handling for Basilisk V3 Pro USB and Bluetooth so OpenSnek can refresh the active onboard profile from the direct active-profile register and update the UI without fingerprinting the whole device configuration.
 
 ## [2026-06-15]

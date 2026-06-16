@@ -1390,13 +1390,16 @@ final class AppStateEditorController {
                 (Int(ledID), editorStore.editableLedBrightness)
             }
         )
-        let colors: [Int: RGBPatch] = device.transport == .bluetooth
-            ? Dictionary(
+        let colors: [Int: RGBPatch]
+        if editorStore.editableLightingEffect == .staticColor || !device.supports_advanced_lighting_effects {
+            colors = Dictionary(
                 uniqueKeysWithValues: lightingLEDIDs(for: device).map { ledID in
                     (Int(ledID), RGBPatch(r: editorStore.editableColor.r, g: editorStore.editableColor.g, b: editorStore.editableColor.b))
                 }
             )
-            : [:]
+        } else {
+            colors = [:]
+        }
         return OnboardProfileMutation(
             metadata: metadata,
             dpi: OnboardDPIProfileSnapshot(
@@ -1408,7 +1411,7 @@ final class AppStateEditorController {
             ),
             buttonBindings: editorStore.editableButtonBindings,
             brightnessByLEDID: brightness,
-            staticColorByLEDID: colors
+            staticColorByLEDID: colors.isEmpty ? nil : colors
         )
     }
 

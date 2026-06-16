@@ -377,13 +377,14 @@ extension BridgeClient {
         let dpi = try usbReadOnboardProfileDPI(session, device, profileID: profileID)
         let bindings = try usbReadOnboardProfileButtons(session, device, profile: profile, profileID: profileID)
         let brightness = try usbReadOnboardProfileBrightness(session, device, profileID: profileID)
+        let colors = try usbReadOnboardProfileStaticColors(session, device, profileID: profileID)
         return OnboardProfileSnapshot(
             profileID: profileID,
             metadata: metadata,
             dpi: dpi,
             buttonBindings: bindings,
             brightnessByLEDID: brightness,
-            staticColorByLEDID: [:]
+            staticColorByLEDID: colors
         )
     }
 
@@ -550,6 +551,35 @@ extension BridgeClient {
         return values
     }
 
+    func usbReadOnboardProfileStaticColors(
+        _ session: USBHIDControlSession,
+        _ device: MouseDevice,
+        profileID: Int
+    ) throws -> [Int: RGBPatch] {
+        var values: [Int: RGBPatch] = [:]
+        for ledID in usbLightingLEDIDs(for: device) {
+            guard let response = try perform(
+                session,
+                device,
+                classID: 0x0F,
+                cmdID: 0x82,
+                size: 0x0C,
+                args: USBHIDProtocol.profileLightingEffectReadArgs(
+                    profile: UInt8(profileID),
+                    ledID: ledID
+                ),
+                allowTxnRescan: true
+            ), let state = USBHIDProtocol.profileLightingEffectState(
+                from: response,
+                expectedLEDID: ledID
+            ), let color = state.staticColor else {
+                continue
+            }
+            values[Int(ledID)] = color
+        }
+        return values
+    }
+
     func usbApplyOnboardProfileMutation(
         _ session: USBHIDControlSession,
         _ device: MouseDevice,
@@ -600,6 +630,25 @@ extension BridgeClient {
                     args: [UInt8(profileID), UInt8(ledID), UInt8(max(0, min(255, brightness)))]
                 ), response[0] == 0x02 else {
                     throw BridgeError.commandFailed("USB onboard profile brightness write failed for LED \(ledID).")
+                }
+            }
+        }
+        if let colors = mutation.staticColorByLEDID {
+            for (ledID, color) in colors {
+                let args = USBHIDProtocol.profileLightingStaticColorSetArgs(
+                    profile: UInt8(profileID),
+                    ledID: UInt8(ledID),
+                    color: color
+                )
+                guard let response = try perform(
+                    session,
+                    device,
+                    classID: 0x0F,
+                    cmdID: 0x02,
+                    size: UInt8(args.count),
+                    args: args
+                ), response[0] == 0x02 else {
+                    throw BridgeError.commandFailed("USB onboard profile static color write failed for LED \(ledID).")
                 }
             }
         }

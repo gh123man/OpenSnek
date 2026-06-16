@@ -114,6 +114,7 @@ Read the mapped profile snapshot by combining these surfaces:
 | DPI stages | `04:86`, size `26` | `<profile> ...` |
 | Button binding | `02:8C`, size `0A` | `<profile> <slot> <hypershift> 00 00 00 00 00 00 00` |
 | Brightness | `0F:84`, size `03` | `<profile> <led> 00` |
+| Static/effect state | `0F:82`, size `0C` | `<profile> <led> 00 00 00 00 00 00 00 00 00 00` |
 
 Profile `0` reads the effective active state. Profiles `1..5` read profile
 banks whether or not they are assigned.
@@ -132,7 +133,8 @@ Validated transaction:
 3. Write DPI stages, then DPI scalar
 4. Write mapped button bindings
 5. Write brightness values
-6. Read back inventory, metadata, and every written content surface
+6. Write static-color values when the source lighting mode is static
+7. Read back inventory, metadata, and every written content surface
 ```
 
 `05:02` can initialize or disturb existing bank content. Treat create as
@@ -144,7 +146,8 @@ The profile is valid only after readback succeeds:
 - `05:81` contains `profile`.
 - `05:04 <profile>` succeeds, or the client deliberately skips selector probing.
 - `05:88` returns the requested UUID/name.
-- DPI, button bindings, and brightness match the requested content.
+- DPI, button bindings, brightness, and static colors match the requested
+  content.
 
 ### `renameProfile(profile, metadata)`
 
@@ -177,6 +180,7 @@ surface:
 | DPI stages | `04:06`, size `26` | `<profile> <active_stage_id> <count> <rows...>` |
 | Button binding | `02:0C`, size `0A` | `<profile> <slot> <hypershift> <7-byte function block>` |
 | Brightness | `0F:04`, size `03` | `<profile> <led> <brightness>` |
+| Static color | `0F:02`, size `09` | `<profile> <led> 01 00 00 01 <R> <G> <B>` |
 
 When writing both DPI stages and DPI scalar, write stages first and scalar
 second. A stage-table write can re-project the scalar readback to the selected
@@ -303,11 +307,44 @@ Validated V3 Pro LED IDs:
 0a underglow
 ```
 
-### Static/Effects
+### Static Color / Effect State
 
-USB effect writes use `0F:02` and include a profile byte, but a reliable
-profile-scoped effect-state readback path is not mapped. Exclude static/effect
-profile persistence from the first product CRUD API until readback is validated.
+USB effect-state reads use `0F:82`, size `0x0C`.
+
+```text
+Get: 0F:82, size 0C
+Args:
+  [0] profile
+  [1] LED ID
+  [2..11] zero placeholder
+
+Observed response payload:
+  [0] storage echo, currently 00 on V3 Pro even for stored-profile reads
+  [1] LED ID
+  [2] effect ID
+  [3..] effect parameters
+```
+
+Static-color responses use:
+
+```text
+00 <led> 01 00 00 01 <R> <G> <B> 00 00 00
+```
+
+Static-color writes use `0F:02`, size `0x09`:
+
+```text
+<profile> <led> 01 00 00 01 <R> <G> <B>
+```
+
+On the validated V3 Pro, writing static colors to assigned profile `2`, then
+selecting profile `2` with `05:04`, made effective profile `0` return the same
+per-LED static colors through `0F:82`. The original profile effect payloads were
+restored through `0F:02`.
+
+Non-static effect payloads are readable as raw `0F:82` effect state, but the v1
+client snapshot exposes only static colors. Do not infer or rewrite non-static
+effect semantics until the effect-state model is expanded.
 
 ## BLE Mapping
 
@@ -334,7 +371,8 @@ share command IDs or framing.
 | DPI scalar/stages | Stored profile bank plus profile `0` active mirror. |
 | Button bindings | Stored profile bank plus profile `0` active mirror. |
 | Brightness | Stored profile bank plus profile `0` active mirror. |
-| Static/effects | Excluded until readback is mapped. |
+| Static colors | Stored profile bank plus profile `0` active mirror. |
+| Non-static effect payloads | Readable raw effect state; not exposed in v1 snapshots. |
 | Serial, firmware | Device telemetry. |
 | Battery | Device telemetry. |
 | Sleep timeout / idle time | Device setting. Do not include in profile snapshots. |
@@ -349,7 +387,7 @@ Do not include these in the first product CRUD API:
 
 - macros
 - advanced button action families beyond the existing mapped function blocks
-- static/effect lighting persistence without readback
+- non-static effect payload editing beyond static colors
 - Synapse software-owned profile navigation
 - a claimed atomic whole-profile blob
 

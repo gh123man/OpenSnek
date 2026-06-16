@@ -1,4 +1,5 @@
 import Foundation
+import OpenSnekCore
 
 public enum USBHIDProtocol {
     public struct OnboardProfileMetadata: Equatable, Sendable {
@@ -34,6 +35,29 @@ public enum USBHIDProtocol {
         public init(maxProfileID: UInt8, assignedProfiles: [UInt8]) {
             self.maxProfileID = maxProfileID
             self.assignedProfiles = assignedProfiles
+        }
+    }
+
+    public struct LightingEffectState: Equatable, Sendable {
+        public let storageEcho: UInt8
+        public let ledID: UInt8
+        public let effectID: UInt8
+        public let payload: [UInt8]
+
+        public init(storageEcho: UInt8, ledID: UInt8, effectID: UInt8, payload: [UInt8]) {
+            self.storageEcho = storageEcho
+            self.ledID = ledID
+            self.effectID = effectID
+            self.payload = payload
+        }
+
+        public var staticColor: RGBPatch? {
+            guard effectID == 0x01,
+                  payload.count >= 9,
+                  payload[5] >= 0x01 else {
+                return nil
+            }
+            return RGBPatch(r: Int(payload[6]), g: Int(payload[7]), b: Int(payload[8]))
         }
     }
 
@@ -126,6 +150,46 @@ public enum USBHIDProtocol {
         return OnboardProfileInventory(
             maxProfileID: payload[0],
             assignedProfiles: Array(payload.dropFirst()).filter { $0 != 0x00 }
+        )
+    }
+
+    public static func profileLightingEffectReadArgs(profile: UInt8, ledID: UInt8) -> [UInt8] {
+        [profile, ledID] + [UInt8](repeating: 0x00, count: 10)
+    }
+
+    public static func profileLightingStaticColorSetArgs(profile: UInt8, ledID: UInt8, color: RGBPatch) -> [UInt8] {
+        [
+            profile,
+            ledID,
+            0x01,
+            0x00,
+            0x00,
+            0x01,
+            UInt8(max(0, min(255, color.r))),
+            UInt8(max(0, min(255, color.g))),
+            UInt8(max(0, min(255, color.b))),
+        ]
+    }
+
+    public static func profileLightingEffectState(
+        from response: [UInt8],
+        expectedLEDID: UInt8? = nil
+    ) -> LightingEffectState? {
+        guard response.count > 10,
+              response[0] == 0x02,
+              response[6] == 0x0F,
+              response[7] == 0x82 else {
+            return nil
+        }
+        let argCount = max(0, min(Int(response[5]), min(80, response.count - 8)))
+        guard argCount >= 3 else { return nil }
+        let payload = Array(response[8..<(8 + argCount)])
+        guard expectedLEDID == nil || payload[1] == expectedLEDID else { return nil }
+        return LightingEffectState(
+            storageEcho: payload[0],
+            ledID: payload[1],
+            effectID: payload[2],
+            payload: payload
         )
     }
 
