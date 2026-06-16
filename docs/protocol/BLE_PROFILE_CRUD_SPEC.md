@@ -43,7 +43,7 @@ The Windows profile-inventory capture shows that UI profile selection logs
 | `08 07 <target> 00` | write/read-like ACK | `00`, response `50` | profile/apply control candidate |
 | `03 04 <target> 00` | write | chunked profile metadata | profile name/GUID/owner structure write |
 | `03 05 <target> 00` | write | none | profile metadata/apply candidate |
-| `03 06 <target> 00` | write | none | profile clear/delete/prepare candidate |
+| `03 06 <target> 00` | write | none | delete/unassign stored profile target from onboard cycle list |
 | `0B 01 <target> 00` | write | 6-byte DPI scalar | stored/profile DPI scalar write candidate |
 | `0B 04 01 00` | write | 38-byte DPI table | live DPI projection |
 | `0B 04 <target> 00` | write | 38-byte DPI table | stored/profile DPI table write candidate |
@@ -263,18 +263,48 @@ Needed capture:
 
 ## Delete
 
-Status: not mapped.
+Status: mapped for saved-slot unassign/`None` on one target.
 
-Needed capture:
+Capture:
 
-- Delete one known disposable profile.
-- Record the deleted GUID/name and current active profile before deletion.
+- `captures/ble/windows/2026-06-15-205659-profile-slot-unassign-none-pass-1/`
 
-Questions to answer:
+Setting an assigned saved/onboard slot to `None` in Synapse logged:
 
-- Does deletion clear a stored target on-device?
-- Does Synapse compact/reassign target bytes?
-- What happens if the deleted profile is active?
+- `obmEngineMouse.deleteProfile(3)`
+- `profileIdList":[1,4,5,2]`
+- `numOfProfiles":4`
+- `remove OBM result ...`
+
+The capture contains buffered BTVS packets from before the wrapper's wall-clock
+capture start. Filtering by `metadata.json` `captureStart`/`captureEnd` leaves
+one non-lighting vendor operation in the actual 60-second capture window:
+
+| Wall time | Key | Payload | Status | Interpretation |
+|---|---|---|---|---|
+| `20:58:05.994` | `03 06 03 00` | empty | `02` | delete/unassign stored target `3` |
+
+The Synapse `deleteProfile(3)` event followed at `20:58:06.175`, about 181 ms
+after the BLE write.
+
+Current implementation guidance:
+
+- Treat saved-slot `None` as a target delete/unassign operation.
+- Write `03 06 <target> 00` with no payload for the target being removed from
+  the mouse's physical profile-cycle list.
+- After deletion, remove the target from OpenSnek's host profile inventory and
+  do not include it when cycling profiles.
+- Do not infer target deletion from a Synapse rename alone. Synapse currently
+  appears to have a UI/state bug where renaming can unassign a profile from a
+  saved slot while the physical profile button may still select that stale slot.
+
+Open questions:
+
+- Whether deleting the active target also changes the live projection target or
+  merely removes the stored target from the cycle list.
+- Whether `03 06` clears target metadata/settings immediately or only removes
+  the target from the onboard profile list; create captures suggest Synapse may
+  later recycle and rewrite the same target.
 
 ## Rename
 
@@ -343,6 +373,8 @@ Proposed behavior:
 - `activateProfile(id)` applies the stored snapshot to target `1`.
 - `updateProfile(id, changes)` updates OpenSnek storage and, if active, applies
   changed settings to target `1`.
+- `deleteProfile(id)` / saved-slot `None` writes `03 06 <target> 00` and removes
+  that target from OpenSnek's cycleable stored-profile list.
 - Stored-target writes stay behind a hardware-gated experimental path until
   create/update/delete captures prove safety.
 
@@ -353,6 +385,6 @@ Recommended order:
 1. Create one disposable profile with no manual setting edits.
 2. Update one DPI setting or active DPI stage on the active disposable profile.
 3. Update one setting on an inactive profile.
-4. Delete the disposable profile.
+4. Delete/unassign the active target and observe live target/cycle behavior.
 5. Revisit device-side rename only if we find a Synapse flow that emits BLE
    metadata writes for rename-only changes.

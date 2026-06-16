@@ -174,6 +174,13 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - The only non-lighting operations were profile-selection/button projection writes on `08 04 01 05`, `08 04 03 05`, and `08 04 01 04`.
   - This capture backs the rename section of `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
 
+- `ble/windows/2026-06-15-205659-profile-slot-unassign-none-pass-1/`
+  - Windows BTVS/tshark capture of replacing an assigned saved/onboard profile slot with `None`.
+  - Synapse logged `obmEngineMouse.deleteProfile(3)`, `profileIdList":[1,4,5,2]`, and `numOfProfiles":4`.
+  - The pcap contains buffered BTVS packets from before `metadata.json` `captureStart`; filtering by absolute wall-clock capture time leaves exactly one non-lighting vendor operation in the real capture window.
+  - The in-window operation is `03 06 03 00` with empty payload and success status `02`.
+  - This capture backs the delete/unassign section of `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
+
 ## Notes
 
 - Captures are intentionally action-scoped for faster diffing.
@@ -266,6 +273,12 @@ Recommended feature-mapping loop:
 3. Treat keys present in both the idle baseline and action capture as background candidates.
 4. Use `correlation.md` to inspect non-lighting vendor operations near Synapse feature events.
 5. Record only capture-backed interpretations in protocol or research docs, and leave uncertain keys marked research-only.
+
+Some BTVS runs can include buffered packets from before the wrapper's recorded
+`captureStart`. If a capture's `frame.time_relative` exceeds the requested
+duration or correlation looks too broad, filter packet operations by
+`metadata.json` `captureStart`/`captureEnd` using `frame.time_epoch` before
+making protocol claims.
 
 Use `-NoSynapseLogs` only for captures where Synapse is intentionally not running. Use `-CorrelationWindowSeconds <seconds>` when Synapse log timestamps and BTVS packet times need a wider or narrower matching window.
 
