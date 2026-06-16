@@ -173,13 +173,11 @@ V3 Pro Bluetooth framing note:
 
 ## 5. Key Catalog
 
-These are the keys currently used by the Swift app/probe and therefore covered by this spec.
+The primary table lists keys currently used by the Swift app/probe and
+therefore covered by this spec as product behavior.
 
 | Feature | Read key | Write key | Write payload length | Payload type |
 |---|---|---|---:|---|
-| DPI active scalar | `0B 81 00 00` | not mapped | `0x06` | current hardware-active DPI pair, 6-byte scalar payload |
-| DPI active stage list | `0B 82 00 00` | not mapped | `0x1E` | current hardware-active profile's five DPI pairs, without stage IDs |
-| DPI active stage token | `0B 83 00 00` | not mapped | `0x01` | active stage token/index for the hardware-active DPI surface |
 | DPI stage table | `0B 84 01 00` | `0B 04 01 00` | `0x26` | 38-byte live/projection table with stage IDs |
 | Lighting zone catalog | `10 80 00 01` | none | none | LED ID list |
 | Lighting brightness (legacy/global) | `10 85 01 01` | `10 05 01 00` | `0x01` | `u8` |
@@ -194,8 +192,51 @@ These are the keys currently used by the Swift app/probe and therefore covered b
 
 Not source-of-truth in Swift:
 - older Python tooling also contains additional candidate keys such as `05 82 00 00`, `05 02 00 00`, `01 82 00 00`, and `01 83 00 00`
-- Basilisk V3 Pro Bluetooth Windows Synapse captures now show research-only profile/projection traffic on `01 86 00 00`, `01 82 00 00`, `01 8C <slot> 00`, `03 04 <slot> 00`, `03 05 <slot> 00`, `03 06 <slot> 00`, `08 05 <slot> 00`, `08 06 01 00`, and `08 07 <slot> 00`; see [BLE Profile CRUD Draft](./BLE_PROFILE_CRUD_SPEC.md) and [Basilisk V3 Pro BT Extended Notes](../research/BASILISK_V3_PRO_BT_EXTENDED.md)
+- Basilisk V3 Pro Bluetooth Windows Synapse captures now show research-only profile/projection traffic on `01 86 00 00`, `01 82 00 00`, `01 8C <target> 00`, `03 04 <target> 00`, `03 05 <target> 00`, `03 06 <target> 00`, `03 80 00 00`, `03 84 <target> 00`, `08 05 <target> 00`, `08 06 01 00`, and `08 07 <target> 00`; live macOS probing additionally validated `03 82 00 00` as the current active target read; see [BLE Profile CRUD Draft](./BLE_PROFILE_CRUD_SPEC.md) and [Basilisk V3 Pro BT Extended Notes](../research/BASILISK_V3_PRO_BT_EXTENDED.md)
 - those keys are intentionally omitted from the main spec because current Swift OpenSnek does not rely on them
+
+Capture-backed V3 Pro Bluetooth profile-cycle read candidates:
+
+| Feature | Read key | Payload shape | Status |
+|---|---|---|---|
+| Active profile target | `03 82 00 00` | 1-byte target ID | live macOS probe evidence, preferred active-profile read |
+| Profile metadata UUID/name | `03 84 <target> 00` with 4-byte `<offset_le16><length_le16>` request payload | chunked metadata bytes | live macOS probe read back UUID/name for created targets `2` and `3` |
+| Hardware-active button binding | `08 84 00 <slot>` | 16-byte packed button readback | mirrors active stored target after firmware profile-cycle |
+| Stored profile brightness | read `10 85 <target> <led>`, write `10 05 <target> 00` | 1-byte brightness payload | live macOS stored-only update/readback validated on target `3` |
+| Hardware-active brightness | `10 85 00 <led>` | 1-byte brightness payload | mirrors active stored target after firmware profile-cycle |
+| Stored profile static color | read `10 83 <target> <led>`, write `10 03 <target> <led>` | 10-byte static-zone payload | live macOS stored-only update/readback validated on target `3`, LED `0x01` |
+| Hardware-active static color | `10 83 00 <led>` | 10-byte static/effect-zone payload | mirrors active stored target after firmware profile-cycle |
+| Hardware-active DPI scalar | `0B 81 00 00` | 6-byte DPI scalar pair | research/probe evidence, not Swift product behavior |
+| Hardware-active DPI stage list | `0B 82 00 00` | five 6-byte DPI pairs without stage IDs | research/probe evidence, not Swift product behavior |
+| Hardware-active DPI stage token | `0B 83 00 00` | 1-byte token/index | research/probe evidence, not Swift product behavior |
+| Stored target DPI scalar/stages/token | `0B 81/82/83 <target> 00`, targets `2..5` | same as active forms | research/probe evidence, useful for fingerprint matching |
+
+`03 82 00 00` is the current best path for event-driven V3 Pro Bluetooth
+profile UI refresh after a passive profile-button HID hint. The `0B 81/82/83`
+reads remain useful as validation/fallback surfaces and should move into
+product Swift only with tests and guarded device-profile support. After firmware
+cycling, target `0` reads are the active hardware surfaces for mapped setting
+families (`0B 81/82/83`, `08 84`, `10 85`, and `10 83`), while target `1`
+remains a separate live/projection bank.
+
+No atomic V3 Pro Bluetooth whole-profile bulk command has been mapped. Profile
+CRUD currently composes per-surface exchanges: inventory/active target,
+metadata chunks, DPI scalar/stages, individual button slots, and the partial
+lighting surfaces documented below. Shipping OpenSnek Bluetooth live-state
+refresh still uses the existing live/projection per-feature reads such as
+`0B 84 01 00`; profile inventory and metadata reads are
+probe/documentation-backed only.
+
+Delete/unassign note: `03 06 <target> 00` removes a target from the `03 80`
+cycle inventory, but live macOS validation showed it does not immediately erase
+metadata/settings banks. If the deleted target is active, `03 82` can keep
+returning it until the next firmware profile-cycle press skips to an
+inventory-listed target.
+
+Reconnect note: after deleting and recreating target `3`, a Bluetooth
+disconnect/reconnect preserved `03 80` inventory, `03 84` metadata, stored DPI
+(`0B 81/82/83 03 00`), and stored brightness (`10 85 03 <led>`). In that pass
+`03 82` reset to target `1` on reconnect.
 
 ## 6. Payload Layouts
 
@@ -332,6 +373,13 @@ Observed V3 Pro Bluetooth examples:
 - `05 05 02 04 4C 04 4C 00 00` -> `1100 / 1100 DPI`
 - `05 05 10 00 00 00 00 00 00` -> heartbeat / stream-alive status frame, not a DPI payload
 - `04 04 00 00 00 00 00 00 00`, then `05 05 39 00 00 00 00 00 00` about 200 ms later -> physical onboard profile-button press with Synapse closed; use as a refresh hint, not as a decoded profile ID
+- The same `04 04 ...` / `05 05 39 ...` pair was observed through Swift
+  `IOHIDDeviceRegisterInputReportCallback` on macOS after creating a stored
+  target-`2` profile with `OpenSnekProbe`; a follow-up `0B 82 00 00` read moved
+  to the target-`2` DPI table.
+- Live macOS probing then found `03 82 00 00` returns the active target ID
+  directly: `02` with target `2` active, `01` after cycling back to the default
+  target, and `03` after creating/cycling to target `3`.
 
 OpenSnek's parser also accepts `05 02 ...` and `02 ...` report prefixes because macOS `IOHIDDeviceRegisterInputReportCallback` can normalize away one or both leading report-ID bytes. That normalization detail is an inference from current host behavior, not a separate wire-format claim.
 
@@ -343,22 +391,29 @@ Heartbeat notes:
 Profile-cycle notes:
 - `04 04 ...` followed by `05 05 39 ...` is capture-backed on Basilisk V3 Pro Bluetooth in firmware/onboard cycling mode with Synapse closed
 - no profile target ID has been decoded from these reports
-- use these reports to trigger an immediate one-shot live-state refresh/fingerprint, not to directly select a profile
+- use these reports to trigger an immediate one-shot active-target read, not to directly select a profile from the HID payload
 - this should be event-driven; do not continuously poll the current profile just to notice onboard profile-button changes
-- current V3 Pro BT captures show that known live-target reads (`0B 84 01 00`, `08 84 01 04`) can remain unchanged after firmware-ring profile-button cycles, so use `0B 82 00 00` rather than `0B 84 01 00` for active hardware DPI-stage identity
+- current V3 Pro BT captures show that known live-target reads (`0B 84 01 00`, `08 84 01 04`) can remain unchanged after firmware-ring profile-button cycles; use `03 82 00 00` for active target identity and `0B 82 00 00` rather than `0B 84 01 00` for active hardware DPI-stage validation
 
-Current app policy:
+Current app policy for passive Bluetooth DPI:
 - subscribe to passive HID DPI reports only on capture-validated Bluetooth profiles
 - treat passive Bluetooth heartbeat frames as stream-liveness only
-- treat passive Bluetooth profile-cycle reports as refresh hints only
-- after a profile-cycle hint, perform only bounded/event-scoped follow-up work; do not run a continuous current-profile polling loop
-- after a profile-cycle hint on the V3 Pro BT path, read `0B 82 00 00` and compare it with stored target tables (`0B 82 02 00` through `0B 82 05 00`) to infer the active onboard slot when DPI tables are unique
 - update cached `dpi.x/y` immediately from the HID report
 - recompute `active_stage` only when the reported DPI uniquely matches one cached stage value
 - keep Bluetooth fast DPI polling enabled until the first passive HID event is actually observed at runtime, then disable the fast-poll fallback for that device
 - for single-stage writes, mirror the single value across all 5 slots
 
-Those are client rules, not independent protocol guarantees, but they are what current Swift uses.
+Profile-monitoring implementation guidance:
+- treat passive Bluetooth profile-cycle reports as refresh hints only
+- after a profile-cycle hint, perform only bounded/event-scoped follow-up work; do not run a continuous current-profile polling loop
+- on the V3 Pro BT path, read `03 82 00 00` for the current active target
+- use `0B 82 00 00` and stored target tables (`0B 82 02 00` through `0B 82 05 00`) only as validation/fallback when inventory-listed DPI tables are unique
+- prefer cycleable targets listed by `03 80 00 00` when matching active fingerprints; hidden/stale target banks can remain readable and may duplicate an active table
+- if multiple stored targets have identical DPI tables, mark the selected profile ambiguous until another fingerprint axis is available
+
+The passive DPI app-policy bullets reflect current Swift behavior. The
+profile-monitoring bullets are implementation guidance for guarded future Swift
+support, not shipped profile UI behavior yet.
 
 ### 6.3 Lighting Payloads
 
@@ -425,7 +480,20 @@ The Basilisk V3 Pro Bluetooth path also exposes per-zone brightness:
 - write: `10 05 01 <led>`
 - payload: one brightness byte
 
-Observed reads on the validated device returned `ff` for `0x01`, `0x04`, and `0x0A`.
+Observed reads on the validated device have returned consistent values across
+the zone set. Earlier lighting validation saw `ff` for `0x01`, `0x04`, and
+`0x0A`; the profile-scope sweep later saw `54` for those same zones.
+
+Profile-scope notes:
+
+- Basilisk V3 Pro Bluetooth profile create/rewrite traffic also writes
+  `10 05 <target> 00` with a one-byte brightness payload. This is evidence that
+  stored profiles carry at least a brightness byte.
+- Stored brightness readback uses the target and LED bytes:
+  `10 85 <target> <led>`. After writing `0xc8` to target `3`,
+  `10 85 03 <led>` returned `c8` while live `10 85 01 <led>` stayed `54`.
+- `10 85 <target> 00` is not the stored brightness getter; target `2`/`3` with
+  LED `0x00` returned error status on the tested device.
 
 ### 6.4 Lighting Mode Selector Payload
 
@@ -435,6 +503,18 @@ Currently validated value:
 - `08 00 00 00` -> spectrum fallback mode
 
 No other BLE vendor selector values are source-of-truth in Swift today.
+
+Stored profile static-color state uses the same 10-byte static-zone payload with
+the target byte in key byte 2:
+
+- read: `10 83 <target> <led>`
+- write: `10 03 <target> <led>`
+
+A live stored-only probe wrote target `3`, LED `0x01` with
+`01 00 00 01 12 34 56 00 00 00` and read the same payload back from
+`10 83 03 01`, while live `10 83 00 01` remained white. Advanced/effect payloads
+are still not decoded; unedited stored zones can return an effect-shaped payload
+such as `03 01 28 01 00 ff 00 00 ff 00`.
 
 ### 6.5 Button-Bind Payload
 
@@ -857,8 +937,10 @@ The app may still expose richer lighting on USB HID, but this BLE document only 
 | `BLEVendorProtocol.parsePayloadFrames` | notify/payload decoder |
 | `BLEVendorProtocol.parseDpiStageSnapshot` | DPI read payload parser with stage IDs |
 | `BLEVendorProtocol.parseDpiStages` | DPI read payload parser for visible values |
+| `BLEVendorProtocol.parseDpiPairList` | flat `0B 82 <target> 00` DPI fingerprint parser for profile research/probe work |
 | `BLEVendorProtocol.buildDpiStagePayload` | 38-byte DPI write payload builder |
 | `BLEVendorProtocol.buildButtonPayload` | 10-byte button action builder |
+| `BLEVendorProtocol.Key.profileTargetsGet` / `.profileActiveTargetGet` / `.profileMetadataGet(target:)` / `.profileMetadataSet(target:)` / `.buttonBindGet(target:slot:)` / `.buttonBindSet(target:slot:)` / `.dpiPairListGet(target:)` / `.profileLightingBrightnessGet(target:ledID:)` / `.profileLightingZoneStateGet(target:ledID:)` / `.profileLightingZoneStateSet(target:ledID:)` | research/probe profile target helpers |
 | `BTVendorClient.run` | one serialized exchange over CoreBluetooth |
 | `BridgeClient.btGetDpiStages` | DPI read + validation + stale-read handling |
 | `BridgeClient.btSetDpiStages` | DPI write with ID/marker preservation |

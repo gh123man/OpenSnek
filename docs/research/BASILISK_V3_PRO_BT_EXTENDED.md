@@ -282,6 +282,80 @@ Current best model for V3 Pro BLE profile switching:
 
 OpenSnek should therefore avoid modeling the V3 Pro Bluetooth path as a simple `activeSlot = N` selector until we confirm the exact BLE reads and writes that back this behavior.
 
+Later Windows follow-up reads refined this model:
+
+- target `1` is best treated as the Synapse live projection surface used by
+  `0B 84 01 00`, `0B 04 01 00`, and `08 04 01 <slot>`
+- target `0` on the `0B 81/82/83` read family is the hardware-active DPI
+  identity surface for firmware/onboard cycling
+- target `0` also mirrors active firmware-selected button and lighting state on
+  the mapped read families (`08 84`, `10 85`, `10 83`)
+- stored OpenSnek slots `1..4` map to BLE targets `2..5` for the
+  `0B 81/82/83` read family
+- passive HID profile-cycle hints do not carry a target ID
+- `03 82 00 00` is the direct active-target read validated on macOS
+- `0B 82 00 00` can still validate/fallback-identify the active onboard slot
+  when its DPI table uniquely matches one stored target table
+
+Live macOS probing later validated the key parts of that model without Synapse:
+`OpenSnekProbe bt-profile-create` replayed the capture-backed target-`2` create
+sequence, `03 80 00 00` then returned `01 02`, a physical profile-button press
+emitted the same passive HID pair (`04 04 ...`, then `05 05 39 ...`), and the
+post-press `03 82 00 00` active-target read returned `02` while `0B 82 00 00`
+matched target `2`. A second live-created profile on target `3` then made
+`03 80 00 00` return `01 02 03`; after cycling to it, `03 82 00 00` returned
+`03` and the active DPI table matched target `3`.
+
+The same live macOS session read profile metadata back from the device with
+`03 84 <target> 00` plus offset/length request payloads. Targets `2` and `3`
+returned the UUID/name values written during `bt-profile-create`, proving those
+fields are device-backed for created onboard targets. No single whole-profile
+bulk read/write command has been identified; OpenSnek must assemble full profile
+snapshots from metadata, DPI, per-slot button, and lighting surfaces.
+
+### Profile Lighting / Global State Sweep (2026-06-16)
+
+A follow-up live macOS read-only sweep on `BSK V3 PRO` checked whether the
+lighting and power surfaces are target/profile-scoped.
+
+Baseline:
+
+- `03 80 00 00` returned `01 02 03`
+- `03 82 00 00` returned `01`
+- `bt-lighting-info` reported brightness `0x54` and static color `ffffff` for
+  LED IDs `0x01`, `0x04`, and `0x0A`
+
+Lighting findings:
+
+| Probe | Result | Interpretation |
+|---|---|---|
+| `10 85 01 <led>` | success, `54` for `0x01`, `0x04`, `0x0A` | live per-zone brightness read |
+| `10 85 02 00`, `10 85 03 00` | error status | stored brightness getter is not `<target>,00` |
+| `10 85 02 <led>` | success, `54` for tested LED IDs | target `2` stored brightness matched live in this state |
+| `10 05 03 00` then `10 85 03 <led>` | write ACK, readback `c8` | stored target `3` brightness write/readback confirmed |
+| `10 83 00 <led>` and `10 83 01 <led>` | success, `01 00 00 01 ff ff ff 00 00 00` | live static-zone state |
+| `10 03 03 01` then `10 83 03 01` | write/readback `01 00 00 01 12 34 56 00 00 00` | stored target `3` static scroll-wheel color write/readback confirmed |
+| Unedited `10 83 <target> <led>` zones | often `03 01 28 01 00 ff 00 00 ff 00` | effect-shaped payload; advanced/effect schema still unmapped |
+
+Power/battery findings:
+
+- `05 84 00 00` returned sleep timeout `b4 00`.
+- Adjacent target-like `05 84 02..05 00` reads returned the same timeout, while
+  `05 84 01 00` did not produce a usable profile-specific value.
+- `05 80` and `05 81` battery/status probes returned the same telemetry across
+  tested target-like bytes or failed as unsupported.
+
+Current conclusion: stored profile brightness and static color are target-scoped
+on the V3 Pro Bluetooth path:
+
+- brightness write: `10 05 <target> 00`
+- brightness read: `10 85 <target> <led>`
+- static color write: `10 03 <target> <led>`
+- static color read: `10 83 <target> <led>`
+
+Advanced/effect payloads are still not decoded. Sleep timeout and
+battery/status should be treated as device-global, not profile data.
+
 ## Windows BTVS Wire Capture Findings (2026-06-15)
 
 After moving the same Basilisk V3 Pro Bluetooth profile work to a Windows host running Synapse, BTVS, and Wireshark, the capture process is now automated through:
@@ -363,12 +437,12 @@ The matching wire trace shows the same projection shape repeated for each active
 | Key | Observed role in focused pass |
 |---|---|
 | `01 86 00 00` | read before some projection bursts, response `00 00 00` |
-| `08 05 <slot> 00` | one-byte `00` write, target varies with profile slot (`1`, `2`, `5` observed) |
-| `08 07 <slot> 00` | one-byte `00` write with one-byte response `50` |
+| `08 05 <target> 00` | one-byte `00` write, target varies with profile target (`1`, `2`, `5` observed) |
+| `08 07 <target> 00` | one-byte `00` write with one-byte response `50` |
 | `08 06 01 00` | one-byte `00` write during projection |
 | `0B 04 01 00` | live DPI table projection |
 | `0B 84 01 00` | live DPI readback after projection |
-| `01 8C <slot> 00` | one-byte state read, response `01` for observed targets |
+| `01 8C <target> 00` | one-byte state read, response `01` for observed targets |
 | `01 82 00 00` | two-byte state read, response `03 00` |
 | `08 04 <target> <slot>` | button-binding projection into a stored/profile target and then target/layer `1` |
 
@@ -387,6 +461,62 @@ This is the strongest capture so far for the current V3 Pro Bluetooth profile-sw
 - target/layer `1` continues to behave like the live projection layer, while other target bytes (`2`, `5`, etc.) correspond to stored/profile targets
 
 OpenSnek should still treat the `01 xx` and `08 05` / `08 06` / `08 07` keys as research-only until we can safely probe them outside Synapse.
+
+Two later captures close part of the profile-button detection gap:
+
+- `captures/ble/windows/2026-06-15-222336-profile-cycle-event-driven-followup-read/`
+  proves passive HID reports are enough to react to the profile button without
+  continuous polling, but `0B 84 01 00` and `08 84 01 04` can remain unchanged.
+- `captures/ble/windows/2026-06-15-225000-profile-active-target0-dpi-surface/`
+  proves `0B 82 00 00` follows the hardware-selected profile's DPI table across
+  a firmware profile-button cycle when the stored profiles have distinct tables.
+
+A live macOS Swift probe then confirmed the same detection loop after creating
+stored slot `1` / target `2`: the profile button produced `04 04 ...` followed
+by `05 05 39 ...`, and the follow-up active target read moved to target `2`.
+A later target-`3` create/cycle pass confirmed `03 82 00 00 -> 03`, with
+`0B 82 00 00` matching target `3`'s distinct DPI table. Hidden target banks can
+still be readable, so any fallback DPI matching should prefer cycleable targets
+returned by `03 80 00 00`.
+
+An even later stored-only update pass made target `3` distinctive across DPI,
+Button5, brightness, and static scroll-wheel color. One physical profile-cycle
+button press produced the passive HID hint pair and moved `03 82 00 00` to
+target `3`. Post-cycle reads showed:
+
+- `0B 81/82/83 00 00` matched target `3` DPI
+- `08 84 00 05` matched target `3` Button5
+- `10 85 00 <led>` matched target `3` brightness `c8`
+- `10 83 00 01` matched target `3` static color `12 34 56`
+- target `1` reads still showed the older live/projection values
+
+That makes target `0` the active hardware state surface for reactive profile UI
+hydration after firmware/onboard profile cycling.
+
+Delete/unassign follow-up:
+
+- `03 06 03 00` removed target `3` from `03 80 00 00`, changing inventory from
+  `01 02 03` to `01 02`.
+- Because target `3` was active at delete time, `03 82 00 00` still returned
+  `03` until the next physical profile-cycle button press.
+- Target `3` metadata/settings banks remained readable after delete, including
+  `03 84`, `01 8C`, DPI, button, and lighting reads.
+- The next physical profile-cycle button press skipped target `3`; `03 82`
+  returned `01` and target `0` returned the default/live hardware state.
+
+Treat `03 80` as the cycleable profile source of truth. Do not infer secure
+erasure or unreadability from `03 06`.
+
+Reconnect persistence follow-up:
+
+- The recreated target `3` survived Bluetooth reconnect.
+- `03 80 00 00` still returned `01 02 03`.
+- `03 84 03 00` returned the recreated UUID/name
+  `OPENSNEK_RECREATE_SLOT_2` and the owner-hash chunk.
+- `0B 81/82/83 03 00` returned the recreated `760,960,1160,1360,1560` DPI
+  table and token `04`.
+- `10 85 03 <led>` returned the recreated brightness `60`.
+- `03 82 00 00` returned `01` after reconnect in this pass.
 
 ### Open Questions For Future Capture Work
 

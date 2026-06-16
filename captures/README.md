@@ -104,7 +104,7 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - Captures Synapse profile-projection traffic that is not present in a same-host idle baseline, including:
     - `01 86 00 00` read returning `00 00 00`
     - `01 82 00 00` read returning `03 00`
-    - `01 8C <slot> 00` reads returning `01` for observed stored/profile slots
+    - `01 8C <target> 00` reads returning `01` for observed stored/profile targets
     - `08 04 04 0F` and `08 04 01 0F` writes for slot `0x0F` across profile/layer targets
     - DPI table writes/reads on `0B 04 01 00` / `0B 84 01 00`
   - This is research evidence for the Basilisk V3 Pro BT profile model, not shipped OpenSnek protocol support yet.
@@ -120,7 +120,7 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - The wire trace captured repeated projection bursts after profile cycling, including:
     - `01 86 00 00` reads returning `00 00 00`
     - `01 82 00 00` reads returning `03 00`
-    - `01 8C <slot> 00` reads returning `01`
+    - `01 8C <target> 00` reads returning `01`
     - profile/apply candidate writes on `08 05`, `08 06`, and `08 07`
     - live DPI projection through `0B 04 01 00` followed by `0B 84 01 00` readback
     - button projection into stored/profile targets and live target/layer `1` through `08 04 <target> <slot>`
@@ -150,6 +150,11 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
     - chunked metadata writes on `03 04 02 00`
     - stored target DPI writes on `0B 01 02 00` and `0B 04 02 00`
     - stored target brightness write on `10 05 02 00`
+  - Later live macOS stored-only probes confirmed target-scoped V3 Pro lighting
+    readback/write shapes: brightness writes use `10 05 <target> 00` and read
+    back through `10 85 <target> <led>`; static color writes use
+    `10 03 <target> <led>` and read back through `10 83 <target> <led>`.
+    Advanced/effect payloads remain unmapped.
   - This capture is the source for the create section of `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
 
 - `ble/windows/2026-06-15-204312-profile-update-active-button-pass-1/`
@@ -239,7 +244,7 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - Absolute timestamp filtering shows the decoded vendor reads in `summary.md` were buffered/stale frames from before `captureStart`; no in-window BLE vendor profile-cycle write/read/notify identified the new active profile.
   - BTVS showed in-window malformed/short notifications on handle `0x001b` clustered near the button activity, but without exposed payload bytes.
   - A companion Windows HID sniff observed two 9-byte passive reports per physical press on the Bluetooth HID collection with usage page `0x01`, usage `0x00`: `04 04 00 00 00 00 00 00 00`, then about 200 ms later `05 05 39 00 00 00 00 00 00`.
-  - Use those HID reports as profile-cycle refresh hints only; the active profile still needs to be inferred by a debounced one-shot follow-up read/fingerprint of live target `1`.
+  - Use those HID reports as profile-cycle refresh hints only. Later live macOS probing found `03 82 00 00` is the direct active target read; the captured `0B 82 00 00` hardware-active DPI surface remains useful as validation/fallback, while live target `1` reads are not reliable for firmware-ring identity.
   - This capture backs the firmware-first Bluetooth profile-cycle hint notes in `docs/protocol/BLE_PROFILE_CRUD_SPEC.md` and `docs/protocol/BLE_PROTOCOL.md`.
 
 - `ble/windows/2026-06-15-222336-profile-cycle-event-driven-followup-read/`
@@ -248,7 +253,7 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - The 3-press pass saw the expected `04 04 ...` / `05 05 39 ...` hint pairs and issued one `0B 84 01 00` read after each hint.
   - The 1-press delayed pass waited 2 seconds after the hint and read both `0B 84 01 00` and `08 84 01 04`.
   - In both passes, the known live-target readback values stayed unchanged even though the HID hints fired; this rules out those keys as a reliable active firmware-ring profile identity source.
-  - This capture backs the current guidance to use passive HID hints for event-driven refresh/stale marking, while keeping exact onboard active-profile identity open until a firmware-ring state key is mapped.
+  - This capture backs the guidance to use passive HID hints for event-driven refresh/stale marking, and rules out `0B 84 01 00` / `08 84 01 04` as reliable firmware-ring identity sources.
 
 - `ble/windows/2026-06-15-225000-profile-active-target0-dpi-surface/`
   - Windows read-only BLE DPI-family probes for Basilisk V3 Pro Bluetooth hardware profile cycling.
@@ -258,12 +263,21 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - Stored slot `2` maps to BLE target `3` and returned the mostly-100 table `100, 100, 100, 100, 800`.
   - The `profile-cycle-active-target0-short` pass showed `0B 82 00 00` move from the target-`2` random table to the target-`3` mostly-100 table after one hardware profile-button cycle.
   - The later slot2-to-slot3 pass did not change active target `0`; the user clarified only slots `1` and `2` were intentionally mapped, so treat slots `3`/`4` as unmapped in this setup.
-  - This capture backs the current event-driven UI model: HID hint detects the change, then `0B 82 00 00` identifies the active profile by matching active DPI stages against stored slot tables when those tables are unique.
+  - This capture backs the DPI-fingerprint fallback model: HID hint detects the change, then `0B 82 00 00` can identify the active profile by matching active DPI stages against stored slot tables when those tables are unique. Later live macOS probing supersedes this as the primary path with `03 82 00 00` direct active-target reads.
+  - Later live macOS stored-only update validation extended target `0` beyond
+    DPI: after cycling to target `3`, `08 84 00 <slot>`, `10 85 00 <led>`, and
+    `10 83 00 <led>` mirrored target `3` button and lighting state while target
+    `1` retained the previous live/projection values.
+  - Live delete validation on target `3` showed `03 06 03 00` removes that
+    target from `03 80` inventory but does not immediately erase metadata or
+    setting banks. If the deleted target is active, `03 82` can keep returning
+    it until the next profile-cycle press, after which firmware skips it.
 
 - `ble/windows/2026-06-15-224531-profile-synapse-startup-takeover-pass-1/`
   - Windows BTVS/tshark capture of launching Synapse/AppEngine while the Basilisk V3 Pro was connected over Bluetooth.
   - The pcap contains some buffered/stale BTVS traffic before the wrapper's wall-clock `captureStart`; `analysis.md` filters to the actual capture window.
   - In-window startup traffic did not include an `08 04 <target> 6A` profile-button binding write.
+  - In-window startup traffic includes the strongest read-side onboard profile candidates so far: `03 80 00 00` returned target list `01 02 03`, followed by `03 84 02/03 00` metadata chunk reads.
   - Synapse did read `08 84 <target> 6A` for live/stored targets and performed live target apply/projection traffic (`08 05 01 00`, `08 07 01 00`, `08 06 01 00`, `0B 04 01 00`) as it loaded the selected software profile.
   - Current interpretation: Synapse's software takeover is likely host event ownership or a side effect of the live apply/projection sequence, not a simple profile-button remap write.
   - This backs the firmware-first OpenSnek guidance: do not copy Synapse startup takeover behavior for profile monitoring.

@@ -8,6 +8,47 @@ Primary evidence:
 
 - `captures/ble/windows/2026-06-15-195434-profile-button-cycle-focused-pass-4/`
 - `captures/ble/windows/2026-06-15-202616-profile-inventory-read-path-pass-1/`
+- `captures/ble/windows/2026-06-15-224531-profile-synapse-startup-takeover-pass-1/`
+- `captures/ble/windows/2026-06-15-225000-profile-active-target0-dpi-surface/`
+
+## Current Answer
+
+The current corpus is enough to draft the onboard profile API shape, but not
+enough to ship a full safe profile manager yet.
+
+What is now strong enough to build against experimentally:
+
+- stored target create/rewrite uses `03 04` metadata chunks plus stored target
+  setting writes, with `08 05`/`08 07`/`03 05` apply/control candidates
+- a live macOS probe replayed the target-`2` create flow and registered stored
+  slot `1` in `03 80 00 00` as target `2`
+- stored target delete/unassign is `03 06 <target> 00` with an empty payload
+- target inventory has a strong read candidate: `03 80 00 00`
+- active target ID has a live-validated read: `03 82 00 00`
+- target metadata has a strong read candidate: `03 84 <target> 00` with
+  offset/length payloads
+- button edits use the stored target first and then project to target `1`
+- live macOS probing validated stored-only updates for an inactive target:
+  target `3` accepted and read back DPI, Button5, brightness, and static
+  scroll-wheel color changes while `03 82` stayed on target `1`
+- firmware profile-button presses are detectable through passive HID reports
+  `04 04 ...` followed by `05 05 39 ...`
+- after that HID hint, `03 82 00 00` identifies the active target directly;
+  `0B 82 00 00` remains the DPI-fingerprint fallback/validation path
+- stored profile create/rewrite captures include a target-addressed brightness
+  write on `10 05 <target> 00`; this proves at least one lighting byte is part
+  of the stored-profile transaction
+
+What is still not strong enough to ship by default:
+
+- a direct active profile selector write
+- complete create target allocation rules
+- a proven device-side rename/update path for existing profile metadata
+- exact behavior when multiple onboard slots have identical DPI fingerprints
+- an atomic "read/write whole profile as one blob" command
+- a complete per-profile lighting effect model; stored brightness and static
+  zone color now have read/write shapes, but advanced/effect payloads are not
+  decoded
 
 ## Model
 
@@ -23,8 +64,10 @@ The current working model:
 | Host profile identity | Synapse GUID and name | Synapse `newActiveProfileGUID`, `set active profile`, and `[Armory] Active profile` logs |
 | Stored/profile targets | Target byte in profile-capable setting writes, observed as `2`, `3`, `4`, `5` in current corpus | Writes such as `08 04 02 04`, `08 04 03 05`, `08 04 04 0F` |
 | Live projection target | Target byte `1` | Synapse repeats selected settings to `08 04 01 <slot>` and `0B 04 01 00` |
-| Active profile | Host-side Synapse state plus projected live device settings | Selection and physical-cycle captures both produce projection bursts |
-| Device-native profile inventory | Not decoded yet | No passive read/list command confirmed |
+| Hardware-active setting surface | Target byte `0` on active read families such as `0B 81/82/83`, `08 84`, `10 85`, and `10 83` | After firmware cycling to target `3`, target `0` read back target `3` DPI, Button5, brightness, and static color |
+| Active profile target | `03 82 00 00` returns the active/cycle-selected target byte | Live macOS probe changed `03 82` from `01` to `02` to `03` as the firmware profile button moved across targets |
+| Active profile settings | Synapse-open: host-side Synapse state plus projected target `1`; Synapse-closed: firmware-selected onboard target, with target `0` reads mirroring active settings | Selection captures produce projection bursts; firmware-cycle captures update target `0` DPI/lighting/button surfaces |
+| Device-native target inventory | Partially mapped through `03 80 00 00` and `03 84 <target> 00` | Startup capture returned target lists and chunked metadata reads after wall-clock filtering |
 
 Important distinction: selecting a profile in Synapse is not passive inventory.
 The Windows profile-inventory capture shows that UI profile selection logs
@@ -37,7 +80,11 @@ The Windows profile-inventory capture shows that UI profile selection logs
 | `01 86 00 00` | read | `00 00 00` | profile/session state read candidate before projection bursts |
 | `01 82 00 00` | read | `03 00` | scalar state read candidate during projection |
 | `01 8C <target> 00` | read | `01` for observed targets | stored/profile target state candidate |
+| `03 80 00 00` | read | `01 02 03` in the filtered startup window | onboard target/profile list candidate |
+| `03 82 00 00` | read | one-byte target ID (`01`, `02`, `03` live-validated) | current active profile target |
+| `03 84 <target> 00` | read | offset/length request, chunked response | stored target metadata read candidate |
 | `08 04 <target> <slot>` | write | 10-byte button action payload | button binding for stored/profile target or live target |
+| `08 84 00 <slot>` | read | 16-byte packed button readback | hardware-active button binding after firmware profile cycling |
 | `08 05 <target> 00` | write | `00` | profile/apply control candidate |
 | `08 06 01 00` | write | `00` | profile/apply control candidate |
 | `08 07 <target> 00` | write/read-like ACK | `00`, response `50` | profile/apply control candidate |
@@ -47,11 +94,40 @@ The Windows profile-inventory capture shows that UI profile selection logs
 | `0B 01 <target> 00` | write | 6-byte DPI scalar | stored/profile DPI scalar write candidate |
 | `0B 04 01 00` | write | 38-byte DPI table | live DPI projection |
 | `0B 04 <target> 00` | write | 38-byte DPI table | stored/profile DPI table write candidate |
+| `0B 81/82/83 00 00` | read | scalar/stages/token | active hardware DPI surface after firmware profile cycling |
+| `0B 81/82/83 <target> 00` | read | scalar/stages/token | stored target DPI fingerprint reads for targets `2..5` |
 | `0B 84 01 00` | read | 36-byte DPI table | live DPI readback after projection |
-| `10 05 <target> 00` | write | brightness byte | stored/profile brightness write candidate |
+| `10 85 <target> <led>` | read | brightness byte | stored/profile per-zone brightness read |
+| `10 85 00 <led>` | read | brightness byte | hardware-active per-zone brightness read after firmware profile cycling |
+| `10 05 <target> 00` | write | brightness byte | stored/profile brightness write observed during create/rewrite and live stored-update probe |
+| `10 83 <target> <led>` | read | 10-byte static/effect zone state | stored/profile lighting zone state read |
+| `10 83 00 <led>` | read | 10-byte static/effect zone state | hardware-active lighting zone state after firmware profile cycling |
+| `10 03 <target> <led>` | write | 10-byte static-zone state | stored/profile static color write |
+| `10 85 01 <led>` | read | brightness byte | live V3 Pro per-zone brightness read |
+| `10 05 01 <led>` | write | brightness byte | live V3 Pro per-zone brightness write |
+| `10 83 00 <led>` | read | 10-byte static-zone state | live V3 Pro per-zone static color read |
+| `10 03 00 <led>` | write | 10-byte static-zone state | live V3 Pro per-zone static color write |
 
 The `01 xx` and `08 05` / `08 06` / `08 07` families are still research-only.
 Do not ship writes to those keys until we safely probe them outside Synapse.
+The `03 80`, `03 82`, `03 84`, and `0B 81/82/83` reads are safer candidates, but still
+need Swift-side implementation and error handling before they become product
+features.
+
+Lighting scope note:
+
+- `10 05 <target> 00` writes a profile-scoped brightness byte. After writing
+  `0xc8` to target `3`, `10 85 03 <led>` returned `c8` for the tested V3 Pro
+  LEDs while live `10 85 01 <led>` stayed at `54`.
+- `10 85 <target> 00` is not the stored brightness read; target `2`/`3` with
+  `<led> = 00` returned error status.
+- `10 03 <target> <led>` writes a stored/profile static-zone payload and
+  `10 83 <target> <led>` reads it back. Target `3`, LED `0x01` accepted and
+  returned `01 00 00 01 12 34 56 00 00 00` while live `10 83 00 01` remained
+  white.
+- Unedited stored zones can return an effect-shaped payload such as
+  `03 01 28 01 00 ff 00 00 ff 00`; the advanced/effect-state schema is still
+  unmapped even though static-zone payloads are now validated.
 
 ## Button Binding Payloads
 
@@ -92,22 +168,44 @@ What is confirmed:
 - Selecting profiles in Synapse emits `from actionFromUI newActiveProfileGUID`,
   `set active profile`, and `[Armory] Active profile`.
 - The mouse receives setting projection writes after profile selection.
+- In the wall-clock-filtered Synapse startup capture, `03 80 00 00` returned a
+  compact onboard target list candidate (`01 02 03`) and Synapse then read
+  metadata chunks through `03 84 02 00` and `03 84 03 00`.
+- Live macOS probing found that `03 82 00 00` returns the active target byte.
+  It returned `02` when stored target `2` was active, `01` after cycling back to
+  the default/live target, and `03` after creating/cycling to target `3`.
+- `03 84 <target> 00` uses a 4-byte request payload that looks like
+  `<offset_le16><length_le16>`; response chunks include GUID bytes, ASCII/UTF-8
+  profile names, and owner hash fragments in the same structure family as
+  create-time `03 04` metadata writes.
+- Live macOS readback of the profiles created by `OpenSnekProbe` confirmed the
+  UUID/name fields are device-backed for those targets:
+  - target `2`: GUID `3a35ec93-bee1-4b29-9d3d-0d2b88f9edef`, name `OPENSNEK_MAC_SLOT_1`
+  - target `3`: GUID `3bdbc397-3075-4beb-8f8a-34c45b186ff9`, name `OPENSNEK_MAC_SLOT_3`
 
 What is not confirmed:
 
-- A BLE command that lists onboard profile slots.
-- A BLE command that maps a stored/profile target byte to a Synapse GUID.
-- A BLE command that returns profile names. Names may be host-only.
+- Whether `03 80 00 00` is the complete onboard profile slot list, an enabled
+  target list, or only the set Synapse chose to inspect in that startup state.
+- Whether `03 84` always maps a stored/profile target byte to a Synapse GUID
+  across reconnect, delete/recreate, and host changes.
+- Whether `03 82 00 00` is stable across reconnects and every transport-owned
+  state, though current live evidence strongly supports it as the active target
+  read.
 - Whether `01 8C <target> 00` is an existence check, enable flag, dirty flag, or
   another stored-target state.
 
 Implementation guidance:
 
-- Treat the device as having a live projection surface first.
-- Treat stored/profile targets as opaque numeric targets until create/update/delete
-  captures prove stable semantics.
-- Preserve host GUID/name mapping in OpenSnek storage rather than assuming the
-  mouse stores human-readable profile names.
+- Treat target `1` as the Synapse live projection surface for existing
+  setting writes.
+- Treat target `0` on `0B 81/82/83` as the hardware-active DPI identity surface,
+  not as the same thing as target `1`.
+- Treat stored/profile targets as opaque numeric targets until read/create/update
+  captures prove stable semantics across reconnects.
+- Read device-backed UUID/name metadata where available, but keep OpenSnek's
+  host profile mapping canonical until reconnect, delete/recreate, and rename
+  semantics are validated.
 
 ## Activate / Select
 
@@ -133,10 +231,14 @@ Current implementation direction:
   OpenSnek profile snapshot to live target `1`.
 - Do not assume a hidden BLE active-slot selector until a focused capture proves
   one exists.
+- Firmware/onboard profile-button activation is a separate path: detect the
+  passive HID hint, then read `03 82 00 00` for the active target. Use
+  `0B 82 00 00` only as a fallback or validation fingerprint.
 
 ## Create
 
-Status: mapped for one Synapse-created profile into stored/profile target `2`.
+Status: mapped for one Synapse-created profile into stored/profile target `2`
+and live-validated on macOS for replacing stored slot `1` / target `2`.
 
 Capture:
 
@@ -171,6 +273,34 @@ Observed create/write sequence around the `addProfile` event:
 | `08 05 02 00` | 1 | `00` | follow-up profile/apply control candidate |
 | `10 05 02 00` | 1 | `54` | stored target `2` brightness |
 
+Live macOS probe validation:
+
+```bash
+swift run --package-path OpenSnek OpenSnekProbe bt-profile-create \
+  --stored-slot 1 \
+  --profile-name OPENSNEK_MAC_SLOT_1 \
+  --values 400,800,1600,3200,6400 \
+  --active 3 \
+  --yes \
+  --name "BSK V3 PRO"
+```
+
+The probe replayed the target-`2` sequence above with a generated GUID
+`3a35ec93-bee1-4b29-9d3d-0d2b88f9edef`. Each write/control step returned the
+normal BLE success status (`0x02`). After stale notifies settled, readback showed:
+
+```text
+03 80 00 00 -> 01 02
+0B 81 02 00 -> 1600x1600
+0B 82 02 00 -> 400,800,1600,3200,6400
+0B 83 02 00 -> 0x03
+```
+
+That is enough to treat the create replay as a working stored-slot replacement
+for target `2` in this device state. It does not prove general free-slot
+allocation rules; the command is intentionally guarded by `--yes` because it
+clears/replaces the target.
+
 ### `03 04 <target> 00` Profile Metadata Chunks
 
 The create capture writes the profile metadata as four chunks to `03 04 02 00`.
@@ -200,6 +330,24 @@ padding in this capture. The fixed field sizes are not proven yet; treat the
 offsets and padding as capture-backed for this profile, not a finalized binary
 schema.
 
+Live metadata readback:
+
+`03 84 <target> 00` is a write-framed read: send a 4-byte request payload with
+`<offset_le16><length_le16>`, then parse the returned metadata bytes.
+
+Examples validated on macOS after `OpenSnekProbe bt-profile-create`:
+
+| Target | Request | Returned identity |
+|---:|---|---|
+| `2` | `03 84 02 00` + `00 00 4c 00` | GUID `3a35ec93-bee1-4b29-9d3d-0d2b88f9edef`, name `OPENSNEK_MAC_SLOT_1` |
+| `3` | `03 84 03 00` + `00 00 4c 00` | GUID `3bdbc397-3075-4beb-8f8a-34c45b186ff9`, name `OPENSNEK_MAC_SLOT_3` |
+| `3` | `03 84 03 00` + `4c 00 4c 00` | owner hash chunk beginning with `31933b5452df5708882d...` |
+
+This proves UUID/name metadata is stored on the device for the created targets.
+It does not prove standalone rename safety; the earlier Synapse rename-only
+captures did not emit a metadata rewrite, so OpenSnek should treat isolated
+metadata updates as experimental until directly validated.
+
 Open questions:
 
 - Whether Synapse chose target `2` because it was the first recyclable/free OBM
@@ -211,6 +359,48 @@ Open questions:
 - Whether create without a rename prompt would write the same metadata once with
   the default duplicated name.
 
+### Recreate After Delete
+
+Live macOS validation recreated deleted target `3` with
+`OpenSnekProbe bt-profile-create --stored-slot 2`. The sequence re-added target
+`3` to inventory:
+
+```text
+03 80 00 00 -> 01 02 03
+03 84 03 00 -> new UUID/name metadata
+10 85 03 <led> -> recreated brightness
+```
+
+One important caveat: in this recreate pass, the `0B 04 03 00` stored DPI stage
+write returned status `0x01`, and readback showed the old stage table remained.
+Retrying the same `0B 04 03 00` payload returned status `0x02` and read back
+correctly as `760,960,1160,1360,1560` with token `04`.
+
+Implementation guidance:
+
+- Treat create/rewrite as a multi-step transaction with per-step ACK checks.
+- Do not continue silently after a non-`0x02` write status.
+- Read back every written surface before considering a stored profile valid.
+- If one surface fails, the target can be partially rewritten; retry or rebuild
+  the target from a known complete snapshot.
+
+Reconnect persistence:
+
+After Bluetooth disconnect/reconnect, the recreated target persisted:
+
+```text
+03 80 00 00 -> 01 02 03
+03 82 00 00 -> 01
+03 84 03 00 + 00 00 4c 00 -> GUID/name OPENSNEK_RECREATE_SLOT_2
+03 84 03 00 + 4c 00 4c 00 -> owner hash chunk
+0B 81/82/83 03 00 -> 1360x1360, stages 760,960,1160,1360,1560, token 04
+10 85 03 <led> -> 60
+```
+
+This proves the create/recreate path persisted inventory, metadata, DPI, and
+brightness across a fresh Bluetooth session. The active target reset to `1` on
+this reconnect.
+
 ## Update
 
 Status: mapped for active-profile single button binding writes and active
@@ -220,7 +410,67 @@ Confirmed update surfaces:
 
 - Live DPI table: `0B 04 01 00`
 - Live button binding: `08 04 01 <slot>`
-- Stored/profile button binding candidates: `08 04 <target> <slot>`
+- Stored/profile DPI scalar/table: `0B 01 <target> 00`, `0B 04 <target> 00`
+- Stored/profile button binding: `08 04 <target> <slot>`
+- Stored/profile brightness: `10 05 <target> 00`
+- Stored/profile static zone color: `10 03 <target> <led>`
+
+### Stored-Only Update Probe
+
+Live macOS validation on the connected `BSK V3 PRO` updated inactive target `3`
+without projecting to live target `1`.
+
+Baseline before the update:
+
+```text
+03 80 00 00 -> 01 02 03
+03 82 00 00 -> 01
+target 0 DPI -> 600,800,1000,1200,1400
+target 3 DPI -> 700,900,1100,1300,1500
+live lighting -> brightness 0x54, color ffffff
+```
+
+Stored-only writes sent:
+
+| Surface | Key | Payload | Readback |
+|---|---|---|---|
+| DPI scalar | `0B 01 03 00` | `46 05 46 05 00 00` (`1350x1350`) | `0B 81 03 00 -> 1350x1350` |
+| DPI stages | `0B 04 03 00` | active token `04`, stages `750,950,1150,1350,1550` | `0B 82/83 03 00 -> same stages, token 04` |
+| Button5 | `08 04 03 05` | `03 05 00 02 02 00 0a 00 00 00` | `08 84 03 05` even lane `02 02 00 0a 00 00 00` |
+| Brightness | `10 05 03 00` | `c8` | `10 85 03 <led> -> c8` for tested LEDs |
+| Scroll-wheel static color | `10 03 03 01` | `01 00 00 01 12 34 56 00 00 00` | `10 83 03 01 -> same payload` |
+
+After these writes:
+
+```text
+03 80 00 00 -> 01 02 03
+03 82 00 00 -> 01
+target 0 DPI -> 600,800,1000,1200,1400
+live Button5 -> default mouse Button5
+live lighting -> brightness 0x54, color ffffff
+```
+
+This proves mapped stored-target surfaces can be updated while inactive and read
+back without immediately changing the live/projection layer.
+
+Physical profile-cycle validation:
+
+After one physical profile-cycle button press, the passive HID watcher saw the
+expected hint pair and `03 82 00 00` moved to target `3`. The target-`0`
+hardware-active surfaces then mirrored stored target `3`:
+
+| Surface | Hardware-active read | Result |
+|---|---|---|
+| Active target | `03 82 00 00` | `03` |
+| DPI | `0B 81/82/83 00 00` | `1350x1350`, stages `750,950,1150,1350,1550`, token `04` |
+| Brightness | `10 85 00 <led>` | `c8` for tested LEDs |
+| Static scroll-wheel color | `10 83 00 01` | `01 00 00 01 12 34 56 00 00 00` |
+| Button5 | `08 84 00 05` | same packed lanes as stored target `3`, including keyboard HID `0x0a` |
+
+Live/projection target `1` stayed on the old values (`0x54` brightness, white
+static color, default Button5). This confirms the practical runtime model:
+after firmware/onboard cycling, use `03 82` for identity and target `0` reads
+for active hardware state; target `1` is a separate host/live projection bank.
 
 ### Active Profile Button Binding
 
@@ -455,6 +705,43 @@ Active-target unassign capture:
 - The delete write was `03 06 02 00` with empty payload and status `02`.
 - No immediate replacement live projection was sent by the delete itself.
 
+Live macOS target-`3` delete validation:
+
+After stored-only update and activation testing, target `3` was active and
+inventory was `01 02 03`. Sending `03 06 03 00` with an empty payload returned
+success status `0x02`.
+
+Immediate readback after delete:
+
+```text
+03 80 00 00 -> 01 02
+03 82 00 00 -> 03
+01 8C 03 00 -> 01
+03 84 03 00 -> target 3 UUID/name metadata still readable
+0B 81/82/83 03 00 -> target 3 DPI still readable
+10 85/10 83 03 <led> -> target 3 lighting still readable
+```
+
+So `03 06 <target> 00` removes the target from the cycleable inventory, but it
+does not immediately erase target metadata/settings banks and does not force the
+active target to change if that target was active.
+
+After one physical profile-cycle button press:
+
+```text
+03 80 00 00 -> 01 02
+03 82 00 00 -> 01
+target 0 DPI -> 600,800,1000,1200,1400
+target 0 brightness -> 0x54
+target 0 static color -> ffffff
+target 0 Button5 -> default mouse Button5
+```
+
+This confirms firmware skips the unassigned target on the next cycle and returns
+to a target in the inventory ring. OpenSnek should remove deleted targets from
+its cycleable profile list immediately, but should not assume `03 06` securely
+erases or invalidates all per-target readbacks.
+
 After the active target was unassigned, pressing the physical profile button
 while Synapse was open produced Synapse software `navigateProfile` events. This
 path appears to cycle over a hybrid Synapse host profile list, not only the
@@ -519,8 +806,8 @@ Bluetooth HID collection with usage page `0x01`, usage `0x00`:
 Treat these passive HID reports as a firmware profile-cycle hint, not as a
 decoded active profile ID. This is enough for a real-time OpenSnek UI without
 continuous current-profile polling: the HID hint is the event, and OpenSnek
-should perform a small one-shot follow-up read/fingerprint of live target `1`
-only after that event arrives.
+should perform a small one-shot follow-up active-target read only after that
+event arrives.
 
 Follow-up read validation:
 
@@ -544,6 +831,67 @@ detection, but the currently known live-target readback keys are not enough to
 identify the firmware-ring active profile after a Synapse-closed onboard cycle.
 They appear to read the current BLE live/software projection surface, which did
 not move with the hardware profile ring in these passes.
+
+The later active target-`0` DPI sweep fills that specific gap for distinctive
+DPI profiles: use `0B 82 00 00`, not `0B 84 01 00`, to fingerprint the
+hardware-selected onboard profile.
+
+No-profile live macOS qualification:
+
+A later live macOS probe pass had no apparent stored/cycleable profiles loaded.
+`03 80 00 00` returned only `01`, the active hardware DPI table was
+`600,800,1000,1200,1400`, and no stored target table matched it. Pressing the
+physical profile button while the probe was listening on the validated BLE HID
+interface produced no `04 04 ...` / `05 05 39 ...` hint and no active
+`0B 82 00 00` change. Treat this as evidence that the passive profile-button
+hint may only be emitted when the firmware actually performs a profile
+transition; a single-target/no-stored-profile state can make the button a no-op.
+
+One-profile live macOS validation:
+
+After replaying the target-`2` create flow above, the physical profile button
+worked again and a Swift `IOHIDDeviceRegisterInputReportCallback` watcher on the
+Bluetooth HID collection captured the expected pair:
+
+```text
+04 04 00 00 00 00 00 00 00
+05 05 39 00 00 00 00 00 00
+```
+
+A follow-up BLE read immediately after that button press showed the hardware
+active target changed from the prior live table to the stored target-`2` table:
+
+```text
+before: 0B 82 00 00 -> 600,800,1000,1200,1400
+after:  0B 82 00 00 -> 400,800,1600,3200,6400
+03 80 00 00 -> 01 02
+```
+
+The all-target debug scan also found hidden target banks with the same
+`400,800,1600,3200,6400` table. For UI identity, prefer inventory-listed
+cycleable targets from `03 80 00 00`; in this pass target `2` was the only
+inventory-listed stored target, so the profile-button transition identified
+stored slot `1`.
+
+Direct active-target validation:
+
+Follow-up live macOS probing found a simpler read:
+
+```text
+03 82 00 00 -> <active-target>
+```
+
+Observed sequence:
+
+| State | `03 82 00 00` | Validation |
+|---|---:|---|
+| target `2` active after cycling to stored slot `1` | `02` | `0B 82 00 00` matched target `2` |
+| cycled back to default/live target | `01` | `0B 82 00 00` returned `600,800,1000,1200,1400` |
+| created target `3` with `700,900,1100,1300,1500`, then cycled to it | `03` | `0B 82 00 00` matched target `3` |
+
+This makes `03 82 00 00` the preferred current-active-profile read. The
+fingerprint read (`0B 82 00 00`) is still useful as a fallback, for validation,
+and for detecting inconsistent/ambiguous firmware state.
 
 Active DPI target correction:
 
@@ -630,6 +978,26 @@ Observed profile-button binding reads:
 | `08 84 02 6A` | same shape | stored target `2` profile-button binding read |
 | `08 84 03 6A` | same shape | stored target `3` profile-button binding read |
 
+Live macOS probe validation also observed a non-duplicated 16-byte readback
+after writing stored target `2`, Button5:
+
+```text
+08 84 02 05 -> 05 00 02 01 02 01 00 05 09 00 00 00 00 00 00 00
+```
+
+Read this as two interleaved 7-byte function-block lanes after the `slot,00`
+prefix:
+
+```text
+even lane: 02 02 00 09 00 00 00  # keyboard-simple HID 0x09
+odd lane:  01 01 05 00 00 00 00  # mouse Button5/default
+```
+
+The even lane matched the guarded stored-target write payload, proving the
+stored button write can persist on target `2` even when `03 80 00 00` reports
+only target `1`. The odd-lane semantics still need broader mapping before
+product UI should expose this readback as a single definitive binding.
+
 No `08 04 <target> 6A` write was observed in the filtered startup window. That
 means Synapse's "software takeover" of the physical profile button is not
 currently explained as a simple remap of slot `0x6A`. The most likely current
@@ -683,12 +1051,14 @@ Current implementation guidance:
   profile-button changes. The passive HID report is the detection path.
 - After a profile-cycle hint, perform only event-scoped follow-up reads. Do not
   expect the HID report to carry a target ID.
-- For DPI-based identity, read the active hardware DPI surface:
+- Prefer `03 82 00 00` to read the current active target directly.
+- For validation or fallback, read the active hardware DPI surface:
   - `0B 82 00 00` for the active profile's stage values
   - `0B 81 00 00` for the active scalar/current DPI pair
   - `0B 83 00 00` for the active stage token
-- Match `0B 82 00 00` against stored slot tables read from `0B 82 02 00` through
-  `0B 82 05 00` to infer which onboard slot the firmware selected.
+- If `03 82` is unavailable or inconsistent, match `0B 82 00 00` against stored
+  slot tables read from `0B 82 02 00` through `0B 82 05 00` to infer which
+  onboard slot the firmware selected.
 - Do not use `0B 84 01 00` as the active hardware profile identity source. It
   reads the live/projection stage table with stage IDs, and it can remain pinned
   to the previous projected profile while the hardware ring changes.
@@ -709,11 +1079,11 @@ Open questions:
 
 - Whether passive profile-cycle hint reports encode any additional state beyond
   "a profile-cycle event happened." The current Windows HID sniff did not decode
-  a target ID, so OpenSnek should do a one-shot live target `1` fingerprint
-  refresh after the hint.
-- Whether there is a direct active-slot/profile ID read. For now, profile
-  identity is inferred by matching the active DPI table (`0B 82 00 00`) against
-  stored target DPI tables.
+  a target ID, so OpenSnek should still do a one-shot active-target read after
+  the hint.
+- Whether `03 82 00 00` is stable across reconnect, delete/recreate, Synapse
+  takeover, and mixed host states. Live macOS evidence supports it as the direct
+  active target read.
 - Whether Synapse's startup `08 05` / `08 07` / `08 06` live apply sequence is
   what disables firmware-visible profile-button cycling, or whether Synapse
   simply handles a host HID event before firmware changes the onboard slot.
@@ -725,7 +1095,8 @@ Open questions:
 
 ## Rename
 
-Status: likely host-only for rename-only updates in observed Synapse flows.
+Status: device metadata exists, but rename-only updates looked host-only in
+observed Synapse flows.
 
 Captures:
 
@@ -755,8 +1126,9 @@ projection writes at `+3.69s` and `+35.9s`:
 
 Current implementation guidance:
 
-- Treat profile display names as OpenSnek host-side metadata for rename/update.
-- Do not rewrite `03 04 <target> 00` just to rename an existing profile.
+- Treat profile display-name edits as OpenSnek host-side metadata for now.
+- Do not rewrite `03 04 <target> 00` just to rename an existing profile until
+  isolated metadata update safety is validated.
 - The `03 04` metadata structure is still required evidence for create, where
   Synapse wrote GUID/name/owner chunks to the stored target.
 - If a future capture proves device-side rename persistence, add it as a
@@ -770,23 +1142,106 @@ Open questions:
 - Whether names in `03 04` are used by firmware or only copied during profile
   creation for Synapse/OBM bookkeeping.
 
+## Profile-Scoped vs Device-Global Settings
+
+Status: mixed. Several settings are clearly target/profile-scoped, but others
+are live projection surfaces or device telemetry and should not be modeled as
+stored-profile data.
+
+| Surface | Current scope | Evidence | Implementation guidance |
+|---|---|---|---|
+| Target inventory | Device profile list | `03 80 00 00` returns target bytes such as `01 02 03` | Use to discover cycleable/known targets; not a user setting. |
+| Active target | Device runtime pointer | `03 82 00 00` live-read `01`, `02`, and `03` as the firmware-selected target changed | Use after passive profile-button hints; not stored inside a profile. |
+| UUID/name/owner metadata | Stored target/profile | `03 84 <target> 00` read back the GUID/name written by `03 04 <target> 00` for targets `2` and `3` | Device-backed for created targets, but standalone rename remains unvalidated. |
+| DPI scalar/stage/token | Stored target plus hardware-active mirror | `0B 81/82/83 <target> 00` read stored targets; `0B 81/82/83 00 00` read the hardware-active surface | Read stored targets for hydration/fingerprint fallback. Use target `0` for firmware-active state after profile cycling; target `1` is projection. |
+| Button bindings | Stored target plus hardware-active mirror plus live projection | `08 84/08 04 <target> <slot>` works for stored targets; `08 84 00 <slot>` mirrors the active firmware target after cycling | Store per profile in OpenSnek; after profile-cycle, hydrate active state from target `0`. |
+| Lighting brightness | Stored target plus hardware-active mirror plus live projection | Stored create/rewrite and stored-only update writes use `10 05 <target> 00`; stored readback uses `10 85 <target> <led>`; hardware-active readback uses `10 85 00 <led>` | Stored brightness is mapped for the V3 Pro target model. Use target `0` to hydrate active hardware state after firmware cycling. |
+| Lighting static color | Stored target plus hardware-active mirror plus live projection | Stored static write/read uses `10 03/10 83 <target> <led>`; hardware-active static readback uses `10 83 00 <led>` | Static stored color is mapped per target/LED. Use target `0` to hydrate active hardware state after firmware cycling. |
+| Lighting effects / advanced state | Profile scope likely, schema incomplete | Unedited stored zones can return effect-shaped payloads such as `03 01 28 01 00 ff 00 00 ff 00` | Keep advanced/effect persistence as an open gap. |
+| Lighting zone catalog | Device-global capability | `10 80 00 01` returns LED IDs for the device | Capability metadata, not profile data. |
+| Sleep timeout / power management | Device-global or global register alias | Shipped key is `05 84/05 04 00 00`; live sweep of adjacent target-like reads returned the same timeout or unsupported status, not distinct profile values | Keep as device-level setting. Do not include in onboard profile snapshots unless future captures prove profile scope. |
+| Battery raw/status | Device telemetry | `05 81/05 80 00 01`; target-like probes returned the same telemetry or unsupported status | Never store in profiles. |
+| Poll rate | Not mapped on BLE in product Swift | No source-of-truth BLE vendor key in Swift | Keep unsupported/global until a validated BLE path exists. |
+
+Unknown profile surfaces still include macros, advanced action families,
+advanced lighting/effect data, and any hidden Synapse-only per-profile fields.
+
+## Bulk Profile Read / Write
+
+Status: no atomic whole-profile bulk API is mapped or used by OpenSnek today.
+
+What we have is a set of profile-scoped surfaces:
+
+| Surface | Read | Write | Notes |
+|---|---|---|---|
+| Target inventory | `03 80 00 00` | not mapped | Returns cycleable/known target bytes such as `01 02 03`. |
+| Active target | `03 82 00 00` | not mapped | Preferred current-profile read after a profile-button HID hint. |
+| Hardware-active state | `0B 81/82/83 00 00`, `08 84 00 <slot>`, `10 85 00 <led>`, `10 83 00 <led>` | not mapped as a direct target | Mirrors the active firmware-selected target after profile cycling. |
+| Metadata UUID/name/owner | `03 84 <target> 00` + `<offset><length>` request payload | `03 04 <target> 00` chunk payloads | Device-backed for live-created targets `2` and `3`; standalone rename not validated. |
+| Stored DPI scalar/stages/token | `0B 81/82/83 <target> 00` | `0B 01 <target> 00`, `0B 04 <target> 00` | Stored-target writes validated as part of create/rewrite flows. |
+| Live/projection DPI | `0B 84 01 00` | `0B 04 01 00` | This is the current shipping Bluetooth live-layer DPI refresh/write path. |
+| Button binding | `08 84 <target> <slot>` | `08 04 <target> <slot>` | Per-slot, not whole-profile. Current product Swift writes target `1`; probe can target stored slots. |
+| Stored brightness | `10 85 <target> <led>` | `10 05 <target> 00` | Stored write/read validated on inactive target `3`. |
+| Stored static color | `10 83 <target> <led>` | `10 03 <target> <led>` | Stored static-zone write/read validated on target `3`, LED `0x01`; effect-shaped payloads remain unmapped. |
+| Live lighting brightness/color | `10 85 01 <led>`, `10 83 00 <led>` | `10 05 01 <led>`, `10 03 00 <led>` | Current shipping Bluetooth live-layer lighting refresh/write path on the V3 Pro. |
+| Power/battery telemetry | `05 84`, `05 81`, `05 80` global keys | `05 04 00 00` for sleep timeout | Device-level surfaces; not profile bulk data. |
+
+So, yes, OpenSnek can assemble a best-effort profile snapshot for the mapped
+surfaces by bulk-reading a target, but that is an OpenSnek orchestration over
+many vendor exchanges, not a single device "bulk profile read" command. It is
+not yet a complete "everything Synapse can store" profile clone: unmapped button
+action families, macros, advanced lighting/effect state, and any hidden
+per-profile settings still need separate validation. Likewise, create/rewrite is
+a multi-command transaction over metadata, DPI, stored lighting, and optional
+button slot writes; no atomic "write this complete profile blob" command has
+been identified.
+
+Current OpenSnek app behavior:
+
+- Shipping Bluetooth state refresh does not use profile inventory/metadata
+  reads yet.
+- `BridgeClient.readBluetoothState` reads the historical live/projection state
+  through per-feature calls: live DPI via `0B 84 01 00`, battery/power scalars,
+  and existing lighting keys. On V3 Pro firmware-cycled profiles, target `0`
+  is the better active-hardware state source for DPI, buttons, and lighting.
+- Bluetooth applies are also per-feature: live DPI through `0B 04 01 00`,
+  live lighting through `10 05 01 <led>` / `10 03 00 <led>`, and button binding
+  through target `1` `08 04 01 <slot>`.
+- The new profile CRUD surfaces are currently probe/documentation-backed. A
+  future app implementation should use `03 82` for reactive active-profile UI,
+  `03 80`/`03 84` for inventory/identity hydration, target `0` reads to hydrate
+  active firmware-selected state, and stored target reads only when it needs to
+  hydrate a full stored profile snapshot.
+
 ## OpenSnek Implementation Shape
 
 Proposed types:
 
 ```text
-BLEProfileTarget
-  target: UInt8              // 1 = live projection, 2..n = stored/profile candidate
+BLEProfileSurface
+  target: UInt8              // 1 = Synapse live projection, 2..5 = stored target
+  storedSlot: UInt8?         // OpenSnek slot 1..4 for targets 2..5
   hostGUID: UUID?            // OpenSnek/Synapse host identity when known
   name: String?              // host-side display name when known
   snapshot: DeviceSnapshot   // DPI, lighting, buttons, etc.
+
+BLEHardwareActiveTarget
+  activeTargetKey: 03 82 00 00
+  target: UInt8              // current active target, e.g. 1, 2, 3
+
+BLEHardwareActiveFingerprint
+  activeStagesKey: 0B 82 00 00
+  activeScalarKey: 0B 81 00 00
+  activeStageTokenKey: 0B 83 00 00
+  matchedStoredSlot: UInt8?  // set only when fingerprint is unique
 ```
 
 Proposed behavior:
 
-- `readProfiles()` initially reads/returns OpenSnek-known host profiles and the
-  current live projection snapshot; it should not pretend to list device-native
-  names until that is captured.
+- `readProfiles()` should read `03 80 00 00` for targets and `03 84 <target>
+  00` for device-backed UUID/name metadata where available. Product UI should
+  still reconcile against OpenSnek-owned host metadata until reconnect, target
+  churn, and rename semantics are validated.
 - `activateProfile(id)` applies the stored snapshot to target `1`.
 - `updateProfile(id, changes)` updates OpenSnek storage and, if active, applies
   changed settings to target `1`.
@@ -797,13 +1252,44 @@ Proposed behavior:
   that target from OpenSnek's cycleable stored-profile list.
 - Stored-target writes stay behind a hardware-gated experimental path until
   create/update/delete captures prove safety.
+- `handleProfileButtonHint()` should debounce the passive HID reports, read
+  `03 82 00 00`, and map the returned target to the inventory/profile table.
+  Use `0B 82 00 00` matching only as fallback/validation; if fallback matching is
+  not unique, mark the UI profile identity ambiguous instead of guessing.
 
-## Next Captures
+Probe validation commands now cover the capture-backed subset:
 
-Recommended order:
+```bash
+swift run --package-path OpenSnek OpenSnekProbe bt-profile-read --stored-slots 1,2,3,4 --button-slots 5,106 --name "BSK V3 PRO"
+swift run --package-path OpenSnek OpenSnekProbe bt-profile-create --stored-slot 1 --profile-name OPENSNEK_MAC_SLOT_1 --yes --name "BSK V3 PRO"
+swift run --package-path OpenSnek OpenSnekProbe bt-profile-button-read --stored-slot 1 --button-slot 5 --name "BSK V3 PRO"
+swift run --package-path OpenSnek OpenSnekProbe bt-profile-button-set --stored-slot 1 --button-slot 5 --kind keyboard_simple --hid-key 0x09 --yes --name "BSK V3 PRO"
+swift run --package-path OpenSnek OpenSnekProbe bt-profile-hid-watch --name "BSK V3 PRO" --duration 20
+```
 
-1. Offline inactive edit path: if Synapse exposes a way to edit an assigned
-   stored profile without making it the active/editing profile, modify one
-   button and verify whether live target `1` is untouched.
-2. Create into a known empty slot and compare target allocation after explicit
-   unassign/delete.
+The write command targets stored slots through `08 04 <target> <slot>` and only
+projects to live target `1` when `--project-live` is passed. Keep metadata CRUD
+and `03 06` delete/unassign outside product flows until live hardware validation
+confirms the remaining edge cases.
+
+## Remaining Gaps Before Shipping
+
+1. Offline inactive edits remain unproven. Existing Synapse UI flows make the
+   edited profile live before writing, so OpenSnek should keep inactive edits
+   host-side for now.
+2. Create allocation remains under-specified. We have one strong target-`2`
+   create/rewrite capture and one live target-`2` replay, but not enough to know
+   free-slot choice rules.
+3. Stored DPI persistence remains under-specified. Active DPI edits were live
+   target `1` writes; stored-target DPI table writes only appeared during
+   create/rewrite flows.
+4. Delete/unassign removes a target from the cycleable inventory but does not
+   erase the target bank immediately. Product code must treat `03 80` as the
+   cycleable source of truth and ignore stale readable deleted targets unless
+   explicitly inspecting raw banks.
+5. Stored lighting remains partial. Brightness and static color now have
+   target-scoped read/write paths and firmware-cycle application validation, but
+   advanced/effect semantics are not mapped.
+6. `03 82 00 00` still needs reconnect/recreate validation before
+   shipping by default. DPI fingerprinting remains the fallback path and is only
+   usable when inventory-listed DPI tables are unique.
