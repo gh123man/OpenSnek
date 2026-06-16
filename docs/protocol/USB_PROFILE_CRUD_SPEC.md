@@ -97,15 +97,17 @@ External evidence:
 
 ## Bluetooth Create/Name Mapping
 
-Bluetooth has a guarded create/rewrite path for explicit stored targets, but it
-is not a general allocator or standalone rename API yet. `OpenSnekProbe
-bt-profile-create` clears a chosen target, runs the observed prepare/apply
-control steps, writes `03:04` metadata chunks with UUID/name/owner fields, then
-writes stored DPI and brightness. Targets `2` and `3` were created/recreated
-successfully, appeared in `03:80`, read back through `03:84`, and persisted
-across reconnect. Rename-only captures did not emit `03:04`, so existing
-profile display-name edits should remain host-owned until isolated rename
-safety is validated.
+Bluetooth has a guarded create/rewrite path for explicit stored targets and a
+validated assigned-target metadata rename path. `OpenSnekProbe bt-profile-create`
+clears a chosen target, runs the observed prepare/apply control steps, writes
+`03:04` metadata chunks with UUID/name/owner fields, then writes stored DPI and
+brightness. Targets `2`, `3`, and temporary target `5` were created/recreated
+successfully, appeared in `03:80`, read back through `03:84`, and selected
+through `03:02` when assigned. Direct `03:04` metadata writes reject with status
+`0x03` on unassigned targets, but the same full metadata object works as a
+rename/update once the target is assigned. Rename-only Synapse captures did not
+emit `03:04`, so host display-name edits can still remain host-owned unless the
+user explicitly asks to rename onboard metadata.
 
 USB now maps the create/name pieces, with a stronger caveat around assignment
 side effects than Bluetooth:
@@ -117,14 +119,17 @@ side effects than Bluetooth:
 | Inventory `03:80` | `05:81`, with count hint `05:80` | Validated experimentally. `05:81` returns max profile ID followed by assigned profile IDs. |
 | Delete/unassign `03:06 <target>` | `05:03 <profile>` | Validated as cycle-ring unassign, not erase. |
 | Metadata read `03:84 <target>` | `05:88 <profile,offset,total>` | Validated for UUID/name/owner chunks. |
-| Metadata write `03:04 <target>` | `05:08 <profile,offset,total,data>` | Validated over a 250-byte metadata object using four full `0x50` writes. Works without `05:02` for already assigned profiles. |
+| Metadata write `03:04 <target>` | `05:08 <profile,offset,total,data>` | Validated over a 250-byte metadata object. Works without the create prelude for already assigned profiles; unassigned targets/banks reject until the create/assign prelude runs. |
 | Prepare/apply/create controls `08:05`, `08:07`, `03:05`, `01:8C` | `05:02 <profile>` before `05:08` | Validated as USB assign/create prelude for an unlisted bank. It can initialize/disturb DPI and brightness, so create must be followed by content writes/readback. |
 | Stored DPI/buttons/brightness writes | `04:05`, `04:06`, `02:0C`, `0F:04` | Profile-addressed content writes are validated on known banks. |
 
-Practical result: USB can list, activate, unassign, rename/repair metadata on
-assigned profiles, and create/assign a named bank through `05:02` + `05:08`.
-The assign path is not content-preserving; production create should immediately
-write the desired DPI, button, and lighting profile content and verify readback.
+Practical result: USB and Bluetooth now match for core mapped CRUD semantics:
+list, activate, unassign, rename/repair metadata on assigned profiles, and
+create/assign a named bank through a transport-specific prelude plus full
+metadata writes. The USB assign path is known not to be content-preserving, and
+Bluetooth create is still a multi-surface transaction, so production create
+should immediately write the desired DPI, button, and lighting profile content
+and verify readback on either transport.
 
 ## Storage / Target Model
 

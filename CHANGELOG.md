@@ -50,6 +50,7 @@ All notable changes to this project are documented in this file.
 - Disabled the old unsafe USB metadata-write probe after an incomplete `05:08` attempt erased profile `5` metadata to UUID `ffffffff-ffff-ffff-ffff-ffffffffffff`, name `nil`, and disturbed settings. Settings were restored through validated DPI/lighting writes; a later full-object `05:08` repair restored profile `5` metadata without changing mapped settings.
 - Mapped Basilisk V3 Pro USB profile metadata bulk operations. `05:88` reads and `05:08` writes a 250-byte UUID/name/owner object in four full `0x50` chunks at offsets `0x0000`, `0x004b`, `0x0096`, and `0x00e1`; direct full-object writes work for assigned-profile rename/repair, while `05:02 <profile>` plus full `05:08` chunks assigns an unlisted bank.
 - Documented the Bluetooth-to-USB create/name mapping boundary. Bluetooth has a guarded explicit-target create/rewrite path with device-backed UUID/name metadata; USB now has the analogous `05:02` + `05:08` assign/name path, but the assign path can initialize or disturb profile DPI/brightness content and must be followed by explicit stored-content writes/readback before shipping user-facing CRUD.
+- Validated the Basilisk V3 Pro Bluetooth rename/create parity boundary. Direct `03:04` metadata writes reject unassigned targets with status `0x03`; after explicit-target create/assign, the same full metadata object can rename an assigned target and read back through `03:84`, matching the USB assigned-rename versus create-prelude model.
 
 ## [2026-05-17]
 
