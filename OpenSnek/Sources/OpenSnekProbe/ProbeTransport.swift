@@ -93,6 +93,44 @@ private struct USBProbeDeviceCandidate: @unchecked Sendable {
     }
 }
 
+private struct BTHIDProbeDeviceCandidate: @unchecked Sendable {
+    let index: Int
+    let device: IOHIDDevice
+    let deviceID: String
+    let vendorID: Int
+    let productID: Int
+    let productName: String
+    let transport: String
+    let locationID: Int
+    let usagePage: Int
+    let usage: Int
+    let maxInputReportSize: Int
+    let maxFeatureReportSize: Int
+    let score: Int
+    let passiveDescriptor: PassiveDPIInputDescriptor?
+
+    var usageLabel: String {
+        String(format: "0x%02x:0x%02x", usagePage, usage)
+    }
+
+    func describe() -> String {
+        String(
+            format: "candidate[%d] %@ vid=0x%04x pid=0x%04x loc=0x%08x usage=%@ input=%d feature=%d score=%d transport=\"%@\" name=%@",
+            index,
+            deviceID,
+            vendorID,
+            productID,
+            locationID,
+            usageLabel,
+            maxInputReportSize,
+            maxFeatureReportSize,
+            score,
+            transport,
+            productName
+        )
+    }
+}
+
 private func enumerateUSBProbeCandidates(preferredProductID: Int? = nil) throws -> (manager: IOHIDManager, candidates: [USBProbeDeviceCandidate]) {
     let usbVID = 0x1532
     let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
@@ -170,6 +208,117 @@ private func enumerateUSBProbeCandidates(preferredProductID: Int? = nil) throws 
             deviceID: candidate.deviceID,
             productID: candidate.productID,
             productName: candidate.productName,
+            locationID: candidate.locationID,
+            usagePage: candidate.usagePage,
+            usage: candidate.usage,
+            maxInputReportSize: candidate.maxInputReportSize,
+            maxFeatureReportSize: candidate.maxFeatureReportSize,
+            score: candidate.score,
+            passiveDescriptor: candidate.passiveDescriptor
+        )
+    }
+    return (manager, candidates)
+}
+
+private func enumerateBTHIDProfileCandidates(
+    preferredProductID: Int? = 0x00AC,
+    preferredPeripheralName: String? = nil
+) throws -> (manager: IOHIDManager, candidates: [BTHIDProbeDeviceCandidate]) {
+    let supportedVendorIDs = [0x068E, 0x1532]
+    let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
+    let matching = supportedVendorIDs.map { [kIOHIDVendorIDKey: $0] as CFDictionary }
+    IOHIDManagerSetDeviceMatchingMultiple(manager, matching as CFArray)
+    let openResult = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+    guard openResult == kIOReturnSuccess else {
+        throw ProbeError.protocolError("IOHIDManagerOpen failed (\(openResult))")
+    }
+
+    guard
+        let rawSet = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice>,
+        !rawSet.isEmpty
+    else {
+        throw ProbeError.protocolError("No Bluetooth Razer HID device found")
+    }
+
+    var gathered: [(device: IOHIDDevice, deviceID: String, vendorID: Int, productID: Int, productName: String, transport: String, locationID: Int, usagePage: Int, usage: Int, maxInputReportSize: Int, maxFeatureReportSize: Int, score: Int, passiveDescriptor: PassiveDPIInputDescriptor?)] = []
+    for candidate in rawSet {
+        guard
+            let vendorID = USBHIDSupport.intProperty(candidate, key: kIOHIDVendorIDKey as CFString),
+            supportedVendorIDs.contains(vendorID),
+            let productID = USBHIDSupport.intProperty(candidate, key: kIOHIDProductIDKey as CFString)
+        else { continue }
+        if let preferredProductID, productID != preferredProductID { continue }
+
+        let transport = USBHIDSupport.stringProperty(candidate, key: kIOHIDTransportKey as CFString) ?? ""
+        let transportLower = transport.lowercased()
+        guard transportLower.contains("bluetooth") || transportLower.contains("ble") || vendorID == 0x068E else {
+            continue
+        }
+
+        let productName = USBHIDSupport.stringProperty(candidate, key: kIOHIDProductKey as CFString) ?? "Razer Bluetooth HID Device"
+        if let preferredPeripheralName,
+           !BluetoothNameMatcher.looselyMatches(productName, preferredPeripheralName) {
+            continue
+        }
+
+        let locationID = USBHIDSupport.intProperty(candidate, key: kIOHIDLocationIDKey as CFString) ?? 0
+        let deviceID = String(format: "%04x:%04x:%08x:bluetooth-hid", vendorID, productID, locationID)
+        let usagePage = USBHIDSupport.intProperty(candidate, key: kIOHIDPrimaryUsagePageKey as CFString) ?? 0
+        let usage = USBHIDSupport.intProperty(candidate, key: kIOHIDPrimaryUsageKey as CFString) ?? 0
+        let maxInputReportSize = USBHIDSupport.intProperty(candidate, key: kIOHIDMaxInputReportSizeKey as CFString) ?? 0
+        let maxFeatureReportSize = USBHIDSupport.intProperty(candidate, key: kIOHIDMaxFeatureReportSizeKey as CFString) ?? 0
+        let profile = DeviceProfiles.resolve(vendorID: vendorID, productID: productID, transport: .bluetooth)
+        let descriptor = profile?.passiveDPIInput
+        let descriptorScore: Int
+        if let descriptor {
+            descriptorScore = (usagePage == descriptor.usagePage ? 20 : 0) +
+                (usage == descriptor.usage ? 20 : 0) +
+                (maxInputReportSize >= descriptor.minInputReportSize ? 10 : 0) +
+                (descriptor.maxFeatureReportSize == nil || maxFeatureReportSize == descriptor.maxFeatureReportSize ? 5 : 0)
+        } else {
+            descriptorScore = 0
+        }
+        let score = descriptorScore + max(0, min(20, maxInputReportSize))
+
+        gathered.append((
+            device: candidate,
+            deviceID: deviceID,
+            vendorID: vendorID,
+            productID: productID,
+            productName: productName,
+            transport: transport,
+            locationID: locationID,
+            usagePage: usagePage,
+            usage: usage,
+            maxInputReportSize: maxInputReportSize,
+            maxFeatureReportSize: maxFeatureReportSize,
+            score: score,
+            passiveDescriptor: descriptor
+        ))
+    }
+
+    guard !gathered.isEmpty else {
+        let productSuffix = preferredProductID.map { " for pid 0x\(String(format: "%04x", $0))" } ?? ""
+        throw ProbeError.protocolError("No Bluetooth Razer HID interface found\(productSuffix)")
+    }
+
+    let sorted = gathered.sorted { lhs, rhs in
+        if lhs.score != rhs.score { return lhs.score > rhs.score }
+        if lhs.usagePage != rhs.usagePage { return lhs.usagePage < rhs.usagePage }
+        if lhs.usage != rhs.usage { return lhs.usage < rhs.usage }
+        if lhs.maxInputReportSize != rhs.maxInputReportSize { return lhs.maxInputReportSize > rhs.maxInputReportSize }
+        return lhs.maxFeatureReportSize > rhs.maxFeatureReportSize
+    }
+
+    let candidates = sorted.enumerated().map { index, candidate in
+        BTHIDProbeDeviceCandidate(
+            index: index,
+            device: candidate.device,
+            deviceID: candidate.deviceID,
+            vendorID: candidate.vendorID,
+            productID: candidate.productID,
+            productName: candidate.productName,
+            transport: candidate.transport,
             locationID: candidate.locationID,
             usagePage: candidate.usagePage,
             usage: candidate.usage,
@@ -290,6 +439,262 @@ final class USBProbeClient {
         )
     }
 
+    func profileLightingTargets() -> [USBLightingTargetDescriptor] {
+        lightingTargets(zoneID: nil) ?? [USBLightingTargetDescriptor(zoneID: "led_01", zoneLabel: "LED 0x01", ledID: 0x01)]
+    }
+
+    func readProfileSummaryRaw() throws -> [UInt8]? {
+        guard let response = try rawCommand(classID: 0x00, cmdID: 0x87, size: 0x00, args: []),
+              response[0] == 0x02,
+              response.count > 10
+        else {
+            return nil
+        }
+        return Array(response[8...10])
+    }
+
+    func readProfileCount() throws -> UInt8? {
+        guard let response = try rawCommand(classID: 0x05, cmdID: 0x80, size: 0x00, args: []) else {
+            return nil
+        }
+        return USBHIDProtocol.onboardProfileCount(from: response)
+    }
+
+    func readProfileInventory() throws -> USBHIDProtocol.OnboardProfileInventory? {
+        guard let response = try rawCommand(classID: 0x05, cmdID: 0x81, size: 0x00, args: []) else {
+            return nil
+        }
+        return USBHIDProtocol.onboardProfileInventory(from: response)
+    }
+
+    func readActiveProfileID() throws -> UInt8? {
+        guard let response = try rawCommand(classID: 0x05, cmdID: 0x84, size: 0x00, args: []),
+              let active = USBHIDProtocol.activeProfileID(from: response) else {
+            return nil
+        }
+        return active
+    }
+
+    func writeActiveProfileID(_ profile: UInt8) throws -> Bool {
+        let args = USBHIDProtocol.activeProfileSetArgs(profile: profile)
+        for _ in 0..<4 {
+            guard let response = try rawCommand(
+                classID: 0x05,
+                cmdID: 0x04,
+                size: 0x01,
+                args: args
+            ) else {
+                usleep(80_000)
+                continue
+            }
+            if USBHIDProtocol.activeProfileSetAccepted(from: response, profile: profile) {
+                return true
+            }
+            if response.count > 7, response[6] == 0x05, response[7] == 0x04, response[0] == 0x03 {
+                return false
+            }
+            usleep(80_000)
+        }
+        return false
+    }
+
+    func readProfileDPIScalar(profile: UInt8) throws -> (raw: [UInt8], pair: DpiPair?)? {
+        for _ in 0..<6 {
+            guard let response = try rawCommand(
+                classID: 0x04,
+                cmdID: 0x85,
+                size: 0x07,
+                args: [profile]
+            ), response[0] == 0x02, response.count > 12 else {
+                usleep(80_000)
+                continue
+            }
+            guard response[8] == profile else {
+                usleep(80_000)
+                continue
+            }
+
+            let raw = Array(response[8..<min(response.count, 15)])
+            let pair = DpiPair(
+                x: (Int(response[9]) << 8) | Int(response[10]),
+                y: (Int(response[11]) << 8) | Int(response[12])
+            )
+            return (raw, pair)
+        }
+        return nil
+    }
+
+    func writeProfileDPIScalar(profile: UInt8, pair: DpiPair) throws -> Bool {
+        let dpiX = max(100, min(30_000, pair.x))
+        let dpiY = max(100, min(30_000, pair.y))
+        let args: [UInt8] = [
+            profile,
+            UInt8((dpiX >> 8) & 0xFF),
+            UInt8(dpiX & 0xFF),
+            UInt8((dpiY >> 8) & 0xFF),
+            UInt8(dpiY & 0xFF),
+            0x00,
+            0x00,
+        ]
+        for _ in 0..<4 {
+            guard let response = try rawCommand(
+                classID: 0x04,
+                cmdID: 0x05,
+                size: 0x07,
+                args: args
+            ) else {
+                usleep(80_000)
+                continue
+            }
+            if writeEchoMatches(response: response, classID: 0x04, cmdID: 0x05, args: args) {
+                return true
+            }
+            usleep(80_000)
+        }
+        return false
+    }
+
+    func readProfileDPIStages(profile: UInt8) throws -> (raw: [UInt8], activeToken: UInt8, pairs: [DpiPair], stageIDs: [UInt8])? {
+        for _ in 0..<6 {
+            guard let response = try rawCommand(
+                classID: 0x04,
+                cmdID: 0x86,
+                size: 0x26,
+                args: [profile]
+            ), response[0] == 0x02, response.count > 10 else {
+                usleep(80_000)
+                continue
+            }
+            guard response[8] == profile else {
+                usleep(80_000)
+                continue
+            }
+
+            let raw = Array(response[8..<min(response.count, 8 + 0x26)])
+            let activeToken = response[9]
+            let count = max(0, min(5, Int(response[10])))
+            var pairs: [DpiPair] = []
+            var stageIDs: [UInt8] = []
+            for index in 0..<count {
+                let offset = 11 + index * 7
+                guard offset + 4 < response.count else { break }
+                stageIDs.append(response[offset])
+                pairs.append(
+                    DpiPair(
+                        x: (Int(response[offset + 1]) << 8) | Int(response[offset + 2]),
+                        y: (Int(response[offset + 3]) << 8) | Int(response[offset + 4])
+                    )
+                )
+            }
+            return (raw, activeToken, pairs, stageIDs)
+        }
+        return nil
+    }
+
+    func writeProfileDPIStagesRaw(_ raw: [UInt8]) throws -> Bool {
+        guard !raw.isEmpty else { return false }
+        for _ in 0..<4 {
+            guard let response = try rawCommand(
+                classID: 0x04,
+                cmdID: 0x06,
+                size: 0x26,
+                args: raw
+            ) else {
+                usleep(80_000)
+                continue
+            }
+            if writeEchoMatches(response: response, classID: 0x04, cmdID: 0x06, args: raw) {
+                return true
+            }
+            usleep(80_000)
+        }
+        return false
+    }
+
+    func readProfileLightingBrightness(profile: UInt8, ledID: UInt8) throws -> (raw: [UInt8], brightness: Int?)? {
+        for _ in 0..<6 {
+            guard let response = try rawCommand(
+                classID: 0x0F,
+                cmdID: 0x84,
+                size: 0x03,
+                args: [profile, ledID, 0x00]
+            ), response[0] == 0x02, response.count > 10 else {
+                usleep(80_000)
+                continue
+            }
+            guard response[8] == profile, response[9] == ledID else {
+                usleep(80_000)
+                continue
+            }
+            return (Array(response[8..<min(response.count, 11)]), Int(response[10]))
+        }
+        return nil
+    }
+
+    func writeProfileLightingBrightness(profile: UInt8, ledID: UInt8, brightness: Int) throws -> Bool {
+        let value = UInt8(max(0, min(255, brightness)))
+        let args = [profile, ledID, value]
+        for _ in 0..<4 {
+            guard let response = try rawCommand(
+                classID: 0x0F,
+                cmdID: 0x04,
+                size: 0x03,
+                args: args
+            ) else {
+                usleep(80_000)
+                continue
+            }
+            if writeEchoMatches(response: response, classID: 0x0F, cmdID: 0x04, args: args) {
+                return true
+            }
+            usleep(80_000)
+        }
+        return false
+    }
+
+    func readProfileMetadata(profile: UInt8) throws -> (chunks: [USBHIDProtocol.OnboardProfileMetadataChunk], metadata: USBHIDProtocol.OnboardProfileMetadata)? {
+        var chunks: [USBHIDProtocol.OnboardProfileMetadataChunk] = []
+        for offset in USBHIDProtocol.onboardProfileMetadataChunkOffsets {
+            let args = USBHIDProtocol.onboardProfileMetadataReadArgs(slot: profile, offset: offset)
+            guard let response = try rawCommand(
+                classID: 0x05,
+                cmdID: 0x88,
+                size: USBHIDProtocol.onboardProfileMetadataReadSize,
+                args: args
+            ), let chunk = USBHIDProtocol.onboardProfileMetadataChunk(
+                from: response,
+                expectedSlot: profile,
+                expectedOffset: offset
+            ) else {
+                continue
+            }
+            chunks.append(chunk)
+        }
+        guard !chunks.isEmpty else { return nil }
+        let bytes = USBHIDProtocol.mergeOnboardProfileMetadataChunks(chunks)
+        return (chunks, USBHIDProtocol.parseOnboardProfileMetadata(bytes))
+    }
+
+    func deleteProfile(profile: UInt8) throws -> Bool {
+        let args = [profile]
+        for _ in 0..<4 {
+            guard let response = try rawCommand(
+                classID: 0x05,
+                cmdID: 0x03,
+                size: 0x01,
+                args: args
+            ) else {
+                usleep(80_000)
+                continue
+            }
+            if writeEchoMatches(response: response, classID: 0x05, cmdID: 0x03, args: args) {
+                return true
+            }
+            usleep(80_000)
+        }
+        return false
+    }
+
     func readButtonFunction(profile: UInt8, slot: UInt8, hypershift: UInt8 = 0x00) throws -> [UInt8]? {
         var args: [UInt8] = [profile, slot, hypershift]
         args.append(contentsOf: [UInt8](repeating: 0x00, count: 7))
@@ -407,6 +812,14 @@ final class USBProbeClient {
             return false
         }
         return response[0] == 0x02
+    }
+
+    private func writeEchoMatches(response: [UInt8], classID: UInt8, cmdID: UInt8, args: [UInt8]) -> Bool {
+        guard response.count >= 8 + args.count else { return false }
+        guard response[0] == 0x02, response[6] == classID, response[7] == cmdID else {
+            return false
+        }
+        return Array(response[8..<(8 + args.count)]) == args
     }
 }
 
@@ -682,6 +1095,386 @@ final class USBInputReportProbe: @unchecked Sendable {
         let callbackContext = Unmanaged<CallbackContext>.fromOpaque(context).takeUnretainedValue()
         let bytes = Array(UnsafeBufferPointer(start: report, count: max(0, reportLength)))
         callbackContext.emit(bytes)
+    }
+}
+
+enum BTProfileHIDClassification: Equatable, Sendable {
+    case profileCyclePrelude
+    case profileCycleFollowUp
+    case dpi(PassiveDPIReading)
+    case heartbeat
+    case other
+
+    var label: String {
+        switch self {
+        case .profileCyclePrelude:
+            return "profile-cycle-prelude"
+        case .profileCycleFollowUp:
+            return "profile-cycle-followup"
+        case .dpi(let reading):
+            return "dpi=\(reading.dpiX)x\(reading.dpiY)"
+        case .heartbeat:
+            return "heartbeat"
+        case .other:
+            return "other"
+        }
+    }
+
+    var isProfileCycleHint: Bool {
+        switch self {
+        case .profileCyclePrelude, .profileCycleFollowUp:
+            return true
+        case .dpi, .heartbeat, .other:
+            return false
+        }
+    }
+}
+
+struct BTProfileHIDReportEvent: Sendable {
+    let candidateIndex: Int
+    let deviceID: String
+    let productID: Int
+    let productName: String
+    let usagePage: Int
+    let usage: Int
+    let maxInputReportSize: Int
+    let maxFeatureReportSize: Int
+    let report: [UInt8]
+    let elapsedSeconds: Double
+    let classification: BTProfileHIDClassification
+
+    var usageLabel: String {
+        String(format: "0x%02x:0x%02x", usagePage, usage)
+    }
+}
+
+final class BTProfileHIDReportProbe: @unchecked Sendable {
+    private final class CallbackContext {
+        let candidate: BTHIDProbeDeviceCandidate
+        let captureStartedAt: Date
+        let emit: @Sendable (BTProfileHIDReportEvent) -> Void
+
+        init(
+            candidate: BTHIDProbeDeviceCandidate,
+            captureStartedAt: Date,
+            emit: @escaping @Sendable (BTProfileHIDReportEvent) -> Void
+        ) {
+            self.candidate = candidate
+            self.captureStartedAt = captureStartedAt
+            self.emit = emit
+        }
+    }
+
+    private struct Registration {
+        let device: IOHIDDevice
+        let buffer: UnsafeMutablePointer<UInt8>
+        let bufferLength: CFIndex
+        let context: UnsafeMutableRawPointer
+    }
+
+    private let manager: IOHIDManager
+    private let candidates: [BTHIDProbeDeviceCandidate]
+    private let queue = DispatchQueue(label: "open.snek.probe.bt-profile-hid")
+    private let runLoopStateLock = NSLock()
+    private let reportCountLock = NSLock()
+    private var runLoop: CFRunLoop?
+    private var thread: Thread?
+    private var keepAlivePort: Port?
+    private var registrationsByIndex: [Int: Registration] = [:]
+    private var captureStartedAt: Date = .distantPast
+    private var reportCount = 0
+
+    var candidateCount: Int { candidates.count }
+
+    init(productID preferredProductID: Int? = 0x00AC, preferredPeripheralName: String? = nil) throws {
+        let enumeration = try enumerateBTHIDProfileCandidates(
+            preferredProductID: preferredProductID,
+            preferredPeripheralName: preferredPeripheralName
+        )
+        self.manager = enumeration.manager
+        self.candidates = enumeration.candidates
+    }
+
+    deinit {
+        stopSynchronously()
+        IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+    }
+
+    func describeCandidates() -> [String] {
+        candidates.map { $0.describe() }
+    }
+
+    func capture(
+        duration: TimeInterval,
+        maxReports: Int? = nil,
+        onReport: @escaping @Sendable (BTProfileHIDReportEvent) -> Void
+    ) async throws -> Int {
+        try await start(onReport: onReport)
+        defer { stopSynchronously() }
+
+        let deadline = Date().addingTimeInterval(max(0.1, duration))
+        while Date() < deadline {
+            if let maxReports, currentReportCount() >= maxReports {
+                break
+            }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+
+        return currentReportCount()
+    }
+
+    private func start(onReport: @escaping @Sendable (BTProfileHIDReportEvent) -> Void) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            queue.async {
+                self.ensureRunLoopLocked()
+                self.performOnRunLoopLocked {
+                    self.removeAllRegistrations()
+                    self.captureStartedAt = Date()
+                    self.resetReportCount()
+
+                    for candidate in self.candidates {
+                        _ = self.addRegistration(candidate: candidate, onReport: onReport)
+                    }
+
+                    if self.registrationsByIndex.isEmpty {
+                        continuation.resume(throwing: ProbeError.protocolError("Failed to register any Bluetooth HID input-report callbacks"))
+                    } else {
+                        continuation.resume()
+                    }
+                }
+            }
+        }
+    }
+
+    private func ensureRunLoopLocked() {
+        runLoopStateLock.lock()
+        if runLoop != nil {
+            runLoopStateLock.unlock()
+            return
+        }
+        runLoopStateLock.unlock()
+
+        let ready = DispatchSemaphore(value: 0)
+        let thread = Thread { [weak self] in
+            guard let self else {
+                ready.signal()
+                return
+            }
+
+            let keepAlivePort = Port()
+            RunLoop.current.add(keepAlivePort, forMode: .default)
+            let currentRunLoop = CFRunLoopGetCurrent()
+
+            self.runLoopStateLock.lock()
+            self.keepAlivePort = keepAlivePort
+            self.runLoop = currentRunLoop
+            self.runLoopStateLock.unlock()
+            ready.signal()
+
+            while !Thread.current.isCancelled {
+                let _: Void = autoreleasepool {
+                    CFRunLoopRunInMode(CFRunLoopMode.defaultMode, 1.0, false)
+                }
+            }
+        }
+        thread.name = "open.snek.probe.bt-profile-hid"
+        runLoopStateLock.lock()
+        self.thread = thread
+        runLoopStateLock.unlock()
+        thread.start()
+        ready.wait()
+    }
+
+    private func performOnRunLoopLocked(_ block: @escaping () -> Void) {
+        guard let runLoop else {
+            block()
+            return
+        }
+        CFRunLoopPerformBlock(runLoop, CFRunLoopMode.defaultMode.rawValue, block)
+        CFRunLoopWakeUp(runLoop)
+    }
+
+    private func addRegistration(
+        candidate: BTHIDProbeDeviceCandidate,
+        onReport: @escaping @Sendable (BTProfileHIDReportEvent) -> Void
+    ) -> Bool {
+        let registrationDevice = Self.registrationDevice(from: candidate.device) ?? candidate.device
+        let openResult = IOHIDDeviceOpen(registrationDevice, IOOptionBits(kIOHIDOptionsTypeNone))
+        guard openResult == kIOReturnSuccess else { return false }
+
+        let reportLength = max(9, candidate.maxInputReportSize)
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: reportLength)
+        buffer.initialize(repeating: 0, count: reportLength)
+
+        let contextBox = CallbackContext(
+            candidate: candidate,
+            captureStartedAt: captureStartedAt,
+            emit: { [weak self] event in
+                self?.incrementReportCount()
+                onReport(event)
+            }
+        )
+        let context = UnsafeMutableRawPointer(Unmanaged.passRetained(contextBox).toOpaque())
+
+        IOHIDDeviceScheduleWithRunLoop(registrationDevice, CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
+        IOHIDDeviceRegisterInputReportCallback(
+            registrationDevice,
+            buffer,
+            CFIndex(reportLength),
+            Self.inputReportCallback,
+            context
+        )
+
+        registrationsByIndex[candidate.index] = Registration(
+            device: registrationDevice,
+            buffer: buffer,
+            bufferLength: CFIndex(reportLength),
+            context: context
+        )
+        return true
+    }
+
+    private func removeAllRegistrations() {
+        for index in Array(registrationsByIndex.keys) {
+            removeRegistration(index: index)
+        }
+    }
+
+    private func removeRegistration(index: Int) {
+        guard let registration = registrationsByIndex.removeValue(forKey: index) else { return }
+        IOHIDDeviceUnscheduleFromRunLoop(
+            registration.device,
+            CFRunLoopGetCurrent(),
+            CFRunLoopMode.defaultMode.rawValue
+        )
+        IOHIDDeviceClose(registration.device, IOOptionBits(kIOHIDOptionsTypeNone))
+        registration.buffer.deinitialize(count: Int(registration.bufferLength))
+        registration.buffer.deallocate()
+        Unmanaged<CallbackContext>.fromOpaque(registration.context).release()
+    }
+
+    private func stopSynchronously() {
+        let stopped = DispatchSemaphore(value: 0)
+        queue.async {
+            guard self.runLoop != nil || !self.registrationsByIndex.isEmpty else {
+                stopped.signal()
+                return
+            }
+            self.performOnRunLoopLocked {
+                self.removeAllRegistrations()
+                self.runLoopStateLock.lock()
+                let runLoop = self.runLoop
+                let thread = self.thread
+                self.keepAlivePort = nil
+                self.runLoop = nil
+                self.thread = nil
+                self.runLoopStateLock.unlock()
+                thread?.cancel()
+                if let runLoop {
+                    CFRunLoopStop(runLoop)
+                    CFRunLoopWakeUp(runLoop)
+                }
+                stopped.signal()
+            }
+        }
+        stopped.wait()
+    }
+
+    private func resetReportCount() {
+        reportCountLock.lock()
+        reportCount = 0
+        reportCountLock.unlock()
+    }
+
+    private func incrementReportCount() {
+        reportCountLock.lock()
+        reportCount += 1
+        reportCountLock.unlock()
+    }
+
+    private func currentReportCount() -> Int {
+        reportCountLock.lock()
+        let count = reportCount
+        reportCountLock.unlock()
+        return count
+    }
+
+    private static let inputReportCallback: IOHIDReportCallback = { context, result, _, reportType, _, report, reportLength in
+        guard result == kIOReturnSuccess, reportType == kIOHIDReportTypeInput, let context else { return }
+        let callbackContext = Unmanaged<CallbackContext>.fromOpaque(context).takeUnretainedValue()
+        let bytes = Array(UnsafeBufferPointer(start: report, count: max(0, reportLength)))
+        let candidate = callbackContext.candidate
+        callbackContext.emit(
+            BTProfileHIDReportEvent(
+                candidateIndex: candidate.index,
+                deviceID: candidate.deviceID,
+                productID: candidate.productID,
+                productName: candidate.productName,
+                usagePage: candidate.usagePage,
+                usage: candidate.usage,
+                maxInputReportSize: candidate.maxInputReportSize,
+                maxFeatureReportSize: candidate.maxFeatureReportSize,
+                report: bytes,
+                elapsedSeconds: Date().timeIntervalSince(callbackContext.captureStartedAt),
+                classification: classify(report: bytes, descriptor: candidate.passiveDescriptor)
+            )
+        )
+    }
+
+    private static func classify(
+        report: [UInt8],
+        descriptor: PassiveDPIInputDescriptor?
+    ) -> BTProfileHIDClassification {
+        if isProfileCyclePrelude(report) {
+            return .profileCyclePrelude
+        }
+        if payloadStartIndex(in: report, reportID: 0x05, allowedSubtypes: [0x39]) != nil {
+            return .profileCycleFollowUp
+        }
+        if let descriptor {
+            switch PassiveDPIParser.classify(report: report, descriptor: descriptor) {
+            case .dpi(let reading):
+                return .dpi(reading)
+            case .heartbeat:
+                return .heartbeat
+            case .other:
+                break
+            }
+        }
+        return .other
+    }
+
+    private static func isProfileCyclePrelude(_ report: [UInt8]) -> Bool {
+        guard let first = report.first, first == 0x04 else { return false }
+        if report.count == 1 { return true }
+        return report[1] == 0x04 || report[1] == 0x00
+    }
+
+    private static func payloadStartIndex(
+        in report: [UInt8],
+        reportID: UInt8,
+        allowedSubtypes: [UInt8]
+    ) -> Int? {
+        if let first = report.first, allowedSubtypes.contains(first) {
+            return 0
+        }
+
+        var index = 0
+        while index < report.count, report[index] == reportID {
+            let candidate = index + 1
+            if candidate < report.count, allowedSubtypes.contains(report[candidate]) {
+                return candidate
+            }
+            index += 1
+        }
+
+        return nil
+    }
+
+    private static func registrationDevice(from device: IOHIDDevice) -> IOHIDDevice? {
+        let service = IOHIDDeviceGetService(device)
+        guard service != 0 else { return nil }
+        return IOHIDDeviceCreate(kCFAllocatorDefault, service)
     }
 }
 

@@ -1,0 +1,12 @@
+﻿{
+    "name":  "profile-active-saved-slot-dpi-update-clean-pass-1",
+    "captureStart":  "2026-06-15T21:30:37.7820329-04:00",
+    "captureEnd":  "2026-06-15T21:31:39.2132366-04:00",
+    "seconds":  60,
+    "port":  24400,
+    "requestedPort":  24400,
+    "pcap":  "captures\\ble\\windows\\2026-06-15-213027-profile-active-saved-slot-dpi-update-clean-pass-1\\capture.pcapng",
+    "attCsv":  "captures\\ble\\windows\\2026-06-15-213027-profile-active-saved-slot-dpi-update-clean-pass-1\\att.csv",
+    "vendorCsv":  "captures\\ble\\windows\\2026-06-15-213027-profile-active-saved-slot-dpi-update-clean-pass-1\\vendor-att.csv",
+    "synapseLogRoot":  "C:\\Users\\gh123\\AppData\\Local\\Razer\\RazerAppEngine\\User Data\\Logs"
+}

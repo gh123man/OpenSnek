@@ -1,0 +1,12 @@
+﻿{
+    "name":  "profile-synapse-startup-takeover-pass-1",
+    "captureStart":  "2026-06-15T22:45:41.5547028-04:00",
+    "captureEnd":  "2026-06-15T22:46:42.8040663-04:00",
+    "seconds":  60,
+    "port":  24400,
+    "requestedPort":  24400,
+    "pcap":  "captures\\ble\\windows\\2026-06-15-224531-profile-synapse-startup-takeover-pass-1\\capture.pcapng",
+    "attCsv":  "captures\\ble\\windows\\2026-06-15-224531-profile-synapse-startup-takeover-pass-1\\att.csv",
+    "vendorCsv":  "captures\\ble\\windows\\2026-06-15-224531-profile-synapse-startup-takeover-pass-1\\vendor-att.csv",
+    "synapseLogRoot":  "C:\\Users\\gh123\\AppData\\Local\\Razer\\RazerAppEngine\\User Data\\Logs"
+}

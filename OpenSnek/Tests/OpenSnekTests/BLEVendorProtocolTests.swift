@@ -23,6 +23,32 @@ final class BLEVendorProtocolTests: XCTestCase {
         XCTAssertEqual(BLEVendorProtocol.Key.lightingZoneStateSet(ledID: 0x04).bytes, [0x10, 0x03, 0x00, 0x04])
     }
 
+    func testProfileTargetKeyBuilders() {
+        XCTAssertEqual(BLEVendorProtocol.Key.profileTargetsGet().bytes, [0x03, 0x80, 0x00, 0x00])
+        XCTAssertEqual(BLEVendorProtocol.Key.profileActiveTargetGet().bytes, [0x03, 0x82, 0x00, 0x00])
+        XCTAssertEqual(BLEVendorProtocol.Key.profileActiveTargetSet().bytes, [0x03, 0x02, 0x00, 0x00])
+        XCTAssertEqual(Array(BLEVendorProtocol.Key.profileActiveTargetSetPayload(target: 0x03)), [0x03])
+        XCTAssertEqual(BLEVendorProtocol.Key.profileMetadataGet(target: 0x03).bytes, [0x03, 0x84, 0x03, 0x00])
+        XCTAssertEqual(BLEVendorProtocol.Key.profileMetadataSet(target: 0x02).bytes, [0x03, 0x04, 0x02, 0x00])
+        XCTAssertEqual(BLEVendorProtocol.Key.profileTargetDelete(target: 0x02).bytes, [0x03, 0x06, 0x02, 0x00])
+        XCTAssertEqual(BLEVendorProtocol.Key.profileTargetCommit(target: 0x02).bytes, [0x03, 0x05, 0x02, 0x00])
+        XCTAssertEqual(BLEVendorProtocol.Key.profileTargetStatusGet(target: 0x02).bytes, [0x01, 0x8C, 0x02, 0x00])
+        XCTAssertEqual(BLEVendorProtocol.Key.profileTargetPrepare(target: 0x02).bytes, [0x08, 0x05, 0x02, 0x00])
+        XCTAssertEqual(BLEVendorProtocol.Key.profileTargetApply(target: 0x02).bytes, [0x08, 0x07, 0x02, 0x00])
+        XCTAssertEqual(BLEVendorProtocol.Key.buttonBindGet(target: 0x03, slot: 0x05).bytes, [0x08, 0x84, 0x03, 0x05])
+        XCTAssertEqual(BLEVendorProtocol.Key.buttonBindSet(target: 0x05, slot: 0x05).bytes, [0x08, 0x04, 0x05, 0x05])
+        XCTAssertEqual(BLEVendorProtocol.Key.dpiScalarGet(target: 0x00).bytes, [0x0B, 0x81, 0x00, 0x00])
+        XCTAssertEqual(BLEVendorProtocol.Key.dpiPairListGet(target: 0x02).bytes, [0x0B, 0x82, 0x02, 0x00])
+        XCTAssertEqual(BLEVendorProtocol.Key.dpiStageTokenGet(target: 0x05).bytes, [0x0B, 0x83, 0x05, 0x00])
+        XCTAssertEqual(BLEVendorProtocol.Key.dpiProjectionGet(target: 0x01).bytes, [0x0B, 0x84, 0x01, 0x00])
+        XCTAssertEqual(BLEVendorProtocol.Key.storedDpiScalarSet(target: 0x02).bytes, [0x0B, 0x01, 0x02, 0x00])
+        XCTAssertEqual(BLEVendorProtocol.Key.storedDpiStagesSet(target: 0x02).bytes, [0x0B, 0x04, 0x02, 0x00])
+        XCTAssertEqual(BLEVendorProtocol.Key.storedLightingBrightnessSet(target: 0x02).bytes, [0x10, 0x05, 0x02, 0x00])
+        XCTAssertEqual(BLEVendorProtocol.Key.profileLightingBrightnessGet(target: 0x03, ledID: 0x04).bytes, [0x10, 0x85, 0x03, 0x04])
+        XCTAssertEqual(BLEVendorProtocol.Key.profileLightingZoneStateGet(target: 0x03, ledID: 0x01).bytes, [0x10, 0x83, 0x03, 0x01])
+        XCTAssertEqual(BLEVendorProtocol.Key.profileLightingZoneStateSet(target: 0x03, ledID: 0x0A).bytes, [0x10, 0x03, 0x03, 0x0A])
+    }
+
     func testParsePayloadFramesSuccess() {
         let header = Data([0x40, 0x03, 0, 0, 0, 0, 0, 0x02] + Array(repeating: 0, count: 12))
         let payloadFrame = Data([0xAA, 0xBB, 0xCC] + Array(repeating: 0, count: 17))
@@ -84,6 +110,24 @@ final class BLEVendorProtocolTests: XCTestCase {
         XCTAssertEqual(parsed?.pairs.prefix(3), [DpiPair(x: 800, y: 800), DpiPair(x: 1600, y: 1600), DpiPair(x: 3200, y: 3200)])
     }
 
+    func testParseFlatDpiPairListFromProfileTargetPayload() {
+        let payload = Data([
+            0x20, 0x03, 0x20, 0x03, 0x00, 0x00,
+            0x84, 0x03, 0x84, 0x03, 0x00, 0x00,
+            0xD0, 0x07, 0xD0, 0x07, 0x00, 0x00,
+        ])
+
+        XCTAssertEqual(
+            BLEVendorProtocol.parseDpiPairList(blob: payload),
+            [
+                DpiPair(x: 800, y: 800),
+                DpiPair(x: 900, y: 900),
+                DpiPair(x: 2000, y: 2000),
+            ]
+        )
+        XCTAssertEqual(BLEVendorProtocol.parseDpiScalarPair(blob: payload), DpiPair(x: 800, y: 800))
+    }
+
     func testBuildDpiStagesRoundTripPreservesIndependentXYPairs() {
         let payload = BLEVendorProtocol.buildDpiStagePayload(
             active: 1,
@@ -119,6 +163,12 @@ final class BLEVendorProtocolTests: XCTestCase {
     func testButtonPayloadKeyboardSimple() {
         let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x02, kind: .keyboardSimple, hidKey: 0x2C)
         XCTAssertEqual(Array(payload), [0x01, 0x02, 0x00, 0x02, 0x02, 0x00, 0x2C, 0x00, 0x00, 0x00])
+    }
+
+    func testRetargetButtonPayloadForStoredProfileTargets() {
+        let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x05, kind: .keyboardSimple, hidKey: 0x09)
+        let storedTargetPayload = BLEVendorProtocol.retargetButtonPayload(payload, target: 0x05, slot: 0x05)
+        XCTAssertEqual(Array(storedTargetPayload), [0x05, 0x05, 0x00, 0x02, 0x02, 0x00, 0x09, 0x00, 0x00, 0x00])
     }
 
     func testButtonPayloadKeyboardShortcutIncludesModifiers() {

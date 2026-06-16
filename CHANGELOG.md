@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [2026-06-15]
+
+### Added
+- Added an automated Windows BTVS/tshark capture wrapper that emits Synapse correlation artifacts and avoids stale listeners by choosing a fresh port when needed.
+- Added Basilisk V3 Pro Bluetooth profile probe commands for reading active/stored targets, creating guarded stored profiles, reading/writing stored button bindings, watching passive profile-cycle HID hints, and selecting active targets.
+- Added Basilisk V3 Pro USB profile probe commands for read-only profile sweeps, guarded stored-profile write verification, profile delete/unassign, and active-profile read/select operations.
+
+### Changed
+- `OpenSnekProbe bt-profile-create` now fails fast on non-success write ACKs so partially rewritten stored targets are not treated as successful creates.
+- The unsafe USB metadata-write probe path is disabled; profile metadata writes are documented but not exposed as a casual probe command.
+
+### Fixed
+- `OpenSnekProbe usb-raw --args` byte-list parsing now treats two-digit tokens such as `20` as hex bytes, avoiding accidental decimal-byte writes.
+- Basilisk V3 Pro USB active-profile hydration now parses the validated `05:84` response shape even when the response size byte is `0x00`, and prefers that direct active-profile register over stale `00:87` summary telemetry.
+
 ## [2026-05-17]
 
 ### Added

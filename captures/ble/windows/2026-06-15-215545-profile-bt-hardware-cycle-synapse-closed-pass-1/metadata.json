@@ -1,0 +1,12 @@
+﻿{
+    "name":  "profile-bt-hardware-cycle-synapse-closed-pass-1",
+    "captureStart":  "2026-06-15T21:55:55.7688830-04:00",
+    "captureEnd":  "2026-06-15T21:56:57.2335054-04:00",
+    "seconds":  60,
+    "port":  24400,
+    "requestedPort":  24400,
+    "pcap":  "captures\\ble\\windows\\2026-06-15-215545-profile-bt-hardware-cycle-synapse-closed-pass-1\\capture.pcapng",
+    "attCsv":  "captures\\ble\\windows\\2026-06-15-215545-profile-bt-hardware-cycle-synapse-closed-pass-1\\att.csv",
+    "vendorCsv":  "captures\\ble\\windows\\2026-06-15-215545-profile-bt-hardware-cycle-synapse-closed-pass-1\\vendor-att.csv",
+    "synapseLogRoot":  "C:\\Users\\gh123\\AppData\\Local\\Razer\\RazerAppEngine\\User Data\\Logs"
+}

@@ -39,6 +39,98 @@ public enum BLEVendorProtocol {
             Key(b0: 0x08, b1: 0x04, b2: 0x01, b3: slot)
         }
 
+        public static func profileTargetsGet() -> Key {
+            Key(b0: 0x03, b1: 0x80, b2: 0x00, b3: 0x00)
+        }
+
+        public static func profileActiveTargetGet() -> Key {
+            Key(b0: 0x03, b1: 0x82, b2: 0x00, b3: 0x00)
+        }
+
+        public static func profileActiveTargetSet() -> Key {
+            Key(b0: 0x03, b1: 0x02, b2: 0x00, b3: 0x00)
+        }
+
+        public static func profileActiveTargetSetPayload(target: UInt8) -> Data {
+            Data([target])
+        }
+
+        public static func profileMetadataGet(target: UInt8) -> Key {
+            Key(b0: 0x03, b1: 0x84, b2: target, b3: 0x00)
+        }
+
+        public static func profileMetadataSet(target: UInt8) -> Key {
+            Key(b0: 0x03, b1: 0x04, b2: target, b3: 0x00)
+        }
+
+        public static func profileTargetDelete(target: UInt8) -> Key {
+            Key(b0: 0x03, b1: 0x06, b2: target, b3: 0x00)
+        }
+
+        public static func profileTargetCommit(target: UInt8) -> Key {
+            Key(b0: 0x03, b1: 0x05, b2: target, b3: 0x00)
+        }
+
+        public static func profileTargetStatusGet(target: UInt8) -> Key {
+            Key(b0: 0x01, b1: 0x8C, b2: target, b3: 0x00)
+        }
+
+        public static func profileTargetPrepare(target: UInt8) -> Key {
+            Key(b0: 0x08, b1: 0x05, b2: target, b3: 0x00)
+        }
+
+        public static func profileTargetApply(target: UInt8) -> Key {
+            Key(b0: 0x08, b1: 0x07, b2: target, b3: 0x00)
+        }
+
+        public static func buttonBindGet(target: UInt8, slot: UInt8) -> Key {
+            Key(b0: 0x08, b1: 0x84, b2: target, b3: slot)
+        }
+
+        public static func buttonBindSet(target: UInt8, slot: UInt8) -> Key {
+            Key(b0: 0x08, b1: 0x04, b2: target, b3: slot)
+        }
+
+        public static func dpiScalarGet(target: UInt8) -> Key {
+            Key(b0: 0x0B, b1: 0x81, b2: target, b3: 0x00)
+        }
+
+        public static func dpiPairListGet(target: UInt8) -> Key {
+            Key(b0: 0x0B, b1: 0x82, b2: target, b3: 0x00)
+        }
+
+        public static func dpiStageTokenGet(target: UInt8) -> Key {
+            Key(b0: 0x0B, b1: 0x83, b2: target, b3: 0x00)
+        }
+
+        public static func dpiProjectionGet(target: UInt8) -> Key {
+            Key(b0: 0x0B, b1: 0x84, b2: target, b3: 0x00)
+        }
+
+        public static func storedDpiScalarSet(target: UInt8) -> Key {
+            Key(b0: 0x0B, b1: 0x01, b2: target, b3: 0x00)
+        }
+
+        public static func storedDpiStagesSet(target: UInt8) -> Key {
+            Key(b0: 0x0B, b1: 0x04, b2: target, b3: 0x00)
+        }
+
+        public static func storedLightingBrightnessSet(target: UInt8) -> Key {
+            Key(b0: 0x10, b1: 0x05, b2: target, b3: 0x00)
+        }
+
+        public static func profileLightingBrightnessGet(target: UInt8, ledID: UInt8) -> Key {
+            Key(b0: 0x10, b1: 0x85, b2: target, b3: ledID)
+        }
+
+        public static func profileLightingZoneStateGet(target: UInt8, ledID: UInt8) -> Key {
+            Key(b0: 0x10, b1: 0x83, b2: target, b3: ledID)
+        }
+
+        public static func profileLightingZoneStateSet(target: UInt8, ledID: UInt8) -> Key {
+            Key(b0: 0x10, b1: 0x03, b2: target, b3: ledID)
+        }
+
         public static func lightingBrightnessGet(ledID: UInt8 = 0x01) -> Key {
             Key(b0: 0x10, b1: 0x85, b2: 0x01, b3: ledID)
         }
@@ -184,6 +276,33 @@ public enum BLEVendorProtocol {
             pairs: Array(snapshot.pairs.prefix(snapshot.count)),
             marker: snapshot.marker
         )
+    }
+
+    public static func parseDpiPairList(blob: Data) -> [DpiPair]? {
+        guard blob.count >= 4 else { return nil }
+        var pairs: [DpiPair] = []
+        var offset = 0
+        while offset + 3 < blob.count {
+            let x = Int(blob[offset]) | (Int(blob[offset + 1]) << 8)
+            let y = Int(blob[offset + 2]) | (Int(blob[offset + 3]) << 8)
+            pairs.append(DpiPair(x: x, y: y))
+            offset += 6
+        }
+        return pairs.isEmpty ? nil : pairs
+    }
+
+    public static func parseDpiScalarPair(blob: Data) -> DpiPair? {
+        parseDpiPairList(blob: blob)?.first
+    }
+
+    public static func retargetButtonPayload(_ payload: Data, target: UInt8, slot: UInt8? = nil) -> Data {
+        guard payload.count >= 2 else { return payload }
+        var bytes = Array(payload)
+        bytes[0] = target
+        if let slot {
+            bytes[1] = slot
+        }
+        return Data(bytes)
     }
 
     public static func mergedStageSlots(currentSlots: [Int], requestedCount: Int, requestedValues: [Int]) -> [Int] {

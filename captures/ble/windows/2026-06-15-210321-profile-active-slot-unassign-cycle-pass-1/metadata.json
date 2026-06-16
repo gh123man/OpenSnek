@@ -1,0 +1,12 @@
+﻿{
+    "name":  "profile-active-slot-unassign-cycle-pass-1",
+    "captureStart":  "2026-06-15T21:03:32.0219879-04:00",
+    "captureEnd":  "2026-06-15T21:04:33.4071164-04:00",
+    "seconds":  60,
+    "port":  24400,
+    "requestedPort":  24400,
+    "pcap":  "captures\\ble\\windows\\2026-06-15-210321-profile-active-slot-unassign-cycle-pass-1\\capture.pcapng",
+    "attCsv":  "captures\\ble\\windows\\2026-06-15-210321-profile-active-slot-unassign-cycle-pass-1\\att.csv",
+    "vendorCsv":  "captures\\ble\\windows\\2026-06-15-210321-profile-active-slot-unassign-cycle-pass-1\\vendor-att.csv",
+    "synapseLogRoot":  "C:\\Users\\gh123\\AppData\\Local\\Razer\\RazerAppEngine\\User Data\\Logs"
+}

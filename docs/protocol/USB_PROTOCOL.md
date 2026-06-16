@@ -244,9 +244,9 @@ Client note:
 #### Get Onboard Profile Summary
 ```
 Command:  Class 0x00, ID 0x87, Size 0x00
-Response: args[0] = reported onboard profile index (1-based)
-          args[1] = reserved / zero in current captures
-          args[2] = onboard profile count
+Response: args[0] = reported profile/state byte candidate
+          args[1] = unknown; observed as both 0x00 and 0x32
+          args[2] = onboard profile count candidate
 TxnID:    0x1F
 ```
 
@@ -268,11 +268,17 @@ Observed on Basilisk V3 35K (`0x00CB`):
 Observed on Basilisk V3 Pro (`0x00AB`):
 - observed payloads `01 00 03` and `02 00 03` on USB during different sessions
 - on the attached V3 Pro on March 25, 2026, the bottom profile LED changed while `0x00:0x87` continued to report `02 00 03`, so this register is not yet validated as the hardware-selected live profile on that device
+- on the attached V3 Pro on June 16, 2026, the same register returned `02 32 03`; the middle byte is therefore not reserved-zero and should remain unknown until decoded
+- in that same pass, USB direct/live storage `0` and persistent/base storage `1` did not match stored storage `2`, so `args[0] = 0x02` is not enough evidence to treat `0x00:0x87` as the active effective profile
+- later on June 16, 2026, direct active-profile reads were mapped through `0x05:0x84`; this summary register stayed `02 32 03` while `0x05:0x84` changed between `03` and `01` with the physical profile-cycle button
+- a follow-up V3 Pro pass found `0x05:0x84` can return `data_size = 00` while still carrying the active profile in `args[0]`; clients should parse the success/class/cmd echo and `args[0]`, not require a non-zero size byte
+- nearby profile-management reads remain summary-only: `0x05:0x80` returned `03`, `0x05:0x8A` returned `05`, and `0x05:0x81` returned `05 01 03 05`, but `0x05:0x04 05` still rejected, so none is a trusted cycleable inventory list
 - the corresponding low-bit write candidate (`0x00:0x07`) is not yet validated for active-profile switching
 
 Client note:
+- See [USB Profile CRUD Draft](./USB_PROFILE_CRUD_SPEC.md) for the current USB profile-bank model.
 - Per-slot button-function storage via `0x02:0x8C` / `0x02:0x0C` is still validated and remains the canonical source for button-slot inspection and write/readback testing.
-- OpenSnek's shipped UI currently keeps onboard button-profile load/store controls disabled until the active-slot model is validated well enough that the UI can reflect the mouse honestly.
+- OpenSnek should use `0x05:0x84` for V3 Pro USB active-profile hydration and treat `0x00:0x87` as summary/count telemetry. Full onboard profile controls still need safe inventory and metadata-write/create semantics before the UI can reflect the mouse honestly.
 
 Bring-up checklist for future devices:
 - read `0x00:0x87` before and after changing profiles in vendor software; if the reported active slot never changes, do not assume the device has a writable hardware active-profile register
@@ -301,6 +307,11 @@ Observed on Basilisk V3 35K (`0x00CB`):
 - writing `0x01` updates the persisted DPI state and also mirrors into `0x00` live state
 - writing `0x00` updates only the live state and does not write back into `0x01`
 - no slot-indexed DPI storage path is currently known beyond this `0x00`/`0x01` live-vs-persisted split
+
+Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
+- storage/profile IDs `0..5` all read back successfully through `0x04:0x85`
+- IDs `2` and `3` matched the stored profiles previously created over Bluetooth, confirming that USB and BLE address the same stored DPI banks on this device
+- see `USB_PROFILE_CRUD_SPEC.md` for the full storage table and write-safety notes
 
 #### Set DPI
 ```
@@ -341,6 +352,12 @@ TxnID:    0x1F
 
 Client note: treat `active` as a stage-ID token and map it against entry `[0]` stage IDs. Do not assume a fixed zero-based index.
 
+Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
+- `0x04:0x86` accepted storage/profile IDs `0..5` when queried serially
+- storage `2` returned the Bluetooth-created target-`2` table `400,800,1600,3200,6400`
+- storage `3` returned the Bluetooth-recreated target-`3` table `760,960,1160,1360,1560`
+- stored-bank writes are not yet enabled in production; changed-value `0x04:0x05` / `0x04:0x06` write/readback with restore is validated on profile `5`, and those values persisted across USB reconnect. Cross-transport readback and power-cycle persistence still need guarded validation before shipping.
+
 #### Passive USB DPI Input Report (Observed on Basilisk V3 X HyperSpeed `0x00B9`, Basilisk V3 Pro `0x00AB`; matching interface tuple present on Basilisk V3 35K `0x00CB`)
 
 The 90-byte USB configuration protocol above remains a host-initiated HID `Feature` report exchange. It does not expose a generic subscription channel for device state.
@@ -370,6 +387,24 @@ Client notes:
   - `OpenSnekProbe usb-input-values --pid 0x00ab` likewise observed zero `IOHIDManagerRegisterInputValueCallback` deliveries during the same DPI-cycle probing window
   - `OpenSnekProbe usb-input-listen --pid 0x00cb` on an attached Basilisk V3 35K exposed four HID interfaces, including the same two `0x01:0x06` candidates (`input=16/8`, `feature=1/0`) used for passive DPI listener matching
   - treat passive USB DPI callbacks as host-stack-dependent until a live callback is observed on the current machine; keep USB fast-DPI polling as the recovery path
+
+#### Passive USB Profile-Cycle Input Report (Observed on Basilisk V3 Pro `0x00AB`)
+
+The physical profile-cycle button emits a passive HID hint on the same
+keyboard-style `0x01:0x06` interface family used for USB passive DPI reports.
+On the attached V3 Pro on June 16, 2026, two profile-button presses produced
+the same pair on the `input=16`, `feature=1` interface:
+
+```text
+04 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+05 39 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+```
+
+The reports were separated by about 200 ms. Treat the `05 39 ...` report as
+the debounce trigger, then refresh effective storage/profile `0`. In the same
+pass, storage `0` moved first to the stored profile `2` DPI table and then to
+the stored profile `3` DPI/brightness state. `0x00:0x87` stayed `02 32 03`, so
+do not use the summary register as the active profile ID on this device.
 
 ---
 
@@ -457,6 +492,7 @@ Validated LED IDs on `0x00AB`:
 Client note:
 - For whole-device USB lighting on Basilisk V3 Pro and Basilisk V3 35K, apply brightness/effect writes to all validated LED IDs (`0x01`, `0x04`, and `0x0A`).
 - On the attached Basilisk V3 35K, brightness reads on `0x0F:0x84` succeed for both storage `0x00` and `0x01`. Treat lighting the same way as DPI until proven otherwise: a separate live/persisted layer, not a slot-addressed onboard-profile store.
+- On the attached Basilisk V3 Pro on June 16, 2026, brightness reads on `0x0F:0x84` succeeded for storage/profile IDs `0..5` and all validated LED IDs. Storage `3` returned `0x60`, matching the Bluetooth-recreated target-`3` profile, while the other banks returned `0x54`. Treat brightness as profile-scoped on this device. Changed-value `0x0F:0x04` stored-bank write/readback with restore is validated on profile `5`, and those values persisted across USB reconnect. Cross-transport readback and power-cycle persistence still need guarded validation before shipping.
 
 #### Set Scroll LED Effects
 ```
@@ -492,10 +528,120 @@ Open questions:
 
 ### Profile Management
 
-**Status**: Not documented. Suspected commands:
-- Profile switch
-- Profile read/write
-- Onboard memory storage
+**Status**: Partially documented in [USB Profile CRUD Draft](./USB_PROFILE_CRUD_SPEC.md).
+
+Current known USB profile support is setting-bank oriented:
+- DPI scalar/stages: `0x04:0x85/0x05` and `0x04:0x86/0x06` with storage/profile IDs
+- button bindings: `0x02:0x8C/0x0C` with profile IDs
+- lighting brightness: `0x0F:0x84/0x04` with storage/profile IDs
+- active profile ID read: `0x05:0x84`, size `0x00`
+- active profile selector: `0x05:0x04` with a profile ID
+- assigned profile inventory: `0x05:0x81`, with count hint `0x05:0x80`
+- metadata reads/writes: `0x05:0x88` / `0x05:0x08` chunks with slot IDs `0x02..0x05`
+- metadata create/assign prelude: `0x05:0x02 <profile>` before full `0x05:0x08` chunks
+- delete/unassign from the hardware cycle ring: `0x05:0x03` with a stored profile ID
+
+#### Get Active Onboard Profile
+```
+Command:  Class 0x05, ID 0x84, Size 0x00
+Response: args[0] = active profile ID
+```
+
+Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
+- `0x05:0x84` returned `03` while effective profile `0` matched stored profile `3`.
+- after a physical profile-cycle button press, `0x05:0x84` returned `01` and effective profile `0` matched base/profile `1`.
+- after another physical profile-cycle button press, `0x05:0x84` returned `03` and effective profile `0` again matched stored profile `3`.
+- `0x00:0x87` stayed `02 32 03` throughout those transitions.
+
+#### Set Active Onboard Profile
+```
+Command:  Class 0x05, ID 0x04, Size 0x01
+Args:     [0] = active profile ID
+Response: success echoes the requested profile ID
+```
+
+Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
+- `0x05:0x04`, args `01`, ACKed and left/reported active profile `1`.
+- `0x05:0x04`, args `03`, ACKed, `0x05:0x84` changed to `03`, and effective profile `0` matched stored profile `3`.
+- `0x05:0x04`, args `02`, `04`, and `05`, returned status `0x03` when those profiles were unassigned or had invalid metadata, even though those banks remained readable.
+- after `0x05:0x02 04` plus four full `0x05:0x08` chunks, `0x05:0x04 04` ACKed; after `0x05:0x03 04`, it rejected again.
+
+Client note:
+- Treat `0x05:0x04` as the active selector for assigned/cycleable USB profiles. Prefer `0x05:0x81` for inventory and `0x05:0x84` for passive active-profile refresh.
+
+#### Get Assigned Onboard Profiles
+```
+Count:    Class 0x05, ID 0x80, Size 0x00
+Response: args[0] = assigned profile count
+
+List:     Class 0x05, ID 0x81, Size 0x00
+Response: args[0] = max profile ID
+          args[1...] = assigned profile IDs
+```
+
+Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
+- after cleanup, `0x05:0x80` returned `02` and `0x05:0x81` returned `05 01 03`.
+- after `0x05:0x02 04` plus full `0x05:0x08` metadata chunks, `0x05:0x80` returned `04` and `0x05:0x81` returned `05 01 03 04 05`.
+- after `0x05:0x03 04` and `0x05:0x03 05`, `0x05:0x80` returned `02` and `0x05:0x81` returned `05 01 03`.
+- `0x05:0x8A` returned `05` and is treated as a max-bank hint, not the assigned list.
+
+#### Onboard Profile Metadata Bulk Object
+```
+Read:     Class 0x05, ID 0x88, Size 0x50
+Write:    Class 0x05, ID 0x08, Size 0x50
+Args:     [0] = slot/profile ID
+          [1-2] = offset bytes as used by Synapse/OpenRazer chunks
+          [3] = 0x00
+          [4] = 0xFA marker
+          [5...] = metadata bytes for writes
+Response: args[0-4] echo the chunk header
+          args[5...] = metadata bytes
+```
+
+The object length is `0x00FA` bytes. Use four full `0x50` chunks with offsets
+`0x0000`, `0x004B`, `0x0096`, and `0x00E1`; pad write data past the object end
+with zeroes.
+
+Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
+- slot `0x02`, offset `00 00`: UUID `3a35ec93-bee1-4b29-9d3d-0d2b88f9edef`, name `OPENSNEK_MAC_SLOT_1`
+- slot `0x03`, offset `00 00`: UUID `c7aae39e-43b0-41ae-bf46-b4ae556a4a02`, name `OPENSNEK_RECREATE_SLOT_2`
+- slot `0x03`, offsets `00 40` and `00 80`: owner-hash chunks matching the Bluetooth metadata structure
+- slot `0x04`, offset `00 00`: UUID `27530668-c3e2-4e0a-a06e-a4854383c4e9`, name `OS_P4_RENAMED`
+- slot `0x05`, offset `00 00`: UUID `18f2a4cc-ecb8-4765-b532-9df401a686d6`, name `OS_P5`
+- after an unsafe partial `0x05:0x08` probe, slot `0x05` metadata read back as UUID `ffffffff-ffff-ffff-ffff-ffffffffffff`, name `nil`.
+- a later full-object `0x05:0x08` repair restored slot `0x05` to UUID `18f2a4cc-ecb8-4765-b532-9df401a686d6`, name `OS_P5_BULK_MAP`, without changing mapped DPI/brightness/button settings.
+- direct `0x05:0x08` on unassigned slot `0x04` returned status `0x03`; `0x05:0x02 04` followed by four full `0x05:0x08` chunks assigned it and made `0x05:0x04 04` ACK.
+- the `0x05:0x02` assignment path disturbed profile `4` DPI/brightness and required profile-addressed content restore. Treat create as metadata assignment followed by explicit content writes/readback.
+
+#### Delete / Unassign Onboard Profile
+```
+Command:  Class 0x05, ID 0x03, Size 0x01
+Args:     [0] = stored profile ID
+Response: echoes the stored profile ID
+```
+
+Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
+- `0x05:0x03`, args `05`, ACKed and did not erase profile `5`'s readable settings/metadata bank.
+- `0x05:0x03`, args `02`, ACKed; profile `2` remained readable, but the next physical profile-cycle press skipped profile `2` and moved effective profile `0` to stored profile `3`.
+- `0x05:0x03`, args `04` and `05`, ACKed after temporary create/repair probes; `0x05:0x81` returned to `05 01 03`, and selectors for `04`/`05` rejected again.
+
+Delete note:
+- Treat this as cycle-ring unassign, not storage erase. It matches the USB role of Bluetooth `03 06 <target> 00` closely enough for guarded research tooling, but production UI should avoid promising destructive erase semantics.
+
+Client note:
+- `0x05:0x88` / `0x05:0x08` map the UUID/name/owner metadata object, not a whole settings blob. Use only full-object chunks.
+- `0x05:0x02` + full `0x05:0x08` can create/assign a named profile, but the profile content must be rewritten and verified after assignment.
+- `OpenSnekProbe usb-profile-read` is the current read-only diagnostic path for collecting `00:87`, profile metadata chunks, DPI scalar/stages, brightness zones, and selected button slots in one serial USB pass.
+- `OpenSnekProbe usb-profile-active-read` reads the direct active-profile ID via `0x05:0x84`.
+- `OpenSnekProbe usb-profile-active-set --profile 3 --yes` wraps the validated `0x05:0x04` selector for assigned profiles.
+- `OpenSnekProbe usb-profile-verify-writes --profile 5 --yes` is the current guarded same-value write verifier for stored-profile DPI scalar, DPI stages, and brightness. It validates echoed profile/LED bytes on readback to reject stale USB feature-report replies.
+- `OpenSnekProbe usb-profile-verify-changed-writes --profile 5 --yes` is the guarded changed-value verifier. It snapshots profile `5`, writes temporary DPI scalar/stage/brightness changes, validates readback, and restores the original values before exit.
+- `OpenSnekProbe usb-profile-delete --profile 2 --yes` is the guarded delete/unassign probe path. Confirm the physical profile-cycle behavior after running it, because the profile bank remains readable.
+- In the reconnect persistence pass, profile `5` retained temporary scalar `900x900`, first stage `500x500`, and `0x55` brightness on all three zones after USB unplug/replug, then restored to the original `800x800`, `400/800/1600/3200/6400`, and `0x54` brightness values.
+
+Unresolved:
+- power-cycle and cross-transport persistence for full create/rename/delete flows
+- static/effect lighting, macro, and any other Synapse-only per-profile surfaces
 
 ### RGB Lighting (Class 0x0F)
 

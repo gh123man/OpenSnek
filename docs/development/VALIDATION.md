@@ -69,6 +69,7 @@ swift run --package-path OpenSnek OpenSnekProbe bt-lighting-read --zone all --na
 swift run --package-path OpenSnek OpenSnekProbe bt-lighting-brightness --value 96 --zone all --name "BSK V3 PRO"
 swift run --package-path OpenSnek OpenSnekProbe bt-lighting-color --color 00ff40 --zone all --name "BSK V3 PRO"
 swift run --package-path OpenSnek OpenSnekProbe bt-lighting-color --color ff6600 --zone logo --name "BSK V3 PRO"
+swift run --package-path OpenSnek OpenSnekProbe bt-profile-watch --name "BSK V3 PRO" --slot 4 --poll-ms 1000 --samples 20
 ```
 
 Validated zone map:

@@ -4,6 +4,14 @@
 
 Reverse engineer the Razer BLE configuration path used by Synapse and implement stable features in `razer_ble.py`.
 
+See also:
+- `docs/research/BASILISK_V3_PRO_BT_EXTENDED.md` for the V3 Pro-specific Bluetooth profile/profiles-button work that goes beyond the earlier V3 X HyperSpeed baseline.
+  In particular, that doc now captures:
+  - macOS Synapse product-log capture workflow
+  - the V3 Pro BLE stored-profile slot map (`2..5`)
+  - the current working theory that slot `1` is a live/projection layer
+  - physical profile-cycle button evidence (`razerKey key 80` -> `navigateProfile CycleUp`)
+
 ## Device Context
 
 - Primary target: Basilisk V3 X HyperSpeed
@@ -94,6 +102,60 @@ Reverse engineer the Razer BLE configuration path used by Synapse and implement 
 - Include explicit restore-to-default actions in the same capture.
 - For rebind captures, include: default -> target mapping -> alternate mapping -> default.
 - Keep timestamps/action logs while capturing to improve correlation speed.
+
+## macOS Synapse Log Capture
+
+In addition to packet captures, Synapse on macOS logs useful high-level Bluetooth payload context in its product middleware and UI logs. This is especially helpful when raw HCI/GATT capture is missing, noisy, or unavailable on the same host.
+
+Observed log files:
+
+- `$HOME/Library/Application Support/Razer/RazerAppEngine/User Data/Logs/products_170_mw id-1018332309.log`
+- `$HOME/Library/Application Support/Razer/RazerAppEngine/User Data/Logs/products_170_ui id-1018332309.log`
+
+General discovery command:
+
+```bash
+find "$HOME/Library/Application Support/Razer/RazerAppEngine/User Data/Logs" -type f | sort
+```
+
+Recommended live capture command:
+
+```bash
+tail -n0 -F \
+  "$HOME/Library/Application Support/Razer/RazerAppEngine/User Data/Logs/products_170_mw id-1018332309.log" \
+  "$HOME/Library/Application Support/Razer/RazerAppEngine/User Data/Logs/products_170_ui id-1018332309.log"
+```
+
+To save an action-scoped capture while watching it live:
+
+```bash
+mkdir -p captures/synapse-v3pro/<capture-name>
+tail -n0 -F \
+  "$HOME/Library/Application Support/Razer/RazerAppEngine/User Data/Logs/products_170_mw id-1018332309.log" \
+  "$HOME/Library/Application Support/Razer/RazerAppEngine/User Data/Logs/products_170_ui id-1018332309.log" \
+  | tee "captures/synapse-v3pro/<capture-name>/live.log"
+```
+
+What these logs are good for:
+
+- selected-profile GUID changes
+- active-profile metadata writes
+- profile create / rename / delete events
+- OBM slot hints such as `obmSlotId`
+- high-level mapping writes such as `setSingleButtonAssignment`
+- serialized JSON snapshots that expose profile-local state and device metadata
+
+What these logs are not:
+
+- they are not a direct BLE wire dump
+- they may describe software-layer or projected live state that is distinct from true onboard slot storage
+- they should be paired with live probe readback whenever protocol claims depend on exact device state
+
+## Open Questions
+
+- Are equivalent USB payloads also logged by Synapse on macOS, or are these detailed payload/model logs primarily surfaced for the Bluetooth product path?
+- On Windows, are the same product middleware / UI logs available with equivalent payload detail, or is this richer logging behavior macOS-specific?
+- If Windows logs do exist, do they expose both Bluetooth and USB profile/mapping payloads, or only one transport family?
 
 ## Historical Timeline and Changelog
 
