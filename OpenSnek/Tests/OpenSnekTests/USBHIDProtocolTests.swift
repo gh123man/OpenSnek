@@ -68,6 +68,17 @@ final class USBHIDProtocolTests: XCTestCase {
         XCTAssertEqual(parsed.owner, "31933b5452df5708882d4fb55d0b2905f16d829500fe936c56f98d5cd0241a76")
     }
 
+    func testWindowsGUIDBytesRoundTripsThroughMetadataParser() throws {
+        let uuid = try XCTUnwrap(UUID(uuidString: "01234567-89ab-4cde-8f01-23456789abcd"))
+        let bytes = USBHIDProtocol.windowsGUIDBytes(from: uuid)
+
+        XCTAssertEqual(bytes, [
+            0x67, 0x45, 0x23, 0x01, 0xAB, 0x89, 0xDE, 0x4C,
+            0x8F, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD,
+        ])
+        XCTAssertEqual(USBHIDProtocol.uuidFromWindowsGUIDBytes(bytes), uuid)
+    }
+
     func testMergeOnboardProfileMetadataChunksUsesOffsets() {
         let prefix = USBHIDProtocol.OnboardProfileMetadataChunk(
             slot: 0x03,

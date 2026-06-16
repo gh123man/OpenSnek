@@ -453,6 +453,16 @@ final class USBProbeClient {
         return Array(response[8...10])
     }
 
+    func readActiveProfileID() throws -> UInt8? {
+        guard let response = try rawCommand(classID: 0x05, cmdID: 0x84, size: 0x00, args: []),
+              response[0] == 0x02,
+              response.count > 8
+        else {
+            return nil
+        }
+        return response[8]
+    }
+
     func readProfileDPIScalar(profile: UInt8) throws -> (raw: [UInt8], pair: DpiPair?)? {
         for _ in 0..<6 {
             guard let response = try rawCommand(
@@ -629,6 +639,33 @@ final class USBProbeClient {
         guard !chunks.isEmpty else { return nil }
         let bytes = USBHIDProtocol.mergeOnboardProfileMetadataChunks(chunks)
         return (chunks, USBHIDProtocol.parseOnboardProfileMetadata(bytes))
+    }
+
+    func writeProfileMetadataChunk(_ chunk: USBHIDProtocol.OnboardProfileMetadataChunk) throws -> Bool {
+        let args = USBHIDProtocol.onboardProfileMetadataReadArgs(
+            slot: chunk.slot,
+            offset: chunk.offset,
+            totalLength: chunk.totalLength
+        ) + chunk.data
+        guard args.count <= 80 else {
+            throw ProbeError.protocolError("Metadata chunk write payload is too large: \(args.count)")
+        }
+        for _ in 0..<4 {
+            guard let response = try rawCommand(
+                classID: 0x05,
+                cmdID: 0x08,
+                size: UInt8(args.count),
+                args: args
+            ) else {
+                usleep(80_000)
+                continue
+            }
+            if writeEchoMatches(response: response, classID: 0x05, cmdID: 0x08, args: args) {
+                return true
+            }
+            usleep(80_000)
+        }
+        return false
     }
 
     func deleteProfile(profile: UInt8) throws -> Bool {
