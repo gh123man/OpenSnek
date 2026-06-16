@@ -10,6 +10,9 @@ All notable changes to this project are documented in this file.
 - Added passive profile-cycle HID handling for Basilisk V3 Pro USB and Bluetooth so OpenSnek can refresh the active onboard profile from the direct active-profile register and update the UI without fingerprinting the whole device configuration.
 - Added a visible profile-load scrim for onboard profile operations and profile-cycle refreshes, plus tighter onboard profile slot styling and hard RGB lighting presets.
 
+### Changed
+- Devices with multiple onboard profile slots now hide and ignore the legacy On Connect restore setting so profile-backed settings remain the source of truth.
+
 ## [2026-06-15]
 
 ### Added

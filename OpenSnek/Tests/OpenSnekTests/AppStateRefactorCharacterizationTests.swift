@@ -416,7 +416,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(applyCount, 0)
         XCTAssertEqual(editableActiveStage, 2)
         XCTAssertEqual(connectBehavior, .useMouseSettings)
-        XCTAssertTrue(showsCard)
+        XCTAssertFalse(showsCard)
     }
 
     func testRestoreInProgressSkipsAdditionalRefreshReadsForSameDevice() async throws {
@@ -590,6 +590,54 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         let showsCard = await MainActor.run { appState.editorStore.showsConnectBehaviorCard }
         XCTAssertEqual(connectBehavior, .restoreOpenSnekSettings)
         XCTAssertFalse(showsCard)
+    }
+
+    func testOnboardStorageHidesConnectBehaviorAndIgnoresRestorePreference() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-storage-connect-behavior",
+            transport: .usb,
+            serial: "ONBOARD-CONNECT-BEHAVIOR-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
+        preferenceStore.persistDeviceSettingsSnapshot(
+            makeRefactorSettingsSnapshot(color: RGBColor(r: 10, g: 20, b: 30)),
+            device: device
+        )
+        defer { clearRefactorPreferences(for: device) }
+
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 71,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 1,
+                    dpiValue: 1600,
+                    pollRate: 1000,
+                    sleepTimeout: 300
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+        await MainActor.run {
+            appState.editorStore.updateConnectBehavior(.restoreOpenSnekSettings)
+        }
+
+        let connectBehavior = await MainActor.run { appState.editorStore.connectBehavior }
+        let showsCard = await MainActor.run { appState.editorStore.showsConnectBehaviorCard }
+        let applyCount = await backend.applyCount()
+        XCTAssertEqual(connectBehavior, .useMouseSettings)
+        XCTAssertFalse(showsCard)
+        XCTAssertEqual(applyCount, 0)
     }
 
     func testUSBHyperspeedDoesNotForceRestoreBehavior() async throws {

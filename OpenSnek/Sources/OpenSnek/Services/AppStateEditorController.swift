@@ -72,6 +72,10 @@ final class AppStateEditorController {
         device.transport == .bluetooth && device.profile_id == .basiliskV3XHyperspeed
     }
 
+    private func hasOnboardProfileStorage(_ device: MouseDevice) -> Bool {
+        device.onboard_profile_count > 1
+    }
+
     private func buttonProfileSource(for device: MouseDevice) -> ButtonProfileSource {
         if let source = buttonProfileWorkspaceSourceByDeviceID[device.id] {
             switch source {
@@ -282,16 +286,20 @@ final class AppStateEditorController {
         if forcesRestoreOpenSnekSettingsOnConnect(for: device) {
             return .restoreOpenSnekSettings
         }
+        if hasOnboardProfileStorage(device) {
+            return .useMouseSettings
+        }
         return preferenceStore.loadConnectBehavior(device: device) ?? .useMouseSettings
     }
 
     func showsConnectBehaviorCard(for device: MouseDevice) -> Bool {
-        !forcesRestoreOpenSnekSettingsOnConnect(for: device)
+        !forcesRestoreOpenSnekSettingsOnConnect(for: device) && !hasOnboardProfileStorage(device)
     }
 
     func updateConnectBehavior(_ behavior: DeviceConnectBehavior) {
         guard let selectedDevice = deviceStore.selectedDevice else { return }
         guard !forcesRestoreOpenSnekSettingsOnConnect(for: selectedDevice) else { return }
+        guard !hasOnboardProfileStorage(selectedDevice) else { return }
         preferenceStore.persistConnectBehavior(behavior, device: selectedDevice)
         bumpConnectBehaviorRevision()
     }
