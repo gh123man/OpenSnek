@@ -3387,6 +3387,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         }
         XCTAssertEqual(selectedAfterSameActiveHydration, 2)
 
+        await backend.holdOnboardProfileRead(deviceID: device.id, profileID: 3)
         await MainActor.run {
             appState.editorStore.editableLightingEffect = .wave
             appState.editorStore.editableUSBLightingZoneID = "all"
@@ -3409,6 +3410,15 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 updatedAt: Date()
             )
         }
+        await backend.waitForOnboardProfileReadToStart(deviceID: device.id, profileID: 3)
+
+        let busyDuringHardwareProfileLoad = await MainActor.run {
+            appState.editorStore.isButtonProfileOperationInFlight &&
+                appState.editorStore.buttonProfileOperationStatusText == "Loading profile..."
+        }
+        XCTAssertTrue(busyDuringHardwareProfileLoad)
+
+        await backend.releaseOnboardProfileRead(deviceID: device.id, profileID: 3)
 
         try await waitForRefactorCondition {
             await MainActor.run {
@@ -3424,6 +3434,10 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                     appState.editorStore.buttonBindingKind(for: 4) == .mouseForward
             }
         }
+        let busyAfterHardwareProfileLoad = await MainActor.run {
+            appState.editorStore.isButtonProfileOperationInFlight
+        }
+        XCTAssertFalse(busyAfterHardwareProfileLoad)
     }
 
     func testOnboardProfileInventoryShowsEmptySlotsAndCreatesIntoSelectedSlot() async throws {
@@ -3606,6 +3620,10 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
     private var onboardSnapshotsByKey: [String: OnboardProfileSnapshot] = [:]
     private var onboardUpdates: [(deviceID: String, profileID: Int, mutation: OnboardProfileMutation)] = []
     private var onboardCreates: [(deviceID: String, targetProfileID: Int?, mutation: OnboardProfileMutation)] = []
+    private var heldOnboardProfileReads: Set<String> = []
+    private var startedHeldOnboardProfileReads: Set<String> = []
+    private var onboardProfileReadStartedContinuations: [String: CheckedContinuation<Void, Never>] = [:]
+    private var onboardProfileReadReleaseContinuations: [String: CheckedContinuation<Void, Never>] = [:]
 
     init(
         devices: [MouseDevice],
@@ -3724,7 +3742,18 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
     }
 
     func readOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot {
-        if let snapshot = onboardSnapshotsByKey[onboardSnapshotKey(deviceID: device.id, profileID: profileID)] {
+        let key = onboardSnapshotKey(deviceID: device.id, profileID: profileID)
+        if heldOnboardProfileReads.contains(key) {
+            startedHeldOnboardProfileReads.insert(key)
+            onboardProfileReadStartedContinuations[key]?.resume()
+            onboardProfileReadStartedContinuations[key] = nil
+            await withCheckedContinuation { continuation in
+                onboardProfileReadReleaseContinuations[key] = continuation
+            }
+            heldOnboardProfileReads.remove(key)
+            onboardProfileReadReleaseContinuations[key] = nil
+        }
+        if let snapshot = onboardSnapshotsByKey[key] {
             return snapshot
         }
         return makeRefactorOnboardProfileSnapshot(profileID: profileID, name: "Profile \(profileID)")
@@ -3855,6 +3884,27 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
 
     func setOnboardSnapshot(_ snapshot: OnboardProfileSnapshot, forDeviceID deviceID: String) {
         onboardSnapshotsByKey[onboardSnapshotKey(deviceID: deviceID, profileID: snapshot.profileID)] = snapshot
+    }
+
+    func holdOnboardProfileRead(deviceID: String, profileID: Int) {
+        heldOnboardProfileReads.insert(onboardSnapshotKey(deviceID: deviceID, profileID: profileID))
+    }
+
+    func waitForOnboardProfileReadToStart(deviceID: String, profileID: Int) async {
+        let key = onboardSnapshotKey(deviceID: deviceID, profileID: profileID)
+        if startedHeldOnboardProfileReads.contains(key) {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            onboardProfileReadStartedContinuations[key] = continuation
+        }
+    }
+
+    func releaseOnboardProfileRead(deviceID: String, profileID: Int) {
+        let key = onboardSnapshotKey(deviceID: deviceID, profileID: profileID)
+        heldOnboardProfileReads.remove(key)
+        onboardProfileReadReleaseContinuations[key]?.resume()
+        onboardProfileReadReleaseContinuations[key] = nil
     }
 
     func recordedOnboardUpdates() -> [(deviceID: String, profileID: Int, mutation: OnboardProfileMutation)] {

@@ -93,19 +93,27 @@ final class EditorStore {
         return applyControllerStorage
     }
 
+    func beginButtonProfileOperation(statusText: String) {
+        buttonProfileOperationDepth += 1
+        isButtonProfileOperationInFlight = true
+        buttonProfileOperationStatusText = statusText
+    }
+
+    func endButtonProfileOperation() {
+        buttonProfileOperationDepth = max(0, buttonProfileOperationDepth - 1)
+        isButtonProfileOperationInFlight = buttonProfileOperationDepth > 0
+        if buttonProfileOperationDepth == 0 {
+            buttonProfileOperationStatusText = nil
+        }
+    }
+
     private func withButtonProfileOperation<T>(
         statusText: String,
         _ operation: @escaping @MainActor () async -> T
     ) async -> T {
-        buttonProfileOperationDepth += 1
-        isButtonProfileOperationInFlight = true
-        buttonProfileOperationStatusText = statusText
+        beginButtonProfileOperation(statusText: statusText)
         defer {
-            buttonProfileOperationDepth = max(0, buttonProfileOperationDepth - 1)
-            isButtonProfileOperationInFlight = buttonProfileOperationDepth > 0
-            if buttonProfileOperationDepth == 0 {
-                buttonProfileOperationStatusText = nil
-            }
+            endButtonProfileOperation()
         }
         return await operation()
     }

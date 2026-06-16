@@ -73,6 +73,10 @@ extension View {
         modifier(HintTextModifier())
     }
 
+    func loadingScrim(isPresented: Bool, label: String?) -> some View {
+        modifier(LoadingScrimModifier(isPresented: isPresented, label: label))
+    }
+
     func hoverTooltip(
         _ helpText: String?,
         xOffset: CGFloat = 6,
@@ -126,6 +130,50 @@ private struct HintTextModifier: ViewModifier {
         content
             .font(.system(size: 12, weight: .semibold, design: .rounded))
             .foregroundStyle(.white.opacity(0.58))
+    }
+}
+
+private struct LoadingScrimModifier: ViewModifier {
+    let isPresented: Bool
+    let label: String?
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(isPresented ? 0.42 : 1.0)
+            .disabled(isPresented)
+            .overlay {
+                if isPresented {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.black.opacity(0.46))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                            )
+
+                        HStack(spacing: 10) {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(.white.opacity(0.90))
+                            Text(label ?? "Loading")
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.82))
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(
+                            Capsule()
+                                .fill(Color.white.opacity(0.11))
+                                .overlay(
+                                    Capsule()
+                                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                                )
+                        )
+                    }
+                    .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.14), value: isPresented)
     }
 }
 

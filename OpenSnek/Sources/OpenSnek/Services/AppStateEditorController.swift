@@ -1126,7 +1126,11 @@ final class AppStateEditorController {
         guard activeChanged, shouldFollowActive else { return }
 
         applyController.cancelPendingLocalEditsForSelectionChange()
-        Task { @MainActor [weak self] in
+        editorStore.beginButtonProfileOperation(statusText: "Loading profile...")
+        Task { @MainActor [weak self, editorStore] in
+            defer {
+                editorStore.endButtonProfileOperation()
+            }
             await self?.selectOnboardProfile(active)
         }
     }

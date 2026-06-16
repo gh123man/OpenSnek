@@ -17,8 +17,8 @@ struct DeviceDetailView: View {
     private let verticalPadding: CGFloat = 18
 
     private let swatches: [LightingSwatch] = [
-        LightingSwatch(hex: 0xFF3B30), LightingSwatch(hex: 0xFF9500), LightingSwatch(hex: 0xFFCC00), LightingSwatch(hex: 0x34C759),
-        LightingSwatch(hex: 0x00C7BE), LightingSwatch(hex: 0x0A84FF), LightingSwatch(hex: 0xBF5AF2), LightingSwatch(hex: 0xFFFFFF),
+        LightingSwatch(hex: 0xFF0000), LightingSwatch(hex: 0x00FF00), LightingSwatch(hex: 0x0000FF), LightingSwatch(hex: 0xFFFF00),
+        LightingSwatch(hex: 0x00FFFF), LightingSwatch(hex: 0xFF00FF), LightingSwatch(hex: 0xFFFFFF), LightingSwatch(hex: 0xFF8000),
     ]
 
     var body: some View {
@@ -45,6 +45,10 @@ struct DeviceDetailView: View {
                         }
                         .disabled(!controlsEnabled)
                         .opacity(controlsEnabled ? 1.0 : 0.44)
+                        .loadingScrim(
+                            isPresented: controlsEnabled && editorStore.isButtonProfileOperationInFlight,
+                            label: editorStore.buttonProfileOperationStatusText
+                        )
                     }
                     DiagnosticsFooter(deviceStore: deviceStore, device: selected, state: state)
                 }
@@ -842,24 +846,24 @@ struct LightingCard: View {
     private func staticLightingZoneEditor() -> some View {
         if showsStaticLightingZonePicker {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Editing Zone")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.82))
-
-                Picker(
-                    "Editing Zone",
-                    selection: Binding(
-                        get: { editorStore.editableUSBLightingZoneID },
-                        set: {
-                            editorStore.updateUSBLightingZoneID($0)
+                HStack {
+                    Spacer(minLength: 12)
+                    Picker(
+                        "Editing Zone",
+                        selection: Binding(
+                            get: { editorStore.editableUSBLightingZoneID },
+                            set: {
+                                editorStore.updateUSBLightingZoneID($0)
+                            }
+                        )
+                    ) {
+                        ForEach(editorStore.visibleUSBLightingZones) { zone in
+                            Text(zone.label).tag(zone.id)
                         }
-                    )
-                ) {
-                    ForEach(editorStore.visibleUSBLightingZones) { zone in
-                        Text(zone.label).tag(zone.id)
                     }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 340, alignment: .trailing)
                 }
-                .pickerStyle(.segmented)
 
                 HStack(alignment: .center, spacing: 12) {
                     Text("Color edits affect only the selected zone.")
@@ -1703,9 +1707,10 @@ private struct OnboardProfileManagerCard: View {
     @State private var renameName = ""
     @State private var hoveredProfileID: Int?
     private let slotColumnWidth: CGFloat = 188
-    private let connectorWidth: CGFloat = 22
-    private let slotRowHeight: CGFloat = 56
+    private let connectorWidth: CGFloat = 20
+    private let slotRowHeight: CGFloat = 48
     private let slotRowSpacing: CGFloat = 8
+    private let actionPanelCornerRadius: CGFloat = 8
 
     private var isBusy: Bool {
         editorStore.isButtonProfileOperationInFlight
@@ -1731,6 +1736,18 @@ private struct OnboardProfileManagerCard: View {
     private var profileListHeight: CGFloat {
         let count = max(1, editorStore.onboardProfileSummaries.count)
         return CGFloat(count) * slotRowHeight + CGFloat(max(0, count - 1)) * slotRowSpacing
+    }
+
+    private var selectedProfileIndex: Int {
+        guard let selectedProfileID,
+              let index = editorStore.onboardProfileSummaries.firstIndex(where: { $0.profileID == selectedProfileID }) else {
+            return 0
+        }
+        return index
+    }
+
+    private var selectedArrowCenterY: CGFloat {
+        CGFloat(selectedProfileIndex) * (slotRowHeight + slotRowSpacing) + (slotRowHeight / 2)
     }
 
     var body: some View {
@@ -1782,14 +1799,6 @@ private struct OnboardProfileManagerCard: View {
                 }
             }
 
-            VStack(spacing: slotRowSpacing) {
-                ForEach(editorStore.onboardProfileSummaries) { profile in
-                    connector(for: profile)
-                        .frame(width: connectorWidth, height: slotRowHeight)
-                }
-            }
-            .frame(width: connectorWidth, height: profileListHeight, alignment: .top)
-
             actionPanel
                 .frame(maxWidth: .infinity, minHeight: profileListHeight, alignment: .topLeading)
         }
@@ -1803,7 +1812,7 @@ private struct OnboardProfileManagerCard: View {
         let subtitleOpacity = profileSubtitleOpacity(profile: profile, isSelected: isSelected, isHovered: isHovered)
         let fillOpacity = profileFillOpacity(profile: profile, isSelected: isSelected, isHovered: isHovered)
         let strokeOpacity = profileStrokeOpacity(profile: profile, isSelected: isSelected, isHovered: isHovered)
-        let plusOpacity = isEmptySlot && (isHovered || isSelected) ? 0.82 : 0.0
+        let plusOpacity = isEmptySlot && isHovered ? 0.82 : 0.0
 
         return Button {
             Task { await editorStore.selectOnboardProfile(profile.profileID) }
@@ -1829,7 +1838,7 @@ private struct OnboardProfileManagerCard: View {
                     }
                 }
                 .padding(.horizontal, 10)
-                .padding(.vertical, 9)
+                .padding(.vertical, 7)
 
                 if profile.isActive {
                     Text("active")
@@ -1878,45 +1887,26 @@ private struct OnboardProfileManagerCard: View {
 
     private func profileTitleOpacity(profile: OnboardProfileSummary, isSelected: Bool, isHovered: Bool) -> Double {
         if profile.isActive || isSelected { return 1.0 }
-        if profile.isAssigned { return isHovered ? 0.82 : 0.68 }
-        return isHovered ? 0.58 : 0.30
+        if profile.isAssigned { return isHovered ? 0.74 : 0.50 }
+        return isHovered ? 0.54 : 0.22
     }
 
     private func profileSubtitleOpacity(profile: OnboardProfileSummary, isSelected: Bool, isHovered: Bool) -> Double {
         if profile.isActive || isSelected { return 0.56 }
-        if profile.isAssigned { return isHovered ? 0.48 : 0.38 }
-        return isHovered ? 0.40 : 0.24
+        if profile.isAssigned { return isHovered ? 0.42 : 0.27 }
+        return isHovered ? 0.34 : 0.18
     }
 
     private func profileFillOpacity(profile: OnboardProfileSummary, isSelected: Bool, isHovered: Bool) -> Double {
         if isSelected { return 0.12 }
-        if profile.isAssigned { return isHovered ? 0.065 : 0.040 }
-        return isHovered ? 0.045 : 0.018
+        if profile.isAssigned { return isHovered ? 0.052 : 0.024 }
+        return isHovered ? 0.034 : 0.010
     }
 
     private func profileStrokeOpacity(profile: OnboardProfileSummary, isSelected: Bool, isHovered: Bool) -> Double {
         if isSelected { return 0.18 }
-        if profile.isAssigned { return isHovered ? 0.12 : 0.07 }
-        return isHovered ? 0.12 : 0.035
-    }
-
-    private func connector(for profile: OnboardProfileSummary) -> some View {
-        Group {
-            if profile.profileID == selectedProfileID {
-                HStack(spacing: 0) {
-                    Rectangle()
-                        .fill(Color.white.opacity(0.10))
-                        .frame(height: 1)
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 14, weight: .black))
-                        .foregroundStyle(Color.white.opacity(0.72))
-                        .frame(width: 14, height: slotRowHeight)
-                        .offset(x: 1)
-                }
-            } else {
-                Color.clear
-            }
-        }
+        if profile.isAssigned { return isHovered ? 0.10 : 0.045 }
+        return isHovered ? 0.10 : 0.025
     }
 
     @ViewBuilder
@@ -1959,13 +1949,25 @@ private struct OnboardProfileManagerCard: View {
                     }
                 }
             }
-            .padding(12)
+            .padding(.leading, connectorWidth + 12)
+            .padding(.trailing, 12)
+            .padding(.vertical, 12)
             .frame(maxWidth: .infinity, minHeight: profileListHeight, alignment: .topLeading)
             .background(
-                RoundedRectangle(cornerRadius: 8)
+                ProfileActionPanelShape(
+                    arrowCenterY: selectedArrowCenterY,
+                    arrowWidth: connectorWidth,
+                    arrowHeight: 20,
+                    cornerRadius: actionPanelCornerRadius
+                )
                     .fill(Color.white.opacity(0.06))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8)
+                        ProfileActionPanelShape(
+                            arrowCenterY: selectedArrowCenterY,
+                            arrowWidth: connectorWidth,
+                            arrowHeight: 20,
+                            cornerRadius: actionPanelCornerRadius
+                        )
                             .stroke(Color.white.opacity(0.12), lineWidth: 1)
                     )
             )
@@ -2050,6 +2052,50 @@ private struct OnboardProfileManagerCard: View {
     private func resetNameField(for summary: OnboardProfileSummary?) {
         guard let summary else { return }
         renameName = summary.isAssigned ? summary.displayName : ""
+    }
+}
+
+private struct ProfileActionPanelShape: Shape {
+    let arrowCenterY: CGFloat
+    let arrowWidth: CGFloat
+    let arrowHeight: CGFloat
+    let cornerRadius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let bodyMinX = rect.minX + max(0, arrowWidth)
+        let radius = min(max(0, cornerRadius), min((rect.maxX - bodyMinX) / 2, rect.height / 2))
+        let halfArrowHeight = max(0, arrowHeight / 2)
+        let minArrowCenterY = rect.minY + radius + halfArrowHeight
+        let maxArrowCenterY = rect.maxY - radius - halfArrowHeight
+        let resolvedArrowCenterY = min(max(rect.minY + arrowCenterY, minArrowCenterY), maxArrowCenterY)
+
+        var path = Path()
+        path.move(to: CGPoint(x: bodyMinX + radius, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX - radius, y: rect.minY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX, y: rect.minY + radius),
+            control: CGPoint(x: rect.maxX, y: rect.minY)
+        )
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - radius))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX - radius, y: rect.maxY),
+            control: CGPoint(x: rect.maxX, y: rect.maxY)
+        )
+        path.addLine(to: CGPoint(x: bodyMinX + radius, y: rect.maxY))
+        path.addQuadCurve(
+            to: CGPoint(x: bodyMinX, y: rect.maxY - radius),
+            control: CGPoint(x: bodyMinX, y: rect.maxY)
+        )
+        path.addLine(to: CGPoint(x: bodyMinX, y: resolvedArrowCenterY + halfArrowHeight))
+        path.addLine(to: CGPoint(x: rect.minX, y: resolvedArrowCenterY))
+        path.addLine(to: CGPoint(x: bodyMinX, y: resolvedArrowCenterY - halfArrowHeight))
+        path.addLine(to: CGPoint(x: bodyMinX, y: rect.minY + radius))
+        path.addQuadCurve(
+            to: CGPoint(x: bodyMinX + radius, y: rect.minY),
+            control: CGPoint(x: bodyMinX, y: rect.minY)
+        )
+        path.closeSubpath()
+        return path
     }
 }
 
