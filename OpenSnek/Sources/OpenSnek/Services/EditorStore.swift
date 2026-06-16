@@ -319,9 +319,9 @@ final class EditorStore {
         }
     }
 
-    func createOnboardProfile(name: String) async {
+    func createOnboardProfile(name: String, targetProfileID: Int? = nil) async {
         await withButtonProfileOperation(statusText: "Creating profile...") { [self] in
-            await self.editorController.createOnboardProfile(name: name)
+            await self.editorController.createOnboardProfile(name: name, targetProfileID: targetProfileID)
         }
     }
 

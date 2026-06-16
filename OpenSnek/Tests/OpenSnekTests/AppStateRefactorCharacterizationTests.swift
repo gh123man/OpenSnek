@@ -3330,6 +3330,17 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             makeRefactorOnboardProfileSnapshot(profileID: 2, name: "Stored 2", dpiValues: [1200, 2400]),
             forDeviceID: device.id
         )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(
+                profileID: 3,
+                name: "Stored 3",
+                dpiValues: [3200, 6400],
+                buttonBindings: [
+                    4: ButtonBindingDraft(kind: .mouseForward, hidKey: 4, turboEnabled: false, turboRate: 0x8E)
+                ]
+            ),
+            forDeviceID: device.id
+        )
 
         let appState = await MainActor.run {
             AppState(launchRole: .app, backend: backend, autoStart: false)
@@ -3383,12 +3394,81 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             )
         }
 
-        let selected = await MainActor.run { appState.editorStore.selectedOnboardProfileID }
-        let activeSummary = await MainActor.run {
-            appState.editorStore.onboardProfileSummaries.first(where: { $0.isActive })?.profileID
+        try await waitForRefactorCondition {
+            await MainActor.run {
+                appState.editorStore.selectedOnboardProfileID == 3 &&
+                    appState.editorStore.onboardProfileSummaries.first(where: { $0.isActive })?.profileID == 3 &&
+                    appState.editorStore.buttonBindingKind(for: 4) == .mouseForward
+            }
         }
-        XCTAssertEqual(selected, 3)
-        XCTAssertEqual(activeSummary, 3)
+    }
+
+    func testOnboardProfileInventoryShowsEmptySlotsAndCreatesIntoSelectedSlot() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-empty-slot-device",
+            transport: .usb,
+            serial: "ONBOARD-EMPTY-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1, 3],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 3, name: "Stored 3", isActive: false),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+
+        let initialSummaries = await MainActor.run { appState.editorStore.onboardProfileSummaries }
+        XCTAssertEqual(initialSummaries.map(\.profileID), [1, 2, 3, 4, 5])
+        XCTAssertEqual(initialSummaries.first(where: { $0.profileID == 2 })?.isAssigned, false)
+        XCTAssertEqual(initialSummaries.first(where: { $0.profileID == 2 })?.displayName, "Profile 2")
+
+        await appState.editorStore.selectOnboardProfile(2)
+        let selectedBeforeCreate = await MainActor.run { appState.editorStore.selectedOnboardProfileID }
+        let nameBeforeCreate = await MainActor.run { appState.editorStore.selectedOnboardProfileName }
+        XCTAssertEqual(selectedBeforeCreate, 2)
+        XCTAssertEqual(nameBeforeCreate, "None")
+
+        await appState.editorStore.createOnboardProfile(name: "Work", targetProfileID: 2)
+
+        try await waitForRefactorCondition {
+            await MainActor.run {
+                appState.editorStore.onboardProfileSummaries.first(where: { $0.profileID == 2 })?.isAssigned == true &&
+                    appState.editorStore.onboardProfileSummaries.first(where: { $0.profileID == 2 })?.displayName == "Work"
+            }
+        }
+
+        let creates = await backend.recordedOnboardCreates()
+        XCTAssertEqual(creates.first?.targetProfileID, 2)
     }
 
     func testInactiveOnboardProfileDpiEditUpdatesStoredProfileOnly() async throws {
@@ -3489,6 +3569,7 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
     private var onboardInventoryByDeviceID: [String: OnboardProfileInventory] = [:]
     private var onboardSnapshotsByKey: [String: OnboardProfileSnapshot] = [:]
     private var onboardUpdates: [(deviceID: String, profileID: Int, mutation: OnboardProfileMutation)] = []
+    private var onboardCreates: [(deviceID: String, targetProfileID: Int?, mutation: OnboardProfileMutation)] = []
 
     init(
         devices: [MouseDevice],
@@ -3613,6 +3694,52 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
         return makeRefactorOnboardProfileSnapshot(profileID: profileID, name: "Profile \(profileID)")
     }
 
+    func createOnboardProfile(
+        device: MouseDevice,
+        mutation: OnboardProfileMutation,
+        targetProfileID: Int?,
+        replaceAssignedProfile: Bool
+    ) async throws -> OnboardProfileSnapshot {
+        let inventory = try await listOnboardProfiles(device: device)
+        let target = targetProfileID ?? inventory.assignableProfileIDs.first ?? 2
+        guard target >= 2, target <= inventory.maxProfileID else {
+            throw NSError(domain: "AppStateRefactorCharacterizationTests", code: 92, userInfo: [
+                NSLocalizedDescriptionKey: "Invalid profile target \(target)"
+            ])
+        }
+        guard replaceAssignedProfile || !inventory.assignedProfileIDs.contains(target) else {
+            throw NSError(domain: "AppStateRefactorCharacterizationTests", code: 93, userInfo: [
+                NSLocalizedDescriptionKey: "Profile target \(target) is already assigned"
+            ])
+        }
+        onboardCreates.append((device.id, targetProfileID, mutation))
+        let snapshot = OnboardProfileSnapshot(
+            profileID: target,
+            metadata: mutation.metadata ?? OnboardProfileMetadata(name: "Profile \(target)"),
+            dpi: mutation.dpi,
+            buttonBindings: mutation.buttonBindings ?? [:],
+            brightnessByLEDID: mutation.brightnessByLEDID ?? [:],
+            staticColorByLEDID: mutation.staticColorByLEDID ?? [:]
+        )
+        onboardSnapshotsByKey[onboardSnapshotKey(deviceID: device.id, profileID: target)] = snapshot
+        var summaries = inventory.profiles.filter { $0.profileID != target }
+        summaries.append(OnboardProfileSummary(
+            profileID: target,
+            metadata: snapshot.metadata,
+            isAssigned: true,
+            isActive: target == inventory.activeProfileID,
+            isBaseProfile: false
+        ))
+        let assigned = Set(inventory.assignedProfileIDs + [target])
+        onboardInventoryByDeviceID[device.id] = OnboardProfileInventory(
+            activeProfileID: inventory.activeProfileID,
+            maxProfileID: inventory.maxProfileID,
+            assignedProfileIDs: Array(assigned).sorted(),
+            profiles: summaries
+        )
+        return snapshot
+    }
+
     func updateOnboardProfile(
         device: MouseDevice,
         profileID: Int,
@@ -3696,6 +3823,10 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
 
     func recordedOnboardUpdates() -> [(deviceID: String, profileID: Int, mutation: OnboardProfileMutation)] {
         onboardUpdates
+    }
+
+    func recordedOnboardCreates() -> [(deviceID: String, targetProfileID: Int?, mutation: OnboardProfileMutation)] {
+        onboardCreates
     }
 
     private func buttonKey(deviceID: String, slot: Int, profile: Int) -> String {

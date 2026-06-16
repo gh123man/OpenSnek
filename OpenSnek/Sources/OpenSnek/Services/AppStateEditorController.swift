@@ -415,12 +415,19 @@ final class AppStateEditorController {
            let active = state.active_onboard_profile {
             let previousActive = lastHardwareActiveOnboardProfileIDByDeviceID[device.id]
             let selected = selectedOnboardProfileIDByDeviceID[device.id]
-            if selected == nil || selected == previousActive || active != previousActive {
+            let activeChanged = previousActive != nil && active != previousActive
+            let shouldFollowActive = selected == nil || selected == previousActive || activeChanged
+            if shouldFollowActive {
                 selectedOnboardProfileIDByDeviceID[device.id] = active
             }
             lastHardwareActiveOnboardProfileIDByDeviceID[device.id] = active
             updateCachedOnboardInventoryActiveProfile(deviceID: device.id, activeProfileID: active)
             bumpOnboardProfilesRevision()
+            if activeChanged, shouldFollowActive {
+                Task { @MainActor [weak self] in
+                    await self?.selectOnboardProfile(active)
+                }
+            }
         }
 
         if let pairs = state.dpi_stages.pairs, !pairs.isEmpty {
@@ -1095,7 +1102,7 @@ final class AppStateEditorController {
 
     private func updateCachedOnboardInventoryActiveProfile(deviceID: String, activeProfileID: Int) {
         guard let inventory = onboardProfileInventoryByDeviceID[deviceID] else { return }
-        let profiles = inventory.profiles.map { summary in
+        let profiles = synthesizedOnboardProfileSummaries(from: inventory).map { summary in
             OnboardProfileSummary(
                 profileID: summary.profileID,
                 metadata: summary.metadata,
@@ -1109,6 +1116,41 @@ final class AppStateEditorController {
             maxProfileID: inventory.maxProfileID,
             assignedProfileIDs: inventory.assignedProfileIDs,
             profiles: profiles
+        )
+    }
+
+    private func synthesizedOnboardProfileSummaries(from inventory: OnboardProfileInventory) -> [OnboardProfileSummary] {
+        (1...inventory.maxProfileID).map { profileID in
+            if let summary = inventory.summary(for: profileID) {
+                return summary
+            }
+            return OnboardProfileSummary(
+                profileID: profileID,
+                metadata: nil,
+                isAssigned: profileID == 1,
+                isActive: profileID == inventory.activeProfileID,
+                isBaseProfile: profileID == 1
+            )
+        }
+    }
+
+    private func cacheOnboardProfileSnapshot(_ snapshot: OnboardProfileSnapshot, device: MouseDevice) {
+        onboardProfileSnapshotsByKey[onboardProfileSnapshotKey(device: device, profileID: snapshot.profileID)] = snapshot
+        guard let inventory = onboardProfileInventoryByDeviceID[device.id] else { return }
+        var summaries = synthesizedOnboardProfileSummaries(from: inventory).filter { $0.profileID != snapshot.profileID }
+        summaries.append(OnboardProfileSummary(
+            profileID: snapshot.profileID,
+            metadata: snapshot.metadata,
+            isAssigned: true,
+            isActive: snapshot.profileID == inventory.activeProfileID,
+            isBaseProfile: snapshot.profileID == 1
+        ))
+        let assigned = Set(inventory.assignedProfileIDs + [snapshot.profileID])
+        onboardProfileInventoryByDeviceID[device.id] = OnboardProfileInventory(
+            activeProfileID: inventory.activeProfileID,
+            maxProfileID: inventory.maxProfileID,
+            assignedProfileIDs: Array(assigned).sorted(),
+            profiles: summaries
         )
     }
 
@@ -1131,7 +1173,7 @@ final class AppStateEditorController {
     func onboardProfileSummaries() -> [OnboardProfileSummary] {
         guard let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return [] }
         if let inventory = onboardProfileInventoryByDeviceID[device.id] {
-            return inventory.profiles
+            return synthesizedOnboardProfileSummaries(from: inventory)
         }
         Task { @MainActor [weak self] in
             await self?.refreshOnboardProfiles()
@@ -1149,7 +1191,7 @@ final class AppStateEditorController {
               let summary = onboardProfileSummaries().first(where: { $0.profileID == selected }) else {
             return "Onboard Profile"
         }
-        return summary.displayName
+        return summary.isAssigned ? summary.displayName : "None"
     }
 
     func selectedOnboardProfileIsActive() -> Bool {
@@ -1180,8 +1222,22 @@ final class AppStateEditorController {
             if onboardProfileInventoryByDeviceID[device.id] == nil {
                 await refreshOnboardProfiles()
             }
-            guard onboardProfileInventoryByDeviceID[device.id]?.assignedProfileIDs.contains(profileID) == true else {
-                deviceStore.errorMessage = "Profile \(profileID) is not assigned on this device."
+            var inventory = onboardProfileInventoryByDeviceID[device.id]
+            if inventory?.assignedProfileIDs.contains(profileID) != true,
+               profileID == lastHardwareActiveOnboardProfileIDByDeviceID[device.id] {
+                await refreshOnboardProfiles()
+                inventory = onboardProfileInventoryByDeviceID[device.id]
+            }
+            guard let inventory,
+                  profileID >= 1,
+                  profileID <= inventory.maxProfileID else {
+                deviceStore.errorMessage = "Profile \(profileID) is outside the supported profile range."
+                return
+            }
+            guard inventory.assignedProfileIDs.contains(profileID) else {
+                selectedOnboardProfileIDByDeviceID[device.id] = profileID
+                deviceStore.errorMessage = nil
+                bumpOnboardProfilesRevision()
                 return
             }
             let snapshot = try await environment.backend.readOnboardProfile(device: device, profileID: profileID)
@@ -1206,19 +1262,20 @@ final class AppStateEditorController {
         }
     }
 
-    func createOnboardProfile(name: String) async {
+    func createOnboardProfile(name: String, targetProfileID: Int? = nil) async {
         guard !isTearingDown, let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return }
         do {
             let metadata = OnboardProfileMetadata(name: name)
             let snapshot = try await environment.backend.createOnboardProfile(
                 device: device,
                 mutation: currentOnboardProfileMutation(device: device, metadata: metadata),
-                targetProfileID: nil,
+                targetProfileID: targetProfileID,
                 replaceAssignedProfile: false
             )
-            onboardProfileSnapshotsByKey[onboardProfileSnapshotKey(device: device, profileID: snapshot.profileID)] = snapshot
+            cacheOnboardProfileSnapshot(snapshot, device: device)
             selectedOnboardProfileIDByDeviceID[device.id] = snapshot.profileID
             hydrateEditable(from: snapshot, device: device)
+            bumpOnboardProfilesRevision()
             await refreshOnboardProfiles()
         } catch {
             deviceStore.errorMessage = "Failed to create onboard profile: \(error.localizedDescription)"
@@ -1236,7 +1293,8 @@ final class AppStateEditorController {
                 profileID: selected,
                 name: name
             )
-            onboardProfileSnapshotsByKey[onboardProfileSnapshotKey(device: device, profileID: selected)] = snapshot
+            cacheOnboardProfileSnapshot(snapshot, device: device)
+            bumpOnboardProfilesRevision()
             await refreshOnboardProfiles()
         } catch {
             deviceStore.errorMessage = "Failed to rename onboard profile: \(error.localizedDescription)"

@@ -69,6 +69,9 @@ struct DeviceDetailView: View {
         if editorStore.showsConnectBehaviorCard {
             sections.append(.onConnect)
         }
+        if editorStore.supportsOnboardProfileCRUD {
+            sections.append(.onboardProfiles)
+        }
         if selected.showsLightingControls, state.capabilities.lighting {
             sections.append(.lighting)
         }
@@ -98,6 +101,8 @@ struct DeviceDetailView: View {
             DpiStagesCard(editorStore: editorStore)
         case .onConnect:
             OnConnectBehaviorCard(editorStore: editorStore)
+        case .onboardProfiles:
+            OnboardProfileManagerCard(editorStore: editorStore)
         case .lighting:
             LightingCard(editorStore: editorStore, selected: selected, swatches: swatches)
         case .pollRate:
@@ -119,7 +124,7 @@ struct DeviceDetailView: View {
 
     private func preferredColumn(for section: DetailSection) -> Int {
         switch section {
-        case .lighting, .buttonRemap:
+        case .onboardProfiles, .lighting, .buttonRemap:
             return 1
         default:
             return 0
@@ -130,6 +135,7 @@ struct DeviceDetailView: View {
 private enum DetailSection: Hashable {
     case dpiStages
     case onConnect
+    case onboardProfiles
     case lighting
     case pollRate
     case powerManagement
@@ -1677,14 +1683,6 @@ struct ButtonMappingTableCard: View {
     var body: some View {
         Card(title: title) {
             VStack(alignment: .leading, spacing: 12) {
-                if editorStore.supportsOnboardProfileCRUD {
-                    ButtonProfileWorkspaceStrip(
-                        deviceStore: deviceStore,
-                        editorStore: editorStore,
-                        isBusy: isBusy
-                    )
-                }
-
                 LazyVStack(alignment: .leading, spacing: 10) {
                     ForEach(rows) { row in
                         ButtonBindingRow(editorStore: editorStore, row: row)
@@ -1699,13 +1697,14 @@ struct ButtonMappingTableCard: View {
     }
 }
 
-private struct ButtonProfileWorkspaceStrip: View {
-    let deviceStore: DeviceStore
+private struct OnboardProfileManagerCard: View {
     let editorStore: EditorStore
-    let isBusy: Bool
 
-    @State private var createName = ""
     @State private var renameName = ""
+
+    private var isBusy: Bool {
+        editorStore.isButtonProfileOperationInFlight
+    }
 
     private var statusLabel: String? {
         editorStore.buttonProfileOperationStatusText
@@ -1715,59 +1714,47 @@ private struct ButtonProfileWorkspaceStrip: View {
         editorStore.selectedOnboardProfileID
     }
 
+    private var selectedSummary: OnboardProfileSummary? {
+        guard let selectedProfileID else { return nil }
+        return editorStore.onboardProfileSummaries.first(where: { $0.profileID == selectedProfileID })
+    }
+
+    private var selectedNameIsEmpty: Bool {
+        renameName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
+        Card(title: "Onboard Profiles") {
+            VStack(alignment: .leading, spacing: 12) {
+                header
 
-            if editorStore.onboardProfileSummaries.isEmpty {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Reading onboard profiles")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.58))
+                if editorStore.onboardProfileSummaries.isEmpty {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Reading onboard profiles")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.58))
+                    }
+                } else {
+                    profileRows
                 }
-            } else {
-                profileRows
-            }
 
-            HStack(spacing: 8) {
-                TextField("New profile name", text: $createName)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 220)
-                Button("Create") {
-                    let name = createName
-                    createName = ""
-                    Task { await editorStore.createOnboardProfile(name: name) }
+                if let statusLabel {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text(statusLabel)
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.64))
+                    }
                 }
-                .buttonStyle(.bordered)
-                .disabled(isBusy)
-            }
 
-            if let statusLabel {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text(statusLabel)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.64))
-                }
+                selectedControls
             }
-
-            selectedControls
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white.opacity(0.035))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                    )
-        )
-        .task {
-            await editorStore.refreshOnboardProfiles()
+            .task {
+                await editorStore.refreshOnboardProfiles()
+            }
         }
     }
 
@@ -1791,35 +1778,61 @@ private struct ButtonProfileWorkspaceStrip: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(editorStore.onboardProfileSummaries) { profile in
-                    profileButton(profile)
+                    profileTile(profile)
                 }
             }
         }
     }
 
-    private func profileButton(_ profile: OnboardProfileSummary) -> some View {
+    private func profileTile(_ profile: OnboardProfileSummary) -> some View {
         Button {
             Task { await editorStore.selectOnboardProfile(profile.profileID) }
         } label: {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(profile.displayName)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .lineLimit(1)
-                HStack(spacing: 5) {
+            ZStack(alignment: .topTrailing) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(profile.isAssigned ? profile.displayName : "None")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(profile.isAssigned ? Color.white : Color.white.opacity(0.48))
+                        .lineLimit(1)
                     Text(profile.profileID == 1 ? "Base" : "Slot \(profile.profileID)")
-                    if profile.isActive {
-                        Text("Active")
-                    }
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.52))
                 }
-                .font(.system(size: 10, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.52))
+                .frame(width: 124, alignment: .leading)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 10)
+
+                if profile.isActive {
+                    Text("active")
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color(hex: 0x30D158))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(Color(hex: 0x30D158).opacity(0.14))
+                        )
+                        .offset(x: -6, y: 5)
+                }
             }
-            .frame(width: 124, alignment: .leading)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 8)
                     .fill(profile.profileID == selectedProfileID ? Color.white.opacity(0.12) : Color.white.opacity(0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(
+                        profile.isActive
+                            ? Color(hex: 0x30D158).opacity(0.95)
+                            : (profile.profileID == selectedProfileID ? Color.white.opacity(0.18) : Color.white.opacity(0.08)),
+                        lineWidth: profile.isActive ? 2 : 1
+                    )
+            )
+            .shadow(
+                color: profile.isActive ? Color(hex: 0x30D158).opacity(0.35) : .clear,
+                radius: profile.isActive ? 8 : 0,
+                x: 0,
+                y: 0
             )
         }
         .buttonStyle(.plain)
@@ -1828,39 +1841,64 @@ private struct ButtonProfileWorkspaceStrip: View {
 
     @ViewBuilder
     private var selectedControls: some View {
-        if let selectedProfileID {
+        if let selectedProfileID, let selectedSummary {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     TextField("Profile name", text: $renameName)
                         .textFieldStyle(.roundedBorder)
                         .frame(maxWidth: 220)
                         .onAppear {
-                            renameName = editorStore.selectedOnboardProfileName
+                            resetNameField(for: selectedSummary)
                         }
-                        .onChange(of: editorStore.selectedOnboardProfileName) { _, value in
-                            renameName = value
+                        .onChange(of: selectedProfileID) { _, _ in
+                            resetNameField(for: selectedSummary)
                         }
-                    Button("Rename") {
-                        Task { await editorStore.renameSelectedOnboardProfile(name: renameName) }
+                        .onChange(of: editorStore.selectedOnboardProfileName) { _, _ in
+                            resetNameField(for: selectedSummary)
+                        }
+
+                    if selectedSummary.isAssigned {
+                        Button("Rename") {
+                            Task { await editorStore.renameSelectedOnboardProfile(name: renameName) }
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(isBusy || selectedNameIsEmpty)
+                        Button("Activate") {
+                            Task { await editorStore.activateOnboardProfile(selectedProfileID) }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isBusy || editorStore.selectedOnboardProfileIsActive)
+                        Button("Delete") {
+                            Task { await editorStore.deleteSelectedOnboardProfile() }
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(isBusy || selectedProfileID <= 1)
+                    } else {
+                        Button("Create") {
+                            let name = renameName
+                            Task {
+                                await editorStore.createOnboardProfile(
+                                    name: name,
+                                    targetProfileID: selectedProfileID
+                                )
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isBusy || selectedNameIsEmpty)
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(isBusy)
-                    Button("Activate") {
-                        Task { await editorStore.activateOnboardProfile(selectedProfileID) }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isBusy || editorStore.selectedOnboardProfileIsActive)
-                    Button("Delete") {
-                        Task { await editorStore.deleteSelectedOnboardProfile() }
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(isBusy || selectedProfileID <= 1)
                 }
-                Text(editorStore.selectedOnboardProfileIsActive ? "Editing the active onboard profile" : "Editing a stored onboard profile")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.52))
+                if selectedSummary.isAssigned {
+                    Text(editorStore.selectedOnboardProfileIsActive ? "Editing the active onboard profile" : "Editing a stored onboard profile")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.52))
+                }
             }
         }
+    }
+
+    private func resetNameField(for summary: OnboardProfileSummary?) {
+        guard let summary else { return }
+        renameName = summary.isAssigned ? summary.displayName : ""
     }
 }
 
