@@ -1701,6 +1701,7 @@ private struct OnboardProfileManagerCard: View {
     let editorStore: EditorStore
 
     @State private var renameName = ""
+    @State private var hoveredProfileID: Int?
     private let slotColumnWidth: CGFloat = 188
     private let connectorWidth: CGFloat = 22
     private let slotRowHeight: CGFloat = 56
@@ -1795,7 +1796,16 @@ private struct OnboardProfileManagerCard: View {
     }
 
     private func profileSlotRow(_ profile: OnboardProfileSummary) -> some View {
-        Button {
+        let isSelected = profile.profileID == selectedProfileID
+        let isEmptySlot = !profile.isAssigned
+        let isHovered = hoveredProfileID == profile.profileID
+        let titleOpacity = profileTitleOpacity(profile: profile, isSelected: isSelected, isHovered: isHovered)
+        let subtitleOpacity = profileSubtitleOpacity(profile: profile, isSelected: isSelected, isHovered: isHovered)
+        let fillOpacity = profileFillOpacity(profile: profile, isSelected: isSelected, isHovered: isHovered)
+        let strokeOpacity = profileStrokeOpacity(profile: profile, isSelected: isSelected, isHovered: isHovered)
+        let plusOpacity = isEmptySlot && (isHovered || isSelected) ? 0.82 : 0.0
+
+        return Button {
             Task { await editorStore.selectOnboardProfile(profile.profileID) }
         } label: {
             ZStack(alignment: .topTrailing) {
@@ -1803,13 +1813,20 @@ private struct OnboardProfileManagerCard: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(profile.isAssigned ? profile.displayName : "None")
                             .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .foregroundStyle(profile.isAssigned ? Color.white : Color.white.opacity(0.48))
+                            .foregroundStyle(Color.white.opacity(titleOpacity))
                             .lineLimit(1)
                         Text(profile.profileID == 1 ? "Base" : "Slot \(profile.profileID)")
                             .font(.system(size: 10, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.52))
+                            .foregroundStyle(.white.opacity(subtitleOpacity))
                     }
                     Spacer(minLength: 0)
+                    if isEmptySlot {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(Color.white.opacity(plusOpacity))
+                            .frame(width: 22, height: 22)
+                            .accessibilityLabel("Create profile")
+                    }
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 9)
@@ -1830,14 +1847,14 @@ private struct OnboardProfileManagerCard: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(profile.profileID == selectedProfileID ? Color.white.opacity(0.12) : Color.white.opacity(0.05))
+                    .fill(Color.white.opacity(fillOpacity))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(
                         profile.isActive
                             ? Color(hex: 0x30D158).opacity(0.95)
-                            : (profile.profileID == selectedProfileID ? Color.white.opacity(0.18) : Color.white.opacity(0.08)),
+                            : Color.white.opacity(strokeOpacity),
                         lineWidth: profile.isActive ? 2 : 1
                     )
             )
@@ -1850,6 +1867,37 @@ private struct OnboardProfileManagerCard: View {
         }
         .buttonStyle(.plain)
         .disabled(isBusy)
+        .onHover { isHovered in
+            if isHovered {
+                hoveredProfileID = profile.profileID
+            } else if hoveredProfileID == profile.profileID {
+                hoveredProfileID = nil
+            }
+        }
+    }
+
+    private func profileTitleOpacity(profile: OnboardProfileSummary, isSelected: Bool, isHovered: Bool) -> Double {
+        if profile.isActive || isSelected { return 1.0 }
+        if profile.isAssigned { return isHovered ? 0.82 : 0.68 }
+        return isHovered ? 0.58 : 0.30
+    }
+
+    private func profileSubtitleOpacity(profile: OnboardProfileSummary, isSelected: Bool, isHovered: Bool) -> Double {
+        if profile.isActive || isSelected { return 0.56 }
+        if profile.isAssigned { return isHovered ? 0.48 : 0.38 }
+        return isHovered ? 0.40 : 0.24
+    }
+
+    private func profileFillOpacity(profile: OnboardProfileSummary, isSelected: Bool, isHovered: Bool) -> Double {
+        if isSelected { return 0.12 }
+        if profile.isAssigned { return isHovered ? 0.065 : 0.040 }
+        return isHovered ? 0.045 : 0.018
+    }
+
+    private func profileStrokeOpacity(profile: OnboardProfileSummary, isSelected: Bool, isHovered: Bool) -> Double {
+        if isSelected { return 0.18 }
+        if profile.isAssigned { return isHovered ? 0.12 : 0.07 }
+        return isHovered ? 0.12 : 0.035
     }
 
     private func connector(for profile: OnboardProfileSummary) -> some View {
