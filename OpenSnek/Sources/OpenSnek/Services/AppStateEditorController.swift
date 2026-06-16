@@ -1472,14 +1472,14 @@ final class AppStateEditorController {
 
         let zoneColors = onboardProfileLightingZoneColors(from: snapshot, device: device)
         guard !zoneColors.isEmpty else {
-            onboardProfileLightingColorsByDeviceID.removeValue(forKey: device.id)
+            if onboardProfileLightingColorsByDeviceID.removeValue(forKey: device.id) != nil {
+                editorStore.noteLightingGradientColorsChanged()
+            }
             return
         }
 
         onboardProfileLightingColorsByDeviceID[device.id] = zoneColors
-        if !device.supports_advanced_lighting_effects {
-            editorStore.editableLightingEffect = .staticColor
-        }
+        editorStore.editableLightingEffect = .staticColor
 
         let visibleZoneIDs = editorStore.visibleUSBLightingZones.map(\.id)
         let currentZoneID = normalizedLightingZoneID(for: device, preferredZoneID: editorStore.editableUSBLightingZoneID)

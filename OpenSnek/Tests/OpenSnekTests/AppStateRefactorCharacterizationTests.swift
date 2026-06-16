@@ -3296,6 +3296,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             onboardProfileCount: 5,
             profileID: .basiliskV3Pro
         )
+        let staleEditorColor = RGBColor(r: 1, g: 2, b: 3)
         let wheelColor = RGBColor(r: 10, g: 20, b: 30)
         let logoColor = RGBColor(r: 40, g: 50, b: 60)
         let underglowColor = RGBColor(r: 70, g: 80, b: 90)
@@ -3387,6 +3388,9 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(selectedAfterSameActiveHydration, 2)
 
         await MainActor.run {
+            appState.editorStore.editableLightingEffect = .wave
+            appState.editorStore.editableUSBLightingZoneID = "all"
+            appState.editorStore.editableColor = staleEditorColor
             appState.applyController.markLocalEditsPending()
             appState.deviceController.applyBackendDeviceStateUpdate(
                 deviceID: device.id,
@@ -3413,6 +3417,8 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                     appState.editorStore.stageValue(0) == 3200 &&
                     appState.editorStore.stageValue(1) == 6400 &&
                     appState.editorStore.editableLedBrightness == 220 &&
+                    appState.editorStore.editableLightingEffect == .staticColor &&
+                    appState.editorStore.editableUSBLightingZoneID == "scroll_wheel" &&
                     appState.editorStore.editableColor == wheelColor &&
                     appState.editorStore.lightingGradientDisplayColors == [wheelColor, logoColor, underglowColor] &&
                     appState.editorStore.buttonBindingKind(for: 4) == .mouseForward

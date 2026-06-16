@@ -1704,6 +1704,7 @@ private struct OnboardProfileManagerCard: View {
     private let slotColumnWidth: CGFloat = 188
     private let connectorWidth: CGFloat = 22
     private let slotRowHeight: CGFloat = 56
+    private let slotRowSpacing: CGFloat = 8
 
     private var isBusy: Bool {
         editorStore.isButtonProfileOperationInFlight
@@ -1724,6 +1725,11 @@ private struct OnboardProfileManagerCard: View {
 
     private var selectedNameIsEmpty: Bool {
         renameName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var profileListHeight: CGFloat {
+        let count = max(1, editorStore.onboardProfileSummaries.count)
+        return CGFloat(count) * slotRowHeight + CGFloat(max(0, count - 1)) * slotRowSpacing
     }
 
     var body: some View {
@@ -1768,22 +1774,23 @@ private struct OnboardProfileManagerCard: View {
 
     private var profileLayout: some View {
         HStack(alignment: .top, spacing: 0) {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: slotRowSpacing) {
                 ForEach(editorStore.onboardProfileSummaries) { profile in
                     profileSlotRow(profile)
                         .frame(width: slotColumnWidth, height: slotRowHeight)
                 }
             }
 
-            VStack(spacing: 8) {
+            VStack(spacing: slotRowSpacing) {
                 ForEach(editorStore.onboardProfileSummaries) { profile in
                     connector(for: profile)
                         .frame(width: connectorWidth, height: slotRowHeight)
                 }
             }
+            .frame(width: connectorWidth, height: profileListHeight, alignment: .top)
 
             actionPanel
-                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .frame(maxWidth: .infinity, minHeight: profileListHeight, alignment: .topLeading)
         }
     }
 
@@ -1849,17 +1856,14 @@ private struct OnboardProfileManagerCard: View {
         Group {
             if profile.profileID == selectedProfileID {
                 HStack(spacing: 0) {
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right")
+                    Rectangle()
+                        .fill(Color.white.opacity(0.10))
+                        .frame(height: 1)
+                    Image(systemName: "chevron.left")
                         .font(.system(size: 14, weight: .black))
                         .foregroundStyle(Color.white.opacity(0.72))
-                        .frame(width: connectorWidth - 6, height: slotRowHeight)
-                        .background(
-                            Rectangle()
-                                .fill(Color.white.opacity(0.10))
-                                .frame(width: 10, height: 1),
-                            alignment: .center
-                        )
+                        .frame(width: 14, height: slotRowHeight)
+                        .offset(x: 1)
                 }
             } else {
                 Color.clear
@@ -1907,8 +1911,8 @@ private struct OnboardProfileManagerCard: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
             .padding(12)
+            .frame(maxWidth: .infinity, minHeight: profileListHeight, alignment: .topLeading)
             .background(
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Color.white.opacity(0.06))
