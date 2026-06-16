@@ -1268,6 +1268,9 @@ final class AppStateEditorController {
             let state = try await environment.backend.activateOnboardProfile(device: device, profileID: profileID)
             selectedOnboardProfileIDByDeviceID[device.id] = profileID
             hydrateEditable(from: state)
+            let snapshot = try await environment.backend.readOnboardProfile(device: device, profileID: profileID)
+            cacheOnboardProfileSnapshot(snapshot, device: device)
+            hydrateEditable(from: snapshot, device: device)
             await refreshOnboardProfiles()
         } catch {
             deviceStore.errorMessage = "Failed to activate onboard profile: \(error.localizedDescription)"
@@ -1464,6 +1467,7 @@ final class AppStateEditorController {
     private func hydrateEditableLighting(from snapshot: OnboardProfileSnapshot, device: MouseDevice) {
         if let brightness = snapshot.brightnessByLEDID.values.max() {
             editorStore.editableLedBrightness = brightness
+            editorStore.noteLightingGradientColorsChanged()
         }
 
         let zoneColors = onboardProfileLightingZoneColors(from: snapshot, device: device)

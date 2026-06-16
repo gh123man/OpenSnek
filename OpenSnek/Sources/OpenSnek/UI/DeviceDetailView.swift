@@ -1701,6 +1701,9 @@ private struct OnboardProfileManagerCard: View {
     let editorStore: EditorStore
 
     @State private var renameName = ""
+    private let slotColumnWidth: CGFloat = 188
+    private let connectorWidth: CGFloat = 22
+    private let slotRowHeight: CGFloat = 56
 
     private var isBusy: Bool {
         editorStore.isButtonProfileOperationInFlight
@@ -1729,28 +1732,10 @@ private struct OnboardProfileManagerCard: View {
                 header
 
                 if editorStore.onboardProfileSummaries.isEmpty {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Reading onboard profiles")
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.58))
-                    }
+                    loadingRow
                 } else {
-                    profileRows
+                    profileLayout
                 }
-
-                if let statusLabel {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text(statusLabel)
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.64))
-                    }
-                }
-
-                selectedControls
             }
             .task {
                 await editorStore.refreshOnboardProfiles()
@@ -1758,11 +1743,18 @@ private struct OnboardProfileManagerCard: View {
         }
     }
 
+    private var loadingRow: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.small)
+            Text("Reading onboard profiles")
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.58))
+        }
+    }
+
     private var header: some View {
         HStack(spacing: 8) {
-            Text("Onboard Profiles")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.62))
             Spacer()
             Button {
                 Task { await editorStore.refreshOnboardProfiles() }
@@ -1774,33 +1766,46 @@ private struct OnboardProfileManagerCard: View {
         }
     }
 
-    private var profileRows: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+    private var profileLayout: some View {
+        HStack(alignment: .top, spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
                 ForEach(editorStore.onboardProfileSummaries) { profile in
-                    profileTile(profile)
+                    profileSlotRow(profile)
+                        .frame(width: slotColumnWidth, height: slotRowHeight)
                 }
             }
+
+            VStack(spacing: 8) {
+                ForEach(editorStore.onboardProfileSummaries) { profile in
+                    connector(for: profile)
+                        .frame(width: connectorWidth, height: slotRowHeight)
+                }
+            }
+
+            actionPanel
+                .frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }
 
-    private func profileTile(_ profile: OnboardProfileSummary) -> some View {
+    private func profileSlotRow(_ profile: OnboardProfileSummary) -> some View {
         Button {
             Task { await editorStore.selectOnboardProfile(profile.profileID) }
         } label: {
             ZStack(alignment: .topTrailing) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(profile.isAssigned ? profile.displayName : "None")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(profile.isAssigned ? Color.white : Color.white.opacity(0.48))
-                        .lineLimit(1)
-                    Text(profile.profileID == 1 ? "Base" : "Slot \(profile.profileID)")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.52))
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(profile.isAssigned ? profile.displayName : "None")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(profile.isAssigned ? Color.white : Color.white.opacity(0.48))
+                            .lineLimit(1)
+                        Text(profile.profileID == 1 ? "Base" : "Slot \(profile.profileID)")
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.52))
+                    }
+                    Spacer(minLength: 0)
                 }
-                .frame(width: 124, alignment: .leading)
                 .padding(.horizontal, 10)
-                .padding(.vertical, 10)
+                .padding(.vertical, 9)
 
                 if profile.isActive {
                     Text("active")
@@ -1815,6 +1820,7 @@ private struct OnboardProfileManagerCard: View {
                         .offset(x: -6, y: 5)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 8)
                     .fill(profile.profileID == selectedProfileID ? Color.white.opacity(0.12) : Color.white.opacity(0.05))
@@ -1839,61 +1845,154 @@ private struct OnboardProfileManagerCard: View {
         .disabled(isBusy)
     }
 
-    @ViewBuilder
-    private var selectedControls: some View {
-        if let selectedProfileID, let selectedSummary {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    TextField("Profile name", text: $renameName)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(maxWidth: 220)
-                        .onAppear {
-                            resetNameField(for: selectedSummary)
-                        }
-                        .onChange(of: selectedProfileID) { _, _ in
-                            resetNameField(for: selectedSummary)
-                        }
-                        .onChange(of: editorStore.selectedOnboardProfileName) { _, _ in
-                            resetNameField(for: selectedSummary)
-                        }
-
-                    if selectedSummary.isAssigned {
-                        Button("Rename") {
-                            Task { await editorStore.renameSelectedOnboardProfile(name: renameName) }
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(isBusy || selectedNameIsEmpty)
-                        Button("Activate") {
-                            Task { await editorStore.activateOnboardProfile(selectedProfileID) }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isBusy || editorStore.selectedOnboardProfileIsActive)
-                        Button("Delete") {
-                            Task { await editorStore.deleteSelectedOnboardProfile() }
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(isBusy || selectedProfileID <= 1)
-                    } else {
-                        Button("Create") {
-                            let name = renameName
-                            Task {
-                                await editorStore.createOnboardProfile(
-                                    name: name,
-                                    targetProfileID: selectedProfileID
-                                )
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isBusy || selectedNameIsEmpty)
-                    }
+    private func connector(for profile: OnboardProfileSummary) -> some View {
+        Group {
+            if profile.profileID == selectedProfileID {
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .black))
+                        .foregroundStyle(Color.white.opacity(0.72))
+                        .frame(width: connectorWidth - 6, height: slotRowHeight)
+                        .background(
+                            Rectangle()
+                                .fill(Color.white.opacity(0.10))
+                                .frame(width: 10, height: 1),
+                            alignment: .center
+                        )
                 }
+            } else {
+                Color.clear
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var actionPanel: some View {
+        if let selectedProfileID, let selectedSummary {
+            VStack(alignment: .leading, spacing: 12) {
+                actionHeader(for: selectedSummary)
+
+                TextField(selectedSummary.isAssigned ? "Profile name" : "Name this profile", text: $renameName)
+                    .textFieldStyle(.roundedBorder)
+                    .onAppear {
+                        resetNameField(for: selectedSummary)
+                    }
+                    .onChange(of: selectedProfileID) { _, _ in
+                        resetNameField(for: selectedSummary)
+                    }
+                    .onChange(of: editorStore.selectedOnboardProfileName) { _, _ in
+                        resetNameField(for: selectedSummary)
+                    }
+
+                if selectedSummary.isAssigned {
+                    assignedActions(selectedProfileID: selectedProfileID)
+                } else {
+                    createAction(selectedProfileID: selectedProfileID)
+                }
+
                 if selectedSummary.isAssigned {
                     Text(editorStore.selectedOnboardProfileIsActive ? "Editing the active onboard profile" : "Editing a stored onboard profile")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(.white.opacity(0.52))
                 }
+
+                if let statusLabel {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text(statusLabel)
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.64))
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.white.opacity(0.06))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+            )
+        } else {
+            Color.clear
+                .frame(height: slotRowHeight)
+        }
+    }
+
+    private func actionHeader(for summary: OnboardProfileSummary) -> some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(summary.isAssigned ? summary.displayName : "None")
+                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .foregroundStyle(summary.isAssigned ? Color.white : Color.white.opacity(0.54))
+                    .lineLimit(1)
+                Text(summary.profileID == 1 ? "Base" : "Slot \(summary.profileID)")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.52))
+            }
+            Spacer(minLength: 0)
+            if summary.isActive {
+                Text("active")
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color(hex: 0x30D158))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(Color(hex: 0x30D158).opacity(0.14))
+                    )
             }
         }
+    }
+
+    private func assignedActions(selectedProfileID: Int) -> some View {
+        HStack(spacing: 8) {
+            Button {
+                Task { await editorStore.renameSelectedOnboardProfile(name: renameName) }
+            } label: {
+                Label("Rename", systemImage: "pencil")
+            }
+            .buttonStyle(.bordered)
+            .disabled(isBusy || selectedNameIsEmpty)
+
+            Button {
+                Task { await editorStore.activateOnboardProfile(selectedProfileID) }
+            } label: {
+                Label("Activate", systemImage: "checkmark.circle.fill")
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isBusy || editorStore.selectedOnboardProfileIsActive)
+
+            Button {
+                Task { await editorStore.deleteSelectedOnboardProfile() }
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            .buttonStyle(.bordered)
+            .disabled(isBusy || selectedProfileID <= 1)
+        }
+        .controlSize(.small)
+    }
+
+    private func createAction(selectedProfileID: Int) -> some View {
+        Button {
+            let name = renameName
+            Task {
+                await editorStore.createOnboardProfile(
+                    name: name,
+                    targetProfileID: selectedProfileID
+                )
+            }
+        } label: {
+            Label("Create", systemImage: "plus.circle.fill")
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.small)
+        .disabled(isBusy || selectedNameIsEmpty)
     }
 
     private func resetNameField(for summary: OnboardProfileSummary?) {
