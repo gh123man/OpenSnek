@@ -7,6 +7,7 @@ Goal: shortest path from user request to the exact files, commands, and constrai
 | Task | Open First | Usually Validate With |
 |---|---|---|
 | BLE protocol, BT probe, BT device bug | `docs/protocol/PROTOCOL.md` then `docs/protocol/BLE_PROTOCOL.md`; `OpenSnek/Sources/OpenSnekProtocols/BLEVendorProtocol.swift`; `OpenSnek/Sources/OpenSnekHardware/BLEVendorTransportClient.swift`; `OpenSnek/Sources/OpenSnek/Bridge/BridgeClient+Bluetooth.swift`; `OpenSnek/Sources/OpenSnekProbe/{main.swift,ProbeTransport.swift}` | `swift test --package-path OpenSnek --filter BLEVendorProtocolTests`; build/run probe |
+| Windows Synapse/BTVS capture, profile reverse engineering | `captures/README.md`; `docs/research/BASILISK_V3_PRO_BT_EXTENDED.md`; run `tools/windows/capture-btvs.ps1` and inspect `synapse-events.md`, `correlation.md`, then `summary.md` | focused BTVS capture plus Synapse log correlation artifacts |
 | USB protocol, USB lighting, USB buttons | `docs/protocol/PROTOCOL.md` then `docs/protocol/USB_PROTOCOL.md`; `OpenSnek/Sources/OpenSnekProtocols/USBHIDProtocol.swift`; `OpenSnek/Sources/OpenSnek/Bridge/BridgeClient+USB.swift`; `OpenSnek/Sources/OpenSnekCore/DeviceSupport.swift` | focused USB probe command; `DeviceProfilesTests`; `USBButtonHydrationTests` |
 | Device support, product IDs, zones, button layout | `OpenSnek/Sources/OpenSnekCore/{DeviceSupport.swift,Models.swift,ButtonBindingSupport.swift}`; `docs/protocol/PARITY.md` if shipped-status changes | `swift test --package-path OpenSnek --filter DeviceProfilesTests` |
 | App-state hydration, persistence, auto-apply | `OpenSnek/Sources/OpenSnek/Services/{AppState.swift,AppStateEditorController.swift,AppStateApplyController.swift,DeviceStore.swift,EditorStore.swift}`; `OpenSnek/Sources/OpenSnekAppSupport/DevicePreferenceStore.swift` | `swift test --package-path OpenSnek --filter AppStateRefactorCharacterizationTests` |
@@ -39,6 +40,7 @@ Protocol behavior changes require docs, tests, and `CHANGELOG.md` updates in the
 8. Use `Validated` only for maintainer/local OpenSnek hardware validation. For device support validated by an outside contributor but not by maintainers, use `Contributor validated` and credit the contributor source in docs.
 9. Before creating a new topic branch, fetch `origin` and branch from an up-to-date `origin/main`. Before opening or updating a PR, check whether the branch is behind `origin/main`; if it is, merge or rebase `origin/main`, resolve conflicts, rerun validation, and push the updated branch.
 10. Before saying work is done or pushing code, run the complete unit test suite with `swift test --package-path OpenSnek` and ensure it passes locally.
+11. For Windows Synapse/BTVS reverse engineering, prefer automated captures over manual Wireshark work. Use `tools/windows/capture-btvs.ps1`, let it choose a fresh port unless intentionally passing `-ReuseBtvs`, take a same-session idle baseline when background traffic is ambiguous, then start analysis from `synapse-events.md`, `correlation.md`, and `summary.md` before opening the raw `.pcapng`.
 
 ## Quick Commands
 
@@ -48,6 +50,12 @@ swift run --package-path OpenSnek OpenSnekProbe dpi-read
 swift run --package-path OpenSnek OpenSnekProbe bt-lighting-info --name "BSK V3 PRO"
 swift run --package-path OpenSnek OpenSnekProbe usb-lighting-info --pid 0x00ab
 swift run --package-path OpenSnek OpenSnek
+```
+
+Windows BTVS/Synapse capture:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\windows\capture-btvs.ps1 -Name <capture-name> -Seconds 60
 ```
 
 Highest-value focused tests:

@@ -282,6 +282,112 @@ Current best model for V3 Pro BLE profile switching:
 
 OpenSnek should therefore avoid modeling the V3 Pro Bluetooth path as a simple `activeSlot = N` selector until we confirm the exact BLE reads and writes that back this behavior.
 
+## Windows BTVS Wire Capture Findings (2026-06-15)
+
+After moving the same Basilisk V3 Pro Bluetooth profile work to a Windows host running Synapse, BTVS, and Wireshark, the capture process is now automated through:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\windows\capture-btvs.ps1 -Name <capture-name> -Seconds <duration>
+```
+
+The script starts BTVS in remote Wireshark mode, captures `TCP@127.0.0.1:<port>` with `tshark`, and emits:
+
+- `capture.pcapng`
+- `att.csv`
+- `vendor-att.csv`
+- `summary.md`
+
+The first useful action capture was:
+
+- `captures/ble/windows/2026-06-15-192730-profile-button-cycle-pass-1/`
+
+The comparison idle baseline was:
+
+- `captures/ble/windows/2026-06-15-192930-idle-baseline-pass-1/`
+
+The idle baseline matters because the Windows/Synapse session emits periodic lighting-frame traffic even when the user is not changing anything. Over 15 seconds of idle capture, the only vendor key observed was:
+
+- `10 04 00 00`, length `0x2C`, periodic lighting-frame writes
+
+That means the following profile-cycle capture traffic is not idle background noise.
+
+### Profile-Cycle Projection Sequence
+
+The action capture shows a Synapse profile-projection burst around `12.0s..12.7s`. Important decoded vendor operations from that window:
+
+| Key | Direction | Payload / response | Current interpretation |
+|---|---|---|---|
+| `01 86 00 00` | read | response `00 00 00` | research-only profile/session state read candidate |
+| `10 85 01 04` | read | response `54` | per-zone brightness read for LED `0x04` |
+| `08 05 01 00` | write | `00` | research-only profile/apply control candidate |
+| `08 05 04 00` | write | `00` | research-only profile/apply control candidate targeting slot/profile `4` |
+| `08 07 01 00` | write/read-like ACK | `00`, response `50` | research-only profile/apply control candidate |
+| `08 06 01 00` | write | `00` | research-only profile/apply control candidate |
+| `0B 04 01 00` | write | `02 05 00 58 02 58 02 00 00 01 20 03 20 03 00 00 02 E8 03 E8 03 00 00 03 B0 04 B0 04 00 00 04 78 05 78 05 00 00 00` | projected DPI table write |
+| `08 04 04 0F` | write | `04 0F 00 02 02 00 09 00 00 00` | button slot `0x0F`, slot/profile target `4`, keyboard action block |
+| `01 8C 01 00` | read | response `01` | research-only stored/profile slot state read candidate |
+| `01 82 00 00` | read | response `03 00` | research-only scalar state read candidate |
+| `10 05 01 00` | write | `54` | brightness write |
+| `0B 84 01 00` | read | response `02 05 01 58 02 58 02 00 00 02 20 03 20 03 00 00 03 E8 03 E8 03 00 00 04 B0 04 B0 04 00 00 05 78 05 78 05 00` | projected DPI table readback |
+| `08 04 01 0F` | write | `01 0F 00 02 02 00 09 00 00 00` | same button function projected into target/layer `1` |
+| `10 03 00 00` | write | `08 00 00 00` | spectrum mode selector |
+| `01 8C 04 00` | read | response `01` | research-only stored/profile slot state read candidate for slot/profile `4` |
+| `08 04 04 0F` | write | `04 0F 00 02 02 00 09 00 00 00` | repeated slot/profile `4` button projection |
+| `08 04 01 0F` | write | `01 0F 00 02 02 00 09 00 00 00` | repeated target/layer `1` button projection |
+
+This capture strengthens the prior slot-`1` projection theory:
+
+- Synapse writes a button assignment for a stored/profile target (`08 04 04 0F`) and then writes the same assignment for target/layer `1` (`08 04 01 0F`).
+- The same window reads `01 8C 04 00` and gets `01`, which suggests Synapse is checking or confirming state for the stored/profile target before or during projection.
+- The DPI table write/readback also uses the normal live DPI keys, so profile switching is not just a hidden "active profile number" write. Synapse actively replays profile-owned settings onto the live device surface.
+
+The exact semantics of `01 86`, `01 82`, `01 8C`, `08 05`, `08 06`, and `08 07` are still not decoded enough to ship. They are now capture-backed V3 Pro Bluetooth research keys, not merely stale Python-tool candidates.
+
+### Focused Physical Profile Button Pass
+
+A longer follow-up capture aligned the BTVS wire trace with Windows Synapse logs:
+
+- `captures/ble/windows/2026-06-15-195434-profile-button-cycle-focused-pass-4/`
+
+Synapse log correlation from the same pass:
+
+- `razerKey key 80`, `flag:0` decoded as `disable`
+- `razerKey key 80`, `flag:1` decoded as `navigateProfile` / `CycleUp`
+- Synapse advanced the active profile GUID through stored profiles, including:
+  - `18f2a4cc-ecb8-4765-b532-9df401a686d6` (`OS_P5`)
+  - `49277292-1bea-4673-9ed9-5d91113c8cbc` (`BRIAN-DESKTOP-Default`)
+  - `26a33407-4094-469b-b3b1-f3caae38693b` (`Brian's MacBook Pro (2)-Default`)
+
+The matching wire trace shows the same projection shape repeated for each active profile change:
+
+| Key | Observed role in focused pass |
+|---|---|
+| `01 86 00 00` | read before some projection bursts, response `00 00 00` |
+| `08 05 <slot> 00` | one-byte `00` write, target varies with profile slot (`1`, `2`, `5` observed) |
+| `08 07 <slot> 00` | one-byte `00` write with one-byte response `50` |
+| `08 06 01 00` | one-byte `00` write during projection |
+| `0B 04 01 00` | live DPI table projection |
+| `0B 84 01 00` | live DPI readback after projection |
+| `01 8C <slot> 00` | one-byte state read, response `01` for observed targets |
+| `01 82 00 00` | two-byte state read, response `03 00` |
+| `08 04 <target> <slot>` | button-binding projection into a stored/profile target and then target/layer `1` |
+
+Representative target/layer evidence:
+
+- When projecting the profile with a slot-`0x0F` clutch binding, Synapse wrote `08 04 01 0F` with payload `01 0F 00 02 02 00 09 00 00 00`.
+- When projecting the profile with a slot-`0x04` keyboard mapping, Synapse wrote both:
+  - `08 04 02 04` with payload `02 04 00 02 02 00 45 00 00 00`
+  - `08 04 01 04` with payload `01 04 00 02 02 00 45 00 00 00`
+
+This is the strongest capture so far for the current V3 Pro Bluetooth profile-switch model:
+
+- the physical button is surfaced to Synapse as `razerKey key 80`
+- Synapse observes hardware profile cycling by GUID
+- after the active profile changes, Synapse replays profile-owned state through normal live BLE keys
+- target/layer `1` continues to behave like the live projection layer, while other target bytes (`2`, `5`, etc.) correspond to stored/profile targets
+
+OpenSnek should still treat the `01 xx` and `08 05` / `08 06` / `08 07` keys as research-only until we can safely probe them outside Synapse.
+
 ### Open Questions For Future Capture Work
 
 - Are equivalent USB payload/model logs emitted by Synapse on macOS, or is this level of payload detail primarily visible for Bluetooth work?

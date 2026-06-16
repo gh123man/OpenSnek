@@ -1,0 +1,12 @@
+﻿{
+    "name":  "2026-06-15-192730-profile-button-cycle-pass-1",
+    "captureStart":  "2026-06-15T19:27:31.9720000-04:00",
+    "captureEnd":  "2026-06-15T19:27:56.2150000-04:00",
+    "seconds":  24.243,
+    "pcap":  "C:\\Users\\gh123\\dev\\OpenSnek\\captures\\ble\\windows\\2026-06-15-192730-profile-button-cycle-pass-1\\capture.pcapng",
+    "attCsv":  "C:\\Users\\gh123\\dev\\OpenSnek\\captures\\ble\\windows\\2026-06-15-192730-profile-button-cycle-pass-1\\att.csv",
+    "vendorCsv":  "C:\\Users\\gh123\\dev\\OpenSnek\\captures\\ble\\windows\\2026-06-15-192730-profile-button-cycle-pass-1\\vendor-att.csv",
+    "summary":  "C:\\Users\\gh123\\dev\\OpenSnek\\captures\\ble\\windows\\2026-06-15-192730-profile-button-cycle-pass-1\\summary.md",
+    "synapseLogRoot":  "C:\\Users\\gh123\\AppData\\Local\\Razer\\RazerAppEngine\\User Data\\Logs",
+    "backfilled":  true
+}

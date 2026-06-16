@@ -1,0 +1,12 @@
+﻿{
+    "name":  "2026-06-15-192930-idle-baseline-pass-1",
+    "captureStart":  "2026-06-15T19:29:32.2010000-04:00",
+    "captureEnd":  "2026-06-15T19:29:45.2390000-04:00",
+    "seconds":  13.038,
+    "pcap":  "C:\\Users\\gh123\\dev\\OpenSnek\\captures\\ble\\windows\\2026-06-15-192930-idle-baseline-pass-1\\capture.pcapng",
+    "attCsv":  "C:\\Users\\gh123\\dev\\OpenSnek\\captures\\ble\\windows\\2026-06-15-192930-idle-baseline-pass-1\\att.csv",
+    "vendorCsv":  "C:\\Users\\gh123\\dev\\OpenSnek\\captures\\ble\\windows\\2026-06-15-192930-idle-baseline-pass-1\\vendor-att.csv",
+    "summary":  "C:\\Users\\gh123\\dev\\OpenSnek\\captures\\ble\\windows\\2026-06-15-192930-idle-baseline-pass-1\\summary.md",
+    "synapseLogRoot":  "C:\\Users\\gh123\\AppData\\Local\\Razer\\RazerAppEngine\\User Data\\Logs",
+    "backfilled":  true
+}

@@ -96,15 +96,98 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - In-session automated BLE vendor key sweep report.
   - Documents confirmed mappings, candidate keys, and safety findings from read/writeback probing.
 
+- `ble/windows/2026-06-15-192730-profile-button-cycle-pass-1/`
+  - Windows BTVS/tshark capture of a Basilisk V3 Pro Bluetooth physical profile-cycle action while Synapse was connected.
+  - Confirms that the automated BTVS TCP capture path records the same vendor ATT handles:
+    - write handle `0x003d`
+    - notify handle `0x003f`
+  - Captures Synapse profile-projection traffic that is not present in a same-host idle baseline, including:
+    - `01 86 00 00` read returning `00 00 00`
+    - `01 82 00 00` read returning `03 00`
+    - `01 8C <slot> 00` reads returning `01` for observed stored/profile slots
+    - `08 04 04 0F` and `08 04 01 0F` writes for slot `0x0F` across profile/layer targets
+    - DPI table writes/reads on `0B 04 01 00` / `0B 84 01 00`
+  - This is research evidence for the Basilisk V3 Pro BT profile model, not shipped OpenSnek protocol support yet.
+
+- `ble/windows/2026-06-15-192930-idle-baseline-pass-1/`
+  - Windows BTVS/tshark idle baseline on the same host/session.
+  - Only observed periodic `10 04 00 00` lighting-frame writes over the 15-second window.
+  - Used to separate background lighting chatter from profile-cycle/projection traffic in the profile-button pass.
+
+- `ble/windows/2026-06-15-195434-profile-button-cycle-focused-pass-4/`
+  - Longer Windows BTVS/tshark physical profile-cycle capture with matching Synapse log events.
+  - Synapse logged `razerKey key 80` as `disable` for `flag:0` and `navigateProfile` / `CycleUp` for `flag:1`.
+  - The wire trace captured repeated projection bursts after profile cycling, including:
+    - `01 86 00 00` reads returning `00 00 00`
+    - `01 82 00 00` reads returning `03 00`
+    - `01 8C <slot> 00` reads returning `01`
+    - profile/apply candidate writes on `08 05`, `08 06`, and `08 07`
+    - live DPI projection through `0B 04 01 00` followed by `0B 84 01 00` readback
+    - button projection into stored/profile targets and live target/layer `1` through `08 04 <target> <slot>`
+  - This is the preferred physical-button profile-switch capture for future profile-switch spec work.
+
 ## Notes
 
 - Captures are intentionally action-scoped for faster diffing.
 - Keep new captures in `captures/ble/` and add an entry here with what changed and what was validated.
 
 
-## Capture guide
+## Capture Guide
 
-To record a new BLE capture:
+### Windows Automated BTVS Capture
+
+Use the repo wrapper when BTVS is installed under `C:\BTP\v1.14.0` and Wireshark is installed under `C:\Program Files\Wireshark`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\windows\capture-btvs.ps1 -Name profile-button-cycle-pass-1 -Seconds 25
+```
+
+The script:
+
+- starts BTVS in remote Wireshark mode when no sniffer is already listening on the requested port
+- uses the requested port when free, or automatically picks the next free port when an old BTVS listener is already present
+- captures from `TCP@127.0.0.1:<port>` with `tshark`
+- writes packet artifacts:
+  - `capture.pcapng`
+  - `att.csv`
+  - `vendor-att.csv`
+  - `summary.md`
+- writes capture/log correlation artifacts by default:
+  - `metadata.json`
+  - `synapse-events.csv`
+  - `synapse-events.md`
+  - `correlation.md`
+
+The default vendor handle filter is:
+
+```text
+btatt.handle == 0x003d || btatt.handle == 0x003f || btatt.handle == 0x0040
+```
+
+BTVS is a GUI sniffer; its documented command-line options do not include a headless mode. The wrapper starts it with a hidden window and tries to stop the helper process after capture, but some Windows installs self-elevate BTVS and reject non-elevated termination. If cleanup is denied, close the hidden/visible BTVS window manually or run the wrapper from an elevated PowerShell session so the script can terminate the helper process.
+
+By default the wrapper avoids reusing an already-listening BTVS port, because long-running BTVS sessions can include buffered or stale packets. Use `-ReuseBtvs` only when intentionally attaching to an existing listener.
+
+For feature discovery, open files in this order:
+
+1. `synapse-events.md` to identify what Synapse thought happened
+2. `correlation.md` to jump to nearby non-lighting vendor operations
+3. `summary.md` for the full grouped vendor exchange list
+4. `capture.pcapng` only when the summaries are ambiguous
+
+Recommended feature-mapping loop:
+
+1. Capture a short idle baseline in the same Synapse/device session when background traffic is unknown.
+2. Capture the smallest action sequence that exercises one feature.
+3. Treat keys present in both the idle baseline and action capture as background candidates.
+4. Use `correlation.md` to inspect non-lighting vendor operations near Synapse feature events.
+5. Record only capture-backed interpretations in protocol or research docs, and leave uncertain keys marked research-only.
+
+Use `-NoSynapseLogs` only for captures where Synapse is intentionally not running. Use `-CorrelationWindowSeconds <seconds>` when Synapse log timestamps and BTVS packet times need a wider or narrower matching window.
+
+### Older Manual Wireshark Flow
+
+If the automated wrapper is unavailable:
 
 1. Install BTVS.
 2. Launch BTVS. It will open Wireshark.

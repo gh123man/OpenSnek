@@ -191,6 +191,7 @@ These are the keys currently used by the Swift app/probe and therefore covered b
 
 Not source-of-truth in Swift:
 - older Python tooling also contains additional candidate keys such as `05 82 00 00`, `05 02 00 00`, `01 82 00 00`, and `01 83 00 00`
+- Basilisk V3 Pro Bluetooth Windows Synapse captures now show research-only profile/projection traffic on `01 86 00 00`, `01 82 00 00`, `01 8C <slot> 00`, `08 05 <slot> 00`, `08 06 01 00`, and `08 07 <slot> 00`; see [Basilisk V3 Pro BT Extended Notes](../research/BASILISK_V3_PRO_BT_EXTENDED.md)
 - those keys are intentionally omitted from the main spec because current Swift OpenSnek does not rely on them
 
 ## 6. Payload Layouts
