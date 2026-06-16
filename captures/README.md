@@ -250,6 +250,16 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - In both passes, the known live-target readback values stayed unchanged even though the HID hints fired; this rules out those keys as a reliable active firmware-ring profile identity source.
   - This capture backs the current guidance to use passive HID hints for event-driven refresh/stale marking, while keeping exact onboard active-profile identity open until a firmware-ring state key is mapped.
 
+- `ble/windows/2026-06-15-225000-profile-active-target0-dpi-surface/`
+  - Windows read-only BLE DPI-family probes for Basilisk V3 Pro Bluetooth hardware profile cycling.
+  - User clarified slot terminology: slot `0` is live/current; slots `1..4` are non-live onboard slots.
+  - The sweep found that `0B 81/82/83 00 00` expose the hardware-active DPI scalar/stage-list/stage-token surface.
+  - Stored slot `1` maps to BLE target `2` and returned the random table `3200, 10200, 1600, 7900, 1100`.
+  - Stored slot `2` maps to BLE target `3` and returned the mostly-100 table `100, 100, 100, 100, 800`.
+  - The `profile-cycle-active-target0-short` pass showed `0B 82 00 00` move from the target-`2` random table to the target-`3` mostly-100 table after one hardware profile-button cycle.
+  - The later slot2-to-slot3 pass did not change active target `0`; the user clarified only slots `1` and `2` were intentionally mapped, so treat slots `3`/`4` as unmapped in this setup.
+  - This capture backs the current event-driven UI model: HID hint detects the change, then `0B 82 00 00` identifies the active profile by matching active DPI stages against stored slot tables when those tables are unique.
+
 ## Notes
 
 - Captures are intentionally action-scoped for faster diffing.

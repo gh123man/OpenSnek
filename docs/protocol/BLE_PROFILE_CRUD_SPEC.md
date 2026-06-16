@@ -479,6 +479,7 @@ Synapse-closed Bluetooth cycle captures:
 - `captures/ble/windows/2026-06-15-214518-profile-synapse-closed-physical-cycle-pass-1/`
 - `captures/ble/windows/2026-06-15-215545-profile-bt-hardware-cycle-synapse-closed-pass-1/`
 - `captures/ble/windows/2026-06-15-222336-profile-cycle-event-driven-followup-read/`
+- `captures/ble/windows/2026-06-15-225000-profile-active-target0-dpi-surface/`
 
 The user closed/crashed Synapse and pressed the physical profile button during
 60-second BTVS captures. The first capture contained no decoded BLE vendor
@@ -543,6 +544,47 @@ identify the firmware-ring active profile after a Synapse-closed onboard cycle.
 They appear to read the current BLE live/software projection surface, which did
 not move with the hardware profile ring in these passes.
 
+Active DPI target correction:
+
+The user clarified OpenSnek's slot terminology for this work:
+
+- slot `0` means the live/current profile surface
+- slots `1..4` mean non-live onboard slots
+- BLE target `1` maps to live slot `0` for the older projection table key
+  `0B 84 01 00`
+- BLE targets `2..5` map to stored slots `1..4`
+
+A follow-up read-only DPI-family sweep found the active firmware DPI surface in
+the `0B 81/82/83 00 00` keys:
+
+| Key | Payload shape | Working meaning |
+|---|---|---|
+| `0B 81 00 00` | 6-byte DPI scalar pair | current active DPI scalar for the hardware-selected profile |
+| `0B 82 00 00` | 30-byte list of five 6-byte DPI pairs | current active profile's DPI stages, without stage IDs |
+| `0B 83 00 00` | 1 byte | current active stage token/index for the hardware-selected profile |
+
+The same keys with stored targets read the stored slots:
+
+| Stored slot | BLE target | Example table |
+|---:|---:|---|
+| slot `1` | target `2` | `3200, 10200, 1600, 7900, 1100` |
+| slot `2` | target `3` | `100, 100, 100, 100, 800` |
+| slot `3` | target `4` | `400, 800, 1600, 3200, 6400` in this state, but user says this slot was not intentionally mapped |
+| slot `4` | target `5` | `400, 800, 1600, 3200, 6400` in this state, but user says this slot was not intentionally mapped |
+
+In `profile-cycle-active-target0-short-2026-06-15.json`, the before/after state
+proved the active target behavior:
+
+| Moment | `0B 82 00 00` active table | Matching stored target |
+|---|---|---|
+| before | `3200, 10200, 1600, 7900, 1100` | target `2` / stored slot `1` |
+| after one hardware profile-button cycle | `100, 100, 100, 100, 800` | target `3` / stored slot `2` |
+
+The later `slot2-to-slot3` pass did not change the active target. The user
+clarified that only stored slots `1` and `2` were intentionally mapped and slots
+`3`/`4` were unmapped, so treat that pass as consistent with unmapped slots
+being skipped or ignored rather than as a failure of the active-target model.
+
 User observation during these passes:
 
 - In Bluetooth mode, the physical profile button does work as an onboard
@@ -580,15 +622,18 @@ Current implementation guidance:
   profile-button changes. The passive HID report is the detection path.
 - After a profile-cycle hint, perform only event-scoped follow-up reads. Do not
   expect the HID report to carry a target ID.
-- Do not yet rely on known live-target reads such as `0B 84 01 00` and
-  `08 84 01 04` to identify the firmware-ring active profile. In the
-  Synapse-closed event-driven pass, those reads stayed unchanged after hardware
-  profile-button cycles.
-- Until an onboard active-slot read is mapped, OpenSnek can use the HID hint to
-  mark profile state stale/changed in real time and trigger a bounded refresh
-  workflow, but exact selected-profile identity requires either a newly decoded
-  firmware-ring state key or an OpenSnek-owned model that controls the onboard
-  profile ring.
+- For DPI-based identity, read the active hardware DPI surface:
+  - `0B 82 00 00` for the active profile's stage values
+  - `0B 81 00 00` for the active scalar/current DPI pair
+  - `0B 83 00 00` for the active stage token
+- Match `0B 82 00 00` against stored slot tables read from `0B 82 02 00` through
+  `0B 82 05 00` to infer which onboard slot the firmware selected.
+- Do not use `0B 84 01 00` as the active hardware profile identity source. It
+  reads the live/projection stage table with stage IDs, and it can remain pinned
+  to the previous projected profile while the hardware ring changes.
+- If multiple stored slots have identical DPI tables, DPI-only identity is
+  ambiguous. Add another fingerprint axis before claiming exact profile
+  identity.
 - Host-side cycling should be an explicit OpenSnek-owned mode, not the default
   behavior for onboard profile slots.
 - Do not infer target deletion from a Synapse rename alone. Synapse currently
@@ -602,10 +647,9 @@ Open questions:
   "a profile-cycle event happened." The current Windows HID sniff did not decode
   a target ID, so OpenSnek should do a one-shot live target `1` fingerprint
   refresh after the hint.
-- Which read-only BLE key, if any, exposes the firmware-ring active profile slot
-  when Synapse is closed. `0B 84 01 00`, `08 84 01 04`, `01 86 00 00`,
-  `01 82 00 00`, and `01 8C <target> 00` did not identify the changed profile
-  in the current event-driven passes.
+- Whether there is a direct active-slot/profile ID read. For now, profile
+  identity is inferred by matching the active DPI table (`0B 82 00 00`) against
+  stored target DPI tables.
 - Whether `03 06` clears target metadata/settings immediately or only removes
   the target from the onboard profile list; create captures suggest Synapse may
   later recycle and rewrite the same target.

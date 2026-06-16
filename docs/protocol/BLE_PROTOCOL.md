@@ -177,7 +177,10 @@ These are the keys currently used by the Swift app/probe and therefore covered b
 
 | Feature | Read key | Write key | Write payload length | Payload type |
 |---|---|---|---:|---|
-| DPI stage table | `0B 84 01 00` | `0B 04 01 00` | `0x26` | 38-byte table |
+| DPI active scalar | `0B 81 00 00` | not mapped | `0x06` | current hardware-active DPI pair, 6-byte scalar payload |
+| DPI active stage list | `0B 82 00 00` | not mapped | `0x1E` | current hardware-active profile's five DPI pairs, without stage IDs |
+| DPI active stage token | `0B 83 00 00` | not mapped | `0x01` | active stage token/index for the hardware-active DPI surface |
+| DPI stage table | `0B 84 01 00` | `0B 04 01 00` | `0x26` | 38-byte live/projection table with stage IDs |
 | Lighting zone catalog | `10 80 00 01` | none | none | LED ID list |
 | Lighting brightness (legacy/global) | `10 85 01 01` | `10 05 01 00` | `0x01` | `u8` |
 | Lighting brightness (V3 Pro zone) | `10 85 01 <led>` | `10 05 01 <led>` | `0x01` | `u8` |
@@ -342,14 +345,14 @@ Profile-cycle notes:
 - no profile target ID has been decoded from these reports
 - use these reports to trigger an immediate one-shot live-state refresh/fingerprint, not to directly select a profile
 - this should be event-driven; do not continuously poll the current profile just to notice onboard profile-button changes
-- current V3 Pro BT captures show that known live-target reads (`0B 84 01 00`, `08 84 01 04`) can remain unchanged after firmware-ring profile-button cycles, so they are not yet a reliable active-profile identity source
+- current V3 Pro BT captures show that known live-target reads (`0B 84 01 00`, `08 84 01 04`) can remain unchanged after firmware-ring profile-button cycles, so use `0B 82 00 00` rather than `0B 84 01 00` for active hardware DPI-stage identity
 
 Current app policy:
 - subscribe to passive HID DPI reports only on capture-validated Bluetooth profiles
 - treat passive Bluetooth heartbeat frames as stream-liveness only
 - treat passive Bluetooth profile-cycle reports as refresh hints only
 - after a profile-cycle hint, perform only bounded/event-scoped follow-up work; do not run a continuous current-profile polling loop
-- until a firmware-ring active-slot read is mapped, treat exact active-profile identity as unknown/stale rather than assuming the known live-target readback keys identify the onboard profile
+- after a profile-cycle hint on the V3 Pro BT path, read `0B 82 00 00` and compare it with stored target tables (`0B 82 02 00` through `0B 82 05 00`) to infer the active onboard slot when DPI tables are unique
 - update cached `dpi.x/y` immediately from the HID report
 - recompute `active_stage` only when the reported DPI uniquely matches one cached stage value
 - keep Bluetooth fast DPI polling enabled until the first passive HID event is actually observed at runtime, then disable the fast-poll fallback for that device

@@ -3,7 +3,7 @@
 
 This probe is intentionally event-driven: it does not poll the current profile.
 It listens for passive HID profile-cycle reports and performs one BLE vendor
-read of the live DPI table after each debounced hint.
+read of the hardware-active DPI surface after each debounced hint.
 """
 
 import argparse
@@ -28,7 +28,10 @@ V3_PRO_BT_PID = 0x00AC
 VENDOR_SERVICE_UUID = "52401523-f97c-7f90-0e7f-6c6f4e36db1c"
 VENDOR_WRITE_UUID = "52401524-f97c-7f90-0e7f-6c6f4e36db1c"
 VENDOR_NOTIFY_UUID = "52401525-f97c-7f90-0e7f-6c6f4e36db1c"
-DPI_GET_KEY = bytes([0x0B, 0x84, 0x01, 0x00])
+LIVE_PROJECTION_DPI_TABLE_KEY = bytes([0x0B, 0x84, 0x01, 0x00])
+ACTIVE_DPI_SCALAR_KEY = bytes([0x0B, 0x81, 0x00, 0x00])
+ACTIVE_DPI_STAGES_KEY = bytes([0x0B, 0x82, 0x00, 0x00])
+ACTIVE_DPI_STAGE_TOKEN_KEY = bytes([0x0B, 0x83, 0x00, 0x00])
 BUTTON_SLOT4_GET_KEY = bytes([0x08, 0x84, 0x01, 0x04])
 
 
@@ -114,6 +117,16 @@ def parse_dpi_table(blob: bytes) -> Optional[dict]:
     }
 
 
+def parse_dpi_six_byte_values(blob: bytes) -> Optional[list[int]]:
+    if len(blob) not in (6, 30):
+        return None
+    values = []
+    for offset in range(0, len(blob), 6):
+        if offset + 1 < len(blob):
+            values.append(blob[offset] | (blob[offset + 1] << 8))
+    return values
+
+
 class VendorReader:
     def __init__(self, address: str, name: str, quiet: bool = False):
         self.address = address
@@ -175,10 +188,19 @@ class VendorReader:
         }
 
     async def read_fingerprint(self, include_button: bool) -> dict:
-        dpi = await self.read_blob(DPI_GET_KEY)
+        active_scalar = await self.read_blob(ACTIVE_DPI_SCALAR_KEY)
+        active_stages = await self.read_blob(ACTIVE_DPI_STAGES_KEY)
+        active_token = await self.read_blob(ACTIVE_DPI_STAGE_TOKEN_KEY)
+        live_projection = await self.read_blob(LIVE_PROJECTION_DPI_TABLE_KEY)
         out = {
-            "dpi_read": dpi,
-            "dpi": parse_dpi_table(bytes.fromhex(dpi["payload"])),
+            "active_dpi_scalar_read": active_scalar,
+            "active_dpi_scalar": parse_dpi_six_byte_values(bytes.fromhex(active_scalar["payload"])),
+            "active_dpi_stages_read": active_stages,
+            "active_dpi_stages": parse_dpi_six_byte_values(bytes.fromhex(active_stages["payload"])),
+            "active_dpi_stage_token_read": active_token,
+            "active_dpi_stage_token": int(active_token["payload"], 16) if active_token["payload"] else None,
+            "live_projection_dpi_read": live_projection,
+            "live_projection_dpi": parse_dpi_table(bytes.fromhex(live_projection["payload"])),
         }
         if include_button:
             out["button_slot4_read"] = await self.read_blob(BUTTON_SLOT4_GET_KEY)
@@ -249,7 +271,10 @@ async def run(args: argparse.Namespace) -> int:
     print(f"watching {args.seconds:.1f}s address={address}; press the profile button now")
     baseline = await reader.read_fingerprint(include_button=args.button_slot4)
     print("baseline", json.dumps({
-        "dpi": baseline["dpi"],
+        "active_dpi_scalar": baseline["active_dpi_scalar"],
+        "active_dpi_stages": baseline["active_dpi_stages"],
+        "active_dpi_stage_token": baseline["active_dpi_stage_token"],
+        "live_projection_dpi": baseline["live_projection_dpi"],
         "button_slot4": baseline.get("button_slot4_read", {}).get("payload"),
     }, separators=(",", ":")))
     events.append({"type": "baseline", "at": 0.0, "read": baseline})
@@ -291,9 +316,12 @@ async def run(args: argparse.Namespace) -> int:
                     }
                     events.append(read_event)
                     print(
-                        f"{time.time() - start:7.3f}s one-shot dpi-read "
+                        f"{time.time() - start:7.3f}s one-shot active-dpi-read "
                         f"elapsed={elapsed:.3f}s trigger={report.data.hex()} "
-                        f"dpi={json.dumps(read['dpi'], separators=(',', ':'))} "
+                        f"active_stages={read['active_dpi_stages']} "
+                        f"active_scalar={read['active_dpi_scalar']} "
+                        f"active_token={read['active_dpi_stage_token']} "
+                        f"live_projection={json.dumps(read['live_projection_dpi'], separators=(',', ':'))} "
                         f"button_slot4={read.get('button_slot4_read', {}).get('payload')}"
                     )
             await asyncio.sleep(0.03)
