@@ -28,6 +28,38 @@ final class USBHIDProtocolTests: XCTestCase {
         )
     }
 
+    func testActiveProfileIDParsesValidatedUSBReadShape() {
+        var response = USBHIDProtocol.createReport(
+            txn: 0x1F,
+            classID: 0x05,
+            cmdID: 0x84,
+            size: 0x01,
+            args: [0x03]
+        )
+        response[0] = 0x02
+
+        XCTAssertEqual(USBHIDProtocol.activeProfileID(from: response), 0x03)
+    }
+
+    func testActiveProfileSetAcceptedRequiresSuccessEcho() {
+        var accepted = USBHIDProtocol.createReport(
+            txn: 0x1F,
+            classID: 0x05,
+            cmdID: 0x04,
+            size: 0x01,
+            args: USBHIDProtocol.activeProfileSetArgs(profile: 0x03)
+        )
+        accepted[0] = 0x02
+
+        var rejected = accepted
+        rejected[0] = 0x03
+
+        XCTAssertEqual(USBHIDProtocol.activeProfileSetArgs(profile: 0x03), [0x03])
+        XCTAssertTrue(USBHIDProtocol.activeProfileSetAccepted(from: accepted, profile: 0x03))
+        XCTAssertFalse(USBHIDProtocol.activeProfileSetAccepted(from: accepted, profile: 0x02))
+        XCTAssertFalse(USBHIDProtocol.activeProfileSetAccepted(from: rejected, profile: 0x03))
+    }
+
     func testOnboardProfileMetadataChunkParsesEchoedHeaderAndData() {
         let chunkData: [UInt8] = [0x9E, 0xE3, 0xAA, 0xC7, 0xB0, 0x43]
         let args = USBHIDProtocol.onboardProfileMetadataReadArgs(slot: 0x03, offset: 0x0040) + chunkData

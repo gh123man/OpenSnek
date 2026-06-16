@@ -35,6 +35,10 @@ Strong enough to build against experimentally:
   later by `05 39 ...`.
 - Direct active profile ID reads use `05:84`, size `00`. The value tracked
   profile-button changes between profile `1` and stored profile `3`.
+- Software active profile selection uses `05:04 <profile>`. It ACKed for
+  assigned profiles `1` and `3`, updated `05:84`, and projected
+  storage/profile `0`; it rejected readable but unassigned profiles `2`, `4`,
+  and `5` with status `0x03`.
 - After a USB physical profile-cycle press, storage/profile `0` mirrors the
   newly active firmware-selected onboard profile for at least DPI and
   brightness.
@@ -47,10 +51,10 @@ Strong enough to build against experimentally:
 
 Not strong enough to ship as full USB profile CRUD yet:
 
-- No direct USB equivalent of BLE `03 80` inventory is mapped. BLE `03 84`
-  itself does not carry over, but USB now has a separate active-profile read
-  path through `05:84`, metadata read path through `05:88`, and delete/unassign
-  through `05:03`.
+- No side-effect-free USB equivalent of BLE `03 80` inventory is mapped. BLE
+  `03 84` itself does not carry over, but USB now has a separate active-profile
+  read path through `05:84`, active selector through `05:04`, metadata read path
+  through `05:88`, and delete/unassign through `05:03`.
 - `00:87` returns a profile summary payload, but it is not trustworthy as the
   hardware-active profile ID on the V3 Pro. It stayed `02 32 03` while
   physical profile-cycle presses moved effective storage `0`, while `05:84`
@@ -64,10 +68,11 @@ Not strong enough to ship as full USB profile CRUD yet:
   cross-transport readback and power-cycle validation before enabling
   user-driven stored-bank writes.
 - USB profile UUID/name writes are not safely mapped. The OpenRazer wiki points
-  at `05:08` as the likely bulk write counterpart, and `05:88` confirms the
-  read side. A guarded single-chunk `05:08` offset-`0` metadata write attempt on
-  profile `5` did not update UUID/name readback, so write transaction boundaries
-  remain unvalidated.
+  at `05:08` as a bulk profile write, and live probing confirmed it is unsafe as
+  a metadata-only update without a complete mapped blob: a fuller
+  `06:8E`/`05:02`/multi-chunk `05:08` attempt erased profile `5` metadata and
+  disturbed settings. DPI/lighting settings were restored through validated
+  commands, but metadata writes remain disabled.
 - No atomic whole-profile blob read/write is known. USB profile hydration is
   still a multi-surface operation.
 
@@ -81,7 +86,8 @@ External evidence:
   slot candidate, and `0F:02` effect writes using profile ID as the first byte.
 - Live OpenSnek USB probing on the V3 Pro confirms the slot-ID model and finds
   the high-bit `05:88` metadata read counterpart. Follow-up live probing
-  validates `05:03` as delete/unassign from the hardware cycle ring.
+  validates `05:03` as delete/unassign from the hardware cycle ring and `05:04`
+  as the software active-profile selector.
 
 ## Storage / Target Model
 
@@ -96,7 +102,7 @@ targets for stored banks:
 | `2` | stored profile bank / BLE target `2` | Matches the Bluetooth-created stored slot 1 data. |
 | `3` | stored profile bank / BLE target `3` | Matches the Bluetooth-created/recreated stored slot 2 data. |
 | `4` | stored profile bank / BLE target `4` | Readable metadata name `OS_P4_RENAMED`; not known to be cycleable. |
-| `5` | stored profile bank / BLE target `5` | Readable metadata name `OS_P5`; Button5 still contains a prior keyboard test mapping. |
+| `5` | stored profile bank / BLE target `5` | Previously readable metadata name `OS_P5`; metadata was erased by an unsafe `05:08` write probe. Settings were restored through validated DPI/lighting writes. |
 
 Do not treat this as proof that all readable banks are cycleable onboard
 profiles. On the same device, `00:87` reported count `3` while banks `4` and
@@ -200,13 +206,41 @@ ring:
 | Press profile-cycle button again | `03` | matched stored profile `3` |
 
 `00:87` stayed `02 32 03` throughout those transitions. Other nearby
-profile-management reads did not produce inventory: `05:80` returned `02`,
-`05:81` returned `05 01 03`, and `05:8A` returned `05`; one-byte index
-arguments were ignored for `05:80` and `05:81`.
+profile-management reads did not produce a list inventory: `05:80` returned
+`02` with no args and with one-byte args `0..5`, `05:81` returned `05 01 03`
+and ignored one-byte args, and `05:8A` returned `05`. In the current device
+state, `05:80 == 02` matches the two assigned/cycleable profiles `{1, 3}`, and
+`05:8A == 05` looks like the max profile bank count, but neither carries the
+full cycleable profile list.
+
+### Software Active Profile Selector
+
+Status: validated on the attached V3 Pro, with side effects.
+
+```text
+Set:      class 05, cmd 04, size 01
+Args:     [0] = active profile ID
+Response: success echoes class 05, cmd 04, and the requested profile ID
+```
+
+Live validation:
+
+| Command | Result |
+|---|---|
+| `05:04 01` | ACKed, `05:84` stayed/changed to `01`, effective storage/profile `0` matched base/profile `1` |
+| `05:04 03` | ACKed, `05:84` changed to `03`, effective storage/profile `0` matched stored profile `3` |
+| `05:04 02` | status `0x03`, active profile stayed `1` |
+| `05:04 04` | status `0x03`, active profile stayed `1` |
+| `05:04 05` | status `0x03`, active profile stayed `1` |
+
+This can be used as a software selector for assigned profiles. It also gives a
+side-effecting way to infer cycleability by trying candidate profile IDs and
+restoring the original active ID afterward. Prefer `05:84` for passive UI
+refresh and avoid using `05:04` as normal inventory discovery.
 
 ## USB Metadata Chunks
 
-Status: read side mapped; write side not validated.
+Status: read side mapped; write side unsafe/unmapped.
 
 The OpenRazer unknown-command notes describe onboard profile chunks written
 through `05:08` with headers like:
@@ -236,7 +270,7 @@ Validated reads:
 | `3` | `05:88`, args `03 00 80 00 fa` | owner hash continuation ending `...d0241a76`, then zero padding |
 | `3` | `05:88`, args `03 00 c0 00 fa` | zero padding |
 | `4` | `05:88`, args `04 00 00 00 fa` | GUID `27530668-c3e2-4e0a-a06e-a4854383c4e9`, name `OS_P4_RENAMED` |
-| `5` | `05:88`, args `05 00 00 00 fa` | GUID `18f2a4cc-ecb8-4765-b532-9df401a686d6`, name `OS_P5` |
+| `5` | `05:88`, args `05 00 00 00 fa` | Before the unsafe write probe: GUID `18f2a4cc-ecb8-4765-b532-9df401a686d6`, name `OS_P5`; after the unsafe write probe: GUID `ffffffff-ffff-ffff-ffff-ffffffffffff`, name `nil` |
 
 The slot-`3` offset-`0` raw data begins:
 
@@ -261,13 +295,15 @@ Negative/limited probes:
 Implementation guidance:
 
 - Use `05:88` as the USB metadata read path.
-- Do not ship `05:08` writes yet. It is likely related to the metadata write
-  counterpart, but a guarded offset-`0` UUID/name write attempt on profile `5`
-  did not change `05:88` readback. The safe write shape likely requires a
-  different chunk boundary, prepare/apply command, or companion transaction.
-- Treat `05:02` as a guarded research candidate only. The wiki names it as a
-  set/switch candidate, but our simple high-bit probes did not expose safe
-  getter semantics.
+- Do not ship `05:08` writes. It behaves as a bulk profile write, not a safe
+  metadata-only update. The fuller OpenRazer-style sequence
+  `06:8E`, `05:02 <profile>`, then multi-chunk `05:08` corrupted profile `5`
+  metadata and disturbed settings when OpenSnek only supplied the known
+  metadata chunks. Treat a complete profile blob and commit transaction as
+  unmapped.
+- Treat `05:02` as a write-target/prepare research candidate only. It ACKed for
+  profiles `1` and `3` without changing the active profile, so it is not the
+  software selector on this V3 Pro; `05:04` is.
 
 ## Live USB Read Snapshot
 
@@ -373,6 +409,20 @@ This is the direct USB counterpart for active-profile identity. On the attached
 V3 Pro it changed from `03` to `01` and back to `03` across physical
 profile-cycle button presses, while effective storage/profile `0` matched the
 reported active profile each time.
+
+### Set Active Profile ID
+
+```text
+Set:      class 05, cmd 04, size 01
+Args:     [0] = active profile ID
+Response: success echoes class 05, cmd 04, and the requested profile ID
+```
+
+On the attached V3 Pro, `05:04 01` and `05:04 03` ACKed and changed the active
+profile reported by `05:84`. Candidate profiles `2`, `4`, and `5` returned
+status `0x03` in the current state, even though their banks remained readable.
+This makes `05:04` the validated active selector and a side-effecting
+assignability probe.
 
 ### DPI Scalar
 
@@ -502,12 +552,13 @@ class/cmd IDs.
 |---|---|---|
 | Inventory/list | Partial | `00:87`, `05:80`, `05:81`, and `05:8A` give summary/count hints, but not a reliable target inventory. Read candidate banks `2..5` directly and treat cycleability as unknown unless the cycle ring is validated. |
 | Active profile read | Validated | `05:84`, size `00`, reports the active profile ID. Effective storage/profile `0` mirrors that active onboard profile after profile-button changes. |
-| Metadata read/write | Read partial | USB `05:88` reads UUID/name/owner chunks for stored slots. A guarded single-chunk `05:08` UUID/name write attempt on profile `5` did not change readback, so metadata writes remain unmapped. |
+| Active profile select | Validated | `05:04 <profile>` selects assigned profiles. It ACKed profiles `1` and `3`, rejected readable unassigned banks `2`, `4`, and `5` with status `0x03`, and updates `05:84` plus effective storage/profile `0`. |
+| Metadata read/write | Read only | USB `05:88` reads UUID/name/owner chunks for stored slots. Do not use `05:08` for metadata-only writes; live probing showed it can erase metadata and disturb settings without a complete mapped profile blob. |
 | Read full stored profile | Partial | Multi-surface read: DPI scalar/stages, buttons per slot, brightness per LED. Static/effect readback still missing. |
-| Create stored profile | Partial | Can write profile-addressed settings into an existing bank, and metadata reads are mapped through `05:88`; allocation and metadata writes are still unvalidated. |
+| Create stored profile | Partial | Can write profile-addressed settings into an existing bank, activate assigned profiles through `05:04`, and unassign through `05:03`; safe allocation/assign and metadata writes are still unvalidated. |
 | Update stored profile | Partial | Button writes are validated. DPI scalar/stages and brightness changed-value writes are validated on profile `5` with restore, and persisted across USB reconnect. Cross-transport readback and power-cycle persistence still need guarded validation. |
 | Delete/unassign | Validated cycle unassign | `05:03 <profile>` removes a stored bank from the hardware cycle ring. Profile `2` was skipped by the physical profile-cycle button after the command, while its readable bank remained intact. |
-| Activate/select | Partial | Firmware profile-button activation works and is detectable. No direct software active selector is mapped. Software projection remains the practical live-apply path: storage/profile `0` for DPI/buttons where validated, with USB lighting projection semantics still requiring validation. |
+| Activate/select | Validated | Firmware profile-button activation is detectable through passive HID hints plus `05:84`; software selection works through `05:04` for assigned profiles. |
 
 ## Profile-Scoped vs Device-Global
 
@@ -530,10 +581,12 @@ class/cmd IDs.
 
 - What exact inventory/list register, if any, distinguishes cycleable profiles
   from merely readable banks? `00:87`, `05:80`, `05:81`, and `05:8A` are summary
-  hints only in the current V3 Pro state.
+  hints only in the current V3 Pro state. `05:04` can infer assignability only
+  by changing active profiles and restoring afterward.
 - Do stored-bank writes through `04:05`, `04:06`, and `0F:04` later show over
   Bluetooth and persist across a full power-cycle?
-- What is the exact safe `05:08` write transaction for UUID/name metadata, and
-  does it require `05:02`, `06:8E`, or another prepare/apply command?
+- What is the exact full profile blob and commit transaction behind `05:08`?
+  Metadata-only chunks are unsafe, even with `06:8E` and `05:02` prelude
+  commands.
 - Are banks `4` and `5` cycleable on this V3 Pro state, or merely stale/readable
   storage banks like deleted BLE targets?

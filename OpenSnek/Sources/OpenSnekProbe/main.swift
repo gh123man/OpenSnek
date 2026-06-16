@@ -384,6 +384,22 @@ enum OpenSnekProbe {
             } else {
                 print("active-profile class=05 cmd=84 read_failed")
             }
+        case "usb-profile-active-set":
+            let parsed = try parseUSBProfileActiveSetArgs(Array(args.dropFirst()))
+            let usb = try USBProbeClient(productID: parsed.productID)
+            let before = try usb.readActiveProfileID()
+            print("usb-profile-active-set \(usb.describe()) profile=\(parsed.profile) \(usbProfileLabel(parsed.profile))")
+            let selected = try usb.writeActiveProfileID(parsed.profile)
+            let after = try usb.readActiveProfileID()
+            print(
+                "active-profile-set command=05:04 " +
+                "accepted=\(selected ? "yes" : "no") " +
+                "before=\(before.map(String.init) ?? "nil") " +
+                "after=\(after.map(String.init) ?? "nil")"
+            )
+            guard selected else {
+                throw ProbeError.protocolError("USB profile \(parsed.profile) was rejected by active-profile selector 05:04")
+            }
         case "usb-profile-verify-writes":
             let parsed = try parseUSBProfileVerifyWritesArgs(Array(args.dropFirst()))
             let usb = try USBProbeClient(productID: parsed.productID)
@@ -395,10 +411,7 @@ enum OpenSnekProbe {
             print("usb-profile-verify-changed-writes \(usb.describe()) profile=\(parsed.profile)")
             try verifyUSBProfileChangedValueWrites(usb: usb, profile: parsed.profile)
         case "usb-profile-verify-metadata-write":
-            let parsed = try parseUSBProfileVerifyWritesArgs(Array(args.dropFirst()), command: "usb-profile-verify-metadata-write")
-            let usb = try USBProbeClient(productID: parsed.productID)
-            print("usb-profile-verify-metadata-write \(usb.describe()) profile=\(parsed.profile)")
-            try verifyUSBProfileMetadataWrite(usb: usb, profile: parsed.profile)
+            throw ProbeError.protocolError("usb-profile-verify-metadata-write is disabled: 05:08 behaves like an unsafe bulk profile write without a mapped full-profile blob")
         case "usb-profile-delete":
             let parsed = try parseUSBProfileDeleteArgs(Array(args.dropFirst()))
             let usb = try USBProbeClient(productID: parsed.productID)
@@ -649,9 +662,10 @@ enum OpenSnekProbe {
           OpenSnekProbe usb-lighting-effect --kind static [--color 00ff00] [--secondary ff00ff] [--direction left|right] [--speed 2] [--zone all|scroll_wheel|logo|underglow] [--pid 0x00ab]
           OpenSnekProbe usb-profile-read [--profiles 2,3,4,5] [--button-slots 5,106] [--include-effective on|off] [--pid 0x00ab]
           OpenSnekProbe usb-profile-active-read [--pid 0x00ab]
+          OpenSnekProbe usb-profile-active-set --profile 3 --yes [--pid 0x00ab]
           OpenSnekProbe usb-profile-verify-writes --profile 5 --yes [--pid 0x00ab]
           OpenSnekProbe usb-profile-verify-changed-writes --profile 5 --yes [--pid 0x00ab]
-          OpenSnekProbe usb-profile-verify-metadata-write --profile 5 --yes [--pid 0x00ab]
+          OpenSnekProbe usb-profile-verify-metadata-write [disabled: unsafe 05:08 bulk profile write]
           OpenSnekProbe usb-profile-delete --profile 2 --yes [--pid 0x00ab]
           OpenSnekProbe usb-input-listen [--pid 0x00ab] [--duration 15] [--max-reports 0]
           OpenSnekProbe usb-input-values [--pid 0x00ab] [--duration 15] [--max-reports 0]
@@ -799,6 +813,33 @@ enum OpenSnekProbe {
         }
 
         let profile = try parseUSBStoredProfile(flags: flags, command: command)
+        return (profile, try parseOptionalUSBPID(args))
+    }
+
+    private static func parseUSBProfileActiveSetArgs(_ args: [String]) throws -> (profile: UInt8, productID: Int?) {
+        let flags = parseFlags(args)
+        guard parseBoolean(flags["--yes"] ?? "off") else {
+            throw ProbeError.usage("usb-profile-active-set changes the hardware-active USB profile; pass --yes to continue\n\(usageText)")
+        }
+
+        let profile: UInt8
+        if let raw = flags["--profile"] {
+            guard let parsed = parseUInt8(raw) else {
+                throw ProbeError.usage("Invalid --profile '\(raw)'")
+            }
+            profile = parsed
+        } else if let raw = flags["--stored-slot"] {
+            guard let storedSlot = parseUInt8(raw), (1...4).contains(storedSlot) else {
+                throw ProbeError.usage("Invalid --stored-slot '\(raw)' (expected 1..4)")
+            }
+            profile = storedSlot &+ 1
+        } else {
+            throw ProbeError.usage("Missing --profile or --stored-slot\n\(usageText)")
+        }
+
+        guard (0x01...0x05).contains(profile) else {
+            throw ProbeError.usage("usb-profile-active-set targets known USB profiles 1..5, not profile \(profile)")
+        }
         return (profile, try parseOptionalUSBPID(args))
     }
 
@@ -1344,11 +1385,6 @@ enum OpenSnekProbe {
         let raw: [UInt8]
     }
 
-    private struct USBProfileMetadataPatch {
-        let identifier: UUID
-        let name: String
-    }
-
     private struct USBProfileWritableSnapshot {
         let profile: UInt8
         let scalar: DpiPair
@@ -1647,108 +1683,6 @@ enum OpenSnekProbe {
             }
             throw error
         }
-    }
-
-    private static func verifyUSBProfileMetadataWrite(usb: USBProbeClient, profile: UInt8) throws {
-        let label = usbProfileLabel(profile)
-        guard let metadataRead = try usb.readProfileMetadata(profile: profile),
-              let originalChunk = metadataRead.chunks.first(where: { $0.offset == 0x0000 }),
-              let originalIdentifier = metadataRead.metadata.identifier,
-              let originalName = metadataRead.metadata.name
-        else {
-            throw ProbeError.protocolError("Unable to read metadata snapshot before write")
-        }
-
-        guard let temporaryIdentifier = UUID(uuidString: "01234567-89ab-4cde-8f01-23456789abcd") else {
-            throw ProbeError.protocolError("Invalid temporary metadata UUID")
-        }
-        let temporary = USBProfileMetadataPatch(
-            identifier: temporaryIdentifier,
-            name: "OS_P5_TMP"
-        )
-        let changedChunk = try metadataChunk(
-            from: originalChunk,
-            replacing: temporary
-        )
-
-        var changedWritten = false
-        do {
-            let writeChanged = try usb.writeProfileMetadataChunk(changedChunk)
-            changedWritten = changedWritten || writeChanged
-            guard let changedRead = try usb.readProfileMetadata(profile: profile) else {
-                throw ProbeError.protocolError("Unable to read metadata after changed write")
-            }
-            let changedStatus = writeChanged &&
-                changedRead.metadata.identifier == temporary.identifier &&
-                changedRead.metadata.name == temporary.name
-            print(
-                "verify-metadata changed \(label) " +
-                "writeEcho=\(writeChanged ? "yes" : "no") " +
-                "uuid=\(changedRead.metadata.identifier?.uuidString.lowercased() ?? "nil") " +
-                "name=\(changedRead.metadata.name.map { "\"\($0)\"" } ?? "nil") " +
-                "status=\(changedStatus ? "ok" : "mismatch")"
-            )
-            guard changedStatus else {
-                throw ProbeError.protocolError("Metadata changed write did not round-trip")
-            }
-
-            let restore = try usb.writeProfileMetadataChunk(originalChunk)
-            guard let restoredRead = try usb.readProfileMetadata(profile: profile) else {
-                throw ProbeError.protocolError("Unable to read metadata after restore")
-            }
-            let restoredStatus = restore &&
-                restoredRead.metadata.identifier == originalIdentifier &&
-                restoredRead.metadata.name == originalName
-            print(
-                "verify-metadata restore \(label) " +
-                "writeEcho=\(restore ? "yes" : "no") " +
-                "uuid=\(restoredRead.metadata.identifier?.uuidString.lowercased() ?? "nil") " +
-                "name=\(restoredRead.metadata.name.map { "\"\($0)\"" } ?? "nil") " +
-                "status=\(restoredStatus ? "ok" : "mismatch")"
-            )
-            guard restoredStatus else {
-                throw ProbeError.protocolError("Metadata restore did not round-trip")
-            }
-        } catch {
-            if changedWritten {
-                print("verify-metadata restore-after-error \(label) starting")
-                do {
-                    _ = try usb.writeProfileMetadataChunk(originalChunk)
-                    if let restoredRead = try usb.readProfileMetadata(profile: profile) {
-                        print(
-                            "verify-metadata restore-after-error \(label) " +
-                            "uuid=\(restoredRead.metadata.identifier?.uuidString.lowercased() ?? "nil") " +
-                            "name=\(restoredRead.metadata.name.map { "\"\($0)\"" } ?? "nil")"
-                        )
-                    }
-                } catch {
-                    print("verify-metadata restore-after-error \(label) failed=\(error.localizedDescription)")
-                }
-            }
-            throw error
-        }
-    }
-
-    private static func metadataChunk(
-        from original: USBHIDProtocol.OnboardProfileMetadataChunk,
-        replacing patch: USBProfileMetadataPatch
-    ) throws -> USBHIDProtocol.OnboardProfileMetadataChunk {
-        guard original.offset == 0x0000, original.data.count >= 0x4B else {
-            throw ProbeError.protocolError("Metadata offset-0 chunk is too short to patch safely")
-        }
-        let nameBytes = try asciiBytes(patch.name, maxLength: 0x4B - 0x10, fieldName: "temporary profile name")
-        var data = original.data
-        data.replaceSubrange(0..<16, with: USBHIDProtocol.windowsGUIDBytes(from: patch.identifier))
-        for index in 0x10..<0x4B {
-            data[index] = 0x00
-        }
-        data.replaceSubrange(0x10..<(0x10 + nameBytes.count), with: nameBytes)
-        return USBHIDProtocol.OnboardProfileMetadataChunk(
-            slot: original.slot,
-            offset: original.offset,
-            totalLength: original.totalLength,
-            data: data
-        )
     }
 
     private static func readUSBProfileWritableSnapshot(usb: USBProbeClient, profile: UInt8) throws -> USBProfileWritableSnapshot {

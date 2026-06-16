@@ -30,6 +30,32 @@ public enum USBHIDProtocol {
     public static let onboardProfileMetadataLength = 0xFA
     public static let onboardProfileMetadataReadSize: UInt8 = 0x50
 
+    public static func activeProfileID(from response: [UInt8]) -> UInt8? {
+        guard response.count > 8,
+              response[0] == 0x02,
+              response[6] == 0x05,
+              response[7] == 0x84,
+              response[5] >= 0x01 else {
+            return nil
+        }
+        return response[8]
+    }
+
+    public static func activeProfileSetArgs(profile: UInt8) -> [UInt8] {
+        [profile]
+    }
+
+    public static func activeProfileSetAccepted(from response: [UInt8], profile: UInt8) -> Bool {
+        guard response.count > 8,
+              response[0] == 0x02,
+              response[6] == 0x05,
+              response[7] == 0x04,
+              response[5] >= 0x01 else {
+            return false
+        }
+        return response[8] == profile
+    }
+
     public static func createReport(txn: UInt8, classID: UInt8, cmdID: UInt8, size: UInt8, args: [UInt8]) -> [UInt8] {
         var report = [UInt8](repeating: 0, count: 90)
         report[0] = 0x00
