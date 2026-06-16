@@ -486,8 +486,12 @@ User observation during this pass:
 - In Bluetooth mode, the physical profile button appears to be software-only.
   With Synapse closed, button presses did not visibly cycle profiles.
 - In USB mode, the same profile button behaves as a hardware/onboard switch and
-  can cycle profiles even when the mouse is not connected to a host.
-- The bottom LED indicates this BT-vs-USB profile-cycle behavior.
+  can cycle profiles even when the mouse is not connected to a host. Follow-up
+  observation: when the mouse is in USB mode and connected to Synapse, Synapse
+  appears to take over the profile button as software-only navigation; the
+  bottom LED no longer responds to button presses in that state.
+- The bottom LED indicates whether the mouse is using hardware/onboard profile
+  cycling or Synapse/software-owned profile navigation.
 
 Treat Bluetooth profile cycling as host-orchestrated until proven otherwise:
 Synapse handles the button as software navigation when open, and no
