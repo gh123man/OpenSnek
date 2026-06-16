@@ -152,6 +152,15 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
     - stored target brightness write on `10 05 02 00`
   - This capture is the source for the create section of `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
 
+- `ble/windows/2026-06-15-204312-profile-update-active-button-pass-1/`
+  - Windows BTVS/tshark capture of updating Button5 on the active disposable profile `OPENSNEK_CREATE_PROBE_1`.
+  - Synapse logged the active profile GUID `a5c15916-b5fd-4f33-8408-d978cd3bf37c` and profile ID `2`.
+  - The capture contains two button edits, both with the same two-write shape:
+    - stored target write: `08 04 02 05`
+    - live projection write: `08 04 01 05`
+  - No profile metadata rewrite (`03 04`), DPI write, lighting write, `08 05`, `08 07`, or `01 8C` operation was present in the reduced button-update windows.
+  - This capture backs the active-profile button update section of `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
+
 ## Notes
 
 - Captures are intentionally action-scoped for faster diffing.

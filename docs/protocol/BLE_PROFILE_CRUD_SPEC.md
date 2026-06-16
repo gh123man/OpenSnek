@@ -213,7 +213,8 @@ Open questions:
 
 ## Update
 
-Status: partially mapped for setting projection and button/DPI writes.
+Status: mapped for active-profile single button binding writes; partially mapped
+for setting projection and DPI writes.
 
 Confirmed update surfaces:
 
@@ -221,9 +222,40 @@ Confirmed update surfaces:
 - Live button binding: `08 04 01 <slot>`
 - Stored/profile button binding candidates: `08 04 <target> <slot>`
 
+### Active Profile Button Binding
+
+Capture:
+
+- `captures/ble/windows/2026-06-15-204312-profile-update-active-button-pass-1/`
+
+The active profile was `OPENSNEK_CREATE_PROBE_1`:
+
+- GUID: `a5c15916-b5fd-4f33-8408-d978cd3bf37c`
+- OBM slot/profile ID: `2`
+
+The capture contains two Button5 keyboard edits. Both used the same write shape:
+
+| Event | Key | Payload | Interpretation |
+|---|---|---|---|
+| Button5 -> keyboard HID `0x09` | `08 04 02 05` | `02 05 00 02 02 00 09 00 00 00` | write stored target `2`, slot `0x05` |
+| Button5 -> keyboard HID `0x09` | `08 04 01 05` | `01 05 00 02 02 00 09 00 00 00` | immediately project same binding to live target `1` |
+| Button5 -> keyboard HID `0x07` | `08 04 02 05` | `02 05 00 02 02 00 07 00 00 00` | write stored target `2`, slot `0x05` |
+| Button5 -> keyboard HID `0x07` | `08 04 01 05` | `01 05 00 02 02 00 07 00 00 00` | immediately project same binding to live target `1` |
+
+No profile metadata rewrite (`03 04`), DPI write, lighting write, `08 05`,
+`08 07`, or `01 8C` operation was present in the reduced button-update windows.
+
+Current implementation guidance:
+
+- Updating a button on the active profile should write the stored profile target
+  first and then write the live target `1`.
+- The payload format is identical except for the target byte in both the key and
+  payload byte 0.
+- This is faster than a full profile projection and does not require profile
+  metadata rewrites for simple button changes.
+
 Needed capture:
 
-- On one known profile, change exactly one button binding.
 - On the same known profile, change exactly one DPI stage or active stage.
 - Compare whether Synapse writes both stored target and live target when the
   edited profile is active, and whether it writes only stored target when the
