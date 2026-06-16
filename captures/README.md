@@ -126,6 +126,17 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
     - button projection into stored/profile targets and live target/layer `1` through `08 04 <target> <slot>`
   - This is the preferred physical-button profile-switch capture for future profile-switch spec work.
 
+- `ble/windows/2026-06-15-202616-profile-inventory-read-path-pass-1/`
+  - Windows BTVS/tshark capture of selecting existing Basilisk V3 Pro Bluetooth profiles in Synapse without editing settings.
+  - Synapse logged five `from actionFromUI newActiveProfileGUID` / `set active profile` transitions:
+    - `49277292-1bea-4673-9ed9-5d91113c8cbc` (`BRIAN-DESKTOP-Default`)
+    - `26a33407-4094-469b-b3b1-f3caae38693b` (`Brian's MacBook Pro (2)-Default`)
+    - `18f2a4cc-ecb8-4765-b532-9df401a686d6` (`OS_P5`)
+    - `27530668-c3e2-4e0a-a06e-a4854383c4e9` (`OS_P4_RENAMED`)
+    - `cbb11d67-38cd-46db-bc16-a95424aaee61` (`OPENSNEK_CAPTURE_1`)
+  - Confirms that Synapse profile selection is active projection rather than passive inventory read. The wire trace shows DPI and button projection onto live target `1`, with stored/profile target candidates such as `08 04 02 04` and `08 04 03 05` appearing alongside live `08 04 01 <slot>` writes.
+  - This capture backs the draft implementation model in `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
+
 ## Notes
 
 - Captures are intentionally action-scoped for faster diffing.
