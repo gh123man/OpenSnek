@@ -289,16 +289,48 @@ Implementation guidance:
   write shape for button edits: `08 04 <stored-target> <slot>`, then
   `08 04 01 <slot>`.
 - This pass does not prove a pure offline inactive-slot write path because
-  Synapse projected the edited mapping to live target `1`.
+  selecting a profile for editing in Synapse makes that profile live, then
+  Synapse projects the edited mapping to live target `1`.
 - For an OpenSnek-owned profile manager, inactive profile edits can remain
   host-side until the user selects/projects that profile. When projecting a
   selected profile, write the stored target first if it is assigned, then write
   live target `1`.
 
-Needed capture:
+### Attempted Inactive Saved-Slot DPI Update
 
-- Inactive saved/onboard DPI edit: change exactly one DPI value on a profile
-  that is assigned to a saved/onboard slot but is not the live profile.
+Capture:
+
+- `captures/ble/windows/2026-06-15-214111-profile-inactive-saved-slot-dpi-update-pass-1/`
+
+This pass was intended to modify one DPI value on a saved/onboard profile that
+was not currently live. Synapse does not expose that as a true offline edit:
+selecting the profile in the UI made it live before the edit. Synapse logged:
+
+- `set active profile ... 27530668-c3e2-4e0a-a06e-a4854383c4e9`
+- `[Armory] Active profile ... "name":"OS_P4_RENAMED"`
+- `profileIdList":[1,2,4,5]`
+
+The in-window BLE traffic used only live target `1` DPI writes:
+
+| Event | Key | Payload/response | Interpretation |
+|---|---|---|---|
+| Selection/activation projection | `0B 04 01 00` | `03 05 00 90 01 90 01 00 00 01 20 03 20 03 00 00 02 40 06 40 06 00 00 03 80 0C 80 0C 00 00 04 00 19 00 19 00 00 00` | live target `1`, active token `3`, table `400`, `800`, `1600`, `3200`, `6400` |
+| DPI edit | `0B 04 01 00` | `02 05 00 90 01 90 01 00 00 01 9C 18 9C 18 00 00 02 40 06 40 06 00 00 03 80 0C 80 0C 00 00 04 00 19 00 19 00 00 00` | live target `1`, active token `2`, table `400`, `6300`, `1600`, `3200`, `6400` |
+| DPI edit readback | `0B 84 01 00` | `02 05 01 90 01 90 01 00 00 02 9C 18 9C 18 00 00 03 40 06 40 06 00 00 04 80 0C 80 0C 00 00 05 00 19 00 19 00` | live target readback confirms `6300` second stage |
+| Revert/projection | `0B 04 01 00` | `02 05 00 90 01 90 01 00 00 01 20 03 20 03 00 00 02 40 06 40 06 00 00 03 80 0C 80 0C 00 00 04 00 19 00 19 00 00 00` | live target `1`, active token `2`, table `400`, `800`, `1600`, `3200`, `6400` |
+
+No stored-target DPI table write (`0B 04 <stored-target> 00`) occurred in this
+attempted inactive DPI update pass.
+
+Implementation guidance:
+
+- Synapse UI cannot be used as evidence for a pure offline inactive DPI update
+  path because selecting an assigned profile makes it live.
+- OpenSnek should treat inactive profile DPI edits as host-side snapshot changes
+  until the user activates/projects that profile.
+- When projecting the selected profile, write live target `1` with `0B 04 01 00`.
+  Stored-target DPI writes remain limited to create/rewrite flows until a
+  non-UI API or firmware behavior proves otherwise.
 
 ### Noisy Active Saved-Slot DPI Update
 
@@ -534,6 +566,9 @@ Proposed behavior:
 - `activateProfile(id)` applies the stored snapshot to target `1`.
 - `updateProfile(id, changes)` updates OpenSnek storage and, if active, applies
   changed settings to target `1`.
+- Inactive profile edits in OpenSnek should update the host-side profile
+  snapshot without trying to mirror Synapse's UI; Synapse makes profiles live
+  when they are selected for editing.
 - `deleteProfile(id)` / saved-slot `None` writes `03 06 <target> 00` and removes
   that target from OpenSnek's cycleable stored-profile list.
 - Stored-target writes stay behind a hardware-gated experimental path until
@@ -543,13 +578,11 @@ Proposed behavior:
 
 Recommended order:
 
-1. Inactive saved/onboard DPI edit: modify one DPI value on a profile assigned
-   to an onboard slot that is not currently live.
-2. Offline inactive edit path: if Synapse exposes a way to edit an assigned
+1. Offline inactive edit path: if Synapse exposes a way to edit an assigned
    stored profile without making it the active/editing profile, modify one
    button and verify whether live target `1` is untouched.
-3. Synapse-closed physical cycle: close/kill Synapse, press the profile button,
+2. Synapse-closed physical cycle: close/kill Synapse, press the profile button,
    and observe whether firmware-only cycling follows the OBM list or needs host
    projection.
-4. Create into a known empty slot and compare target allocation after explicit
+3. Create into a known empty slot and compare target allocation after explicit
    unassign/delete.

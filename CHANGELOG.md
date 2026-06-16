@@ -18,6 +18,7 @@ All notable changes to this project are documented in this file.
 - Added a noisy Windows active saved-slot DPI update capture. The draft spec now records that Synapse used live target `1` (`0B 04 01 00`) for observed DPI edits/projections in that pass, while the only stored-target DPI table write belonged to a broader target add/rewrite, so clean active/inactive DPI captures are still required before implementing stored-slot DPI persistence.
 - Added a clean Windows active saved-slot DPI update capture. The draft spec now maps active saved/onboard DPI edits to live target `1` (`0B 04 01 00`) with no stored-target DPI table write observed, so OpenSnek should keep profile DPI persistence host-side until the inactive stored-target update path is captured.
 - Added Windows attempted inactive saved-slot button captures. The draft spec now documents one invalid DPI mis-action pass and one Button5 pass where Synapse wrote stored target `5` (`08 04 05 05`) and immediately projected the same binding to live target `1` (`08 04 01 05`), without metadata or profile-apply traffic.
+- Added a Windows attempted inactive saved-slot DPI capture. The draft spec now notes that Synapse selection makes the edited profile live, and the observed DPI edits again used live target `1` (`0B 04 01 00`) only, so OpenSnek should treat inactive profile edits as host-side snapshot changes until activation/projection.
 
 ## [2026-05-17]
 

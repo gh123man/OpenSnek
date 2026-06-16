@@ -215,6 +215,16 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - No profile metadata rewrite, add/delete, profile-apply, DPI table write, or brightness write occurred in the in-window operation.
   - This capture backs the attempted inactive saved-slot button update section of `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
 
+- `ble/windows/2026-06-15-214111-profile-inactive-saved-slot-dpi-update-pass-1/`
+  - Windows BTVS/tshark capture intended to update one DPI stage on an inactive saved/onboard profile.
+  - Synapse selection made the edited profile live first: GUID `27530668-c3e2-4e0a-a06e-a4854383c4e9`, name `OS_P4_RENAMED`.
+  - The BLE traffic used live target `1` only:
+    - selection/activation projection: `0B 04 01 00`, table `400`, `800`, `1600`, `3200`, `6400`, active token `3`
+    - DPI edit: `0B 04 01 00`, table `400`, `6300`, `1600`, `3200`, `6400`, active token `2`
+    - revert/projection: `0B 04 01 00`, table `400`, `800`, `1600`, `3200`, `6400`, active token `2`
+  - No stored-target DPI table write (`0B 04 <stored-target> 00`) occurred.
+  - This capture backs the attempted inactive saved-slot DPI update section of `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
+
 ## Notes
 
 - Captures are intentionally action-scoped for faster diffing.
