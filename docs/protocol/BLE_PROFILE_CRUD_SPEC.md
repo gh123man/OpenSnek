@@ -256,10 +256,63 @@ Current implementation guidance:
 
 Needed capture:
 
-- On the same known profile, change exactly one DPI stage or active stage.
-- Compare whether Synapse writes both stored target and live target when the
-  edited profile is active, and whether it writes only stored target when the
-  edited profile is inactive.
+- Clean active saved/onboard DPI edit: on the same known saved profile, while
+  it is active, change exactly one DPI stage or active stage with no profile
+  switching.
+- Compare the clean pass against the noisy active-DPI pass below to determine
+  whether Synapse writes both stored target and live target when the edited
+  profile is active.
+- Inactive saved/onboard DPI edit: change exactly one DPI value on a profile
+  that is assigned to a saved/onboard slot but is not the live profile.
+
+### Noisy Active Saved-Slot DPI Update
+
+Capture:
+
+- `captures/ble/windows/2026-06-15-212318-profile-active-saved-slot-dpi-update-pass-1/`
+
+This pass was intended to update one DPI stage on the active saved/onboard
+profile. The actual user action included multiple profile switches and several
+DPI changes, so this capture is evidence for traffic shape but not a clean
+single-operation proof.
+
+Early in the capture Synapse rebuilt/added target `2` for profile GUID
+`26a33407-4094-469b-b3b1-f3caae38693b`
+(`Brian's MacBook Pro (2)-Default`). That full stored-target rewrite included:
+
+| Key | Payload | Interpretation |
+|---|---|---|
+| `03 05 02 00` | empty | target prepare/add candidate |
+| `08 05 02 00` | `00` | stored target apply/flag candidate |
+| `01 8C 02 00` | read response `01` | stored target presence/read candidate |
+| `08 07 02 00` | `00` | stored target apply/flag candidate |
+| `03 04 02 00` | four chunked metadata writes | stored target GUID/name/owner metadata |
+| `0B 01 02 00` | `20 03 20 03 00 00` | stored target current DPI scalar candidate (`800`, `800`) |
+| `0B 04 02 00` | DPI table | stored target DPI table: `400`, `800`, `1600`, `3200`, `6400` |
+| `10 05 02 00` | `54` | stored target brightness candidate |
+| `08 04 02 04` | `02 04 00 02 02 00 45 00 00 00` | stored target button-slot write |
+
+The later DPI edits and profile projections in the same wall-clock capture
+window used live target `1` only:
+
+| Event | Key | Decoded DPI table | Interpretation |
+|---|---|---|---|
+| Active-profile DPI edit | `0B 04 01 00` | `400`, `7150`, `1600`, `3200`, `6400` | live target DPI projection/edit |
+| Revert/projection | `0B 04 01 00` | `400`, `800`, `1600`, `3200`, `6400` | live target DPI projection |
+| Other profile projection | `0B 04 01 00` | `600`, `800`, `1000`, `1200`, `1400` | live target DPI projection |
+| Other profile DPI edit | `0B 04 01 00` | `600`, `5250`, `1000`, `1200`, `1400` | live target DPI projection/edit |
+
+Current implementation guidance:
+
+- Do not treat this noisy pass as proof that active DPI edits are live-only.
+- The pass does show that simple DPI changes during active profile UI work can
+  be represented as `0B 04 01 00` live target writes, while the observed
+  `0B 04 02 00` stored-target DPI table belonged to a broader target add/rewrite.
+- Until a clean active saved/onboard DPI edit is captured, OpenSnek should keep
+  its own stored snapshot in host state and write live target `1` when applying
+  DPI changes to the currently active profile.
+- Persisting DPI directly into an existing stored/onboard target remains
+  research-only outside of create/rewrite flows.
 
 ## Delete
 
@@ -416,9 +469,15 @@ Proposed behavior:
 
 Recommended order:
 
-1. Create one disposable profile with no manual setting edits.
-2. Update one DPI setting or active DPI stage on the active disposable profile.
-3. Update one setting on an inactive profile.
-4. Delete/unassign the active target and observe live target/cycle behavior.
-5. Revisit device-side rename only if we find a Synapse flow that emits BLE
-   metadata writes for rename-only changes.
+1. Clean active saved/onboard DPI edit: modify a profile that is saved to an
+   onboard slot and currently live; change exactly one DPI value with no profile
+   switches.
+2. Inactive saved/onboard button edit: modify one button on a profile assigned
+   to an onboard slot that is not currently live.
+3. Inactive saved/onboard DPI edit: modify one DPI value on a profile assigned
+   to an onboard slot that is not currently live.
+4. Synapse-closed physical cycle: close/kill Synapse, press the profile button,
+   and observe whether firmware-only cycling follows the OBM list or needs host
+   projection.
+5. Create into a known empty slot and compare target allocation after explicit
+   unassign/delete.

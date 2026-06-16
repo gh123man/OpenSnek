@@ -189,6 +189,13 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - Subsequent physical profile-button presses were handled by Synapse as software `navigateProfile` events. With Synapse open, that path appears to cycle a hybrid host profile list containing local/Synapse profiles and on-device-backed profiles, and it can still select stale host profiles not present in the OBM `profileIdList`.
   - This capture backs the active-delete and Synapse stale-host-cycle caveat in `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
 
+- `ble/windows/2026-06-15-212318-profile-active-saved-slot-dpi-update-pass-1/`
+  - Windows BTVS/tshark capture intended to update one DPI stage on the active saved/onboard profile.
+  - The action was noisy: the user switched profiles and changed DPI several times, so this capture is treated as traffic-shape evidence rather than a clean single-operation proof.
+  - Synapse performed an early stored target `2` add/rewrite that included `03 04 02 00` metadata chunks, `0B 01 02 00`, and `0B 04 02 00` with a stored DPI table of `400`, `800`, `1600`, `3200`, `6400`.
+  - Later DPI edits/projections in the capture used live target `1` via `0B 04 01 00`, including observed tables with edited stages `7150` and `5250`.
+  - This capture backs the noisy active saved-slot DPI update caveat in `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
+
 ## Notes
 
 - Captures are intentionally action-scoped for faster diffing.
