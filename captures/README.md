@@ -228,7 +228,9 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
 - `ble/windows/2026-06-15-214518-profile-synapse-closed-physical-cycle-pass-1/`
   - Windows BTVS/tshark capture of pressing the physical profile button after Synapse closed/crashed.
   - The capture has no decoded BLE vendor writes or notify responses and no matching Synapse events.
-  - User observation during this pass: Bluetooth profile-button behavior appears software-only, while USB mode can cycle hardware/onboard profiles even without a host connection. The bottom LED indicates this behavior.
+  - User observation after follow-up checks: Bluetooth and USB both support hardware/onboard profile-button cycling when Synapse is not taking over the device.
+  - When connected to Synapse, both transports appear to have the physical profile button intercepted as software navigation; on USB, the bottom LED no longer responds in that Synapse-owned state.
+  - OpenSnek should prefer firmware/onboard profile cycling by default and treat Synapse's software takeover as a vendor UI behavior, not the target model.
   - This capture backs the Synapse-closed Bluetooth physical-cycle note in `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
 
 ## Notes

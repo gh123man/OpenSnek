@@ -483,20 +483,20 @@ The user closed/crashed Synapse and pressed the physical profile button during a
 notify responses, and no matching Synapse events occurred in the capture window.
 User observation during this pass:
 
-- In Bluetooth mode, the physical profile button appears to be software-only.
-  With Synapse closed, button presses did not visibly cycle profiles.
-- In USB mode, the same profile button behaves as a hardware/onboard switch and
-  can cycle profiles even when the mouse is not connected to a host. Follow-up
-  observation: when the mouse is in USB mode and connected to Synapse, Synapse
-  appears to take over the profile button as software-only navigation; the
+- In Bluetooth mode, the physical profile button does work as an onboard
+  firmware profile switch when the mouse is not connected to Synapse.
+- In USB mode, the same profile button also behaves as a hardware/onboard switch
+  and can cycle profiles even when the mouse is not connected to a host.
+- When connected to Synapse, both Bluetooth and USB profile-button behavior
+  appears to be intercepted by Synapse as software navigation; on USB, the
   bottom LED no longer responds to button presses in that state.
 - The bottom LED indicates whether the mouse is using hardware/onboard profile
   cycling or Synapse/software-owned profile navigation.
 
-Treat Bluetooth profile cycling as host-orchestrated until proven otherwise:
-Synapse handles the button as software navigation when open, and no
-firmware-originated BLE vendor profile-cycle exchange was seen when Synapse was
-closed.
+Treat Synapse's software takeover as a vendor UI behavior, not the desired
+OpenSnek model. OpenSnek should be firmware-first: trust the mouse's onboard
+profile-cycle behavior and avoid replacing it with host-side software cycling
+unless the user explicitly opts into host-managed profiles.
 
 Current implementation guidance:
 
@@ -508,10 +508,11 @@ Current implementation guidance:
 - If the deleted target is active, `03 06` alone does not appear to force a
   replacement live projection. OpenSnek should explicitly select/project a
   remaining profile when it wants the active view to move immediately.
-- On Bluetooth, OpenSnek should own the profile-cycle behavior in software:
-  maintain a host-side cycle list of assigned profiles and project the selected
-  snapshot to live target `1`. Do not assume the firmware cycles BT onboard
-  profiles without a host.
+- On Bluetooth and USB, OpenSnek should prefer the firmware/onboard profile
+  cycle behavior. Do not copy Synapse's software interception of the physical
+  profile button by default.
+- Host-side cycling should be an explicit OpenSnek-owned mode, not the default
+  behavior for onboard profile slots.
 - Do not infer target deletion from a Synapse rename alone. Synapse currently
   appears to have a UI/state bug where renaming can unassign a profile from a
   saved slot while the Synapse-handled physical profile button may still select
@@ -519,10 +520,10 @@ Current implementation guidance:
 
 Open questions:
 
-- Whether any non-Synapse host API can trigger Bluetooth profile cycling without
-  using Synapse's software `navigateProfile` model. The physical BT button
-  produced no decoded vendor profile-cycle traffic with Synapse closed in the
-  observed capture.
+- Whether the host can passively observe firmware profile changes in Bluetooth
+  mode without polling/fingerprinting live target `1`. The Synapse-closed
+  capture produced no decoded vendor profile-cycle traffic, even though the
+  physical button can cycle onboard profiles when Synapse is not connected.
 - Whether `03 06` clears target metadata/settings immediately or only removes
   the target from the onboard profile list; create captures suggest Synapse may
   later recycle and rewrite the same target.
