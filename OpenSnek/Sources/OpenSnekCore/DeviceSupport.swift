@@ -139,6 +139,7 @@ public struct PassiveDPIInputDescriptor: Hashable, Codable, Sendable {
     public let reportID: UInt8
     public let subtype: UInt8
     public let heartbeatSubtype: UInt8?
+    public let profileSwitchPrefixes: [[UInt8]]
     public let minInputReportSize: Int
     public let maxFeatureReportSize: Int?
     public let maximumDPI: Int
@@ -149,6 +150,7 @@ public struct PassiveDPIInputDescriptor: Hashable, Codable, Sendable {
         reportID: UInt8,
         subtype: UInt8,
         heartbeatSubtype: UInt8? = nil,
+        profileSwitchPrefixes: [[UInt8]] = [],
         minInputReportSize: Int,
         maxFeatureReportSize: Int? = nil,
         maximumDPI: Int = 30_000
@@ -158,6 +160,7 @@ public struct PassiveDPIInputDescriptor: Hashable, Codable, Sendable {
         self.reportID = reportID
         self.subtype = subtype
         self.heartbeatSubtype = heartbeatSubtype
+        self.profileSwitchPrefixes = profileSwitchPrefixes
         self.minInputReportSize = max(1, minInputReportSize)
         self.maxFeatureReportSize = maxFeatureReportSize
         self.maximumDPI = max(100, maximumDPI)
@@ -232,6 +235,7 @@ public struct DeviceProfile: Hashable, Sendable {
     public let usbLightingZones: [USBLightingZoneDescriptor]
     public let passiveDPIInput: PassiveDPIInputDescriptor?
     public let supportsIndependentXYDPI: Bool
+    public let onboardProfileSupport: OnboardProfileSupport
     public let onboardProfileCount: Int
     public let isLocallyValidated: Bool
 
@@ -247,6 +251,7 @@ public struct DeviceProfile: Hashable, Sendable {
         usbLightingZones: [USBLightingZoneDescriptor] = [],
         passiveDPIInput: PassiveDPIInputDescriptor? = nil,
         supportsIndependentXYDPI: Bool = false,
+        onboardProfileSupport: OnboardProfileSupport = .unavailable,
         onboardProfileCount: Int = 1,
         isLocallyValidated: Bool = true
     ) {
@@ -261,6 +266,7 @@ public struct DeviceProfile: Hashable, Sendable {
         self.usbLightingZones = usbLightingZones
         self.passiveDPIInput = passiveDPIInput
         self.supportsIndependentXYDPI = supportsIndependentXYDPI
+        self.onboardProfileSupport = onboardProfileSupport
         self.onboardProfileCount = max(1, onboardProfileCount)
         self.isLocallyValidated = isLocallyValidated
     }
@@ -310,6 +316,10 @@ public struct DeviceProfile: Hashable, Sendable {
 
     public func lightingLEDIDs(for zoneID: String? = nil) -> [UInt8]? {
         lightingTargets(for: zoneID)?.map(\.ledID)
+    }
+
+    public var supportsMappedOnboardProfileCRUD: Bool {
+        onboardProfileSupport == .mappedCore
     }
 }
 
@@ -546,10 +556,12 @@ public enum DeviceProfiles {
             usage: 0x06,
             reportID: 0x05,
             subtype: 0x02,
+            profileSwitchPrefixes: [[0x05, 0x39]],
             minInputReportSize: 5,
             maximumDPI: 30_000
         ),
         supportsIndependentXYDPI: true,
+        onboardProfileSupport: .mappedCore,
         onboardProfileCount: 5
     )
 
@@ -600,12 +612,14 @@ public enum DeviceProfiles {
             reportID: 0x05,
             subtype: 0x02,
             heartbeatSubtype: 0x10,
+            profileSwitchPrefixes: [[0x05, 0x05, 0x39]],
             minInputReportSize: 7,
             maxFeatureReportSize: 1,
             maximumDPI: 30_000
         ),
         supportsIndependentXYDPI: true,
-        onboardProfileCount: 3
+        onboardProfileSupport: .mappedCore,
+        onboardProfileCount: 5
     )
 
     public static let orochiV2BluetoothButtonSlots: [ButtonSlotDescriptor] = [

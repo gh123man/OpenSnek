@@ -183,4 +183,48 @@ final class USBHIDProtocolTests: XCTestCase {
         XCTAssertEqual(merged[0x40], 0xCC)
         XCTAssertEqual(merged[0x41], 0xDD)
     }
+
+    func testOnboardProfileMetadataWriteArgsUseFullUSBChunkShape() throws {
+        let uuid = try XCTUnwrap(UUID(uuidString: "01234567-89ab-4cde-8f01-23456789abcd"))
+        let metadata = USBHIDProtocol.buildOnboardProfileMetadata(
+            identifier: uuid,
+            name: "Slot 2",
+            owner: "OpenSnek"
+        )
+        let args = USBHIDProtocol.onboardProfileMetadataWriteArgs(
+            slot: 0x02,
+            offset: 0x004B,
+            metadata: metadata
+        )
+
+        XCTAssertEqual(args.count, 0x50)
+        XCTAssertEqual(Array(args.prefix(5)), [0x02, 0x00, 0x4B, 0x00, 0xFA])
+        XCTAssertEqual(USBHIDProtocol.parseOnboardProfileMetadata(metadata).identifier, uuid)
+        XCTAssertEqual(USBHIDProtocol.parseOnboardProfileMetadata(metadata).name, "Slot 2")
+        XCTAssertEqual(USBHIDProtocol.parseOnboardProfileMetadata(metadata).owner, "OpenSnek")
+    }
+
+    func testOnboardProfileCreateAndDeleteAckParsing() {
+        var create = USBHIDProtocol.createReport(
+            txn: 0x1F,
+            classID: 0x05,
+            cmdID: 0x02,
+            size: 0x01,
+            args: USBHIDProtocol.onboardProfileCreateArgs(profile: 0x02)
+        )
+        create[0] = 0x02
+        var delete = USBHIDProtocol.createReport(
+            txn: 0x20,
+            classID: 0x05,
+            cmdID: 0x03,
+            size: 0x01,
+            args: USBHIDProtocol.onboardProfileDeleteArgs(profile: 0x02)
+        )
+        delete[0] = 0x02
+
+        XCTAssertTrue(USBHIDProtocol.onboardProfileCreateAccepted(from: create, profile: 0x02))
+        XCTAssertFalse(USBHIDProtocol.onboardProfileCreateAccepted(from: create, profile: 0x03))
+        XCTAssertTrue(USBHIDProtocol.onboardProfileDeleteAccepted(from: delete, profile: 0x02))
+        XCTAssertFalse(USBHIDProtocol.onboardProfileDeleteAccepted(from: delete, profile: 0x03))
+    }
 }

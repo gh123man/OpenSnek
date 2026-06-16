@@ -28,6 +28,7 @@ actor BridgeClient {
     let devicePresenceEvents = BroadcastStream<HIDDevicePresenceEvent>()
     let passiveDpiEvents = BroadcastStream<PassiveDPIEvent>()
     let passiveDpiHeartbeatEvents = BroadcastStream<PassiveDPIHeartbeatEvent>()
+    let passiveProfileSwitchEvents = BroadcastStream<PassiveProfileSwitchEvent>()
     var passiveDpiArmedDeviceIDs: Set<String> = []
     var passiveDpiHeartbeatDeviceIDs: Set<String> = []
     var passiveDpiObservedDeviceIDs: Set<String> = []
@@ -67,6 +68,11 @@ actor BridgeClient {
         passiveDpiMonitor.onHeartbeat = { [weak self] event in
             Task {
                 await self?.handlePassiveDpiHeartbeat(event)
+            }
+        }
+        passiveDpiMonitor.onProfileSwitch = { [weak self] event in
+            Task {
+                await self?.handlePassiveProfileSwitch(event)
             }
         }
         if startHIDMonitoring {

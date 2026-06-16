@@ -13,6 +13,10 @@ extension BridgeClient {
         passiveDpiHeartbeatEvents.makeStream()
     }
 
+    func passiveProfileSwitchEventStream() -> AsyncStream<PassiveProfileSwitchEvent> {
+        passiveProfileSwitchEvents.makeStream()
+    }
+
     func shouldUseFastDPIPolling(device: MouseDevice) -> Bool {
         Self.shouldUseFastDPIPolling(
             device: device,
@@ -106,6 +110,12 @@ extension BridgeClient {
             )
         }
         passiveDpiHeartbeatEvents.yield(event)
+    }
+
+    func handlePassiveProfileSwitch(_ event: PassiveProfileSwitchEvent) {
+        guard DeveloperRuntimeOptions.passiveHIDUpdatesEnabled() else { return }
+        guard passiveDpiArmedDeviceIDs.contains(event.deviceID) else { return }
+        passiveProfileSwitchEvents.yield(event)
     }
 
     func seedBluetoothPassiveDpiExpectation(_ event: PassiveDPIEvent) {

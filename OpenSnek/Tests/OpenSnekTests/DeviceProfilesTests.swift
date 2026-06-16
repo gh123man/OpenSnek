@@ -95,7 +95,9 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.passiveDPIInput?.usage, 0x06)
         XCTAssertEqual(profile?.passiveDPIInput?.reportID, 0x05)
         XCTAssertEqual(profile?.passiveDPIInput?.subtype, 0x02)
+        XCTAssertEqual(profile?.passiveDPIInput?.profileSwitchPrefixes, [[0x05, 0x39]])
         XCTAssertEqual(profile?.passiveDPIInput?.maximumDPI, 30_000)
+        XCTAssertEqual(profile?.onboardProfileSupport, .mappedCore)
         XCTAssertEqual(profile?.onboardProfileCount, 5)
     }
 
@@ -158,8 +160,10 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.passiveDPIInput?.reportID, 0x05)
         XCTAssertEqual(profile?.passiveDPIInput?.subtype, 0x02)
         XCTAssertEqual(profile?.passiveDPIInput?.maxFeatureReportSize, 1)
+        XCTAssertEqual(profile?.passiveDPIInput?.profileSwitchPrefixes, [[0x05, 0x05, 0x39]])
         XCTAssertEqual(profile?.passiveDPIInput?.maximumDPI, 30_000)
-        XCTAssertEqual(profile?.onboardProfileCount, 3)
+        XCTAssertEqual(profile?.onboardProfileSupport, .mappedCore)
+        XCTAssertEqual(profile?.onboardProfileCount, 5)
         XCTAssertEqual(profile?.usbLightingLEDIDs, [0x01, 0x04, 0x0A])
         XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel", "logo", "underglow"])
     }

@@ -51,6 +51,7 @@ final class EditorStore {
     var isButtonProfileOperationInFlight = false
     var buttonProfileOperationStatusText: String?
     var usbButtonProfilesRevision = 0
+    var onboardProfilesRevision = 0
     var connectBehaviorRevision = 0
 
     @ObservationIgnored private weak var editorControllerStorage: AppStateEditorController?
@@ -156,6 +157,37 @@ final class EditorStore {
 
     var supportsMultipleOnboardProfiles: Bool {
         deviceStore.selectedDevice?.transport == .usb && visibleOnboardProfileCount > 1
+    }
+
+    var supportsOnboardProfileCRUD: Bool {
+        guard let selectedDevice = deviceStore.selectedDevice else { return false }
+        return DeviceProfiles
+            .resolve(
+                vendorID: selectedDevice.vendor_id,
+                productID: selectedDevice.product_id,
+                transport: selectedDevice.transport
+            )?
+            .supportsMappedOnboardProfileCRUD == true
+    }
+
+    var onboardProfileSummaries: [OnboardProfileSummary] {
+        _ = onboardProfilesRevision
+        return editorController.onboardProfileSummaries()
+    }
+
+    var selectedOnboardProfileID: Int? {
+        _ = onboardProfilesRevision
+        return editorController.selectedOnboardProfileID()
+    }
+
+    var selectedOnboardProfileName: String {
+        _ = onboardProfilesRevision
+        return editorController.selectedOnboardProfileName()
+    }
+
+    var selectedOnboardProfileIsActive: Bool {
+        _ = onboardProfilesRevision
+        return editorController.selectedOnboardProfileIsActive()
     }
 
     var visibleUSBButtonProfiles: [USBButtonProfileSummary] {
@@ -267,6 +299,42 @@ final class EditorStore {
 
     func refreshButtonProfilePresentation() {
         editorController.refreshButtonProfilePresentation()
+    }
+
+    func refreshOnboardProfiles() async {
+        await withButtonProfileOperation(statusText: "Refreshing profiles...") { [self] in
+            await self.editorController.refreshOnboardProfiles()
+        }
+    }
+
+    func selectOnboardProfile(_ profileID: Int) async {
+        await withButtonProfileOperation(statusText: "Loading profile...") { [self] in
+            await self.editorController.selectOnboardProfile(profileID)
+        }
+    }
+
+    func activateOnboardProfile(_ profileID: Int) async {
+        await withButtonProfileOperation(statusText: "Activating profile...") { [self] in
+            await self.editorController.activateOnboardProfile(profileID)
+        }
+    }
+
+    func createOnboardProfile(name: String) async {
+        await withButtonProfileOperation(statusText: "Creating profile...") { [self] in
+            await self.editorController.createOnboardProfile(name: name)
+        }
+    }
+
+    func renameSelectedOnboardProfile(name: String) async {
+        await withButtonProfileOperation(statusText: "Renaming profile...") { [self] in
+            await self.editorController.renameSelectedOnboardProfile(name: name)
+        }
+    }
+
+    func deleteSelectedOnboardProfile() async {
+        await withButtonProfileOperation(statusText: "Deleting profile...") { [self] in
+            await self.editorController.deleteSelectedOnboardProfile()
+        }
     }
 
     var canDuplicateSelectedUSBButtonProfile: Bool {

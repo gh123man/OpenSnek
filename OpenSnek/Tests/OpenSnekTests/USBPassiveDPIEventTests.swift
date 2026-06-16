@@ -614,6 +614,30 @@ final class USBPassiveDPIEventTests: XCTestCase {
         XCTAssertEqual(other, .other)
     }
 
+    func testPassiveParserClassifiesUSBAndBluetoothProfileSwitchReports() {
+        let usbDescriptor = try! XCTUnwrap(
+            DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00AB, transport: .usb)?.passiveDPIInput
+        )
+        let bluetoothDescriptor = try! XCTUnwrap(
+            DeviceProfiles.resolve(vendorID: 0x068E, productID: 0x00AC, transport: .bluetooth)?.passiveDPIInput
+        )
+
+        XCTAssertEqual(
+            PassiveDPIParser.classify(
+                report: [0x05, 0x39, 0x00, 0x00, 0x00, 0x00],
+                descriptor: usbDescriptor
+            ),
+            .profileSwitch
+        )
+        XCTAssertEqual(
+            PassiveDPIParser.classify(
+                report: [0x05, 0x05, 0x39, 0x00, 0x00, 0x00, 0x00],
+                descriptor: bluetoothDescriptor
+            ),
+            .profileSwitch
+        )
+    }
+
     func testPassiveUSBMergeUpdatesActiveStageOnlyForUniqueMatch() {
         let device = makePassiveTestDevice(id: "usb-passive-merge", transport: .usb)
         let uniqueMatch = mergedStateFromPassiveDpiEvent(

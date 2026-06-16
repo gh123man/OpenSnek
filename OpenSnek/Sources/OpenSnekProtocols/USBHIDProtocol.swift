@@ -73,6 +73,36 @@ public enum USBHIDProtocol {
         return response[8] == profile
     }
 
+    public static func onboardProfileCreateArgs(profile: UInt8) -> [UInt8] {
+        [profile]
+    }
+
+    public static func onboardProfileCreateAccepted(from response: [UInt8], profile: UInt8) -> Bool {
+        guard response.count > 8,
+              response[0] == 0x02,
+              response[6] == 0x05,
+              response[7] == 0x02,
+              response[5] >= 0x01 else {
+            return false
+        }
+        return response[8] == profile
+    }
+
+    public static func onboardProfileDeleteArgs(profile: UInt8) -> [UInt8] {
+        [profile]
+    }
+
+    public static func onboardProfileDeleteAccepted(from response: [UInt8], profile: UInt8) -> Bool {
+        guard response.count > 8,
+              response[0] == 0x02,
+              response[6] == 0x05,
+              response[7] == 0x03,
+              response[5] >= 0x01 else {
+            return false
+        }
+        return response[8] == profile
+    }
+
     public static func onboardProfileCount(from response: [UInt8]) -> UInt8? {
         guard response.count > 8,
               response[0] == 0x02,
@@ -157,6 +187,53 @@ public enum USBHIDProtocol {
             UInt8((clampedLength >> 8) & 0xFF),
             UInt8(clampedLength & 0xFF),
         ]
+    }
+
+    public static func buildOnboardProfileMetadata(
+        identifier: UUID,
+        name: String,
+        owner: String
+    ) -> [UInt8] {
+        var metadata = [UInt8](repeating: 0x00, count: onboardProfileMetadataLength)
+        let guid = windowsGUIDBytes(from: identifier)
+        for (index, byte) in guid.enumerated() where index < metadata.count {
+            metadata[index] = byte
+        }
+        writeASCII(
+            name,
+            into: &metadata,
+            offset: 0x10,
+            maxLength: 0x74 - 0x10
+        )
+        writeASCII(
+            owner,
+            into: &metadata,
+            offset: 0x74,
+            maxLength: 64
+        )
+        return metadata
+    }
+
+    public static func onboardProfileMetadataWriteArgs(
+        slot: UInt8,
+        offset: Int,
+        metadata: [UInt8]
+    ) -> [UInt8] {
+        let clampedOffset = max(0, min(onboardProfileMetadataLength, offset))
+        let end = min(metadata.count, clampedOffset + onboardProfileMetadataChunkDataLength)
+        let chunk = clampedOffset < end ? Array(metadata[clampedOffset..<end]) : []
+        var args = [
+            slot,
+            UInt8((clampedOffset >> 8) & 0xFF),
+            UInt8(clampedOffset & 0xFF),
+            UInt8((onboardProfileMetadataLength >> 8) & 0xFF),
+            UInt8(onboardProfileMetadataLength & 0xFF),
+        ]
+        args.append(contentsOf: chunk)
+        if args.count < Int(onboardProfileMetadataReadSize) {
+            args.append(contentsOf: repeatElement(0x00, count: Int(onboardProfileMetadataReadSize) - args.count))
+        }
+        return Array(args.prefix(Int(onboardProfileMetadataReadSize)))
     }
 
     public static func onboardProfileMetadataChunk(
@@ -257,5 +334,24 @@ public enum USBHIDProtocol {
             return nil
         }
         return String(bytes: raw, encoding: .ascii)
+    }
+
+    private static func writeASCII(_ value: String, into metadata: inout [UInt8], offset: Int, maxLength: Int) {
+        guard offset >= 0, maxLength > 0, offset < metadata.count else { return }
+        let upperBound = min(metadata.count, offset + maxLength)
+        for index in offset..<upperBound {
+            metadata[index] = 0x00
+        }
+        let bytes = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .unicodeScalars
+            .compactMap { scalar -> UInt8? in
+                guard scalar.value >= 0x20, scalar.value <= 0x7E else { return nil }
+                return UInt8(scalar.value)
+            }
+            .prefix(maxLength)
+        for (index, byte) in bytes.enumerated() {
+            metadata[offset + index] = byte
+        }
     }
 }

@@ -30,6 +30,30 @@ struct ButtonBindingReadRequest: Codable, Sendable {
     let profile: Int
 }
 
+struct OnboardProfileIDRequest: Codable, Sendable {
+    let device: MouseDevice
+    let profileID: Int
+}
+
+struct OnboardProfileCreateRequest: Codable, Sendable {
+    let device: MouseDevice
+    let mutation: OnboardProfileMutation
+    let targetProfileID: Int?
+    let replaceAssignedProfile: Bool
+}
+
+struct OnboardProfileRenameRequest: Codable, Sendable {
+    let device: MouseDevice
+    let profileID: Int
+    let name: String
+}
+
+struct OnboardProfileUpdateRequest: Codable, Sendable {
+    let device: MouseDevice
+    let profileID: Int
+    let mutation: OnboardProfileMutation
+}
+
 struct StreamSubscriptionRequest: Codable, Sendable {
     let sourceProcessID: Int32
     let selectedDeviceID: String?
@@ -76,6 +100,14 @@ enum BackgroundServiceMethod: String, Codable, Sendable {
     case dpiUpdateTransportStatus
     case hidAccessStatus
     case apply
+    case listOnboardProfiles
+    case readOnboardProfile
+    case createOnboardProfile
+    case renameOnboardProfile
+    case updateOnboardProfile
+    case deleteOnboardProfile
+    case activateOnboardProfile
+    case refreshActiveOnboardProfile
     case readLightingColor
     case debugUSBReadButtonBinding
     case subscribeStateUpdates

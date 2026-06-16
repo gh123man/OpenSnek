@@ -2442,7 +2442,6 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
     func testEditingProjectedStoredUSBButtonProfileAutoAppliesToBaseAndDirectLayer() async throws {
         for (profileID, onboardProfileCount) in [
             (DeviceProfileID.basiliskV3, 5),
-            (.basiliskV3Pro, 5),
             (.basiliskV335K, 5),
         ] {
             let device = makeRefactorTestDevice(
@@ -2523,7 +2522,8 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             id: "saved-button-auto-apply-device",
             transport: .usb,
             serial: "SAVED-BUTTON-AUTO-\(UUID().uuidString)",
-            onboardProfileCount: 3
+            onboardProfileCount: 3,
+            profileID: .basiliskV335K
         )
         let preferenceStore = DevicePreferenceStore()
         let saved = preferenceStore.saveOpenSnekButtonProfile(
@@ -2583,7 +2583,8 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             id: "usb-profile-base-auto-apply-device",
             transport: .usb,
             serial: "USB-PROFILE-BASE-\(UUID().uuidString)",
-            onboardProfileCount: 3
+            onboardProfileCount: 3,
+            profileID: .basiliskV335K
         )
         defer { clearRefactorPreferences(for: device) }
 
@@ -2796,7 +2797,8 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             id: "usb-profile-mouse-turbo-device",
             transport: .usb,
             serial: "USB-PROFILE-MOUSE-TURBO-\(UUID().uuidString)",
-            onboardProfileCount: 3
+            onboardProfileCount: 3,
+            profileID: .basiliskV335K
         )
         defer { clearRefactorPreferences(for: device) }
 
@@ -3285,6 +3287,183 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         let alphaReadCountAfterReselect = await backend.buttonReadCount(for: alphaDevice.id)
         XCTAssertEqual(alphaReadCountAfterReselect, alphaReadCountAfterInitialHydration)
     }
+
+    func testOnboardProfileSelectionKeepsInactiveSelectionUntilHardwareActiveChanges() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-selection-device",
+            transport: .usb,
+            serial: "ONBOARD-SELECTION-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1, 2, 3],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 3, name: "Stored 3", isActive: false),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(profileID: 2, name: "Stored 2", dpiValues: [1200, 2400]),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+        await appState.editorStore.selectOnboardProfile(2)
+
+        try await waitForRefactorCondition {
+            await MainActor.run {
+                appState.editorStore.selectedOnboardProfileID == 2 &&
+                    appState.editorStore.stagePair(0).x == 1200
+            }
+        }
+
+        await MainActor.run {
+            appState.editorController.hydrateEditable(
+                from: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            )
+        }
+        let selectedAfterSameActiveHydration = await MainActor.run {
+            appState.editorStore.selectedOnboardProfileID
+        }
+        XCTAssertEqual(selectedAfterSameActiveHydration, 2)
+
+        await MainActor.run {
+            appState.editorController.hydrateEditable(
+                from: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 74,
+                    dpiValues: [3200, 6400],
+                    activeStage: 1,
+                    dpiValue: 6400,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 3,
+                    onboardProfileCount: 5
+                )
+            )
+        }
+
+        let selected = await MainActor.run { appState.editorStore.selectedOnboardProfileID }
+        let activeSummary = await MainActor.run {
+            appState.editorStore.onboardProfileSummaries.first(where: { $0.isActive })?.profileID
+        }
+        XCTAssertEqual(selected, 3)
+        XCTAssertEqual(activeSummary, 3)
+    }
+
+    func testInactiveOnboardProfileDpiEditUpdatesStoredProfileOnly() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-inactive-edit-device",
+            transport: .usb,
+            serial: "ONBOARD-INACTIVE-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1, 2],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(profileID: 2, name: "Stored 2", dpiValues: [1200, 2400]),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+        await appState.editorStore.selectOnboardProfile(2)
+        await MainActor.run {
+            appState.editorStore.editableStageCount = 2
+            appState.editorStore.editableStagePairs = [
+                DpiPair(x: 1500, y: 1500),
+                DpiPair(x: 2600, y: 2600),
+                DpiPair(x: 3200, y: 3200),
+                DpiPair(x: 6400, y: 6400),
+                DpiPair(x: 12000, y: 12000),
+            ]
+            appState.editorStore.editableActiveStage = 2
+        }
+
+        await appState.editorStore.applyDpiStages()
+
+        try await waitForRefactorCondition {
+            await backend.recordedOnboardUpdates().count == 1
+        }
+
+        let updates = await backend.recordedOnboardUpdates()
+        let applyCount = await backend.applyCount()
+        XCTAssertEqual(applyCount, 0)
+        XCTAssertEqual(updates.first?.profileID, 2)
+        XCTAssertEqual(updates.first?.mutation.dpi?.pairs.map(\.x), [1500, 2600])
+        XCTAssertEqual(updates.first?.mutation.dpi?.activeStage, 1)
+    }
 }
 
 private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupportingBackend {
@@ -3307,6 +3486,9 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
     private var readCountByDeviceID: [String: Int] = [:]
     private var fastReadInvocationCount = 0
     private var fastReadCountByDeviceID: [String: Int] = [:]
+    private var onboardInventoryByDeviceID: [String: OnboardProfileInventory] = [:]
+    private var onboardSnapshotsByKey: [String: OnboardProfileSnapshot] = [:]
+    private var onboardUpdates: [(deviceID: String, profileID: Int, mutation: OnboardProfileMutation)] = []
 
     init(
         devices: [MouseDevice],
@@ -3409,6 +3591,51 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
         return buttonBindingBlocks[buttonKey(deviceID: device.id, slot: slot, profile: profile)]
     }
 
+    func listOnboardProfiles(device: MouseDevice) async throws -> OnboardProfileInventory {
+        if let inventory = onboardInventoryByDeviceID[device.id] {
+            return inventory
+        }
+        let active = stateByDeviceID[device.id]?.active_onboard_profile ?? 1
+        return OnboardProfileInventory(
+            activeProfileID: active,
+            maxProfileID: max(1, device.onboard_profile_count),
+            assignedProfileIDs: [1],
+            profiles: [
+                makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: active == 1)
+            ]
+        )
+    }
+
+    func readOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot {
+        if let snapshot = onboardSnapshotsByKey[onboardSnapshotKey(deviceID: device.id, profileID: profileID)] {
+            return snapshot
+        }
+        return makeRefactorOnboardProfileSnapshot(profileID: profileID, name: "Profile \(profileID)")
+    }
+
+    func updateOnboardProfile(
+        device: MouseDevice,
+        profileID: Int,
+        mutation: OnboardProfileMutation
+    ) async throws -> OnboardProfileSnapshot {
+        onboardUpdates.append((device.id, profileID, mutation))
+        let current = try await readOnboardProfile(device: device, profileID: profileID)
+        let updated = OnboardProfileSnapshot(
+            profileID: profileID,
+            metadata: mutation.metadata ?? current.metadata,
+            dpi: mutation.dpi ?? current.dpi,
+            buttonBindings: mutation.buttonBindings ?? current.buttonBindings,
+            brightnessByLEDID: mutation.brightnessByLEDID ?? current.brightnessByLEDID,
+            staticColorByLEDID: mutation.staticColorByLEDID ?? current.staticColorByLEDID
+        )
+        onboardSnapshotsByKey[onboardSnapshotKey(deviceID: device.id, profileID: profileID)] = updated
+        return updated
+    }
+
+    func refreshActiveOnboardProfile(device: MouseDevice) async throws -> MouseState {
+        try await readState(device: device)
+    }
+
     func waitForFirstApplyToStart() async {
         if applyInvocationCount > 0 {
             return
@@ -3459,8 +3686,24 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
         buttonReadCountByDeviceID[deviceID, default: 0]
     }
 
+    func setOnboardInventory(_ inventory: OnboardProfileInventory, forDeviceID deviceID: String) {
+        onboardInventoryByDeviceID[deviceID] = inventory
+    }
+
+    func setOnboardSnapshot(_ snapshot: OnboardProfileSnapshot, forDeviceID deviceID: String) {
+        onboardSnapshotsByKey[onboardSnapshotKey(deviceID: deviceID, profileID: snapshot.profileID)] = snapshot
+    }
+
+    func recordedOnboardUpdates() -> [(deviceID: String, profileID: Int, mutation: OnboardProfileMutation)] {
+        onboardUpdates
+    }
+
     private func buttonKey(deviceID: String, slot: Int, profile: Int) -> String {
         "\(deviceID)#\(slot)#\(profile)"
+    }
+
+    private func onboardSnapshotKey(deviceID: String, profileID: Int) -> String {
+        "\(deviceID)#\(profileID)"
     }
 
     private func stateApplying(_ patch: DevicePatch, to current: MouseState) -> MouseState {
@@ -3504,17 +3747,31 @@ private func makeRefactorTestDevice(
     onboardProfileCount: Int,
     profileID: DeviceProfileID? = nil
 ) -> MouseDevice {
-    MouseDevice(
+    let resolvedProfileID = profileID ?? (transport == .bluetooth ? .basiliskV3XHyperspeed : .basiliskV3Pro)
+    let productID: Int
+    switch (transport, resolvedProfileID) {
+    case (.usb, .basiliskV3):
+        productID = 0x0099
+    case (.usb, .basiliskV335K):
+        productID = 0x00CB
+    case (.bluetooth, .basiliskV3Pro):
+        productID = 0x00AC
+    case (.bluetooth, _):
+        productID = 0x00BA
+    default:
+        productID = 0x00AB
+    }
+    return MouseDevice(
         id: id,
         vendor_id: transport == .bluetooth ? 0x068E : 0x1532,
-        product_id: transport == .bluetooth ? 0x00BA : 0x00AB,
+        product_id: productID,
         product_name: transport == .bluetooth ? "Refactor BT Mouse" : "Refactor USB Mouse",
         transport: transport,
         path_b64: "",
         serial: serial,
         firmware: "1.0.0",
         location_id: 1,
-        profile_id: profileID ?? (transport == .bluetooth ? .basiliskV3XHyperspeed : .basiliskV3Pro),
+        profile_id: resolvedProfileID,
         supports_advanced_lighting_effects: true,
         onboard_profile_count: onboardProfileCount
     )
@@ -3557,6 +3814,44 @@ private func makeRefactorMultiZoneUSBLightingDevice(
         profile_id: .basiliskV3Pro,
         supports_advanced_lighting_effects: true,
         onboard_profile_count: 1
+    )
+}
+
+private func makeRefactorOnboardProfileSummary(
+    profileID: Int,
+    name: String,
+    isActive: Bool
+) -> OnboardProfileSummary {
+    OnboardProfileSummary(
+        profileID: profileID,
+        metadata: OnboardProfileMetadata(name: name),
+        isAssigned: true,
+        isActive: isActive,
+        isBaseProfile: profileID == 1
+    )
+}
+
+private func makeRefactorOnboardProfileSnapshot(
+    profileID: Int,
+    name: String,
+    dpiValues: [Int] = [800, 1600, 3200],
+    activeStage: Int = 0,
+    buttonBindings: [Int: ButtonBindingDraft] = [
+        4: ButtonBindingDraft(kind: .rightClick, hidKey: 4, turboEnabled: false, turboRate: 0x8E)
+    ]
+) -> OnboardProfileSnapshot {
+    let pairs = dpiValues.map { DpiPair(x: $0, y: $0) }
+    return OnboardProfileSnapshot(
+        profileID: profileID,
+        metadata: OnboardProfileMetadata(name: name),
+        dpi: OnboardDPIProfileSnapshot(
+            scalar: pairs.indices.contains(activeStage) ? pairs[activeStage] : pairs.first,
+            activeStage: max(0, min(max(0, pairs.count - 1), activeStage)),
+            pairs: pairs
+        ),
+        buttonBindings: buttonBindings,
+        brightnessByLEDID: [1: 64, 4: 64, 10: 64],
+        staticColorByLEDID: [:]
     )
 }
 

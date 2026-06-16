@@ -171,6 +171,48 @@ final class BLEVendorProtocolTests: XCTestCase {
         XCTAssertEqual(Array(storedTargetPayload), [0x05, 0x05, 0x00, 0x02, 0x02, 0x00, 0x09, 0x00, 0x00, 0x00])
     }
 
+    func testProfileInventoryAndActiveTargetParsing() {
+        XCTAssertEqual(BLEVendorProtocol.parseProfileTargets(payload: Data([0x01, 0x03, 0x00, 0x09]), maxProfileID: 5), [1, 3])
+        XCTAssertEqual(BLEVendorProtocol.parseActiveTarget(payload: Data([0x03])), 3)
+        XCTAssertNil(BLEVendorProtocol.parseActiveTarget(payload: Data([0x09])))
+    }
+
+    func testProfileMetadataReadAndWriteChunkHelpers() throws {
+        let uuid = try XCTUnwrap(UUID(uuidString: "01234567-89ab-4cde-8f01-23456789abcd"))
+        let metadata = BLEVendorProtocol.buildProfileMetadata(identifier: uuid, name: "BT Slot", owner: "OpenSnek")
+        let readRequest = BLEVendorProtocol.profileMetadataReadRequest(offset: 0x0098, length: 0x4C)
+        let writePayload = BLEVendorProtocol.profileMetadataWritePayload(offset: 0x0098, metadata: metadata)
+        let responsePayload = Data([0x98, 0x00]) + Data(metadata[0x0098..<(0x0098 + 0x04)])
+        let chunk = BLEVendorProtocol.profileMetadataChunk(from: responsePayload, expectedOffset: 0x0098)
+
+        XCTAssertEqual(Array(readRequest), [0x98, 0x00, 0x4C, 0x00])
+        XCTAssertEqual(Array(writePayload.prefix(4)), [0xFA, 0x00, 0x98, 0x00])
+        XCTAssertEqual(chunk?.offset, 0x0098)
+        XCTAssertEqual(chunk?.data, Array(metadata[0x0098..<(0x0098 + 0x04)]))
+        XCTAssertEqual(BLEVendorProtocol.parseProfileMetadata(metadata).identifier, uuid)
+        XCTAssertEqual(BLEVendorProtocol.parseProfileMetadata(metadata).name, "BT Slot")
+    }
+
+    func testBluetoothButtonReadbackExtractsInterleavedFunctionBlock() {
+        let functionBlock: [UInt8] = [0x01, 0x01, 0x05, 0x00, 0x00, 0x00, 0x00]
+        let previousBlock: [UInt8] = [0x01, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00]
+        var interleaved: [UInt8] = [0x05, 0x00]
+        for index in functionBlock.indices {
+            interleaved.append(functionBlock[index])
+            interleaved.append(previousBlock[index])
+        }
+
+        XCTAssertEqual(
+            BLEVendorProtocol.extractBluetoothFunctionBlock(
+                payload: Data(interleaved),
+                target: 0x02,
+                slot: 0x05,
+                profileID: .basiliskV3Pro
+            ),
+            functionBlock
+        )
+    }
+
     func testButtonPayloadKeyboardShortcutIncludesModifiers() {
         let payload = BLEVendorProtocol.buildButtonPayload(
             slot: 0x02,

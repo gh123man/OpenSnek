@@ -500,6 +500,14 @@ extension BridgeClient {
 
     func getOnboardProfileInfo(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> (active: Int, count: Int)? {
         guard device.onboard_profile_count > 1 else { return (active: 1, count: 1) }
+        if let profile = usbDeviceProfile(for: device), profile.supportsMappedOnboardProfileCRUD {
+            guard let inventoryResponse = try perform(session, device, classID: 0x05, cmdID: 0x81, size: 0x00),
+                  let inventory = USBHIDProtocol.onboardProfileInventory(from: inventoryResponse) else {
+                return nil
+            }
+            let active = try getDirectUSBActiveProfileID(session, device) ?? 1
+            return (active: active, count: max(Int(inventory.maxProfileID), profile.onboardProfileCount))
+        }
         guard let summary = try perform(session, device, classID: 0x00, cmdID: 0x87, size: 0x00), summary[0] == 0x02 else {
             return nil
         }

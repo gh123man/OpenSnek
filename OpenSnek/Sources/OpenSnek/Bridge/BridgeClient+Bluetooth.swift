@@ -140,6 +140,11 @@ extension BridgeClient {
 
     func readBluetoothState(device: MouseDevice, session: USBHIDControlSession?) async throws -> MouseState {
         let supportsLighting = device.showsLightingControls
+        let profile = DeviceProfiles.resolve(
+            vendorID: device.vendor_id,
+            productID: device.product_id,
+            transport: device.transport
+        )
         let btStages = (try? await btGetDpiStages(device: device))
             ?? btDpiSnapshotByDeviceID[device.id].map { snapshot in
                 (
@@ -153,6 +158,9 @@ extension BridgeClient {
         let batteryStatus = (try? await btGetScalar(device: device, key: .batteryStatus, size: 1)) ?? nil
         let lighting = supportsLighting ? (try? await btGetLightingValue(device: device)) : nil
         let sleepTimeout = (try? await btGetScalar(device: device, key: .powerTimeoutGet, size: 2)) ?? nil
+        let activeOnboardProfile = profile?.supportsMappedOnboardProfileCRUD == true
+            ? (try? await btReadActiveOnboardProfileID(device: device)) ?? nil
+            : nil
 
         let usbBatteryFallback = session.flatMap { try? getBattery($0, device) }
         let batteryState = Self.resolveBluetoothBatteryState(
@@ -190,6 +198,8 @@ extension BridgeClient {
             poll_rate: nil,
             sleep_timeout: sleepTimeout,
             device_mode: nil,
+            active_onboard_profile: activeOnboardProfile,
+            onboard_profile_count: profile?.supportsMappedOnboardProfileCRUD == true ? profile?.onboardProfileCount : nil,
             led_value: lighting,
             capabilities: Capabilities(
                 dpi_stages: true,

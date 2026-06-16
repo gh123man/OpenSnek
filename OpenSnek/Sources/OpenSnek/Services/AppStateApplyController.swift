@@ -87,7 +87,8 @@ final class AppStateApplyController {
 
     func applyDpiStages() async {
         let count = max(1, min(5, editorStore.editableStageCount))
-        let profileID = deviceStore.selectedDevice?.profile_id
+        let selectedDevice = deviceStore.selectedDevice
+        let profileID = selectedDevice?.profile_id
         let values = Array(editorStore.editableStageValues.prefix(count)).map { DeviceProfiles.clampDPI($0, profileID: profileID) }
         let pairs = Array(editorStore.editableStagePairs.prefix(count)).map { pair in
             DpiPair(
@@ -96,6 +97,19 @@ final class AppStateApplyController {
             )
         }
         let active = max(0, min(count - 1, editorStore.editableActiveStage - 1))
+        if let selectedDevice, supportsOnboardProfileCRUD(device: selectedDevice) {
+            let scalar = pairs.indices.contains(active) ? pairs[active] : pairs.first
+            let mutation = OnboardProfileMutation(
+                dpi: OnboardDPIProfileSnapshot(
+                    scalar: scalar,
+                    activeStage: active,
+                    pairs: pairs
+                )
+            )
+            if await editorController.applyOnboardProfileMutationForCurrentSelection(mutation) {
+                return
+            }
+        }
         enqueueApply(DevicePatch(dpiStages: values, dpiStagePairs: pairs, activeStage: active))
     }
 
@@ -185,6 +199,19 @@ final class AppStateApplyController {
     }
 
     func applyLedBrightness() async {
+        if let selectedDevice = deviceStore.selectedDevice,
+           supportsOnboardProfileCRUD(device: selectedDevice) {
+            let brightness = Dictionary(
+                uniqueKeysWithValues: onboardProfileLEDIDs(for: selectedDevice).map { ledID in
+                    (Int(ledID), editorStore.editableLedBrightness)
+                }
+            )
+            if await editorController.applyOnboardProfileMutationForCurrentSelection(
+                OnboardProfileMutation(brightnessByLEDID: brightness)
+            ) {
+                return
+            }
+        }
         enqueueApply(DevicePatch(ledBrightness: editorStore.editableLedBrightness))
     }
 
@@ -196,6 +223,27 @@ final class AppStateApplyController {
     }
 
     func applyLedColor() async {
+        if let selectedDevice = deviceStore.selectedDevice,
+           selectedDevice.transport == .bluetooth,
+           supportsOnboardProfileCRUD(device: selectedDevice) {
+            let colors = Dictionary(
+                uniqueKeysWithValues: onboardProfileLEDIDs(for: selectedDevice).map { ledID in
+                    (
+                        Int(ledID),
+                        RGBPatch(
+                            r: editorStore.editableColor.r,
+                            g: editorStore.editableColor.g,
+                            b: editorStore.editableColor.b
+                        )
+                    )
+                }
+            )
+            if await editorController.applyOnboardProfileMutationForCurrentSelection(
+                OnboardProfileMutation(staticColorByLEDID: colors)
+            ) {
+                return
+            }
+        }
         enqueueApply(
             DevicePatch(
                 ledRGB: RGBPatch(r: editorStore.editableColor.r, g: editorStore.editableColor.g, b: editorStore.editableColor.b),
@@ -323,6 +371,14 @@ final class AppStateApplyController {
 
     func applyButtonBinding(slot: Int) async {
         guard let selectedDevice = deviceStore.selectedDevice else { return }
+        if supportsOnboardProfileCRUD(device: selectedDevice) {
+            let draft = editorStore.editableButtonBindings[slot] ?? editorController.defaultButtonBinding(for: slot)
+            if await editorController.applyOnboardProfileMutationForCurrentSelection(
+                OnboardProfileMutation(buttonBindings: [slot: draft])
+            ) {
+                return
+            }
+        }
         let binding = makeButtonBindingPatch(
             slot: slot,
             persistentProfile: persistentProfileForSingleButtonApply(device: selectedDevice),
@@ -347,6 +403,23 @@ final class AppStateApplyController {
 
     private func writableButtonSlots(for device: MouseDevice) -> [Int] {
         device.button_layout?.writableSlots ?? deviceStore.visibleButtonSlots.map(\.slot)
+    }
+
+    private func supportsOnboardProfileCRUD(device: MouseDevice) -> Bool {
+        DeviceProfiles.resolve(
+            vendorID: device.vendor_id,
+            productID: device.product_id,
+            transport: device.transport
+        )?.supportsMappedOnboardProfileCRUD == true
+    }
+
+    private func onboardProfileLEDIDs(for device: MouseDevice) -> [UInt8] {
+        let ids = DeviceProfiles.resolve(
+            vendorID: device.vendor_id,
+            productID: device.product_id,
+            transport: device.transport
+        )?.allUSBLightingLEDIDs ?? [0x01]
+        return ids.isEmpty ? [0x01] : ids
     }
 
     private func shouldTreatCurrentSourceAsExactMouseSlot(device: MouseDevice) -> Int? {
