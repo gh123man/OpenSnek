@@ -327,9 +327,17 @@ final class EditorStore {
         }
     }
 
-    func createOnboardProfile(name: String, targetProfileID: Int? = nil) async {
+    func createOnboardProfile(
+        name: String,
+        targetProfileID: Int? = nil,
+        copyFromProfileID: Int? = nil
+    ) async {
         await withButtonProfileOperation(statusText: "Creating profile...") { [self] in
-            await self.editorController.createOnboardProfile(name: name, targetProfileID: targetProfileID)
+            await self.editorController.createOnboardProfile(
+                name: name,
+                targetProfileID: targetProfileID,
+                copyFromProfileID: copyFromProfileID
+            )
         }
     }
 

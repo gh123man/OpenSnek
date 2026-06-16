@@ -9,9 +9,11 @@ All notable changes to this project are documented in this file.
 - Added USB onboard profile static-color snapshots and writes for validated Basilisk V3 Pro devices, using `0F:82` readback and `0F:02` static-color writes so USB profile changes can rehydrate the lighting color UI.
 - Added passive profile-cycle HID handling for Basilisk V3 Pro USB and Bluetooth so OpenSnek can refresh the active onboard profile from the direct active-profile register and update the UI without fingerprinting the whole device configuration.
 - Added a visible profile-load scrim for onboard profile operations and profile-cycle refreshes, plus tighter onboard profile slot styling and hard RGB lighting presets.
+- Added a Copy From selector when creating empty onboard profile slots so new slots can duplicate an existing onboard profile.
 
 ### Changed
 - Devices with multiple onboard profile slots now hide and ignore the legacy On Connect restore setting so profile-backed settings remain the source of truth.
+- Onboard profile slot selection now reuses in-memory profile snapshots during a connection instead of rereading a loaded slot on every click.
 
 ## [2026-06-15]
 

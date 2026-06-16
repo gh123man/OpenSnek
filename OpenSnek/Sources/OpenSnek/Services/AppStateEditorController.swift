@@ -1096,6 +1096,19 @@ final class AppStateEditorController {
         "\(device.id)#\(profileID)"
     }
 
+    private func cachedOnboardProfileSnapshot(device: MouseDevice, profileID: Int) -> OnboardProfileSnapshot? {
+        onboardProfileSnapshotsByKey[onboardProfileSnapshotKey(device: device, profileID: profileID)]
+    }
+
+    private func readAndCacheOnboardProfileSnapshot(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot {
+        if let cached = cachedOnboardProfileSnapshot(device: device, profileID: profileID) {
+            return cached
+        }
+        let snapshot = try await environment.backend.readOnboardProfile(device: device, profileID: profileID)
+        cacheOnboardProfileSnapshot(snapshot, device: device)
+        return snapshot
+    }
+
     private func updateCachedOnboardInventoryActiveProfile(deviceID: String, activeProfileID: Int) {
         guard let inventory = onboardProfileInventoryByDeviceID[deviceID] else { return }
         let profiles = synthesizedOnboardProfileSummaries(from: inventory).map { summary in
@@ -1264,8 +1277,7 @@ final class AppStateEditorController {
                 bumpOnboardProfilesRevision()
                 return
             }
-            let snapshot = try await environment.backend.readOnboardProfile(device: device, profileID: profileID)
-            onboardProfileSnapshotsByKey[onboardProfileSnapshotKey(device: device, profileID: profileID)] = snapshot
+            let snapshot = try await readAndCacheOnboardProfileSnapshot(device: device, profileID: profileID)
             selectedOnboardProfileIDByDeviceID[device.id] = profileID
             hydrateEditable(from: snapshot, device: device)
             bumpOnboardProfilesRevision()
@@ -1280,8 +1292,7 @@ final class AppStateEditorController {
             let state = try await environment.backend.activateOnboardProfile(device: device, profileID: profileID)
             selectedOnboardProfileIDByDeviceID[device.id] = profileID
             hydrateEditable(from: state)
-            let snapshot = try await environment.backend.readOnboardProfile(device: device, profileID: profileID)
-            cacheOnboardProfileSnapshot(snapshot, device: device)
+            let snapshot = try await readAndCacheOnboardProfileSnapshot(device: device, profileID: profileID)
             hydrateEditable(from: snapshot, device: device)
             await refreshOnboardProfiles()
         } catch {
@@ -1289,13 +1300,27 @@ final class AppStateEditorController {
         }
     }
 
-    func createOnboardProfile(name: String, targetProfileID: Int? = nil) async {
+    func createOnboardProfile(
+        name: String,
+        targetProfileID: Int? = nil,
+        copyFromProfileID: Int? = nil
+    ) async {
         guard !isTearingDown, let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return }
         do {
             let metadata = OnboardProfileMetadata(name: name)
+            let mutation: OnboardProfileMutation
+            if let copyFromProfileID {
+                let sourceSnapshot = try await readAndCacheOnboardProfileSnapshot(
+                    device: device,
+                    profileID: copyFromProfileID
+                )
+                mutation = onboardProfileMutation(copying: sourceSnapshot, metadata: metadata)
+            } else {
+                mutation = currentOnboardProfileMutation(device: device, metadata: metadata)
+            }
             let snapshot = try await environment.backend.createOnboardProfile(
                 device: device,
-                mutation: currentOnboardProfileMutation(device: device, metadata: metadata),
+                mutation: mutation,
                 targetProfileID: targetProfileID,
                 replaceAssignedProfile: false
             )
@@ -1344,8 +1369,7 @@ final class AppStateEditorController {
                 : inventory.assignedProfileIDs.first
             if let nextSelected {
                 selectedOnboardProfileIDByDeviceID[device.id] = nextSelected
-                if let snapshot = try? await environment.backend.readOnboardProfile(device: device, profileID: nextSelected) {
-                    onboardProfileSnapshotsByKey[onboardProfileSnapshotKey(device: device, profileID: nextSelected)] = snapshot
+                if let snapshot = try? await readAndCacheOnboardProfileSnapshot(device: device, profileID: nextSelected) {
                     hydrateEditable(from: snapshot, device: device)
                 }
             } else {
@@ -1424,6 +1448,19 @@ final class AppStateEditorController {
             buttonBindings: editorStore.editableButtonBindings,
             brightnessByLEDID: brightness,
             staticColorByLEDID: colors.isEmpty ? nil : colors
+        )
+    }
+
+    private func onboardProfileMutation(
+        copying snapshot: OnboardProfileSnapshot,
+        metadata: OnboardProfileMetadata
+    ) -> OnboardProfileMutation {
+        OnboardProfileMutation(
+            metadata: metadata,
+            dpi: snapshot.dpi,
+            buttonBindings: snapshot.buttonBindings,
+            brightnessByLEDID: snapshot.brightnessByLEDID,
+            staticColorByLEDID: snapshot.staticColorByLEDID
         )
     }
 

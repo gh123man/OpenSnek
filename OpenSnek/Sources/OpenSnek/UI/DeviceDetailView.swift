@@ -30,26 +30,20 @@ struct DeviceDetailView: View {
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 18) {
                     DeviceOverviewBar(deviceStore: deviceStore, selected: selected, state: state)
-                    VStack(alignment: .leading, spacing: 12) {
-                        DetailColumnsLayout(
-                            minTwoColumnCardWidth: detailTwoColumnMinWidth,
-                            twoColumnBreakpointPadding: twoColumnBreakpointPadding,
-                            spacing: cardSpacing,
-                            maxCardWidth: detailCardMaxWidth
-                        ) {
-                            ForEach(sections, id: \.self) { section in
-                                detailCard(for: section)
-                                    .layoutValue(key: PreferredDetailColumnLayoutKey.self, value: preferredColumn(for: section))
-                                    .layoutValue(key: DetailCardMaxWidthLayoutKey.self, value: section == .buttonRemap ? detailContentMaxWidth : detailCardMaxWidth)
-                            }
+                    DetailColumnsLayout(
+                        minTwoColumnCardWidth: detailTwoColumnMinWidth,
+                        twoColumnBreakpointPadding: twoColumnBreakpointPadding,
+                        spacing: cardSpacing,
+                        maxCardWidth: detailCardMaxWidth
+                    ) {
+                        ForEach(sections, id: \.self) { section in
+                            detailCard(for: section)
+                                .layoutValue(key: PreferredDetailColumnLayoutKey.self, value: preferredColumn(for: section))
+                                .layoutValue(key: DetailCardMaxWidthLayoutKey.self, value: section == .buttonRemap ? detailContentMaxWidth : detailCardMaxWidth)
                         }
-                        .disabled(!controlsEnabled)
-                        .opacity(controlsEnabled ? 1.0 : 0.44)
-                        .loadingScrim(
-                            isPresented: controlsEnabled && editorStore.isButtonProfileOperationInFlight,
-                            label: editorStore.buttonProfileOperationStatusText
-                        )
                     }
+                    .disabled(!controlsEnabled)
+                    .opacity(controlsEnabled ? 1.0 : 0.44)
                     DiagnosticsFooter(deviceStore: deviceStore, device: selected, state: state)
                 }
                 .frame(width: contentWidth, alignment: .leading)
@@ -59,6 +53,10 @@ struct DeviceDetailView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(WindowDragBlocker())
+            .loadingScrim(
+                isPresented: controlsEnabled && editorStore.isButtonProfileOperationInFlight,
+                label: editorStore.buttonProfileOperationStatusText
+            )
             .task(id: selected.id) {
                 await deviceStore.refreshConnectionDiagnostics(for: selected)
             }
@@ -846,10 +844,13 @@ struct LightingCard: View {
     private func staticLightingZoneEditor() -> some View {
         if showsStaticLightingZonePicker {
             VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Spacer(minLength: 12)
+                HStack(spacing: 12) {
+                    Text("Editing Zone")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.82))
+                    Spacer(minLength: 8)
                     Picker(
-                        "Editing Zone",
+                        "",
                         selection: Binding(
                             get: { editorStore.editableUSBLightingZoneID },
                             set: {
@@ -861,6 +862,7 @@ struct LightingCard: View {
                             Text(zone.label).tag(zone.id)
                         }
                     }
+                    .labelsHidden()
                     .pickerStyle(.segmented)
                     .frame(maxWidth: 340, alignment: .trailing)
                 }
@@ -1705,11 +1707,13 @@ private struct OnboardProfileManagerCard: View {
     let editorStore: EditorStore
 
     @State private var renameName = ""
+    @State private var copyFromProfileID = 1
     @State private var hoveredProfileID: Int?
     private let slotColumnWidth: CGFloat = 188
-    private let connectorWidth: CGFloat = 20
+    private let connectorWidth: CGFloat = 14
     private let slotRowHeight: CGFloat = 48
     private let slotRowSpacing: CGFloat = 8
+    private let columnSpacing: CGFloat = 4
     private let actionPanelCornerRadius: CGFloat = 8
 
     private var isBusy: Bool {
@@ -1750,11 +1754,24 @@ private struct OnboardProfileManagerCard: View {
         CGFloat(selectedProfileIndex) * (slotRowHeight + slotRowSpacing) + (slotRowHeight / 2)
     }
 
+    private var copySourceSummaries: [OnboardProfileSummary] {
+        editorStore.onboardProfileSummaries.filter(\.isAssigned)
+    }
+
+    private var resolvedCopyFromProfileID: Int {
+        let sourceIDs = Set(copySourceSummaries.map(\.profileID))
+        if sourceIDs.contains(copyFromProfileID) {
+            return copyFromProfileID
+        }
+        if let active = copySourceSummaries.first(where: \.isActive)?.profileID {
+            return active
+        }
+        return copySourceSummaries.first?.profileID ?? 1
+    }
+
     var body: some View {
         Card(title: "Onboard Profiles") {
             VStack(alignment: .leading, spacing: 12) {
-                header
-
                 if editorStore.onboardProfileSummaries.isEmpty {
                     loadingRow
                 } else {
@@ -1777,21 +1794,8 @@ private struct OnboardProfileManagerCard: View {
         }
     }
 
-    private var header: some View {
-        HStack(spacing: 8) {
-            Spacer()
-            Button {
-                Task { await editorStore.refreshOnboardProfiles() }
-            } label: {
-                Image(systemName: "arrow.clockwise")
-            }
-            .buttonStyle(.bordered)
-            .disabled(isBusy)
-        }
-    }
-
     private var profileLayout: some View {
-        HStack(alignment: .top, spacing: 0) {
+        HStack(alignment: .top, spacing: columnSpacing) {
             VStack(alignment: .leading, spacing: slotRowSpacing) {
                 ForEach(editorStore.onboardProfileSummaries) { profile in
                     profileSlotRow(profile)
@@ -1887,25 +1891,25 @@ private struct OnboardProfileManagerCard: View {
 
     private func profileTitleOpacity(profile: OnboardProfileSummary, isSelected: Bool, isHovered: Bool) -> Double {
         if profile.isActive || isSelected { return 1.0 }
-        if profile.isAssigned { return isHovered ? 0.74 : 0.50 }
+        if profile.isAssigned { return isHovered ? 0.88 : 0.72 }
         return isHovered ? 0.54 : 0.22
     }
 
     private func profileSubtitleOpacity(profile: OnboardProfileSummary, isSelected: Bool, isHovered: Bool) -> Double {
         if profile.isActive || isSelected { return 0.56 }
-        if profile.isAssigned { return isHovered ? 0.42 : 0.27 }
+        if profile.isAssigned { return isHovered ? 0.54 : 0.42 }
         return isHovered ? 0.34 : 0.18
     }
 
     private func profileFillOpacity(profile: OnboardProfileSummary, isSelected: Bool, isHovered: Bool) -> Double {
         if isSelected { return 0.12 }
-        if profile.isAssigned { return isHovered ? 0.052 : 0.024 }
+        if profile.isAssigned { return isHovered ? 0.065 : 0.040 }
         return isHovered ? 0.034 : 0.010
     }
 
     private func profileStrokeOpacity(profile: OnboardProfileSummary, isSelected: Bool, isHovered: Bool) -> Double {
         if isSelected { return 0.18 }
-        if profile.isAssigned { return isHovered ? 0.10 : 0.045 }
+        if profile.isAssigned { return isHovered ? 0.14 : 0.085 }
         return isHovered ? 0.10 : 0.025
     }
 
@@ -1930,6 +1934,7 @@ private struct OnboardProfileManagerCard: View {
                 if selectedSummary.isAssigned {
                     assignedActions(selectedProfileID: selectedProfileID)
                 } else {
+                    copyFromPicker
                     createAction(selectedProfileID: selectedProfileID)
                 }
 
@@ -1949,7 +1954,7 @@ private struct OnboardProfileManagerCard: View {
                     }
                 }
             }
-            .padding(.leading, connectorWidth + 12)
+            .padding(.leading, connectorWidth + 10)
             .padding(.trailing, 12)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, minHeight: profileListHeight, alignment: .topLeading)
@@ -2006,20 +2011,20 @@ private struct OnboardProfileManagerCard: View {
     private func assignedActions(selectedProfileID: Int) -> some View {
         HStack(spacing: 8) {
             Button {
-                Task { await editorStore.renameSelectedOnboardProfile(name: renameName) }
-            } label: {
-                Label("Rename", systemImage: "pencil")
-            }
-            .buttonStyle(.bordered)
-            .disabled(isBusy || selectedNameIsEmpty)
-
-            Button {
                 Task { await editorStore.activateOnboardProfile(selectedProfileID) }
             } label: {
                 Label("Activate", systemImage: "checkmark.circle.fill")
             }
             .buttonStyle(.borderedProminent)
             .disabled(isBusy || editorStore.selectedOnboardProfileIsActive)
+
+            Button {
+                Task { await editorStore.renameSelectedOnboardProfile(name: renameName) }
+            } label: {
+                Label("Rename", systemImage: "pencil")
+            }
+            .buttonStyle(.bordered)
+            .disabled(isBusy || selectedNameIsEmpty)
 
             Button {
                 Task { await editorStore.deleteSelectedOnboardProfile() }
@@ -2032,13 +2037,41 @@ private struct OnboardProfileManagerCard: View {
         .controlSize(.small)
     }
 
+    @ViewBuilder
+    private var copyFromPicker: some View {
+        if !copySourceSummaries.isEmpty {
+            HStack(spacing: 12) {
+                Text("Copy From")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.68))
+                Spacer(minLength: 8)
+                Picker(
+                    "",
+                    selection: Binding(
+                        get: { resolvedCopyFromProfileID },
+                        set: { copyFromProfileID = $0 }
+                    )
+                ) {
+                    ForEach(copySourceSummaries) { profile in
+                        Text(profile.displayName).tag(profile.profileID)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 180, alignment: .trailing)
+            }
+        }
+    }
+
     private func createAction(selectedProfileID: Int) -> some View {
         Button {
             let name = renameName
+            let copyFrom = copySourceSummaries.isEmpty ? nil : resolvedCopyFromProfileID
             Task {
                 await editorStore.createOnboardProfile(
                     name: name,
-                    targetProfileID: selectedProfileID
+                    targetProfileID: selectedProfileID,
+                    copyFromProfileID: copyFrom
                 )
             }
         } label: {
@@ -2052,6 +2085,9 @@ private struct OnboardProfileManagerCard: View {
     private func resetNameField(for summary: OnboardProfileSummary?) {
         guard let summary else { return }
         renameName = summary.isAssigned ? summary.displayName : ""
+        if !summary.isAssigned {
+            copyFromProfileID = resolvedCopyFromProfileID
+        }
     }
 }
 
