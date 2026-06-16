@@ -8,6 +8,7 @@ All notable changes to this project are documented in this file.
 - `OpenSnekProbe` now includes `bt-profile-watch`, a Basilisk V3 Pro Bluetooth live-profile fingerprint helper that polls button slot `0x04` plus the DPI-stage snapshot and reports when the active live projected profile changes. This is intended for validating Synapse-driven and physical profile-cycle changes on the V3 Pro BT path even though persistent stored slots still do not have a direct read API.
 - Added an automated Windows BTVS/tshark capture wrapper plus Basilisk V3 Pro Bluetooth profile-cycle capture notes. The new capture-backed research documents Synapse profile projection traffic on research-only keys such as `01 86 00 00`, `01 82 00 00`, `01 8C <slot> 00`, and `08 05` / `08 06` / `08 07` profile-apply candidates.
 - Windows BTVS captures now also emit Synapse log correlation artifacts (`metadata.json`, `synapse-events.csv`, `synapse-events.md`, and `correlation.md`) so future reverse-engineering passes can jump from Synapse feature events to nearby BLE vendor exchanges automatically. The wrapper avoids stale listeners by choosing a fresh port when needed and uses faster request/notify matching for large captures.
+- Documented practical Windows BTVS capture usage, including idle baselines, focused feature passes, common script options, and the preferred artifact inspection order.
 
 ## [2026-05-17]
 

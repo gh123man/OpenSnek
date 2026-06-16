@@ -1,3 +1,38 @@
+<#
+.SYNOPSIS
+Captures Bluetooth ATT traffic from BTVS and correlates it with Razer Synapse logs.
+
+.DESCRIPTION
+Starts Microsoft BTVS in remote Wireshark mode, captures the stream with tshark,
+exports ATT/vendor CSVs, groups vendor request/notify exchanges, and writes
+Synapse event correlation files for faster feature reverse engineering.
+
+Run from the repository root so relative output paths land under
+captures\ble\windows.
+
+.EXAMPLE
+powershell -ExecutionPolicy Bypass -File tools\windows\capture-btvs.ps1 -Name idle-baseline -Seconds 15
+
+Capture a short same-session idle baseline before exercising a feature.
+
+.EXAMPLE
+powershell -ExecutionPolicy Bypass -File tools\windows\capture-btvs.ps1 -Name profile-switch-button-pass-1 -Seconds 45
+
+Start capture, perform the smallest profile-switch action sequence, then inspect
+synapse-events.md, correlation.md, and summary.md in the generated output folder.
+
+.EXAMPLE
+powershell -ExecutionPolicy Bypass -File tools\windows\capture-btvs.ps1 -Name profile-switch-visible -Seconds 45 -ShowBtvs
+
+Leave the BTVS window visible while capturing.
+
+.EXAMPLE
+powershell -ExecutionPolicy Bypass -File tools\windows\capture-btvs.ps1 -Name attach-existing -Seconds 30 -ReuseBtvs
+
+Attach to an existing BTVS listener on the requested port. Prefer the default
+fresh-port behavior unless intentionally reusing a listener.
+#>
+
 param(
     [Parameter(Mandatory=$true)]
     [string]$Name,

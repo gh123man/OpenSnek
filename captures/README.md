@@ -142,6 +142,42 @@ Use the repo wrapper when BTVS is installed under `C:\BTP\v1.14.0` and Wireshark
 powershell -ExecutionPolicy Bypass -File tools\windows\capture-btvs.ps1 -Name profile-button-cycle-pass-1 -Seconds 25
 ```
 
+Run it from the repository root. The script creates a timestamped output folder under `captures\ble\windows\`, for example:
+
+```text
+captures\ble\windows\2026-06-15-195434-profile-button-cycle-focused-pass-4\
+```
+
+Typical capture flow:
+
+1. Make sure the mouse is connected over Bluetooth and Synapse is open.
+2. Start with a short idle baseline when the current background traffic is unknown:
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File tools\windows\capture-btvs.ps1 -Name idle-baseline -Seconds 15
+   ```
+
+3. Start the feature capture:
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File tools\windows\capture-btvs.ps1 -Name profile-switch-button-pass-1 -Seconds 45
+   ```
+
+4. As soon as the script prints `Capturing BTVS TCP stream`, perform only the target action. For a profile-switch button pass, press the physical profile switch button a few times with a couple seconds between presses.
+5. Leave the mouse alone until capture completes.
+6. Inspect the generated files in the order below, starting with `synapse-events.md`.
+
+Useful options:
+
+- `-Seconds <n>`: capture duration. Use `15` for idle baselines, `30..60` for focused feature passes.
+- `-Name <name>`: short action-based label used in the output folder name.
+- `-CorrelationWindowSeconds <n>`: widen or narrow Synapse-to-packet matching. Default is `3`.
+- `-NoSynapseLogs`: skip Synapse log export when Synapse is intentionally not running.
+- `-ShowBtvs`: leave the BTVS window visible while capturing.
+- `-KeepBtvs`: leave a BTVS instance started by the script running after capture.
+- `-ReuseBtvs`: attach to an existing listener on the requested port. Prefer the default fresh-port behavior unless intentionally reusing BTVS.
+- `-BtpRoot <path>` / `-WiresharkRoot <path>`: override tool locations when BTVS or Wireshark are installed somewhere else.
+
 The script:
 
 - starts BTVS in remote Wireshark mode when no sniffer is already listening on the requested port
