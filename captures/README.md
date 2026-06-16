@@ -203,6 +203,18 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - The BLE write was live-only: `0B 04 01 00` with table `7650`, `800`, `1600`, `3200`, `6400`, followed by `0B 84 01 00` readback. No `0B 04 02 00` stored-target DPI table write occurred in this pass.
   - This capture backs the active saved-slot DPI update section of `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
 
+- `ble/windows/2026-06-15-213442-profile-inactive-saved-slot-button-update-pass-1/`
+  - Windows BTVS/tshark capture intended to update one button on an inactive saved/onboard profile.
+  - The action was invalid for button mapping because the user changed DPI by mistake.
+  - Synapse switched/projected `OS_P5` and emitted a live target `1` DPI table write; this capture is retained as an informational mis-action trace and should not be used as button-update evidence.
+
+- `ble/windows/2026-06-15-213655-profile-inactive-saved-slot-button-update-pass-2/`
+  - Windows BTVS/tshark capture of a Button5 keyboard assignment intended for a saved/onboard slot that was not meant to be live.
+  - Synapse logged `setSingleButtonMapping profileId: 5` for Button5 -> keyboard HID `0x09`.
+  - The wire trace wrote stored target `5` first (`08 04 05 05`, payload `05 05 00 02 02 00 09 00 00 00`), then live target `1` (`08 04 01 05`, payload `01 05 00 02 02 00 09 00 00 00`).
+  - No profile metadata rewrite, add/delete, profile-apply, DPI table write, or brightness write occurred in the in-window operation.
+  - This capture backs the attempted inactive saved-slot button update section of `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
+
 ## Notes
 
 - Captures are intentionally action-scoped for faster diffing.

@@ -254,6 +254,47 @@ Current implementation guidance:
 - This is faster than a full profile projection and does not require profile
   metadata rewrites for simple button changes.
 
+### Attempted Inactive Saved-Slot Button Update
+
+Captures:
+
+- `captures/ble/windows/2026-06-15-213442-profile-inactive-saved-slot-button-update-pass-1/`
+- `captures/ble/windows/2026-06-15-213655-profile-inactive-saved-slot-button-update-pass-2/`
+
+Pass 1 was intended to change one button on an inactive saved/onboard profile,
+but the user accidentally changed DPI instead. Treat it as an invalid button
+mapping pass. It produced another active-profile/live-target DPI projection and
+does not answer inactive button behavior.
+
+Pass 2 captured a Button5 keyboard assignment intended for a saved/onboard slot
+that was not meant to be the live profile. Synapse's model did not expose a
+clean offline-only edit: the in-window active-profile log showed `OS_P5` with
+the new Button5 mapping, and the wire trace wrote both stored target `5` and
+live target `1`.
+
+Relevant pass 2 writes:
+
+| Event | Key | Payload | Interpretation |
+|---|---|---|---|
+| Button5 -> keyboard HID `0x09` | `08 04 05 05` | `05 05 00 02 02 00 09 00 00 00` | stored target `5`, slot `0x05` |
+| Button5 -> keyboard HID `0x09` | `08 04 01 05` | `01 05 00 02 02 00 09 00 00 00` | immediately project same binding to live target `1` |
+
+No profile metadata rewrite (`03 04`), target add/delete (`03 05`/`03 06`),
+profile apply (`08 05`/`08 07`), DPI table write, or brightness write occurred
+in the pass 2 in-window operation.
+
+Implementation guidance:
+
+- Synapse's editable-profile UI appears to converge on the same stored-then-live
+  write shape for button edits: `08 04 <stored-target> <slot>`, then
+  `08 04 01 <slot>`.
+- This pass does not prove a pure offline inactive-slot write path because
+  Synapse projected the edited mapping to live target `1`.
+- For an OpenSnek-owned profile manager, inactive profile edits can remain
+  host-side until the user selects/projects that profile. When projecting a
+  selected profile, write the stored target first if it is assigned, then write
+  live target `1`.
+
 Needed capture:
 
 - Inactive saved/onboard DPI edit: change exactly one DPI value on a profile
@@ -502,10 +543,11 @@ Proposed behavior:
 
 Recommended order:
 
-1. Inactive saved/onboard button edit: modify one button on a profile assigned
+1. Inactive saved/onboard DPI edit: modify one DPI value on a profile assigned
    to an onboard slot that is not currently live.
-2. Inactive saved/onboard DPI edit: modify one DPI value on a profile assigned
-   to an onboard slot that is not currently live.
+2. Offline inactive edit path: if Synapse exposes a way to edit an assigned
+   stored profile without making it the active/editing profile, modify one
+   button and verify whether live target `1` is untouched.
 3. Synapse-closed physical cycle: close/kill Synapse, press the profile button,
    and observe whether firmware-only cycling follows the OBM list or needs host
    projection.

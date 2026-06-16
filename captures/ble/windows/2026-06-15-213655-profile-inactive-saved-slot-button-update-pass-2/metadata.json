@@ -1,0 +1,12 @@
+﻿{
+    "name":  "profile-inactive-saved-slot-button-update-pass-2",
+    "captureStart":  "2026-06-15T21:37:06.3428867-04:00",
+    "captureEnd":  "2026-06-15T21:38:07.7265490-04:00",
+    "seconds":  60,
+    "port":  24400,
+    "requestedPort":  24400,
+    "pcap":  "captures\\ble\\windows\\2026-06-15-213655-profile-inactive-saved-slot-button-update-pass-2\\capture.pcapng",
+    "attCsv":  "captures\\ble\\windows\\2026-06-15-213655-profile-inactive-saved-slot-button-update-pass-2\\att.csv",
+    "vendorCsv":  "captures\\ble\\windows\\2026-06-15-213655-profile-inactive-saved-slot-button-update-pass-2\\vendor-att.csv",
+    "synapseLogRoot":  "C:\\Users\\gh123\\AppData\\Local\\Razer\\RazerAppEngine\\User Data\\Logs"
+}
