@@ -144,36 +144,62 @@ extension BridgeClient {
         }
         let current = try await readOnboardProfile(device: device, profileID: profileID)
         let renamed = current.metadata.renamed(name)
+        let projected = OnboardProfileSnapshot(
+            profileID: current.profileID,
+            metadata: renamed,
+            dpi: current.dpi,
+            buttonBindings: current.buttonBindings,
+            brightnessByLEDID: current.brightnessByLEDID,
+            staticColorByLEDID: current.staticColorByLEDID
+        )
 
         switch device.transport {
         case .usb:
             return try await withUSBProfileSession(device: device) { session in
                 try self.usbWriteOnboardProfileMetadata(session, device, profileID: profileID, metadata: renamed)
-                return try self.retryUSBOnboardProfileReadback(
+                do {
+                    return try self.retryUSBOnboardProfileReadback(
+                        device: device,
+                        operation: "USB onboard profile rename",
+                        failureMessage: "USB onboard profile rename readback did not match profile \(profileID).",
+                        attempts: 8,
+                        read: {
+                            try self.usbReadOnboardProfile(session, device, profile: profile, profileID: profileID)
+                        },
+                        accepts: { snapshot in
+                            snapshot.profileID == profileID && snapshot.metadata.name == renamed.name
+                        }
+                    )
+                } catch {
+                    AppLog.warning(
+                        "Bridge",
+                        "USB onboard profile rename readback lagged after successful write device=\(device.id) profile=\(profileID): \(error.localizedDescription)"
+                    )
+                    return projected
+                }
+            }
+        case .bluetooth:
+            try await btWriteOnboardProfileMetadata(device: device, target: profileID, metadata: renamed)
+            do {
+                return try await retryOnboardProfileReadback(
                     device: device,
-                    operation: "USB onboard profile rename",
-                    failureMessage: "USB onboard profile rename readback did not match profile \(profileID).",
+                    operation: "Bluetooth onboard profile rename",
+                    failureMessage: "Bluetooth onboard profile rename readback did not match target \(profileID).",
+                    attempts: 8,
                     read: {
-                        try self.usbReadOnboardProfile(session, device, profile: profile, profileID: profileID)
+                        try await self.btReadOnboardProfile(device: device, profile: profile, target: profileID)
                     },
                     accepts: { snapshot in
                         snapshot.profileID == profileID && snapshot.metadata.name == renamed.name
                     }
                 )
+            } catch {
+                AppLog.warning(
+                    "Bridge",
+                    "Bluetooth onboard profile rename readback lagged after successful write device=\(device.id) target=\(profileID): \(error.localizedDescription)"
+                )
+                return projected
             }
-        case .bluetooth:
-            try await btWriteOnboardProfileMetadata(device: device, target: profileID, metadata: renamed)
-            return try await retryOnboardProfileReadback(
-                device: device,
-                operation: "Bluetooth onboard profile rename",
-                failureMessage: "Bluetooth onboard profile rename readback did not match target \(profileID).",
-                read: {
-                    try await self.btReadOnboardProfile(device: device, profile: profile, target: profileID)
-                },
-                accepts: { snapshot in
-                    snapshot.profileID == profileID && snapshot.metadata.name == renamed.name
-                }
-            )
         }
     }
 
@@ -283,7 +309,7 @@ extension BridgeClient {
 
         switch device.transport {
         case .usb:
-            try await withUSBProfileSession(device: device) { session in
+            return try await withUSBProfileSession(device: device) { session in
                 let response = try self.perform(
                     session,
                     device,
@@ -296,9 +322,35 @@ extension BridgeClient {
                       USBHIDProtocol.activeProfileSetAccepted(from: response, profile: UInt8(profileID)) else {
                     throw BridgeError.commandFailed("USB onboard profile selector was rejected.")
                 }
-                guard try self.usbReadActiveOnboardProfileID(session, device) == profileID else {
-                    throw BridgeError.commandFailed("USB active profile readback did not match profile \(profileID).")
-                }
+                _ = try self.retryUSBOnboardProfileReadback(
+                    device: device,
+                    operation: "USB active onboard profile selector",
+                    failureMessage: "USB active profile readback did not match profile \(profileID).",
+                    attempts: 6,
+                    read: {
+                        try self.usbReadActiveOnboardProfileID(session, device)
+                    },
+                    accepts: { active in
+                        active == profileID
+                    }
+                )
+                let snapshot = try self.retryUSBOnboardProfileReadback(
+                    device: device,
+                    operation: "USB active onboard profile snapshot",
+                    failureMessage: "USB active profile snapshot readback failed for profile \(profileID).",
+                    read: {
+                        try self.usbReadOnboardProfile(session, device, profile: profile, profileID: profileID)
+                    },
+                    accepts: { snapshot in
+                        snapshot.profileID == profileID
+                    }
+                )
+                return self.storeProjectedActiveOnboardProfileState(
+                    device: device,
+                    profile: profile,
+                    activeProfileID: profileID,
+                    snapshot: snapshot
+                )
             }
         case .bluetooth:
             let req = nextBTReq()
@@ -315,12 +367,36 @@ extension BridgeClient {
             guard btAckSuccess(notifies: notifies, req: req) else {
                 throw BridgeError.commandFailed("Bluetooth onboard profile selector was rejected.")
             }
-            guard try await btReadActiveOnboardProfileID(device: device) == profileID else {
-                throw BridgeError.commandFailed("Bluetooth active target readback did not match target \(profileID).")
-            }
+            _ = try await retryOnboardProfileReadback(
+                device: device,
+                operation: "Bluetooth active onboard profile selector",
+                failureMessage: "Bluetooth active target readback did not match target \(profileID).",
+                attempts: 6,
+                read: {
+                    try await self.btReadActiveOnboardProfileID(device: device)
+                },
+                accepts: { active in
+                    active == profileID
+                }
+            )
+            let snapshot = try await retryOnboardProfileReadback(
+                device: device,
+                operation: "Bluetooth active onboard profile snapshot",
+                failureMessage: "Bluetooth active target snapshot readback failed for target \(profileID).",
+                read: {
+                    try await self.btReadOnboardProfile(device: device, profile: profile, target: profileID)
+                },
+                accepts: { snapshot in
+                    snapshot.profileID == profileID
+                }
+            )
+            return storeProjectedActiveOnboardProfileState(
+                device: device,
+                profile: profile,
+                activeProfileID: profileID,
+                snapshot: snapshot
+            )
         }
-
-        return try await refreshActiveOnboardProfile(device: device, profile: profile)
     }
 
     func refreshActiveOnboardProfile(device: MouseDevice) async throws -> MouseState {
@@ -1228,22 +1304,38 @@ extension BridgeClient {
     }
 
     func refreshActiveOnboardProfile(device: MouseDevice, profile: DeviceProfile) async throws -> MouseState {
-        let active: Int
+        let rawActive: Int
         switch device.transport {
         case .usb:
-            active = try await withUSBProfileSession(device: device) { session in
+            rawActive = try await withUSBProfileSession(device: device) { session in
                 try self.usbReadActiveOnboardProfileID(session, device) ?? 1
             }
         case .bluetooth:
-            active = try await btReadActiveOnboardProfileID(device: device) ?? 1
+            rawActive = try await btReadActiveOnboardProfileID(device: device) ?? 1
         }
+        let active = max(1, min(profile.onboardProfileCount, rawActive))
         let activeSnapshot = try await readOnboardProfile(device: device, profileID: 0)
+        return storeProjectedActiveOnboardProfileState(
+            device: device,
+            profile: profile,
+            activeProfileID: active,
+            snapshot: activeSnapshot
+        )
+    }
+
+    func storeProjectedActiveOnboardProfileState(
+        device: MouseDevice,
+        profile: DeviceProfile,
+        activeProfileID: Int,
+        snapshot: OnboardProfileSnapshot
+    ) -> MouseState {
         let previous = lastStateByDeviceID[device.id]
+        let active = max(1, min(profile.onboardProfileCount, activeProfileID))
         let state = stateFromActiveOnboardProfileSnapshot(
             device: device,
             profile: profile,
             activeProfileID: active,
-            snapshot: activeSnapshot,
+            snapshot: snapshot,
             previous: previous
         )
         lastStateByDeviceID[device.id] = state

@@ -1310,6 +1310,7 @@ final class AppStateEditorController {
                 return
             }
             guard isOnboardProfileActive(deviceID: device.id, profileID: profileID) else {
+                _ = try await readAndCacheOnboardProfileSnapshot(device: device, profileID: profileID)
                 await activateOnboardProfile(profileID)
                 return
             }
@@ -1319,6 +1320,7 @@ final class AppStateEditorController {
             deviceStore.errorMessage = nil
             bumpOnboardProfilesRevision()
         } catch {
+            AppLog.error("AppState", "select onboard profile failed profile=\(profileID): \(error.localizedDescription)")
             deviceStore.errorMessage = "Failed to load onboard profile: \(error.localizedDescription)"
         }
     }
@@ -1326,14 +1328,18 @@ final class AppStateEditorController {
     func activateOnboardProfile(_ profileID: Int) async {
         guard !isTearingDown, let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return }
         do {
+            let targetSnapshot = try await readAndCacheOnboardProfileSnapshot(device: device, profileID: profileID)
             let state = try await environment.backend.activateOnboardProfile(device: device, profileID: profileID)
             let active = storeActiveOnboardProfileState(state, for: device, fallbackActiveProfileID: profileID)
             selectedOnboardProfileIDByDeviceID[device.id] = active
-            let snapshot = try await readAndCacheOnboardProfileSnapshot(device: device, profileID: active)
+            let snapshot = active == profileID
+                ? targetSnapshot
+                : try await readAndCacheOnboardProfileSnapshot(device: device, profileID: active)
             hydrateEditable(from: snapshot, device: device)
             deviceStore.errorMessage = nil
             bumpOnboardProfilesRevision()
         } catch {
+            AppLog.error("AppState", "activate onboard profile failed profile=\(profileID): \(error.localizedDescription)")
             deviceStore.errorMessage = "Failed to activate onboard profile: \(error.localizedDescription)"
         }
     }
@@ -1375,6 +1381,7 @@ final class AppStateEditorController {
             deviceStore.errorMessage = nil
             bumpOnboardProfilesRevision()
         } catch {
+            AppLog.error("AppState", "create onboard profile failed target=\(targetProfileID.map(String.init) ?? "auto"): \(error.localizedDescription)")
             deviceStore.errorMessage = "Failed to create onboard profile: \(error.localizedDescription)"
         }
     }
@@ -1395,6 +1402,7 @@ final class AppStateEditorController {
             deviceStore.errorMessage = nil
             bumpOnboardProfilesRevision()
         } catch {
+            AppLog.error("AppState", "rename onboard profile failed profile=\(selected): \(error.localizedDescription)")
             deviceStore.errorMessage = "Failed to rename onboard profile: \(error.localizedDescription)"
         }
     }
@@ -1454,6 +1462,7 @@ final class AppStateEditorController {
             deviceStore.errorMessage = nil
             bumpOnboardProfilesRevision()
         } catch {
+            AppLog.error("AppState", "delete onboard profile failed profile=\(selected): \(error.localizedDescription)")
             deviceStore.errorMessage = "Failed to delete onboard profile: \(error.localizedDescription)"
         }
     }
@@ -1480,6 +1489,7 @@ final class AppStateEditorController {
             bumpOnboardProfilesRevision()
             return true
         } catch {
+            AppLog.error("AppState", "update onboard profile failed profile=\(selected): \(error.localizedDescription)")
             deviceStore.errorMessage = "Failed to update onboard profile: \(error.localizedDescription)"
             return false
         }

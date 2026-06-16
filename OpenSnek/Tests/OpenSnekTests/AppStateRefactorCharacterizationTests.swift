@@ -3471,6 +3471,69 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertFalse(busyAfterHardwareProfileLoad)
     }
 
+    func testSelectingInactiveOnboardProfileReadsSnapshotBeforeActivation() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-preload-activation-device",
+            transport: .usb,
+            serial: "ONBOARD-PRELOAD-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1, 2],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(profileID: 2, name: "Stored 2", dpiValues: [1200, 2400]),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+
+        await appState.editorStore.selectOnboardProfile(2)
+
+        try await waitForRefactorCondition {
+            await MainActor.run {
+                appState.editorStore.selectedOnboardProfileID == 2 &&
+                    appState.deviceStore.state?.active_onboard_profile == 2 &&
+                    appState.editorStore.stageValue(0) == 1200
+            }
+        }
+        let events = await backend.recordedOnboardEvents()
+        XCTAssertEqual(events, ["read:2", "activate:2"])
+        let readCount = await backend.onboardReadCount(deviceID: device.id, profileID: 2)
+        XCTAssertEqual(readCount, 1)
+    }
+
     func testOnboardProfileInventoryShowsEmptySlotsAndCreatesIntoSelectedSlot() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-empty-slot-device",
@@ -3963,6 +4026,7 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
     private var onboardRenames: [(deviceID: String, profileID: Int, name: String)] = []
     private var onboardDeletes: [(deviceID: String, profileID: Int)] = []
     private var onboardActivations: [(deviceID: String, profileID: Int)] = []
+    private var onboardEvents: [String] = []
     private var heldOnboardProfileReads: Set<String> = []
     private var startedHeldOnboardProfileReads: Set<String> = []
     private var onboardProfileReadStartedContinuations: [String: CheckedContinuation<Void, Never>] = [:]
@@ -4092,6 +4156,7 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
     func readOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot {
         let key = onboardSnapshotKey(deviceID: device.id, profileID: profileID)
         onboardReadCountByKey[key, default: 0] += 1
+        onboardEvents.append("read:\(profileID)")
         if heldOnboardProfileReads.contains(key) {
             startedHeldOnboardProfileReads.insert(key)
             onboardProfileReadStartedContinuations[key]?.resume()
@@ -4244,6 +4309,7 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
             ])
         }
         onboardActivations.append((device.id, profileID))
+        onboardEvents.append("activate:\(profileID)")
         let summaries = inventory.profiles.map { summary in
             OnboardProfileSummary(
                 profileID: summary.profileID,
@@ -4378,6 +4444,10 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
 
     func recordedOnboardActivations() -> [(deviceID: String, profileID: Int)] {
         onboardActivations
+    }
+
+    func recordedOnboardEvents() -> [String] {
+        onboardEvents
     }
 
     private func buttonKey(deviceID: String, slot: Int, profile: Int) -> String {

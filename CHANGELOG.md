@@ -19,6 +19,7 @@ All notable changes to this project are documented in this file.
 ### Fixed
 - Onboard profile create and rename now update the cached slot inventory immediately without a second full refresh, and deleting the active stored profile now activates the next assigned slot.
 - Onboard profile CRUD readback now retries briefly after firmware writes so successful creates/deletes are not reported as failures during transient inventory lag.
+- Onboard profile rename now keeps the UI in sync when firmware metadata readback lags after a successful write, and profile activation now projects state from the selected profile after direct active-profile readback instead of waiting on a stale full refresh.
 
 ## [2026-06-15]
 
