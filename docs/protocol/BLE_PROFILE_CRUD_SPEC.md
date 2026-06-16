@@ -278,16 +278,50 @@ Questions to answer:
 
 ## Rename
 
-Status: likely host-only, not confirmed.
+Status: likely host-only for rename-only updates in observed Synapse flows.
 
-Needed capture:
+Captures:
 
-- Rename a profile without changing any settings.
+- `captures/ble/windows/2026-06-15-204849-profile-rename-only-pass-1/`
+- `captures/ble/windows/2026-06-15-205102-profile-rename-only-pass-2/`
 
-Questions to answer:
+Pass 1 was intended to rename the active disposable profile
+`OPENSNEK_CREATE_PROBE_1` to `OPENSNEK_RENAME_PROBE_1`. Synapse logged the
+active profile with the renamed display name at `+8.574s`, but the packet
+capture contained only periodic `10 04 00 00` lighting-frame writes.
 
-- Does any BLE traffic occur beyond normal background traffic?
-- Are names stored on-device at all?
+Pass 2 captured a rename of a different Synapse profile because renaming the
+assigned disposable profile removed it from the assigned-slot UI. Synapse logged
+the profile `cbb11d67-38cd-46db-bc16-a95424aaee61` as
+`OPENSNEK_CAPTURE_1` at `+4.292s`, then as `OPENSNEK_CAPTURE_1_foo` at
+`+12.995s`. There were no non-lighting vendor operations near the rename event.
+The only non-lighting operations in that capture were profile-selection/button
+projection writes at `+3.69s` and `+35.9s`:
+
+| Time | Key | Payload | Interpretation |
+|---:|---|---|---|
+| `3.687556` | `08 04 01 05` | `01 05 00 01 01 05 00 00 00 00` | live Button5 projection |
+| `3.717190` | `08 04 03 05` | `03 05 01 01 01 05 00 00 00 00` | stored target `3` Button5 write |
+| `3.738594` | `08 04 01 05` | `01 05 01 01 01 05 00 00 00 00` | live Button5 projection |
+| `35.907082` | `08 04 01 05` | `01 05 01 01 01 05 00 00 00 00` | live Button5 projection |
+| `35.929506` | `08 04 01 04` | `01 04 00 02 02 00 45 00 00 00` | live Button4 projection |
+
+Current implementation guidance:
+
+- Treat profile display names as OpenSnek host-side metadata for rename/update.
+- Do not rewrite `03 04 <target> 00` just to rename an existing profile.
+- The `03 04` metadata structure is still required evidence for create, where
+  Synapse wrote GUID/name/owner chunks to the stored target.
+- If a future capture proves device-side rename persistence, add it as a
+  separate stored-target metadata update path rather than using it for basic
+  host display-name changes.
+
+Open questions:
+
+- Whether an explicit device-side rename exists but Synapse defers it until a
+  profile is reassigned, exported, synced, or recreated.
+- Whether names in `03 04` are used by firmware or only copied during profile
+  creation for Synapse/OBM bookkeeping.
 
 ## OpenSnek Implementation Shape
 
@@ -317,7 +351,8 @@ Proposed behavior:
 Recommended order:
 
 1. Create one disposable profile with no manual setting edits.
-2. Rename that disposable profile.
-3. Update one setting on the active disposable profile.
-4. Update one setting on an inactive profile.
-5. Delete the disposable profile.
+2. Update one DPI setting or active DPI stage on the active disposable profile.
+3. Update one setting on an inactive profile.
+4. Delete the disposable profile.
+5. Revisit device-side rename only if we find a Synapse flow that emits BLE
+   metadata writes for rename-only changes.

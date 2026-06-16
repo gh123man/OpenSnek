@@ -1,0 +1,12 @@
+﻿{
+    "name":  "profile-rename-only-pass-2",
+    "captureStart":  "2026-06-15T20:51:12.7599081-04:00",
+    "captureEnd":  "2026-06-15T20:52:14.1245066-04:00",
+    "seconds":  60,
+    "port":  24400,
+    "requestedPort":  24400,
+    "pcap":  "captures\\ble\\windows\\2026-06-15-205102-profile-rename-only-pass-2\\capture.pcapng",
+    "attCsv":  "captures\\ble\\windows\\2026-06-15-205102-profile-rename-only-pass-2\\att.csv",
+    "vendorCsv":  "captures\\ble\\windows\\2026-06-15-205102-profile-rename-only-pass-2\\vendor-att.csv",
+    "synapseLogRoot":  "C:\\Users\\gh123\\AppData\\Local\\Razer\\RazerAppEngine\\User Data\\Logs"
+}

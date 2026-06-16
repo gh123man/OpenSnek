@@ -161,6 +161,19 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - No profile metadata rewrite (`03 04`), DPI write, lighting write, `08 05`, `08 07`, or `01 8C` operation was present in the reduced button-update windows.
   - This capture backs the active-profile button update section of `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
 
+- `ble/windows/2026-06-15-204849-profile-rename-only-pass-1/`
+  - Windows BTVS/tshark capture intended to rename the active disposable profile from `OPENSNEK_CREATE_PROBE_1` to `OPENSNEK_RENAME_PROBE_1`.
+  - Synapse logged the active profile with the renamed display name at `+8.574s`.
+  - The vendor stream contained only periodic `10 04 00 00` lighting-frame writes; no `03 04` metadata rewrite or other non-lighting vendor operation was present.
+  - Treat as rename evidence with timing caveat; pass 2 provides the clearer no-rename-write observation.
+
+- `ble/windows/2026-06-15-205102-profile-rename-only-pass-2/`
+  - Windows BTVS/tshark capture where a different Synapse profile was renamed because renaming the assigned disposable profile removed it from the assigned-slot UI.
+  - Synapse logged profile `cbb11d67-38cd-46db-bc16-a95424aaee61` as `OPENSNEK_CAPTURE_1`, then as `OPENSNEK_CAPTURE_1_foo` at `+12.995s`.
+  - No non-lighting vendor operation occurred near the rename event.
+  - The only non-lighting operations were profile-selection/button projection writes on `08 04 01 05`, `08 04 03 05`, and `08 04 01 04`.
+  - This capture backs the rename section of `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
+
 ## Notes
 
 - Captures are intentionally action-scoped for faster diffing.

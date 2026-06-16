@@ -12,6 +12,7 @@ All notable changes to this project are documented in this file.
 - Added a draft Basilisk V3 Pro Bluetooth profile CRUD spec and a Windows profile-selection capture. The current model treats Synapse profile selection as active setting projection onto live target `1`, with stored/profile target bytes still marked research-only until create/update/delete captures are mapped.
 - Added a Windows profile-create capture for a disposable Basilisk V3 Pro Bluetooth profile. The draft spec now documents the observed target-`2` create flow, including `03 04` chunked GUID/name/owner metadata writes and stored-target DPI/brightness writes.
 - Added a Windows active-profile button-update capture. The draft spec now documents the fast two-write update shape: write the stored profile target first (`08 04 02 <slot>` in this capture), then immediately project the same binding to live target `1`.
+- Added Windows rename-only profile captures. The draft spec now treats profile display-name rename as host-side metadata for OpenSnek because observed Synapse rename-only events did not emit BLE metadata rewrites.
 
 ## [2026-05-17]
 
