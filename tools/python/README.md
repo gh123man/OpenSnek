@@ -27,6 +27,10 @@ python3 tools/python/razer_poc.py --force-ble
 python3 tools/python/razer_usb.py --dpi 1600
 python3 tools/python/razer_ble.py --single-dpi 1600
 python3 tools/python/discover_bt_vendor_keys.py
+
+# Windows only: listen for Basilisk V3 Pro BT profile-cycle HID hints and run
+# one BLE vendor follow-up read per debounced event.
+python tools/python/bt_profile_cycle_watch_windows.py --seconds 60 --button-slot4
 ```
 
 ## Related Docs

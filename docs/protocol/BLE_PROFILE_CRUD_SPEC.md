@@ -478,6 +478,7 @@ Synapse-closed Bluetooth cycle captures:
 
 - `captures/ble/windows/2026-06-15-214518-profile-synapse-closed-physical-cycle-pass-1/`
 - `captures/ble/windows/2026-06-15-215545-profile-bt-hardware-cycle-synapse-closed-pass-1/`
+- `captures/ble/windows/2026-06-15-222336-profile-cycle-event-driven-followup-read/`
 
 The user closed/crashed Synapse and pressed the physical profile button during
 60-second BTVS captures. The first capture contained no decoded BLE vendor
@@ -519,6 +520,29 @@ continuous current-profile polling: the HID hint is the event, and OpenSnek
 should perform a small one-shot follow-up read/fingerprint of live target `1`
 only after that event arrives.
 
+Follow-up read validation:
+
+The event-driven watcher capture used a deliberately distinctive profile setup:
+the active profile had a DPI table shaped like `100, 100, 100, 100, 800` while
+another profile had random DPI settings. With Synapse closed, three physical
+profile-button presses generated the expected HID hint pairs and each hint
+triggered exactly one `0B 84 01 00` read. A second pass pressed the profile
+button once, waited 2 seconds after the HID hint, then read both `0B 84 01 00`
+and button slot `08 84 01 04`.
+
+Observed result:
+
+| Pass | Trigger | Follow-up reads | Result |
+|---|---|---|---|
+| 3-press event-driven pass | `04 04 ...` / `05 05 39 ...` per press | `0B 84 01 00` after each debounced hint | DPI table stayed `100,100,100,100,800` |
+| 1-press delayed pass | `04 04 ...` / `05 05 39 ...` | 2-second delay, then `0B 84 01 00` and `08 84 01 04` | DPI table and button payload stayed unchanged |
+
+This means the HID report is enough to avoid continuous polling for change
+detection, but the currently known live-target readback keys are not enough to
+identify the firmware-ring active profile after a Synapse-closed onboard cycle.
+They appear to read the current BLE live/software projection surface, which did
+not move with the hardware profile ring in these passes.
+
 User observation during these passes:
 
 - In Bluetooth mode, the physical profile button does work as an onboard
@@ -554,12 +578,17 @@ Current implementation guidance:
   topology is capture-validated. Use them only as refresh triggers.
 - Do not continuously poll the current profile just to detect onboard
   profile-button changes. The passive HID report is the detection path.
-- After a profile-cycle hint, perform a debounced, one-shot live-target `1`
-  fingerprint refresh instead of expecting the HID report to carry a target ID.
-  Known fingerprint inputs are the live DPI table (`0B 84 01 00`) and
-  representative button mappings such as slot `0x04` (`08 84 01 04`). Match
-  those live values against OpenSnek's known onboard profile snapshots to update
-  the selected profile in the UI.
+- After a profile-cycle hint, perform only event-scoped follow-up reads. Do not
+  expect the HID report to carry a target ID.
+- Do not yet rely on known live-target reads such as `0B 84 01 00` and
+  `08 84 01 04` to identify the firmware-ring active profile. In the
+  Synapse-closed event-driven pass, those reads stayed unchanged after hardware
+  profile-button cycles.
+- Until an onboard active-slot read is mapped, OpenSnek can use the HID hint to
+  mark profile state stale/changed in real time and trigger a bounded refresh
+  workflow, but exact selected-profile identity requires either a newly decoded
+  firmware-ring state key or an OpenSnek-owned model that controls the onboard
+  profile ring.
 - Host-side cycling should be an explicit OpenSnek-owned mode, not the default
   behavior for onboard profile slots.
 - Do not infer target deletion from a Synapse rename alone. Synapse currently
@@ -573,6 +602,10 @@ Open questions:
   "a profile-cycle event happened." The current Windows HID sniff did not decode
   a target ID, so OpenSnek should do a one-shot live target `1` fingerprint
   refresh after the hint.
+- Which read-only BLE key, if any, exposes the firmware-ring active profile slot
+  when Synapse is closed. `0B 84 01 00`, `08 84 01 04`, `01 86 00 00`,
+  `01 82 00 00`, and `01 8C <target> 00` did not identify the changed profile
+  in the current event-driven passes.
 - Whether `03 06` clears target metadata/settings immediately or only removes
   the target from the onboard profile list; create captures suggest Synapse may
   later recycle and rewrite the same target.

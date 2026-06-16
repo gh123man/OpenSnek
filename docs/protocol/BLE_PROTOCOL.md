@@ -342,12 +342,14 @@ Profile-cycle notes:
 - no profile target ID has been decoded from these reports
 - use these reports to trigger an immediate one-shot live-state refresh/fingerprint, not to directly select a profile
 - this should be event-driven; do not continuously poll the current profile just to notice onboard profile-button changes
+- current V3 Pro BT captures show that known live-target reads (`0B 84 01 00`, `08 84 01 04`) can remain unchanged after firmware-ring profile-button cycles, so they are not yet a reliable active-profile identity source
 
 Current app policy:
 - subscribe to passive HID DPI reports only on capture-validated Bluetooth profiles
 - treat passive Bluetooth heartbeat frames as stream-liveness only
 - treat passive Bluetooth profile-cycle reports as refresh hints only
-- after a profile-cycle hint, perform a debounced one-shot live-state read/fingerprint to identify the active profile
+- after a profile-cycle hint, perform only bounded/event-scoped follow-up work; do not run a continuous current-profile polling loop
+- until a firmware-ring active-slot read is mapped, treat exact active-profile identity as unknown/stale rather than assuming the known live-target readback keys identify the onboard profile
 - update cached `dpi.x/y` immediately from the HID report
 - recompute `active_stage` only when the reported DPI uniquely matches one cached stage value
 - keep Bluetooth fast DPI polling enabled until the first passive HID event is actually observed at runtime, then disable the fast-poll fallback for that device

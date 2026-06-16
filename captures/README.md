@@ -242,6 +242,14 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - Use those HID reports as profile-cycle refresh hints only; the active profile still needs to be inferred by a debounced one-shot follow-up read/fingerprint of live target `1`.
   - This capture backs the firmware-first Bluetooth profile-cycle hint notes in `docs/protocol/BLE_PROFILE_CRUD_SPEC.md` and `docs/protocol/BLE_PROTOCOL.md`.
 
+- `ble/windows/2026-06-15-222336-profile-cycle-event-driven-followup-read/`
+  - Windows event-driven HID/Bleak probe of the Basilisk V3 Pro Bluetooth profile button with Synapse closed.
+  - Added `tools/python/bt_profile_cycle_watch_windows.py` to listen for passive HID profile-cycle hints and issue one BLE vendor follow-up read per debounced hint.
+  - The 3-press pass saw the expected `04 04 ...` / `05 05 39 ...` hint pairs and issued one `0B 84 01 00` read after each hint.
+  - The 1-press delayed pass waited 2 seconds after the hint and read both `0B 84 01 00` and `08 84 01 04`.
+  - In both passes, the known live-target readback values stayed unchanged even though the HID hints fired; this rules out those keys as a reliable active firmware-ring profile identity source.
+  - This capture backs the current guidance to use passive HID hints for event-driven refresh/stale marking, while keeping exact onboard active-profile identity open until a firmware-ring state key is mapped.
+
 ## Notes
 
 - Captures are intentionally action-scoped for faster diffing.
