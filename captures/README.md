@@ -225,6 +225,12 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - No stored-target DPI table write (`0B 04 <stored-target> 00`) occurred.
   - This capture backs the attempted inactive saved-slot DPI update section of `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
 
+- `ble/windows/2026-06-15-214518-profile-synapse-closed-physical-cycle-pass-1/`
+  - Windows BTVS/tshark capture of pressing the physical profile button after Synapse closed/crashed.
+  - The capture has no decoded BLE vendor writes or notify responses and no matching Synapse events.
+  - User observation during this pass: Bluetooth profile-button behavior appears software-only, while USB mode can cycle hardware/onboard profiles even without a host connection. The bottom LED indicates this behavior.
+  - This capture backs the Synapse-closed Bluetooth physical-cycle note in `docs/protocol/BLE_PROFILE_CRUD_SPEC.md`.
+
 ## Notes
 
 - Captures are intentionally action-scoped for faster diffing.

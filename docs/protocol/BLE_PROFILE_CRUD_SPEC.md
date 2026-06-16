@@ -474,6 +474,26 @@ behavior, not as authoritative onboard-cycle inventory. A firmware-only cycle
 test should be done with Synapse closed if we need to prove exactly what the
 mouse does without Synapse's software profile navigator.
 
+Synapse-closed Bluetooth cycle capture:
+
+- `captures/ble/windows/2026-06-15-214518-profile-synapse-closed-physical-cycle-pass-1/`
+
+The user closed/crashed Synapse and pressed the physical profile button during a
+60-second BTVS capture. The capture contained no decoded BLE vendor writes or
+notify responses, and no matching Synapse events occurred in the capture window.
+User observation during this pass:
+
+- In Bluetooth mode, the physical profile button appears to be software-only.
+  With Synapse closed, button presses did not visibly cycle profiles.
+- In USB mode, the same profile button behaves as a hardware/onboard switch and
+  can cycle profiles even when the mouse is not connected to a host.
+- The bottom LED indicates this BT-vs-USB profile-cycle behavior.
+
+Treat Bluetooth profile cycling as host-orchestrated until proven otherwise:
+Synapse handles the button as software navigation when open, and no
+firmware-originated BLE vendor profile-cycle exchange was seen when Synapse was
+closed.
+
 Current implementation guidance:
 
 - Treat saved-slot `None` as a target delete/unassign operation.
@@ -484,6 +504,10 @@ Current implementation guidance:
 - If the deleted target is active, `03 06` alone does not appear to force a
   replacement live projection. OpenSnek should explicitly select/project a
   remaining profile when it wants the active view to move immediately.
+- On Bluetooth, OpenSnek should own the profile-cycle behavior in software:
+  maintain a host-side cycle list of assigned profiles and project the selected
+  snapshot to live target `1`. Do not assume the firmware cycles BT onboard
+  profiles without a host.
 - Do not infer target deletion from a Synapse rename alone. Synapse currently
   appears to have a UI/state bug where renaming can unassign a profile from a
   saved slot while the Synapse-handled physical profile button may still select
@@ -491,10 +515,10 @@ Current implementation guidance:
 
 Open questions:
 
-- Whether the firmware's onboard cycle list, with Synapse closed, skips deleted
-  targets exactly as the OBM list implies. Captures with Synapse open include a
-  hybrid Synapse software `navigateProfile` path that can cycle across both
-  local/Synapse profiles and on-device-backed profiles.
+- Whether any non-Synapse host API can trigger Bluetooth profile cycling without
+  using Synapse's software `navigateProfile` model. The physical BT button
+  produced no decoded vendor profile-cycle traffic with Synapse closed in the
+  observed capture.
 - Whether `03 06` clears target metadata/settings immediately or only removes
   the target from the onboard profile list; create captures suggest Synapse may
   later recycle and rewrite the same target.
@@ -581,8 +605,5 @@ Recommended order:
 1. Offline inactive edit path: if Synapse exposes a way to edit an assigned
    stored profile without making it the active/editing profile, modify one
    button and verify whether live target `1` is untouched.
-2. Synapse-closed physical cycle: close/kill Synapse, press the profile button,
-   and observe whether firmware-only cycling follows the OBM list or needs host
-   projection.
-3. Create into a known empty slot and compare target allocation after explicit
+2. Create into a known empty slot and compare target allocation after explicit
    unassign/delete.
