@@ -72,7 +72,9 @@ Not strong enough to ship as full USB profile CRUD yet:
   a metadata-only update without a complete mapped blob: a fuller
   `06:8E`/`05:02`/multi-chunk `05:08` attempt erased profile `5` metadata and
   disturbed settings. DPI/lighting settings were restored through validated
-  commands, but metadata writes remain disabled.
+  commands, but metadata writes remain disabled. Follow-up read-only probes
+  showed `06:8E` returns stable profile-independent capability data, not a
+  safe create/name status path, and `05:82` still rejects profile arguments.
 - No atomic whole-profile blob read/write is known. USB profile hydration is
   still a multi-surface operation.
 
@@ -88,6 +90,36 @@ External evidence:
   the high-bit `05:88` metadata read counterpart. Follow-up live probing
   validates `05:03` as delete/unassign from the hardware cycle ring and `05:04`
   as the software active-profile selector.
+
+## Bluetooth Create/Name Mapping
+
+Bluetooth has a guarded create/rewrite path for explicit stored targets, but it
+is not a general allocator or standalone rename API yet. `OpenSnekProbe
+bt-profile-create` clears a chosen target, runs the observed prepare/apply
+control steps, writes `03:04` metadata chunks with UUID/name/owner fields, then
+writes stored DPI and brightness. Targets `2` and `3` were created/recreated
+successfully, appeared in `03:80`, read back through `03:84`, and persisted
+across reconnect. Rename-only captures did not emit `03:04`, so existing
+profile display-name edits should remain host-owned until isolated rename
+safety is validated.
+
+USB maps most surrounding behavior, but not the create/name write itself:
+
+| Bluetooth behavior | USB counterpart | Status |
+|---|---|---|
+| Active target read `03:82` | `05:84` | Validated. |
+| Active target select `03:02` | `05:04 <profile>` | Validated for assigned profiles. |
+| Inventory `03:80` | none mapped | `00:87`, `05:80`, `05:81`, and `05:8A` are only hints. |
+| Delete/unassign `03:06 <target>` | `05:03 <profile>` | Validated as cycle-ring unassign, not erase. |
+| Metadata read `03:84 <target>` | `05:88 <profile,offset,total>` | Validated for UUID/name/owner chunks. |
+| Metadata write `03:04 <target>` | likely `05:08`, but unsafe | Do not ship. Metadata-only USB writes erased profile `5` metadata and disturbed settings. |
+| Prepare/apply/create controls `08:05`, `08:07`, `03:05`, `01:8C` | no safe equivalent mapped | `06:8E` is stable/profile-independent read data; `05:02` is a write-target candidate only; `05:82` rejects profile args. |
+| Stored DPI/buttons/brightness writes | `04:05`, `04:06`, `02:0C`, `0F:04` | Profile-addressed content writes are validated on known banks. |
+
+Practical result: USB can edit known assigned/readable profile content and can
+read device-backed names, but cannot safely create a new named profile or rename
+UUID/name metadata on-device without a complete `05:08` blob and transaction
+map.
 
 ## Storage / Target Model
 
@@ -303,8 +335,11 @@ Negative/limited probes:
 |---|---|
 | `05:82`, size `00` | status `0x03` |
 | `05:82`, size `01`, args `02` | status `0x03` |
+| `05:82`, size `01`, args `01` / `03` | status `0x03` |
 | `05:83`, size `01`, args `03` | status `0x03` |
 | `05:88`, size `05` | success, but returns only the 5-byte chunk header |
+| `05:8A`, size `01`, args `01` / `03` | success, returned `05` and ignored the requested profile byte in this pass |
+| `06:8E`, size `0E`, args all zero / leading `01` / leading `03` | success, stable payload `00 64 00 04 c0 00 00 04 a8 00 00 00 15`; not profile-dependent |
 
 Implementation guidance:
 
@@ -569,7 +604,7 @@ class/cmd IDs.
 | Active profile select | Validated | `05:04 <profile>` selects assigned profiles. It ACKed profiles `1` and `3`, rejected readable unassigned banks `2`, `4`, and `5` with status `0x03`, and updates `05:84` plus effective storage/profile `0`. |
 | Metadata read/write | Read only | USB `05:88` reads UUID/name/owner chunks for stored slots. Do not use `05:08` for metadata-only writes; live probing showed it can erase metadata and disturb settings without a complete mapped profile blob. |
 | Read full stored profile | Partial | Multi-surface read: DPI scalar/stages, buttons per slot, brightness per LED. Static/effect readback still missing. |
-| Create stored profile | Partial | Can write profile-addressed settings into an existing bank, activate assigned profiles through `05:04`, and unassign through `05:03`; safe allocation/assign and metadata writes are still unvalidated. |
+| Create stored profile | Partial | Can write profile-addressed settings into an existing bank, activate assigned profiles through `05:04`, and unassign through `05:03`; safe allocation/assign and metadata writes are still unvalidated. The BT create/name flow maps only around the edges, not to a safe USB create transaction. |
 | Update stored profile | Partial | Button writes are validated. DPI scalar/stages and brightness changed-value writes are validated on profile `5` with restore, and persisted across USB reconnect. Cross-transport readback and power-cycle persistence still need guarded validation. |
 | Delete/unassign | Validated cycle unassign | `05:03 <profile>` removes a stored bank from the hardware cycle ring. Profile `2` was skipped by the physical profile-cycle button after the command, while its readable bank remained intact. |
 | Activate/select | Validated | Firmware profile-button activation is detectable through passive HID hints plus `05:84`; software selection works through `05:04` for assigned profiles. |
@@ -641,5 +676,7 @@ mapped.
 - What is the exact full profile blob and commit transaction behind `05:08`?
   Metadata-only chunks are unsafe, even with `06:8E` and `05:02` prelude
   commands.
+- What, if anything, is the USB counterpart to the Bluetooth target
+  prepare/apply/status sequence (`08:05`, `08:07`, `03:05`, `01:8C`)?
 - Are banks `4` and `5` cycleable on this V3 Pro state, or merely stale/readable
   storage banks like deleted BLE targets?
