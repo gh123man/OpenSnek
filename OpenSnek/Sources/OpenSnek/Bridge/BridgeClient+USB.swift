@@ -500,12 +500,22 @@ extension BridgeClient {
 
     func getOnboardProfileInfo(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> (active: Int, count: Int)? {
         guard device.onboard_profile_count > 1 else { return (active: 1, count: 1) }
-        guard let r = try perform(session, device, classID: 0x00, cmdID: 0x87, size: 0x00), r[0] == 0x02 else {
+        guard let summary = try perform(session, device, classID: 0x00, cmdID: 0x87, size: 0x00), summary[0] == 0x02 else {
             return nil
         }
-        let active = max(1, Int(r[8]))
-        let count = max(1, Int(r[10]))
+        let summaryActive = max(1, Int(summary[8]))
+        let active = try getDirectUSBActiveProfileID(session, device) ?? summaryActive
+        let count = max(1, Int(summary[10]))
         return (active: active, count: count)
+    }
+
+    func getDirectUSBActiveProfileID(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> Int? {
+        guard device.profile_id == .basiliskV3Pro else { return nil }
+        guard let response = try perform(session, device, classID: 0x05, cmdID: 0x84, size: 0x00),
+              let active = USBHIDProtocol.activeProfileID(from: response) else {
+            return nil
+        }
+        return max(1, Int(active))
     }
 
     func setScrollSmartReel(_ session: USBHIDControlSession, _ device: MouseDevice, enabled: Bool) throws -> Bool {

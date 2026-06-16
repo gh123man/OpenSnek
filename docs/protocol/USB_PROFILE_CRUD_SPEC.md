@@ -196,6 +196,11 @@ Get:      class 05, cmd 84, size 00
 Response: args[0] = active profile ID
 ```
 
+The observed response can report `data_size = 00` while still carrying the
+active profile byte in `args[0]`. Clients should validate the success status and
+class/cmd echo, then read `args[0]`; do not require the response size byte to be
+non-zero.
+
 Live validation after profile `2` had been deleted/unassigned from the cycle
 ring:
 
@@ -206,12 +211,21 @@ ring:
 | Press profile-cycle button again | `03` | matched stored profile `3` |
 
 `00:87` stayed `02 32 03` throughout those transitions. Other nearby
-profile-management reads did not produce a list inventory: `05:80` returned
-`02` with no args and with one-byte args `0..5`, `05:81` returned `05 01 03`
-and ignored one-byte args, and `05:8A` returned `05`. In the current device
-state, `05:80 == 02` matches the two assigned/cycleable profiles `{1, 3}`, and
-`05:8A == 05` looks like the max profile bank count, but neither carries the
-full cycleable profile list.
+profile-management reads did not produce a safe list inventory:
+
+- `05:80`, size `00`, returned `03` in the latest pass. With one- or two-byte
+  args it kept returning `03` and echoed the last request byte into `args[1]`.
+- `05:81`, size `00`, returned `05 01 03 05`. It ignored one- and two-byte
+  request args and stayed unchanged when the active profile moved `1 -> 3 -> 1`.
+  This is inventory-like because it contains `1` and `3`, but it also contains
+  `5` even though `05:04 05` rejected in the same device state, so it is not a
+  trusted cycle-ring list.
+- `05:8A`, size `00`, returned `05`. With one- or two-byte args it kept
+  returning `05` and echoed the last request byte into `args[1]`.
+
+Current interpretation: `05:80` and `00:87[2]` are count/summary hints, `05:8A`
+looks like the maximum profile bank ID/count, and `05:81` may be a slot-summary
+record. None is a side-effect-free replacement for BLE `03 80`.
 
 ### Software Active Profile Selector
 
@@ -550,7 +564,7 @@ class/cmd IDs.
 
 | Operation | USB status | Current implementation guidance |
 |---|---|---|
-| Inventory/list | Partial | `00:87`, `05:80`, `05:81`, and `05:8A` give summary/count hints, but not a reliable target inventory. Read candidate banks `2..5` directly and treat cycleability as unknown unless the cycle ring is validated. |
+| Inventory/list | Partial | `00:87`, `05:80`, `05:81`, and `05:8A` give summary/count hints, but not a reliable target inventory. `05:81` returned `05 01 03 05` while profile `5` still rejected selection, so read candidate banks `2..5` directly and treat cycleability as unknown unless the cycle ring is validated. |
 | Active profile read | Validated | `05:84`, size `00`, reports the active profile ID. Effective storage/profile `0` mirrors that active onboard profile after profile-button changes. |
 | Active profile select | Validated | `05:04 <profile>` selects assigned profiles. It ACKed profiles `1` and `3`, rejected readable unassigned banks `2`, `4`, and `5` with status `0x03`, and updates `05:84` plus effective storage/profile `0`. |
 | Metadata read/write | Read only | USB `05:88` reads UUID/name/owner chunks for stored slots. Do not use `05:08` for metadata-only writes; live probing showed it can erase metadata and disturb settings without a complete mapped profile blob. |
@@ -559,6 +573,44 @@ class/cmd IDs.
 | Update stored profile | Partial | Button writes are validated. DPI scalar/stages and brightness changed-value writes are validated on profile `5` with restore, and persisted across USB reconnect. Cross-transport readback and power-cycle persistence still need guarded validation. |
 | Delete/unassign | Validated cycle unassign | `05:03 <profile>` removes a stored bank from the hardware cycle ring. Profile `2` was skipped by the physical profile-cycle button after the command, while its readable bank remained intact. |
 | Activate/select | Validated | Firmware profile-button activation is detectable through passive HID hints plus `05:84`; software selection works through `05:04` for assigned profiles. |
+
+## Safe Implementation Boundary
+
+Safe USB parity should be split into two layers:
+
+1. Device-backed active/profile-state features:
+   - read active profile with `05:84`
+   - react to physical profile-cycle HID hints by reading `05:84` and the
+     effective storage/profile `0`
+   - select a known assigned profile with `05:04 <profile>` and confirm with
+     `05:84`
+   - unassign/delete from the cycle ring with `05:03 <profile>` only when the UI
+     explicitly communicates that the readable bank is not erased
+
+2. Stored profile content features:
+   - read metadata with `05:88`
+   - read/update stored button bindings with `02:8C` / `02:0C`
+   - read/update stored DPI scalar/stages with `04:85/05` and `04:86/06`
+   - read/update stored brightness with `0F:84/04`
+
+What should not be implemented as device-backed USB CRUD yet:
+
+- Create/allocate a named profile on USB. We can write settings into an existing
+  readable bank, but we do not know the safe assign/allocation transaction that
+  adds that bank to the cycle ring with correct metadata.
+- Rename or write UUID/name/owner metadata. `05:08` is a bulk profile write
+  path, not a safe metadata-only update.
+- Treat readable banks as inventory. Banks can remain readable after
+  unassign/delete, and `05:81` is not a proven cycleable list.
+- Treat `05:03` as erase. It is cycle-ring unassign; metadata/settings may stay
+  readable and should be considered stale/reusable storage until a safe erase is
+  mapped.
+
+Practical product behavior: OpenSnek can safely present USB active-profile
+identity and profile-button reactivity for the V3 Pro, and can edit known stored
+content surfaces. Profile names/UUIDs should remain host-owned or read-only
+device metadata on USB until a complete `05:08` blob and commit sequence is
+mapped.
 
 ## Profile-Scoped vs Device-Global
 
@@ -581,8 +633,9 @@ class/cmd IDs.
 
 - What exact inventory/list register, if any, distinguishes cycleable profiles
   from merely readable banks? `00:87`, `05:80`, `05:81`, and `05:8A` are summary
-  hints only in the current V3 Pro state. `05:04` can infer assignability only
-  by changing active profiles and restoring afterward.
+  hints only in the current V3 Pro state. `05:81` is promising but not trusted:
+  it returned `05 01 03 05` while profile `5` was not selectable. `05:04` can
+  infer assignability only by changing active profiles and restoring afterward.
 - Do stored-bank writes through `04:05`, `04:06`, and `0F:04` later show over
   Bluetooth and persist across a full power-cycle?
 - What is the exact full profile blob and commit transaction behind `05:08`?

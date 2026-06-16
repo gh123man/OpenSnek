@@ -33,12 +33,25 @@ final class USBHIDProtocolTests: XCTestCase {
             txn: 0x1F,
             classID: 0x05,
             cmdID: 0x84,
-            size: 0x01,
+            size: 0x00,
             args: [0x03]
         )
         response[0] = 0x02
 
         XCTAssertEqual(USBHIDProtocol.activeProfileID(from: response), 0x03)
+    }
+
+    func testActiveProfileIDAlsoAcceptsSizedEcho() {
+        var response = USBHIDProtocol.createReport(
+            txn: 0x1F,
+            classID: 0x05,
+            cmdID: 0x84,
+            size: 0x01,
+            args: [0x01]
+        )
+        response[0] = 0x02
+
+        XCTAssertEqual(USBHIDProtocol.activeProfileID(from: response), 0x01)
     }
 
     func testActiveProfileSetAcceptedRequiresSuccessEcho() {

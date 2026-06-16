@@ -271,12 +271,14 @@ Observed on Basilisk V3 Pro (`0x00AB`):
 - on the attached V3 Pro on June 16, 2026, the same register returned `02 32 03`; the middle byte is therefore not reserved-zero and should remain unknown until decoded
 - in that same pass, USB direct/live storage `0` and persistent/base storage `1` did not match stored storage `2`, so `args[0] = 0x02` is not enough evidence to treat `0x00:0x87` as the active effective profile
 - later on June 16, 2026, direct active-profile reads were mapped through `0x05:0x84`; this summary register stayed `02 32 03` while `0x05:0x84` changed between `03` and `01` with the physical profile-cycle button
+- a follow-up V3 Pro pass found `0x05:0x84` can return `data_size = 00` while still carrying the active profile in `args[0]`; clients should parse the success/class/cmd echo and `args[0]`, not require a non-zero size byte
+- nearby profile-management reads remain summary-only: `0x05:0x80` returned `03`, `0x05:0x8A` returned `05`, and `0x05:0x81` returned `05 01 03 05`, but `0x05:0x04 05` still rejected, so none is a trusted cycleable inventory list
 - the corresponding low-bit write candidate (`0x00:0x07`) is not yet validated for active-profile switching
 
 Client note:
 - See [USB Profile CRUD Draft](./USB_PROFILE_CRUD_SPEC.md) for the current USB profile-bank model.
 - Per-slot button-function storage via `0x02:0x8C` / `0x02:0x0C` is still validated and remains the canonical source for button-slot inspection and write/readback testing.
-- OpenSnek's shipped UI currently keeps onboard button-profile load/store controls disabled until the active-slot model is validated well enough that the UI can reflect the mouse honestly.
+- OpenSnek should use `0x05:0x84` for V3 Pro USB active-profile hydration and treat `0x00:0x87` as summary/count telemetry. Full onboard profile controls still need safe inventory and metadata-write/create semantics before the UI can reflect the mouse honestly.
 
 Bring-up checklist for future devices:
 - read `0x00:0x87` before and after changing profiles in vendor software; if the reported active slot never changes, do not assume the device has a writable hardware active-profile register

@@ -34,8 +34,7 @@ public enum USBHIDProtocol {
         guard response.count > 8,
               response[0] == 0x02,
               response[6] == 0x05,
-              response[7] == 0x84,
-              response[5] >= 0x01 else {
+              response[7] == 0x84 else {
             return nil
         }
         return response[8]
