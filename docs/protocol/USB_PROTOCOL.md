@@ -625,25 +625,26 @@ Response: args[0-4] echo the chunk header
 The object length is `0x00FA` bytes. Reads use four full `0x50` chunks with
 offsets `0x0000`, `0x004B`, `0x0096`, and `0x00E1`.
 
-Product metadata writes cover only the known UUID/name/owner fields, using
-offsets `0x0000`, `0x004B`, and `0x0096`. The `0x00E1` chunk is padding-only for
-the mapped metadata fields and can be rejected by Basilisk V3 Pro USB firmware
-after the useful metadata has already landed; do not treat that tail chunk as a
-required create/rename write.
+Product metadata writes must write the full `0x00FA` object using offsets
+`0x0000`, `0x004B`, `0x0096`, and `0x00E1`. The `0x00E1` chunk is padding-only
+for the mapped UUID/name/owner fields, but Basilisk V3 Pro USB firmware can
+leave the metadata object invalid after partial known-field writes. Treat strict
+metadata readback as required for create/rename success.
 
-Rename transactions are metadata-only. Check assignment from raw inventory, read
-the existing UUID/name/owner chunks completely, then write the renamed metadata
-while preserving the existing UUID and owner. Do not perform a full profile
-snapshot read before the metadata write, and do not synthesize a fallback UUID
-for a rename write when metadata readback is incomplete.
+Rename transactions are metadata-object-only. Check assignment from raw
+inventory, read the existing UUID/name/owner chunks completely, then write the
+full renamed metadata object while preserving the existing UUID and owner. Do
+not perform a full profile snapshot read before the metadata write, and do not
+synthesize a fallback UUID for a rename write when metadata readback is
+incomplete.
 
 All-zero or all-`0xFF` UUID bytes are invalid metadata, not real UUIDs. If an
 assigned USB profile has complete known metadata chunks but an all-`0xFF` UUID,
 repair the metadata object before applying the requested rename: generate a new
 UUID, preserve any readable owner if present, write the full `0x00FA` metadata
-object using offsets `0x0000`, `0x004B`, `0x0096`, and `0x00E1`, then require
-strict metadata readback. This repair path is only for assigned profiles with
-corrupt metadata; ordinary create/rename transactions remain known-field writes.
+object, then require strict metadata readback. This repair path is only for
+assigned profiles with corrupt metadata; ordinary create/rename transactions
+also use full metadata object writes.
 
 Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
 - slot `0x02`, offset `00 00`: UUID `3a35ec93-bee1-4b29-9d3d-0d2b88f9edef`, name `OPENSNEK_MAC_SLOT_1`

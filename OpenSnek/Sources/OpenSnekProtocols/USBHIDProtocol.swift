@@ -72,9 +72,7 @@ public enum USBHIDProtocol {
             by: onboardProfileMetadataChunkDataLength
         )
     )
-    public static let onboardProfileMetadataWritableChunkOffsets = onboardProfileMetadataChunkOffsets.filter {
-        $0 < onboardProfileMetadataKnownFieldLength
-    }
+    public static let onboardProfileMetadataWritableChunkOffsets = onboardProfileMetadataChunkOffsets
 
     public static func activeProfileID(from response: [UInt8]) -> UInt8? {
         guard response.count > 8,

@@ -56,8 +56,6 @@ extension BridgeClient {
             createMutation = createMutation.fillingMissingMappedContent(from: activeSnapshot)
         }
         let createdMetadata = createMutation.metadata!
-        let projectedCreate = createMutation.projectedSnapshot(profileID: target, metadata: createdMetadata)
-
         switch device.transport {
         case .usb:
             return try await withUSBProfileSession(device: device) { session in
@@ -97,28 +95,21 @@ extension BridgeClient {
                         inventory.assignedProfileIDs.contains(target)
                     }
                 )
-                do {
-                    return try self.retryUSBOnboardProfileReadback(
-                        device: device,
-                        operation: "USB onboard profile create snapshot",
-                        failureMessage: "USB onboard profile create snapshot readback failed for profile \(target).",
-                        attempts: 8,
-                        read: {
-                            try self.usbReadOnboardProfile(session, device, profile: profile, profileID: target)
-                        },
-                        accepts: { snapshot in
-                            snapshot.profileID == target && snapshot.metadata.name == createdMetadata.name
-                        }
-                    )
-                } catch {
-                    AppLog.warning(
-                        "Bridge",
-                        "USB onboard profile create metadata readback lagged after successful write device=\(device.id) profile=\(target): \(error.localizedDescription)"
-                    )
-                    return projectedCreate
-                }
+                return try self.retryUSBOnboardProfileReadback(
+                    device: device,
+                    operation: "USB onboard profile create snapshot",
+                    failureMessage: "USB onboard profile create snapshot readback failed for profile \(target).",
+                    attempts: 8,
+                    read: {
+                        try self.usbReadOnboardProfile(session, device, profile: profile, profileID: target)
+                    },
+                    accepts: { snapshot in
+                        snapshot.profileID == target && snapshot.metadata.name == createdMetadata.name
+                    }
+                )
             }
         case .bluetooth:
+            let projectedCreate = createMutation.projectedSnapshot(profileID: target, metadata: createdMetadata)
             try await btCreateOnboardProfilePrelude(device: device, target: target)
             try await btWriteOnboardProfileMetadata(device: device, target: target, metadata: createdMetadata)
             try await btApplyOnboardProfileMutation(
@@ -186,7 +177,7 @@ extension BridgeClient {
                 let projected = OnboardProfileSnapshot(profileID: profileID, metadata: renamed)
                 AppLog.debug(
                     "Bridge",
-                    "USB onboard profile rename metadata-\(needsFullObjectRepair ? "repair" : "only") " +
+                    "USB onboard profile rename metadata-\(needsFullObjectRepair ? "repair" : "write") " +
                     "device=\(device.id) profile=\(profileID) currentName=\"\(currentMetadata.name)\" " +
                     "requestedName=\"\(renamed.name)\" uuid=\(currentMetadata.identifier.uuidString)"
                 )
@@ -202,34 +193,28 @@ extension BridgeClient {
                     device,
                     profileID: profileID,
                     metadata: renamed,
-                    includePaddingChunk: needsFullObjectRepair
+                    mode: needsFullObjectRepair ? "repair" : "rename"
                 )
-                do {
-                    let metadata = try self.retryUSBOnboardProfileReadback(
-                        device: device,
-                        operation: "USB onboard profile rename",
-                        failureMessage: "USB onboard profile rename readback did not match profile \(profileID).",
-                        attempts: 3,
-                        read: {
-                            try self.usbReadOnboardProfileMetadata(
-                                session,
-                                device,
-                                profileID: profileID,
-                                requireKnownFields: true
-                            )
-                        },
-                        accepts: { metadata in
-                            metadata.name == renamed.name
-                        }
-                    )
-                    return projected.renamed(metadata)
-                } catch {
-                    AppLog.warning(
-                        "Bridge",
-                        "USB onboard profile rename readback lagged after successful write device=\(device.id) profile=\(profileID): \(error.localizedDescription)"
-                    )
-                    return projected
-                }
+                let metadata = try self.retryUSBOnboardProfileReadback(
+                    device: device,
+                    operation: "USB onboard profile rename",
+                    failureMessage: "USB onboard profile rename readback did not match profile \(profileID).",
+                    attempts: 5,
+                    read: {
+                        try self.usbReadOnboardProfileMetadata(
+                            session,
+                            device,
+                            profileID: profileID,
+                            requireKnownFields: true
+                        )
+                    },
+                    accepts: { metadata in
+                        metadata.identifier == renamed.identifier &&
+                            metadata.name == renamed.name &&
+                            metadata.owner == renamed.owner
+                    }
+                )
+                return projected.renamed(metadata)
             }
         case .bluetooth:
             let inventory = try await listOnboardProfiles(device: device)
@@ -312,6 +297,10 @@ extension BridgeClient {
         switch device.transport {
         case .usb:
             return try await withUSBProfileSession(device: device) { session in
+                AppLog.debug(
+                    "Bridge",
+                    "USB onboard profile delete start device=\(device.id) profile=\(profileID)"
+                )
                 let response = try self.perform(
                     session,
                     device,
@@ -322,9 +311,14 @@ extension BridgeClient {
                 )
                 guard let response,
                       USBHIDProtocol.onboardProfileDeleteAccepted(from: response, profile: UInt8(profileID)) else {
+                    let status = response.map { String(format: "0x%02X", $0[0]) } ?? "nil"
+                    AppLog.warning(
+                        "Bridge",
+                        "USB onboard profile delete rejected device=\(device.id) profile=\(profileID) status=\(status)"
+                    )
                     throw BridgeError.commandFailed("USB onboard profile delete was rejected.")
                 }
-                return try self.retryUSBOnboardProfileReadback(
+                let inventory = try self.retryUSBOnboardProfileReadback(
                     device: device,
                     operation: "USB onboard profile delete",
                     failureMessage: "USB onboard profile delete readback still lists profile \(profileID).",
@@ -335,6 +329,12 @@ extension BridgeClient {
                         !inventory.assignedProfileIDs.contains(profileID)
                     }
                 )
+                AppLog.debug(
+                    "Bridge",
+                    "USB onboard profile delete ok device=\(device.id) profile=\(profileID) " +
+                    "assigned=\(inventory.assignedProfileIDs.map(String.init).joined(separator: ","))"
+                )
+                return inventory
             }
         case .bluetooth:
             let req = nextBTReq()
@@ -777,18 +777,14 @@ extension BridgeClient {
         _ device: MouseDevice,
         profileID: Int,
         metadata: OnboardProfileMetadata,
-        includePaddingChunk: Bool = false
+        mode: String = "write"
     ) throws {
         let bytes = USBHIDProtocol.buildOnboardProfileMetadata(
             identifier: metadata.identifier,
             name: metadata.name,
             owner: metadata.owner
         )
-        let offsets = includePaddingChunk
-            ? USBHIDProtocol.onboardProfileMetadataChunkOffsets
-            : USBHIDProtocol.onboardProfileMetadataWritableChunkOffsets
-        let mode = includePaddingChunk ? "full-object-repair" : "known-fields"
-        for offset in offsets {
+        for offset in USBHIDProtocol.onboardProfileMetadataWritableChunkOffsets {
             AppLog.debug(
                 "Bridge",
                 "USB onboard profile metadata write start device=\(device.id) profile=\(profileID) " +
@@ -813,10 +809,10 @@ extension BridgeClient {
                 let failure = BridgeError.commandFailed(
                     "USB onboard profile metadata write failed at offset \(offset) (status \(lastStatus))."
                 )
-                if includePaddingChunk, offset >= USBHIDProtocol.onboardProfileMetadataKnownFieldLength {
+                if offset >= USBHIDProtocol.onboardProfileMetadataKnownFieldLength {
                     AppLog.warning(
                         "Bridge",
-                        "USB onboard profile metadata repair tail write rejected device=\(device.id) " +
+                        "USB onboard profile metadata tail write rejected device=\(device.id) " +
                         "profile=\(profileID) offset=\(offset) status=\(lastStatus); verifying known fields"
                     )
                     if let readback = try? usbReadOnboardProfileMetadata(
@@ -829,7 +825,7 @@ extension BridgeClient {
                        readback.owner == metadata.owner {
                         AppLog.warning(
                             "Bridge",
-                            "USB onboard profile metadata repair accepted despite tail rejection " +
+                            "USB onboard profile metadata accepted despite tail rejection " +
                             "device=\(device.id) profile=\(profileID)"
                         )
                         return

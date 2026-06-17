@@ -229,11 +229,10 @@ Offsets:
 0000, 004b, 0096, 00e1
 ```
 
-Product writes only send chunks that overlap the modeled UUID/name/owner fields:
-`0000`, `004b`, and `0096`. The `00e1` chunk is padding-only for the current
-metadata model and can be rejected by the V3 Pro USB firmware even after the
-useful metadata bytes have landed. Do not require that padding-only tail write
-for create or rename success.
+Product writes send the full metadata object: `0000`, `004b`, `0096`, and
+`00e1`. The `00e1` chunk is padding-only for the current metadata model, but
+partial UUID/name/owner writes can leave the V3 Pro USB metadata object invalid.
+Require strict metadata readback for create and rename success.
 
 ### Fields
 

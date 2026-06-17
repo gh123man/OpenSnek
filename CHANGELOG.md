@@ -22,16 +22,16 @@ All notable changes to this project are documented in this file.
 - USB HID presence handling now de-duplicates composite-interface events and debounces disconnect refreshes so short interface churn does not immediately clear device state or force the UI into `Reconnecting`.
 - Onboard profile create and rename now update the cached slot inventory immediately without a second full refresh, and deleting the active stored profile now activates the next assigned slot.
 - Onboard profile CRUD readback now retries briefly after firmware writes so successful creates/deletes are not reported as failures during transient inventory lag.
-- Onboard profile rename now keeps the UI in sync when firmware metadata readback lags after a successful write, and profile activation now projects state from the selected profile after direct active-profile readback instead of waiting on a stale full refresh.
-- Onboard profile create and rename now project returned metadata into the visible slot list immediately, including when firmware metadata readback or local inventory refresh lags behind the successful write.
-- USB onboard profile metadata writes now skip the padding-only tail chunk that Basilisk V3 Pro firmware can reject after the useful UUID/name/owner bytes have already landed, fixing create/rename operations that appeared to work only after a later refresh.
-- Onboard profile edit failures no longer fall back to legacy live-layer writes, and USB profile rename verification now uses metadata-only readback to avoid long profile sweeps during editing.
+- Onboard profile rename keeps the UI in sync with verified returned metadata, and profile activation projects state from the selected profile after direct active-profile readback instead of waiting on a stale full refresh.
+- Onboard profile create and rename project returned metadata into the visible slot list immediately while local inventory refresh catches up.
+- USB onboard profile metadata writes now use the full metadata object and require strict readback, avoiding partial writes that can leave Basilisk V3 Pro profile metadata invalid.
+- Onboard profile edit failures no longer fall back to legacy live-layer writes, and USB profile rename verification now uses strict metadata-object readback to avoid long profile sweeps during editing.
 - USB onboard profiles now read and write scroll mode, acceleration, and smart reel against the selected hardware profile instead of always targeting slot 1.
 - Superseded hardware profile-load tasks now release the profile-operation busy state immediately, preventing profile rename or profile-switch races from leaving the UI dimmed without a visible loading indicator.
 - Onboard profile rename/create metadata projections now survive stale inventory refreshes, with debug logs that identify stale incoming names versus projected local names.
 - USB onboard profile commands now use the validated per-device USB transaction ID and serialize HID feature-report exchanges, so onboard profile metadata writes no longer rely on retrying rejected chunks on the happy path.
 - USB state sweeps, fast DPI reads, apply helpers, and onboard profile transactions now share an interprocess per-device exclusive HID lock, preventing the UI app, service process, polling, or hydration reads from interleaving with multi-command profile writes.
-- USB/Bluetooth onboard profile rename now uses a metadata-only transaction and requires complete UUID/name/owner metadata before writing, avoiding synthesized UUID writes and full profile read sweeps before a rename.
+- USB/Bluetooth onboard profile rename now uses a metadata-object transaction and requires complete UUID/name/owner metadata before writing, avoiding synthesized UUID writes and full profile read sweeps before a rename.
 - Onboard profile DPI edits now preserve the loaded profile's firmware stage IDs and marker even when the UI sends a focused DPI-only mutation.
 - Profile operation loading now dims through the transient overlay instead of mutating the underlying content opacity, avoiding a stale grayed-out detail view after rename completes.
 - USB onboard profile rename now treats all-`0xFF` metadata UUIDs as corrupt and repairs assigned profile metadata with a full-object write before applying the requested name.

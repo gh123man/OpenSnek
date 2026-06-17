@@ -27,7 +27,7 @@ final class USBHIDProtocolTests: XCTestCase {
         XCTAssertEqual(USBHIDProtocol.onboardProfileMetadataKnownFieldLength, 0x00B4)
         XCTAssertEqual(
             USBHIDProtocol.onboardProfileMetadataWritableChunkOffsets,
-            [0x0000, 0x004B, 0x0096]
+            [0x0000, 0x004B, 0x0096, 0x00E1]
         )
         XCTAssertEqual(
             USBHIDProtocol.onboardProfileMetadataReadArgs(slot: 0x03, offset: 0x0040),

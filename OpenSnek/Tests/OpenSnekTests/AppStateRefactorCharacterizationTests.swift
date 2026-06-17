@@ -4171,11 +4171,11 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(listCountAfterRename, 1)
     }
 
-    func testMetadataOnlyOnboardProfileRenamePreservesLoadedSnapshotForNextEdit() async throws {
+    func testMetadataObjectOnboardProfileRenamePreservesLoadedSnapshotForNextEdit() async throws {
         let device = makeRefactorTestDevice(
-            id: "onboard-rename-metadata-only-device",
+            id: "onboard-rename-metadata-object-device",
             transport: .usb,
-            serial: "ONBOARD-RENAME-METADATA-ONLY-\(UUID().uuidString)",
+            serial: "ONBOARD-RENAME-METADATA-OBJECT-\(UUID().uuidString)",
             onboardProfileCount: 5,
             profileID: .basiliskV3Pro
         )
@@ -4317,6 +4317,79 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
 
         let listCountAfterStaleRefresh = await backend.onboardListCount(deviceID: device.id)
         XCTAssertEqual(listCountAfterStaleRefresh, 2)
+    }
+
+    func testProjectedOnboardProfileNameDoesNotResurrectUnassignedSlot() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-rename-unassigned-refresh-device",
+            transport: .usb,
+            serial: "ONBOARD-RENAME-UNASSIGNED-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1, 2],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(profileID: 2, name: "Stored 2", dpiValues: [1200, 2400]),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+        await appState.editorStore.selectOnboardProfile(2)
+
+        await appState.editorStore.renameSelectedOnboardProfile(name: "Renamed")
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await appState.editorStore.refreshOnboardProfiles()
+
+        try await waitForRefactorCondition {
+            await MainActor.run {
+                let slot = appState.editorStore.onboardProfileSummaries.first(where: { $0.profileID == 2 })
+                return appState.editorStore.selectedOnboardProfileID == 1 &&
+                    slot?.isAssigned == false &&
+                    slot?.metadata == nil
+            }
+        }
     }
 
     func testDeletingActiveOnboardProfileActivatesNextAssignedSlot() async throws {

@@ -1359,8 +1359,7 @@ final class AppStateEditorController {
         }
 
         var remainingProjections = projections
-        let validProjectedIDs = Set(projections.keys.filter { $0 >= 1 && $0 <= inventory.maxProfileID })
-        let assignedProfileIDs = Set(inventory.assignedProfileIDs).union(validProjectedIDs).sorted()
+        let assignedProfileIDs = Set(inventory.assignedProfileIDs)
         let summaries = (1...inventory.maxProfileID).map { profileID -> OnboardProfileSummary in
             let existing = inventory.summary(for: profileID)
             let baseSummary = existing ?? OnboardProfileSummary(
@@ -1371,6 +1370,15 @@ final class AppStateEditorController {
                 isBaseProfile: profileID == 1
             )
             guard let projected = projections[profileID] else {
+                return baseSummary
+            }
+
+            guard baseSummary.isAssigned else {
+                remainingProjections.removeValue(forKey: profileID)
+                AppLog.debug(
+                    "AppState",
+                    "onboard profile metadata projection dropped for unassigned profile source=\(source) device=\(deviceID) profile=\(profileID)"
+                )
                 return baseSummary
             }
 
@@ -1408,7 +1416,7 @@ final class AppStateEditorController {
         return OnboardProfileInventory(
             activeProfileID: inventory.activeProfileID,
             maxProfileID: inventory.maxProfileID,
-            assignedProfileIDs: assignedProfileIDs,
+            assignedProfileIDs: assignedProfileIDs.sorted(),
             profiles: summaries
         )
     }
