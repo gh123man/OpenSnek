@@ -3623,7 +3623,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         )
     }
 
-    func testSelectingCachedOnboardProfileSkipsDeviceRead() async throws {
+    func testSelectingOnboardProfileRereadsDeviceSnapshot() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-cache-select-device",
             transport: .usb,
@@ -3683,14 +3683,103 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         await appState.editorStore.selectOnboardProfile(3)
         let profile3ReadCountAfterSelect = await backend.onboardReadCount(deviceID: device.id, profileID: 3)
         XCTAssertEqual(profile3ReadCountAfterSelect, 1)
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(profileID: 2, name: "Stored 2", dpiValues: [1500, 2500]),
+            forDeviceID: device.id
+        )
 
         await appState.editorStore.selectOnboardProfile(2)
-        let cachedStage = await MainActor.run { appState.editorStore.stageValue(0) }
-        let profile2ReadCountAfterCachedSelect = await backend.onboardReadCount(deviceID: device.id, profileID: 2)
-        XCTAssertEqual(profile2ReadCountAfterCachedSelect, 1)
-        XCTAssertEqual(cachedStage, 1200)
+        let reloadedStage = await MainActor.run { appState.editorStore.stageValue(0) }
+        let profile2ReadCountAfterReloadedSelect = await backend.onboardReadCount(deviceID: device.id, profileID: 2)
+        XCTAssertEqual(profile2ReadCountAfterReloadedSelect, 2)
+        XCTAssertEqual(reloadedStage, 1500)
         let activations = await backend.recordedOnboardActivations()
         XCTAssertEqual(activations.map(\.profileID), [2, 3, 2])
+    }
+
+    func testSameIDReconnectInvalidatesLoadedOnboardProfileSnapshot() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-reconnect-profile-device",
+            transport: .usb,
+            serial: "ONBOARD-RECONNECT-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1, 2],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(profileID: 1, name: "Base", dpiValues: [800, 1600]),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+        await appState.editorStore.selectOnboardProfile(1)
+        let initialReadCount = await backend.onboardReadCount(deviceID: device.id, profileID: 1)
+        XCTAssertEqual(initialReadCount, 1)
+
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(profileID: 1, name: "Base", dpiValues: [1400, 2800]),
+            forDeviceID: device.id
+        )
+        await MainActor.run {
+            _ = appState.deviceController.applyDeviceList([device], source: "subscription")
+            appState.deviceController.applyBackendDeviceStateUpdate(
+                deviceID: device.id,
+                state: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                ),
+                updatedAt: Date()
+            )
+        }
+
+        try await waitForRefactorCondition {
+            await MainActor.run {
+                appState.editorStore.selectedOnboardProfileID == 1 &&
+                    appState.editorStore.stageValue(0) == 1400
+            }
+        }
+        let reloadedReadCount = await backend.onboardReadCount(deviceID: device.id, profileID: 1)
+        XCTAssertGreaterThanOrEqual(reloadedReadCount, 2)
     }
 
     func testCreatingOnboardProfileCanCopyExistingSlot() async throws {

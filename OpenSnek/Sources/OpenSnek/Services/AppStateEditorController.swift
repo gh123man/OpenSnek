@@ -24,10 +24,11 @@ final class AppStateEditorController {
     private var buttonProfileLiveBindingsByDeviceID: [String: [Int: ButtonBindingDraft]] = [:]
     private var softwareActiveUSBButtonProfileOverrideByDeviceID: [String: Int] = [:]
     private var onboardProfileInventoryByDeviceID: [String: OnboardProfileInventory] = [:]
-    private var onboardProfileSnapshotsByKey: [String: OnboardProfileSnapshot] = [:]
+    private var currentOnboardProfileSnapshotByDeviceID: [String: OnboardProfileSnapshot] = [:]
     private var onboardProfileLightingColorsByDeviceID: [String: [String: RGBColor]] = [:]
     private var selectedOnboardProfileIDByDeviceID: [String: Int] = [:]
     private var lastHardwareActiveOnboardProfileIDByDeviceID: [String: Int] = [:]
+    private var onboardProfileReloadRequiredDeviceIDs: Set<String> = []
     private var buttonWorkspaceEditRevision: UInt64 = 0
     private var isTearingDown = false
 
@@ -236,9 +237,8 @@ final class AppStateEditorController {
         onboardProfileInventoryByDeviceID = onboardProfileInventoryByDeviceID.filter { key, _ in
             !removedDeviceIDs.contains(key)
         }
-        onboardProfileSnapshotsByKey = onboardProfileSnapshotsByKey.filter { key, _ in
-            guard let hydratedDeviceID = key.split(separator: "#").first else { return true }
-            return !removedDeviceIDs.contains(String(hydratedDeviceID))
+        currentOnboardProfileSnapshotByDeviceID = currentOnboardProfileSnapshotByDeviceID.filter { key, _ in
+            !removedDeviceIDs.contains(key)
         }
         onboardProfileLightingColorsByDeviceID = onboardProfileLightingColorsByDeviceID.filter { key, _ in
             !removedDeviceIDs.contains(key)
@@ -249,6 +249,7 @@ final class AppStateEditorController {
         lastHardwareActiveOnboardProfileIDByDeviceID = lastHardwareActiveOnboardProfileIDByDeviceID.filter { key, _ in
             !removedDeviceIDs.contains(key)
         }
+        onboardProfileReloadRequiredDeviceIDs.subtract(removedDeviceIDs)
         buttonBindingsCacheByHydrationKey = buttonBindingsCacheByHydrationKey.filter { key, _ in
             guard let hydratedDeviceID = key.split(separator: "#").first else { return true }
             return !removedDeviceIDs.contains(String(hydratedDeviceID))
@@ -268,6 +269,27 @@ final class AppStateEditorController {
             self.hydratedButtonBindingsKey = nil
         }
         bumpUSBButtonProfilesRevision()
+        bumpOnboardProfilesRevision()
+    }
+
+    func invalidateOnboardProfileState(for deviceIDs: Set<String>) {
+        guard !deviceIDs.isEmpty else { return }
+        onboardProfileInventoryByDeviceID = onboardProfileInventoryByDeviceID.filter { key, _ in
+            !deviceIDs.contains(key)
+        }
+        currentOnboardProfileSnapshotByDeviceID = currentOnboardProfileSnapshotByDeviceID.filter { key, _ in
+            !deviceIDs.contains(key)
+        }
+        onboardProfileLightingColorsByDeviceID = onboardProfileLightingColorsByDeviceID.filter { key, _ in
+            !deviceIDs.contains(key)
+        }
+        selectedOnboardProfileIDByDeviceID = selectedOnboardProfileIDByDeviceID.filter { key, _ in
+            !deviceIDs.contains(key)
+        }
+        lastHardwareActiveOnboardProfileIDByDeviceID = lastHardwareActiveOnboardProfileIDByDeviceID.filter { key, _ in
+            !deviceIDs.contains(key)
+        }
+        onboardProfileReloadRequiredDeviceIDs.formUnion(deviceIDs)
         bumpOnboardProfilesRevision()
     }
 
@@ -1092,20 +1114,15 @@ final class AppStateEditorController {
         bumpUSBButtonProfilesRevision()
     }
 
-    private func onboardProfileSnapshotKey(device: MouseDevice, profileID: Int) -> String {
-        "\(device.id)#\(profileID)"
-    }
-
-    private func cachedOnboardProfileSnapshot(device: MouseDevice, profileID: Int) -> OnboardProfileSnapshot? {
-        onboardProfileSnapshotsByKey[onboardProfileSnapshotKey(device: device, profileID: profileID)]
-    }
-
-    private func readAndCacheOnboardProfileSnapshot(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot {
-        if let cached = cachedOnboardProfileSnapshot(device: device, profileID: profileID) {
-            return cached
-        }
+    private func readLatestOnboardProfileSnapshot(
+        device: MouseDevice,
+        profileID: Int,
+        storeForEditing: Bool = true
+    ) async throws -> OnboardProfileSnapshot {
         let snapshot = try await environment.backend.readOnboardProfile(device: device, profileID: profileID)
-        cacheOnboardProfileSnapshot(snapshot, device: device)
+        if storeForEditing {
+            storeCurrentOnboardProfileSnapshot(snapshot, device: device)
+        }
         return snapshot
     }
 
@@ -1169,6 +1186,7 @@ final class AppStateEditorController {
         let previousActive = lastHardwareActiveOnboardProfileIDByDeviceID[device.id]
         let selected = selectedOnboardProfileIDByDeviceID[device.id]
         let activeChanged = previousActive != nil && active != previousActive
+        let reloadRequired = onboardProfileReloadRequiredDeviceIDs.contains(device.id)
         let shouldFollowActive = selected == nil || selected == previousActive || activeChanged
         if shouldFollowActive {
             selectedOnboardProfileIDByDeviceID[device.id] = active
@@ -1176,7 +1194,8 @@ final class AppStateEditorController {
         lastHardwareActiveOnboardProfileIDByDeviceID[device.id] = active
         updateCachedOnboardInventoryActiveProfile(deviceID: device.id, activeProfileID: active)
         bumpOnboardProfilesRevision()
-        guard activeChanged, shouldFollowActive else { return }
+        guard shouldFollowActive, activeChanged || reloadRequired else { return }
+        onboardProfileReloadRequiredDeviceIDs.remove(device.id)
 
         applyController.cancelPendingLocalEditsForSelectionChange()
         editorStore.beginButtonProfileOperation(statusText: "Loading profile...")
@@ -1203,8 +1222,8 @@ final class AppStateEditorController {
         }
     }
 
-    private func cacheOnboardProfileSnapshot(_ snapshot: OnboardProfileSnapshot, device: MouseDevice) {
-        onboardProfileSnapshotsByKey[onboardProfileSnapshotKey(device: device, profileID: snapshot.profileID)] = snapshot
+    private func storeCurrentOnboardProfileSnapshot(_ snapshot: OnboardProfileSnapshot, device: MouseDevice) {
+        currentOnboardProfileSnapshotByDeviceID[device.id] = snapshot
         guard let inventory = onboardProfileInventoryByDeviceID[device.id] else { return }
         var summaries = synthesizedOnboardProfileSummaries(from: inventory).filter { $0.profileID != snapshot.profileID }
         summaries.append(OnboardProfileSummary(
@@ -1305,16 +1324,21 @@ final class AppStateEditorController {
             }
             guard inventory.assignedProfileIDs.contains(profileID) else {
                 selectedOnboardProfileIDByDeviceID[device.id] = profileID
+                currentOnboardProfileSnapshotByDeviceID.removeValue(forKey: device.id)
                 deviceStore.errorMessage = nil
                 bumpOnboardProfilesRevision()
                 return
             }
             guard isOnboardProfileActive(deviceID: device.id, profileID: profileID) else {
-                _ = try await readAndCacheOnboardProfileSnapshot(device: device, profileID: profileID)
-                await activateOnboardProfile(profileID)
+                let snapshot = try await readLatestOnboardProfileSnapshot(
+                    device: device,
+                    profileID: profileID,
+                    storeForEditing: false
+                )
+                await activateOnboardProfile(profileID, preloadedSnapshot: snapshot)
                 return
             }
-            let snapshot = try await readAndCacheOnboardProfileSnapshot(device: device, profileID: profileID)
+            let snapshot = try await readLatestOnboardProfileSnapshot(device: device, profileID: profileID)
             selectedOnboardProfileIDByDeviceID[device.id] = profileID
             hydrateEditable(from: snapshot, device: device)
             deviceStore.errorMessage = nil
@@ -1326,15 +1350,29 @@ final class AppStateEditorController {
     }
 
     func activateOnboardProfile(_ profileID: Int) async {
+        await activateOnboardProfile(profileID, preloadedSnapshot: nil)
+    }
+
+    private func activateOnboardProfile(_ profileID: Int, preloadedSnapshot: OnboardProfileSnapshot?) async {
         guard !isTearingDown, let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return }
         do {
-            let targetSnapshot = try await readAndCacheOnboardProfileSnapshot(device: device, profileID: profileID)
+            let targetSnapshot: OnboardProfileSnapshot
+            if let preloadedSnapshot {
+                targetSnapshot = preloadedSnapshot
+            } else {
+                targetSnapshot = try await readLatestOnboardProfileSnapshot(
+                    device: device,
+                    profileID: profileID,
+                    storeForEditing: false
+                )
+            }
             let state = try await environment.backend.activateOnboardProfile(device: device, profileID: profileID)
             let active = storeActiveOnboardProfileState(state, for: device, fallbackActiveProfileID: profileID)
             selectedOnboardProfileIDByDeviceID[device.id] = active
             let snapshot = active == profileID
                 ? targetSnapshot
-                : try await readAndCacheOnboardProfileSnapshot(device: device, profileID: active)
+                : try await readLatestOnboardProfileSnapshot(device: device, profileID: active, storeForEditing: false)
+            storeCurrentOnboardProfileSnapshot(snapshot, device: device)
             hydrateEditable(from: snapshot, device: device)
             deviceStore.errorMessage = nil
             bumpOnboardProfilesRevision()
@@ -1354,9 +1392,10 @@ final class AppStateEditorController {
             let metadata = OnboardProfileMetadata(name: name)
             let mutation: OnboardProfileMutation
             if let copyFromProfileID {
-                let sourceSnapshot = try await readAndCacheOnboardProfileSnapshot(
+                let sourceSnapshot = try await readLatestOnboardProfileSnapshot(
                     device: device,
-                    profileID: copyFromProfileID
+                    profileID: copyFromProfileID,
+                    storeForEditing: false
                 )
                 mutation = onboardProfileMutation(copying: sourceSnapshot, metadata: metadata)
             } else {
@@ -1368,14 +1407,14 @@ final class AppStateEditorController {
                 targetProfileID: targetProfileID,
                 replaceAssignedProfile: false
             )
-            cacheOnboardProfileSnapshot(snapshot, device: device)
+            storeCurrentOnboardProfileSnapshot(snapshot, device: device)
             let state = try await environment.backend.activateOnboardProfile(device: device, profileID: snapshot.profileID)
             let active = storeActiveOnboardProfileState(state, for: device, fallbackActiveProfileID: snapshot.profileID)
             selectedOnboardProfileIDByDeviceID[device.id] = active
             if active == snapshot.profileID {
                 hydrateEditable(from: snapshot, device: device)
             } else {
-                let activeSnapshot = try await readAndCacheOnboardProfileSnapshot(device: device, profileID: active)
+                let activeSnapshot = try await readLatestOnboardProfileSnapshot(device: device, profileID: active)
                 hydrateEditable(from: activeSnapshot, device: device)
             }
             deviceStore.errorMessage = nil
@@ -1397,7 +1436,7 @@ final class AppStateEditorController {
                 profileID: selected,
                 name: name
             )
-            cacheOnboardProfileSnapshot(snapshot, device: device)
+            storeCurrentOnboardProfileSnapshot(snapshot, device: device)
             selectedOnboardProfileIDByDeviceID[device.id] = selected
             deviceStore.errorMessage = nil
             bumpOnboardProfilesRevision()
@@ -1417,7 +1456,9 @@ final class AppStateEditorController {
             let wasActive = isOnboardProfileActive(deviceID: device.id, profileID: selected)
             var inventory = try await environment.backend.deleteOnboardProfile(device: device, profileID: selected)
             onboardProfileInventoryByDeviceID[device.id] = inventory
-            onboardProfileSnapshotsByKey.removeValue(forKey: onboardProfileSnapshotKey(device: device, profileID: selected))
+            if currentOnboardProfileSnapshotByDeviceID[device.id]?.profileID == selected {
+                currentOnboardProfileSnapshotByDeviceID.removeValue(forKey: device.id)
+            }
 
             var nextSelected: Int?
             if wasActive {
@@ -1453,7 +1494,7 @@ final class AppStateEditorController {
             lastHardwareActiveOnboardProfileIDByDeviceID[device.id] = inventory.activeProfileID
             if let nextSelected {
                 selectedOnboardProfileIDByDeviceID[device.id] = nextSelected
-                if let snapshot = try? await readAndCacheOnboardProfileSnapshot(device: device, profileID: nextSelected) {
+                if let snapshot = try? await readLatestOnboardProfileSnapshot(device: device, profileID: nextSelected) {
                     hydrateEditable(from: snapshot, device: device)
                 }
             } else {
@@ -1479,7 +1520,7 @@ final class AppStateEditorController {
                 profileID: selected,
                 mutation: mutation
             )
-            cacheOnboardProfileSnapshot(snapshot, device: device)
+            storeCurrentOnboardProfileSnapshot(snapshot, device: device)
             if selectedOnboardProfileIDByDeviceID[device.id] == selected {
                 hydrateEditableLighting(from: snapshot, device: device)
             }
@@ -1529,8 +1570,8 @@ final class AppStateEditorController {
                 scalar: scalar,
                 activeStage: activeStage,
                 pairs: pairs,
-                stageIDs: cachedSelectedOnboardProfileSnapshot(device: device)?.dpi?.stageIDs ?? [],
-                marker: cachedSelectedOnboardProfileSnapshot(device: device)?.dpi?.marker
+                stageIDs: currentSelectedOnboardProfileSnapshot(device: device)?.dpi?.stageIDs ?? [],
+                marker: currentSelectedOnboardProfileSnapshot(device: device)?.dpi?.marker
             ),
             buttonBindings: editorStore.editableButtonBindings,
             brightnessByLEDID: brightness,
@@ -1551,9 +1592,13 @@ final class AppStateEditorController {
         )
     }
 
-    private func cachedSelectedOnboardProfileSnapshot(device: MouseDevice) -> OnboardProfileSnapshot? {
+    private func currentSelectedOnboardProfileSnapshot(device: MouseDevice) -> OnboardProfileSnapshot? {
         guard let selected = selectedOnboardProfileIDByDeviceID[device.id] else { return nil }
-        return onboardProfileSnapshotsByKey[onboardProfileSnapshotKey(device: device, profileID: selected)]
+        guard let snapshot = currentOnboardProfileSnapshotByDeviceID[device.id],
+              snapshot.profileID == selected else {
+            return nil
+        }
+        return snapshot
     }
 
     private func rgbColor(from patch: RGBPatch) -> RGBColor {

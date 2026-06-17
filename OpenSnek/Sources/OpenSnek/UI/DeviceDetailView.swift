@@ -1918,6 +1918,9 @@ private struct OnboardProfileManagerCard: View {
         if let selectedProfileID, let selectedSummary {
             VStack(alignment: .leading, spacing: 12) {
                 actionHeader(for: selectedSummary)
+                if selectedSummary.profileID == 1 {
+                    baseProfileWarning
+                }
 
                 TextField(selectedSummary.isAssigned ? "Profile name" : "Name this profile", text: $renameName)
                     .textFieldStyle(.roundedBorder)
@@ -1974,6 +1977,29 @@ private struct OnboardProfileManagerCard: View {
             Color.clear
                 .frame(height: slotRowHeight)
         }
+    }
+
+    private var baseProfileWarning: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Color(hex: 0xFFD166))
+                .frame(width: 14, height: 14)
+            Text("Synapse will overwrite this profile. Save settings to a stored slot if you want to keep them.")
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color(hex: 0xFFD166).opacity(0.92))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 7)
+                .fill(Color(hex: 0xFFD166).opacity(0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(Color(hex: 0xFFD166).opacity(0.22), lineWidth: 1)
+        )
     }
 
     private func actionHeader(for summary: OnboardProfileSummary) -> some View {

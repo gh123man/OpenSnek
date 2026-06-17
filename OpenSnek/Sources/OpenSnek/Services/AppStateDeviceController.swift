@@ -413,6 +413,9 @@ final class AppStateDeviceController {
                 armPendingSettingsRestore(for: newIDs)
             }
         }
+        if !environment.usesRemoteServiceTransport, source == "subscription", previousIDs == newIDs, !newIDs.isEmpty {
+            editorController.invalidateOnboardProfileState(for: newIDs)
+        }
 
         deviceStore.devices = sorted
         if let previousSelectedID, newIDs.contains(previousSelectedID) {

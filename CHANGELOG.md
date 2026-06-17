@@ -10,11 +10,12 @@ All notable changes to this project are documented in this file.
 - Added passive profile-cycle HID handling for Basilisk V3 Pro USB and Bluetooth so OpenSnek can refresh the active onboard profile from the direct active-profile register and update the UI without fingerprinting the whole device configuration.
 - Added a visible profile-load scrim for onboard profile operations and profile-cycle refreshes, plus tighter onboard profile slot styling and hard RGB lighting presets.
 - Added a Copy From selector when creating empty onboard profile slots so new slots can duplicate an existing onboard profile.
+- Added a profile 1 warning that Synapse can overwrite the live profile and settings should be saved to a stored slot when they need to persist.
 
 ### Changed
 - Devices with multiple onboard profile slots now hide and ignore the legacy On Connect restore setting so profile-backed settings remain the source of truth.
-- Onboard profile slot selection now reuses in-memory profile snapshots during a connection instead of rereading a loaded slot on every click.
 - Selecting an assigned onboard profile now activates it immediately, and creating a profile activates the new slot.
+- Onboard profile slot selection now rereads the selected profile from the mouse every time, and same-ID reconnects invalidate loaded onboard profile state so vendor-side overwrites are reflected after reconnect.
 
 ### Fixed
 - Onboard profile create and rename now update the cached slot inventory immediately without a second full refresh, and deleting the active stored profile now activates the next assigned slot.
