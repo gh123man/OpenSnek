@@ -1538,12 +1538,70 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
 
         await appState.deviceStore.refreshDevices()
 
-        try await waitForRefactorCondition {
+        try await waitForRefactorCondition(timeout: 2.0) {
             await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) == .rightClick }
         }
 
         let binding = await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) }
         XCTAssertEqual(binding, .rightClick)
+    }
+
+    func testStateRefreshStaysConnectedWhileUSBButtonHydrationIsInFlight() async throws {
+        let device = makeRefactorTestDevice(
+            id: "usb-refresh-hydration-device",
+            transport: .usb,
+            serial: "USB-REFRESH-HYDRATION-\(UUID().uuidString)",
+            onboardProfileCount: 1
+        )
+        defer { clearRefactorPreferences(for: device) }
+
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 88,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 1,
+                    dpiValue: 1600,
+                    pollRate: 1000,
+                    sleepTimeout: 300
+                )
+            ]
+        )
+        await backend.setButtonBindingBlock(
+            try XCTUnwrap(ButtonBindingSupport.defaultUSBFunctionBlock(for: 1, profileID: .basiliskV3Pro)),
+            forDeviceID: device.id,
+            slot: 1,
+            profile: 1
+        )
+        await backend.holdButtonBindingRead(deviceID: device.id, slot: 1, profile: 1)
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+        try await waitForRefactorCondition {
+            await backend.buttonReadCount(for: device.id) > 0
+        }
+
+        let connectionState = await MainActor.run {
+            appState.deviceStore.connectionState(for: device)
+        }
+        let controlsEnabled = await MainActor.run {
+            appState.deviceStore.selectedDeviceControlsEnabled
+        }
+        let isRefreshingState = await MainActor.run {
+            appState.deviceStore.isRefreshingState
+        }
+
+        XCTAssertEqual(connectionState, .connected)
+        XCTAssertTrue(controlsEnabled)
+        XCTAssertFalse(isRefreshingState)
+
+        await backend.releaseButtonBindingRead(deviceID: device.id, slot: 1, profile: 1)
     }
 
     func testUSBWheelTiltDefaultHydrationUsesDefaultPickerSelection() async throws {
@@ -1743,14 +1801,15 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
 
         await appState.deviceStore.refreshDevices()
 
-        let initialBinding = await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) }
-        XCTAssertEqual(initialBinding, .leftClick)
+        try await waitForRefactorCondition {
+            await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) == .leftClick }
+        }
 
         await MainActor.run {
             appState.editorStore.updateUSBButtonProfile(2)
         }
 
-        try await waitForRefactorCondition {
+        try await waitForRefactorCondition(timeout: 2.0) {
             await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) == .rightClick }
         }
 
@@ -1912,7 +1971,10 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         await appState.deviceStore.refreshDevices()
 
         try await waitForRefactorCondition(timeout: 2.0) {
-            await MainActor.run { appState.editorStore.canDuplicateSelectedUSBButtonProfile }
+            await MainActor.run {
+                appState.editorStore.canDuplicateSelectedUSBButtonProfile &&
+                    appState.editorStore.buttonBindingKind(for: 4) == .rightClick
+            }
         }
 
         await appState.editorStore.duplicateSelectedUSBButtonProfile()
@@ -1973,11 +2035,14 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         }
 
         await appState.deviceStore.refreshDevices()
+        try await waitForRefactorCondition {
+            await MainActor.run { appState.editorStore.visibleOnboardProfileCount == 2 }
+        }
         await MainActor.run {
             appState.editorStore.updateUSBButtonProfile(2)
         }
 
-        try await waitForRefactorCondition {
+        try await waitForRefactorCondition(timeout: 2.0) {
             await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) == .rightClick }
         }
 
@@ -3135,7 +3200,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             appState.editorStore.selectButtonProfileSource(.mouseSlot(2))
         }
 
-        try await waitForRefactorCondition {
+        try await waitForRefactorCondition(timeout: 2.0) {
             await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) == .rightClick }
         }
     }
@@ -3934,6 +3999,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             onboardProfileCount: 5,
             profileID: .basiliskV3Pro
         )
+        defer { clearRefactorPreferences(for: device) }
         let backend = AppStateRefactorStubBackend(
             devices: [device],
             stateByDeviceID: [
@@ -4321,6 +4387,10 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
     private var firstApplyReleaseContinuation: CheckedContinuation<Void, Never>?
     private var buttonBindingBlocks: [String: [UInt8]] = [:]
     private var buttonReadCountByDeviceID: [String: Int] = [:]
+    private var heldButtonReadKeys: Set<String> = []
+    private var startedHeldButtonReadKeys: Set<String> = []
+    private var buttonReadStartedContinuations: [String: CheckedContinuation<Void, Never>] = [:]
+    private var buttonReadReleaseContinuations: [String: CheckedContinuation<Void, Never>] = [:]
     private var readCountByDeviceID: [String: Int] = [:]
     private var fastReadInvocationCount = 0
     private var fastReadCountByDeviceID: [String: Int] = [:]
@@ -4438,7 +4508,18 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
 
     func debugUSBReadButtonBinding(device: MouseDevice, slot: Int, profile: Int) async throws -> [UInt8]? {
         buttonReadCountByDeviceID[device.id, default: 0] += 1
-        return buttonBindingBlocks[buttonKey(deviceID: device.id, slot: slot, profile: profile)]
+        let key = buttonKey(deviceID: device.id, slot: slot, profile: profile)
+        if heldButtonReadKeys.contains(key) {
+            startedHeldButtonReadKeys.insert(key)
+            buttonReadStartedContinuations[key]?.resume()
+            buttonReadStartedContinuations[key] = nil
+            await withCheckedContinuation { continuation in
+                buttonReadReleaseContinuations[key] = continuation
+            }
+            heldButtonReadKeys.remove(key)
+            buttonReadReleaseContinuations[key] = nil
+        }
+        return buttonBindingBlocks[key]
     }
 
     func listOnboardProfiles(device: MouseDevice) async throws -> OnboardProfileInventory {
@@ -4709,6 +4790,27 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
 
     func buttonReadCount(for deviceID: String) -> Int {
         buttonReadCountByDeviceID[deviceID, default: 0]
+    }
+
+    func holdButtonBindingRead(deviceID: String, slot: Int, profile: Int) {
+        heldButtonReadKeys.insert(buttonKey(deviceID: deviceID, slot: slot, profile: profile))
+    }
+
+    func waitForButtonBindingReadToStart(deviceID: String, slot: Int, profile: Int) async {
+        let key = buttonKey(deviceID: deviceID, slot: slot, profile: profile)
+        if startedHeldButtonReadKeys.contains(key) {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            buttonReadStartedContinuations[key] = continuation
+        }
+    }
+
+    func releaseButtonBindingRead(deviceID: String, slot: Int, profile: Int) {
+        let key = buttonKey(deviceID: deviceID, slot: slot, profile: profile)
+        heldButtonReadKeys.remove(key)
+        buttonReadReleaseContinuations[key]?.resume()
+        buttonReadReleaseContinuations[key] = nil
     }
 
     func setOnboardInventory(_ inventory: OnboardProfileInventory, forDeviceID deviceID: String) {

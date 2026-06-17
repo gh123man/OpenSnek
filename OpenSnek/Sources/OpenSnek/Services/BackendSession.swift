@@ -322,6 +322,7 @@ func mergedStateFromPassiveDpiEvent(
 
 final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptionsSupportingBackend {
     static let shared = LocalBridgeBackend()
+    private static let usbDisconnectDebounceInterval: TimeInterval = 0.75
 
     private let client = BridgeClient()
     private var cachedDevices: [MouseDevice] = []
@@ -334,6 +335,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     private var bluetoothControlReadyDeviceIDs: Set<String> = []
     private let stateUpdatesStream = BroadcastStream<BackendStateUpdate>()
     private var devicePresenceRefreshTask: Task<Void, Never>?
+    private var pendingUSBDisconnectRefreshTasks: [String: Task<Void, Never>] = [:]
     private var activeBluetoothWarmupKeys: Set<String> = []
 
     nonisolated var usesRemoteServiceTransport: Bool { false }
@@ -657,6 +659,20 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     }
 
     private func handleDevicePresenceEvent(_ event: HIDDevicePresenceEvent) {
+        if event.transport == .usb {
+            if event.change == .connected {
+                pendingUSBDisconnectRefreshTasks.removeValue(forKey: event.deviceID)?.cancel()
+                devicePresenceRefreshTask?.cancel()
+                devicePresenceRefreshTask = Task { [weak self] in
+                    guard let self, !Task.isCancelled else { return }
+                    await self.refreshCachedDevicesAfterPresenceChange(observedAt: event.observedAt, event: event)
+                }
+            } else {
+                scheduleUSBDisconnectRefresh(for: event)
+            }
+            return
+        }
+
         invalidateCachedTelemetry(for: event.deviceID)
         scheduleBluetoothWarmup(for: event)
         devicePresenceRefreshTask?.cancel()
@@ -673,6 +689,29 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
             }
 
             guard !Task.isCancelled else { return }
+            await self.refreshCachedDevicesAfterPresenceChange(observedAt: Date(), event: event)
+        }
+    }
+
+    private func scheduleUSBDisconnectRefresh(for event: HIDDevicePresenceEvent) {
+        pendingUSBDisconnectRefreshTasks.removeValue(forKey: event.deviceID)?.cancel()
+        pendingUSBDisconnectRefreshTasks[event.deviceID] = Task { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: UInt64(Self.usbDisconnectDebounceInterval * 1_000_000_000))
+            } catch {
+                return
+            }
+            guard let self, !Task.isCancelled else { return }
+            await self.finishUSBDisconnectRefresh(for: event)
+        }
+    }
+
+    private func finishUSBDisconnectRefresh(for event: HIDDevicePresenceEvent) async {
+        guard pendingUSBDisconnectRefreshTasks[event.deviceID] != nil else { return }
+        pendingUSBDisconnectRefreshTasks[event.deviceID] = nil
+        devicePresenceRefreshTask?.cancel()
+        devicePresenceRefreshTask = Task { [weak self] in
+            guard let self, !Task.isCancelled else { return }
             await self.refreshCachedDevicesAfterPresenceChange(observedAt: Date(), event: event)
         }
     }

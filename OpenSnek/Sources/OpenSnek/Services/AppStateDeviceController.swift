@@ -26,6 +26,7 @@ final class AppStateDeviceController {
     private var lastPassiveHeartbeatAtByDeviceID: [String: Date] = [:]
     private var lastFullStateRefreshStartedAtByDeviceID: [String: Date] = [:]
     private var isPollingDevices = false
+    private var isRefreshingDevices = false
     private var refreshFailureCountByDeviceID: [String: Int] = [:]
     private var stateRefreshSuppressedUntilByDeviceID: [String: Date] = [:]
     private var unavailableDeviceIDs: Set<String> = []
@@ -37,6 +38,8 @@ final class AppStateDeviceController {
     private var seededReconnectStateDeviceIDs: Set<String> = []
     private var selectedRecoveryRefreshTask: Task<Void, Never>?
     private var selectedRecoveryRefreshDeviceID: String?
+    private var selectedEditorHydrationTasksByDeviceID: [String: Task<Void, Never>] = [:]
+    private var selectedEditorHydrationTokensByDeviceID: [String: UUID] = [:]
     private var isTearingDown = false
 
     init(environment: AppEnvironment, deviceStore: DeviceStore) {
@@ -49,6 +52,9 @@ final class AppStateDeviceController {
         selectedRecoveryRefreshTask?.cancel()
         selectedRecoveryRefreshTask = nil
         selectedRecoveryRefreshDeviceID = nil
+        selectedEditorHydrationTasksByDeviceID.values.forEach { $0.cancel() }
+        selectedEditorHydrationTasksByDeviceID.removeAll()
+        selectedEditorHydrationTokensByDeviceID.removeAll()
     }
 
     func bind(
@@ -309,10 +315,18 @@ final class AppStateDeviceController {
             AppLog.debug("AppState", "refreshDevices deferred until backend is ready")
             return
         }
+        guard !isRefreshingDevices else {
+            AppLog.debug("AppState", "refreshDevices skipped already-refreshing")
+            return
+        }
+        isRefreshingDevices = true
         let start = Date()
         AppLog.event("AppState", "refreshDevices start")
         deviceStore.isLoading = true
-        defer { deviceStore.isLoading = false }
+        defer {
+            deviceStore.isLoading = false
+            isRefreshingDevices = false
+        }
 
         do {
             let listed = try await environment.backend.listDevices()
@@ -688,6 +702,34 @@ final class AppStateDeviceController {
                 return
             }
             await editorController.hydrateLightingStateIfNeeded(device: device)
+        }
+    }
+
+    private func scheduleSelectedEditorHydration(device: MouseDevice) {
+        selectedEditorHydrationTasksByDeviceID[device.id]?.cancel()
+        let token = UUID()
+        selectedEditorHydrationTokensByDeviceID[device.id] = token
+        selectedEditorHydrationTasksByDeviceID[device.id] = Task { @MainActor [weak self] in
+            guard let self,
+                  !self.isTearingDown,
+                  self.deviceStore.selectedDeviceID == device.id,
+                  let editorController = self._editorController.optionalValue else {
+                return
+            }
+            defer {
+                if self.selectedEditorHydrationTokensByDeviceID[device.id] == token {
+                    self.selectedEditorHydrationTokensByDeviceID.removeValue(forKey: device.id)
+                    self.selectedEditorHydrationTasksByDeviceID.removeValue(forKey: device.id)
+                }
+            }
+
+            await editorController.hydrateLightingStateIfNeeded(device: device)
+            guard !Task.isCancelled,
+                  !self.isTearingDown,
+                  self.deviceStore.selectedDeviceID == device.id else {
+                return
+            }
+            await editorController.hydrateButtonBindingsIfNeeded(device: device)
         }
     }
 
@@ -1331,8 +1373,7 @@ final class AppStateDeviceController {
                             scheduleButtonHydration: false
                         )
                         if hydratedEditable {
-                            await editorController.hydrateLightingStateIfNeeded(device: presentationDevice)
-                            await editorController.hydrateButtonBindingsIfNeeded(device: presentationDevice)
+                            scheduleSelectedEditorHydration(device: presentationDevice)
                         }
                         deviceStore.errorMessage = nil
                         setTelemetryWarning(editorController.telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)
@@ -1384,8 +1425,7 @@ final class AppStateDeviceController {
                         scheduleButtonHydration: false
                     )
                     if hydratedEditable {
-                        await editorController.hydrateLightingStateIfNeeded(device: presentationDevice)
-                        await editorController.hydrateButtonBindingsIfNeeded(device: presentationDevice)
+                        scheduleSelectedEditorHydration(device: presentationDevice)
                     }
                     deviceStore.errorMessage = nil
                     setTelemetryWarning(editorController.telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)
@@ -1437,8 +1477,7 @@ final class AppStateDeviceController {
                     scheduleButtonHydration: false
                 )
                 if hydratedEditable {
-                    await editorController.hydrateLightingStateIfNeeded(device: presentationDevice)
-                    await editorController.hydrateButtonBindingsIfNeeded(device: presentationDevice)
+                    scheduleSelectedEditorHydration(device: presentationDevice)
                 }
                 deviceStore.errorMessage = nil
                 setTelemetryWarning(editorController.telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)

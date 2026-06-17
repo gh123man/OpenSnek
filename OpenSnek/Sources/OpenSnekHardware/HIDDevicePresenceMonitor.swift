@@ -35,15 +35,48 @@ public struct HIDDevicePresenceEvent: Hashable, Sendable {
     }
 }
 
+public struct HIDDevicePresenceAccumulator: Sendable {
+    private var activeInterfaceTokensByDeviceID: [String: Set<String>] = [:]
+
+    public init() {}
+
+    public mutating func reducedEvent(
+        deviceID: String,
+        interfaceToken: String,
+        event: HIDDevicePresenceEvent
+    ) -> HIDDevicePresenceEvent? {
+        switch event.change {
+        case .connected:
+            let wasAbsent = activeInterfaceTokensByDeviceID[deviceID, default: []].isEmpty
+            activeInterfaceTokensByDeviceID[deviceID, default: []].insert(interfaceToken)
+            return wasAbsent ? event : nil
+        case .disconnected:
+            guard var tokens = activeInterfaceTokensByDeviceID[deviceID] else {
+                return nil
+            }
+            tokens.remove(interfaceToken)
+            if tokens.isEmpty {
+                activeInterfaceTokensByDeviceID.removeValue(forKey: deviceID)
+                return event
+            }
+            activeInterfaceTokensByDeviceID[deviceID] = tokens
+            return nil
+        }
+    }
+}
+
 public final class HIDDevicePresenceMonitor: @unchecked Sendable {
     private final class CallbackContext {
+        weak var monitor: HIDDevicePresenceMonitor?
         let change: HIDDevicePresenceChangeKind
         let emit: @Sendable (HIDDevicePresenceEvent) -> Void
 
         init(
+            monitor: HIDDevicePresenceMonitor,
             change: HIDDevicePresenceChangeKind,
             emit: @escaping @Sendable (HIDDevicePresenceEvent) -> Void
         ) {
+            self.monitor = monitor
             self.change = change
             self.emit = emit
         }
@@ -60,6 +93,7 @@ public final class HIDDevicePresenceMonitor: @unchecked Sendable {
     private var manager: IOHIDManager?
     private var matchingCallbackContext: UnsafeMutableRawPointer?
     private var removalCallbackContext: UnsafeMutableRawPointer?
+    private var presenceAccumulator = HIDDevicePresenceAccumulator()
 
     public init(vendorIDs: [Int] = [0x1532, 0x068E]) {
         self.vendorIDs = vendorIDs
@@ -83,10 +117,10 @@ public final class HIDDevicePresenceMonitor: @unchecked Sendable {
         } as CFArray
         IOHIDManagerSetDeviceMatchingMultiple(manager, matching)
 
-        let matchingContextBox = CallbackContext(change: .connected) { [weak self] event in
+        let matchingContextBox = CallbackContext(monitor: self, change: .connected) { [weak self] event in
             self?.onChange?(event)
         }
-        let removalContextBox = CallbackContext(change: .disconnected) { [weak self] event in
+        let removalContextBox = CallbackContext(monitor: self, change: .disconnected) { [weak self] event in
             self?.onChange?(event)
         }
         let matchingContext = UnsafeMutableRawPointer(Unmanaged.passRetained(matchingContextBox).toOpaque())
@@ -160,8 +194,18 @@ public final class HIDDevicePresenceMonitor: @unchecked Sendable {
     }
 
     private static let deviceCallback: IOHIDDeviceCallback = { context, _, _, device in
-        guard let context, let event = makeEvent(device: device, context: context) else { return }
+        guard let context,
+              let rawEvent = makeEvent(device: device, context: context) else { return }
         let callbackContext = Unmanaged<CallbackContext>.fromOpaque(context).takeUnretainedValue()
+        guard let monitor = callbackContext.monitor else { return }
+        let token = USBHIDSupport.deviceIdentityToken(device)
+        guard let event = monitor.presenceAccumulator.reducedEvent(
+            deviceID: rawEvent.deviceID,
+            interfaceToken: token,
+            event: rawEvent
+        ) else {
+            return
+        }
         callbackContext.emit(event)
     }
 

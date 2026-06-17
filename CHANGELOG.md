@@ -18,6 +18,8 @@ All notable changes to this project are documented in this file.
 - Onboard profile slot selection now rereads the selected profile from the mouse every time, and same-ID reconnects invalidate loaded onboard profile state so vendor-side overwrites are reflected after reconnect.
 
 ### Fixed
+- USB profile switching and rename/create flows no longer let stale button-hydration tasks overwrite the selected profile UI or keep the device controls in a refresh/reconnect-looking state while slow button readbacks finish.
+- USB HID presence handling now de-duplicates composite-interface events and debounces disconnect refreshes so short interface churn does not immediately clear device state or force the UI into `Reconnecting`.
 - Onboard profile create and rename now update the cached slot inventory immediately without a second full refresh, and deleting the active stored profile now activates the next assigned slot.
 - Onboard profile CRUD readback now retries briefly after firmware writes so successful creates/deletes are not reported as failures during transient inventory lag.
 - Onboard profile rename now keeps the UI in sync when firmware metadata readback lags after a successful write, and profile activation now projects state from the selected profile after direct active-profile readback instead of waiting on a stale full refresh.

@@ -29,6 +29,10 @@ final class AppStateEditorController {
     private var selectedOnboardProfileIDByDeviceID: [String: Int] = [:]
     private var lastHardwareActiveOnboardProfileIDByDeviceID: [String: Int] = [:]
     private var onboardProfileReloadRequiredDeviceIDs: Set<String> = []
+    private var selectedMouseSlotHydrationTasksByDeviceID: [String: Task<Void, Never>] = [:]
+    private var selectedMouseSlotHydrationTokensByDeviceID: [String: UUID] = [:]
+    private var activeOnboardProfileLoadTasksByDeviceID: [String: Task<Void, Never>] = [:]
+    private var activeOnboardProfileLoadTokensByDeviceID: [String: UUID] = [:]
     private var buttonWorkspaceEditRevision: UInt64 = 0
     private var isTearingDown = false
 
@@ -46,6 +50,12 @@ final class AppStateEditorController {
 
     func tearDown() {
         isTearingDown = true
+        selectedMouseSlotHydrationTasksByDeviceID.values.forEach { $0.cancel() }
+        selectedMouseSlotHydrationTasksByDeviceID.removeAll()
+        selectedMouseSlotHydrationTokensByDeviceID.removeAll()
+        activeOnboardProfileLoadTasksByDeviceID.values.forEach { $0.cancel() }
+        activeOnboardProfileLoadTasksByDeviceID.removeAll()
+        activeOnboardProfileLoadTokensByDeviceID.removeAll()
     }
 
     func bind(applyController: AppStateApplyController) {
@@ -263,6 +273,12 @@ final class AppStateEditorController {
             return !removedDeviceIDs.contains(String(hydratedDeviceID))
         }
         buttonProfileSummaryHydrationInFlightDeviceIDs.subtract(removedDeviceIDs)
+        for deviceID in removedDeviceIDs {
+            selectedMouseSlotHydrationTasksByDeviceID.removeValue(forKey: deviceID)?.cancel()
+            selectedMouseSlotHydrationTokensByDeviceID.removeValue(forKey: deviceID)
+            activeOnboardProfileLoadTasksByDeviceID.removeValue(forKey: deviceID)?.cancel()
+            activeOnboardProfileLoadTokensByDeviceID.removeValue(forKey: deviceID)
+        }
         if let hydratedButtonBindingsKey,
            let hydratedDeviceID = hydratedButtonBindingsKey.split(separator: "#").first,
            removedDeviceIDs.contains(String(hydratedDeviceID)) {
@@ -726,6 +742,10 @@ final class AppStateEditorController {
             bumpUSBButtonProfilesRevision()
             await refreshUSBButtonBindingsFromDevice(device: device, hydrationKey: hydrationKey, profile: profile)
         }
+        guard buttonProfileSource(for: device) == source,
+              editorStore.editableUSBButtonProfile == profile else {
+            return
+        }
         let cached = cachedButtonBindings(device: device, profile: profile)
         if device.transport != .usb || buttonBindingsCacheByHydrationKey[hydrationKey] != nil {
             buttonBindingsCacheByHydrationKey[hydrationKey] = cached
@@ -786,6 +806,7 @@ final class AppStateEditorController {
             )
             return
         }
+        guard !Task.isCancelled else { return }
 
         let selectedDeviceMatches = deviceStore.selectedDevice?.id == device.id
         let isCurrentEditableProfile = selectedDeviceMatches && hydratedButtonBindingsKey == hydrationKey
@@ -854,7 +875,7 @@ final class AppStateEditorController {
     }
 
     func loadUSBButtonBindingsFromDevice(device: MouseDevice, profile: Int) async -> [Int: ButtonBindingDraft]? {
-        guard !isTearingDown else { return nil }
+        guard !isTearingDown, !Task.isCancelled else { return nil }
         let slots = (device.button_layout?.visibleSlots ?? buttonSlots)
             .map(\.slot)
             .filter { $0 != 6 }
@@ -864,17 +885,18 @@ final class AppStateEditorController {
         let shouldReadDirect = !editorStore.supportsMultipleOnboardProfiles || persistentProfile == liveUSBButtonProfile(for: device)
 
         for slot in slots {
+            guard !Task.isCancelled else { return nil }
             do {
                 let persistentBlock = try await environment.backend.debugUSBReadButtonBinding(
                     device: device,
                     slot: slot,
                     profile: persistentProfile
                 )
-                guard !isTearingDown else { return nil }
+                guard !isTearingDown, !Task.isCancelled else { return nil }
                 let directBlock = shouldReadDirect
                     ? try await environment.backend.debugUSBReadButtonBinding(device: device, slot: slot, profile: 0x00)
                     : nil
-                guard !isTearingDown else { return nil }
+                guard !isTearingDown, !Task.isCancelled else { return nil }
                 let block = directBlock ?? persistentBlock
                 if let block {
                     readAnyBlock = true
@@ -1198,12 +1220,24 @@ final class AppStateEditorController {
         onboardProfileReloadRequiredDeviceIDs.remove(device.id)
 
         applyController.cancelPendingLocalEditsForSelectionChange()
+        scheduleActiveOnboardProfileLoad(device: device, profileID: active)
+    }
+
+    private func scheduleActiveOnboardProfileLoad(device: MouseDevice, profileID: Int) {
+        activeOnboardProfileLoadTasksByDeviceID.removeValue(forKey: device.id)?.cancel()
+        let token = UUID()
+        activeOnboardProfileLoadTokensByDeviceID[device.id] = token
         editorStore.beginButtonProfileOperation(statusText: "Loading profile...")
-        Task { @MainActor [weak self, editorStore] in
+        activeOnboardProfileLoadTasksByDeviceID[device.id] = Task(priority: .userInitiated) { @MainActor [weak self, editorStore] in
             defer {
                 editorStore.endButtonProfileOperation()
+                if let self, self.activeOnboardProfileLoadTokensByDeviceID[device.id] == token {
+                    self.activeOnboardProfileLoadTasksByDeviceID.removeValue(forKey: device.id)
+                    self.activeOnboardProfileLoadTokensByDeviceID.removeValue(forKey: device.id)
+                }
             }
-            await self?.selectOnboardProfile(active)
+            guard let self, !Task.isCancelled else { return }
+            await self.selectOnboardProfile(profileID)
         }
     }
 
@@ -1344,6 +1378,7 @@ final class AppStateEditorController {
 
     func selectOnboardProfile(_ profileID: Int) async {
         guard !isTearingDown, let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return }
+        cancelSelectedMouseSlotHydration(deviceID: device.id)
         do {
             if onboardProfileInventoryByDeviceID[device.id] == nil {
                 await refreshOnboardProfiles()
@@ -1393,6 +1428,7 @@ final class AppStateEditorController {
 
     private func activateOnboardProfile(_ profileID: Int, preloadedSnapshot: OnboardProfileSnapshot?) async {
         guard !isTearingDown, let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return }
+        cancelSelectedMouseSlotHydration(deviceID: device.id)
         do {
             let targetSnapshot: OnboardProfileSnapshot
             if let preloadedSnapshot {
@@ -1426,6 +1462,7 @@ final class AppStateEditorController {
         copyFromProfileID: Int? = nil
     ) async {
         guard !isTearingDown, let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return }
+        cancelSelectedMouseSlotHydration(deviceID: device.id)
         do {
             let metadata = OnboardProfileMetadata(name: name)
             let mutation: OnboardProfileMutation
@@ -1468,6 +1505,7 @@ final class AppStateEditorController {
               let device = deviceStore.selectedDevice,
               supportsOnboardProfileCRUD(device: device),
               let selected = selectedOnboardProfileID() else { return }
+        cancelSelectedMouseSlotHydration(deviceID: device.id)
         do {
             let snapshot = try await environment.backend.renameOnboardProfile(
                 device: device,
@@ -1490,6 +1528,7 @@ final class AppStateEditorController {
               supportsOnboardProfileCRUD(device: device),
               let selected = selectedOnboardProfileID(),
               selected >= 2 else { return }
+        cancelSelectedMouseSlotHydration(deviceID: device.id)
         do {
             let wasActive = isOnboardProfileActive(deviceID: device.id, profileID: selected)
             var inventory = try await environment.backend.deleteOnboardProfile(device: device, profileID: selected)
@@ -1552,6 +1591,7 @@ final class AppStateEditorController {
               supportsOnboardProfileCRUD(device: device),
               let selected = selectedOnboardProfileID(),
               !mutation.isEmpty else { return false }
+        cancelSelectedMouseSlotHydration(deviceID: device.id)
         do {
             let snapshot = try await environment.backend.updateOnboardProfile(
                 device: device,
@@ -2160,11 +2200,14 @@ final class AppStateEditorController {
             let hydrationKey = buttonBindingsHydrationKey(device: selectedDevice, profile: clamped)
             editorStore.editableButtonBindings = cachedButtonBindings(device: selectedDevice, profile: clamped)
             hydratedButtonBindingsKey = hydrationKey
-            Task { [weak self] in
-                await self?.hydrateButtonBindingsIfNeeded(device: selectedDevice)
-            }
+            scheduleSelectedMouseSlotHydration(
+                device: selectedDevice,
+                profile: clamped,
+                hydrationKey: hydrationKey
+            )
         case .openSnekProfile(let id):
             guard let profile = preferenceStore.loadOpenSnekButtonProfiles().first(where: { $0.id == id }) else { return }
+            cancelSelectedMouseSlotHydration(deviceID: selectedDevice.id)
             setButtonProfileSource(.openSnekProfile(id), for: selectedDevice)
             hydratedButtonBindingsKey = nil
             editorStore.editableButtonBindings = profile.bindings
@@ -2222,17 +2265,55 @@ final class AppStateEditorController {
         hydrationKey: String
     ) async {
         guard buttonProfileSource(for: device) == .mouseSlot(profile) else { return }
+        let workspaceEditRevisionAtStart = buttonWorkspaceEditRevision
+        AppLog.debug("AppState", "usb button slot selection hydration start id=\(device.id) profile=\(profile)")
         guard let fromDevice = await loadUSBButtonBindingsFromDevice(device: device, profile: profile) else { return }
-
-        saveCachedButtonBindings(device: device, bindings: fromDevice, profile: profile)
-        guard buttonProfileSource(for: device) == .mouseSlot(profile),
-              !shouldPreserveLocalButtonWorkspace(device: device) else {
+        guard !Task.isCancelled else { return }
+        guard deviceStore.selectedDevice?.id == device.id,
+              buttonProfileSource(for: device) == .mouseSlot(profile),
+              buttonWorkspaceEditRevision == workspaceEditRevisionAtStart else {
             return
         }
 
+        saveCachedButtonBindings(device: device, bindings: fromDevice, profile: profile)
         editorStore.editableButtonBindings = fromDevice
         hydratedButtonBindingsKey = hydrationKey
         bumpUSBButtonProfilesRevision()
+        AppLog.debug("AppState", "usb button slot selection hydration ok id=\(device.id) profile=\(profile) slots=\(fromDevice.keys.sorted())")
+    }
+
+    private func scheduleSelectedMouseSlotHydration(
+        device: MouseDevice,
+        profile: Int,
+        hydrationKey: String
+    ) {
+        selectedMouseSlotHydrationTasksByDeviceID.removeValue(forKey: device.id)?.cancel()
+        let token = UUID()
+        selectedMouseSlotHydrationTokensByDeviceID[device.id] = token
+        selectedMouseSlotHydrationTasksByDeviceID[device.id] = Task(priority: .userInitiated) { @MainActor [weak self] in
+            defer {
+                if let self, self.selectedMouseSlotHydrationTokensByDeviceID[device.id] == token {
+                    self.selectedMouseSlotHydrationTasksByDeviceID.removeValue(forKey: device.id)
+                    self.selectedMouseSlotHydrationTokensByDeviceID.removeValue(forKey: device.id)
+                }
+            }
+            guard let self, !Task.isCancelled else { return }
+            if device.transport == .usb,
+               self.buttonBindingsCacheByHydrationKey[hydrationKey] == nil {
+                await self.refreshSelectedMouseSlotFromDeviceIfNeeded(
+                    device: device,
+                    profile: profile,
+                    hydrationKey: hydrationKey
+                )
+            } else {
+                await self.hydrateButtonBindingsIfNeeded(device: device)
+            }
+        }
+    }
+
+    private func cancelSelectedMouseSlotHydration(deviceID: String) {
+        selectedMouseSlotHydrationTasksByDeviceID.removeValue(forKey: deviceID)?.cancel()
+        selectedMouseSlotHydrationTokensByDeviceID.removeValue(forKey: deviceID)
     }
 
     func selectNextOnboardButtonProfile() {
