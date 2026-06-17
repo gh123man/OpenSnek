@@ -168,7 +168,7 @@ Transaction:
 
 ```text
 1. Write metadata field chunks through 05:08
-2. Read 05:88 and verify UUID/name
+2. Read 05:88 and verify UUID/name/owner
 ```
 
 The final metadata chunk at offset `0x00E1` is padding-only for the mapped

@@ -280,7 +280,11 @@ extension BridgeClient {
             guard inventory.assignedProfileIDs.contains(profileID) else {
                 throw BridgeError.commandFailed("Onboard profile \(profileID) is not assigned.")
             }
-            let currentMetadata = try await btReadOnboardProfileMetadata(device: device, target: profileID)
+            let currentMetadata = try await btReadOnboardProfileMetadata(
+                device: device,
+                target: profileID,
+                requireKnownFields: true
+            )
             let renamed = currentMetadata.renamed(name)
             let projected = OnboardProfileSnapshot(profileID: profileID, metadata: renamed)
             try await btWriteOnboardProfileMetadata(device: device, target: profileID, metadata: renamed)
@@ -291,10 +295,16 @@ extension BridgeClient {
                     failureMessage: "Bluetooth onboard profile rename readback did not match target \(profileID).",
                     attempts: 3,
                     read: {
-                        try await self.btReadOnboardProfileMetadata(device: device, target: profileID)
+                        try await self.btReadOnboardProfileMetadata(
+                            device: device,
+                            target: profileID,
+                            requireKnownFields: true
+                        )
                     },
                     accepts: { metadata in
-                        metadata.name == renamed.name
+                        metadata.identifier == renamed.identifier &&
+                            metadata.name == renamed.name &&
+                            metadata.owner == renamed.owner
                     }
                 )
                 return projected.renamed(metadata)
@@ -1318,7 +1328,11 @@ extension BridgeClient {
         )
     }
 
-    func btReadOnboardProfileMetadata(device: MouseDevice, target: Int) async throws -> OnboardProfileMetadata {
+    func btReadOnboardProfileMetadata(
+        device: MouseDevice,
+        target: Int,
+        requireKnownFields: Bool = false
+    ) async throws -> OnboardProfileMetadata {
         var chunks: [BLEVendorProtocol.ProfileMetadataChunk] = []
         for offset in BLEVendorProtocol.onboardProfileMetadataChunkOffsets {
             let length = min(
@@ -1335,11 +1349,30 @@ extension BridgeClient {
             chunks.append(chunk)
         }
         let parsed = BLEVendorProtocol.parseProfileMetadata(BLEVendorProtocol.mergeProfileMetadataChunks(chunks))
+        if let metadata = Self.completeBluetoothOnboardProfileMetadata(parsed) {
+            return metadata
+        }
+        if requireKnownFields {
+            throw BridgeError.commandFailed(
+                "Bluetooth onboard profile metadata read did not include complete UUID/name/owner fields for target \(target)."
+            )
+        }
         return OnboardProfileMetadata(
             identifier: parsed.identifier ?? UUID(),
             name: parsed.name ?? "Profile \(target)",
             owner: parsed.owner ?? "OpenSnek"
         )
+    }
+
+    static func completeBluetoothOnboardProfileMetadata(
+        _ parsed: USBHIDProtocol.OnboardProfileMetadata
+    ) -> OnboardProfileMetadata? {
+        guard let identifier = parsed.identifier,
+              let name = parsed.name,
+              let owner = parsed.owner else {
+            return nil
+        }
+        return OnboardProfileMetadata(identifier: identifier, name: name, owner: owner)
     }
 
     func btWriteOnboardProfileMetadata(device: MouseDevice, target: Int, metadata: OnboardProfileMetadata) async throws {

@@ -106,7 +106,7 @@ final class AppStateApplyController {
                     pairs: pairs
                 )
             )
-            _ = await editorController.applyOnboardProfileMutationForCurrentSelection(mutation)
+            _ = await applyOnboardProfileMutationForCurrentSelection(mutation)
             return
         }
         enqueueApply(DevicePatch(dpiStages: values, dpiStagePairs: pairs, activeStage: active))
@@ -168,7 +168,7 @@ final class AppStateApplyController {
         if let selectedDevice = deviceStore.selectedDevice,
            supportsOnboardProfileCRUD(device: selectedDevice),
            selectedDevice.transport == .usb {
-            _ = await editorController.applyOnboardProfileMutationForCurrentSelection(
+            _ = await applyOnboardProfileMutationForCurrentSelection(
                 OnboardProfileMutation(scrollMode: max(0, min(1, editorStore.editableScrollMode)))
             )
             return
@@ -187,7 +187,7 @@ final class AppStateApplyController {
         if let selectedDevice = deviceStore.selectedDevice,
            supportsOnboardProfileCRUD(device: selectedDevice),
            selectedDevice.transport == .usb {
-            _ = await editorController.applyOnboardProfileMutationForCurrentSelection(
+            _ = await applyOnboardProfileMutationForCurrentSelection(
                 OnboardProfileMutation(scrollAcceleration: editorStore.editableScrollAcceleration)
             )
             return
@@ -206,7 +206,7 @@ final class AppStateApplyController {
         if let selectedDevice = deviceStore.selectedDevice,
            supportsOnboardProfileCRUD(device: selectedDevice),
            selectedDevice.transport == .usb {
-            _ = await editorController.applyOnboardProfileMutationForCurrentSelection(
+            _ = await applyOnboardProfileMutationForCurrentSelection(
                 OnboardProfileMutation(scrollSmartReel: editorStore.editableScrollSmartReel)
             )
             return
@@ -229,7 +229,7 @@ final class AppStateApplyController {
                     (Int(ledID), editorStore.editableLedBrightness)
                 }
             )
-            if await editorController.applyOnboardProfileMutationForCurrentSelection(
+            if await applyOnboardProfileMutationForCurrentSelection(
                 OnboardProfileMutation(brightnessByLEDID: brightness)
             ) {
                 return
@@ -250,7 +250,7 @@ final class AppStateApplyController {
         if let selectedDevice = deviceStore.selectedDevice,
            supportsOnboardProfileLightingEditorWrites(device: selectedDevice),
            (editorStore.editableLightingEffect == .staticColor || !selectedDevice.supports_advanced_lighting_effects) {
-            _ = await editorController.applyOnboardProfileMutationForCurrentSelection(
+            _ = await applyOnboardProfileMutationForCurrentSelection(
                 OnboardProfileMutation(staticColorByLEDID: currentStaticOnboardProfileColors(for: selectedDevice))
             )
             return
@@ -398,7 +398,7 @@ final class AppStateApplyController {
         guard let selectedDevice = deviceStore.selectedDevice else { return }
         if supportsOnboardProfileEditorWrites(device: selectedDevice) {
             let draft = editorStore.editableButtonBindings[slot] ?? editorController.defaultButtonBinding(for: slot)
-            _ = await editorController.applyOnboardProfileMutationForCurrentSelection(
+            _ = await applyOnboardProfileMutationForCurrentSelection(
                 OnboardProfileMutation(buttonBindings: [slot: draft])
             )
             return
@@ -475,9 +475,26 @@ final class AppStateApplyController {
               (editorStore.editableLightingEffect == .staticColor || !device.supports_advanced_lighting_effects) else {
             return false
         }
-        return await editorController.applyOnboardProfileMutationForCurrentSelection(
+        return await applyOnboardProfileMutationForCurrentSelection(
             OnboardProfileMutation(staticColorByLEDID: currentStaticOnboardProfileColors(for: device))
         )
+    }
+
+    private func applyOnboardProfileMutationForCurrentSelection(_ mutation: OnboardProfileMutation) async -> Bool {
+        let start = Date()
+        let succeeded = await editorController.applyOnboardProfileMutationForCurrentSelection(mutation)
+        if succeeded {
+            clearPendingLocalEditsIfUnchanged(since: start)
+        }
+        return succeeded
+    }
+
+    private func clearPendingLocalEditsIfUnchanged(since start: Date) {
+        guard !applyCoordinator.hasPending else { return }
+        guard (lastLocalEditAt ?? .distantPast) <= start else { return }
+        hasPendingLocalEdits = false
+        lastLocalEditAt = nil
+        localEditDeviceIdentityKey = nil
     }
 
     private func shouldTreatCurrentSourceAsExactMouseSlot(device: MouseDevice) -> Int? {

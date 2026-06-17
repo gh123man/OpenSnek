@@ -5180,6 +5180,84 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(updates.last?.mutation.brightnessByLEDID?[1], 220)
     }
 
+    func testScheduledOnboardProfileLightingApplyClearsPendingLocalEdits() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-scheduled-lighting-clears-pending-device",
+            transport: .bluetooth,
+            serial: "ONBOARD-SCHEDULED-LIGHTING-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "bluetooth",
+                    batteryPercent: 74,
+                    dpiValues: [400, 800, 1300, 1600, 6400],
+                    activeStage: 2,
+                    dpiValue: 1300,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1, 2],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(
+                profileID: 2,
+                name: "Stored 2",
+                dpiValues: [1200, 2400],
+                brightnessByLEDID: [1: 80, 4: 80, 10: 80],
+                staticColorByLEDID: [
+                    1: RGBPatch(r: 0, g: 0, b: 255),
+                    4: RGBPatch(r: 0, g: 0, b: 255),
+                    10: RGBPatch(r: 0, g: 0, b: 255),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+        await appState.editorStore.selectOnboardProfile(2)
+
+        await MainActor.run {
+            appState.editorStore.editableLedBrightness = 211
+            appState.editorStore.scheduleAutoApplyLedBrightness()
+        }
+
+        try await waitForRefactorCondition {
+            let updates = await backend.recordedOnboardUpdates()
+            return updates.contains { update in
+                update.profileID == 2 &&
+                    update.mutation.brightnessByLEDID?[1] == 211
+            }
+        }
+
+        let canHydrate = await MainActor.run {
+            appState.applyController.shouldHydrateEditable(for: device)
+        }
+        XCTAssertTrue(canHydrate)
+    }
+
     func testSelectedUSBOnboardProfileScrollEditUpdatesStoredProfile() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-scroll-edit-device",

@@ -2,6 +2,7 @@ import XCTest
 @testable import OpenSnek
 import OpenSnekCore
 import OpenSnekHardware
+import OpenSnekProtocols
 
 final class BridgeClientBluetoothFallbackTests: XCTestCase {
     private func makeBluetoothDevice(
@@ -90,6 +91,41 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
         XCTAssertEqual(resolved.active, 2)
         XCTAssertEqual(resolved.stages, [500, 900, 1400])
         XCTAssertEqual(resolved.pairs, pairs)
+    }
+
+    func testCompleteBluetoothOnboardProfileMetadataRequiresAllIdentityFields() throws {
+        let identifier = try XCTUnwrap(UUID(uuidString: "01234567-89ab-4cde-8f01-23456789abcd"))
+        let complete = BridgeClient.completeBluetoothOnboardProfileMetadata(
+            USBHIDProtocol.OnboardProfileMetadata(
+                identifier: identifier,
+                name: "Slot 2",
+                owner: "OpenSnek"
+            )
+        )
+
+        XCTAssertEqual(complete?.identifier, identifier)
+        XCTAssertEqual(complete?.name, "Slot 2")
+        XCTAssertEqual(complete?.owner, "OpenSnek")
+        XCTAssertNil(
+            BridgeClient.completeBluetoothOnboardProfileMetadata(
+                USBHIDProtocol.OnboardProfileMetadata(identifier: nil, name: "Slot 2", owner: "OpenSnek")
+            )
+        )
+        XCTAssertNil(
+            BridgeClient.completeBluetoothOnboardProfileMetadata(
+                USBHIDProtocol.OnboardProfileMetadata(identifier: identifier, name: nil, owner: "OpenSnek")
+            )
+        )
+        XCTAssertNil(
+            BridgeClient.completeBluetoothOnboardProfileMetadata(
+                USBHIDProtocol.OnboardProfileMetadata(identifier: identifier, name: "Slot 2", owner: nil)
+            )
+        )
+
+        let erased = BLEVendorProtocol.parseProfileMetadata(
+            [UInt8](repeating: 0xFF, count: BLEVendorProtocol.onboardProfileMetadataLength)
+        )
+        XCTAssertNil(BridgeClient.completeBluetoothOnboardProfileMetadata(erased))
     }
 
     func testResolveBluetoothBatteryStateKeepsChargingUnknownWhenStatusMissing() {

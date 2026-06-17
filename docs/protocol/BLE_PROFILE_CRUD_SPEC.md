@@ -154,7 +154,7 @@ Transaction:
 
 ```text
 1. Write all metadata chunks through 03 04 <target> 00
-2. Read 03 84 <target> 00 and verify UUID/name
+2. Read 03 84 <target> 00 and verify UUID/name/owner
 ```
 
 Direct `03 04` writes to unassigned targets return status `0x03`; use
