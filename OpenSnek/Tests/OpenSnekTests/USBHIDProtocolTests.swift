@@ -218,6 +218,19 @@ final class USBHIDProtocolTests: XCTestCase {
         XCTAssertEqual(USBHIDProtocol.uuidFromWindowsGUIDBytes(bytes), uuid)
     }
 
+    func testAllFFProfileMetadataUUIDIsInvalid() {
+        XCTAssertNil(USBHIDProtocol.uuidFromWindowsGUIDBytes([UInt8](repeating: 0xFF, count: 16)))
+
+        var metadata = [UInt8](repeating: 0x00, count: USBHIDProtocol.onboardProfileMetadataLength)
+        metadata.replaceSubrange(0..<16, with: [UInt8](repeating: 0xFF, count: 16))
+        metadata.replaceSubrange(0x10..<(0x10 + "Corrupt".utf8.count), with: "Corrupt".utf8)
+
+        let parsed = USBHIDProtocol.parseOnboardProfileMetadata(metadata)
+
+        XCTAssertNil(parsed.identifier)
+        XCTAssertEqual(parsed.name, "Corrupt")
+    }
+
     func testMergeOnboardProfileMetadataChunksUsesOffsets() {
         let prefix = USBHIDProtocol.OnboardProfileMetadataChunk(
             slot: 0x03,

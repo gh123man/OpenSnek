@@ -637,6 +637,14 @@ while preserving the existing UUID and owner. Do not perform a full profile
 snapshot read before the metadata write, and do not synthesize a fallback UUID
 for a rename write when metadata readback is incomplete.
 
+All-zero or all-`0xFF` UUID bytes are invalid metadata, not real UUIDs. If an
+assigned USB profile has complete known metadata chunks but an all-`0xFF` UUID,
+repair the metadata object before applying the requested rename: generate a new
+UUID, preserve any readable owner if present, write the full `0x00FA` metadata
+object using offsets `0x0000`, `0x004B`, `0x0096`, and `0x00E1`, then require
+strict metadata readback. This repair path is only for assigned profiles with
+corrupt metadata; ordinary create/rename transactions remain known-field writes.
+
 Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
 - slot `0x02`, offset `00 00`: UUID `3a35ec93-bee1-4b29-9d3d-0d2b88f9edef`, name `OPENSNEK_MAC_SLOT_1`
 - slot `0x03`, offset `00 00`: UUID `c7aae39e-43b0-41ae-bf46-b4ae556a4a02`, name `OPENSNEK_RECREATE_SLOT_2`
@@ -645,6 +653,7 @@ Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
 - slot `0x05`, offset `00 00`: UUID `18f2a4cc-ecb8-4765-b532-9df401a686d6`, name `OS_P5`
 - after an unsafe partial `0x05:0x08` probe, slot `0x05` metadata read back as UUID `ffffffff-ffff-ffff-ffff-ffffffffffff`, name `nil`.
 - a later full-object `0x05:0x08` repair restored slot `0x05` to UUID `18f2a4cc-ecb8-4765-b532-9df401a686d6`, name `OS_P5_BULK_MAP`, without changing mapped DPI/brightness/button settings.
+- a full-object `0x05:0x08` repair also restored assigned slot `0x04` from all-`0xFF` metadata to UUID `27530668-c3e2-4e0a-a06e-a4854383c4e9`, name `Profile 4`, without changing mapped DPI/brightness/button settings.
 - direct `0x05:0x08` on unassigned slot `0x04` returned status `0x03`; `0x05:0x02 04` followed by four full `0x05:0x08` chunks assigned it and made `0x05:0x04 04` ACK.
 - the `0x05:0x02` assignment path disturbed profile `4` DPI/brightness and required profile-addressed content restore. Treat create as metadata assignment followed by explicit content writes/readback.
 

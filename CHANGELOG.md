@@ -34,6 +34,7 @@ All notable changes to this project are documented in this file.
 - USB/Bluetooth onboard profile rename now uses a metadata-only transaction and requires complete UUID/name/owner metadata before writing, avoiding synthesized UUID writes and full profile read sweeps before a rename.
 - Onboard profile DPI edits now preserve the loaded profile's firmware stage IDs and marker even when the UI sends a focused DPI-only mutation.
 - Profile operation loading now dims through the transient overlay instead of mutating the underlying content opacity, avoiding a stale grayed-out detail view after rename completes.
+- USB onboard profile rename now treats all-`0xFF` metadata UUIDs as corrupt and repairs assigned profile metadata with a full-object write before applying the requested name.
 
 ## [2026-06-15]
 

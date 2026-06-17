@@ -363,6 +363,7 @@ public enum USBHIDProtocol {
         guard bytes.count >= 16 else { return nil }
         let raw = Array(bytes.prefix(16))
         guard raw.contains(where: { $0 != 0x00 }) else { return nil }
+        guard raw.contains(where: { $0 != 0xFF }) else { return nil }
         let uuidBytes = [
             raw[3], raw[2], raw[1], raw[0],
             raw[5], raw[4],
