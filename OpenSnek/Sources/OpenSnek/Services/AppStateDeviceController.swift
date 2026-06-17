@@ -1111,6 +1111,7 @@ final class AppStateDeviceController {
 
         if deviceStore.selectedDeviceID == presentationDeviceID {
             deviceStore.lastUpdated = updatedAt
+            deviceStore.invalidateConnectionDiagnostics()
         }
     }
 
