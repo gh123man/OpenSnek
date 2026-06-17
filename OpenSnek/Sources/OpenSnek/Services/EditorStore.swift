@@ -52,6 +52,8 @@ final class EditorStore {
     var buttonProfileOperationStatusText: String?
     var isOnboardProfileRefreshInFlight = false
     var onboardProfileRefreshErrorMessage: String?
+    var isOnboardProfileLoadInFlight = false
+    var onboardProfileLoadStatusText: String?
     var usbButtonProfilesRevision = 0
     var onboardProfilesRevision = 0
     var connectBehaviorRevision = 0
@@ -61,6 +63,9 @@ final class EditorStore {
     @ObservationIgnored private var buttonProfileOperationIDs: Set<UUID> = []
     @ObservationIgnored private var buttonProfileOperationOrder: [UUID] = []
     @ObservationIgnored private var buttonProfileOperationStatusByID: [UUID: String] = [:]
+    @ObservationIgnored private var onboardProfileLoadOperationIDs: Set<UUID> = []
+    @ObservationIgnored private var onboardProfileLoadOperationOrder: [UUID] = []
+    @ObservationIgnored private var onboardProfileLoadOperationStatusByID: [UUID: String] = [:]
     @ObservationIgnored private var isSyncingEditableStageRepresentations = false
 
     init(deviceStore: DeviceStore) {
@@ -139,6 +144,44 @@ final class EditorStore {
         let operationID = beginButtonProfileOperation(statusText: statusText)
         defer {
             endButtonProfileOperation(operationID)
+        }
+        return await operation()
+    }
+
+    @discardableResult
+    func beginOnboardProfileLoad(statusText: String) -> UUID {
+        let operationID = UUID()
+        onboardProfileLoadOperationIDs.insert(operationID)
+        onboardProfileLoadOperationOrder.append(operationID)
+        onboardProfileLoadOperationStatusByID[operationID] = statusText
+        refreshOnboardProfileLoadPresentation()
+        return operationID
+    }
+
+    func endOnboardProfileLoad(_ operationID: UUID) {
+        guard onboardProfileLoadOperationIDs.remove(operationID) != nil else { return }
+        onboardProfileLoadOperationStatusByID.removeValue(forKey: operationID)
+        onboardProfileLoadOperationOrder.removeAll { $0 == operationID }
+        refreshOnboardProfileLoadPresentation()
+    }
+
+    private func refreshOnboardProfileLoadPresentation() {
+        guard let operationID = onboardProfileLoadOperationOrder.last(where: { onboardProfileLoadOperationIDs.contains($0) }) else {
+            isOnboardProfileLoadInFlight = false
+            onboardProfileLoadStatusText = nil
+            return
+        }
+        isOnboardProfileLoadInFlight = true
+        onboardProfileLoadStatusText = onboardProfileLoadOperationStatusByID[operationID]
+    }
+
+    private func withOnboardProfileLoad<T>(
+        statusText: String,
+        _ operation: @escaping @MainActor () async -> T
+    ) async -> T {
+        let operationID = beginOnboardProfileLoad(statusText: statusText)
+        defer {
+            endOnboardProfileLoad(operationID)
         }
         return await operation()
     }
@@ -355,13 +398,13 @@ final class EditorStore {
     }
 
     func selectOnboardProfile(_ profileID: Int) async {
-        await withButtonProfileOperation(statusText: "Loading profile...") { [self] in
+        await withOnboardProfileLoad(statusText: "Loading profile...") { [self] in
             await self.editorController.selectOnboardProfile(profileID)
         }
     }
 
     func activateOnboardProfile(_ profileID: Int) async {
-        await withButtonProfileOperation(statusText: "Activating profile...") { [self] in
+        await withOnboardProfileLoad(statusText: "Activating profile...") { [self] in
             await self.editorController.activateOnboardProfile(profileID)
         }
     }

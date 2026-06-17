@@ -29,6 +29,8 @@ protocol DeviceBackend: AnyObject, Sendable {
     func apply(device: MouseDevice, patch: DevicePatch) async throws -> MouseState
     func listOnboardProfiles(device: MouseDevice) async throws -> OnboardProfileInventory
     func readOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot
+    func readOnboardProfileCore(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot
+    func readOnboardProfileButtonBindings(device: MouseDevice, profileID: Int) async throws -> [Int: ButtonBindingDraft]
     func createOnboardProfile(
         device: MouseDevice,
         mutation: OnboardProfileMutation,
@@ -97,6 +99,14 @@ final actor BootstrapPendingBackend: DeviceBackend {
         throw BridgeError.commandFailed("Backend is still starting")
     }
 
+    func readOnboardProfileCore(device _: MouseDevice, profileID _: Int) async throws -> OnboardProfileSnapshot {
+        throw BridgeError.commandFailed("Backend is still starting")
+    }
+
+    func readOnboardProfileButtonBindings(device _: MouseDevice, profileID _: Int) async throws -> [Int: ButtonBindingDraft] {
+        throw BridgeError.commandFailed("Backend is still starting")
+    }
+
     func createOnboardProfile(
         device _: MouseDevice,
         mutation _: OnboardProfileMutation,
@@ -149,6 +159,14 @@ extension DeviceBackend {
     }
 
     func readOnboardProfile(device _: MouseDevice, profileID _: Int) async throws -> OnboardProfileSnapshot {
+        throw BridgeError.commandFailed("Onboard profile CRUD is not supported by this backend.")
+    }
+
+    func readOnboardProfileCore(device _: MouseDevice, profileID _: Int) async throws -> OnboardProfileSnapshot {
+        throw BridgeError.commandFailed("Onboard profile CRUD is not supported by this backend.")
+    }
+
+    func readOnboardProfileButtonBindings(device _: MouseDevice, profileID _: Int) async throws -> [Int: ButtonBindingDraft] {
         throw BridgeError.commandFailed("Onboard profile CRUD is not supported by this backend.")
     }
 
@@ -508,6 +526,14 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
 
     func readOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot {
         try await client.readOnboardProfile(device: device, profileID: profileID)
+    }
+
+    func readOnboardProfileCore(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot {
+        try await client.readOnboardProfileCore(device: device, profileID: profileID)
+    }
+
+    func readOnboardProfileButtonBindings(device: MouseDevice, profileID: Int) async throws -> [Int: ButtonBindingDraft] {
+        try await client.readOnboardProfileButtonBindings(device: device, profileID: profileID)
     }
 
     func createOnboardProfile(
@@ -1098,6 +1124,22 @@ private actor BackgroundServiceRequestHandler {
                     profileID: onboardRequest.profileID
                 )
             )
+        case .readOnboardProfileCore:
+            let onboardRequest = try decodePayload(OnboardProfileIDRequest.self, from: request.payload)
+            payload = try BackendCodec.encode(
+                try await backend.readOnboardProfileCore(
+                    device: onboardRequest.device,
+                    profileID: onboardRequest.profileID
+                )
+            )
+        case .readOnboardProfileButtonBindings:
+            let onboardRequest = try decodePayload(OnboardProfileIDRequest.self, from: request.payload)
+            payload = try BackendCodec.encode(
+                try await backend.readOnboardProfileButtonBindings(
+                    device: onboardRequest.device,
+                    profileID: onboardRequest.profileID
+                )
+            )
         case .createOnboardProfile:
             let onboardRequest = try decodePayload(OnboardProfileCreateRequest.self, from: request.payload)
             payload = try BackendCodec.encode(
@@ -1284,6 +1326,22 @@ final actor IPCDeviceBackend: HIDAccessRefreshControllingBackend, ApplyOptionsSu
             method: .readOnboardProfile,
             payload: try BackendCodec.encode(OnboardProfileIDRequest(device: device, profileID: profileID)),
             responseType: OnboardProfileSnapshot.self
+        )
+    }
+
+    func readOnboardProfileCore(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot {
+        try await request(
+            method: .readOnboardProfileCore,
+            payload: try BackendCodec.encode(OnboardProfileIDRequest(device: device, profileID: profileID)),
+            responseType: OnboardProfileSnapshot.self
+        )
+    }
+
+    func readOnboardProfileButtonBindings(device: MouseDevice, profileID: Int) async throws -> [Int: ButtonBindingDraft] {
+        try await request(
+            method: .readOnboardProfileButtonBindings,
+            payload: try BackendCodec.encode(OnboardProfileIDRequest(device: device, profileID: profileID)),
+            responseType: [Int: ButtonBindingDraft].self
         )
     }
 

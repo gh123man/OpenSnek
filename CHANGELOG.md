@@ -45,6 +45,7 @@ All notable changes to this project are documented in this file.
 - Bluetooth onboard-profile devices now keep regular editor DPI, lighting, and button edits on the live apply path instead of routing every edit through slow stored-profile write transactions.
 - Onboard profile refresh now uses a profile-card-local loading/error state instead of the global blocking operation overlay, so a slow or failed profile inventory read does not disable unrelated controls.
 - Bluetooth DPI stage writes now proceed from the complete requested editor stage table when the current DPI-stage pre-read returns no payload, avoiding failed writes after transient Bluetooth readback gaps.
+- Onboard profile activation and passive profile-switch refresh now validate through direct active-profile readback, Bluetooth inventory refresh reads only active/assigned slots, profile loads hydrate DPI/lighting through a foreground core snapshot without metadata/button sweeps, and button bindings refresh in a background pass to keep Bluetooth profile switching responsive.
 
 ## [2026-06-15]
 

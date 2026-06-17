@@ -102,6 +102,8 @@ enum BackgroundServiceMethod: String, Codable, Sendable {
     case apply
     case listOnboardProfiles
     case readOnboardProfile
+    case readOnboardProfileCore
+    case readOnboardProfileButtonBindings
     case createOnboardProfile
     case renameOnboardProfile
     case updateOnboardProfile

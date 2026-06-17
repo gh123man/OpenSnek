@@ -27,10 +27,69 @@ extension BridgeClient {
         switch device.transport {
         case .usb:
             return try await withUSBProfileSession(device: device) { session in
-                try self.usbReadOnboardProfile(session, device, profile: profile, profileID: clampedProfileID)
+                try self.usbReadOnboardProfile(
+                    session,
+                    device,
+                    profile: profile,
+                    profileID: clampedProfileID,
+                    includeButtonBindings: true
+                )
             }
         case .bluetooth:
-            return try await btReadOnboardProfile(device: device, profile: profile, target: clampedProfileID)
+            return try await btReadOnboardProfile(
+                device: device,
+                profile: profile,
+                target: clampedProfileID,
+                includeButtonBindings: true
+            )
+        }
+    }
+
+    func readOnboardProfileCore(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot {
+        let profile = try mappedOnboardProfileSupport(for: device)
+        let clampedProfileID = max(0, min(profile.onboardProfileCount, profileID))
+        switch device.transport {
+        case .usb:
+            return try await withUSBProfileSession(device: device) { session in
+                try self.usbReadOnboardProfile(
+                    session,
+                    device,
+                    profile: profile,
+                    profileID: clampedProfileID,
+                    includeMetadata: false,
+                    includeButtonBindings: false
+                )
+            }
+        case .bluetooth:
+            return try await btReadOnboardProfile(
+                device: device,
+                profile: profile,
+                target: clampedProfileID,
+                includeMetadata: false,
+                includeButtonBindings: false
+            )
+        }
+    }
+
+    func readOnboardProfileButtonBindings(device: MouseDevice, profileID: Int) async throws -> [Int: ButtonBindingDraft] {
+        let profile = try mappedOnboardProfileSupport(for: device)
+        let clampedProfileID = max(0, min(profile.onboardProfileCount, profileID))
+        switch device.transport {
+        case .usb:
+            return try await withUSBProfileSession(device: device) { session in
+                try self.usbReadOnboardProfileButtons(
+                    session,
+                    device,
+                    profile: profile,
+                    profileID: clampedProfileID
+                )
+            }
+        case .bluetooth:
+            return try await btReadOnboardProfileButtons(
+                device: device,
+                profile: profile,
+                target: clampedProfileID
+            )
         }
     }
 
@@ -363,14 +422,29 @@ extension BridgeClient {
 
     func activateOnboardProfile(device: MouseDevice, profileID: Int) async throws -> MouseState {
         let profile = try mappedOnboardProfileSupport(for: device)
-        let inventory = try await listOnboardProfiles(device: device)
-        guard inventory.assignedProfileIDs.contains(profileID) else {
+        guard profileID >= 1, profileID <= profile.onboardProfileCount else {
+            throw BridgeError.commandFailed("Onboard profile \(profileID) is outside the supported profile range.")
+        }
+
+        let start = Date()
+        AppLog.debug("Bridge", "activate onboard profile start device=\(device.id) transport=\(device.transport.rawValue) profile=\(profileID)")
+        let assigned: [Int]
+        switch device.transport {
+        case .usb:
+            assigned = try await withUSBProfileSession(device: device) { session in
+                try self.usbReadOnboardProfileInventory(session, device, profile: profile).assignedProfiles.map(Int.init)
+            }
+        case .bluetooth:
+            assigned = try await btReadOnboardProfileTargets(device: device, profile: profile)
+        }
+        guard assigned.contains(profileID) else {
             throw BridgeError.commandFailed("Onboard profile \(profileID) is not assigned.")
         }
 
+        let activated: Int
         switch device.transport {
         case .usb:
-            return try await withUSBProfileSession(device: device) { session in
+            activated = try await withUSBProfileSession(device: device) { session in
                 let response = try self.perform(
                     session,
                     device,
@@ -383,34 +457,17 @@ extension BridgeClient {
                       USBHIDProtocol.activeProfileSetAccepted(from: response, profile: UInt8(profileID)) else {
                     throw BridgeError.commandFailed("USB onboard profile selector was rejected.")
                 }
-                _ = try self.retryUSBOnboardProfileReadback(
+                return try self.retryUSBOnboardProfileReadback(
                     device: device,
                     operation: "USB active onboard profile selector",
                     failureMessage: "USB active profile readback did not match profile \(profileID).",
                     attempts: 6,
                     read: {
-                        try self.usbReadActiveOnboardProfileID(session, device)
+                        try self.usbReadActiveOnboardProfileID(session, device) ?? -1
                     },
                     accepts: { active in
                         active == profileID
                     }
-                )
-                let snapshot = try self.retryUSBOnboardProfileReadback(
-                    device: device,
-                    operation: "USB active onboard profile snapshot",
-                    failureMessage: "USB active profile snapshot readback failed for profile \(profileID).",
-                    read: {
-                        try self.usbReadOnboardProfile(session, device, profile: profile, profileID: profileID)
-                    },
-                    accepts: { snapshot in
-                        snapshot.profileID == profileID
-                    }
-                )
-                return self.storeProjectedActiveOnboardProfileState(
-                    device: device,
-                    profile: profile,
-                    activeProfileID: profileID,
-                    snapshot: snapshot
                 )
             }
         case .bluetooth:
@@ -428,36 +485,28 @@ extension BridgeClient {
             guard btAckSuccess(notifies: notifies, req: req) else {
                 throw BridgeError.commandFailed("Bluetooth onboard profile selector was rejected.")
             }
-            _ = try await retryOnboardProfileReadback(
+            activated = try await retryOnboardProfileReadback(
                 device: device,
                 operation: "Bluetooth active onboard profile selector",
                 failureMessage: "Bluetooth active target readback did not match target \(profileID).",
                 attempts: 6,
                 read: {
-                    try await self.btReadActiveOnboardProfileID(device: device)
+                    try await self.btReadActiveOnboardProfileID(device: device) ?? -1
                 },
                 accepts: { active in
                     active == profileID
                 }
             )
-            let snapshot = try await retryOnboardProfileReadback(
-                device: device,
-                operation: "Bluetooth active onboard profile snapshot",
-                failureMessage: "Bluetooth active target snapshot readback failed for target \(profileID).",
-                read: {
-                    try await self.btReadOnboardProfile(device: device, profile: profile, target: profileID)
-                },
-                accepts: { snapshot in
-                    snapshot.profileID == profileID
-                }
-            )
-            return storeProjectedActiveOnboardProfileState(
-                device: device,
-                profile: profile,
-                activeProfileID: profileID,
-                snapshot: snapshot
-            )
         }
+        AppLog.debug(
+            "Bridge",
+            "activate onboard profile ok device=\(device.id) profile=\(profileID) active=\(activated) elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
+        )
+        return storeProjectedActiveOnboardProfileState(
+            device: device,
+            profile: profile,
+            activeProfileID: activated
+        )
     }
 
     func refreshActiveOnboardProfile(device: MouseDevice) async throws -> MouseState {
@@ -661,17 +710,23 @@ extension BridgeClient {
         _ session: USBHIDControlSession,
         _ device: MouseDevice,
         profile: DeviceProfile,
-        profileID: Int
+        profileID: Int,
+        includeMetadata: Bool = true,
+        includeButtonBindings: Bool = true
     ) throws -> OnboardProfileSnapshot {
         let metadata: OnboardProfileMetadata
-        if profileID == 0 {
+        if !includeMetadata {
+            metadata = OnboardProfileMetadata(name: profileID == 0 ? "Active Profile" : "Profile \(profileID)")
+        } else if profileID == 0 {
             metadata = (try? usbReadOnboardProfileMetadata(session, device, profileID: profileID))
                 ?? OnboardProfileMetadata(name: "Active Profile")
         } else {
             metadata = try usbReadOnboardProfileMetadata(session, device, profileID: profileID)
         }
         let dpi = try usbReadOnboardProfileDPI(session, device, profileID: profileID)
-        let bindings = try usbReadOnboardProfileButtons(session, device, profile: profile, profileID: profileID)
+        let bindings = includeButtonBindings
+            ? try usbReadOnboardProfileButtons(session, device, profile: profile, profileID: profileID)
+            : [:]
         let brightness = try usbReadOnboardProfileBrightness(session, device, profileID: profileID)
         let colors = try usbReadOnboardProfileStaticColors(session, device, profileID: profileID)
         let scrollProfileID: Int
@@ -1198,21 +1253,16 @@ extension BridgeClient {
     }
 
     func btListOnboardProfiles(device: MouseDevice, profile: DeviceProfile) async throws -> OnboardProfileInventory {
-        guard let targetPayload = try await btReadPayload(device: device, key: .profileTargetsGet()) else {
-            throw BridgeError.commandFailed("Bluetooth onboard profile inventory read failed.")
-        }
-        let assigned = BLEVendorProtocol.parseProfileTargets(payload: targetPayload, maxProfileID: profile.onboardProfileCount)
+        let assigned = try await btReadOnboardProfileTargets(device: device, profile: profile)
         let active = try await btReadActiveOnboardProfileID(device: device) ?? 1
-        var summaries: [OnboardProfileSummary] = []
-        for target in assigned {
-            let metadata = try? await btReadOnboardProfileMetadata(device: device, target: target)
-            summaries.append(OnboardProfileSummary(
+        let summaries = assigned.map { target in
+            OnboardProfileSummary(
                 profileID: target,
-                metadata: metadata,
+                metadata: nil,
                 isAssigned: true,
                 isActive: target == active,
                 isBaseProfile: target == 1
-            ))
+            )
         }
         return OnboardProfileInventory(
             activeProfileID: active,
@@ -1220,6 +1270,13 @@ extension BridgeClient {
             assignedProfileIDs: assigned,
             profiles: summaries
         )
+    }
+
+    func btReadOnboardProfileTargets(device: MouseDevice, profile: DeviceProfile) async throws -> [Int] {
+        guard let targetPayload = try await btReadPayload(device: device, key: .profileTargetsGet()) else {
+            throw BridgeError.commandFailed("Bluetooth onboard profile inventory read failed.")
+        }
+        return BLEVendorProtocol.parseProfileTargets(payload: targetPayload, maxProfileID: profile.onboardProfileCount)
     }
 
     func btReadActiveOnboardProfileID(device: MouseDevice) async throws -> Int? {
@@ -1232,17 +1289,23 @@ extension BridgeClient {
     func btReadOnboardProfile(
         device: MouseDevice,
         profile: DeviceProfile,
-        target: Int
+        target: Int,
+        includeMetadata: Bool = true,
+        includeButtonBindings: Bool = true
     ) async throws -> OnboardProfileSnapshot {
         let metadata: OnboardProfileMetadata
-        if target == 0 {
+        if !includeMetadata {
+            metadata = OnboardProfileMetadata(name: target == 0 ? "Active Profile" : "Profile \(target)")
+        } else if target == 0 {
             metadata = (try? await btReadOnboardProfileMetadata(device: device, target: target))
                 ?? OnboardProfileMetadata(name: "Active Profile")
         } else {
             metadata = try await btReadOnboardProfileMetadata(device: device, target: target)
         }
         let dpi = try await btReadOnboardProfileDPI(device: device, target: target)
-        let bindings = try await btReadOnboardProfileButtons(device: device, profile: profile, target: target)
+        let bindings = includeButtonBindings
+            ? try await btReadOnboardProfileButtons(device: device, profile: profile, target: target)
+            : [:]
         let brightness = try await btReadOnboardProfileBrightness(device: device, target: target)
         let colors = try await btReadOnboardProfileStaticColors(device: device, target: target)
         return OnboardProfileSnapshot(
@@ -1538,13 +1601,53 @@ extension BridgeClient {
             rawActive = try await btReadActiveOnboardProfileID(device: device) ?? 1
         }
         let active = max(1, min(profile.onboardProfileCount, rawActive))
-        let activeSnapshot = try await readOnboardProfile(device: device, profileID: 0)
         return storeProjectedActiveOnboardProfileState(
             device: device,
             profile: profile,
-            activeProfileID: active,
-            snapshot: activeSnapshot
+            activeProfileID: active
         )
+    }
+
+    func storeProjectedActiveOnboardProfileState(
+        device: MouseDevice,
+        profile: DeviceProfile,
+        activeProfileID: Int
+    ) -> MouseState {
+        let previous = lastStateByDeviceID[device.id]
+        let active = max(1, min(profile.onboardProfileCount, activeProfileID))
+        let state = MouseState(
+            device: previous?.device ?? DeviceSummary(
+                id: device.id,
+                product_name: device.product_name,
+                serial: device.serial,
+                transport: device.transport,
+                firmware: device.firmware
+            ),
+            connection: previous?.connection ?? device.connectionLabel,
+            battery_percent: previous?.battery_percent,
+            charging: previous?.charging,
+            dpi: previous?.dpi,
+            dpi_stages: previous?.dpi_stages ?? DpiStages(active_stage: nil, values: nil),
+            poll_rate: previous?.poll_rate,
+            sleep_timeout: previous?.sleep_timeout,
+            device_mode: previous?.device_mode,
+            low_battery_threshold_raw: previous?.low_battery_threshold_raw,
+            scroll_mode: previous?.scroll_mode,
+            scroll_acceleration: previous?.scroll_acceleration,
+            scroll_smart_reel: previous?.scroll_smart_reel,
+            active_onboard_profile: active,
+            onboard_profile_count: profile.onboardProfileCount,
+            led_value: previous?.led_value,
+            capabilities: previous?.capabilities ?? Capabilities(
+                dpi_stages: true,
+                poll_rate: device.transport == .usb,
+                power_management: true,
+                button_remap: true,
+                lighting: device.showsLightingControls
+            )
+        )
+        lastStateByDeviceID[device.id] = state
+        return state
     }
 
     func storeProjectedActiveOnboardProfileState(

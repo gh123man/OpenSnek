@@ -1656,7 +1656,7 @@ struct ButtonMappingTableCard: View {
     let title: String
 
     private var isBusy: Bool {
-        editorStore.isButtonProfileOperationInFlight
+        editorStore.isButtonProfileOperationInFlight || editorStore.isOnboardProfileLoadInFlight
     }
 
     private var rows: [ButtonBindingRowModel] {
@@ -1722,7 +1722,7 @@ private struct OnboardProfileManagerCard: View {
     }
 
     private var statusLabel: String? {
-        editorStore.buttonProfileOperationStatusText
+        editorStore.buttonProfileOperationStatusText ?? editorStore.onboardProfileLoadStatusText
     }
 
     private var selectedProfileID: Int? {
