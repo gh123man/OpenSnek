@@ -1925,13 +1925,13 @@ private struct OnboardProfileManagerCard: View {
                 TextField(selectedSummary.isAssigned ? "Profile name" : "Name this profile", text: $renameName)
                     .textFieldStyle(.roundedBorder)
                     .onAppear {
-                        resetNameField(for: selectedSummary)
+                        resetNameField(forProfileID: selectedProfileID)
                     }
-                    .onChange(of: selectedProfileID) { _, _ in
-                        resetNameField(for: selectedSummary)
+                    .onChange(of: selectedProfileID) { _, newValue in
+                        resetNameField(forProfileID: newValue)
                     }
-                    .onChange(of: editorStore.selectedOnboardProfileName) { _, _ in
-                        resetNameField(for: selectedSummary)
+                    .onChange(of: editorStore.selectedOnboardProfileName) { _, newValue in
+                        resetNameFieldFromSelectedProfileName(newValue)
                     }
 
                 if selectedSummary.isAssigned {
@@ -2083,9 +2083,23 @@ private struct OnboardProfileManagerCard: View {
         .disabled(isBusy || selectedNameIsEmpty)
     }
 
-    private func resetNameField(for summary: OnboardProfileSummary?) {
-        guard let summary else { return }
+    private func resetNameField(forProfileID profileID: Int?) {
+        guard let profileID,
+              let summary = editorStore.onboardProfileSummaries.first(where: { $0.profileID == profileID }) else {
+            return
+        }
         renameName = summary.isAssigned ? summary.displayName : ""
+        if !summary.isAssigned {
+            copyFromProfileID = resolvedCopyFromProfileID
+        }
+    }
+
+    private func resetNameFieldFromSelectedProfileName(_ name: String) {
+        guard let selectedProfileID,
+              let summary = editorStore.onboardProfileSummaries.first(where: { $0.profileID == selectedProfileID }) else {
+            return
+        }
+        renameName = summary.isAssigned ? name : ""
         if !summary.isAssigned {
             copyFromProfileID = resolvedCopyFromProfileID
         }

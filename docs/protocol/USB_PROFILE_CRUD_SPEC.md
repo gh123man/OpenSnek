@@ -129,7 +129,7 @@ Validated transaction:
 
 ```text
 1. Set 05:02 <profile>
-2. Write all metadata chunks through 05:08
+2. Write metadata field chunks through 05:08
 3. Write DPI stages, then DPI scalar
 4. Write mapped button bindings
 5. Write brightness values
@@ -162,7 +162,7 @@ Required preconditions:
 Transaction:
 
 ```text
-1. Write all metadata chunks through 05:08
+1. Write metadata field chunks through 05:08
 2. Read 05:88 and verify UUID/name
 ```
 
@@ -215,8 +215,8 @@ The USB metadata object is 250 bytes (`0x00fa`) and is transferred through
 <profile> <offset_hi> <offset_lo> 00 fa
 ```
 
-Use four full `0x50` reports. Each report carries a 5-byte header plus 75 data
-bytes. Pad bytes past `0x00fa` with zeroes.
+Reads use four full `0x50` reports. Each report carries a 5-byte header plus 75
+data bytes.
 
 Offsets:
 
@@ -224,7 +224,11 @@ Offsets:
 0000, 004b, 0096, 00e1
 ```
 
-Short tail writes can fail to respond; always send full `0x50` writes.
+Product writes only send chunks that overlap the modeled UUID/name/owner fields:
+`0000`, `004b`, and `0096`. The `00e1` chunk is padding-only for the current
+metadata model and can be rejected by the V3 Pro USB firmware even after the
+useful metadata bytes have landed. Do not require that padding-only tail write
+for create or rename success.
 
 ### Fields
 

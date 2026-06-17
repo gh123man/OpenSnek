@@ -676,7 +676,7 @@ extension BridgeClient {
             name: metadata.name,
             owner: metadata.owner
         )
-        for offset in USBHIDProtocol.onboardProfileMetadataChunkOffsets {
+        for offset in USBHIDProtocol.onboardProfileMetadataWritableChunkOffsets {
             guard let response = try perform(
                 session,
                 device,

@@ -606,9 +606,14 @@ Response: args[0-4] echo the chunk header
           args[5...] = metadata bytes
 ```
 
-The object length is `0x00FA` bytes. Use four full `0x50` chunks with offsets
-`0x0000`, `0x004B`, `0x0096`, and `0x00E1`; pad write data past the object end
-with zeroes.
+The object length is `0x00FA` bytes. Reads use four full `0x50` chunks with
+offsets `0x0000`, `0x004B`, `0x0096`, and `0x00E1`.
+
+Product metadata writes cover only the known UUID/name/owner fields, using
+offsets `0x0000`, `0x004B`, and `0x0096`. The `0x00E1` chunk is padding-only for
+the mapped metadata fields and can be rejected by Basilisk V3 Pro USB firmware
+after the useful metadata has already landed; do not treat that tail chunk as a
+required create/rename write.
 
 Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
 - slot `0x02`, offset `00 00`: UUID `3a35ec93-bee1-4b29-9d3d-0d2b88f9edef`, name `OPENSNEK_MAC_SLOT_1`

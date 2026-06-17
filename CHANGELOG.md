@@ -22,6 +22,7 @@ All notable changes to this project are documented in this file.
 - Onboard profile CRUD readback now retries briefly after firmware writes so successful creates/deletes are not reported as failures during transient inventory lag.
 - Onboard profile rename now keeps the UI in sync when firmware metadata readback lags after a successful write, and profile activation now projects state from the selected profile after direct active-profile readback instead of waiting on a stale full refresh.
 - Onboard profile create and rename now project returned metadata into the visible slot list immediately, including when firmware metadata readback or local inventory refresh lags behind the successful write.
+- USB onboard profile metadata writes now skip the padding-only tail chunk that Basilisk V3 Pro firmware can reject after the useful UUID/name/owner bytes have already landed, fixing create/rename operations that appeared to work only after a later refresh.
 
 ## [2026-06-15]
 
