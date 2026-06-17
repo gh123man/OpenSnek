@@ -33,6 +33,7 @@ final class AppStateEditorController {
     private var selectedMouseSlotHydrationTokensByDeviceID: [String: UUID] = [:]
     private var activeOnboardProfileLoadTasksByDeviceID: [String: Task<Void, Never>] = [:]
     private var activeOnboardProfileLoadTokensByDeviceID: [String: UUID] = [:]
+    private var activeOnboardProfileLoadOperationIDsByDeviceID: [String: UUID] = [:]
     private var buttonWorkspaceEditRevision: UInt64 = 0
     private var isTearingDown = false
 
@@ -56,6 +57,10 @@ final class AppStateEditorController {
         activeOnboardProfileLoadTasksByDeviceID.values.forEach { $0.cancel() }
         activeOnboardProfileLoadTasksByDeviceID.removeAll()
         activeOnboardProfileLoadTokensByDeviceID.removeAll()
+        activeOnboardProfileLoadOperationIDsByDeviceID.values.forEach {
+            editorStore.endButtonProfileOperation($0)
+        }
+        activeOnboardProfileLoadOperationIDsByDeviceID.removeAll()
     }
 
     func bind(applyController: AppStateApplyController) {
@@ -68,6 +73,14 @@ final class AppStateEditorController {
 
     private func bumpOnboardProfilesRevision() {
         editorStore.onboardProfilesRevision &+= 1
+    }
+
+    private func cancelActiveOnboardProfileLoad(deviceID: String) {
+        activeOnboardProfileLoadTasksByDeviceID.removeValue(forKey: deviceID)?.cancel()
+        activeOnboardProfileLoadTokensByDeviceID.removeValue(forKey: deviceID)
+        if let operationID = activeOnboardProfileLoadOperationIDsByDeviceID.removeValue(forKey: deviceID) {
+            editorStore.endButtonProfileOperation(operationID)
+        }
     }
 
     private func bumpConnectBehaviorRevision() {
@@ -276,8 +289,7 @@ final class AppStateEditorController {
         for deviceID in removedDeviceIDs {
             selectedMouseSlotHydrationTasksByDeviceID.removeValue(forKey: deviceID)?.cancel()
             selectedMouseSlotHydrationTokensByDeviceID.removeValue(forKey: deviceID)
-            activeOnboardProfileLoadTasksByDeviceID.removeValue(forKey: deviceID)?.cancel()
-            activeOnboardProfileLoadTokensByDeviceID.removeValue(forKey: deviceID)
+            cancelActiveOnboardProfileLoad(deviceID: deviceID)
         }
         if let hydratedButtonBindingsKey,
            let hydratedDeviceID = hydratedButtonBindingsKey.split(separator: "#").first,
@@ -1224,19 +1236,25 @@ final class AppStateEditorController {
     }
 
     private func scheduleActiveOnboardProfileLoad(device: MouseDevice, profileID: Int) {
-        activeOnboardProfileLoadTasksByDeviceID.removeValue(forKey: device.id)?.cancel()
+        cancelActiveOnboardProfileLoad(deviceID: device.id)
         let token = UUID()
         activeOnboardProfileLoadTokensByDeviceID[device.id] = token
-        editorStore.beginButtonProfileOperation(statusText: "Loading profile...")
         activeOnboardProfileLoadTasksByDeviceID[device.id] = Task(priority: .userInitiated) { @MainActor [weak self, editorStore] in
             defer {
-                editorStore.endButtonProfileOperation()
                 if let self, self.activeOnboardProfileLoadTokensByDeviceID[device.id] == token {
                     self.activeOnboardProfileLoadTasksByDeviceID.removeValue(forKey: device.id)
                     self.activeOnboardProfileLoadTokensByDeviceID.removeValue(forKey: device.id)
                 }
             }
             guard let self, !Task.isCancelled else { return }
+            let operationID = editorStore.beginButtonProfileOperation(statusText: "Loading profile...")
+            self.activeOnboardProfileLoadOperationIDsByDeviceID[device.id] = operationID
+            defer {
+                editorStore.endButtonProfileOperation(operationID)
+                if self.activeOnboardProfileLoadOperationIDsByDeviceID[device.id] == operationID {
+                    self.activeOnboardProfileLoadOperationIDsByDeviceID.removeValue(forKey: device.id)
+                }
+            }
             await self.selectOnboardProfile(profileID)
         }
     }

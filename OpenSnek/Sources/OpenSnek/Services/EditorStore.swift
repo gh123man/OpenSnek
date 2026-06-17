@@ -56,7 +56,9 @@ final class EditorStore {
 
     @ObservationIgnored private weak var editorControllerStorage: AppStateEditorController?
     @ObservationIgnored private weak var applyControllerStorage: AppStateApplyController?
-    @ObservationIgnored private var buttonProfileOperationDepth = 0
+    @ObservationIgnored private var buttonProfileOperationIDs: Set<UUID> = []
+    @ObservationIgnored private var buttonProfileOperationOrder: [UUID] = []
+    @ObservationIgnored private var buttonProfileOperationStatusByID: [UUID: String] = [:]
     @ObservationIgnored private var isSyncingEditableStageRepresentations = false
 
     init(deviceStore: DeviceStore) {
@@ -93,27 +95,48 @@ final class EditorStore {
         return applyControllerStorage
     }
 
-    func beginButtonProfileOperation(statusText: String) {
-        buttonProfileOperationDepth += 1
-        isButtonProfileOperationInFlight = true
-        buttonProfileOperationStatusText = statusText
+    @discardableResult
+    func beginButtonProfileOperation(statusText: String) -> UUID {
+        let operationID = UUID()
+        buttonProfileOperationIDs.insert(operationID)
+        buttonProfileOperationOrder.append(operationID)
+        buttonProfileOperationStatusByID[operationID] = statusText
+        refreshButtonProfileOperationPresentation()
+        return operationID
     }
 
     func endButtonProfileOperation() {
-        buttonProfileOperationDepth = max(0, buttonProfileOperationDepth - 1)
-        isButtonProfileOperationInFlight = buttonProfileOperationDepth > 0
-        if buttonProfileOperationDepth == 0 {
-            buttonProfileOperationStatusText = nil
+        guard let operationID = buttonProfileOperationOrder.last(where: { buttonProfileOperationIDs.contains($0) }) else {
+            refreshButtonProfileOperationPresentation()
+            return
         }
+        endButtonProfileOperation(operationID)
+    }
+
+    func endButtonProfileOperation(_ operationID: UUID) {
+        guard buttonProfileOperationIDs.remove(operationID) != nil else { return }
+        buttonProfileOperationStatusByID.removeValue(forKey: operationID)
+        buttonProfileOperationOrder.removeAll { $0 == operationID }
+        refreshButtonProfileOperationPresentation()
+    }
+
+    private func refreshButtonProfileOperationPresentation() {
+        guard let operationID = buttonProfileOperationOrder.last(where: { buttonProfileOperationIDs.contains($0) }) else {
+            isButtonProfileOperationInFlight = false
+            buttonProfileOperationStatusText = nil
+            return
+        }
+        isButtonProfileOperationInFlight = true
+        buttonProfileOperationStatusText = buttonProfileOperationStatusByID[operationID]
     }
 
     private func withButtonProfileOperation<T>(
         statusText: String,
         _ operation: @escaping @MainActor () async -> T
     ) async -> T {
-        beginButtonProfileOperation(statusText: statusText)
+        let operationID = beginButtonProfileOperation(statusText: statusText)
         defer {
-            endButtonProfileOperation()
+            endButtonProfileOperation(operationID)
         }
         return await operation()
     }

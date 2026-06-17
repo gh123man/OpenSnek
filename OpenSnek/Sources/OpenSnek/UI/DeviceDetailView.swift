@@ -54,7 +54,7 @@ struct DeviceDetailView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(WindowDragBlocker())
             .loadingScrim(
-                isPresented: controlsEnabled && editorStore.isButtonProfileOperationInFlight,
+                isPresented: editorStore.isButtonProfileOperationInFlight,
                 label: editorStore.buttonProfileOperationStatusText
             )
             .task(id: selected.id) {
