@@ -139,7 +139,6 @@ private struct LoadingScrimModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .opacity(isPresented ? 0.42 : 1.0)
             .disabled(isPresented)
             .overlay {
                 if isPresented {
