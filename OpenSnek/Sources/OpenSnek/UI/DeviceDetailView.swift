@@ -51,8 +51,8 @@ struct DeviceDetailView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(WindowDragBlocker())
             .loadingScrim(
-                isPresented: editorStore.isButtonProfileOperationInFlight,
-                label: editorStore.buttonProfileOperationStatusText
+                isPresented: editorStore.isButtonProfileOperationInFlight || editorStore.isOnboardProfileLoadInFlight,
+                label: editorStore.buttonProfileOperationStatusText ?? editorStore.onboardProfileLoadStatusText
             )
             .task(id: selected.id) {
                 await deviceStore.refreshConnectionDiagnostics(for: selected)
@@ -1714,7 +1714,7 @@ private struct OnboardProfileManagerCard: View {
     private let actionPanelCornerRadius: CGFloat = 8
 
     private var isBusy: Bool {
-        editorStore.isButtonProfileOperationInFlight
+        editorStore.isButtonProfileOperationInFlight || editorStore.isOnboardProfileLoadInFlight
     }
 
     private var isRefreshing: Bool {

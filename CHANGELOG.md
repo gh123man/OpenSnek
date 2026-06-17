@@ -41,11 +41,12 @@ All notable changes to this project are documented in this file.
 - Onboard profile refresh now hydrates the selected active profile snapshot when no profile is loaded yet, so app launch reflects the device's onboard lighting color instead of stale local editor state.
 - Fresh selected-device telemetry now invalidates connection-derived UI state, preventing the detail view from staying dimmed after launch until the sidebar is rebuilt.
 - Device detail controls no longer use a global reconnect/dimmed mode; explicit loading, unavailable, and profile-operation overlays now handle transient states without graying out the whole editor.
-- Bluetooth onboard profile refresh now coalesces overlapping requests and avoids full selected-profile snapshot hydration during list refresh, keeping refresh limited to inventory and metadata reads.
-- Bluetooth onboard-profile devices now keep regular editor DPI, lighting, and button edits on the live apply path instead of routing every edit through slow stored-profile write transactions.
+- Bluetooth onboard profile refresh now coalesces overlapping requests and avoids full selected-profile snapshot hydration during list refresh, keeping refresh limited to active/assigned inventory reads.
+- Bluetooth onboard-profile devices now keep regular editor DPI and button edits on the live apply path instead of routing every edit through slow stored-profile write transactions.
 - Onboard profile refresh now uses a profile-card-local loading/error state instead of the global blocking operation overlay, so a slow or failed profile inventory read does not disable unrelated controls.
 - Bluetooth DPI stage writes now proceed from the complete requested editor stage table when the current DPI-stage pre-read returns no payload, avoiding failed writes after transient Bluetooth readback gaps.
 - Onboard profile activation and passive profile-switch refresh now validate through direct active-profile readback, Bluetooth inventory refresh reads only active/assigned slots, profile loads hydrate DPI/lighting through a foreground core snapshot without metadata/button sweeps, and button bindings refresh in a background pass to keep Bluetooth profile switching responsive.
+- Bluetooth onboard profile brightness and static-color edits now write the selected onboard profile instead of falling back to the live layer.
 
 ## [2026-06-15]
 

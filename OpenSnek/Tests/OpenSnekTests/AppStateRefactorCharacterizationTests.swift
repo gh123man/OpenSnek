@@ -4991,7 +4991,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(updates.first?.mutation.dpi?.activeStage, 1)
     }
 
-    func testBluetoothOnboardProfileDeviceEditorChangesUseLiveApplyPath() async throws {
+    func testBluetoothOnboardProfileDeviceEditorChangesUseLiveApplyPathExceptLighting() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-bt-live-editor-device",
             transport: .bluetooth,
@@ -5028,6 +5028,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             ),
             forDeviceID: device.id
         )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(
+                profileID: 1,
+                name: "Base",
+                dpiValues: [400, 800, 1300, 1600, 6400],
+                brightnessByLEDID: [1: 128, 4: 128, 10: 128],
+                staticColorByLEDID: [1: RGBPatch(r: 0, g: 0, b: 255), 4: RGBPatch(r: 0, g: 0, b: 255), 10: RGBPatch(r: 0, g: 0, b: 255)]
+            ),
+            forDeviceID: device.id
+        )
 
         let appState = await MainActor.run {
             AppState(launchRole: .app, backend: backend, autoStart: false)
@@ -5058,7 +5068,11 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             appState.editorStore.scheduleAutoApplyLedColor()
         }
         try await waitForRefactorCondition {
-            await backend.applyCount() == 2
+            let updates = await backend.recordedOnboardUpdates()
+            return updates.contains { update in
+                update.profileID == 1 &&
+                    update.mutation.staticColorByLEDID?[1] == RGBPatch(r: 255, g: 0, b: 0)
+            }
         }
 
         await MainActor.run {
@@ -5066,25 +5080,104 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             appState.editorStore.scheduleAutoApplyLedBrightness()
         }
         try await waitForRefactorCondition {
-            await backend.applyCount() == 3
+            let updates = await backend.recordedOnboardUpdates()
+            return updates.contains { update in
+                update.profileID == 1 &&
+                    update.mutation.brightnessByLEDID?[1] == 200
+            }
         }
 
         await MainActor.run {
             appState.editorStore.updateButtonBindingKind(slot: 4, kind: .mouseForward)
         }
         try await waitForRefactorCondition {
-            await backend.applyCount() == 4
+            await backend.applyCount() == 2
         }
 
         let updates = await backend.recordedOnboardUpdates()
         let patches = await backend.recordedPatches()
-        XCTAssertTrue(updates.isEmpty)
-        XCTAssertEqual(patches.map { $0.dpiStagePairs?.map(\.x) }, [[500, 900, 1400], nil, nil, nil])
+        XCTAssertEqual(updates.map(\.profileID), [1, 1])
+        XCTAssertEqual(updates[0].mutation.staticColorByLEDID?[1], RGBPatch(r: 255, g: 0, b: 0))
+        XCTAssertEqual(updates[1].mutation.brightnessByLEDID?[1], 200)
+        XCTAssertEqual(patches.map { $0.dpiStagePairs?.map(\.x) }, [[500, 900, 1400], nil])
         XCTAssertEqual(patches[0].activeStage, 2)
-        XCTAssertEqual(patches[1].ledRGB, RGBPatch(r: 255, g: 0, b: 0))
-        XCTAssertEqual(patches[2].ledBrightness, 200)
-        XCTAssertEqual(patches[3].buttonBinding?.slot, 4)
-        XCTAssertTrue(patches[3].buttonBinding?.writeDirectLayer == true)
+        XCTAssertEqual(patches[1].buttonBinding?.slot, 4)
+        XCTAssertTrue(patches[1].buttonBinding?.writeDirectLayer == true)
+    }
+
+    func testBluetoothOnboardProfileLightingEditUpdatesSelectedStoredProfile() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-bt-stored-lighting-device",
+            transport: .bluetooth,
+            serial: "ONBOARD-BT-STORED-LIGHTING-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "bluetooth",
+                    batteryPercent: 74,
+                    dpiValues: [400, 800, 1300, 1600, 6400],
+                    activeStage: 2,
+                    dpiValue: 1300,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1, 2],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(
+                profileID: 2,
+                name: "Stored 2",
+                dpiValues: [1200, 2400],
+                brightnessByLEDID: [1: 80, 4: 80, 10: 80],
+                staticColorByLEDID: [1: RGBPatch(r: 0, g: 0, b: 255), 4: RGBPatch(r: 0, g: 0, b: 255), 10: RGBPatch(r: 0, g: 0, b: 255)]
+            ),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+        await appState.editorStore.selectOnboardProfile(2)
+
+        await MainActor.run {
+            appState.editorStore.editableLedBrightness = 220
+            appState.editorStore.scheduleAutoApplyLedBrightness()
+        }
+
+        try await waitForRefactorCondition {
+            let updates = await backend.recordedOnboardUpdates()
+            return updates.contains { update in
+                update.profileID == 2 &&
+                    update.mutation.brightnessByLEDID?[1] == 220
+            }
+        }
+
+        let applyCount = await backend.applyCount()
+        let updates = await backend.recordedOnboardUpdates()
+        XCTAssertEqual(applyCount, 0)
+        XCTAssertEqual(updates.last?.profileID, 2)
+        XCTAssertEqual(updates.last?.mutation.brightnessByLEDID?[1], 220)
     }
 
     func testSelectedUSBOnboardProfileScrollEditUpdatesStoredProfile() async throws {

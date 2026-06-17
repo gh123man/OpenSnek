@@ -223,7 +223,7 @@ final class AppStateApplyController {
 
     func applyLedBrightness() async {
         if let selectedDevice = deviceStore.selectedDevice,
-           supportsOnboardProfileEditorWrites(device: selectedDevice) {
+           supportsOnboardProfileLightingEditorWrites(device: selectedDevice) {
             let brightness = Dictionary(
                 uniqueKeysWithValues: onboardProfileLEDIDs(for: selectedDevice).map { ledID in
                     (Int(ledID), editorStore.editableLedBrightness)
@@ -248,7 +248,7 @@ final class AppStateApplyController {
 
     func applyLedColor() async {
         if let selectedDevice = deviceStore.selectedDevice,
-           supportsOnboardProfileEditorWrites(device: selectedDevice),
+           supportsOnboardProfileLightingEditorWrites(device: selectedDevice),
            (editorStore.editableLightingEffect == .staticColor || !selectedDevice.supports_advanced_lighting_effects) {
             _ = await editorController.applyOnboardProfileMutationForCurrentSelection(
                 OnboardProfileMutation(staticColorByLEDID: currentStaticOnboardProfileColors(for: selectedDevice))
@@ -274,7 +274,7 @@ final class AppStateApplyController {
         guard let selectedDevice = deviceStore.selectedDevice else { return }
         if !selectedDevice.supports_advanced_lighting_effects {
             editorStore.editableLightingEffect = .staticColor
-            if supportsOnboardProfileEditorWrites(device: selectedDevice) {
+            if supportsOnboardProfileLightingEditorWrites(device: selectedDevice) {
                 _ = await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice)
                 return
             }
@@ -282,7 +282,7 @@ final class AppStateApplyController {
             return
         }
         if editorStore.editableLightingEffect == .staticColor,
-           supportsOnboardProfileEditorWrites(device: selectedDevice) {
+           supportsOnboardProfileLightingEditorWrites(device: selectedDevice) {
             _ = await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice)
             return
         }
@@ -442,6 +442,10 @@ final class AppStateApplyController {
         device.transport == .usb && supportsOnboardProfileCRUD(device: device)
     }
 
+    private func supportsOnboardProfileLightingEditorWrites(device: MouseDevice) -> Bool {
+        supportsOnboardProfileCRUD(device: device)
+    }
+
     private func onboardProfileLEDIDs(for device: MouseDevice) -> [UInt8] {
         let ids = DeviceProfiles.resolve(
             vendorID: device.vendor_id,
@@ -467,7 +471,7 @@ final class AppStateApplyController {
     }
 
     private func applyCurrentStaticOnboardProfileColorsIfSupported(for device: MouseDevice) async -> Bool {
-        guard supportsOnboardProfileEditorWrites(device: device),
+        guard supportsOnboardProfileLightingEditorWrites(device: device),
               (editorStore.editableLightingEffect == .staticColor || !device.supports_advanced_lighting_effects) else {
             return false
         }
