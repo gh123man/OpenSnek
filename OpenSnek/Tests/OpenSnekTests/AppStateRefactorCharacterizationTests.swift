@@ -4794,6 +4794,102 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(updates.first?.mutation.dpi?.activeStage, 1)
     }
 
+    func testBluetoothOnboardProfileDeviceEditorChangesUseLiveApplyPath() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-bt-live-editor-device",
+            transport: .bluetooth,
+            serial: "ONBOARD-BT-LIVE-EDITOR-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "bluetooth",
+                    batteryPercent: 74,
+                    dpiValues: [400, 800, 1300, 1600, 6400],
+                    activeStage: 2,
+                    dpiValue: 1300,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1, 2],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+        await MainActor.run {
+            appState.editorStore.editableStageCount = 3
+            appState.editorStore.editableStagePairs = [
+                DpiPair(x: 500, y: 500),
+                DpiPair(x: 900, y: 900),
+                DpiPair(x: 1400, y: 1400),
+                DpiPair(x: 1600, y: 1600),
+                DpiPair(x: 6400, y: 6400),
+            ]
+            appState.editorStore.editableActiveStage = 3
+        }
+
+        await appState.editorStore.applyDpiStages()
+        try await waitForRefactorCondition {
+            await backend.applyCount() == 1
+        }
+
+        await MainActor.run {
+            appState.editorStore.editableLightingEffect = .staticColor
+            appState.editorStore.editableUSBLightingZoneID = "all"
+            appState.editorStore.editableColor = RGBColor(r: 255, g: 0, b: 0)
+            appState.editorStore.scheduleAutoApplyLedColor()
+        }
+        try await waitForRefactorCondition {
+            await backend.applyCount() == 2
+        }
+
+        await MainActor.run {
+            appState.editorStore.editableLedBrightness = 200
+            appState.editorStore.scheduleAutoApplyLedBrightness()
+        }
+        try await waitForRefactorCondition {
+            await backend.applyCount() == 3
+        }
+
+        await MainActor.run {
+            appState.editorStore.updateButtonBindingKind(slot: 4, kind: .mouseForward)
+        }
+        try await waitForRefactorCondition {
+            await backend.applyCount() == 4
+        }
+
+        let updates = await backend.recordedOnboardUpdates()
+        let patches = await backend.recordedPatches()
+        XCTAssertTrue(updates.isEmpty)
+        XCTAssertEqual(patches.map { $0.dpiStagePairs?.map(\.x) }, [[500, 900, 1400], nil, nil, nil])
+        XCTAssertEqual(patches[0].activeStage, 2)
+        XCTAssertEqual(patches[1].ledRGB, RGBPatch(r: 255, g: 0, b: 0))
+        XCTAssertEqual(patches[2].ledBrightness, 200)
+        XCTAssertEqual(patches[3].buttonBinding?.slot, 4)
+        XCTAssertTrue(patches[3].buttonBinding?.writeDirectLayer == true)
+    }
+
     func testSelectedUSBOnboardProfileScrollEditUpdatesStoredProfile() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-scroll-edit-device",

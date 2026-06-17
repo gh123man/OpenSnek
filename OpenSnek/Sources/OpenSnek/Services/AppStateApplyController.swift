@@ -97,7 +97,7 @@ final class AppStateApplyController {
             )
         }
         let active = max(0, min(count - 1, editorStore.editableActiveStage - 1))
-        if let selectedDevice, supportsOnboardProfileCRUD(device: selectedDevice) {
+        if let selectedDevice, supportsOnboardProfileEditorWrites(device: selectedDevice) {
             let scalar = pairs.indices.contains(active) ? pairs[active] : pairs.first
             let mutation = OnboardProfileMutation(
                 dpi: OnboardDPIProfileSnapshot(
@@ -223,7 +223,7 @@ final class AppStateApplyController {
 
     func applyLedBrightness() async {
         if let selectedDevice = deviceStore.selectedDevice,
-           supportsOnboardProfileCRUD(device: selectedDevice) {
+           supportsOnboardProfileEditorWrites(device: selectedDevice) {
             let brightness = Dictionary(
                 uniqueKeysWithValues: onboardProfileLEDIDs(for: selectedDevice).map { ledID in
                     (Int(ledID), editorStore.editableLedBrightness)
@@ -248,7 +248,7 @@ final class AppStateApplyController {
 
     func applyLedColor() async {
         if let selectedDevice = deviceStore.selectedDevice,
-           supportsOnboardProfileCRUD(device: selectedDevice),
+           supportsOnboardProfileEditorWrites(device: selectedDevice),
            (editorStore.editableLightingEffect == .staticColor || !selectedDevice.supports_advanced_lighting_effects) {
             _ = await editorController.applyOnboardProfileMutationForCurrentSelection(
                 OnboardProfileMutation(staticColorByLEDID: currentStaticOnboardProfileColors(for: selectedDevice))
@@ -274,7 +274,7 @@ final class AppStateApplyController {
         guard let selectedDevice = deviceStore.selectedDevice else { return }
         if !selectedDevice.supports_advanced_lighting_effects {
             editorStore.editableLightingEffect = .staticColor
-            if supportsOnboardProfileCRUD(device: selectedDevice) {
+            if supportsOnboardProfileEditorWrites(device: selectedDevice) {
                 _ = await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice)
                 return
             }
@@ -282,7 +282,7 @@ final class AppStateApplyController {
             return
         }
         if editorStore.editableLightingEffect == .staticColor,
-           supportsOnboardProfileCRUD(device: selectedDevice) {
+           supportsOnboardProfileEditorWrites(device: selectedDevice) {
             _ = await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice)
             return
         }
@@ -396,7 +396,7 @@ final class AppStateApplyController {
 
     func applyButtonBinding(slot: Int) async {
         guard let selectedDevice = deviceStore.selectedDevice else { return }
-        if supportsOnboardProfileCRUD(device: selectedDevice) {
+        if supportsOnboardProfileEditorWrites(device: selectedDevice) {
             let draft = editorStore.editableButtonBindings[slot] ?? editorController.defaultButtonBinding(for: slot)
             _ = await editorController.applyOnboardProfileMutationForCurrentSelection(
                 OnboardProfileMutation(buttonBindings: [slot: draft])
@@ -438,6 +438,10 @@ final class AppStateApplyController {
         )?.supportsMappedOnboardProfileCRUD == true
     }
 
+    private func supportsOnboardProfileEditorWrites(device: MouseDevice) -> Bool {
+        device.transport == .usb && supportsOnboardProfileCRUD(device: device)
+    }
+
     private func onboardProfileLEDIDs(for device: MouseDevice) -> [UInt8] {
         let ids = DeviceProfiles.resolve(
             vendorID: device.vendor_id,
@@ -463,7 +467,7 @@ final class AppStateApplyController {
     }
 
     private func applyCurrentStaticOnboardProfileColorsIfSupported(for device: MouseDevice) async -> Bool {
-        guard supportsOnboardProfileCRUD(device: device),
+        guard supportsOnboardProfileEditorWrites(device: device),
               (editorStore.editableLightingEffect == .staticColor || !device.supports_advanced_lighting_effects) else {
             return false
         }

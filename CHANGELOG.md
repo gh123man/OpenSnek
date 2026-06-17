@@ -42,6 +42,7 @@ All notable changes to this project are documented in this file.
 - Fresh selected-device telemetry now invalidates connection-derived UI state, preventing the detail view from staying dimmed after launch until the sidebar is rebuilt.
 - Device detail controls no longer use a global reconnect/dimmed mode; explicit loading, unavailable, and profile-operation overlays now handle transient states without graying out the whole editor.
 - Bluetooth onboard profile refresh now coalesces overlapping requests and avoids full selected-profile snapshot hydration during list refresh, keeping refresh limited to inventory and metadata reads.
+- Bluetooth onboard-profile devices now keep regular editor DPI, lighting, and button edits on the live apply path instead of routing every edit through slow stored-profile write transactions.
 
 ## [2026-06-15]
 
