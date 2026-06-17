@@ -601,6 +601,21 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         return latestCachedAt > startedAt
     }
 
+    nonisolated static func passiveDpiEventHasAmbiguousStageMatch(
+        previous: MouseState?,
+        event: PassiveDPIEvent
+    ) -> Bool {
+        guard let previous,
+              let values = previous.dpi_stages.values,
+              values.count > 1 else {
+            return false
+        }
+        let matchingIndices = values.enumerated().compactMap { index, value in
+            value == event.dpiX ? index : nil
+        }
+        return matchingIndices.count > 1
+    }
+
     nonisolated static func seededStateForPassiveDpiEvent(
         device: MouseDevice,
         event: PassiveDPIEvent,
@@ -785,8 +800,9 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         publishSnapshotIfService()
     }
 
-    private func updateCachedStateFromFastSnapshot(_ snapshot: DpiFastSnapshot, for deviceID: String) {
-        guard let previous = cachedStateByDeviceID[deviceID], !snapshot.values.isEmpty else { return }
+    @discardableResult
+    private func updateCachedStateFromFastSnapshot(_ snapshot: DpiFastSnapshot, for deviceID: String) -> MouseState? {
+        guard let previous = cachedStateByDeviceID[deviceID], !snapshot.values.isEmpty else { return nil }
         let active = max(0, min(snapshot.values.count - 1, snapshot.active))
         let currentStagePairs = BridgeClient.resolveDpiStagePairs(
             values: snapshot.values,
@@ -819,9 +835,10 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         )
         cachedStateByDeviceID[deviceID] = updated
         reconnectSeedStateByDeviceID[deviceID] = updated
+        return updated
     }
 
-    private func handlePassiveDpiEvent(_ event: PassiveDPIEvent) {
+    private func handlePassiveDpiEvent(_ event: PassiveDPIEvent) async {
         let previousState: MouseState?
         if let cached = cachedStateByDeviceID[event.deviceID] {
             previousState = cached
@@ -847,10 +864,38 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         cachedStateByDeviceID[event.deviceID] = updated
         cachedStateAtByDeviceID[event.deviceID] = event.observedAt
         reconnectSeedStateByDeviceID[event.deviceID] = updated
+        let needsDirectActiveRead = Self.passiveDpiEventHasAmbiguousStageMatch(previous: previousState, event: event)
         let fastActive = updated.dpi_stages.active_stage ?? cachedFastByDeviceID[event.deviceID]?.active ?? 0
         if let values = updated.dpi_stages.values {
-            cachedFastByDeviceID[event.deviceID] = DpiFastSnapshot(active: fastActive, values: values)
-            cachedFastAtByDeviceID[event.deviceID] = event.observedAt
+            if needsDirectActiveRead {
+                cachedFastByDeviceID.removeValue(forKey: event.deviceID)
+                cachedFastAtByDeviceID.removeValue(forKey: event.deviceID)
+            } else {
+                cachedFastByDeviceID[event.deviceID] = DpiFastSnapshot(active: fastActive, values: values)
+                cachedFastAtByDeviceID[event.deviceID] = event.observedAt
+            }
+        }
+
+        if needsDirectActiveRead,
+           let device = cachedDevices.first(where: { $0.id == event.deviceID }) {
+            do {
+                if let snapshot = try await client.readDpiStagesFast(device: device) {
+                    let fast = DpiFastSnapshot(active: snapshot.active, values: snapshot.values)
+                    let readAt = Date()
+                    cachedFastByDeviceID[event.deviceID] = fast
+                    cachedFastAtByDeviceID[event.deviceID] = readAt
+                    if let precise = updateCachedStateFromFastSnapshot(fast, for: event.deviceID) {
+                        publishStateUpdate(.deviceState(deviceID: event.deviceID, state: precise, updatedAt: readAt))
+                        publishSnapshotIfService()
+                        return
+                    }
+                }
+            } catch {
+                AppLog.debug(
+                    "Backend",
+                    "passive DPI ambiguous active-stage read failed device=\(event.deviceID): \(error.localizedDescription)"
+                )
+            }
         }
 
         publishStateUpdate(.deviceState(deviceID: event.deviceID, state: updated, updatedAt: event.observedAt))

@@ -640,29 +640,53 @@ final class USBPassiveDPIEventTests: XCTestCase {
 
     func testPassiveUSBMergeUpdatesActiveStageOnlyForUniqueMatch() {
         let device = makePassiveTestDevice(id: "usb-passive-merge", transport: .usb)
+        let uniquePrevious = makePassiveTestState(
+            device: device,
+            dpiValues: [800, 900, 2000, 1100, 1200],
+            activeStage: 0,
+            dpiValue: 800
+        )
+        let duplicatePrevious = makePassiveTestState(
+            device: device,
+            dpiValues: [800, 2000, 2000],
+            activeStage: 0,
+            dpiValue: 800
+        )
+        let event = PassiveDPIEvent(deviceID: device.id, dpiX: 2000, dpiY: 2000, observedAt: Date())
         let uniqueMatch = mergedStateFromPassiveDpiEvent(
-            previous: makePassiveTestState(
-                device: device,
-                dpiValues: [800, 900, 2000, 1100, 1200],
-                activeStage: 0,
-                dpiValue: 800
-            ),
-            event: PassiveDPIEvent(deviceID: device.id, dpiX: 2000, dpiY: 2000, observedAt: Date())
+            previous: uniquePrevious,
+            event: event
         )
         let duplicateMatch = mergedStateFromPassiveDpiEvent(
-            previous: makePassiveTestState(
-                device: device,
-                dpiValues: [800, 2000, 2000],
-                activeStage: 0,
-                dpiValue: 800
-            ),
-            event: PassiveDPIEvent(deviceID: device.id, dpiX: 2000, dpiY: 2000, observedAt: Date())
+            previous: duplicatePrevious,
+            event: event
         )
 
+        XCTAssertFalse(LocalBridgeBackend.passiveDpiEventHasAmbiguousStageMatch(previous: uniquePrevious, event: event))
+        XCTAssertTrue(LocalBridgeBackend.passiveDpiEventHasAmbiguousStageMatch(previous: duplicatePrevious, event: event))
         XCTAssertEqual(uniqueMatch?.dpi?.x, 2000)
         XCTAssertEqual(uniqueMatch?.dpi_stages.active_stage, 2)
         XCTAssertEqual(duplicateMatch?.dpi?.x, 2000)
         XCTAssertEqual(duplicateMatch?.dpi_stages.active_stage, 0)
+    }
+
+    func testPassiveUSBMergeTreatsDuplicateDpiStageMatchAsAmbiguous() {
+        let device = makePassiveTestDevice(id: "usb-passive-merge-duplicate", transport: .usb)
+        let duplicatePrevious = makePassiveTestState(
+            device: device,
+            dpiValues: [800, 2000, 2000],
+            activeStage: 0,
+            dpiValue: 800
+        )
+        let event = PassiveDPIEvent(deviceID: device.id, dpiX: 2000, dpiY: 2000, observedAt: Date())
+        let duplicateMatch = mergedStateFromPassiveDpiEvent(
+            previous: duplicatePrevious,
+            event: event
+        )
+
+        XCTAssertEqual(duplicateMatch?.dpi?.x, 2000)
+        XCTAssertEqual(duplicateMatch?.dpi_stages.active_stage, 0)
+        XCTAssertTrue(LocalBridgeBackend.passiveDpiEventHasAmbiguousStageMatch(previous: duplicatePrevious, event: event))
     }
 
     func testPassiveUSBMergeDropsEventWithoutSeededState() {

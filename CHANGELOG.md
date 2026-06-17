@@ -36,6 +36,8 @@ All notable changes to this project are documented in this file.
 - Onboard profile DPI edits now preserve the loaded profile's firmware stage IDs and marker even when the UI sends a focused DPI-only mutation.
 - Profile operation loading now dims through the transient overlay instead of mutating the underlying content opacity, avoiding a stale grayed-out detail view after rename completes.
 - USB onboard profile rename now treats all-`0xFF` metadata UUIDs as corrupt and repairs assigned profile metadata with a full-object write before applying the requested name.
+- Onboard profile tabs now show the firmware profile-color order, keep the Synapse warning at the bottom of profile 1 controls, and suppress the profile-cycle button from missing-remap notices on mapped onboard-profile devices.
+- Duplicate DPI stage values now trigger direct active-stage readback instead of inferring the selected stage from a non-unique DPI value during profile or DPI cycling.
 
 ## [2026-06-15]
 

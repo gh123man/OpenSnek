@@ -18,6 +18,19 @@ actor BridgeClient {
         remainingMasks: Int
     )
     static let bluetoothPassiveResetSilenceInterval: TimeInterval = 1.0
+
+    nonisolated static func resolvedUSBFastDpiActiveStage(
+        stages: USBDpiStageSnapshot,
+        liveDpi: Int?
+    ) -> Int {
+        guard let liveDpi else {
+            return stages.active
+        }
+        let matchingIndices = stages.values.enumerated().compactMap { index, value in
+            value == liveDpi ? index : nil
+        }
+        return matchingIndices.count == 1 ? matchingIndices[0] : stages.active
+    }
     static let bluetoothPassiveHeartbeatHealthyInterval: TimeInterval = 1.5
     static let usbReconnectSettleInterval: TimeInterval = 2.0
 
@@ -546,12 +559,7 @@ actor BridgeClient {
                 let snapshot = try session.withExclusiveDeviceAccess { () throws -> (active: Int, values: [Int])? in
                     guard let stages = try getDPIStageSnapshot(session, device) else { return nil }
                     let liveDpi = try getDPI(session, device)?.0
-                    let active: Int
-                    if let liveDpi, let exact = stages.values.firstIndex(of: liveDpi) {
-                        active = exact
-                    } else {
-                        active = stages.active
-                    }
+                    let active = Self.resolvedUSBFastDpiActiveStage(stages: stages, liveDpi: liveDpi)
                     return (active: active, values: stages.values)
                 }
                 guard let snapshot else { continue }

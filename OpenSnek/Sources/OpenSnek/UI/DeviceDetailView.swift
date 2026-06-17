@@ -1713,7 +1713,7 @@ private struct OnboardProfileManagerCard: View {
     private let connectorWidth: CGFloat = 14
     private let slotRowHeight: CGFloat = 48
     private let slotRowSpacing: CGFloat = 8
-    private let columnSpacing: CGFloat = 4
+    private let columnSpacing: CGFloat = 10
     private let actionPanelCornerRadius: CGFloat = 8
 
     private var isBusy: Bool {
@@ -1817,12 +1817,17 @@ private struct OnboardProfileManagerCard: View {
         let fillOpacity = profileFillOpacity(profile: profile, isSelected: isSelected, isHovered: isHovered)
         let strokeOpacity = profileStrokeOpacity(profile: profile, isSelected: isSelected, isHovered: isHovered)
         let plusOpacity = isEmptySlot && isHovered ? 0.82 : 0.0
+        let slotColor = profileSlotColor(profile.profileID)
 
         return Button {
             Task { await editorStore.selectOnboardProfile(profile.profileID) }
         } label: {
             ZStack(alignment: .topTrailing) {
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(slotColor.opacity(profile.isAssigned || isSelected ? 0.95 : 0.45))
+                        .frame(width: 4, height: 30)
+
                     VStack(alignment: .leading, spacing: 4) {
                         Text(profile.isAssigned ? profile.displayName : "None")
                             .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -1841,7 +1846,8 @@ private struct OnboardProfileManagerCard: View {
                             .accessibilityLabel("Create profile")
                     }
                 }
-                .padding(.horizontal, 10)
+                .padding(.leading, 8)
+                .padding(.trailing, 10)
                 .padding(.vertical, 7)
 
                 if profile.isActive {
@@ -1913,14 +1919,22 @@ private struct OnboardProfileManagerCard: View {
         return isHovered ? 0.10 : 0.025
     }
 
+    private func profileSlotColor(_ profileID: Int) -> Color {
+        switch profileID {
+        case 1: Color.white
+        case 2: Color(hex: 0xFF3B30)
+        case 3: Color(hex: 0x30D158)
+        case 4: Color(hex: 0x0A84FF)
+        case 5: Color(hex: 0x64D2FF)
+        default: Color.white.opacity(0.65)
+        }
+    }
+
     @ViewBuilder
     private var actionPanel: some View {
         if let selectedProfileID, let selectedSummary {
             VStack(alignment: .leading, spacing: 12) {
                 actionHeader(for: selectedSummary)
-                if selectedSummary.profileID == 1 {
-                    baseProfileWarning
-                }
 
                 TextField(selectedSummary.isAssigned ? "Profile name" : "Name this profile", text: $renameName)
                     .textFieldStyle(.roundedBorder)
@@ -1950,7 +1964,13 @@ private struct OnboardProfileManagerCard: View {
                             .foregroundStyle(.white.opacity(0.64))
                     }
                 }
+
+                if selectedSummary.profileID == 1 {
+                    Spacer(minLength: 4)
+                    baseProfileWarning
+                }
             }
+            .frame(maxWidth: .infinity, minHeight: max(0, profileListHeight - 24), alignment: .topLeading)
             .padding(.leading, connectorWidth + 10)
             .padding(.trailing, 12)
             .padding(.vertical, 12)
