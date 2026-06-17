@@ -690,52 +690,28 @@ extension BridgeClient {
             name: metadata.name,
             owner: metadata.owner
         )
-        let maxAttempts = 3
         for offset in USBHIDProtocol.onboardProfileMetadataWritableChunkOffsets {
-            var lastStatus = "nil"
-            var didWrite = false
-            for attempt in 1...maxAttempts {
-                let response = try perform(
-                    session,
-                    device,
-                    classID: 0x05,
-                    cmdID: 0x08,
-                    size: USBHIDProtocol.onboardProfileMetadataReadSize,
-                    args: USBHIDProtocol.onboardProfileMetadataWriteArgs(
-                        slot: UInt8(profileID),
-                        offset: offset,
-                        metadata: bytes
-                    ),
-                    allowTxnRescan: true,
-                    responseAttempts: 10,
-                    responseDelayUs: 50_000
-                )
-                lastStatus = response.map { String(format: "0x%02X", $0[0]) } ?? "nil"
-                if response?[0] == 0x02 {
-                    if attempt > 1 {
-                        AppLog.debug(
-                            "Bridge",
-                            "USB onboard profile metadata write recovered device=\(device.id) profile=\(profileID) offset=\(offset) attempt=\(attempt) status=\(lastStatus)"
-                        )
-                    }
-                    didWrite = true
-                    usleep(25_000)
-                    break
-                }
-
-                AppLog.debug(
-                    "Bridge",
-                    "USB onboard profile metadata write retry device=\(device.id) profile=\(profileID) offset=\(offset) attempt=\(attempt)/\(maxAttempts) status=\(lastStatus)"
-                )
-                session.invalidateCachedTransaction()
-                usleep(useconds_t(120_000 * attempt))
-            }
-
-            guard didWrite else {
+            let response = try perform(
+                session,
+                device,
+                classID: 0x05,
+                cmdID: 0x08,
+                size: USBHIDProtocol.onboardProfileMetadataReadSize,
+                args: USBHIDProtocol.onboardProfileMetadataWriteArgs(
+                    slot: UInt8(profileID),
+                    offset: offset,
+                    metadata: bytes
+                ),
+                responseAttempts: 10,
+                responseDelayUs: 50_000
+            )
+            guard response?[0] == 0x02 else {
+                let lastStatus = response.map { String(format: "0x%02X", $0[0]) } ?? "nil"
                 throw BridgeError.commandFailed(
-                    "USB onboard profile metadata write failed at offset \(offset) after \(maxAttempts) attempts (last status \(lastStatus))."
+                    "USB onboard profile metadata write failed at offset \(offset) (status \(lastStatus))."
                 )
             }
+            usleep(25_000)
         }
     }
 

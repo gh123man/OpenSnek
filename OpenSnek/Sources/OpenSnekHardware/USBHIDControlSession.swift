@@ -59,6 +59,7 @@ public final class USBHIDControlSession {
     public let device: IOHIDDevice
     public let deviceID: String
 
+    private let exchangeLock = NSLock()
     private var cachedTxn: UInt8?
 
     public init(device: IOHIDDevice, deviceID: String) {
@@ -67,6 +68,8 @@ public final class USBHIDControlSession {
     }
 
     public func invalidateCachedTransaction() {
+        exchangeLock.lock()
+        defer { exchangeLock.unlock() }
         cachedTxn = nil
     }
 
@@ -75,11 +78,19 @@ public final class USBHIDControlSession {
         cmdID: UInt8,
         size: UInt8,
         args: [UInt8],
+        transactionID: UInt8? = nil,
         allowTxnRescan: Bool = true,
         responseAttempts: Int = 6,
         responseDelayUs: useconds_t = 35_000
     ) throws -> [UInt8]? {
-        for txn in transactionCandidates(allowTxnRescan: allowTxnRescan) {
+        exchangeLock.lock()
+        defer { exchangeLock.unlock() }
+
+        for txn in Self.transactionCandidates(
+            preferredTransactionID: transactionID,
+            cachedTransactionID: cachedTxn,
+            allowTxnRescan: allowTxnRescan
+        ) {
             let report = USBHIDProtocol.createReport(txn: txn, classID: classID, cmdID: cmdID, size: size, args: args)
             guard let response = try exchange(
                 report: report,
@@ -92,19 +103,32 @@ public final class USBHIDControlSession {
             }
             if response.count < 90 { continue }
             if response[0] == 0x01 { continue }
-            cachedTxn = txn
+            cachedTxn = transactionID ?? txn
             return response
         }
 
-        cachedTxn = nil
+        if transactionID == nil {
+            cachedTxn = nil
+        }
         return nil
     }
 
-    private func transactionCandidates(allowTxnRescan: Bool) -> [UInt8] {
-        if let cachedTxn {
-            return allowTxnRescan ? [cachedTxn, 0x1F, 0x3F, 0xFF] : [cachedTxn]
+    static func transactionCandidates(
+        preferredTransactionID: UInt8?,
+        cachedTransactionID: UInt8?,
+        allowTxnRescan: Bool
+    ) -> [UInt8] {
+        if let preferredTransactionID {
+            return [preferredTransactionID]
         }
-        return [0x1F, 0x3F, 0xFF]
+        let candidates: [UInt8]
+        if let cachedTransactionID {
+            candidates = allowTxnRescan ? [cachedTransactionID, 0x1F, 0x3F, 0xFF] : [cachedTransactionID]
+        } else {
+            candidates = [0x1F, 0x3F, 0xFF]
+        }
+        var seen = Set<UInt8>()
+        return candidates.filter { seen.insert($0).inserted }
     }
 
     private func exchange(

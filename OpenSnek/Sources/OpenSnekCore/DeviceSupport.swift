@@ -228,6 +228,7 @@ public struct DeviceProfile: Hashable, Sendable {
     public let productName: String
     public let transport: DeviceTransportKind
     public let supportedProducts: Set<Int>
+    public let usbTransactionID: UInt8?
     public let buttonLayout: ButtonSlotLayout
     public let supportsAdvancedLightingEffects: Bool
     public let supportedLightingEffects: [LightingEffectKind]
@@ -244,6 +245,7 @@ public struct DeviceProfile: Hashable, Sendable {
         productName: String,
         transport: DeviceTransportKind,
         supportedProducts: Set<Int>,
+        usbTransactionID: UInt8? = nil,
         buttonLayout: ButtonSlotLayout,
         supportsAdvancedLightingEffects: Bool,
         supportedLightingEffects: [LightingEffectKind] = LightingEffectKind.allCases,
@@ -259,6 +261,7 @@ public struct DeviceProfile: Hashable, Sendable {
         self.productName = productName
         self.transport = transport
         self.supportedProducts = supportedProducts
+        self.usbTransactionID = usbTransactionID
         self.buttonLayout = buttonLayout
         self.supportsAdvancedLightingEffects = supportsAdvancedLightingEffects
         self.supportedLightingEffects = supportedLightingEffects
@@ -466,6 +469,7 @@ public enum DeviceProfiles {
         productName: "Basilisk V3 X HyperSpeed",
         transport: .usb,
         supportedProducts: [0x00B9],
+        usbTransactionID: 0x1F,
         buttonLayout: ButtonSlotLayout(
             visibleSlots: basiliskV3XButtonSlots,
             writableSlots: basiliskV3XButtonSlots.map(\.slot)
@@ -490,6 +494,7 @@ public enum DeviceProfiles {
         productName: "Basilisk V3 35K",
         transport: .usb,
         supportedProducts: [0x00CB],
+        usbTransactionID: 0x1F,
         buttonLayout: ButtonSlotLayout(
             visibleSlots: basiliskV335KUSBButtonSlots,
             writableSlots: [1, 2, 3, 4, 5, 9, 10, 15, 52, 53, 96],
@@ -542,6 +547,7 @@ public enum DeviceProfiles {
         productName: "Basilisk V3 Pro",
         transport: .usb,
         supportedProducts: [0x00AA, 0x00AB],
+        usbTransactionID: 0x1F,
         buttonLayout: ButtonSlotLayout(
             visibleSlots: basiliskV3ProUSBButtonSlots,
             writableSlots: [1, 2, 3, 4, 5, 9, 10, 15, 52, 53],

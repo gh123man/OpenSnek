@@ -231,6 +231,7 @@ extension BridgeClient {
                 cmdID: cmdID,
                 size: size,
                 args: args,
+                transactionID: usbDeviceProfile(for: device)?.usbTransactionID,
                 allowTxnRescan: allowTxnRescan,
                 responseAttempts: responseAttempts,
                 responseDelayUs: responseDelayUs

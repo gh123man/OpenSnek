@@ -52,6 +52,13 @@ Offset  Size  Field              Description
 89      1     Reserved           Always 0x00
 ```
 
+Client implementations should use the validated transaction ID for the resolved
+device profile when one is known. For those devices, a command-level `0x03`
+response is a firmware rejection for that command and state; do not treat it as
+a signal to retry the same command with another transaction ID. Transaction-ID
+candidate scanning is only a fallback for devices without a validated profile
+transaction ID.
+
 ### CRC Calculation
 
 ```python
