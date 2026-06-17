@@ -50,6 +50,8 @@ extension BridgeClient {
             let activeSnapshot = try? await readOnboardProfile(device: device, profileID: 0)
             createMutation = createMutation.fillingMissingMappedContent(from: activeSnapshot)
         }
+        let createdMetadata = createMutation.metadata!
+        let projectedCreate = createMutation.projectedSnapshot(profileID: target, metadata: createdMetadata)
 
         switch device.transport {
         case .usb:
@@ -70,7 +72,7 @@ extension BridgeClient {
                     session,
                     device,
                     profileID: target,
-                    metadata: createMutation.metadata!
+                    metadata: createdMetadata
                 )
                 try self.usbApplyOnboardProfileMutation(
                     session,
@@ -90,21 +92,30 @@ extension BridgeClient {
                         inventory.assignedProfileIDs.contains(target)
                     }
                 )
-                return try self.retryUSBOnboardProfileReadback(
-                    device: device,
-                    operation: "USB onboard profile create snapshot",
-                    failureMessage: "USB onboard profile create snapshot readback failed for profile \(target).",
-                    read: {
-                        try self.usbReadOnboardProfile(session, device, profile: profile, profileID: target)
-                    },
-                    accepts: { snapshot in
-                        snapshot.profileID == target
-                    }
-                )
+                do {
+                    return try self.retryUSBOnboardProfileReadback(
+                        device: device,
+                        operation: "USB onboard profile create snapshot",
+                        failureMessage: "USB onboard profile create snapshot readback failed for profile \(target).",
+                        attempts: 8,
+                        read: {
+                            try self.usbReadOnboardProfile(session, device, profile: profile, profileID: target)
+                        },
+                        accepts: { snapshot in
+                            snapshot.profileID == target && snapshot.metadata.name == createdMetadata.name
+                        }
+                    )
+                } catch {
+                    AppLog.warning(
+                        "Bridge",
+                        "USB onboard profile create metadata readback lagged after successful write device=\(device.id) profile=\(target): \(error.localizedDescription)"
+                    )
+                    return projectedCreate
+                }
             }
         case .bluetooth:
             try await btCreateOnboardProfilePrelude(device: device, target: target)
-            try await btWriteOnboardProfileMetadata(device: device, target: target, metadata: createMutation.metadata!)
+            try await btWriteOnboardProfileMetadata(device: device, target: target, metadata: createdMetadata)
             try await btApplyOnboardProfileMutation(
                 device: device,
                 profile: profile,
@@ -122,17 +133,26 @@ extension BridgeClient {
                     inventory.assignedProfileIDs.contains(target)
                 }
             )
-            return try await retryOnboardProfileReadback(
-                device: device,
-                operation: "Bluetooth onboard profile create snapshot",
-                failureMessage: "Bluetooth onboard profile create snapshot readback failed for target \(target).",
-                read: {
-                    try await self.btReadOnboardProfile(device: device, profile: profile, target: target)
-                },
-                accepts: { snapshot in
-                    snapshot.profileID == target
-                }
-            )
+            do {
+                return try await retryOnboardProfileReadback(
+                    device: device,
+                    operation: "Bluetooth onboard profile create snapshot",
+                    failureMessage: "Bluetooth onboard profile create snapshot readback failed for target \(target).",
+                    attempts: 8,
+                    read: {
+                        try await self.btReadOnboardProfile(device: device, profile: profile, target: target)
+                    },
+                    accepts: { snapshot in
+                        snapshot.profileID == target && snapshot.metadata.name == createdMetadata.name
+                    }
+                )
+            } catch {
+                AppLog.warning(
+                    "Bridge",
+                    "Bluetooth onboard profile create metadata readback lagged after successful write device=\(device.id) target=\(target): \(error.localizedDescription)"
+                )
+                return projectedCreate
+            }
         }
     }
 
@@ -1415,6 +1435,17 @@ private extension OnboardProfileMutation {
             buttonBindings: buttonBindings ?? snapshot.buttonBindings,
             brightnessByLEDID: brightnessByLEDID ?? snapshot.brightnessByLEDID,
             staticColorByLEDID: staticColorByLEDID ?? snapshot.staticColorByLEDID
+        )
+    }
+
+    func projectedSnapshot(profileID: Int, metadata: OnboardProfileMetadata) -> OnboardProfileSnapshot {
+        OnboardProfileSnapshot(
+            profileID: profileID,
+            metadata: metadata,
+            dpi: dpi,
+            buttonBindings: buttonBindings ?? [:],
+            brightnessByLEDID: brightnessByLEDID ?? [:],
+            staticColorByLEDID: staticColorByLEDID ?? [:]
         )
     }
 }

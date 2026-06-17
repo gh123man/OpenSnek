@@ -3623,6 +3623,66 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         )
     }
 
+    func testCreatingOnboardProfileUpdatesVisibleNameWhenInventoryWasInvalidated() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-invalidated-create-device",
+            transport: .usb,
+            serial: "ONBOARD-INVALIDATED-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+        await MainActor.run {
+            appState.editorController.invalidateOnboardProfileState(for: [device.id])
+        }
+
+        await appState.editorStore.createOnboardProfile(name: "Fresh Slot", targetProfileID: 2)
+
+        try await waitForRefactorCondition {
+            await MainActor.run {
+                appState.editorStore.selectedOnboardProfileID == 2 &&
+                    appState.editorStore.onboardProfileSummaries.first(where: { $0.profileID == 2 })?.isAssigned == true &&
+                    appState.editorStore.onboardProfileSummaries.first(where: { $0.profileID == 2 })?.displayName == "Fresh Slot" &&
+                    appState.editorStore.selectedOnboardProfileName == "Fresh Slot"
+            }
+        }
+        let listCount = await backend.onboardListCount(deviceID: device.id)
+        XCTAssertEqual(listCount, 1)
+    }
+
     func testSelectingOnboardProfileRereadsDeviceSnapshot() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-cache-select-device",

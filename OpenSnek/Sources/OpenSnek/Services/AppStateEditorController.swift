@@ -1224,7 +1224,10 @@ final class AppStateEditorController {
 
     private func storeCurrentOnboardProfileSnapshot(_ snapshot: OnboardProfileSnapshot, device: MouseDevice) {
         currentOnboardProfileSnapshotByDeviceID[device.id] = snapshot
-        guard let inventory = onboardProfileInventoryByDeviceID[device.id] else { return }
+        let inventory = onboardProfileInventoryByDeviceID[device.id] ?? synthesizedOnboardProfileInventory(
+            device: device,
+            including: snapshot
+        )
         var summaries = synthesizedOnboardProfileSummaries(from: inventory).filter { $0.profileID != snapshot.profileID }
         summaries.append(OnboardProfileSummary(
             profileID: snapshot.profileID,
@@ -1239,6 +1242,41 @@ final class AppStateEditorController {
             maxProfileID: inventory.maxProfileID,
             assignedProfileIDs: Array(assigned).sorted(),
             profiles: summaries
+        )
+    }
+
+    private func synthesizedOnboardProfileInventory(
+        device: MouseDevice,
+        including snapshot: OnboardProfileSnapshot
+    ) -> OnboardProfileInventory {
+        let maxProfileID = max(
+            snapshot.profileID,
+            max(device.onboard_profile_count, deviceStore.state?.onboard_profile_count ?? 1)
+        )
+        let active = max(1, min(maxProfileID, deviceStore.state?.active_onboard_profile ?? snapshot.profileID))
+        let assigned = Set([1, max(1, snapshot.profileID)])
+        var profiles: [OnboardProfileSummary] = []
+        if snapshot.profileID != 1 {
+            profiles.append(OnboardProfileSummary(
+                profileID: 1,
+                metadata: nil,
+                isAssigned: true,
+                isActive: active == 1,
+                isBaseProfile: true
+            ))
+        }
+        profiles.append(OnboardProfileSummary(
+            profileID: snapshot.profileID,
+            metadata: snapshot.metadata,
+            isAssigned: true,
+            isActive: snapshot.profileID == active,
+            isBaseProfile: snapshot.profileID == 1
+        ))
+        return OnboardProfileInventory(
+            activeProfileID: active,
+            maxProfileID: maxProfileID,
+            assignedProfileIDs: Array(assigned).sorted(),
+            profiles: profiles
         )
     }
 
