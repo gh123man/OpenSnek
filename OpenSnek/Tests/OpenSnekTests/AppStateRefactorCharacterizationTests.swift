@@ -3611,6 +3611,179 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(activeReadCount, 1)
     }
 
+    func testBluetoothOnboardProfileRefreshDoesNotHydrateFullSnapshot() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-bt-refresh-inventory-only-device",
+            transport: .bluetooth,
+            serial: "ONBOARD-BT-REFRESH-INVENTORY-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "bluetooth",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 2,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 2,
+                maxProfileID: 5,
+                assignedProfileIDs: [1, 2],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: true),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(
+                profileID: 2,
+                name: "Stored 2",
+                dpiValues: [1200, 2400],
+                brightnessByLEDID: [1: 210],
+                staticColorByLEDID: [1: RGBPatch(r: 255, g: 0, b: 180)]
+            ),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+
+        await appState.editorStore.refreshOnboardProfiles()
+
+        try await waitForRefactorCondition {
+            await MainActor.run {
+                appState.editorStore.selectedOnboardProfileID == 2 &&
+                    appState.editorStore.onboardProfileSummaries.first(where: { $0.isActive })?.profileID == 2
+            }
+        }
+        let listCount = await backend.onboardListCount(deviceID: device.id)
+        let activeReadCount = await backend.onboardReadCount(deviceID: device.id, profileID: 2)
+        XCTAssertEqual(listCount, 1)
+        XCTAssertEqual(activeReadCount, 0)
+    }
+
+    func testOnboardProfileSummariesGetterDoesNotStartRefresh() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-pure-summary-device",
+            transport: .bluetooth,
+            serial: "ONBOARD-PURE-SUMMARY-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "bluetooth",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 2,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+
+        let summaries = await MainActor.run { appState.editorStore.onboardProfileSummaries }
+        for _ in 0..<5 {
+            await Task.yield()
+        }
+
+        let listCount = await backend.onboardListCount(deviceID: device.id)
+        XCTAssertTrue(summaries.isEmpty)
+        XCTAssertEqual(listCount, 0)
+    }
+
+    func testConcurrentOnboardProfileRefreshesAreCoalesced() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-coalesced-refresh-device",
+            transport: .bluetooth,
+            serial: "ONBOARD-COALESCED-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "bluetooth",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 2,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 2,
+                maxProfileID: 5,
+                assignedProfileIDs: [1, 2],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: true),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(profileID: 2, name: "Stored 2"),
+            forDeviceID: device.id
+        )
+        await backend.holdOnboardProfileList(deviceID: device.id)
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+
+        async let firstRefresh: Void = appState.editorStore.refreshOnboardProfiles()
+        await backend.waitForOnboardProfileListToStart(deviceID: device.id)
+        await appState.editorStore.refreshOnboardProfiles()
+
+        let listCountWhileHeld = await backend.onboardListCount(deviceID: device.id)
+        let readCountWhileHeld = await backend.onboardReadCount(deviceID: device.id, profileID: 2)
+        XCTAssertEqual(listCountWhileHeld, 1)
+        XCTAssertEqual(readCountWhileHeld, 0)
+
+        await backend.releaseOnboardProfileList(deviceID: device.id)
+        await firstRefresh
+
+        let finalListCount = await backend.onboardListCount(deviceID: device.id)
+        let finalReadCount = await backend.onboardReadCount(deviceID: device.id, profileID: 2)
+        XCTAssertEqual(finalListCount, 1)
+        XCTAssertEqual(finalReadCount, 0)
+    }
+
     func testSupersededHardwareOnboardProfileLoadClearsBusyStateBeforeCancelledReadReturns() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-superseded-load-device",
@@ -4816,6 +4989,10 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
     private var onboardUpdateFailureMessage: String?
     private var renameReturnsMetadataOnly = false
     private var onboardEvents: [String] = []
+    private var heldOnboardProfileLists: Set<String> = []
+    private var startedHeldOnboardProfileLists: Set<String> = []
+    private var onboardProfileListStartedContinuations: [String: CheckedContinuation<Void, Never>] = [:]
+    private var onboardProfileListReleaseContinuations: [String: CheckedContinuation<Void, Never>] = [:]
     private var heldOnboardProfileReads: Set<String> = []
     private var startedHeldOnboardProfileReads: Set<String> = []
     private var onboardProfileReadStartedContinuations: [String: CheckedContinuation<Void, Never>] = [:]
@@ -4935,6 +5112,16 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
 
     func listOnboardProfiles(device: MouseDevice) async throws -> OnboardProfileInventory {
         onboardListCountByDeviceID[device.id, default: 0] += 1
+        if heldOnboardProfileLists.contains(device.id) {
+            startedHeldOnboardProfileLists.insert(device.id)
+            onboardProfileListStartedContinuations[device.id]?.resume()
+            onboardProfileListStartedContinuations[device.id] = nil
+            await withCheckedContinuation { continuation in
+                onboardProfileListReleaseContinuations[device.id] = continuation
+            }
+            heldOnboardProfileLists.remove(device.id)
+            onboardProfileListReleaseContinuations[device.id] = nil
+        }
         return currentOnboardInventory(for: device)
     }
 
@@ -5245,6 +5432,25 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
 
     func onboardListCount(deviceID: String) -> Int {
         onboardListCountByDeviceID[deviceID, default: 0]
+    }
+
+    func holdOnboardProfileList(deviceID: String) {
+        heldOnboardProfileLists.insert(deviceID)
+    }
+
+    func waitForOnboardProfileListToStart(deviceID: String) async {
+        if startedHeldOnboardProfileLists.contains(deviceID) {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            onboardProfileListStartedContinuations[deviceID] = continuation
+        }
+    }
+
+    func releaseOnboardProfileList(deviceID: String) {
+        heldOnboardProfileLists.remove(deviceID)
+        onboardProfileListReleaseContinuations[deviceID]?.resume()
+        onboardProfileListReleaseContinuations[deviceID] = nil
     }
 
     func holdOnboardProfileRead(deviceID: String, profileID: Int) {

@@ -30,6 +30,7 @@ final class AppStateEditorController {
     private var selectedOnboardProfileIDByDeviceID: [String: Int] = [:]
     private var lastHardwareActiveOnboardProfileIDByDeviceID: [String: Int] = [:]
     private var onboardProfileReloadRequiredDeviceIDs: Set<String> = []
+    private var onboardProfileRefreshInFlightDeviceIDs: Set<String> = []
     private var selectedMouseSlotHydrationTasksByDeviceID: [String: Task<Void, Never>] = [:]
     private var selectedMouseSlotHydrationTokensByDeviceID: [String: UUID] = [:]
     private var activeOnboardProfileLoadTasksByDeviceID: [String: Task<Void, Never>] = [:]
@@ -1468,6 +1469,10 @@ final class AppStateEditorController {
         resolvedDeviceProfile(for: device)?.supportsMappedOnboardProfileCRUD == true
     }
 
+    private func shouldHydrateSelectedProfileDuringRefresh(device: MouseDevice) -> Bool {
+        device.transport == .usb
+    }
+
     private func lightingLEDIDs(for device: MouseDevice) -> [UInt8] {
         resolvedDeviceProfile(for: device)?.allUSBLightingLEDIDs ?? [0x01]
     }
@@ -1476,9 +1481,6 @@ final class AppStateEditorController {
         guard let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return [] }
         if let inventory = onboardProfileInventoryByDeviceID[device.id] {
             return synthesizedOnboardProfileSummaries(from: inventory)
-        }
-        Task { @MainActor [weak self] in
-            await self?.refreshOnboardProfiles()
         }
         return []
     }
@@ -1512,6 +1514,13 @@ final class AppStateEditorController {
 
     func refreshOnboardProfiles(hydrateSelectedProfile: Bool = true) async {
         guard !isTearingDown, let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return }
+        guard onboardProfileRefreshInFlightDeviceIDs.insert(device.id).inserted else {
+            AppLog.debug("AppState", "refresh onboard profiles coalesced device=\(device.id)")
+            return
+        }
+        defer {
+            onboardProfileRefreshInFlightDeviceIDs.remove(device.id)
+        }
         do {
             AppLog.debug(
                 "AppState",
@@ -1536,6 +1545,7 @@ final class AppStateEditorController {
 
             let selectedAfterRefresh = selectedOnboardProfileIDByDeviceID[device.id] ?? projectedInventory.activeProfileID
             if hydrateSelectedProfile,
+               shouldHydrateSelectedProfileDuringRefresh(device: device),
                selectedAfterRefresh == projectedInventory.activeProfileID,
                projectedInventory.assignedProfileIDs.contains(selectedAfterRefresh),
                currentOnboardProfileSnapshotByDeviceID[device.id]?.profileID != selectedAfterRefresh {
