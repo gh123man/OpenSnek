@@ -785,6 +785,7 @@ extension BridgeClient {
             owner: metadata.owner
         )
         for offset in USBHIDProtocol.onboardProfileMetadataWritableChunkOffsets {
+            let isTailOffset = offset >= USBHIDProtocol.onboardProfileMetadataKnownFieldLength
             AppLog.debug(
                 "Bridge",
                 "USB onboard profile metadata write start device=\(device.id) profile=\(profileID) " +
@@ -801,7 +802,7 @@ extension BridgeClient {
                     offset: offset,
                     metadata: bytes
                 ),
-                responseAttempts: 10,
+                responseAttempts: isTailOffset ? 16 : 10,
                 responseDelayUs: 50_000
             )
             guard response?[0] == 0x02 else {
@@ -809,24 +810,35 @@ extension BridgeClient {
                 let failure = BridgeError.commandFailed(
                     "USB onboard profile metadata write failed at offset \(offset) (status \(lastStatus))."
                 )
-                if offset >= USBHIDProtocol.onboardProfileMetadataKnownFieldLength {
+                if isTailOffset {
                     AppLog.warning(
                         "Bridge",
-                        "USB onboard profile metadata tail write rejected device=\(device.id) " +
-                        "profile=\(profileID) offset=\(offset) status=\(lastStatus); verifying known fields"
+                        "USB onboard profile metadata tail response indeterminate device=\(device.id) " +
+                        "profile=\(profileID) offset=\(offset) status=\(lastStatus); verifying strict readback"
                     )
-                    if let readback = try? usbReadOnboardProfileMetadata(
-                        session,
-                        device,
-                        profileID: profileID,
-                        requireKnownFields: true
-                    ), readback.identifier == metadata.identifier,
-                       readback.name == metadata.name,
-                       readback.owner == metadata.owner {
+                    if let readback = try? retryUSBOnboardProfileReadback(
+                        device: device,
+                        operation: "USB onboard profile metadata tail",
+                        failureMessage: "USB onboard profile metadata tail readback did not match profile \(profileID).",
+                        attempts: 6,
+                        read: {
+                            try self.usbReadOnboardProfileMetadata(
+                                session,
+                                device,
+                                profileID: profileID,
+                                requireKnownFields: true
+                            )
+                        },
+                        accepts: { readback in
+                            readback.identifier == metadata.identifier &&
+                                readback.name == metadata.name &&
+                                readback.owner == metadata.owner
+                        }
+                    ) {
                         AppLog.warning(
                             "Bridge",
-                            "USB onboard profile metadata accepted despite tail rejection " +
-                            "device=\(device.id) profile=\(profileID)"
+                            "USB onboard profile metadata accepted after tail readback " +
+                            "device=\(device.id) profile=\(profileID) name=\"\(readback.name)\""
                         )
                         return
                     }

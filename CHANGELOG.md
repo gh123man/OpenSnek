@@ -25,6 +25,7 @@ All notable changes to this project are documented in this file.
 - Onboard profile rename keeps the UI in sync with verified returned metadata, and profile activation projects state from the selected profile after direct active-profile readback instead of waiting on a stale full refresh.
 - Onboard profile create and rename project returned metadata into the visible slot list immediately while local inventory refresh catches up.
 - USB onboard profile metadata writes now use the full metadata object and require strict readback, avoiding partial writes that can leave Basilisk V3 Pro profile metadata invalid.
+- USB onboard profile rename now treats a missing final padding-tail metadata ACK as indeterminate and verifies the landed UUID/name/owner by strict readback instead of reporting a successful firmware write as failed.
 - Onboard profile edit failures no longer fall back to legacy live-layer writes, and USB profile rename verification now uses strict metadata-object readback to avoid long profile sweeps during editing.
 - USB onboard profiles now read and write scroll mode, acceleration, and smart reel against the selected hardware profile instead of always targeting slot 1.
 - Superseded hardware profile-load tasks now release the profile-operation busy state immediately, preventing profile rename or profile-switch races from leaving the UI dimmed without a visible loading indicator.

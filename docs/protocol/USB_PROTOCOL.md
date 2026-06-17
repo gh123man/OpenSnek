@@ -631,6 +631,12 @@ for the mapped UUID/name/owner fields, but Basilisk V3 Pro USB firmware can
 leave the metadata object invalid after partial known-field writes. Treat strict
 metadata readback as required for create/rename success.
 
+The padding-tail write at offset `0x00E1` can return no status even when the
+firmware has accepted the full metadata object. Treat a missing tail response as
+indeterminate, not as a final failure: do not issue a second metadata write
+unless readback proves the object did not land. Require strict `05:88` readback
+of the UUID/name/owner fields before reporting success.
+
 Rename transactions are metadata-object-only. Check assignment from raw
 inventory, read the existing UUID/name/owner chunks completely, then write the
 full renamed metadata object while preserving the existing UUID and owner. Do

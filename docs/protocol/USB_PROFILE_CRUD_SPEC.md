@@ -171,6 +171,12 @@ Transaction:
 2. Read 05:88 and verify UUID/name
 ```
 
+The final metadata chunk at offset `0x00E1` is padding-only for the mapped
+metadata fields and can return no status on Basilisk V3 Pro USB after the object
+has landed. Treat that response as indeterminate and resolve it by strict
+`05:88` readback of UUID/name/owner; do not send another metadata write unless
+readback proves the transaction failed.
+
 Direct `05:08` writes to unassigned banks return status `0x03`; use
 `createProfile` to assign a bank.
 
