@@ -106,9 +106,8 @@ final class AppStateApplyController {
                     pairs: pairs
                 )
             )
-            if await editorController.applyOnboardProfileMutationForCurrentSelection(mutation) {
-                return
-            }
+            _ = await editorController.applyOnboardProfileMutationForCurrentSelection(mutation)
+            return
         }
         enqueueApply(DevicePatch(dpiStages: values, dpiStagePairs: pairs, activeStage: active))
     }
@@ -211,6 +210,7 @@ final class AppStateApplyController {
             ) {
                 return
             }
+            return
         }
         enqueueApply(DevicePatch(ledBrightness: editorStore.editableLedBrightness))
     }
@@ -223,10 +223,13 @@ final class AppStateApplyController {
     }
 
     func applyLedColor() async {
-        if let selectedDevice = deviceStore.selectedDevice {
-            if await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice) {
-                return
-            }
+        if let selectedDevice = deviceStore.selectedDevice,
+           supportsOnboardProfileCRUD(device: selectedDevice),
+           (editorStore.editableLightingEffect == .staticColor || !selectedDevice.supports_advanced_lighting_effects) {
+            _ = await editorController.applyOnboardProfileMutationForCurrentSelection(
+                OnboardProfileMutation(staticColorByLEDID: currentStaticOnboardProfileColors(for: selectedDevice))
+            )
+            return
         }
         enqueueApply(
             DevicePatch(
@@ -247,14 +250,16 @@ final class AppStateApplyController {
         guard let selectedDevice = deviceStore.selectedDevice else { return }
         if !selectedDevice.supports_advanced_lighting_effects {
             editorStore.editableLightingEffect = .staticColor
-            if await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice) {
+            if supportsOnboardProfileCRUD(device: selectedDevice) {
+                _ = await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice)
                 return
             }
             enqueueApply(DevicePatch(ledRGB: RGBPatch(r: editorStore.editableColor.r, g: editorStore.editableColor.g, b: editorStore.editableColor.b)))
             return
         }
         if editorStore.editableLightingEffect == .staticColor,
-           await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice) {
+           supportsOnboardProfileCRUD(device: selectedDevice) {
+            _ = await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice)
             return
         }
         enqueueApply(
@@ -369,11 +374,10 @@ final class AppStateApplyController {
         guard let selectedDevice = deviceStore.selectedDevice else { return }
         if supportsOnboardProfileCRUD(device: selectedDevice) {
             let draft = editorStore.editableButtonBindings[slot] ?? editorController.defaultButtonBinding(for: slot)
-            if await editorController.applyOnboardProfileMutationForCurrentSelection(
+            _ = await editorController.applyOnboardProfileMutationForCurrentSelection(
                 OnboardProfileMutation(buttonBindings: [slot: draft])
-            ) {
-                return
-            }
+            )
+            return
         }
         let binding = makeButtonBindingPatch(
             slot: slot,
@@ -402,7 +406,8 @@ final class AppStateApplyController {
     }
 
     private func supportsOnboardProfileCRUD(device: MouseDevice) -> Bool {
-        DeviceProfiles.resolve(
+        guard device.onboard_profile_count > 1 else { return false }
+        return DeviceProfiles.resolve(
             vendorID: device.vendor_id,
             productID: device.product_id,
             transport: device.transport

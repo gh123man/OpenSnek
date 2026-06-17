@@ -4144,6 +4144,77 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(updates.first?.mutation.dpi?.pairs.map(\.x), [1500, 2600])
         XCTAssertEqual(updates.first?.mutation.dpi?.activeStage, 1)
     }
+
+    func testFailedOnboardProfileDpiEditDoesNotFallbackToLiveApply() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-dpi-failure-device",
+            transport: .usb,
+            serial: "ONBOARD-DPI-FAILURE-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1, 2],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(profileID: 2, name: "Stored 2", dpiValues: [1200, 2400]),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardUpdateFailure("stored profile write unavailable")
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+        await appState.editorStore.selectOnboardProfile(2)
+        await MainActor.run {
+            appState.editorStore.editableStageCount = 2
+            appState.editorStore.editableStagePairs = [
+                DpiPair(x: 1500, y: 1500),
+                DpiPair(x: 2600, y: 2600),
+                DpiPair(x: 3200, y: 3200),
+                DpiPair(x: 6400, y: 6400),
+                DpiPair(x: 12000, y: 12000),
+            ]
+            appState.editorStore.editableActiveStage = 2
+        }
+
+        await appState.editorStore.applyDpiStages()
+
+        let updates = await backend.recordedOnboardUpdates()
+        let applyCount = await backend.applyCount()
+        let errorMessage = await MainActor.run { appState.deviceStore.errorMessage }
+        XCTAssertEqual(updates.count, 1)
+        XCTAssertEqual(applyCount, 0)
+        XCTAssertEqual(errorMessage, "Failed to update onboard profile: stored profile write unavailable")
+    }
 }
 
 private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupportingBackend {
@@ -4175,6 +4246,7 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
     private var onboardRenames: [(deviceID: String, profileID: Int, name: String)] = []
     private var onboardDeletes: [(deviceID: String, profileID: Int)] = []
     private var onboardActivations: [(deviceID: String, profileID: Int)] = []
+    private var onboardUpdateFailureMessage: String?
     private var onboardEvents: [String] = []
     private var heldOnboardProfileReads: Set<String> = []
     private var startedHeldOnboardProfileReads: Set<String> = []
@@ -4405,6 +4477,11 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
         mutation: OnboardProfileMutation
     ) async throws -> OnboardProfileSnapshot {
         onboardUpdates.append((device.id, profileID, mutation))
+        if let onboardUpdateFailureMessage {
+            throw NSError(domain: "AppStateRefactorCharacterizationTests", code: 96, userInfo: [
+                NSLocalizedDescriptionKey: onboardUpdateFailureMessage
+            ])
+        }
         let current = try await readOnboardProfile(device: device, profileID: profileID)
         let updated = OnboardProfileSnapshot(
             profileID: profileID,
@@ -4577,6 +4654,10 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
 
     func recordedOnboardUpdates() -> [(deviceID: String, profileID: Int, mutation: OnboardProfileMutation)] {
         onboardUpdates
+    }
+
+    func setOnboardUpdateFailure(_ message: String?) {
+        onboardUpdateFailureMessage = message
     }
 
     func recordedOnboardCreates() -> [(deviceID: String, targetProfileID: Int?, mutation: OnboardProfileMutation)] {

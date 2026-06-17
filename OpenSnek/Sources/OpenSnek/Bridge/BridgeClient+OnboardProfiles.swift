@@ -157,7 +157,7 @@ extension BridgeClient {
     }
 
     func renameOnboardProfile(device: MouseDevice, profileID: Int, name: String) async throws -> OnboardProfileSnapshot {
-        let profile = try mappedOnboardProfileSupport(for: device)
+        _ = try mappedOnboardProfileSupport(for: device)
         let inventory = try await listOnboardProfiles(device: device)
         guard inventory.assignedProfileIDs.contains(profileID) else {
             throw BridgeError.commandFailed("Onboard profile \(profileID) is not assigned.")
@@ -178,18 +178,19 @@ extension BridgeClient {
             return try await withUSBProfileSession(device: device) { session in
                 try self.usbWriteOnboardProfileMetadata(session, device, profileID: profileID, metadata: renamed)
                 do {
-                    return try self.retryUSBOnboardProfileReadback(
+                    let metadata = try self.retryUSBOnboardProfileReadback(
                         device: device,
                         operation: "USB onboard profile rename",
                         failureMessage: "USB onboard profile rename readback did not match profile \(profileID).",
-                        attempts: 8,
+                        attempts: 3,
                         read: {
-                            try self.usbReadOnboardProfile(session, device, profile: profile, profileID: profileID)
+                            try self.usbReadOnboardProfileMetadata(session, device, profileID: profileID)
                         },
-                        accepts: { snapshot in
-                            snapshot.profileID == profileID && snapshot.metadata.name == renamed.name
+                        accepts: { metadata in
+                            metadata.name == renamed.name
                         }
                     )
+                    return projected.renamed(metadata)
                 } catch {
                     AppLog.warning(
                         "Bridge",
@@ -201,18 +202,19 @@ extension BridgeClient {
         case .bluetooth:
             try await btWriteOnboardProfileMetadata(device: device, target: profileID, metadata: renamed)
             do {
-                return try await retryOnboardProfileReadback(
+                let metadata = try await retryOnboardProfileReadback(
                     device: device,
                     operation: "Bluetooth onboard profile rename",
                     failureMessage: "Bluetooth onboard profile rename readback did not match target \(profileID).",
-                    attempts: 8,
+                    attempts: 3,
                     read: {
-                        try await self.btReadOnboardProfile(device: device, profile: profile, target: profileID)
+                        try await self.btReadOnboardProfileMetadata(device: device, target: profileID)
                     },
-                    accepts: { snapshot in
-                        snapshot.profileID == profileID && snapshot.metadata.name == renamed.name
+                    accepts: { metadata in
+                        metadata.name == renamed.name
                     }
                 )
+                return projected.renamed(metadata)
             } catch {
                 AppLog.warning(
                     "Bridge",
@@ -915,10 +917,26 @@ extension BridgeClient {
             0x00,
             0x00,
         ]
-        guard let response = try perform(session, device, classID: 0x04, cmdID: 0x05, size: 0x07, args: args),
-              response[0] == 0x02 else {
-            throw BridgeError.commandFailed("USB onboard profile DPI scalar write failed.")
+        var firstError: Error?
+        for attempt in 0..<4 {
+            do {
+                if let response = try perform(session, device, classID: 0x04, cmdID: 0x05, size: 0x07, args: args),
+                   response[0] == 0x02 {
+                    return
+                }
+            } catch {
+                if firstError == nil {
+                    firstError = error
+                }
+            }
+            if attempt < 3 {
+                usleep(useconds_t(70_000 + (attempt * 40_000)))
+            }
         }
+        if let firstError {
+            throw firstError
+        }
+        throw BridgeError.commandFailed("USB onboard profile DPI scalar write failed.")
     }
 
     func usbWriteOnboardProfileDPIStages(
@@ -946,10 +964,26 @@ extension BridgeClient {
             args[offset + 4] = UInt8(y & 0xFF)
             offset += 7
         }
-        guard let response = try perform(session, device, classID: 0x04, cmdID: 0x06, size: 0x26, args: args),
-              response[0] == 0x02 else {
-            throw BridgeError.commandFailed("USB onboard profile DPI stage write failed.")
+        var firstError: Error?
+        for attempt in 0..<4 {
+            do {
+                if let response = try perform(session, device, classID: 0x04, cmdID: 0x06, size: 0x26, args: args),
+                   response[0] == 0x02 {
+                    return
+                }
+            } catch {
+                if firstError == nil {
+                    firstError = error
+                }
+            }
+            if attempt < 3 {
+                usleep(useconds_t(70_000 + (attempt * 40_000)))
+            }
         }
+        if let firstError {
+            throw firstError
+        }
+        throw BridgeError.commandFailed("USB onboard profile DPI stage write failed.")
     }
 
     func btReadPayload(
@@ -1408,6 +1442,19 @@ extension BridgeClient {
                 button_remap: true,
                 lighting: device.showsLightingControls
             )
+        )
+    }
+}
+
+private extension OnboardProfileSnapshot {
+    func renamed(_ metadata: OnboardProfileMetadata) -> OnboardProfileSnapshot {
+        OnboardProfileSnapshot(
+            profileID: profileID,
+            metadata: metadata,
+            dpi: dpi,
+            buttonBindings: buttonBindings,
+            brightnessByLEDID: brightnessByLEDID,
+            staticColorByLEDID: staticColorByLEDID
         )
     }
 }
