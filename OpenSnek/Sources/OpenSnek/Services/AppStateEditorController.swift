@@ -1290,34 +1290,43 @@ final class AppStateEditorController {
         let priorName = onboardProfileInventoryByDeviceID[device.id]?
             .summary(for: snapshot.profileID)?
             .displayName ?? "<missing>"
-        currentOnboardProfileSnapshotByDeviceID[device.id] = snapshot
+        let storedSnapshot: OnboardProfileSnapshot
+        if snapshot.isMetadataOnly,
+           let current = currentOnboardProfileSnapshotByDeviceID[device.id],
+           current.profileID == snapshot.profileID,
+           !current.isMetadataOnly {
+            storedSnapshot = current.replacingMetadata(snapshot.metadata)
+        } else {
+            storedSnapshot = snapshot
+        }
+        currentOnboardProfileSnapshotByDeviceID[device.id] = storedSnapshot
         if projectMetadataForRefresh {
             var projectedMetadata = projectedOnboardProfileMetadataByDeviceID[device.id] ?? [:]
-            projectedMetadata[snapshot.profileID] = snapshot.metadata
+            projectedMetadata[storedSnapshot.profileID] = storedSnapshot.metadata
             projectedOnboardProfileMetadataByDeviceID[device.id] = projectedMetadata
-        } else if projectedOnboardProfileMetadataByDeviceID[device.id]?[snapshot.profileID] == snapshot.metadata {
-            projectedOnboardProfileMetadataByDeviceID[device.id]?.removeValue(forKey: snapshot.profileID)
+        } else if projectedOnboardProfileMetadataByDeviceID[device.id]?[storedSnapshot.profileID] == storedSnapshot.metadata {
+            projectedOnboardProfileMetadataByDeviceID[device.id]?.removeValue(forKey: storedSnapshot.profileID)
             if projectedOnboardProfileMetadataByDeviceID[device.id]?.isEmpty == true {
                 projectedOnboardProfileMetadataByDeviceID.removeValue(forKey: device.id)
             }
             AppLog.debug(
                 "AppState",
-                "onboard profile metadata projection confirmed by snapshot source=\(source) device=\(device.id) profile=\(snapshot.profileID) name=\"\(snapshot.metadata.name)\""
+                "onboard profile metadata projection confirmed by snapshot source=\(source) device=\(device.id) profile=\(storedSnapshot.profileID) name=\"\(storedSnapshot.metadata.name)\""
             )
         }
         let inventory = onboardProfileInventoryByDeviceID[device.id] ?? synthesizedOnboardProfileInventory(
             device: device,
-            including: snapshot
+            including: storedSnapshot
         )
-        var summaries = synthesizedOnboardProfileSummaries(from: inventory).filter { $0.profileID != snapshot.profileID }
+        var summaries = synthesizedOnboardProfileSummaries(from: inventory).filter { $0.profileID != storedSnapshot.profileID }
         summaries.append(OnboardProfileSummary(
-            profileID: snapshot.profileID,
-            metadata: snapshot.metadata,
+            profileID: storedSnapshot.profileID,
+            metadata: storedSnapshot.metadata,
             isAssigned: true,
-            isActive: snapshot.profileID == inventory.activeProfileID,
-            isBaseProfile: snapshot.profileID == 1
+            isActive: storedSnapshot.profileID == inventory.activeProfileID,
+            isBaseProfile: storedSnapshot.profileID == 1
         ))
-        let assigned = Set(inventory.assignedProfileIDs + [snapshot.profileID])
+        let assigned = Set(inventory.assignedProfileIDs + [storedSnapshot.profileID])
         let updatedInventory = OnboardProfileInventory(
             activeProfileID: inventory.activeProfileID,
             maxProfileID: inventory.maxProfileID,
@@ -1331,11 +1340,11 @@ final class AppStateEditorController {
             confirmMatchingProjections: false
         )
         let storedName = onboardProfileInventoryByDeviceID[device.id]?
-            .summary(for: snapshot.profileID)?
+            .summary(for: storedSnapshot.profileID)?
             .displayName ?? "<missing>"
         AppLog.debug(
             "AppState",
-            "onboard profile snapshot stored source=\(source) device=\(device.id) profile=\(snapshot.profileID) priorName=\"\(priorName)\" snapshotName=\"\(snapshot.metadata.name)\" storedName=\"\(storedName)\" projected=\(projectMetadataForRefresh)"
+            "onboard profile snapshot stored source=\(source) device=\(device.id) profile=\(storedSnapshot.profileID) priorName=\"\(priorName)\" snapshotName=\"\(storedSnapshot.metadata.name)\" storedName=\"\(storedName)\" projected=\(projectMetadataForRefresh)"
         )
     }
 
@@ -1780,16 +1789,19 @@ final class AppStateEditorController {
               !mutation.isEmpty else { return false }
         cancelSelectedMouseSlotHydration(deviceID: device.id)
         do {
+            let resolvedMutation = mutation.preservingDpiIdentity(
+                from: currentSelectedOnboardProfileSnapshot(device: device)
+            )
             let snapshot = try await environment.backend.updateOnboardProfile(
                 device: device,
                 profileID: selected,
-                mutation: mutation
+                mutation: resolvedMutation
             )
             storeCurrentOnboardProfileSnapshot(
                 snapshot,
                 device: device,
                 source: "updateOnboardProfile",
-                projectMetadataForRefresh: mutation.metadata != nil
+                projectMetadataForRefresh: resolvedMutation.metadata != nil
             )
             if selectedOnboardProfileIDByDeviceID[device.id] == selected {
                 hydrateEditableLighting(from: snapshot, device: device)
@@ -2688,5 +2700,57 @@ final class AppStateEditorController {
         next.clutchDPI = DeviceProfiles.clampDPI(dpi, profileID: deviceStore.selectedDevice?.profile_id)
         editorStore.editableButtonBindings[slot] = next
         handleButtonWorkspaceDidChange(slot: slot)
+    }
+}
+
+private extension OnboardProfileSnapshot {
+    var isMetadataOnly: Bool {
+        dpi == nil &&
+            buttonBindings.isEmpty &&
+            brightnessByLEDID.isEmpty &&
+            staticColorByLEDID.isEmpty &&
+            scrollMode == nil &&
+            scrollAcceleration == nil &&
+            scrollSmartReel == nil
+    }
+
+    func replacingMetadata(_ metadata: OnboardProfileMetadata) -> OnboardProfileSnapshot {
+        OnboardProfileSnapshot(
+            profileID: profileID,
+            metadata: metadata,
+            dpi: dpi,
+            buttonBindings: buttonBindings,
+            brightnessByLEDID: brightnessByLEDID,
+            staticColorByLEDID: staticColorByLEDID,
+            scrollMode: scrollMode,
+            scrollAcceleration: scrollAcceleration,
+            scrollSmartReel: scrollSmartReel
+        )
+    }
+}
+
+private extension OnboardProfileMutation {
+    func preservingDpiIdentity(from snapshot: OnboardProfileSnapshot?) -> OnboardProfileMutation {
+        guard let dpi, let previousDPI = snapshot?.dpi else { return self }
+        let stageIDs = dpi.stageIDs.isEmpty ? previousDPI.stageIDs : dpi.stageIDs
+        let marker = dpi.marker ?? previousDPI.marker
+        guard stageIDs != dpi.stageIDs || marker != dpi.marker else { return self }
+
+        return OnboardProfileMutation(
+            metadata: metadata,
+            dpi: OnboardDPIProfileSnapshot(
+                scalar: dpi.scalar,
+                activeStage: dpi.activeStage,
+                pairs: dpi.pairs,
+                stageIDs: stageIDs,
+                marker: marker
+            ),
+            buttonBindings: buttonBindings,
+            brightnessByLEDID: brightnessByLEDID,
+            staticColorByLEDID: staticColorByLEDID,
+            scrollMode: scrollMode,
+            scrollAcceleration: scrollAcceleration,
+            scrollSmartReel: scrollSmartReel
+        )
     }
 }

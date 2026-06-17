@@ -162,13 +162,23 @@ extension BridgeClient {
         switch device.transport {
         case .usb:
             return try await withUSBProfileSession(device: device) { session in
-                let inventory = try self.usbListOnboardProfiles(session, device, profile: profile)
-                guard inventory.assignedProfileIDs.contains(profileID) else {
+                let inventory = try self.usbReadOnboardProfileInventory(session, device, profile: profile)
+                guard inventory.assignedProfiles.contains(UInt8(profileID)) else {
                     throw BridgeError.commandFailed("Onboard profile \(profileID) is not assigned.")
                 }
-                let current = try self.usbReadOnboardProfile(session, device, profile: profile, profileID: profileID)
-                let renamed = current.metadata.renamed(name)
-                let projected = current.renamed(renamed)
+                let currentMetadata = try self.usbReadOnboardProfileMetadata(
+                    session,
+                    device,
+                    profileID: profileID,
+                    requireKnownFields: true
+                )
+                let renamed = currentMetadata.renamed(name)
+                let projected = OnboardProfileSnapshot(profileID: profileID, metadata: renamed)
+                AppLog.debug(
+                    "Bridge",
+                    "USB onboard profile rename metadata-only device=\(device.id) profile=\(profileID) " +
+                    "currentName=\"\(currentMetadata.name)\" requestedName=\"\(renamed.name)\" uuid=\(currentMetadata.identifier.uuidString)"
+                )
                 try self.usbWriteOnboardProfileMetadata(session, device, profileID: profileID, metadata: renamed)
                 do {
                     let metadata = try self.retryUSBOnboardProfileReadback(
@@ -177,7 +187,12 @@ extension BridgeClient {
                         failureMessage: "USB onboard profile rename readback did not match profile \(profileID).",
                         attempts: 3,
                         read: {
-                            try self.usbReadOnboardProfileMetadata(session, device, profileID: profileID)
+                            try self.usbReadOnboardProfileMetadata(
+                                session,
+                                device,
+                                profileID: profileID,
+                                requireKnownFields: true
+                            )
                         },
                         accepts: { metadata in
                             metadata.name == renamed.name
@@ -197,9 +212,9 @@ extension BridgeClient {
             guard inventory.assignedProfileIDs.contains(profileID) else {
                 throw BridgeError.commandFailed("Onboard profile \(profileID) is not assigned.")
             }
-            let current = try await readOnboardProfile(device: device, profileID: profileID)
-            let renamed = current.metadata.renamed(name)
-            let projected = current.renamed(renamed)
+            let currentMetadata = try await btReadOnboardProfileMetadata(device: device, target: profileID)
+            let renamed = currentMetadata.renamed(name)
+            let projected = OnboardProfileSnapshot(profileID: profileID, metadata: renamed)
             try await btWriteOnboardProfileMetadata(device: device, target: profileID, metadata: renamed)
             do {
                 let metadata = try await retryOnboardProfileReadback(
@@ -576,10 +591,7 @@ extension BridgeClient {
         _ device: MouseDevice,
         profile: DeviceProfile
     ) throws -> OnboardProfileInventory {
-        guard let inventoryResponse = try perform(session, device, classID: 0x05, cmdID: 0x81, size: 0x00),
-              let parsed = USBHIDProtocol.onboardProfileInventory(from: inventoryResponse) else {
-            throw BridgeError.commandFailed("USB onboard profile inventory read failed.")
-        }
+        let parsed = try usbReadOnboardProfileInventory(session, device, profile: profile)
         let active = try usbReadActiveOnboardProfileID(session, device) ?? 1
         let maxProfileID = max(Int(parsed.maxProfileID), profile.onboardProfileCount)
         let assigned = Set(parsed.assignedProfiles.map(Int.init))
@@ -599,6 +611,18 @@ extension BridgeClient {
             assignedProfileIDs: Array(assigned).sorted(),
             profiles: summaries
         )
+    }
+
+    func usbReadOnboardProfileInventory(
+        _ session: USBHIDControlSession,
+        _ device: MouseDevice,
+        profile _: DeviceProfile
+    ) throws -> USBHIDProtocol.OnboardProfileInventory {
+        guard let inventoryResponse = try perform(session, device, classID: 0x05, cmdID: 0x81, size: 0x00),
+              let parsed = USBHIDProtocol.onboardProfileInventory(from: inventoryResponse) else {
+            throw BridgeError.commandFailed("USB onboard profile inventory read failed.")
+        }
+        return parsed
     }
 
     func usbReadActiveOnboardProfileID(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> Int? {
@@ -651,10 +675,12 @@ extension BridgeClient {
     func usbReadOnboardProfileMetadata(
         _ session: USBHIDControlSession,
         _ device: MouseDevice,
-        profileID: Int
+        profileID: Int,
+        requireKnownFields: Bool = false
     ) throws -> OnboardProfileMetadata {
         let slot = UInt8(max(0, min(255, profileID)))
-        let chunks = try USBHIDProtocol.onboardProfileMetadataChunkOffsets.compactMap { offset -> USBHIDProtocol.OnboardProfileMetadataChunk? in
+        var chunks: [USBHIDProtocol.OnboardProfileMetadataChunk] = []
+        for offset in USBHIDProtocol.onboardProfileMetadataChunkOffsets {
             guard let response = try perform(
                 session,
                 device,
@@ -663,17 +689,37 @@ extension BridgeClient {
                 size: USBHIDProtocol.onboardProfileMetadataReadSize,
                 args: USBHIDProtocol.onboardProfileMetadataReadArgs(slot: slot, offset: offset)
             ) else {
-                return nil
+                continue
             }
-            return USBHIDProtocol.onboardProfileMetadataChunk(
+            guard let chunk = USBHIDProtocol.onboardProfileMetadataChunk(
                 from: response,
                 expectedSlot: slot,
                 expectedOffset: offset
-            )
+            ) else {
+                continue
+            }
+            chunks.append(chunk)
         }
+
+        if requireKnownFields {
+            let presentOffsets = Set(chunks.map(\.offset))
+            let missingOffsets = USBHIDProtocol.onboardProfileMetadataWritableChunkOffsets
+                .filter { !presentOffsets.contains($0) }
+            if !missingOffsets.isEmpty {
+                let missingDescription = missingOffsets.map(String.init).joined(separator: ",")
+                throw BridgeError.commandFailed(
+                    "USB onboard profile metadata read incomplete for profile \(profileID); " +
+                    "missing offsets \(missingDescription)."
+                )
+            }
+        }
+
         let parsed = USBHIDProtocol.parseOnboardProfileMetadata(
             USBHIDProtocol.mergeOnboardProfileMetadataChunks(chunks)
         )
+        if requireKnownFields, parsed.identifier == nil {
+            throw BridgeError.commandFailed("USB onboard profile metadata read did not include a UUID for profile \(profileID).")
+        }
         return OnboardProfileMetadata(
             identifier: parsed.identifier ?? UUID(),
             name: parsed.name ?? "Profile \(profileID)",
@@ -693,6 +739,11 @@ extension BridgeClient {
             owner: metadata.owner
         )
         for offset in USBHIDProtocol.onboardProfileMetadataWritableChunkOffsets {
+            AppLog.debug(
+                "Bridge",
+                "USB onboard profile metadata write start device=\(device.id) profile=\(profileID) " +
+                "offset=\(offset) name=\"\(metadata.name)\" uuid=\(metadata.identifier.uuidString)"
+            )
             let response = try perform(
                 session,
                 device,
@@ -713,6 +764,10 @@ extension BridgeClient {
                     "USB onboard profile metadata write failed at offset \(offset) (status \(lastStatus))."
                 )
             }
+            AppLog.debug(
+                "Bridge",
+                "USB onboard profile metadata write ok device=\(device.id) profile=\(profileID) offset=\(offset)"
+            )
             usleep(25_000)
         }
     }

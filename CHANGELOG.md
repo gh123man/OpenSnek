@@ -31,6 +31,8 @@ All notable changes to this project are documented in this file.
 - Onboard profile rename/create metadata projections now survive stale inventory refreshes, with debug logs that identify stale incoming names versus projected local names.
 - USB onboard profile commands now use the validated per-device USB transaction ID and serialize HID feature-report exchanges, so onboard profile metadata writes no longer rely on retrying rejected chunks on the happy path.
 - USB state sweeps, fast DPI reads, apply helpers, and onboard profile transactions now share an interprocess per-device exclusive HID lock, preventing the UI app, service process, polling, or hydration reads from interleaving with multi-command profile writes.
+- USB/Bluetooth onboard profile rename now uses a metadata-only transaction and requires complete UUID/name/owner metadata before writing, avoiding synthesized UUID writes and full profile read sweeps before a rename.
+- Onboard profile DPI edits now preserve the loaded profile's firmware stage IDs and marker even when the UI sends a focused DPI-only mutation.
 - Profile operation loading now dims through the transient overlay instead of mutating the underlying content opacity, avoiding a stale grayed-out detail view after rename completes.
 
 ## [2026-06-15]

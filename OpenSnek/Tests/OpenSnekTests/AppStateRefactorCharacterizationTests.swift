@@ -4171,6 +4171,92 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(listCountAfterRename, 1)
     }
 
+    func testMetadataOnlyOnboardProfileRenamePreservesLoadedSnapshotForNextEdit() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-rename-metadata-only-device",
+            transport: .usb,
+            serial: "ONBOARD-RENAME-METADATA-ONLY-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1, 2],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            OnboardProfileSnapshot(
+                profileID: 2,
+                metadata: OnboardProfileMetadata(name: "Stored 2"),
+                dpi: OnboardDPIProfileSnapshot(
+                    scalar: DpiPair(x: 1200, y: 1200),
+                    activeStage: 0,
+                    pairs: [DpiPair(x: 1200, y: 1200), DpiPair(x: 2400, y: 2400)],
+                    stageIDs: [0x21, 0x22],
+                    marker: 0xA5
+                ),
+                buttonBindings: [4: ButtonBindingDraft(kind: .rightClick, hidKey: 4, turboEnabled: false, turboRate: 0x8E)],
+                brightnessByLEDID: [1: 64]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setRenameReturnsMetadataOnly(true)
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+        await appState.editorStore.selectOnboardProfile(2)
+
+        await appState.editorStore.renameSelectedOnboardProfile(name: "Renamed")
+        await MainActor.run {
+            appState.editorStore.editableStageCount = 2
+            appState.editorStore.editableStagePairs = [
+                DpiPair(x: 1400, y: 1400),
+                DpiPair(x: 2600, y: 2600),
+                DpiPair(x: 3200, y: 3200),
+                DpiPair(x: 6400, y: 6400),
+                DpiPair(x: 12000, y: 12000),
+            ]
+            appState.editorStore.editableActiveStage = 1
+        }
+        await appState.editorStore.applyDpiStages()
+
+        try await waitForRefactorCondition {
+            await backend.recordedOnboardUpdates().count == 1
+        }
+
+        let update = await backend.recordedOnboardUpdates().first
+        XCTAssertEqual(update?.profileID, 2)
+        XCTAssertEqual(update?.mutation.dpi?.stageIDs, [0x21, 0x22])
+        XCTAssertEqual(update?.mutation.dpi?.marker, 0xA5)
+    }
+
     func testRenamedOnboardProfilePreservesProjectedNameAcrossStaleInventoryRefresh() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-rename-stale-inventory-device",
@@ -4580,6 +4666,7 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
     private var onboardDeletes: [(deviceID: String, profileID: Int)] = []
     private var onboardActivations: [(deviceID: String, profileID: Int)] = []
     private var onboardUpdateFailureMessage: String?
+    private var renameReturnsMetadataOnly = false
     private var onboardEvents: [String] = []
     private var heldOnboardProfileReads: Set<String> = []
     private var startedHeldOnboardProfileReads: Set<String> = []
@@ -4818,6 +4905,9 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
             assignedProfileIDs: inventory.assignedProfileIDs,
             profiles: summaries
         )
+        if renameReturnsMetadataOnly {
+            return OnboardProfileSnapshot(profileID: profileID, metadata: updated.metadata)
+        }
         return updated
     }
 
@@ -4995,6 +5085,10 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
 
     func setOnboardSnapshot(_ snapshot: OnboardProfileSnapshot, forDeviceID deviceID: String) {
         onboardSnapshotsByKey[onboardSnapshotKey(deviceID: deviceID, profileID: snapshot.profileID)] = snapshot
+    }
+
+    func setRenameReturnsMetadataOnly(_ value: Bool) {
+        renameReturnsMetadataOnly = value
     }
 
     func onboardReadCount(deviceID: String, profileID: Int) -> Int {

@@ -631,6 +631,12 @@ the mapped metadata fields and can be rejected by Basilisk V3 Pro USB firmware
 after the useful metadata has already landed; do not treat that tail chunk as a
 required create/rename write.
 
+Rename transactions are metadata-only. Check assignment from raw inventory, read
+the existing UUID/name/owner chunks completely, then write the renamed metadata
+while preserving the existing UUID and owner. Do not perform a full profile
+snapshot read before the metadata write, and do not synthesize a fallback UUID
+for a rename write when metadata readback is incomplete.
+
 Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
 - slot `0x02`, offset `00 00`: UUID `3a35ec93-bee1-4b29-9d3d-0d2b88f9edef`, name `OPENSNEK_MAC_SLOT_1`
 - slot `0x03`, offset `00 00`: UUID `c7aae39e-43b0-41ae-bf46-b4ae556a4a02`, name `OPENSNEK_RECREATE_SLOT_2`
