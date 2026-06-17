@@ -645,21 +645,38 @@ Unresolved:
 
 ### RGB Lighting (Class 0x0F)
 
-**Status**: Partially implemented. Scroll wheel LED brightness and effect families above are implemented and hardware-validated. Matrix-wide/custom-frame and multi-zone abstractions are still unimplemented.
+**Status**: Partially implemented. Scroll wheel LED brightness and the zone-effect families below are implemented and hardware-validated. The per-LED Custom Frame command (`Cmd 0x03`) is decoded and hardware-validated on the Basilisk V3 Pro (see [docs/research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md](../research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md)) but not yet exposed in OpenSnek.
 
 ```
-Static Effect:
+Set Zone Effect:
   Command: Class 0x0F, ID 0x02, Size varies
   Args: [0]=VARSTORE, [1]=LED_ID, [2]=effect, [3+]=params
 
 Effects:
   0x00 = Off
-  0x01 = Wave
-  0x02 = Reactive
-  0x03 = Breathing
-  0x04 = Spectrum
-  0x05 = Custom Frame
-  0x06 = Static
+  0x01 = Static
+  0x02 = Breathing
+  0x03 = Spectrum
+  0x04 = Wave
+  0x05 = Reactive
+```
+
+```
+Set Custom Frame (per-LED RGB):
+  Command: Class 0x0F, ID 0x03, Size = 0x04 + 3 × cells
+  Args:
+    [0]   = VARSTORE (0x01) — NOSTORE not yet tested
+    [1]   = ROW (ignored by V3 Pro firmware; use 0x00)
+    [2]   = START_COL
+    [3]   = END_COL (inclusive; valid 0x00..0x0B on V3 Pro = 12 cells max)
+    [4..] = cells; **byte order per cell is [B, R, G]**, not [R, G, B]
+
+Writing a Custom Frame implicitly activates "custom" as the current effect on
+all addressed LEDs — no separate switch-effect step is required.
+
+Hardware-validated on Basilisk V3 Pro USB (PID 0x00AA, firmware 0x02120000):
+12 cells covering 1 logo + 1 scroll wheel + 10 underglow LEDs. Razer Synapse
+exposes only 9 of the 10 underglow LEDs.
 ```
 
 ---
