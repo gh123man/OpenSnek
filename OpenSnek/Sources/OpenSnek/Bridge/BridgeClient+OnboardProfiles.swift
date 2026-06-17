@@ -475,7 +475,9 @@ extension BridgeClient {
         var firstError: Error?
         for session in sessions {
             do {
-                let value = try operation(session)
+                let value = try session.withExclusiveDeviceAccess {
+                    try operation(session)
+                }
                 deviceSessions[device.id] = session
                 return value
             } catch {

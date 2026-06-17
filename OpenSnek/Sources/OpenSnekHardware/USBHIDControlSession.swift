@@ -55,11 +55,28 @@ public enum USBHIDSupport {
     }
 }
 
-public final class USBHIDControlSession {
+public final class USBHIDControlSession: @unchecked Sendable {
+    private final class DeviceLockRegistry: @unchecked Sendable {
+        private let registryLock = NSLock()
+        private var deviceLocks: [String: NSRecursiveLock] = [:]
+
+        func lock(for deviceID: String) -> NSRecursiveLock {
+            registryLock.lock()
+            defer { registryLock.unlock() }
+            if let lock = deviceLocks[deviceID] {
+                return lock
+            }
+            let lock = NSRecursiveLock()
+            lock.name = "open.snek.usb.device.\(deviceID)"
+            deviceLocks[deviceID] = lock
+            return lock
+        }
+    }
+
     public let device: IOHIDDevice
     public let deviceID: String
 
-    private let exchangeLock = NSLock()
+    private static let deviceLockRegistry = DeviceLockRegistry()
     private var cachedTxn: UInt8?
 
     public init(device: IOHIDDevice, deviceID: String) {
@@ -67,10 +84,17 @@ public final class USBHIDControlSession {
         self.deviceID = deviceID
     }
 
+    public func withExclusiveDeviceAccess<T>(_ body: () throws -> T) rethrows -> T {
+        let lock = Self.deviceLock(for: deviceID)
+        lock.lock()
+        defer { lock.unlock() }
+        return try body()
+    }
+
     public func invalidateCachedTransaction() {
-        exchangeLock.lock()
-        defer { exchangeLock.unlock() }
-        cachedTxn = nil
+        withExclusiveDeviceAccess {
+            cachedTxn = nil
+        }
     }
 
     public func perform(
@@ -83,34 +107,33 @@ public final class USBHIDControlSession {
         responseAttempts: Int = 6,
         responseDelayUs: useconds_t = 35_000
     ) throws -> [UInt8]? {
-        exchangeLock.lock()
-        defer { exchangeLock.unlock() }
-
-        for txn in Self.transactionCandidates(
-            preferredTransactionID: transactionID,
-            cachedTransactionID: cachedTxn,
-            allowTxnRescan: allowTxnRescan
-        ) {
-            let report = USBHIDProtocol.createReport(txn: txn, classID: classID, cmdID: cmdID, size: size, args: args)
-            guard let response = try exchange(
-                report: report,
-                expectedClassID: classID,
-                expectedCmdID: cmdID,
-                responseAttempts: responseAttempts,
-                responseDelayUs: responseDelayUs
-            ) else {
-                continue
+        try withExclusiveDeviceAccess {
+            for txn in Self.transactionCandidates(
+                preferredTransactionID: transactionID,
+                cachedTransactionID: cachedTxn,
+                allowTxnRescan: allowTxnRescan
+            ) {
+                let report = USBHIDProtocol.createReport(txn: txn, classID: classID, cmdID: cmdID, size: size, args: args)
+                guard let response = try exchange(
+                    report: report,
+                    expectedClassID: classID,
+                    expectedCmdID: cmdID,
+                    responseAttempts: responseAttempts,
+                    responseDelayUs: responseDelayUs
+                ) else {
+                    continue
+                }
+                if response.count < 90 { continue }
+                if response[0] == 0x01 { continue }
+                cachedTxn = transactionID ?? txn
+                return response
             }
-            if response.count < 90 { continue }
-            if response[0] == 0x01 { continue }
-            cachedTxn = transactionID ?? txn
-            return response
-        }
 
-        if transactionID == nil {
-            cachedTxn = nil
+            if transactionID == nil {
+                cachedTxn = nil
+            }
+            return nil
         }
-        return nil
     }
 
     static func transactionCandidates(
@@ -129,6 +152,10 @@ public final class USBHIDControlSession {
         }
         var seen = Set<UInt8>()
         return candidates.filter { seen.insert($0).inserted }
+    }
+
+    private static func deviceLock(for deviceID: String) -> NSRecursiveLock {
+        deviceLockRegistry.lock(for: deviceID)
     }
 
     private func exchange(

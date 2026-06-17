@@ -543,17 +543,21 @@ actor BridgeClient {
         var firstError: Error?
         for session in orderedSessions {
             do {
-                guard let stages = try getDPIStageSnapshot(session, device) else { continue }
-                let liveDpi = try getDPI(session, device)?.0
-                let active: Int
-                if let liveDpi, let exact = stages.values.firstIndex(of: liveDpi) {
-                    active = exact
-                } else {
-                    active = stages.active
+                let snapshot = try session.withExclusiveDeviceAccess { () throws -> (active: Int, values: [Int])? in
+                    guard let stages = try getDPIStageSnapshot(session, device) else { return nil }
+                    let liveDpi = try getDPI(session, device)?.0
+                    let active: Int
+                    if let liveDpi, let exact = stages.values.firstIndex(of: liveDpi) {
+                        active = exact
+                    } else {
+                        active = stages.active
+                    }
+                    return (active: active, values: stages.values)
                 }
+                guard let snapshot else { continue }
                 deviceSessions[device.id] = session
                 await maybeUpgradeUSBPassiveDpiFromPolling(device: device, reason: "fast-poll-ok")
-                return (active: active, values: stages.values)
+                return snapshot
             } catch {
                 if firstError == nil {
                     firstError = error
@@ -708,7 +712,7 @@ actor BridgeClient {
                 var firstError: Error?
                 for session in orderedSessions {
                     do {
-                        if try operation(session) {
+                        if try session.withExclusiveDeviceAccess({ try operation(session) }) {
                             deviceSessions[device.id] = session
                             return true
                         }
@@ -728,7 +732,9 @@ actor BridgeClient {
                 var firstError: Error?
                 for session in orderedSessions {
                     do {
-                        if let current = try getDPIStageSnapshot(session, device) {
+                        if let current = try session.withExclusiveDeviceAccess({
+                            try getDPIStageSnapshot(session, device)
+                        }) {
                             deviceSessions[device.id] = session
                             return current
                         }
@@ -748,7 +754,9 @@ actor BridgeClient {
                 var firstError: Error?
                 for session in orderedSessions {
                     do {
-                        if let current = try getDPI(session, device) {
+                        if let current = try session.withExclusiveDeviceAccess({
+                            try getDPI(session, device)
+                        }) {
                             deviceSessions[device.id] = session
                             return current
                         }
