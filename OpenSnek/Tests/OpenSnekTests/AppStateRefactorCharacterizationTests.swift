@@ -3536,6 +3536,81 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertFalse(busyAfterHardwareProfileLoad)
     }
 
+    func testRefreshingOnboardProfilesHydratesActiveLightingWhenNoSnapshotIsLoaded() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-refresh-lighting-device",
+            transport: .usb,
+            serial: "ONBOARD-REFRESH-LIGHTING-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let staleEditorColor = RGBColor(r: 1, g: 2, b: 3)
+        let activeProfileColor = RGBColor(r: 255, g: 0, b: 180)
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 2,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 2,
+                maxProfileID: 5,
+                assignedProfileIDs: [1, 2],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: true),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(
+                profileID: 2,
+                name: "Stored 2",
+                brightnessByLEDID: [1: 210, 4: 210, 10: 210],
+                staticColorByLEDID: [
+                    1: RGBPatch(r: activeProfileColor.r, g: activeProfileColor.g, b: activeProfileColor.b)
+                ]
+            ),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await MainActor.run {
+            appState.editorStore.editableLightingEffect = .wave
+            appState.editorStore.editableUSBLightingZoneID = "all"
+            appState.editorStore.editableColor = staleEditorColor
+        }
+
+        await appState.editorStore.refreshOnboardProfiles()
+
+        try await waitForRefactorCondition {
+            await MainActor.run {
+                appState.editorStore.selectedOnboardProfileID == 2 &&
+                    appState.editorStore.editableLightingEffect == .staticColor &&
+                    appState.editorStore.editableLedBrightness == 210 &&
+                    appState.editorStore.editableColor == activeProfileColor
+            }
+        }
+        let activeReadCount = await backend.onboardReadCount(deviceID: device.id, profileID: 2)
+        XCTAssertEqual(activeReadCount, 1)
+    }
+
     func testSupersededHardwareOnboardProfileLoadClearsBusyStateBeforeCancelledReadReturns() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-superseded-load-device",
@@ -3708,7 +3783,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             }
         }
         let events = await backend.recordedOnboardEvents()
-        XCTAssertEqual(events, ["read:2", "activate:2"])
+        XCTAssertEqual(events, ["read:1", "read:2", "activate:2"])
         let readCount = await backend.onboardReadCount(deviceID: device.id, profileID: 2)
         XCTAssertEqual(readCount, 1)
     }
@@ -3985,7 +4060,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         await appState.editorStore.refreshOnboardProfiles()
         await appState.editorStore.selectOnboardProfile(1)
         let initialReadCount = await backend.onboardReadCount(deviceID: device.id, profileID: 1)
-        XCTAssertEqual(initialReadCount, 1)
+        XCTAssertGreaterThanOrEqual(initialReadCount, 1)
 
         await backend.setOnboardSnapshot(
             makeRefactorOnboardProfileSnapshot(profileID: 1, name: "Base", dpiValues: [1400, 2800]),
@@ -4018,7 +4093,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             }
         }
         let reloadedReadCount = await backend.onboardReadCount(deviceID: device.id, profileID: 1)
-        XCTAssertGreaterThanOrEqual(reloadedReadCount, 2)
+        XCTAssertGreaterThan(reloadedReadCount, initialReadCount)
     }
 
     func testCreatingOnboardProfileCanCopyExistingSlot() async throws {

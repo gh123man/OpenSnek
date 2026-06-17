@@ -2008,8 +2008,10 @@ private struct OnboardProfileManagerCard: View {
             Text("Synapse will overwrite this profile. Save settings to a stored slot if you want to keep them.")
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .foregroundStyle(Color(hex: 0xFFD166).opacity(0.92))
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(

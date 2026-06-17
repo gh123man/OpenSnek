@@ -1510,7 +1510,7 @@ final class AppStateEditorController {
         return isOnboardProfileActive(deviceID: device.id, profileID: selected)
     }
 
-    func refreshOnboardProfiles() async {
+    func refreshOnboardProfiles(hydrateSelectedProfile: Bool = true) async {
         guard !isTearingDown, let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return }
         do {
             AppLog.debug(
@@ -1533,7 +1533,18 @@ final class AppStateEditorController {
             if selected == nil || !projectedInventory.assignedProfileIDs.contains(selected ?? -1) {
                 selectedOnboardProfileIDByDeviceID[device.id] = projectedInventory.activeProfileID
             }
-            let currentNames = projectedInventory.profiles.reduce(into: [Int: String]()) { partialResult, summary in
+
+            let selectedAfterRefresh = selectedOnboardProfileIDByDeviceID[device.id] ?? projectedInventory.activeProfileID
+            if hydrateSelectedProfile,
+               selectedAfterRefresh == projectedInventory.activeProfileID,
+               projectedInventory.assignedProfileIDs.contains(selectedAfterRefresh),
+               currentOnboardProfileSnapshotByDeviceID[device.id]?.profileID != selectedAfterRefresh {
+                let snapshot = try await readLatestOnboardProfileSnapshot(device: device, profileID: selectedAfterRefresh)
+                hydrateEditable(from: snapshot, device: device)
+            }
+
+            let visibleInventory = onboardProfileInventoryByDeviceID[device.id] ?? projectedInventory
+            let currentNames = visibleInventory.profiles.reduce(into: [Int: String]()) { partialResult, summary in
                 partialResult[summary.profileID] = summary.displayName
             }
             let changedNames = currentNames
@@ -1546,7 +1557,7 @@ final class AppStateEditorController {
                 .joined(separator: ",")
             AppLog.debug(
                 "AppState",
-                "refresh onboard profiles ok device=\(device.id) active=\(projectedInventory.activeProfileID) assigned=\(projectedInventory.assignedProfileIDs.map(String.init).joined(separator: ",")) selected=\(selectedOnboardProfileIDByDeviceID[device.id].map(String.init) ?? "<nil>") changedNames=\(changedNames.isEmpty ? "<none>" : changedNames)"
+                "refresh onboard profiles ok device=\(device.id) active=\(visibleInventory.activeProfileID) assigned=\(visibleInventory.assignedProfileIDs.map(String.init).joined(separator: ",")) selected=\(selectedOnboardProfileIDByDeviceID[device.id].map(String.init) ?? "<nil>") changedNames=\(changedNames.isEmpty ? "<none>" : changedNames)"
             )
             bumpOnboardProfilesRevision()
         } catch {
@@ -1560,12 +1571,12 @@ final class AppStateEditorController {
         cancelSelectedMouseSlotHydration(deviceID: device.id)
         do {
             if onboardProfileInventoryByDeviceID[device.id] == nil {
-                await refreshOnboardProfiles()
+                await refreshOnboardProfiles(hydrateSelectedProfile: false)
             }
             var inventory = onboardProfileInventoryByDeviceID[device.id]
             if inventory?.assignedProfileIDs.contains(profileID) != true,
                profileID == lastHardwareActiveOnboardProfileIDByDeviceID[device.id] {
-                await refreshOnboardProfiles()
+                await refreshOnboardProfiles(hydrateSelectedProfile: false)
                 inventory = onboardProfileInventoryByDeviceID[device.id]
             }
             guard let inventory,
