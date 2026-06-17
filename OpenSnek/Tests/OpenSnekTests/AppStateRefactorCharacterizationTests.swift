@@ -4171,6 +4171,68 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(listCountAfterRename, 1)
     }
 
+    func testRenamedOnboardProfilePreservesProjectedNameAcrossStaleInventoryRefresh() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-rename-stale-inventory-device",
+            transport: .usb,
+            serial: "ONBOARD-RENAME-STALE-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        let staleInventory = OnboardProfileInventory(
+            activeProfileID: 1,
+            maxProfileID: 5,
+            assignedProfileIDs: [1, 2],
+            profiles: [
+                makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+            ]
+        )
+        await backend.setOnboardInventory(staleInventory, forDeviceID: device.id)
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(profileID: 2, name: "Stored 2", dpiValues: [1200, 2400]),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+        await appState.editorStore.selectOnboardProfile(2)
+
+        await appState.editorStore.renameSelectedOnboardProfile(name: "Renamed")
+        await backend.setOnboardInventory(staleInventory, forDeviceID: device.id)
+        await appState.editorStore.refreshOnboardProfiles()
+
+        try await waitForRefactorCondition {
+            await MainActor.run {
+                appState.editorStore.selectedOnboardProfileName == "Renamed" &&
+                    appState.editorStore.onboardProfileSummaries.first(where: { $0.profileID == 2 })?.displayName == "Renamed"
+            }
+        }
+
+        let listCountAfterStaleRefresh = await backend.onboardListCount(deviceID: device.id)
+        XCTAssertEqual(listCountAfterStaleRefresh, 2)
+    }
+
     func testDeletingActiveOnboardProfileActivatesNextAssignedSlot() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-delete-active-device",

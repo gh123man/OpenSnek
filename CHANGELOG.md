@@ -28,6 +28,7 @@ All notable changes to this project are documented in this file.
 - Onboard profile edit failures no longer fall back to legacy live-layer writes, and USB profile rename verification now uses metadata-only readback to avoid long profile sweeps during editing.
 - USB onboard profiles now read and write scroll mode, acceleration, and smart reel against the selected hardware profile instead of always targeting slot 1.
 - Superseded hardware profile-load tasks now release the profile-operation busy state immediately, preventing profile rename or profile-switch races from leaving the UI dimmed without a visible loading indicator.
+- Onboard profile rename/create metadata projections now survive stale inventory refreshes, with debug logs that identify stale incoming names versus projected local names.
 
 ## [2026-06-15]
 

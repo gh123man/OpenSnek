@@ -24,6 +24,7 @@ final class AppStateEditorController {
     private var buttonProfileLiveBindingsByDeviceID: [String: [Int: ButtonBindingDraft]] = [:]
     private var softwareActiveUSBButtonProfileOverrideByDeviceID: [String: Int] = [:]
     private var onboardProfileInventoryByDeviceID: [String: OnboardProfileInventory] = [:]
+    private var projectedOnboardProfileMetadataByDeviceID: [String: [Int: OnboardProfileMetadata]] = [:]
     private var currentOnboardProfileSnapshotByDeviceID: [String: OnboardProfileSnapshot] = [:]
     private var onboardProfileLightingColorsByDeviceID: [String: [String: RGBColor]] = [:]
     private var selectedOnboardProfileIDByDeviceID: [String: Int] = [:]
@@ -260,6 +261,9 @@ final class AppStateEditorController {
         onboardProfileInventoryByDeviceID = onboardProfileInventoryByDeviceID.filter { key, _ in
             !removedDeviceIDs.contains(key)
         }
+        projectedOnboardProfileMetadataByDeviceID = projectedOnboardProfileMetadataByDeviceID.filter { key, _ in
+            !removedDeviceIDs.contains(key)
+        }
         currentOnboardProfileSnapshotByDeviceID = currentOnboardProfileSnapshotByDeviceID.filter { key, _ in
             !removedDeviceIDs.contains(key)
         }
@@ -303,6 +307,9 @@ final class AppStateEditorController {
     func invalidateOnboardProfileState(for deviceIDs: Set<String>) {
         guard !deviceIDs.isEmpty else { return }
         onboardProfileInventoryByDeviceID = onboardProfileInventoryByDeviceID.filter { key, _ in
+            !deviceIDs.contains(key)
+        }
+        projectedOnboardProfileMetadataByDeviceID = projectedOnboardProfileMetadataByDeviceID.filter { key, _ in
             !deviceIDs.contains(key)
         }
         currentOnboardProfileSnapshotByDeviceID = currentOnboardProfileSnapshotByDeviceID.filter { key, _ in
@@ -1155,7 +1162,7 @@ final class AppStateEditorController {
     ) async throws -> OnboardProfileSnapshot {
         let snapshot = try await environment.backend.readOnboardProfile(device: device, profileID: profileID)
         if storeForEditing {
-            storeCurrentOnboardProfileSnapshot(snapshot, device: device)
+            storeCurrentOnboardProfileSnapshot(snapshot, device: device, source: "readOnboardProfile")
         }
         return snapshot
     }
@@ -1274,8 +1281,30 @@ final class AppStateEditorController {
         }
     }
 
-    private func storeCurrentOnboardProfileSnapshot(_ snapshot: OnboardProfileSnapshot, device: MouseDevice) {
+    private func storeCurrentOnboardProfileSnapshot(
+        _ snapshot: OnboardProfileSnapshot,
+        device: MouseDevice,
+        source: String = "snapshot",
+        projectMetadataForRefresh: Bool = false
+    ) {
+        let priorName = onboardProfileInventoryByDeviceID[device.id]?
+            .summary(for: snapshot.profileID)?
+            .displayName ?? "<missing>"
         currentOnboardProfileSnapshotByDeviceID[device.id] = snapshot
+        if projectMetadataForRefresh {
+            var projectedMetadata = projectedOnboardProfileMetadataByDeviceID[device.id] ?? [:]
+            projectedMetadata[snapshot.profileID] = snapshot.metadata
+            projectedOnboardProfileMetadataByDeviceID[device.id] = projectedMetadata
+        } else if projectedOnboardProfileMetadataByDeviceID[device.id]?[snapshot.profileID] == snapshot.metadata {
+            projectedOnboardProfileMetadataByDeviceID[device.id]?.removeValue(forKey: snapshot.profileID)
+            if projectedOnboardProfileMetadataByDeviceID[device.id]?.isEmpty == true {
+                projectedOnboardProfileMetadataByDeviceID.removeValue(forKey: device.id)
+            }
+            AppLog.debug(
+                "AppState",
+                "onboard profile metadata projection confirmed by snapshot source=\(source) device=\(device.id) profile=\(snapshot.profileID) name=\"\(snapshot.metadata.name)\""
+            )
+        }
         let inventory = onboardProfileInventoryByDeviceID[device.id] ?? synthesizedOnboardProfileInventory(
             device: device,
             including: snapshot
@@ -1289,10 +1318,88 @@ final class AppStateEditorController {
             isBaseProfile: snapshot.profileID == 1
         ))
         let assigned = Set(inventory.assignedProfileIDs + [snapshot.profileID])
-        onboardProfileInventoryByDeviceID[device.id] = OnboardProfileInventory(
+        let updatedInventory = OnboardProfileInventory(
             activeProfileID: inventory.activeProfileID,
             maxProfileID: inventory.maxProfileID,
             assignedProfileIDs: Array(assigned).sorted(),
+            profiles: summaries
+        )
+        onboardProfileInventoryByDeviceID[device.id] = inventoryApplyingProjectedOnboardMetadata(
+            updatedInventory,
+            deviceID: device.id,
+            source: source,
+            confirmMatchingProjections: false
+        )
+        let storedName = onboardProfileInventoryByDeviceID[device.id]?
+            .summary(for: snapshot.profileID)?
+            .displayName ?? "<missing>"
+        AppLog.debug(
+            "AppState",
+            "onboard profile snapshot stored source=\(source) device=\(device.id) profile=\(snapshot.profileID) priorName=\"\(priorName)\" snapshotName=\"\(snapshot.metadata.name)\" storedName=\"\(storedName)\" projected=\(projectMetadataForRefresh)"
+        )
+    }
+
+    private func inventoryApplyingProjectedOnboardMetadata(
+        _ inventory: OnboardProfileInventory,
+        deviceID: String,
+        source: String,
+        confirmMatchingProjections: Bool
+    ) -> OnboardProfileInventory {
+        guard let projections = projectedOnboardProfileMetadataByDeviceID[deviceID], !projections.isEmpty else {
+            return inventory
+        }
+
+        var remainingProjections = projections
+        let validProjectedIDs = Set(projections.keys.filter { $0 >= 1 && $0 <= inventory.maxProfileID })
+        let assignedProfileIDs = Set(inventory.assignedProfileIDs).union(validProjectedIDs).sorted()
+        let summaries = (1...inventory.maxProfileID).map { profileID -> OnboardProfileSummary in
+            let existing = inventory.summary(for: profileID)
+            let baseSummary = existing ?? OnboardProfileSummary(
+                profileID: profileID,
+                metadata: nil,
+                isAssigned: assignedProfileIDs.contains(profileID),
+                isActive: profileID == inventory.activeProfileID,
+                isBaseProfile: profileID == 1
+            )
+            guard let projected = projections[profileID] else {
+                return baseSummary
+            }
+
+            if baseSummary.isAssigned, baseSummary.metadata == projected {
+                if !confirmMatchingProjections {
+                    return baseSummary
+                }
+                remainingProjections.removeValue(forKey: profileID)
+                AppLog.debug(
+                    "AppState",
+                    "onboard profile metadata projection confirmed by inventory source=\(source) device=\(deviceID) profile=\(profileID) name=\"\(projected.name)\""
+                )
+                return baseSummary
+            }
+
+            AppLog.warning(
+                "AppState",
+                "onboard profile inventory returned stale metadata; preserving projected name source=\(source) device=\(deviceID) profile=\(profileID) incomingAssigned=\(baseSummary.isAssigned) incomingName=\"\(baseSummary.metadata?.name ?? "<nil>")\" projectedName=\"\(projected.name)\""
+            )
+            return OnboardProfileSummary(
+                profileID: profileID,
+                metadata: projected,
+                isAssigned: true,
+                isActive: profileID == inventory.activeProfileID,
+                isBaseProfile: profileID == 1
+            )
+        }
+
+        if remainingProjections.isEmpty {
+            projectedOnboardProfileMetadataByDeviceID.removeValue(forKey: deviceID)
+        } else {
+            projectedOnboardProfileMetadataByDeviceID[deviceID] = remainingProjections
+        }
+
+        return OnboardProfileInventory(
+            activeProfileID: inventory.activeProfileID,
+            maxProfileID: inventory.maxProfileID,
+            assignedProfileIDs: assignedProfileIDs,
             profiles: summaries
         )
     }
@@ -1365,8 +1472,16 @@ final class AppStateEditorController {
     }
 
     func selectedOnboardProfileName() -> String {
-        guard let selected = selectedOnboardProfileID(),
-              let summary = onboardProfileSummaries().first(where: { $0.profileID == selected }) else {
+        guard let selected = selectedOnboardProfileID() else {
+            AppLog.debug("AppState", "selected onboard profile name fallback: no selected profile")
+            return "Onboard Profile"
+        }
+        let summaries = onboardProfileSummaries()
+        guard let summary = summaries.first(where: { $0.profileID == selected }) else {
+            AppLog.debug(
+                "AppState",
+                "selected onboard profile name fallback: missing summary selected=\(selected) visible=\(summaries.map(\.profileID).map(String.init).joined(separator: ","))"
+            )
             return "Onboard Profile"
         }
         return summary.isAssigned ? summary.displayName : "None"
@@ -1381,15 +1496,44 @@ final class AppStateEditorController {
     func refreshOnboardProfiles() async {
         guard !isTearingDown, let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return }
         do {
+            AppLog.debug(
+                "AppState",
+                "refresh onboard profiles start device=\(device.id) selected=\(selectedOnboardProfileIDByDeviceID[device.id].map(String.init) ?? "<nil>") pendingMetadataProfiles=\((projectedOnboardProfileMetadataByDeviceID[device.id]?.keys.sorted() ?? []).map(String.init).joined(separator: ","))"
+            )
             let inventory = try await environment.backend.listOnboardProfiles(device: device)
-            onboardProfileInventoryByDeviceID[device.id] = inventory
+            let priorNames = onboardProfileInventoryByDeviceID[device.id]?.profiles.reduce(into: [Int: String]()) { partialResult, summary in
+                partialResult[summary.profileID] = summary.displayName
+            } ?? [:]
+            let projectedInventory = inventoryApplyingProjectedOnboardMetadata(
+                inventory,
+                deviceID: device.id,
+                source: "refreshOnboardProfiles",
+                confirmMatchingProjections: true
+            )
+            onboardProfileInventoryByDeviceID[device.id] = projectedInventory
             lastHardwareActiveOnboardProfileIDByDeviceID[device.id] = inventory.activeProfileID
             let selected = selectedOnboardProfileIDByDeviceID[device.id]
-            if selected == nil || !inventory.assignedProfileIDs.contains(selected ?? -1) {
-                selectedOnboardProfileIDByDeviceID[device.id] = inventory.activeProfileID
+            if selected == nil || !projectedInventory.assignedProfileIDs.contains(selected ?? -1) {
+                selectedOnboardProfileIDByDeviceID[device.id] = projectedInventory.activeProfileID
             }
+            let currentNames = projectedInventory.profiles.reduce(into: [Int: String]()) { partialResult, summary in
+                partialResult[summary.profileID] = summary.displayName
+            }
+            let changedNames = currentNames
+                .keys
+                .sorted()
+                .compactMap { profileID -> String? in
+                    guard priorNames[profileID] != currentNames[profileID] else { return nil }
+                    return "\(profileID):\"\(priorNames[profileID] ?? "<missing>")\"->\"\(currentNames[profileID] ?? "<missing>")\""
+                }
+                .joined(separator: ",")
+            AppLog.debug(
+                "AppState",
+                "refresh onboard profiles ok device=\(device.id) active=\(projectedInventory.activeProfileID) assigned=\(projectedInventory.assignedProfileIDs.map(String.init).joined(separator: ",")) selected=\(selectedOnboardProfileIDByDeviceID[device.id].map(String.init) ?? "<nil>") changedNames=\(changedNames.isEmpty ? "<none>" : changedNames)"
+            )
             bumpOnboardProfilesRevision()
         } catch {
+            AppLog.error("AppState", "refresh onboard profiles failed device=\(device.id): \(error.localizedDescription)")
             deviceStore.errorMessage = "Failed to refresh onboard profiles: \(error.localizedDescription)"
         }
     }
@@ -1464,7 +1608,7 @@ final class AppStateEditorController {
             let snapshot = active == profileID
                 ? targetSnapshot
                 : try await readLatestOnboardProfileSnapshot(device: device, profileID: active, storeForEditing: false)
-            storeCurrentOnboardProfileSnapshot(snapshot, device: device)
+            storeCurrentOnboardProfileSnapshot(snapshot, device: device, source: "activateOnboardProfile")
             hydrateEditable(from: snapshot, device: device)
             deviceStore.errorMessage = nil
             bumpOnboardProfilesRevision()
@@ -1500,7 +1644,12 @@ final class AppStateEditorController {
                 targetProfileID: targetProfileID,
                 replaceAssignedProfile: false
             )
-            storeCurrentOnboardProfileSnapshot(snapshot, device: device)
+            storeCurrentOnboardProfileSnapshot(
+                snapshot,
+                device: device,
+                source: "createOnboardProfile",
+                projectMetadataForRefresh: true
+            )
             let state = try await environment.backend.activateOnboardProfile(device: device, profileID: snapshot.profileID)
             let active = storeActiveOnboardProfileState(state, for: device, fallbackActiveProfileID: snapshot.profileID)
             selectedOnboardProfileIDByDeviceID[device.id] = active
@@ -1525,15 +1674,35 @@ final class AppStateEditorController {
               let selected = selectedOnboardProfileID() else { return }
         cancelSelectedMouseSlotHydration(deviceID: device.id)
         do {
+            let requestedName = OnboardProfileMetadata.normalizedName(name)
+            let priorName = onboardProfileInventoryByDeviceID[device.id]?
+                .summary(for: selected)?
+                .displayName ?? "<missing>"
+            AppLog.debug(
+                "AppState",
+                "rename onboard profile start device=\(device.id) transport=\(device.transport.rawValue) profile=\(selected) priorName=\"\(priorName)\" requestedName=\"\(requestedName)\" active=\(deviceStore.state?.active_onboard_profile.map(String.init) ?? "<nil>")"
+            )
             let snapshot = try await environment.backend.renameOnboardProfile(
                 device: device,
                 profileID: selected,
                 name: name
             )
-            storeCurrentOnboardProfileSnapshot(snapshot, device: device)
+            storeCurrentOnboardProfileSnapshot(
+                snapshot,
+                device: device,
+                source: "renameOnboardProfile",
+                projectMetadataForRefresh: true
+            )
             selectedOnboardProfileIDByDeviceID[device.id] = selected
             deviceStore.errorMessage = nil
             bumpOnboardProfilesRevision()
+            let visibleName = onboardProfileInventoryByDeviceID[device.id]?
+                .summary(for: selected)?
+                .displayName ?? "<missing>"
+            AppLog.debug(
+                "AppState",
+                "rename onboard profile ok device=\(device.id) profile=\(selected) requestedName=\"\(requestedName)\" snapshotName=\"\(snapshot.metadata.name)\" visibleName=\"\(visibleName)\" revision=\(editorStore.onboardProfilesRevision)"
+            )
         } catch {
             AppLog.error("AppState", "rename onboard profile failed profile=\(selected): \(error.localizedDescription)")
             deviceStore.errorMessage = "Failed to rename onboard profile: \(error.localizedDescription)"
@@ -1616,7 +1785,12 @@ final class AppStateEditorController {
                 profileID: selected,
                 mutation: mutation
             )
-            storeCurrentOnboardProfileSnapshot(snapshot, device: device)
+            storeCurrentOnboardProfileSnapshot(
+                snapshot,
+                device: device,
+                source: "updateOnboardProfile",
+                projectMetadataForRefresh: mutation.metadata != nil
+            )
             if selectedOnboardProfileIDByDeviceID[device.id] == selected {
                 hydrateEditableLighting(from: snapshot, device: device)
                 hydrateEditableScroll(from: snapshot)
