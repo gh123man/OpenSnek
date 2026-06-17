@@ -165,6 +165,14 @@ final class AppStateApplyController {
     }
 
     func applyScrollMode() async {
+        if let selectedDevice = deviceStore.selectedDevice,
+           supportsOnboardProfileCRUD(device: selectedDevice),
+           selectedDevice.transport == .usb {
+            _ = await editorController.applyOnboardProfileMutationForCurrentSelection(
+                OnboardProfileMutation(scrollMode: max(0, min(1, editorStore.editableScrollMode)))
+            )
+            return
+        }
         enqueueApply(DevicePatch(scrollMode: max(0, min(1, editorStore.editableScrollMode))))
     }
 
@@ -176,6 +184,14 @@ final class AppStateApplyController {
     }
 
     func applyScrollAcceleration() async {
+        if let selectedDevice = deviceStore.selectedDevice,
+           supportsOnboardProfileCRUD(device: selectedDevice),
+           selectedDevice.transport == .usb {
+            _ = await editorController.applyOnboardProfileMutationForCurrentSelection(
+                OnboardProfileMutation(scrollAcceleration: editorStore.editableScrollAcceleration)
+            )
+            return
+        }
         enqueueApply(DevicePatch(scrollAcceleration: editorStore.editableScrollAcceleration))
     }
 
@@ -187,6 +203,14 @@ final class AppStateApplyController {
     }
 
     func applyScrollSmartReel() async {
+        if let selectedDevice = deviceStore.selectedDevice,
+           supportsOnboardProfileCRUD(device: selectedDevice),
+           selectedDevice.transport == .usb {
+            _ = await editorController.applyOnboardProfileMutationForCurrentSelection(
+                OnboardProfileMutation(scrollSmartReel: editorStore.editableScrollSmartReel)
+            )
+            return
+        }
         enqueueApply(DevicePatch(scrollSmartReel: editorStore.editableScrollSmartReel))
     }
 

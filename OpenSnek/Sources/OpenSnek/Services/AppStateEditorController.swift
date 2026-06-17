@@ -1561,6 +1561,7 @@ final class AppStateEditorController {
             storeCurrentOnboardProfileSnapshot(snapshot, device: device)
             if selectedOnboardProfileIDByDeviceID[device.id] == selected {
                 hydrateEditableLighting(from: snapshot, device: device)
+                hydrateEditableScroll(from: snapshot)
             }
             if selectedOnboardProfileIsActive() {
                 _ = try await environment.backend.refreshActiveOnboardProfile(device: device)
@@ -1613,7 +1614,10 @@ final class AppStateEditorController {
             ),
             buttonBindings: editorStore.editableButtonBindings,
             brightnessByLEDID: brightness,
-            staticColorByLEDID: colors.isEmpty ? nil : colors
+            staticColorByLEDID: colors.isEmpty ? nil : colors,
+            scrollMode: device.transport == .usb ? editorStore.editableScrollMode : nil,
+            scrollAcceleration: device.transport == .usb ? editorStore.editableScrollAcceleration : nil,
+            scrollSmartReel: device.transport == .usb ? editorStore.editableScrollSmartReel : nil
         )
     }
 
@@ -1626,7 +1630,10 @@ final class AppStateEditorController {
             dpi: snapshot.dpi,
             buttonBindings: snapshot.buttonBindings,
             brightnessByLEDID: snapshot.brightnessByLEDID,
-            staticColorByLEDID: snapshot.staticColorByLEDID
+            staticColorByLEDID: snapshot.staticColorByLEDID,
+            scrollMode: snapshot.scrollMode,
+            scrollAcceleration: snapshot.scrollAcceleration,
+            scrollSmartReel: snapshot.scrollSmartReel
         )
     }
 
@@ -1721,6 +1728,18 @@ final class AppStateEditorController {
         editorStore.noteLightingGradientColorsChanged()
     }
 
+    private func hydrateEditableScroll(from snapshot: OnboardProfileSnapshot) {
+        if let scrollMode = snapshot.scrollMode {
+            editorStore.editableScrollMode = max(0, min(1, scrollMode))
+        }
+        if let scrollAcceleration = snapshot.scrollAcceleration {
+            editorStore.editableScrollAcceleration = scrollAcceleration
+        }
+        if let scrollSmartReel = snapshot.scrollSmartReel {
+            editorStore.editableScrollSmartReel = scrollSmartReel
+        }
+    }
+
     private func hydrateEditable(from snapshot: OnboardProfileSnapshot, device: MouseDevice) {
         isHydrating = true
         defer { isHydrating = false }
@@ -1729,6 +1748,7 @@ final class AppStateEditorController {
             hydrateEditableDPI(from: dpi, device: device)
         }
         hydrateEditableLighting(from: snapshot, device: device)
+        hydrateEditableScroll(from: snapshot)
         editorStore.editableButtonBindings = snapshot.buttonBindings
         let hydrationKey = buttonBindingsHydrationKey(device: device, profile: max(1, snapshot.profileID))
         buttonBindingsCacheByHydrationKey[hydrationKey] = snapshot.buttonBindings

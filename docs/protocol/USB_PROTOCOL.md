@@ -140,7 +140,7 @@ Modes:
 #### Get Scroll Mode
 ```
 Command:  Class 0x02, ID 0x94, Size 0x02
-Args:     [0] = VARSTORE (0x01)
+Args:     [0] = storage/profile ID
 Response: args[1] = mode (0x00=tactile, 0x01=freespin)
 TxnID:    0x1F
 ```
@@ -148,21 +148,21 @@ TxnID:    0x1F
 #### Set Scroll Mode
 ```
 Command:  Class 0x02, ID 0x14, Size 0x02
-Args:     [0] = VARSTORE (0x01), [1] = mode
+Args:     [0] = storage/profile ID, [1] = mode
 TxnID:    0x1F
 ```
 
 #### Get/Set Scroll Acceleration
 ```
 Command:  Class 0x02, ID 0x96 (get) / 0x16 (set), Size 0x02
-Args:     [0] = VARSTORE (0x01), [1] = enabled (0x00/0x01)
+Args:     [0] = storage/profile ID, [1] = enabled (0x00/0x01)
 TxnID:    0x1F
 ```
 
 #### Get/Set Scroll Smart Reel
 ```
 Command:  Class 0x02, ID 0x97 (get) / 0x17 (set), Size 0x02
-Args:     [0] = VARSTORE (0x01), [1] = enabled (0x00/0x01)
+Args:     [0] = storage/profile ID, [1] = enabled (0x00/0x01)
 TxnID:    0x1F
 ```
 
@@ -326,7 +326,7 @@ TxnID:    0x1F
 #### Get DPI Stages
 ```
 Command:  Class 0x04, ID 0x86, Size 0x26
-Args:     [0] = VARSTORE (0x01)
+Args:     [0] = storage/profile ID
 Response: args[0] = storage
           args[1] = active stage ID (on Basilisk V3 X this is 1-indexed)
           args[2] = number of stages (1-5)
@@ -343,7 +343,7 @@ TxnID:    0x1F
 #### Set DPI Stages
 ```
 Command:  Class 0x04, ID 0x06, Size 0x26
-Args:     [0] = VARSTORE (0x01)
+Args:     [0] = storage/profile ID
           [1] = active stage ID (must match a stage entry ID)
           [2] = count (1-5)
           [3+n*7] = stage data (same format as above)
@@ -448,20 +448,20 @@ Examples:
 #### Get/Set Scroll Mode
 ```
 Command:  Class 0x02, ID 0x94 (get) / 0x14 (set), Size 0x02
-Args:     [0] = VARSTORE (0x01), [1] = mode
+Args:     [0] = storage/profile ID, [1] = mode
 Modes:    0x00=tactile, 0x01=freespin
 ```
 
 #### Get/Set Scroll Acceleration
 ```
 Command:  Class 0x02, ID 0x96 (get) / 0x16 (set), Size 0x02
-Args:     [0] = VARSTORE (0x01), [1] = enabled (0x00/0x01)
+Args:     [0] = storage/profile ID, [1] = enabled (0x00/0x01)
 ```
 
 #### Get/Set Scroll Smart Reel
 ```
 Command:  Class 0x02, ID 0x97 (get) / 0x17 (set), Size 0x02
-Args:     [0] = VARSTORE (0x01), [1] = enabled (0x00/0x01)
+Args:     [0] = storage/profile ID, [1] = enabled (0x00/0x01)
 ```
 
 ### Class 0x0F - Scroll LED Brightness and Effects
@@ -541,6 +541,7 @@ Open questions:
 Current known USB profile support is setting-bank oriented:
 - DPI scalar/stages: `0x04:0x85/0x05` and `0x04:0x86/0x06` with storage/profile IDs
 - button bindings: `0x02:0x8C/0x0C` with profile IDs
+- scroll mode / acceleration / smart reel: `0x02:0x94/0x14`, `0x02:0x96/0x16`, `0x02:0x97/0x17` with storage/profile IDs
 - lighting brightness: `0x0F:0x84/0x04` with storage/profile IDs
 - active profile ID read: `0x05:0x84`, size `0x00`
 - active profile selector: `0x05:0x04` with a profile ID

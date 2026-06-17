@@ -24,6 +24,7 @@ All notable changes to this project are documented in this file.
 - Onboard profile create and rename now project returned metadata into the visible slot list immediately, including when firmware metadata readback or local inventory refresh lags behind the successful write.
 - USB onboard profile metadata writes now skip the padding-only tail chunk that Basilisk V3 Pro firmware can reject after the useful UUID/name/owner bytes have already landed, fixing create/rename operations that appeared to work only after a later refresh.
 - Onboard profile edit failures no longer fall back to legacy live-layer writes, and USB profile rename verification now uses metadata-only readback to avoid long profile sweeps during editing.
+- USB onboard profiles now read and write scroll mode, acceleration, and smart reel against the selected hardware profile instead of always targeting slot 1.
 
 ## [2026-06-15]
 

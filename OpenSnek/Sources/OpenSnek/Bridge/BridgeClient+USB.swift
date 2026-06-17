@@ -154,11 +154,12 @@ extension BridgeClient {
         let stages = try getDPIStageSnapshot(session, device)
         let poll = try getPollRate(session, device)
         let sleepTimeout = try getIdleTime(session, device)
-        let lowBatteryThreshold = try getLowBatteryThreshold(session, device)
-        let scrollMode = try getScrollMode(session, device)
-        let scrollAcceleration = try getScrollAcceleration(session, device)
-        let scrollSmartReel = try getScrollSmartReel(session, device)
         let onboardProfile = try getOnboardProfileInfo(session, device)
+        let scrollProfileID = onboardProfile?.active ?? 1
+        let lowBatteryThreshold = try getLowBatteryThreshold(session, device)
+        let scrollMode = try getScrollMode(session, device, profileID: scrollProfileID)
+        let scrollAcceleration = try getScrollAcceleration(session, device, profileID: scrollProfileID)
+        let scrollSmartReel = try getScrollSmartReel(session, device, profileID: scrollProfileID)
         let led = try getScrollLEDBrightness(session, device)
         let profile = usbDeviceProfile(for: device)
         let capabilities = resolvedUSBStateCapabilities(
@@ -467,33 +468,33 @@ extension BridgeClient {
         return r[0] == 0x02
     }
 
-    func getScrollMode(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> Int? {
-        let args: [UInt8] = [0x01, 0x00]
+    func getScrollMode(_ session: USBHIDControlSession, _ device: MouseDevice, profileID: Int = 1) throws -> Int? {
+        let args: [UInt8] = [UInt8(max(0, min(255, profileID))), 0x00]
         guard let r = try perform(session, device, classID: 0x02, cmdID: 0x94, size: 0x02, args: args), r[0] == 0x02 else { return nil }
         return Int(r[9])
     }
 
-    func setScrollMode(_ session: USBHIDControlSession, _ device: MouseDevice, mode: Int) throws -> Bool {
+    func setScrollMode(_ session: USBHIDControlSession, _ device: MouseDevice, mode: Int, profileID: Int = 1) throws -> Bool {
         let modeRaw: UInt8 = mode == 1 ? 0x01 : 0x00
-        let args: [UInt8] = [0x01, modeRaw]
+        let args: [UInt8] = [UInt8(max(0, min(255, profileID))), modeRaw]
         guard let r = try perform(session, device, classID: 0x02, cmdID: 0x14, size: 0x02, args: args) else { return false }
         return r[0] == 0x02
     }
 
-    func getScrollAcceleration(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> Bool? {
-        let args: [UInt8] = [0x01, 0x00]
+    func getScrollAcceleration(_ session: USBHIDControlSession, _ device: MouseDevice, profileID: Int = 1) throws -> Bool? {
+        let args: [UInt8] = [UInt8(max(0, min(255, profileID))), 0x00]
         guard let r = try perform(session, device, classID: 0x02, cmdID: 0x96, size: 0x02, args: args), r[0] == 0x02 else { return nil }
         return r[9] != 0
     }
 
-    func setScrollAcceleration(_ session: USBHIDControlSession, _ device: MouseDevice, enabled: Bool) throws -> Bool {
-        let args: [UInt8] = [0x01, enabled ? 0x01 : 0x00]
+    func setScrollAcceleration(_ session: USBHIDControlSession, _ device: MouseDevice, enabled: Bool, profileID: Int = 1) throws -> Bool {
+        let args: [UInt8] = [UInt8(max(0, min(255, profileID))), enabled ? 0x01 : 0x00]
         guard let r = try perform(session, device, classID: 0x02, cmdID: 0x16, size: 0x02, args: args) else { return false }
         return r[0] == 0x02
     }
 
-    func getScrollSmartReel(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> Bool? {
-        let args: [UInt8] = [0x01, 0x00]
+    func getScrollSmartReel(_ session: USBHIDControlSession, _ device: MouseDevice, profileID: Int = 1) throws -> Bool? {
+        let args: [UInt8] = [UInt8(max(0, min(255, profileID))), 0x00]
         guard let r = try perform(session, device, classID: 0x02, cmdID: 0x97, size: 0x02, args: args), r[0] == 0x02 else { return nil }
         return r[9] != 0
     }
@@ -526,8 +527,8 @@ extension BridgeClient {
         return max(1, Int(active))
     }
 
-    func setScrollSmartReel(_ session: USBHIDControlSession, _ device: MouseDevice, enabled: Bool) throws -> Bool {
-        let args: [UInt8] = [0x01, enabled ? 0x01 : 0x00]
+    func setScrollSmartReel(_ session: USBHIDControlSession, _ device: MouseDevice, enabled: Bool, profileID: Int = 1) throws -> Bool {
+        let args: [UInt8] = [UInt8(max(0, min(255, profileID))), enabled ? 0x01 : 0x00]
         guard let r = try perform(session, device, classID: 0x02, cmdID: 0x17, size: 0x02, args: args) else { return false }
         return r[0] == 0x02
     }

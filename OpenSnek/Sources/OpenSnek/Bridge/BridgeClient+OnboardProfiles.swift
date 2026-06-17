@@ -624,13 +624,25 @@ extension BridgeClient {
         let bindings = try usbReadOnboardProfileButtons(session, device, profile: profile, profileID: profileID)
         let brightness = try usbReadOnboardProfileBrightness(session, device, profileID: profileID)
         let colors = try usbReadOnboardProfileStaticColors(session, device, profileID: profileID)
+        let scrollProfileID: Int
+        if profileID == 0 {
+            scrollProfileID = (try? usbReadActiveOnboardProfileID(session, device)) ?? 1
+        } else {
+            scrollProfileID = profileID
+        }
+        let scrollMode = try getScrollMode(session, device, profileID: scrollProfileID)
+        let scrollAcceleration = try getScrollAcceleration(session, device, profileID: scrollProfileID)
+        let scrollSmartReel = try getScrollSmartReel(session, device, profileID: scrollProfileID)
         return OnboardProfileSnapshot(
             profileID: profileID,
             metadata: metadata,
             dpi: dpi,
             buttonBindings: bindings,
             brightnessByLEDID: brightness,
-            staticColorByLEDID: colors
+            staticColorByLEDID: colors,
+            scrollMode: scrollMode,
+            scrollAcceleration: scrollAcceleration,
+            scrollSmartReel: scrollSmartReel
         )
     }
 
@@ -897,6 +909,18 @@ extension BridgeClient {
                     throw BridgeError.commandFailed("USB onboard profile static color write failed for LED \(ledID).")
                 }
             }
+        }
+        if let scrollMode = mutation.scrollMode,
+           !(try setScrollMode(session, device, mode: scrollMode, profileID: profileID)) {
+            throw BridgeError.commandFailed("USB onboard profile scroll mode write failed.")
+        }
+        if let scrollAcceleration = mutation.scrollAcceleration,
+           !(try setScrollAcceleration(session, device, enabled: scrollAcceleration, profileID: profileID)) {
+            throw BridgeError.commandFailed("USB onboard profile scroll acceleration write failed.")
+        }
+        if let scrollSmartReel = mutation.scrollSmartReel,
+           !(try setScrollSmartReel(session, device, enabled: scrollSmartReel, profileID: profileID)) {
+            throw BridgeError.commandFailed("USB onboard profile smart reel write failed.")
         }
     }
 
@@ -1429,9 +1453,9 @@ extension BridgeClient {
             sleep_timeout: previous?.sleep_timeout,
             device_mode: previous?.device_mode,
             low_battery_threshold_raw: previous?.low_battery_threshold_raw,
-            scroll_mode: previous?.scroll_mode,
-            scroll_acceleration: previous?.scroll_acceleration,
-            scroll_smart_reel: previous?.scroll_smart_reel,
+            scroll_mode: snapshot.scrollMode ?? previous?.scroll_mode,
+            scroll_acceleration: snapshot.scrollAcceleration ?? previous?.scroll_acceleration,
+            scroll_smart_reel: snapshot.scrollSmartReel ?? previous?.scroll_smart_reel,
             active_onboard_profile: activeProfileID,
             onboard_profile_count: profile.onboardProfileCount,
             led_value: snapshot.brightnessByLEDID.values.max() ?? previous?.led_value,
@@ -1454,14 +1478,23 @@ private extension OnboardProfileSnapshot {
             dpi: dpi,
             buttonBindings: buttonBindings,
             brightnessByLEDID: brightnessByLEDID,
-            staticColorByLEDID: staticColorByLEDID
+            staticColorByLEDID: staticColorByLEDID,
+            scrollMode: scrollMode,
+            scrollAcceleration: scrollAcceleration,
+            scrollSmartReel: scrollSmartReel
         )
     }
 }
 
 private extension OnboardProfileMutation {
     var needsMappedContentFill: Bool {
-        dpi == nil || buttonBindings == nil || brightnessByLEDID == nil || staticColorByLEDID == nil
+        dpi == nil ||
+            buttonBindings == nil ||
+            brightnessByLEDID == nil ||
+            staticColorByLEDID == nil ||
+            scrollMode == nil ||
+            scrollAcceleration == nil ||
+            scrollSmartReel == nil
     }
 
     var withoutMetadata: OnboardProfileMutation {
@@ -1470,7 +1503,10 @@ private extension OnboardProfileMutation {
             dpi: dpi,
             buttonBindings: buttonBindings,
             brightnessByLEDID: brightnessByLEDID,
-            staticColorByLEDID: staticColorByLEDID
+            staticColorByLEDID: staticColorByLEDID,
+            scrollMode: scrollMode,
+            scrollAcceleration: scrollAcceleration,
+            scrollSmartReel: scrollSmartReel
         )
     }
 
@@ -1481,7 +1517,10 @@ private extension OnboardProfileMutation {
             dpi: dpi ?? snapshot.dpi,
             buttonBindings: buttonBindings ?? snapshot.buttonBindings,
             brightnessByLEDID: brightnessByLEDID ?? snapshot.brightnessByLEDID,
-            staticColorByLEDID: staticColorByLEDID ?? snapshot.staticColorByLEDID
+            staticColorByLEDID: staticColorByLEDID ?? snapshot.staticColorByLEDID,
+            scrollMode: scrollMode ?? snapshot.scrollMode,
+            scrollAcceleration: scrollAcceleration ?? snapshot.scrollAcceleration,
+            scrollSmartReel: scrollSmartReel ?? snapshot.scrollSmartReel
         )
     }
 
@@ -1492,7 +1531,10 @@ private extension OnboardProfileMutation {
             dpi: dpi,
             buttonBindings: buttonBindings ?? [:],
             brightnessByLEDID: brightnessByLEDID ?? [:],
-            staticColorByLEDID: staticColorByLEDID ?? [:]
+            staticColorByLEDID: staticColorByLEDID ?? [:],
+            scrollMode: scrollMode,
+            scrollAcceleration: scrollAcceleration,
+            scrollSmartReel: scrollSmartReel
         )
     }
 }

@@ -4145,6 +4145,93 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(updates.first?.mutation.dpi?.activeStage, 1)
     }
 
+    func testSelectedUSBOnboardProfileScrollEditUpdatesStoredProfile() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-scroll-edit-device",
+            transport: .usb,
+            serial: "ONBOARD-SCROLL-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1, 2],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(
+                profileID: 2,
+                name: "Stored 2",
+                dpiValues: [1200, 2400],
+                scrollMode: 1,
+                scrollAcceleration: true,
+                scrollSmartReel: false
+            ),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+        await appState.editorStore.selectOnboardProfile(2)
+        try await waitForRefactorCondition {
+            await MainActor.run {
+                appState.editorStore.selectedOnboardProfileID == 2 &&
+                    appState.editorStore.onboardProfileSummaries.first(where: { $0.profileID == 2 })?.isActive == true &&
+                    appState.editorStore.editableScrollMode == 1 &&
+                    appState.editorStore.editableScrollAcceleration == true &&
+                    appState.editorStore.editableScrollSmartReel == false
+            }
+        }
+
+        await MainActor.run {
+            appState.editorStore.editableScrollMode = 0
+            appState.editorStore.scheduleAutoApplyScrollMode()
+            appState.editorStore.editableScrollAcceleration = false
+            appState.editorStore.scheduleAutoApplyScrollAcceleration()
+            appState.editorStore.editableScrollSmartReel = true
+            appState.editorStore.scheduleAutoApplyScrollSmartReel()
+        }
+
+        try await waitForRefactorCondition {
+            await backend.recordedOnboardUpdates().count == 3
+        }
+
+        let updates = await backend.recordedOnboardUpdates()
+        let applyCount = await backend.applyCount()
+        XCTAssertEqual(applyCount, 0)
+        XCTAssertEqual(updates.map(\.profileID), [2, 2, 2])
+        XCTAssertEqual(updates.compactMap { $0.mutation.scrollMode }, [0])
+        XCTAssertEqual(updates.compactMap { $0.mutation.scrollAcceleration }, [false])
+        XCTAssertEqual(updates.compactMap { $0.mutation.scrollSmartReel }, [true])
+    }
+
     func testFailedOnboardProfileDpiEditDoesNotFallbackToLiveApply() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-dpi-failure-device",
@@ -4419,7 +4506,10 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
             dpi: mutation.dpi,
             buttonBindings: mutation.buttonBindings ?? [:],
             brightnessByLEDID: mutation.brightnessByLEDID ?? [:],
-            staticColorByLEDID: mutation.staticColorByLEDID ?? [:]
+            staticColorByLEDID: mutation.staticColorByLEDID ?? [:],
+            scrollMode: mutation.scrollMode,
+            scrollAcceleration: mutation.scrollAcceleration,
+            scrollSmartReel: mutation.scrollSmartReel
         )
         onboardSnapshotsByKey[onboardSnapshotKey(deviceID: device.id, profileID: target)] = snapshot
         var summaries = inventory.profiles.filter { $0.profileID != target }
@@ -4449,7 +4539,10 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
             dpi: current.dpi,
             buttonBindings: current.buttonBindings,
             brightnessByLEDID: current.brightnessByLEDID,
-            staticColorByLEDID: current.staticColorByLEDID
+            staticColorByLEDID: current.staticColorByLEDID,
+            scrollMode: current.scrollMode,
+            scrollAcceleration: current.scrollAcceleration,
+            scrollSmartReel: current.scrollSmartReel
         )
         onboardSnapshotsByKey[onboardSnapshotKey(deviceID: device.id, profileID: profileID)] = updated
         let inventory = currentOnboardInventory(for: device)
@@ -4489,7 +4582,10 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
             dpi: mutation.dpi ?? current.dpi,
             buttonBindings: mutation.buttonBindings ?? current.buttonBindings,
             brightnessByLEDID: mutation.brightnessByLEDID ?? current.brightnessByLEDID,
-            staticColorByLEDID: mutation.staticColorByLEDID ?? current.staticColorByLEDID
+            staticColorByLEDID: mutation.staticColorByLEDID ?? current.staticColorByLEDID,
+            scrollMode: mutation.scrollMode ?? current.scrollMode,
+            scrollAcceleration: mutation.scrollAcceleration ?? current.scrollAcceleration,
+            scrollSmartReel: mutation.scrollSmartReel ?? current.scrollSmartReel
         )
         onboardSnapshotsByKey[onboardSnapshotKey(deviceID: device.id, profileID: profileID)] = updated
         return updated
@@ -4844,7 +4940,10 @@ private func makeRefactorOnboardProfileSnapshot(
         4: ButtonBindingDraft(kind: .rightClick, hidKey: 4, turboEnabled: false, turboRate: 0x8E)
     ],
     brightnessByLEDID: [Int: Int] = [1: 64, 4: 64, 10: 64],
-    staticColorByLEDID: [Int: RGBPatch] = [:]
+    staticColorByLEDID: [Int: RGBPatch] = [:],
+    scrollMode: Int? = nil,
+    scrollAcceleration: Bool? = nil,
+    scrollSmartReel: Bool? = nil
 ) -> OnboardProfileSnapshot {
     let pairs = dpiValues.map { DpiPair(x: $0, y: $0) }
     return OnboardProfileSnapshot(
@@ -4857,7 +4956,10 @@ private func makeRefactorOnboardProfileSnapshot(
         ),
         buttonBindings: buttonBindings,
         brightnessByLEDID: brightnessByLEDID,
-        staticColorByLEDID: staticColorByLEDID
+        staticColorByLEDID: staticColorByLEDID,
+        scrollMode: scrollMode,
+        scrollAcceleration: scrollAcceleration,
+        scrollSmartReel: scrollSmartReel
     )
 }
 

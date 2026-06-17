@@ -115,9 +115,14 @@ Read the mapped profile snapshot by combining these surfaces:
 | Button binding | `02:8C`, size `0A` | `<profile> <slot> <hypershift> 00 00 00 00 00 00 00` |
 | Brightness | `0F:84`, size `03` | `<profile> <led> 00` |
 | Static/effect state | `0F:82`, size `0C` | `<profile> <led> 00 00 00 00 00 00 00 00 00 00` |
+| Scroll mode | `02:94`, size `02` | `<profile> 00` |
+| Scroll acceleration | `02:96`, size `02` | `<profile> 00` |
+| Smart reel | `02:97`, size `02` | `<profile> 00` |
 
-Profile `0` reads the effective active state. Profiles `1..5` read profile
-banks whether or not they are assigned.
+Profile `0` reads the effective active state for the mapped profile surfaces
+that support an active mirror. Profiles `1..5` read profile banks whether or
+not they are assigned. USB scroll-control reads use the active profile ID for
+runtime state and concrete profile IDs for stored-bank snapshots.
 
 ### `createProfile(profile, metadata, content)`
 
@@ -362,8 +367,10 @@ effect semantics until the effect-state model is expanded.
 | Create prelude `03:06` + `08:05`/`08:07` + `03:05` | `05:02` | Assigns an unlisted bank before metadata writes. |
 | Delete/unassign `03:06` | `05:03` | Removes from cycle ring; does not erase readable bank. |
 
-USB and Bluetooth have parity for the mapped core CRUD surface. They do not
-share command IDs or framing.
+USB and Bluetooth share the mapped core CRUD surface. USB additionally includes
+profile-scoped scroll mode, scroll acceleration, and smart reel because the
+validated `0x02` scroll-control commands accept the same storage/profile byte as
+their first argument. Bluetooth does not expose shipped scroll controls.
 
 ## Profile-Scoped And Global Surfaces
 
@@ -376,6 +383,7 @@ share command IDs or framing.
 | Button bindings | Stored profile bank plus profile `0` active mirror. |
 | Brightness | Stored profile bank plus profile `0` active mirror. |
 | Static colors | Stored profile bank plus profile `0` active mirror. |
+| USB scroll mode / acceleration / smart reel | Stored profile bank; active runtime state is read from the direct active profile ID. |
 | Non-static effect payloads | Readable raw effect state; not exposed in v1 snapshots. |
 | Serial, firmware | Device telemetry. |
 | Battery | Device telemetry. |
@@ -383,7 +391,6 @@ share command IDs or framing.
 | Low battery threshold | Device setting. Do not include in profile snapshots. |
 | Poll rate | Device setting. Do not include in profile snapshots. |
 | Device mode | Device setting. Do not include in profile snapshots. |
-| Scroll mode / acceleration / smart reel | Device setting or single VARSTORE, not profile CRUD. |
 
 ## Excluded Surfaces
 
