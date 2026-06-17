@@ -60,11 +60,12 @@ candidate scanning is only a fallback for devices without a validated profile
 transaction ID.
 
 Multi-command flows must also be serialized per physical device, not merely per
-HID handle. This includes full state sweeps, read-modify-write helpers, and
-onboard profile create/rename/update/delete/select transactions. macOS can
-expose more than one HID handle for the same mouse, and interleaving a polling
-read sweep with a profile metadata write can produce valid-looking command
-rejections even when each command is correct in isolation.
+HID handle or process. This includes full state sweeps, read-modify-write
+helpers, and onboard profile create/rename/update/delete/select transactions.
+macOS can expose more than one HID handle for the same mouse, and OpenSnek can
+have both the UI app and background service alive. Interleaving a polling read
+sweep with a profile metadata write can produce valid-looking command rejections
+even when each command is correct in isolation.
 
 ### CRC Calculation
 

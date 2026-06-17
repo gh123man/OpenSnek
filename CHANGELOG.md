@@ -30,7 +30,7 @@ All notable changes to this project are documented in this file.
 - Superseded hardware profile-load tasks now release the profile-operation busy state immediately, preventing profile rename or profile-switch races from leaving the UI dimmed without a visible loading indicator.
 - Onboard profile rename/create metadata projections now survive stale inventory refreshes, with debug logs that identify stale incoming names versus projected local names.
 - USB onboard profile commands now use the validated per-device USB transaction ID and serialize HID feature-report exchanges, so onboard profile metadata writes no longer rely on retrying rejected chunks on the happy path.
-- USB state sweeps, fast DPI reads, apply helpers, and onboard profile transactions now share a per-device exclusive HID lock, preventing polling or hydration reads from interleaving with multi-command profile writes.
+- USB state sweeps, fast DPI reads, apply helpers, and onboard profile transactions now share an interprocess per-device exclusive HID lock, preventing the UI app, service process, polling, or hydration reads from interleaving with multi-command profile writes.
 - Profile operation loading now dims through the transient overlay instead of mutating the underlying content opacity, avoiding a stale grayed-out detail view after rename completes.
 
 ## [2026-06-15]

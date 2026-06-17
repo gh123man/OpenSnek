@@ -2,6 +2,17 @@ import XCTest
 @testable import OpenSnekHardware
 
 final class USBHIDControlSessionTests: XCTestCase {
+    func testInterprocessLockFileNameSanitizesDeviceID() {
+        XCTAssertEqual(
+            USBHIDControlSession.interprocessLockFileName(for: "1532:00ab:00130000:usb"),
+            "1532_00ab_00130000_usb.lock"
+        )
+        XCTAssertEqual(
+            USBHIDControlSession.interprocessLockFileName(for: ""),
+            "unknown-usb-device.lock"
+        )
+    }
+
     func testPreferredTransactionIDBypassesCachedCandidateAndRescan() {
         XCTAssertEqual(
             USBHIDControlSession.transactionCandidates(

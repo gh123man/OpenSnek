@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import IOKit
 import IOKit.hid
 import OpenSnekProtocols
@@ -56,6 +57,15 @@ public enum USBHIDSupport {
 }
 
 public final class USBHIDControlSession: @unchecked Sendable {
+    private struct InterprocessDeviceLock {
+        let fd: Int32
+
+        func release() {
+            _ = flock(fd, LOCK_UN)
+            _ = close(fd)
+        }
+    }
+
     private final class DeviceLockRegistry: @unchecked Sendable {
         private let registryLock = NSLock()
         private var deviceLocks: [String: NSRecursiveLock] = [:]
@@ -84,15 +94,29 @@ public final class USBHIDControlSession: @unchecked Sendable {
         self.deviceID = deviceID
     }
 
-    public func withExclusiveDeviceAccess<T>(_ body: () throws -> T) rethrows -> T {
+    public func withExclusiveDeviceAccess<T>(_ body: () throws -> T) throws -> T {
         let lock = Self.deviceLock(for: deviceID)
         lock.lock()
         defer { lock.unlock() }
+
+        let depth = Self.currentThreadLockDepth(for: deviceID)
+        if depth > 0 {
+            Self.setCurrentThreadLockDepth(depth + 1, for: deviceID)
+            defer { Self.setCurrentThreadLockDepth(depth, for: deviceID) }
+            return try body()
+        }
+
+        let fileLock = try Self.acquireInterprocessDeviceLock(for: deviceID)
+        Self.setCurrentThreadLockDepth(1, for: deviceID)
+        defer {
+            Self.setCurrentThreadLockDepth(0, for: deviceID)
+            fileLock.release()
+        }
         return try body()
     }
 
     public func invalidateCachedTransaction() {
-        withExclusiveDeviceAccess {
+        try? withExclusiveDeviceAccess {
             cachedTxn = nil
         }
     }
@@ -156,6 +180,58 @@ public final class USBHIDControlSession: @unchecked Sendable {
 
     private static func deviceLock(for deviceID: String) -> NSRecursiveLock {
         deviceLockRegistry.lock(for: deviceID)
+    }
+
+    static func interprocessLockFileName(for deviceID: String) -> String {
+        let allowed = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_")
+        let sanitized = String(deviceID.map { allowed.contains($0) ? $0 : "_" })
+        return sanitized.isEmpty ? "unknown-usb-device.lock" : "\(sanitized).lock"
+    }
+
+    private static func interprocessLockURL(for deviceID: String) throws -> URL {
+        let directory = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Caches/OpenSnek/HIDLocks", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory.appendingPathComponent(interprocessLockFileName(for: deviceID))
+    }
+
+    private static func acquireInterprocessDeviceLock(for deviceID: String) throws -> InterprocessDeviceLock {
+        let url = try interprocessLockURL(for: deviceID)
+        let fd = url.path.withCString { path in
+            open(path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+        }
+        guard fd >= 0 else {
+            throw BridgeError.commandFailed("USB HID lock open failed for \(deviceID): errno \(errno)")
+        }
+
+        while true {
+            if flock(fd, LOCK_EX) == 0 {
+                return InterprocessDeviceLock(fd: fd)
+            }
+            if errno == EINTR {
+                continue
+            }
+            let lockErrno = errno
+            _ = close(fd)
+            throw BridgeError.commandFailed("USB HID lock failed for \(deviceID): errno \(lockErrno)")
+        }
+    }
+
+    private static func currentThreadLockDepth(for deviceID: String) -> Int {
+        Thread.current.threadDictionary[threadLockDepthKey(for: deviceID)] as? Int ?? 0
+    }
+
+    private static func setCurrentThreadLockDepth(_ depth: Int, for deviceID: String) {
+        let key = threadLockDepthKey(for: deviceID)
+        if depth <= 0 {
+            Thread.current.threadDictionary.removeObject(forKey: key)
+        } else {
+            Thread.current.threadDictionary[key] = depth
+        }
+    }
+
+    private static func threadLockDepthKey(for deviceID: String) -> String {
+        "open.snek.usb.device.lock.depth.\(deviceID)"
     }
 
     private func exchange(
