@@ -25,7 +25,6 @@ struct DeviceDetailView: View {
         GeometryReader { proxy in
             let sections = detailSections
             let contentWidth = detailContentWidth(for: proxy.size.width)
-            let controlsEnabled = deviceStore.selectedDeviceControlsEnabled
 
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 18) {
@@ -42,8 +41,6 @@ struct DeviceDetailView: View {
                                 .layoutValue(key: DetailCardMaxWidthLayoutKey.self, value: section == .buttonRemap ? detailContentMaxWidth : detailCardMaxWidth)
                         }
                     }
-                    .disabled(!controlsEnabled)
-                    .opacity(controlsEnabled ? 1.0 : 0.44)
                     DiagnosticsFooter(deviceStore: deviceStore, device: selected, state: state)
                 }
                 .frame(width: contentWidth, alignment: .leading)

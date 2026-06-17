@@ -40,6 +40,7 @@ All notable changes to this project are documented in this file.
 - Duplicate DPI stage values now trigger direct active-stage readback instead of inferring the selected stage from a non-unique DPI value during profile or DPI cycling.
 - Onboard profile refresh now hydrates the selected active profile snapshot when no profile is loaded yet, so app launch reflects the device's onboard lighting color instead of stale local editor state.
 - Fresh selected-device telemetry now invalidates connection-derived UI state, preventing the detail view from staying dimmed after launch until the sidebar is rebuilt.
+- Device detail controls no longer use a global reconnect/dimmed mode; explicit loading, unavailable, and profile-operation overlays now handle transient states without graying out the whole editor.
 
 ## [2026-06-15]
 
