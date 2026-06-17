@@ -70,6 +70,28 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
         XCTAssertNil(state.led_value)
     }
 
+    func testBluetoothDpiStageWriteResolvesCompletePatchWithoutCurrentRead() throws {
+        let device = makeBluetoothDevice(productID: 0x00AC, profileID: .basiliskV3Pro)
+        let pairs = [
+            DpiPair(x: 500, y: 500),
+            DpiPair(x: 900, y: 900),
+            DpiPair(x: 1400, y: 1400),
+        ]
+        let resolved = try BridgeClient.resolveBluetoothDpiStageWrite(
+            device: device,
+            patch: DevicePatch(
+                dpiStages: pairs.map(\.x),
+                dpiStagePairs: pairs,
+                activeStage: 2
+            ),
+            current: nil
+        )
+
+        XCTAssertEqual(resolved.active, 2)
+        XCTAssertEqual(resolved.stages, [500, 900, 1400])
+        XCTAssertEqual(resolved.pairs, pairs)
+    }
+
     func testResolveBluetoothBatteryStateKeepsChargingUnknownWhenStatusMissing() {
         let resolved = BridgeClient.resolveBluetoothBatteryState(
             device: makeBluetoothDevice(productID: 0x00AC, profileID: .basiliskV3Pro),

@@ -1717,6 +1717,10 @@ private struct OnboardProfileManagerCard: View {
         editorStore.isButtonProfileOperationInFlight
     }
 
+    private var isRefreshing: Bool {
+        editorStore.isOnboardProfileRefreshInFlight
+    }
+
     private var statusLabel: String? {
         editorStore.buttonProfileOperationStatusText
     }
@@ -1770,7 +1774,11 @@ private struct OnboardProfileManagerCard: View {
         Card(title: "Onboard Profiles") {
             VStack(alignment: .leading, spacing: 12) {
                 if editorStore.onboardProfileSummaries.isEmpty {
-                    loadingRow
+                    if isRefreshing {
+                        loadingRow
+                    } else {
+                        emptyRefreshState
+                    }
                 } else {
                     profileLayout
                 }
@@ -1788,6 +1796,30 @@ private struct OnboardProfileManagerCard: View {
             Text("Reading onboard profiles")
                 .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.58))
+        }
+    }
+
+    private var emptyRefreshState: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Profiles unavailable")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.78))
+                Text(editorStore.onboardProfileRefreshErrorMessage ?? "Profile inventory has not loaded yet.")
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.48))
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
+            Button {
+                Task { await editorStore.refreshOnboardProfiles() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 13, weight: .bold))
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .help("Refresh profiles")
         }
     }
 

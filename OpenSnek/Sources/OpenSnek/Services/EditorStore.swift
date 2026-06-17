@@ -50,6 +50,8 @@ final class EditorStore {
     var isEditingDpiControl = false
     var isButtonProfileOperationInFlight = false
     var buttonProfileOperationStatusText: String?
+    var isOnboardProfileRefreshInFlight = false
+    var onboardProfileRefreshErrorMessage: String?
     var usbButtonProfilesRevision = 0
     var onboardProfilesRevision = 0
     var connectBehaviorRevision = 0
@@ -333,8 +335,22 @@ final class EditorStore {
     }
 
     func refreshOnboardProfiles() async {
-        await withButtonProfileOperation(statusText: "Refreshing profiles...") { [self] in
-            await self.editorController.refreshOnboardProfiles()
+        let ownsRefreshPresentation = !isOnboardProfileRefreshInFlight
+        if ownsRefreshPresentation {
+            isOnboardProfileRefreshInFlight = true
+            onboardProfileRefreshErrorMessage = nil
+        }
+        defer {
+            if ownsRefreshPresentation {
+                isOnboardProfileRefreshInFlight = false
+            }
+        }
+        await editorController.refreshOnboardProfiles()
+        if ownsRefreshPresentation,
+           onboardProfileSummaries.isEmpty,
+           let errorMessage = deviceStore.errorMessage,
+           errorMessage.hasPrefix("Failed to refresh onboard profiles:") {
+            onboardProfileRefreshErrorMessage = errorMessage
         }
     }
 

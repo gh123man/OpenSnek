@@ -43,6 +43,8 @@ All notable changes to this project are documented in this file.
 - Device detail controls no longer use a global reconnect/dimmed mode; explicit loading, unavailable, and profile-operation overlays now handle transient states without graying out the whole editor.
 - Bluetooth onboard profile refresh now coalesces overlapping requests and avoids full selected-profile snapshot hydration during list refresh, keeping refresh limited to inventory and metadata reads.
 - Bluetooth onboard-profile devices now keep regular editor DPI, lighting, and button edits on the live apply path instead of routing every edit through slow stored-profile write transactions.
+- Onboard profile refresh now uses a profile-card-local loading/error state instead of the global blocking operation overlay, so a slow or failed profile inventory read does not disable unrelated controls.
+- Bluetooth DPI stage writes now proceed from the complete requested editor stage table when the current DPI-stage pre-read returns no payload, avoiding failed writes after transient Bluetooth readback gaps.
 
 ## [2026-06-15]
 

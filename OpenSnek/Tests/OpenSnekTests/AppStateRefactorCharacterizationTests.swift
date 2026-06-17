@@ -3718,6 +3718,117 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(listCount, 0)
     }
 
+    func testRefreshingOnboardProfilesDoesNotBlockGlobalEditorControls() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-nonblocking-refresh-device",
+            transport: .bluetooth,
+            serial: "ONBOARD-NONBLOCKING-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "bluetooth",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true)
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.holdOnboardProfileList(deviceID: device.id)
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+
+        async let refresh: Void = appState.editorStore.refreshOnboardProfiles()
+        await backend.waitForOnboardProfileListToStart(deviceID: device.id)
+
+        let operationState = await MainActor.run {
+            (
+                appState.editorStore.isButtonProfileOperationInFlight,
+                appState.editorStore.isOnboardProfileRefreshInFlight
+            )
+        }
+        XCTAssertFalse(operationState.0)
+        XCTAssertTrue(operationState.1)
+
+        await backend.releaseOnboardProfileList(deviceID: device.id)
+        await refresh
+
+        let finalRefreshState = await MainActor.run {
+            appState.editorStore.isOnboardProfileRefreshInFlight
+        }
+        XCTAssertFalse(finalRefreshState)
+    }
+
+    func testFailedOnboardProfileRefreshClearsCardLoadingState() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-failed-refresh-device",
+            transport: .bluetooth,
+            serial: "ONBOARD-FAILED-REFRESH-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "bluetooth",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardListFailure("inventory unavailable")
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+
+        let refreshState = await MainActor.run {
+            (
+                appState.editorStore.isButtonProfileOperationInFlight,
+                appState.editorStore.isOnboardProfileRefreshInFlight,
+                appState.editorStore.onboardProfileRefreshErrorMessage,
+                appState.editorStore.onboardProfileSummaries.isEmpty
+            )
+        }
+        XCTAssertFalse(refreshState.0)
+        XCTAssertFalse(refreshState.1)
+        XCTAssertEqual(refreshState.2, "Failed to refresh onboard profiles: inventory unavailable")
+        XCTAssertTrue(refreshState.3)
+    }
+
     func testConcurrentOnboardProfileRefreshesAreCoalesced() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-coalesced-refresh-device",
@@ -5082,6 +5193,7 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
     private var onboardRenames: [(deviceID: String, profileID: Int, name: String)] = []
     private var onboardDeletes: [(deviceID: String, profileID: Int)] = []
     private var onboardActivations: [(deviceID: String, profileID: Int)] = []
+    private var onboardListFailureMessage: String?
     private var onboardUpdateFailureMessage: String?
     private var renameReturnsMetadataOnly = false
     private var onboardEvents: [String] = []
@@ -5208,6 +5320,11 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
 
     func listOnboardProfiles(device: MouseDevice) async throws -> OnboardProfileInventory {
         onboardListCountByDeviceID[device.id, default: 0] += 1
+        if let onboardListFailureMessage {
+            throw NSError(domain: "AppStateRefactorCharacterizationTests", code: 91, userInfo: [
+                NSLocalizedDescriptionKey: onboardListFailureMessage
+            ])
+        }
         if heldOnboardProfileLists.contains(device.id) {
             startedHeldOnboardProfileLists.insert(device.id)
             onboardProfileListStartedContinuations[device.id]?.resume()
@@ -5528,6 +5645,10 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
 
     func onboardListCount(deviceID: String) -> Int {
         onboardListCountByDeviceID[deviceID, default: 0]
+    }
+
+    func setOnboardListFailure(_ message: String?) {
+        onboardListFailureMessage = message
     }
 
     func holdOnboardProfileList(deviceID: String) {

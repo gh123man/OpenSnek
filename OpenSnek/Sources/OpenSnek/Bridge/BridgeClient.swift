@@ -19,6 +19,34 @@ actor BridgeClient {
     )
     static let bluetoothPassiveResetSilenceInterval: TimeInterval = 1.0
 
+    nonisolated static func resolveBluetoothDpiStageWrite(
+        device: MouseDevice,
+        patch: DevicePatch,
+        current: (active: Int, count: Int, slots: [Int], pairs: [DpiPair])?
+    ) throws -> (active: Int, stages: [Int], pairs: [DpiPair]) {
+        let resolvedValues = patch.dpiStagePairs?.map(\.x) ??
+            patch.dpiStages ??
+            current.map { Array($0.slots.prefix($0.count)) }
+        guard let resolvedValues, !resolvedValues.isEmpty else {
+            throw BridgeError.commandFailed("Failed to resolve Bluetooth DPI stages")
+        }
+        let stages = resolvedValues.map {
+            DeviceProfiles.clampDPI($0, device: device)
+        }
+        let stagePairs = Self.resolveDpiStagePairs(
+            values: patch.dpiStages,
+            pairs: patch.dpiStagePairs,
+            fallbackPairs: current.map { Array($0.pairs.prefix($0.count)) }
+        )?.map { pair in
+            DpiPair(
+                x: DeviceProfiles.clampDPI(pair.x, device: device),
+                y: DeviceProfiles.clampDPI(pair.y, device: device)
+            )
+        } ?? stages.map { DpiPair(x: $0, y: $0) }
+        let active = patch.activeStage ?? current?.active ?? 0
+        return (active: active, stages: stages, pairs: stagePairs)
+    }
+
     nonisolated static func resolvedUSBFastDpiActiveStage(
         stages: USBDpiStageSnapshot,
         liveDpi: Int?
@@ -615,24 +643,19 @@ actor BridgeClient {
                 } else {
                     current = try await btGetDpiStageSnapshot(device: device)
                 }
-                guard let current else {
-                    throw BridgeError.commandFailed("Failed to read current Bluetooth DPI stages")
-                }
-                let stages = (patch.dpiStagePairs?.map(\.x) ?? patch.dpiStages ?? Array(current.slots.prefix(current.count))).map {
-                    DeviceProfiles.clampDPI($0, device: device)
-                }
-                let stagePairs = Self.resolveDpiStagePairs(
-                    values: patch.dpiStages,
-                    pairs: patch.dpiStagePairs,
-                    fallbackPairs: Array(current.pairs.prefix(current.count))
-                )?.map { pair in
-                    DpiPair(
-                        x: DeviceProfiles.clampDPI(pair.x, device: device),
-                        y: DeviceProfiles.clampDPI(pair.y, device: device)
-                    )
-                } ?? stages.map { DpiPair(x: $0, y: $0) }
-                let active = patch.activeStage ?? current.active
-                guard try await btSetDpiStages(device: device, active: active, values: stages, pairs: stagePairs) else {
+                let resolved = try Self.resolveBluetoothDpiStageWrite(
+                    device: device,
+                    patch: patch,
+                    current: current.map {
+                        (
+                            active: $0.active,
+                            count: $0.count,
+                            slots: $0.slots,
+                            pairs: $0.pairs
+                        )
+                    }
+                )
+                guard try await btSetDpiStages(device: device, active: resolved.active, values: resolved.stages, pairs: resolved.pairs) else {
                     throw BridgeError.commandFailed("Failed to set Bluetooth DPI stages")
                 }
             }
