@@ -570,12 +570,26 @@ actor BridgeClient {
 
     func readDpiStagesFast(device: MouseDevice) async throws -> (active: Int, values: [Int])? {
         if device.transport == .bluetooth {
+            let supportsMappedOnboardProfiles = DeviceProfiles.resolve(
+                vendorID: device.vendor_id,
+                productID: device.product_id,
+                transport: device.transport
+            )?.supportsMappedOnboardProfileCRUD == true
             if passiveDpiObservedDeviceIDs.contains(device.id),
                let state = lastStateByDeviceID[device.id],
                let active = state.dpi_stages.active_stage,
                let values = state.dpi_stages.values,
                !values.isEmpty {
                 return (active: max(0, min(values.count - 1, active)), values: values)
+            }
+            if supportsMappedOnboardProfiles {
+                guard let state = lastStateByDeviceID[device.id],
+                      let values = state.dpi_stages.values,
+                      !values.isEmpty else {
+                    return nil
+                }
+                let active = max(0, min(values.count - 1, state.dpi_stages.active_stage ?? 0))
+                return (active: active, values: values)
             }
             guard let parsed = try await btGetDpiStages(device: device) else { return nil }
             let now = Date()

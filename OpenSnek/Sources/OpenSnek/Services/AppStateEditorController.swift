@@ -1013,6 +1013,7 @@ final class AppStateEditorController {
 
     func savePersistedButtonBindings(device: MouseDevice, bindings: [Int: ButtonBindingDraft], profile: Int) {
         guard device.transport != .usb else { return }
+        guard !supportsOnboardProfileCRUD(device: device) else { return }
         preferenceStore.savePersistedButtonBindings(device: device, bindings: bindings, profile: profile)
     }
 
@@ -1695,7 +1696,11 @@ final class AppStateEditorController {
             storeCurrentOnboardProfileSnapshot(snapshot, device: device, source: "readOnboardProfileCore")
             selectedOnboardProfileIDByDeviceID[device.id] = profileID
             hydrateEditable(from: snapshot, device: device)
-            scheduleOnboardProfileButtonHydration(device: device, profileID: profileID)
+            if shouldHydrateOnboardProfileButtonsInline(device: device) {
+                await readOnboardProfileButtonBindingsForSelection(device: device, profileID: profileID)
+            } else {
+                scheduleOnboardProfileButtonHydration(device: device, profileID: profileID)
+            }
             deviceStore.errorMessage = nil
             bumpOnboardProfilesRevision()
             AppLog.debug(
@@ -1730,7 +1735,11 @@ final class AppStateEditorController {
             )
             storeCurrentOnboardProfileSnapshot(snapshot, device: device, source: "activateOnboardProfileCore")
             hydrateEditable(from: snapshot, device: device)
-            scheduleOnboardProfileButtonHydration(device: device, profileID: active)
+            if shouldHydrateOnboardProfileButtonsInline(device: device) {
+                await readOnboardProfileButtonBindingsForSelection(device: device, profileID: active)
+            } else {
+                scheduleOnboardProfileButtonHydration(device: device, profileID: active)
+            }
             deviceStore.errorMessage = nil
             bumpOnboardProfilesRevision()
             AppLog.debug(
@@ -2014,9 +2023,35 @@ final class AppStateEditorController {
         } else {
             metadataResolvedSnapshot = snapshot
         }
+        guard !(device.transport == .bluetooth && supportsOnboardProfileCRUD(device: device)) else {
+            return metadataResolvedSnapshot
+        }
         let cached = cachedButtonBindings(device: device, profile: max(1, snapshot.profileID))
         guard !cached.isEmpty else { return metadataResolvedSnapshot }
         return metadataResolvedSnapshot.replacingButtonBindings(cached)
+    }
+
+    private func shouldHydrateOnboardProfileButtonsInline(device: MouseDevice) -> Bool {
+        device.transport == .bluetooth && supportsOnboardProfileCRUD(device: device)
+    }
+
+    private func readOnboardProfileButtonBindingsForSelection(device: MouseDevice, profileID: Int) async {
+        do {
+            let bindings = try await environment.backend.readOnboardProfileButtonBindings(
+                device: device,
+                profileID: profileID
+            )
+            guard deviceStore.selectedDeviceID == device.id,
+                  selectedOnboardProfileIDByDeviceID[device.id] == profileID else {
+                return
+            }
+            storeOnboardProfileButtonBindings(bindings, device: device, profileID: profileID)
+        } catch {
+            AppLog.debug(
+                "AppState",
+                "onboard profile button hydration failed device=\(device.id) profile=\(profileID): \(error.localizedDescription)"
+            )
+        }
     }
 
     private func scheduleOnboardProfileButtonHydration(device: MouseDevice, profileID: Int) {

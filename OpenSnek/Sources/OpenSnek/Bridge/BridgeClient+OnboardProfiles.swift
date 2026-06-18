@@ -1648,6 +1648,10 @@ extension BridgeClient {
     ) -> MouseState {
         let previous = lastStateByDeviceID[device.id]
         let active = max(1, min(profile.onboardProfileCount, activeProfileID))
+        if device.transport == .bluetooth {
+            btDpiSnapshotByDeviceID.removeValue(forKey: device.id)
+            btExpectedDpiByDeviceID.removeValue(forKey: device.id)
+        }
         let state = MouseState(
             device: previous?.device ?? DeviceSummary(
                 id: device.id,
@@ -1659,8 +1663,8 @@ extension BridgeClient {
             connection: previous?.connection ?? device.connectionLabel,
             battery_percent: previous?.battery_percent,
             charging: previous?.charging,
-            dpi: previous?.dpi,
-            dpi_stages: previous?.dpi_stages ?? DpiStages(active_stage: nil, values: nil),
+            dpi: nil,
+            dpi_stages: DpiStages(active_stage: nil, values: nil),
             poll_rate: previous?.poll_rate,
             sleep_timeout: previous?.sleep_timeout,
             device_mode: previous?.device_mode,
@@ -1698,8 +1702,47 @@ extension BridgeClient {
             snapshot: snapshot,
             previous: previous
         )
+        seedBluetoothOnboardProfileDpiSnapshotIfNeeded(device: device, snapshot: snapshot)
         lastStateByDeviceID[device.id] = state
         return state
+    }
+
+    nonisolated static func bluetoothDpiSnapshot(
+        from dpi: OnboardDPIProfileSnapshot
+    ) -> (active: Int, count: Int, slots: [Int], pairs: [DpiPair], stageIDs: [UInt8], marker: UInt8) {
+        let count = max(1, min(5, dpi.pairs.isEmpty ? 1 : dpi.pairs.count))
+        var pairs = Array(dpi.pairs.prefix(5))
+        if pairs.isEmpty {
+            pairs = [dpi.scalar ?? DpiPair(x: 800, y: 800)]
+        }
+        while pairs.count < 5 {
+            pairs.append(pairs.last ?? DpiPair(x: 800, y: 800))
+        }
+        var stageIDs = Array(dpi.stageIDs.prefix(5))
+        if stageIDs.isEmpty {
+            stageIDs = Array((1...5).map(UInt8.init))
+        }
+        while stageIDs.count < 5 {
+            stageIDs.append(stageIDs.last.map { $0 &+ 1 } ?? UInt8(stageIDs.count + 1))
+        }
+        let active = max(0, min(count - 1, dpi.activeStage ?? 0))
+        return (
+            active: active,
+            count: count,
+            slots: pairs.map(\.x),
+            pairs: pairs,
+            stageIDs: stageIDs,
+            marker: dpi.marker ?? 0x03
+        )
+    }
+
+    private func seedBluetoothOnboardProfileDpiSnapshotIfNeeded(
+        device: MouseDevice,
+        snapshot: OnboardProfileSnapshot
+    ) {
+        guard device.transport == .bluetooth, let dpi = snapshot.dpi else { return }
+        btDpiSnapshotByDeviceID[device.id] = Self.bluetoothDpiSnapshot(from: dpi)
+        btExpectedDpiByDeviceID.removeValue(forKey: device.id)
     }
 
     func stateFromActiveOnboardProfileSnapshot(

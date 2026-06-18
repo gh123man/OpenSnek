@@ -5276,6 +5276,87 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(visibleKind, .mouseForward)
     }
 
+    func testBluetoothOnboardProfileSwitchHydratesProfileSpecificButtonBindings() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-bt-switch-button-device",
+            transport: .bluetooth,
+            serial: "ONBOARD-BT-SWITCH-BUTTON-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "bluetooth",
+                    batteryPercent: 74,
+                    dpiValues: [400, 1200, 1300],
+                    activeStage: 0,
+                    dpiValue: 400,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1, 2, 3],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 3, name: "Stored 3", isActive: false),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(
+                profileID: 2,
+                name: "Stored 2",
+                buttonBindings: [4: ButtonBindingDraft(kind: .mouseBack, hidKey: 4, turboEnabled: false, turboRate: 0x8E)]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(
+                profileID: 3,
+                name: "Stored 3",
+                buttonBindings: [4: ButtonBindingDraft(kind: .mouseForward, hidKey: 5, turboEnabled: false, turboRate: 0x8E)]
+            ),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+
+        await appState.editorStore.selectOnboardProfile(2)
+        let profile2Kind = await MainActor.run {
+            appState.editorStore.buttonBindingKind(for: 4)
+        }
+
+        await appState.editorStore.selectOnboardProfile(3)
+        let profile3Kind = await MainActor.run {
+            appState.editorStore.buttonBindingKind(for: 4)
+        }
+        let profile2ButtonReadCount = await backend.onboardButtonReadCount(deviceID: device.id, profileID: 2)
+        let profile3ButtonReadCount = await backend.onboardButtonReadCount(deviceID: device.id, profileID: 3)
+        let patches = await backend.recordedPatches()
+
+        XCTAssertEqual(profile2Kind, .mouseBack)
+        XCTAssertEqual(profile3Kind, .mouseForward)
+        XCTAssertEqual(profile2ButtonReadCount, 1)
+        XCTAssertEqual(profile3ButtonReadCount, 1)
+        XCTAssertTrue(patches.isEmpty)
+    }
+
     func testBluetoothOnboardProfileLightingEditUpdatesSelectedStoredProfile() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-bt-stored-lighting-device",

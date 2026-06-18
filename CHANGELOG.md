@@ -42,7 +42,6 @@ All notable changes to this project are documented in this file.
 - Fresh selected-device telemetry now invalidates connection-derived UI state, preventing the detail view from staying dimmed after launch until the sidebar is rebuilt.
 - Device detail controls no longer use a global reconnect/dimmed mode; explicit loading, unavailable, and profile-operation overlays now handle transient states without graying out the whole editor.
 - Bluetooth onboard profile refresh now coalesces overlapping requests and avoids full selected-profile snapshot hydration during list refresh, keeping refresh limited to active/assigned inventory reads.
-- Bluetooth onboard-profile devices now keep regular editor DPI and button edits on the live apply path instead of routing every edit through slow stored-profile write transactions.
 - Onboard profile refresh now uses a profile-card-local loading/error state instead of the global blocking operation overlay, so a slow or failed profile inventory read does not disable unrelated controls.
 - Bluetooth DPI stage writes now proceed from the complete requested editor stage table when the current DPI-stage pre-read returns no payload, avoiding failed writes after transient Bluetooth readback gaps.
 - Onboard profile activation and passive profile-switch refresh now validate through direct active-profile readback, Bluetooth inventory refresh reads only active/assigned slots, profile loads hydrate DPI/lighting through a foreground core snapshot without metadata/button sweeps, and button bindings refresh in a background pass to keep Bluetooth profile switching responsive.
@@ -52,6 +51,7 @@ All notable changes to this project are documented in this file.
 - Active onboard profile hydration now keeps the selected profile snapshot's DPI stage count and mapped lighting/scroll values authoritative over later live-layer Bluetooth refreshes.
 - Bluetooth onboard profile reads now seed the service cache with the active profile's mapped DPI stages so DPI-cycle HID events resolve against the selected profile instead of the stale live five-stage table.
 - Bluetooth onboard profile DPI and button edits now write the selected stored profile instead of falling back to the live profile-1 apply path, and mapped onboard devices no longer rehydrate button bindings from the legacy profile cache.
+- Bluetooth onboard profile active-ID refreshes now preserve the loaded profile DPI snapshot, passive DPI matching uses the loaded onboard profile stage table, profile loads hydrate Bluetooth button bindings from profile readback instead of stale cached bindings, and generic Bluetooth state refreshes avoid profile-owned live-layer polling on mapped onboard devices.
 
 ## [2026-06-15]
 
