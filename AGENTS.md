@@ -32,16 +32,17 @@ Protocol behavior changes require docs, tests, and `CHANGELOG.md` updates in the
 
 1. BLE vendor exchanges stay serialized one-at-a-time per connection.
 2. Command-level retries are forbidden. Retries may only live in protocol/transport connection recovery for real connection errors; command failures must surface clearly instead of being papered over by repeating the command while device state settles.
-3. Prefer focused reads, focused tests, and the smallest useful probe/build command instead of defaulting to full-package runs.
-4. Keep latest-wins/coalesced apply behavior for rapid UI edits.
-5. Treat malformed BLE DPI payloads as transient; ignore them instead of applying bad state or retrying the command.
-6. For BLE DPI stages, preserve stage IDs on write, resolve active stage from stage IDs, and do not reintroduce stage nudge/toggle writes.
-7. Keep `CHANGELOG.md` up to date for user-visible behavior changes and functional app/probe/tool changes. Do not add pure protocol research findings, capture notes, or speculative mappings to the changelog; put those in protocol or research docs instead. Use `Fixed` only for defects that already exist on `main`; fixes made while stabilizing an unmerged feature branch should be folded into that feature's net `Added`/`Changed` entry.
-8. Treat `OpenSnek/project.yml` as the Xcode source of truth; generate `OpenSnek/OpenSnek.xcodeproj` on demand and do not commit it.
-9. Use `Validated` only for maintainer/local OpenSnek hardware validation. For device support validated by an outside contributor but not by maintainers, use `Contributor validated` and credit the contributor source in docs.
-10. Before creating a new topic branch, fetch `origin` and branch from an up-to-date `origin/main`. Before opening or updating a PR, check whether the branch is behind `origin/main`; if it is, merge or rebase `origin/main`, resolve conflicts, rerun validation, and push the updated branch.
-11. Before saying work is done or pushing code, run the complete unit test suite with `swift test --package-path OpenSnek` and ensure it passes locally.
-12. For Windows Synapse/BTVS reverse engineering, prefer automated captures over manual Wireshark work. Use `tools/windows/capture-btvs.ps1`, let it choose a fresh port unless intentionally passing `-ReuseBtvs`, take a same-session idle baseline when background traffic is ambiguous, then start analysis from `synapse-events.md`, `correlation.md`, and `summary.md` before opening the raw `.pcapng`.
+3. When the user says something is broken, assume it is a regression unless evidence says otherwise. Do not guess or stack speculative fixes. Start from logs and existing diagnostics; if the available data is insufficient, add targeted logging/diagnostics, walk the user through a repro, then author the fix from the captured repro evidence.
+4. Prefer focused reads, focused tests, and the smallest useful probe/build command instead of defaulting to full-package runs.
+5. Keep latest-wins/coalesced apply behavior for rapid UI edits.
+6. Treat malformed BLE DPI payloads as transient; ignore them instead of applying bad state or retrying the command.
+7. For BLE DPI stages, preserve stage IDs on write, resolve active stage from stage IDs, and do not reintroduce stage nudge/toggle writes.
+8. Keep `CHANGELOG.md` up to date for user-visible behavior changes and functional app/probe/tool changes. Do not add pure protocol research findings, capture notes, or speculative mappings to the changelog; put those in protocol or research docs instead. Use `Fixed` only for defects that already exist on `main`; fixes made while stabilizing an unmerged feature branch should be folded into that feature's net `Added`/`Changed` entry.
+9. Treat `OpenSnek/project.yml` as the Xcode source of truth; generate `OpenSnek/OpenSnek.xcodeproj` on demand and do not commit it.
+10. Use `Validated` only for maintainer/local OpenSnek hardware validation. For device support validated by an outside contributor but not by maintainers, use `Contributor validated` and credit the contributor source in docs.
+11. Before creating a new topic branch, fetch `origin` and branch from an up-to-date `origin/main`. Before opening or updating a PR, check whether the branch is behind `origin/main`; if it is, merge or rebase `origin/main`, resolve conflicts, rerun validation, and push the updated branch.
+12. Before saying work is done or pushing code, run the complete unit test suite with `swift test --package-path OpenSnek` and ensure it passes locally.
+13. For Windows Synapse/BTVS reverse engineering, prefer automated captures over manual Wireshark work. Use `tools/windows/capture-btvs.ps1`, let it choose a fresh port unless intentionally passing `-ReuseBtvs`, take a same-session idle baseline when background traffic is ambiguous, then start analysis from `synapse-events.md`, `correlation.md`, and `summary.md` before opening the raw `.pcapng`.
 
 ## Quick Commands
 
