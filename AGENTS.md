@@ -79,6 +79,16 @@ Manual XCUITest happy path. This is manual-only and runs the full macOS app agai
   test
 ```
 
+Manual V3 Pro USB master feature sweep. This changes and restores several hardware settings in one full-app XCUITest to catch cross-feature interference between back-to-back UI actions.
+
+```bash
+./OpenSnek/scripts/xcodebuild_generated.sh \
+  -scheme OpenSnekUITests \
+  -destination 'platform=macOS' \
+  -only-testing:OpenSnekUITests/V3ProUSBMasterFeatureUITests/testV3ProUSBMasterFeatureSweepDoesNotCrossInterfere \
+  test
+```
+
 The test requires Input Monitoring for the built `OpenSnek.app` and Accessibility permission for the app launching `xcodebuild` (`Terminal`, `Codex`, or `Xcode`). Permission or device-scope failures should be reported as clear XCUITest failures with the attached event log.
 
 Hardware gate for BLE DPI/stage changes when a supported device is connected:

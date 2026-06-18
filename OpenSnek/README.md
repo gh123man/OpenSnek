@@ -144,6 +144,16 @@ Manual XCUITest happy path. This launches the full macOS app against a connected
   test
 ```
 
+Manual V3 Pro USB master feature sweep. This changes and restores several hardware settings in one full-app XCUITest to catch cross-feature interference between back-to-back UI actions.
+
+```bash
+./OpenSnek/scripts/xcodebuild_generated.sh \
+  -scheme OpenSnekUITests \
+  -destination 'platform=macOS' \
+  -only-testing:OpenSnekUITests/V3ProUSBMasterFeatureUITests/testV3ProUSBMasterFeatureSweepDoesNotCrossInterfere \
+  test
+```
+
 To run the same test against another supported device, set `OPEN_SNEK_UITEST_EXPECTED_PROTOCOL`, `OPEN_SNEK_UITEST_EXPECTED_TRANSPORT`, `OPEN_SNEK_UITEST_EXPECTED_VENDOR_ID`, `OPEN_SNEK_UITEST_EXPECTED_PRODUCT_ID`, `OPEN_SNEK_UITEST_EXPECTED_PRODUCT_NAME`, and `OPEN_SNEK_UITEST_EXPECTED_PROFILE_ID` on the `xcodebuild` command.
 
 Bundle build only:

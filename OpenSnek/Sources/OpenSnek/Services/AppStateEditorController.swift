@@ -39,6 +39,8 @@ final class AppStateEditorController {
     private var onboardProfileButtonHydrationTasksByDeviceID: [String: Task<Void, Never>] = [:]
     private var onboardProfileButtonHydrationTokensByDeviceID: [String: UUID] = [:]
     private var manualOnboardProfileActivationTargetByDeviceID: [String: Int] = [:]
+    private var activeOnboardProfileMutationCount = 0
+    private var maxConcurrentOnboardProfileMutationCount = 0
     private var buttonWorkspaceEditRevision: UInt64 = 0
     private var isTearingDown = false
 
@@ -1965,6 +1967,33 @@ final class AppStateEditorController {
               let selected = selectedOnboardProfileID(),
               !mutation.isEmpty else { return false }
         cancelSelectedMouseSlotHydration(deviceID: device.id)
+        let startedAt = Date()
+        activeOnboardProfileMutationCount += 1
+        maxConcurrentOnboardProfileMutationCount = max(
+            maxConcurrentOnboardProfileMutationCount,
+            activeOnboardProfileMutationCount
+        )
+#if DEBUG
+        OpenSnekUITestSupport.recordOnboardProfileMutationStart(
+            device: device,
+            profileID: selected,
+            mutation: mutation,
+            activeMutationCount: activeOnboardProfileMutationCount,
+            maxConcurrentMutationCount: maxConcurrentOnboardProfileMutationCount
+        )
+        if activeOnboardProfileMutationCount > 1 {
+            OpenSnekUITestSupport.recordOnboardProfileMutationOverlapDetected(
+                device: device,
+                profileID: selected,
+                mutation: mutation,
+                activeMutationCount: activeOnboardProfileMutationCount,
+                maxConcurrentMutationCount: maxConcurrentOnboardProfileMutationCount
+            )
+        }
+#endif
+        defer {
+            activeOnboardProfileMutationCount -= 1
+        }
         do {
             let resolvedMutation = mutation.preservingDpiIdentity(
                 from: currentSelectedOnboardProfileSnapshot(device: device)
@@ -1980,6 +2009,16 @@ final class AppStateEditorController {
                     "AppState",
                     "update onboard profile stale-drop device=\(device.id) profile=\(selected)"
                 )
+#if DEBUG
+                OpenSnekUITestSupport.recordOnboardProfileMutationEnd(
+                    device: device,
+                    profileID: selected,
+                    mutation: resolvedMutation,
+                    activeMutationCount: activeOnboardProfileMutationCount,
+                    maxConcurrentMutationCount: maxConcurrentOnboardProfileMutationCount,
+                    elapsed: Date().timeIntervalSince(startedAt)
+                )
+#endif
                 return true
             }
             storeCurrentOnboardProfileSnapshot(
@@ -2003,10 +2042,31 @@ final class AppStateEditorController {
                 _ = try await environment.backend.refreshActiveOnboardProfile(device: device)
             }
             bumpOnboardProfilesRevision()
+#if DEBUG
+            OpenSnekUITestSupport.recordOnboardProfileMutationEnd(
+                device: device,
+                profileID: selected,
+                mutation: resolvedMutation,
+                activeMutationCount: activeOnboardProfileMutationCount,
+                maxConcurrentMutationCount: maxConcurrentOnboardProfileMutationCount,
+                elapsed: Date().timeIntervalSince(startedAt)
+            )
+#endif
             return true
         } catch {
             AppLog.error("AppState", "update onboard profile failed profile=\(selected): \(error.localizedDescription)")
             deviceStore.errorMessage = "Failed to update onboard profile: \(error.localizedDescription)"
+#if DEBUG
+            OpenSnekUITestSupport.recordOnboardProfileMutationError(
+                device: device,
+                profileID: selected,
+                mutation: mutation,
+                activeMutationCount: activeOnboardProfileMutationCount,
+                maxConcurrentMutationCount: maxConcurrentOnboardProfileMutationCount,
+                elapsed: Date().timeIntervalSince(startedAt),
+                error: error
+            )
+#endif
             return false
         }
     }

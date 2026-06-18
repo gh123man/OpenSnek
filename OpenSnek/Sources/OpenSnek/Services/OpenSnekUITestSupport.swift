@@ -141,6 +141,85 @@ enum OpenSnekUITestSupport {
         )
     }
 
+    static func recordOnboardProfileMutationStart(
+        device: MouseDevice,
+        profileID: Int,
+        mutation: OnboardProfileMutation,
+        activeMutationCount: Int,
+        maxConcurrentMutationCount: Int
+    ) {
+        recorder.record(
+            name: "onboardProfileMutationStart",
+            deviceID: device.id,
+            scope: OpenSnekUITestScopeSnapshot(device),
+            profileID: profileID,
+            onboardMutation: OpenSnekUITestOnboardProfileMutationSnapshot(mutation),
+            activeApplyCount: activeMutationCount,
+            maxConcurrentApplyCount: maxConcurrentMutationCount
+        )
+    }
+
+    static func recordOnboardProfileMutationEnd(
+        device: MouseDevice,
+        profileID: Int,
+        mutation: OnboardProfileMutation,
+        activeMutationCount: Int,
+        maxConcurrentMutationCount: Int,
+        elapsed: TimeInterval
+    ) {
+        recorder.record(
+            name: "onboardProfileMutationEnd",
+            deviceID: device.id,
+            scope: OpenSnekUITestScopeSnapshot(device),
+            profileID: profileID,
+            onboardMutation: OpenSnekUITestOnboardProfileMutationSnapshot(mutation),
+            activeApplyCount: activeMutationCount,
+            maxConcurrentApplyCount: maxConcurrentMutationCount,
+            elapsed: elapsed
+        )
+    }
+
+    static func recordOnboardProfileMutationError(
+        device: MouseDevice,
+        profileID: Int,
+        mutation: OnboardProfileMutation,
+        activeMutationCount: Int,
+        maxConcurrentMutationCount: Int,
+        elapsed: TimeInterval,
+        error: Error
+    ) {
+        recorder.record(
+            name: "onboardProfileMutationError",
+            deviceID: device.id,
+            scope: OpenSnekUITestScopeSnapshot(device),
+            profileID: profileID,
+            onboardMutation: OpenSnekUITestOnboardProfileMutationSnapshot(mutation),
+            activeApplyCount: activeMutationCount,
+            maxConcurrentApplyCount: maxConcurrentMutationCount,
+            elapsed: elapsed,
+            error: error.localizedDescription
+        )
+    }
+
+    static func recordOnboardProfileMutationOverlapDetected(
+        device: MouseDevice,
+        profileID: Int,
+        mutation: OnboardProfileMutation,
+        activeMutationCount: Int,
+        maxConcurrentMutationCount: Int
+    ) {
+        recorder.record(
+            name: "overlapDetected",
+            source: "onboard-profile",
+            deviceID: device.id,
+            scope: OpenSnekUITestScopeSnapshot(device),
+            profileID: profileID,
+            onboardMutation: OpenSnekUITestOnboardProfileMutationSnapshot(mutation),
+            activeApplyCount: activeMutationCount,
+            maxConcurrentApplyCount: maxConcurrentMutationCount
+        )
+    }
+
     static func recordUSBCommand(
         device: MouseDevice,
         classID: UInt8,
@@ -246,8 +325,10 @@ private final class OpenSnekUITestEventRecorder: @unchecked Sendable {
         source: String? = nil,
         deviceID: String? = nil,
         scope: OpenSnekUITestScopeSnapshot? = nil,
+        profileID: Int? = nil,
         devices: [OpenSnekUITestDeviceSnapshot]? = nil,
         patch: OpenSnekUITestPatchSnapshot? = nil,
+        onboardMutation: OpenSnekUITestOnboardProfileMutationSnapshot? = nil,
         command: OpenSnekUITestUSBCommandSnapshot? = nil,
         state: OpenSnekUITestStateSnapshot? = nil,
         activeApplyCount: Int? = nil,
@@ -266,8 +347,10 @@ private final class OpenSnekUITestEventRecorder: @unchecked Sendable {
             source: source,
             deviceID: deviceID,
             scope: scope,
+            profileID: profileID,
             devices: devices,
             patch: patch,
+            onboardMutation: onboardMutation,
             command: command,
             state: state,
             activeApplyCount: activeApplyCount,
@@ -313,8 +396,10 @@ private struct OpenSnekUITestEvent: Encodable {
     let source: String?
     let deviceID: String?
     let scope: OpenSnekUITestScopeSnapshot?
+    let profileID: Int?
     let devices: [OpenSnekUITestDeviceSnapshot]?
     let patch: OpenSnekUITestPatchSnapshot?
+    let onboardMutation: OpenSnekUITestOnboardProfileMutationSnapshot?
     let command: OpenSnekUITestUSBCommandSnapshot?
     let state: OpenSnekUITestStateSnapshot?
     let activeApplyCount: Int?
@@ -368,16 +453,56 @@ private struct OpenSnekUITestDeviceSnapshot: Encodable {
 private struct OpenSnekUITestPatchSnapshot: Encodable {
     let pollRate: Int?
     let sleepTimeout: Int?
+    let lowBatteryThresholdRaw: Int?
+    let scrollMode: Int?
+    let scrollAcceleration: Bool?
+    let scrollSmartReel: Bool?
     let activeStage: Int?
     let dpiStages: [Int]?
+    let dpiStagePairs: [OpenSnekUITestDpiPairSnapshot]?
     let ledBrightness: Int?
+    let ledRGB: OpenSnekUITestRGBSnapshot?
 
     init(_ patch: DevicePatch) {
         pollRate = patch.pollRate
         sleepTimeout = patch.sleepTimeout
+        lowBatteryThresholdRaw = patch.lowBatteryThresholdRaw
+        scrollMode = patch.scrollMode
+        scrollAcceleration = patch.scrollAcceleration
+        scrollSmartReel = patch.scrollSmartReel
         activeStage = patch.activeStage
         dpiStages = patch.dpiStages
+        dpiStagePairs = patch.dpiStagePairs?.map(OpenSnekUITestDpiPairSnapshot.init)
         ledBrightness = patch.ledBrightness
+        ledRGB = patch.ledRGB.map(OpenSnekUITestRGBSnapshot.init)
+    }
+}
+
+private struct OpenSnekUITestOnboardProfileMutationSnapshot: Encodable {
+    let metadataName: String?
+    let dpiActiveStage: Int?
+    let dpiStages: [Int]?
+    let dpiStagePairs: [OpenSnekUITestDpiPairSnapshot]?
+    let buttonBindingSlots: [Int]?
+    let brightnessByLEDID: [String: Int]?
+    let staticColorLEDIDs: [Int]?
+    let scrollMode: Int?
+    let scrollAcceleration: Bool?
+    let scrollSmartReel: Bool?
+
+    init(_ mutation: OnboardProfileMutation) {
+        metadataName = mutation.metadata?.name
+        dpiActiveStage = mutation.dpi?.activeStage
+        dpiStages = mutation.dpi?.values
+        dpiStagePairs = mutation.dpi?.pairs.map(OpenSnekUITestDpiPairSnapshot.init)
+        buttonBindingSlots = mutation.buttonBindings?.keys.sorted()
+        brightnessByLEDID = mutation.brightnessByLEDID.map { values in
+            Dictionary(uniqueKeysWithValues: values.map { (String($0.key), $0.value) })
+        }
+        staticColorLEDIDs = mutation.staticColorByLEDID?.keys.sorted()
+        scrollMode = mutation.scrollMode
+        scrollAcceleration = mutation.scrollAcceleration
+        scrollSmartReel = mutation.scrollSmartReel
     }
 }
 
@@ -394,11 +519,53 @@ private struct OpenSnekUITestStateSnapshot: Encodable {
     let connection: String
     let pollRate: Int?
     let dpi: Int?
+    let activeStage: Int?
+    let dpiStages: [Int]?
+    let dpiStagePairs: [OpenSnekUITestDpiPairSnapshot]?
+    let sleepTimeout: Int?
+    let lowBatteryThresholdRaw: Int?
+    let scrollMode: Int?
+    let scrollAcceleration: Bool?
+    let scrollSmartReel: Bool?
+    let activeOnboardProfile: Int?
+    let ledValue: Int?
 
     init(_ state: MouseState) {
         connection = state.connection
         pollRate = state.poll_rate
         dpi = state.dpi?.x
+        activeStage = state.dpi_stages.active_stage
+        dpiStages = state.dpi_stages.values
+        dpiStagePairs = state.dpi_stages.pairs?.map(OpenSnekUITestDpiPairSnapshot.init)
+        sleepTimeout = state.sleep_timeout
+        lowBatteryThresholdRaw = state.low_battery_threshold_raw
+        scrollMode = state.scroll_mode
+        scrollAcceleration = state.scroll_acceleration
+        scrollSmartReel = state.scroll_smart_reel
+        activeOnboardProfile = state.active_onboard_profile
+        ledValue = state.led_value
+    }
+}
+
+private struct OpenSnekUITestDpiPairSnapshot: Encodable {
+    let x: Int
+    let y: Int
+
+    init(_ pair: DpiPair) {
+        x = pair.x
+        y = pair.y
+    }
+}
+
+private struct OpenSnekUITestRGBSnapshot: Encodable {
+    let r: Int
+    let g: Int
+    let b: Int
+
+    init(_ rgb: RGBPatch) {
+        r = rgb.r
+        g = rgb.g
+        b = rgb.b
     }
 }
 
