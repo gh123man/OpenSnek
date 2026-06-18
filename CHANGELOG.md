@@ -47,6 +47,7 @@ All notable changes to this project are documented in this file.
 - Bluetooth DPI stage writes now proceed from the complete requested editor stage table when the current DPI-stage pre-read returns no payload, avoiding failed writes after transient Bluetooth readback gaps.
 - Onboard profile activation and passive profile-switch refresh now validate through direct active-profile readback, Bluetooth inventory refresh reads only active/assigned slots, profile loads hydrate DPI/lighting through a foreground core snapshot without metadata/button sweeps, and button bindings refresh in a background pass to keep Bluetooth profile switching responsive.
 - Bluetooth onboard profile brightness and static-color edits now write the selected onboard profile instead of falling back to the live layer.
+- Bluetooth passive DPI cycle events no longer rewrite the currently selected stage value when the active slot is ambiguous, and stale Bluetooth active-stage reads are masked from the stage table rather than being allowed to overwrite newer HID events.
 
 ## [2026-06-15]
 

@@ -349,11 +349,6 @@ extension BridgeClient {
 
         let clampedPreviousActive = max(0, min(previousValues.count - 1, previousActive))
         let normalizedParsedValues = Array(parsedValues.prefix(previousValues.count))
-        if let previousPairs = expected.previousPairs,
-           !previousPairs.isEmpty {
-            let normalizedParsedPairs = Array(parsedPairs.prefix(previousPairs.count))
-            return parsedActive == clampedPreviousActive && normalizedParsedPairs == previousPairs
-        }
         return parsedActive == clampedPreviousActive && normalizedParsedValues == previousValues
     }
 

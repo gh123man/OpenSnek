@@ -305,14 +305,16 @@ func mergedStateFromPassiveDpiEvent(
         let matchingIndices = stageValues.enumerated().compactMap { index, value in
             value == event.dpiX ? index : nil
         }
-        resolvedActiveStage = matchingIndices.count == 1 ? matchingIndices[0] : previous.dpi_stages.active_stage
-        if let resolvedActiveStage,
-           var basePairs,
-           resolvedActiveStage >= 0,
-           resolvedActiveStage < basePairs.count {
-            basePairs[resolvedActiveStage] = DpiPair(x: event.dpiX, y: event.dpiY)
+        if matchingIndices.count == 1,
+           var basePairs {
+            let matchedStage = matchingIndices[0]
+            resolvedActiveStage = matchedStage
+            if matchedStage >= 0, matchedStage < basePairs.count {
+                basePairs[matchedStage] = DpiPair(x: event.dpiX, y: event.dpiY)
+            }
             resolvedStagePairs = basePairs
         } else {
+            resolvedActiveStage = previous.dpi_stages.active_stage
             resolvedStagePairs = basePairs
         }
     }
@@ -639,7 +641,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         let matchingIndices = values.enumerated().compactMap { index, value in
             value == event.dpiX ? index : nil
         }
-        return matchingIndices.count > 1
+        return matchingIndices.count != 1
     }
 
     nonisolated static func seededStateForPassiveDpiEvent(

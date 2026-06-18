@@ -437,6 +437,34 @@ final class USBPassiveDPIEventTests: XCTestCase {
         )
     }
 
+    func testBluetoothExpectedReadMasksPreviousActiveEvenWhenPreviousPairsDiffer() {
+        let expected: BridgeClient.BluetoothExpectedDpiState = (
+            active: 3,
+            values: [800, 900, 1000, 1100, 1200],
+            pairs: [800, 900, 1000, 1100, 1200].map { DpiPair(x: $0, y: $0) },
+            previousActive: 1,
+            previousValues: [800, 900, 1000, 1100, 1200],
+            previousPairs: [
+                DpiPair(x: 800, y: 800),
+                DpiPair(x: 1100, y: 1100),
+                DpiPair(x: 1000, y: 1000),
+                DpiPair(x: 1100, y: 1100),
+                DpiPair(x: 1200, y: 1200),
+            ],
+            expiresAt: Date(timeIntervalSince1970: 1_773_600_020),
+            remainingMasks: 4
+        )
+
+        XCTAssertTrue(
+            BridgeClient.shouldMaskBluetoothExpectedRead(
+                parsedActive: 1,
+                parsedValues: [800, 900, 1000, 1100, 1200],
+                parsedPairs: [800, 900, 1000, 1100, 1200].map { DpiPair(x: $0, y: $0) },
+                expected: expected
+            )
+        )
+    }
+
     func testBluetoothExpectedReadDoesNotMaskWhenPreviousStateIsUnknown() {
         let expected: BridgeClient.BluetoothExpectedDpiState = (
             active: 2,
@@ -668,6 +696,11 @@ final class USBPassiveDPIEventTests: XCTestCase {
         XCTAssertEqual(uniqueMatch?.dpi_stages.active_stage, 2)
         XCTAssertEqual(duplicateMatch?.dpi?.x, 2000)
         XCTAssertEqual(duplicateMatch?.dpi_stages.active_stage, 0)
+        XCTAssertEqual(duplicateMatch?.dpi_stages.values, [800, 2000, 2000])
+        XCTAssertEqual(
+            duplicateMatch?.dpi_stages.pairs,
+            [800, 2000, 2000].map { DpiPair(x: $0, y: $0) }
+        )
     }
 
     func testPassiveUSBMergeTreatsDuplicateDpiStageMatchAsAmbiguous() {
@@ -687,6 +720,33 @@ final class USBPassiveDPIEventTests: XCTestCase {
         XCTAssertEqual(duplicateMatch?.dpi?.x, 2000)
         XCTAssertEqual(duplicateMatch?.dpi_stages.active_stage, 0)
         XCTAssertTrue(LocalBridgeBackend.passiveDpiEventHasAmbiguousStageMatch(previous: duplicatePrevious, event: event))
+        XCTAssertEqual(duplicateMatch?.dpi_stages.values, [800, 2000, 2000])
+        XCTAssertEqual(
+            duplicateMatch?.dpi_stages.pairs,
+            [800, 2000, 2000].map { DpiPair(x: $0, y: $0) }
+        )
+    }
+
+    func testPassiveUSBMergeDoesNotRewriteStageTableWhenDpiDoesNotMatchAStage() {
+        let device = makePassiveTestDevice(id: "usb-passive-merge-unmatched", transport: .usb)
+        let previous = makePassiveTestState(
+            device: device,
+            dpiValues: [800, 900, 1000],
+            activeStage: 1,
+            dpiValue: 900
+        )
+        let event = PassiveDPIEvent(deviceID: device.id, dpiX: 1500, dpiY: 1500, observedAt: Date())
+
+        let merged = mergedStateFromPassiveDpiEvent(previous: previous, event: event)
+
+        XCTAssertEqual(merged?.dpi?.x, 1500)
+        XCTAssertEqual(merged?.dpi_stages.active_stage, 1)
+        XCTAssertEqual(merged?.dpi_stages.values, [800, 900, 1000])
+        XCTAssertEqual(
+            merged?.dpi_stages.pairs,
+            [800, 900, 1000].map { DpiPair(x: $0, y: $0) }
+        )
+        XCTAssertTrue(LocalBridgeBackend.passiveDpiEventHasAmbiguousStageMatch(previous: previous, event: event))
     }
 
     func testPassiveUSBMergeDropsEventWithoutSeededState() {
