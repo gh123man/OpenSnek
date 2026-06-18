@@ -49,6 +49,7 @@ All notable changes to this project are documented in this file.
 - Bluetooth onboard profile brightness and static-color edits now write the selected onboard profile instead of falling back to the live layer.
 - Bluetooth passive DPI cycle events no longer rewrite the currently selected stage value when the active slot is ambiguous, and stale Bluetooth active-stage reads are masked from the stage table rather than being allowed to overwrite newer HID events.
 - Bluetooth passive DPI state now remains authoritative over stale vendor DPI reads while realtime HID is active, preventing slow refreshes from flapping the UI back to an old active DPI slot.
+- Active onboard profile hydration now keeps the selected profile snapshot's DPI stage count and mapped lighting/scroll values authoritative over later live-layer Bluetooth refreshes.
 
 ## [2026-06-15]
 

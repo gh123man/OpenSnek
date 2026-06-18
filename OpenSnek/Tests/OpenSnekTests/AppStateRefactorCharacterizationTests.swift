@@ -3537,6 +3537,95 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertFalse(busyAfterHardwareProfileLoad)
     }
 
+    func testLoadedActiveOnboardProfileDpiSurvivesStaleLiveDpiHydration() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-profile-dpi-live-overwrite-device",
+            transport: .bluetooth,
+            serial: "ONBOARD-PROFILE-DPI-LIVE-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "bluetooth",
+                    batteryPercent: 74,
+                    dpiValues: [400, 800, 1300, 1600, 6400],
+                    activeStage: 0,
+                    dpiValue: 400,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1, 2],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(profileID: 2, name: "Stored 2", dpiValues: [1200, 2400]),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+        await appState.editorStore.selectOnboardProfile(2)
+
+        try await waitForRefactorCondition {
+            await MainActor.run {
+                appState.editorStore.selectedOnboardProfileID == 2 &&
+                    appState.editorStore.editableStageCount == 2 &&
+                    appState.editorStore.stageValue(0) == 1200 &&
+                    appState.editorStore.stageValue(1) == 2400
+            }
+        }
+
+        await MainActor.run {
+            appState.deviceController.applyBackendDeviceStateUpdate(
+                deviceID: device.id,
+                state: makeRefactorTestState(
+                    device: device,
+                    connection: "bluetooth",
+                    batteryPercent: 75,
+                    dpiValues: [400, 800, 1300, 1600, 6400],
+                    activeStage: 4,
+                    dpiValue: 6400,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 2,
+                    onboardProfileCount: 5
+                ),
+                updatedAt: Date()
+            )
+        }
+
+        let hydrated = await MainActor.run {
+            (
+                appState.editorStore.editableStageCount,
+                appState.editorStore.stageValue(0),
+                appState.editorStore.stageValue(1)
+            )
+        }
+        XCTAssertEqual(hydrated.0, 2)
+        XCTAssertEqual(hydrated.1, 1200)
+        XCTAssertEqual(hydrated.2, 2400)
+    }
+
     func testServiceActiveOnboardProfileUpdatesDoNotHydrateProfileUI() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-service-active-update-device",

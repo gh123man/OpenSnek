@@ -498,7 +498,12 @@ final class AppStateEditorController {
 
         handleActiveOnboardProfilePresentation(from: state)
 
-        if let pairs = state.dpi_stages.pairs, !pairs.isEmpty {
+        let activeOnboardSnapshot = currentActiveOnboardProfileSnapshot(for: state)
+        if let snapshot = activeOnboardSnapshot,
+           let dpi = snapshot.dpi,
+           let device = deviceStore.selectedDevice {
+            hydrateEditableDPI(from: dpi, device: device, liveDPI: state.dpi)
+        } else if let pairs = state.dpi_stages.pairs, !pairs.isEmpty {
             editorStore.editableStageCount = max(1, min(5, pairs.count))
             let profileID = deviceStore.selectedDevice?.profile_id
             for index in 0..<editorStore.editableStagePairs.count {
@@ -548,20 +553,23 @@ final class AppStateEditorController {
             editorStore.editableLowBatteryThresholdRaw = max(0x0C, min(0x3F, lowBatteryRaw))
         }
 
-        if let scrollMode = state.scroll_mode {
-            editorStore.editableScrollMode = max(0, min(1, scrollMode))
-        }
-
-        if let scrollAcceleration = state.scroll_acceleration {
-            editorStore.editableScrollAcceleration = scrollAcceleration
-        }
-
-        if let scrollSmartReel = state.scroll_smart_reel {
-            editorStore.editableScrollSmartReel = scrollSmartReel
-        }
-
-        if let led = state.led_value {
-            editorStore.editableLedBrightness = led
+        if let snapshot = activeOnboardSnapshot,
+           let device = deviceStore.selectedDevice {
+            hydrateEditableLighting(from: snapshot, device: device)
+            hydrateEditableScroll(from: snapshot)
+        } else {
+            if let scrollMode = state.scroll_mode {
+                editorStore.editableScrollMode = max(0, min(1, scrollMode))
+            }
+            if let scrollAcceleration = state.scroll_acceleration {
+                editorStore.editableScrollAcceleration = scrollAcceleration
+            }
+            if let scrollSmartReel = state.scroll_smart_reel {
+                editorStore.editableScrollSmartReel = scrollSmartReel
+            }
+            if let led = state.led_value {
+                editorStore.editableLedBrightness = led
+            }
         }
 
         syncUSBButtonProfileSelection(from: state)
@@ -574,7 +582,11 @@ final class AppStateEditorController {
 
         handleActiveOnboardProfilePresentation(from: state)
 
-        if let active = state.dpi_stages.active_stage {
+        if let snapshot = currentActiveOnboardProfileSnapshot(for: state),
+           let dpi = snapshot.dpi,
+           let device = deviceStore.selectedDevice {
+            hydrateEditableDPI(from: dpi, device: device, liveDPI: state.dpi)
+        } else if let active = state.dpi_stages.active_stage {
             let maxStage = max(1, editorStore.editableStageCount)
             editorStore.editableActiveStage = max(1, min(maxStage, active + 1))
         } else {
@@ -2105,7 +2117,27 @@ final class AppStateEditorController {
         return colors
     }
 
-    private func hydrateEditableDPI(from dpi: OnboardDPIProfileSnapshot, device: MouseDevice) {
+    private func currentActiveOnboardProfileSnapshot(for state: MouseState) -> OnboardProfileSnapshot? {
+        guard let device = deviceStore.selectedDevice,
+              supportsOnboardProfileCRUD(device: device),
+              let snapshot = currentOnboardProfileSnapshotByDeviceID[device.id],
+              !snapshot.isMetadataOnly else {
+            return nil
+        }
+        let active = state.active_onboard_profile ?? deviceStore.state?.active_onboard_profile
+        let selected = selectedOnboardProfileIDByDeviceID[device.id] ?? active
+        guard snapshot.profileID == selected else { return nil }
+        if let active, active != snapshot.profileID {
+            return nil
+        }
+        return snapshot
+    }
+
+    private func hydrateEditableDPI(
+        from dpi: OnboardDPIProfileSnapshot,
+        device: MouseDevice,
+        liveDPI: DpiPair? = nil
+    ) {
         let sourcePairs = !dpi.pairs.isEmpty
             ? dpi.pairs
             : dpi.scalar.map { [$0] } ?? []
@@ -2122,8 +2154,18 @@ final class AppStateEditorController {
         }
         editorStore.editableStageCount = count
         editorStore.editableStagePairs = nextPairs
-        editorStore.editableActiveStage = max(1, min(count, (dpi.activeStage ?? 0) + 1))
+        let matchedActiveStage = liveDPI.flatMap { liveDPI in
+            Self.uniqueDPIStageIndex(matching: liveDPI, in: Array(sourcePairs.prefix(count)))
+        }
+        editorStore.editableActiveStage = max(1, min(count, (matchedActiveStage ?? dpi.activeStage ?? 0) + 1))
         editorStore.normalizeExpandedXYStages()
+    }
+
+    private nonisolated static func uniqueDPIStageIndex(matching liveDPI: DpiPair, in pairs: [DpiPair]) -> Int? {
+        let matchingIndices = pairs.enumerated().compactMap { index, pair in
+            pair.x == liveDPI.x && pair.y == liveDPI.y ? index : nil
+        }
+        return matchingIndices.count == 1 ? matchingIndices[0] : nil
     }
 
     private func hydrateEditableLighting(from snapshot: OnboardProfileSnapshot, device: MouseDevice) {
