@@ -1823,13 +1823,14 @@ private struct OnboardProfilePillButton: View {
     }
 
     var body: some View {
+        let pillCornerRadius: CGFloat = 9
         Button(action: action) {
             HStack(spacing: 6) {
-                Circle()
+                RoundedRectangle(cornerRadius: pillCornerRadius, style: .continuous)
                     .fill(onboardProfileSlotColor(activeProfileID))
                     .frame(width: 18, height: 18)
                     .overlay(
-                        Circle()
+                        RoundedRectangle(cornerRadius: pillCornerRadius, style: .continuous)
                             .stroke(Color.white.opacity(0.38), lineWidth: 1)
                     )
                     .accessibilityHidden(true)
@@ -1850,11 +1851,14 @@ private struct OnboardProfilePillButton: View {
             .padding(.trailing, 8)
             .padding(.vertical, 3)
             .background(
-                Capsule()
+                RoundedRectangle(cornerRadius: pillCornerRadius, style: .continuous)
                     .fill(Color.white.opacity(0.08))
-                    .overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: pillCornerRadius, style: .continuous)
+                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                    )
             )
-            .contentShape(Capsule())
+            .contentShape(RoundedRectangle(cornerRadius: pillCornerRadius, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("onboard-profile-pill-button")
