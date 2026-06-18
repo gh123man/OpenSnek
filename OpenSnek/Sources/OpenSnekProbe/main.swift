@@ -19,9 +19,7 @@ enum OpenSnekProbe {
             let parsed = try parseSetArgs(Array(args.dropFirst()))
             let snapshot = try await bridge.setDpi(
                 active: parsed.active,
-                values: parsed.values,
-                verifyRetries: parsed.verifyRetries,
-                verifyDelayMs: parsed.verifyDelayMs
+                values: parsed.values
             )
             print("applied active=\(snapshot.active + 1) values=\(snapshot.values)")
         case "dpi-cycle":
@@ -31,9 +29,7 @@ enum OpenSnekProbe {
                 let values = parsed.sequence[i % parsed.sequence.count]
                 let snapshot = try await bridge.setDpi(
                     active: parsed.active,
-                    values: values,
-                    verifyRetries: parsed.verifyRetries,
-                    verifyDelayMs: parsed.verifyDelayMs
+                    values: values
                 )
                 print("loop \(i + 1): active=\(snapshot.active + 1) values=\(snapshot.values)")
                 if parsed.sleepMs > 0 {
@@ -672,7 +668,6 @@ enum OpenSnekProbe {
                 cmdID: parsed.cmdID,
                 size: parsed.size,
                 args: parsed.args,
-                allowTxnRescan: !parsed.noTxnRescan,
                 responseAttempts: parsed.responseAttempts,
                 responseDelayUs: parsed.responseDelayUs
             )
@@ -691,7 +686,7 @@ enum OpenSnekProbe {
         """
         Usage:
           OpenSnekProbe dpi-read
-          OpenSnekProbe dpi-set --values 1600,6400 [--active 1] [--verify-retries 6] [--verify-delay-ms 120]
+          OpenSnekProbe dpi-set --values 1600,6400 [--active 1]
           OpenSnekProbe dpi-cycle --sequence 800,6400;1600,6400 --loops 10 [--active 1] [--sleep-ms 120]
           OpenSnekProbe bt-info
           OpenSnekProbe bt-raw-read --key 10840000 [--name "BSK V3 PRO"] [--timeout-ms 600]
@@ -736,19 +731,17 @@ enum OpenSnekProbe {
         """
     }
 
-    private static func parseSetArgs(_ args: [String]) throws -> (values: [Int], active: Int, verifyRetries: Int, verifyDelayMs: Int) {
+    private static func parseSetArgs(_ args: [String]) throws -> (values: [Int], active: Int) {
         let flags = parseFlags(args)
         guard let valuesRaw = flags["--values"] else {
             throw ProbeError.usage("Missing --values\n\(usageText)")
         }
         let values = try parseValues(valuesRaw)
         let active = max(0, (Int(flags["--active"] ?? "1") ?? 1) - 1)
-        let verifyRetries = Int(flags["--verify-retries"] ?? "6") ?? 6
-        let verifyDelayMs = Int(flags["--verify-delay-ms"] ?? "120") ?? 120
-        return (values, active, verifyRetries, verifyDelayMs)
+        return (values, active)
     }
 
-    private static func parseCycleArgs(_ args: [String]) throws -> (sequence: [[Int]], loops: Int, active: Int, sleepMs: Int, verifyRetries: Int, verifyDelayMs: Int) {
+    private static func parseCycleArgs(_ args: [String]) throws -> (sequence: [[Int]], loops: Int, active: Int, sleepMs: Int) {
         let flags = parseFlags(args)
         guard let raw = flags["--sequence"] else {
             throw ProbeError.usage("Missing --sequence\n\(usageText)")
@@ -758,9 +751,7 @@ enum OpenSnekProbe {
         let loops = max(1, Int(flags["--loops"] ?? "10") ?? 10)
         let active = max(0, (Int(flags["--active"] ?? "1") ?? 1) - 1)
         let sleepMs = max(0, Int(flags["--sleep-ms"] ?? "120") ?? 120)
-        let verifyRetries = Int(flags["--verify-retries"] ?? "6") ?? 6
-        let verifyDelayMs = Int(flags["--verify-delay-ms"] ?? "120") ?? 120
-        return (sequence, loops, active, sleepMs, verifyRetries, verifyDelayMs)
+        return (sequence, loops, active, sleepMs)
     }
 
     private static func parseUSBButtonReadArgs(_ args: [String]) throws -> (slot: Int, profiles: [UInt8], hypershift: UInt8, productID: Int?) {
@@ -1261,7 +1252,7 @@ enum OpenSnekProbe {
         return (effect, parseLightingZoneID(flags["--zone"]), try parseOptionalUSBPID(args))
     }
 
-    private static func parseUSBRawArgs(_ args: [String]) throws -> (classID: UInt8, cmdID: UInt8, size: UInt8, args: [UInt8], noTxnRescan: Bool, responseAttempts: Int, responseDelayUs: useconds_t, productID: Int?) {
+    private static func parseUSBRawArgs(_ args: [String]) throws -> (classID: UInt8, cmdID: UInt8, size: UInt8, args: [UInt8], responseAttempts: Int, responseDelayUs: useconds_t, productID: Int?) {
         let flags = parseFlags(args)
         guard let classRaw = flags["--class"], let classID = parseUInt8(classRaw) else {
             throw ProbeError.usage("Missing or invalid --class\n\(usageText)")
@@ -1271,10 +1262,9 @@ enum OpenSnekProbe {
         }
         let parsedArgs = try parseCSVBytes(flags["--args"] ?? "")
         let size = parseUInt8(flags["--size"] ?? "") ?? UInt8(parsedArgs.count)
-        let noTxnRescan = parseBoolean(flags["--no-txn-rescan"] ?? "off")
         let responseAttempts = max(1, Int(flags["--response-attempts"] ?? "12") ?? 12)
         let responseDelayUs = useconds_t(max(1_000, Int(flags["--response-delay-us"] ?? "40000") ?? 40_000))
-        return (classID, cmdID, size, parsedArgs, noTxnRescan, responseAttempts, responseDelayUs, try parseOptionalUSBPID(args))
+        return (classID, cmdID, size, parsedArgs, responseAttempts, responseDelayUs, try parseOptionalUSBPID(args))
     }
 
     private static func parseOptionalUSBPID(_ args: [String]) throws -> Int? {

@@ -1012,7 +1012,11 @@ final class AppStateApplyController {
             )
             return true
         } catch {
-            AppLog.error("AppState", "apply failed device=\(targetDevice.id): \(error.localizedDescription)")
+            AppLog.error(
+                "AppState",
+                "command apply failed device=\(targetDevice.id) patch=\(patch.describe) " +
+                "elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s: \(error.localizedDescription)"
+            )
             if shouldSurfaceApplyFailure {
                 let shouldShowApplyFailure: Bool
                 if let currentSelectedDevice = deviceStore.selectedDevice {
@@ -1022,7 +1026,7 @@ final class AppStateApplyController {
                     shouldShowApplyFailure = false
                 }
                 if shouldShowApplyFailure {
-                    deviceStore.errorMessage = error.localizedDescription
+                    deviceStore.errorMessage = Self.commandFailureMessage(error)
                     deviceStore.warningMessage = nil
                     if patch.dpiStages != nil || patch.dpiStagePairs != nil || patch.activeStage != nil {
                         runtimeStore.serviceStatusMessage = "DPI update failed"
@@ -1036,6 +1040,13 @@ final class AppStateApplyController {
             }
             return false
         }
+    }
+
+    private static func commandFailureMessage(_ error: any Error) -> String {
+        if AppLog.currentLevel == .debug {
+            return "Command failed: \(error.localizedDescription)"
+        }
+        return error.localizedDescription
     }
 
     private func verifyRestoreStateAfterDeferredButtonWrites(

@@ -4,7 +4,7 @@ import OpenSnekCore
 import OpenSnekHardware
 
 final class UnsupportedDeviceHandlingTests: XCTestCase {
-    func testUSBTelemetryUnavailableErrorsSkipSecondStateReadSweep() {
+    func testUSBTelemetryUnavailableErrorClassification() {
         let unavailable = BridgeError.commandFailed(
             "USB device telemetry unavailable. Feature-report interface did not return usable responses."
         )
@@ -12,8 +12,6 @@ final class UnsupportedDeviceHandlingTests: XCTestCase {
 
         XCTAssertTrue(BridgeClient.isUSBTelemetryUnavailableError(unavailable))
         XCTAssertFalse(BridgeClient.isUSBTelemetryUnavailableError(transient))
-        XCTAssertFalse(BridgeClient.shouldRetryUSBStateRead(firstScanErrors: [unavailable, unavailable]))
-        XCTAssertTrue(BridgeClient.shouldRetryUSBStateRead(firstScanErrors: [unavailable, transient]))
     }
 
     func testUSBReconnectSettleDeadlineOnlyAppliesToUSBConnectEvents() {

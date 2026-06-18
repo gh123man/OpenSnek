@@ -53,11 +53,10 @@ Offset  Size  Field              Description
 ```
 
 Client implementations should use the validated transaction ID for the resolved
-device profile when one is known. For those devices, a command-level `0x03`
-response is a firmware rejection for that command and state; do not treat it as
-a signal to retry the same command with another transaction ID. Transaction-ID
-candidate scanning is only a fallback for devices without a validated profile
-transaction ID.
+device profile when one is known. For devices without a validated profile
+transaction ID, use one deterministic fallback candidate. A command-level
+`0x03` response is a firmware rejection for that command and state; do not
+treat it as a signal to retry the same command with another transaction ID.
 
 Multi-command flows must also be serialized per physical device, not merely per
 HID handle or process. This includes full state sweeps, read-modify-write

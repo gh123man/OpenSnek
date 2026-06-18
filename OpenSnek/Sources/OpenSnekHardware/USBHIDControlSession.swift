@@ -127,15 +127,13 @@ public final class USBHIDControlSession: @unchecked Sendable {
         size: UInt8,
         args: [UInt8],
         transactionID: UInt8? = nil,
-        allowTxnRescan: Bool = true,
         responseAttempts: Int = 6,
         responseDelayUs: useconds_t = 35_000
     ) throws -> [UInt8]? {
         try withExclusiveDeviceAccess {
             for txn in Self.transactionCandidates(
                 preferredTransactionID: transactionID,
-                cachedTransactionID: cachedTxn,
-                allowTxnRescan: allowTxnRescan
+                cachedTransactionID: cachedTxn
             ) {
                 let report = USBHIDProtocol.createReport(txn: txn, classID: classID, cmdID: cmdID, size: size, args: args)
                 guard let response = try exchange(
@@ -162,20 +160,15 @@ public final class USBHIDControlSession: @unchecked Sendable {
 
     static func transactionCandidates(
         preferredTransactionID: UInt8?,
-        cachedTransactionID: UInt8?,
-        allowTxnRescan: Bool
+        cachedTransactionID: UInt8?
     ) -> [UInt8] {
         if let preferredTransactionID {
             return [preferredTransactionID]
         }
-        let candidates: [UInt8]
         if let cachedTransactionID {
-            candidates = allowTxnRescan ? [cachedTransactionID, 0x1F, 0x3F, 0xFF] : [cachedTransactionID]
-        } else {
-            candidates = [0x1F, 0x3F, 0xFF]
+            return [cachedTransactionID]
         }
-        var seen = Set<UInt8>()
-        return candidates.filter { seen.insert($0).inserted }
+        return [0x1F]
     }
 
     private static func deviceLock(for deviceID: String) -> NSRecursiveLock {

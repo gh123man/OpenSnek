@@ -407,11 +407,6 @@ actor BridgeClient {
         usbReconnectSettleUntilByDeviceID.removeValue(forKey: deviceID)
     }
 
-    nonisolated static func shouldRetryUSBStateRead(firstScanErrors: [any Error]) -> Bool {
-        guard !firstScanErrors.isEmpty else { return true }
-        return !firstScanErrors.allSatisfy(Self.isUSBTelemetryUnavailableError)
-    }
-
     nonisolated static func makeBluetoothFallbackDevice(
         summary: BLEVendorTransportClient.ConnectedPeripheralSummary
     ) -> MouseDevice {
@@ -522,41 +517,26 @@ actor BridgeClient {
         }
 
         var firstError: Error?
-        for scanAttempt in 0..<2 {
-            firstError = nil
-            var scanErrors: [any Error] = []
-            for (index, session) in sessions.enumerated() {
-                do {
-                    let state = try await readUSBState(device: device, session: session)
-                    if index > 0 {
-                        deviceSessions[device.id] = session
-                        AppLog.debug("Bridge", "readState usb switched to alternate session index=\(index) device=\(device.id)")
-                    }
-                    lastStateByDeviceID[device.id] = state
-                    await maybeUpgradeUSBPassiveDpiFromPolling(device: device, reason: "read-state-ok")
-                    AppLog.debug(
-                        "Bridge",
-                        "readState usb device=\(device.id) " +
-                        "elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
-                    )
-                    return state
-                } catch {
-                    if firstError == nil {
-                        firstError = error
-                    }
-                    scanErrors.append(error)
-                    AppLog.debug("Bridge", "readState usb candidate index=\(index) failed: \(error.localizedDescription)")
+        for (index, session) in sessions.enumerated() {
+            do {
+                let state = try await readUSBState(device: device, session: session)
+                if index > 0 {
+                    deviceSessions[device.id] = session
+                    AppLog.debug("Bridge", "readState usb switched to alternate session index=\(index) device=\(device.id)")
                 }
-            }
-            if scanAttempt == 0 {
-                guard Self.shouldRetryUSBStateRead(firstScanErrors: scanErrors) else {
-                    AppLog.debug(
-                        "Bridge",
-                        "readState usb aborting retry after telemetry-unavailable sweep device=\(device.id)"
-                    )
-                    break
+                lastStateByDeviceID[device.id] = state
+                await maybeUpgradeUSBPassiveDpiFromPolling(device: device, reason: "read-state-ok")
+                AppLog.debug(
+                    "Bridge",
+                    "readState usb device=\(device.id) " +
+                    "elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
+                )
+                return state
+            } catch {
+                if firstError == nil {
+                    firstError = error
                 }
-                usleep(120_000)
+                AppLog.debug("Bridge", "readState usb candidate index=\(index) failed: \(error.localizedDescription)")
             }
         }
 
@@ -775,67 +755,34 @@ actor BridgeClient {
                 throw BridgeError.commandFailed("Device not available")
             }
             func runUSBWrite(_ operation: (USBHIDControlSession) throws -> Bool) throws -> Bool {
-                var firstError: Error?
-                for session in orderedSessions {
-                    do {
-                        if try session.withExclusiveDeviceAccess({ try operation(session) }) {
-                            deviceSessions[device.id] = session
-                            return true
-                        }
-                    } catch {
-                        if firstError == nil {
-                            firstError = error
-                        }
-                    }
+                let session = orderedSessions[0]
+                let succeeded = try session.withExclusiveDeviceAccess { try operation(session) }
+                if succeeded {
+                    deviceSessions[device.id] = session
                 }
-                if let firstError {
-                    throw firstError
-                }
-                return false
+                return succeeded
             }
 
             func readUSBCurrentDpiStages() throws -> USBDpiStageSnapshot? {
-                var firstError: Error?
-                for session in orderedSessions {
-                    do {
-                        if let current = try session.withExclusiveDeviceAccess({
-                            try getDPIStageSnapshot(session, device)
-                        }) {
-                            deviceSessions[device.id] = session
-                            return current
-                        }
-                    } catch {
-                        if firstError == nil {
-                            firstError = error
-                        }
-                    }
+                let session = orderedSessions[0]
+                let current = try session.withExclusiveDeviceAccess {
+                    try getDPIStageSnapshot(session, device)
                 }
-                if let firstError {
-                    throw firstError
+                if current != nil {
+                    deviceSessions[device.id] = session
                 }
-                return nil
+                return current
             }
 
             func readUSBCurrentDpi() throws -> (Int, Int)? {
-                var firstError: Error?
-                for session in orderedSessions {
-                    do {
-                        if let current = try session.withExclusiveDeviceAccess({
-                            try getDPI(session, device)
-                        }) {
-                            deviceSessions[device.id] = session
-                            return current
-                        }
-                    } catch {
-                        if firstError == nil {
-                            firstError = error
-                        }
-                    }
+                let session = orderedSessions[0]
+                let current = try session.withExclusiveDeviceAccess {
+                    try getDPI(session, device)
                 }
-                if let firstError {
-                    throw firstError
+                if current != nil {
+                    deviceSessions[device.id] = session
                 }
-                return nil
+                return current
             }
 
             if let mode = patch.deviceMode {
@@ -901,7 +848,6 @@ actor BridgeClient {
                     throw BridgeError.commandFailed("Failed to resolve current DPI stages")
                 }
                 let resolvedStagePairs = stagePairs ?? stages.map { DpiPair(x: $0, y: $0) }
-                let requiresStrictStageVerify = patch.dpiStages != nil || patch.dpiStagePairs != nil
                 let activeClamped = max(0, min(stages.count - 1, active))
                 let livePair = resolvedStagePairs[activeClamped]
                 if stages.count == 1 {
@@ -921,144 +867,59 @@ actor BridgeClient {
                         AppLog.debug("Bridge", "single-stage table persist failed: \(error.localizedDescription)")
                     }
 
-                    var dpiWriteError: Error?
-                    var dpiWriteAcked = false
-                    var dpiWriteVerified = false
-                    for _ in 0..<6 {
-                        do {
-                            guard try runUSBWrite({ try setDPI($0, device, dpiX: livePair.x, dpiY: livePair.y, store: false) }) else {
-                                usleep(40_000)
-                                continue
-                            }
-                            dpiWriteAcked = true
-                            for _ in 0..<12 {
-                                if let readback = try readUSBCurrentDpi(),
-                                   readback.0 == livePair.x,
-                                   readback.1 == livePair.y {
-                                    dpiWriteVerified = true
-                                    break
-                                }
-                                usleep(70_000)
-                            }
-                            if dpiWriteVerified {
-                                break
-                            }
-                        } catch {
-                            if dpiWriteError == nil {
-                                dpiWriteError = error
-                            }
-                        }
-                        usleep(50_000)
+                    guard try runUSBWrite({ try setDPI($0, device, dpiX: livePair.x, dpiY: livePair.y, store: false) }) else {
+                        throw BridgeError.commandFailed("Failed to set DPI")
                     }
-                    if !dpiWriteVerified {
-                        if dpiWriteAcked {
-                            if requiresStrictStageVerify {
-                                throw BridgeError.commandFailed("Failed to verify DPI write")
-                            }
-                            AppLog.debug("Bridge", "single-stage dpi verify timeout live=(\(livePair.x),\(livePair.y)); proceeding after acked write")
-                        } else {
-                            if let dpiWriteError {
-                                throw dpiWriteError
-                            }
-                            throw BridgeError.commandFailed("Failed to set DPI")
-                        }
+                    guard let readback = try readUSBCurrentDpi(),
+                          readback.0 == livePair.x,
+                          readback.1 == livePair.y else {
+                        throw BridgeError.commandFailed("Failed to verify DPI write")
                     }
                 } else {
-                    var stageWriteAcked = false
-                    var stageWriteVerified = false
-                    var stageWriteError: Error?
-                    for _ in 0..<6 {
-                        do {
-                            guard try runUSBWrite({
-                                try setDPIStages(
-                                    $0,
-                                    device,
-                                    stages: stages,
-                                    activeStage: activeClamped,
-                                    stagePairs: resolvedStagePairs,
-                                    stageIDs: stageIDs
-                                )
-                            }) else {
-                                usleep(50_000)
-                                continue
-                            }
-                            stageWriteAcked = true
-
-                            for _ in 0..<12 {
-                                guard let readback = try readUSBCurrentDpiStages() else {
-                                    usleep(70_000)
-                                    continue
-                                }
-                                let readbackActive = max(0, min(stages.count - 1, readback.active))
-                                let readbackValues = Array(readback.values.prefix(stages.count)).map { DeviceProfiles.clampDPI($0, device: device) }
-                                let readbackPairs = Array(readback.pairs.prefix(resolvedStagePairs.count)).map { pair in
-                                    DpiPair(
-                                        x: DeviceProfiles.clampDPI(pair.x, device: device),
-                                        y: DeviceProfiles.clampDPI(pair.y, device: device)
-                                    )
-                                }
-                                if readbackPairs == resolvedStagePairs && readbackActive == activeClamped {
-                                    stageWriteVerified = true
-                                    break
-                                }
-                                AppLog.debug(
-                                    "Bridge",
-                                    "dpi stage verify mismatch wanted=\(stages) active=\(activeClamped) " +
-                                    "got=\(readbackValues) active=\(readbackActive)"
-                                )
-                                usleep(70_000)
-                            }
-                            if stageWriteVerified {
-                                break
-                            }
-                        } catch {
-                            if stageWriteError == nil {
-                                stageWriteError = error
-                            }
-                        }
-                        usleep(50_000)
-                        if stageWriteVerified {
-                            break
-                        }
+                    guard try runUSBWrite({
+                        try setDPIStages(
+                            $0,
+                            device,
+                            stages: stages,
+                            activeStage: activeClamped,
+                            stagePairs: resolvedStagePairs,
+                            stageIDs: stageIDs
+                        )
+                    }) else {
+                        throw BridgeError.commandFailed("Failed to set DPI stages")
                     }
-                    if !stageWriteVerified {
-                        if stageWriteAcked {
-                            if requiresStrictStageVerify {
-                                throw BridgeError.commandFailed("Failed to verify DPI stage write")
-                            }
-                            AppLog.debug("Bridge", "dpi stage verify timeout active=\(activeClamped) values=\(stages); proceeding after acked write")
-                        } else {
-                            if let stageWriteError {
-                                throw stageWriteError
-                            }
-                            throw BridgeError.commandFailed("Failed to set DPI stages")
-                        }
+                    guard let readback = try readUSBCurrentDpiStages() else {
+                        throw BridgeError.commandFailed("Failed to verify DPI stage write")
+                    }
+                    let readbackActive = max(0, min(stages.count - 1, readback.active))
+                    let readbackValues = Array(readback.values.prefix(stages.count)).map { DeviceProfiles.clampDPI($0, device: device) }
+                    let readbackPairs = Array(readback.pairs.prefix(resolvedStagePairs.count)).map { pair in
+                        DpiPair(
+                            x: DeviceProfiles.clampDPI(pair.x, device: device),
+                            y: DeviceProfiles.clampDPI(pair.y, device: device)
+                        )
+                    }
+                    guard readbackPairs == resolvedStagePairs && readbackActive == activeClamped else {
+                        AppLog.error(
+                            "Bridge",
+                            "dpi stage verify mismatch wanted=\(stages) active=\(activeClamped) " +
+                            "got=\(readbackValues) active=\(readbackActive)"
+                        )
+                        throw BridgeError.commandFailed("Failed to verify DPI stage write")
                     }
 
-                    // After stage-table commit, best-effort apply active stage DPI immediately.
-                    // Some firmware reports updated table first, then lags current DPI scalar.
-                    do {
-                        var liveApplied = false
-                        for _ in 0..<4 where !liveApplied {
-                            guard try runUSBWrite({ try setDPI($0, device, dpiX: livePair.x, dpiY: livePair.y, store: false) }) else {
-                                usleep(50_000)
-                                continue
-                            }
-                            for _ in 0..<6 {
-                                if let readback = try readUSBCurrentDpi(),
-                                   readback.0 == livePair.x,
-                                   readback.1 == livePair.y {
-                                    liveApplied = true
-                                    break
-                                }
-                                usleep(70_000)
-                            }
-                        }
-                        if !liveApplied {
-                            AppLog.debug("Bridge", "post-stage live dpi verify timeout live=(\(livePair.x),\(livePair.y))")
-                        }
-                    } catch {
-                        AppLog.debug("Bridge", "post-stage live dpi apply failed: \(error.localizedDescription)")
+                    guard try runUSBWrite({ try setDPI($0, device, dpiX: livePair.x, dpiY: livePair.y, store: false) }) else {
+                        throw BridgeError.commandFailed("Failed to apply active DPI stage")
+                    }
+                    let liveReadback = try readUSBCurrentDpi()
+                    guard liveReadback?.0 == livePair.x,
+                          liveReadback?.1 == livePair.y else {
+                        let actual = liveReadback.map { "(\($0.0),\($0.1))" } ?? "nil"
+                        AppLog.error(
+                            "Bridge",
+                            "post-stage live dpi mismatch wanted=(\(livePair.x),\(livePair.y)) got=\(actual)"
+                        )
+                        throw BridgeError.commandFailed("Failed to verify active DPI stage")
                     }
                 }
             }
@@ -1161,44 +1022,20 @@ actor BridgeClient {
                 return projected
             }
 
-            do {
-                return try await readStateAfterUSBWrite(device: device)
-            } catch {
-                if let cached = lastStateByDeviceID[device.id] {
-                    let projected = projectedState(from: cached, applying: patch, device: device)
-                    lastStateByDeviceID[device.id] = projected
-                    AppLog.debug(
-                        "Bridge",
-                        "usb apply readback failed; returning projected state device=\(device.id): \(error.localizedDescription)"
-                    )
-                    return projected
-                }
-                throw error
-            }
+            return try await readStateAfterUSBWrite(device: device)
         }
     }
 
-    private func readStateAfterUSBWrite(device: MouseDevice, attempts: Int = 4) async throws -> MouseState {
-        var firstError: Error?
-        let totalAttempts = max(1, attempts)
-        for attempt in 0..<totalAttempts {
-            do {
-                return try await readState(device: device)
-            } catch {
-                if firstError == nil {
-                    firstError = error
-                }
-                AppLog.debug(
-                    "Bridge",
-                    "usb post-write readback attempt \(attempt + 1)/\(totalAttempts) failed device=\(device.id): \(error.localizedDescription)"
-                )
-                if attempt + 1 < totalAttempts {
-                    let backoffMs = UInt64(120 + (attempt * 120))
-                    try? await Task.sleep(nanoseconds: backoffMs * 1_000_000)
-                }
-            }
+    private func readStateAfterUSBWrite(device: MouseDevice) async throws -> MouseState {
+        do {
+            return try await readState(device: device)
+        } catch {
+            AppLog.error(
+                "Bridge",
+                "usb post-write readback failed device=\(device.id): \(error.localizedDescription)"
+            )
+            throw error
         }
-        throw firstError ?? BridgeError.commandFailed("USB readback failed after apply")
     }
 
     nonisolated static func resolveDpiStagePairs(

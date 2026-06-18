@@ -65,7 +65,7 @@ Device onboarding and capture interpretation live in:
 - Auto-apply edits are coalesced (latest-wins) to prevent write backlog.
 - Physical presence and telemetry freshness are tracked separately.
 - Refresh, snapshot, and fast-poll responses are revision-gated to drop stale results.
-- Invalid DPI payloads are ignored (with retry) to avoid UI snapback on transient malformed frames.
+- Invalid DPI payloads are ignored without retrying the command to avoid UI snapback on transient malformed frames.
 - Validated transports prefer passive HID DPI input reports, with fast DPI polling kept as a recovery path until passive reports are observed again.
 - Passive HID updates can supersede older full-state reads, so rapid on-device DPI cycling does not snap back to older values.
 - Device discovery now resolves profile metadata up front, including button layout and lighting-effect support per transport.
@@ -302,8 +302,8 @@ across multiple consecutive reads for each step.
 Use this when debugging UI-stage selection mismatch against mouse stage-button cycling.
 
 ```bash
-swift run --package-path OpenSnek OpenSnekProbe dpi-set --values 1000,2000,3000 --active 1 --verify-retries 8 --verify-delay-ms 120
-swift run --package-path OpenSnek OpenSnekProbe dpi-set --values 1000,2000,3000 --active 3 --verify-retries 8 --verify-delay-ms 120
+swift run --package-path OpenSnek OpenSnekProbe dpi-set --values 1000,2000,3000 --active 1
+swift run --package-path OpenSnek OpenSnekProbe dpi-set --values 1000,2000,3000 --active 3
 swift run --package-path OpenSnek OpenSnekProbe dpi-read
 ```
 

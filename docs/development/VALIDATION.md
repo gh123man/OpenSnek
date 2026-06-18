@@ -27,9 +27,8 @@ assuming every successful command has the same ACK/readback shape.
 - Treat write ACKs as transport evidence only. Product operations must succeed
   from authoritative readback of the fields they changed.
 - If a validated command can return no status after the firmware accepted it,
-  model that response as indeterminate and resolve it by bounded strict
-  readback. Do not retry writes on the happy path unless readback proves the
-  write did not land.
+  model that response as indeterminate and resolve it with a single strict
+  readback. Do not retry writes or readbacks to wait for device state to settle.
 - Prefer direct registers or inventory commands over fingerprinting or inferred
   state. Use fingerprinting only when no direct register is mapped.
 - Do not infer identity from non-unique values. For example, passive DPI events
@@ -69,8 +68,8 @@ swift run --package-path OpenSnek OpenSnekProbe dpi-cycle --sequence '1200,6400;
 Stage-selection regression check:
 
 ```bash
-swift run --package-path OpenSnek OpenSnekProbe dpi-set --values 1000,2000,3000 --active 1 --verify-retries 8 --verify-delay-ms 120
-swift run --package-path OpenSnek OpenSnekProbe dpi-set --values 1000,2000,3000 --active 3 --verify-retries 8 --verify-delay-ms 120
+swift run --package-path OpenSnek OpenSnekProbe dpi-set --values 1000,2000,3000 --active 1
+swift run --package-path OpenSnek OpenSnekProbe dpi-set --values 1000,2000,3000 --active 3
 swift run --package-path OpenSnek OpenSnekProbe dpi-read
 ```
 
