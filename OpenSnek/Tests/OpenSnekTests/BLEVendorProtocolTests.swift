@@ -492,4 +492,23 @@ final class BLEVendorProtocolTests: XCTestCase {
         XCTAssertEqual(parsed?.count, 3)
         XCTAssertEqual(parsed?.values, [800, 1600, 3200])
     }
+
+    func testParseStoredProfileProjectionUsesDeclaredCount() {
+        let blob = Data([
+            0x03, 0x03,
+            0x01, 0x90, 0x01, 0x90, 0x01, 0x00, 0x00,
+            0x02, 0xB0, 0x04, 0xB0, 0x04, 0x00, 0x00,
+            0x03, 0x14, 0x05, 0x14, 0x05, 0x00,
+        ])
+        let parsed = BLEVendorProtocol.parseDpiStages(blob: blob)
+
+        XCTAssertEqual(parsed?.count, 3)
+        XCTAssertEqual(parsed?.values, [400, 1200, 1300])
+        XCTAssertEqual(parsed?.pairs, [
+            DpiPair(x: 400, y: 400),
+            DpiPair(x: 1200, y: 1200),
+            DpiPair(x: 1300, y: 1300),
+        ])
+        XCTAssertEqual(parsed?.active, 2)
+    }
 }

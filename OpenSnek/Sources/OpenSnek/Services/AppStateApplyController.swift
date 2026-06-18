@@ -439,7 +439,7 @@ final class AppStateApplyController {
     }
 
     private func supportsOnboardProfileEditorWrites(device: MouseDevice) -> Bool {
-        device.transport == .usb && supportsOnboardProfileCRUD(device: device)
+        supportsOnboardProfileCRUD(device: device)
     }
 
     private func supportsOnboardProfileLightingEditorWrites(device: MouseDevice) -> Bool {

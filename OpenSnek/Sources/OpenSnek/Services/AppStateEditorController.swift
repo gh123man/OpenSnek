@@ -763,6 +763,7 @@ final class AppStateEditorController {
 
     func hydrateButtonBindingsIfNeeded(device: MouseDevice) async {
         guard !isTearingDown else { return }
+        guard !(device.transport == .bluetooth && supportsOnboardProfileCRUD(device: device)) else { return }
         let source = buttonProfileSource(for: device)
         if case .openSnekProfile = source {
             let bindings = currentSourceBindings(for: device)
@@ -1397,6 +1398,7 @@ final class AppStateEditorController {
         AppLog.debug(
             "AppState",
             "onboard profile snapshot stored source=\(source) device=\(device.id) profile=\(storedSnapshot.profileID) priorName=\"\(priorName)\" snapshotName=\"\(storedSnapshot.metadata.name)\" storedName=\"\(storedName)\" projected=\(projectMetadataForRefresh)"
+                + " dpiCount=\(storedSnapshot.dpi?.stageCount ?? 0) dpiValues=\(storedSnapshot.dpi?.values.map(String.init).joined(separator: ",") ?? "<none>")"
         )
     }
 
@@ -1918,6 +1920,13 @@ final class AppStateEditorController {
                 projectMetadataForRefresh: resolvedMutation.metadata != nil
             )
             if selectedOnboardProfileIDByDeviceID[device.id] == selected {
+                if let bindings = resolvedMutation.buttonBindings {
+                    cacheSelectedOnboardProfileButtonBindings(
+                        snapshot.buttonBindings.merging(bindings) { _, updated in updated },
+                        device: device,
+                        profileID: selected
+                    )
+                }
                 hydrateEditableLighting(from: snapshot, device: device)
                 hydrateEditableScroll(from: snapshot)
             }
@@ -2082,6 +2091,24 @@ final class AppStateEditorController {
             "AppState",
             "onboard profile button hydration ok device=\(device.id) profile=\(profileID) slots=\(bindings.keys.sorted())"
         )
+    }
+
+    private func cacheSelectedOnboardProfileButtonBindings(
+        _ bindings: [Int: ButtonBindingDraft],
+        device: MouseDevice,
+        profileID: Int
+    ) {
+        let persistentProfileID = max(1, profileID)
+        let hydrationKey = buttonBindingsHydrationKey(device: device, profile: persistentProfileID)
+        buttonBindingsCacheByHydrationKey[hydrationKey] = bindings
+        savePersistedButtonBindings(device: device, bindings: bindings, profile: persistentProfileID)
+        buttonBindingsReadbackAttemptedKeys.insert(hydrationKey)
+        if selectedOnboardProfileIDByDeviceID[device.id] == profileID,
+           deviceStore.selectedDeviceID == device.id {
+            hydratedButtonBindingsKey = hydrationKey
+            editorStore.editableButtonBindings = bindings
+            bumpUSBButtonProfilesRevision()
+        }
     }
 
     private func currentSelectedOnboardProfileSnapshot(device: MouseDevice) -> OnboardProfileSnapshot? {

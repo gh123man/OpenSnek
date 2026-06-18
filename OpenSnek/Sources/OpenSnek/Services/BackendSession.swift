@@ -544,11 +544,15 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     }
 
     func readOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot {
-        try await client.readOnboardProfile(device: device, profileID: profileID)
+        let snapshot = try await client.readOnboardProfile(device: device, profileID: profileID)
+        await cacheActiveOnboardProfileSnapshotIfCurrent(snapshot, device: device, source: "readOnboardProfile")
+        return snapshot
     }
 
     func readOnboardProfileCore(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot {
-        try await client.readOnboardProfileCore(device: device, profileID: profileID)
+        let snapshot = try await client.readOnboardProfileCore(device: device, profileID: profileID)
+        await cacheActiveOnboardProfileSnapshotIfCurrent(snapshot, device: device, source: "readOnboardProfileCore")
+        return snapshot
     }
 
     func readOnboardProfileButtonBindings(device: MouseDevice, profileID: Int) async throws -> [Int: ButtonBindingDraft] {
@@ -595,6 +599,42 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         let state = try await client.refreshActiveOnboardProfile(device: device)
         cacheAndPublishState(state, for: device.id, updatedAt: Date())
         return state
+    }
+
+    private func cacheActiveOnboardProfileSnapshotIfCurrent(
+        _ snapshot: OnboardProfileSnapshot,
+        device: MouseDevice,
+        source: String
+    ) async {
+        guard snapshot.profileID > 0,
+              let active = cachedStateByDeviceID[device.id]?.active_onboard_profile
+                ?? reconnectSeedStateByDeviceID[device.id]?.active_onboard_profile,
+              active == snapshot.profileID else {
+            return
+        }
+
+        do {
+            let profile = try await client.mappedOnboardProfileSupport(for: device)
+            let state = await client.storeProjectedActiveOnboardProfileState(
+                device: device,
+                profile: profile,
+                activeProfileID: active,
+                snapshot: snapshot
+            )
+            cacheAndPublishState(state, for: device.id, updatedAt: Date())
+            AppLog.debug(
+                "Backend",
+                "cached active onboard profile snapshot source=\(source) device=\(device.id) " +
+                    "profile=\(snapshot.profileID) dpiCount=\(snapshot.dpi?.stageCount ?? 0) " +
+                    "dpiValues=\(snapshot.dpi?.values.map(String.init).joined(separator: ",") ?? "<none>")"
+            )
+        } catch {
+            AppLog.debug(
+                "Backend",
+                "active onboard profile snapshot cache skipped source=\(source) device=\(device.id) " +
+                    "profile=\(snapshot.profileID): \(error.localizedDescription)"
+            )
+        }
     }
 
     func readLightingColor(device: MouseDevice) async throws -> RGBPatch? {
