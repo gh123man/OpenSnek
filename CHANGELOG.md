@@ -9,6 +9,9 @@ All notable changes to this project are documented in this file.
 - `OpenSnekProbe dpi-set` now performs one post-write verification read and removed the `--verify-retries` / `--verify-delay-ms` flags.
 - DPI stage selection from the UI now applies only the selected live stage instead of rewriting the full stage table when stage values were not edited.
 
+### Fixed
+- DPI stage selection no longer briefly snaps back to the previous stage when stale telemetry arrives before the apply result.
+
 ## [2026-06-16]
 
 ### Added

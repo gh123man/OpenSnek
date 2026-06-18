@@ -237,6 +237,65 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(patch.activeStage, 2)
     }
 
+    func testPendingActiveStageSelectionDoesNotFlapOnStaleBackendState() async throws {
+        let device = makeRefactorTestDevice(
+            id: "active-stage-no-flap-device",
+            transport: .usb,
+            serial: "ACTIVE-STAGE-NO-FLAP-\(UUID().uuidString)",
+            onboardProfileCount: 1
+        )
+        let staleState = makeRefactorTestState(
+            device: device,
+            connection: "usb",
+            batteryPercent: 74,
+            dpiValues: [800, 1600, 3200],
+            activeStage: 0,
+            dpiValue: 800,
+            pollRate: 1000,
+            sleepTimeout: 300
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [device.id: staleState]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+        await MainActor.run {
+            appState.editorStore.editableStageCount = 3
+            appState.editorStore.editableStageValues = [800, 1600, 3200, 6400, 12000]
+            appState.editorStore.editableStagePairs = [
+                DpiPair(x: 800, y: 800),
+                DpiPair(x: 1600, y: 1600),
+                DpiPair(x: 3200, y: 3200),
+                DpiPair(x: 6400, y: 6400),
+                DpiPair(x: 12000, y: 12000),
+            ]
+            appState.editorStore.editableActiveStage = 3
+            appState.editorStore.scheduleAutoApplyActiveStage()
+            appState.deviceController.applyBackendDeviceStateUpdate(
+                deviceID: device.id,
+                state: staleState,
+                updatedAt: Date().addingTimeInterval(0.1)
+            )
+        }
+
+        let activeAfterStaleUpdate = await MainActor.run {
+            appState.editorStore.editableActiveStage
+        }
+        XCTAssertEqual(activeAfterStaleUpdate, 3)
+
+        try await waitForRefactorCondition {
+            await backend.applyCount() == 1
+        }
+        let activeAfterApply = await MainActor.run {
+            appState.editorStore.editableActiveStage
+        }
+        XCTAssertEqual(activeAfterApply, 3)
+    }
+
     func testHydratedEditableDpiStagesClampToSelectedDeviceLimit() async throws {
         let device = makeRefactorTestDevice(
             id: "dpi-clamp-device",

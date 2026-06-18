@@ -596,15 +596,20 @@ final class AppStateEditorController {
 
         handleActiveOnboardProfilePresentation(from: state)
 
+        let pendingActiveStage = applyController.pendingActiveStageSelection(for: deviceStore.selectedDevice)
         if let snapshot = currentActiveOnboardProfileSnapshot(for: state),
            let dpi = snapshot.dpi,
            let device = deviceStore.selectedDevice {
             hydrateEditableDPI(from: dpi, device: device, liveDPI: state.dpi)
+            if let pendingActiveStage {
+                let maxStage = max(1, editorStore.editableStageCount)
+                editorStore.editableActiveStage = max(1, min(maxStage, pendingActiveStage))
+            }
         } else if let active = state.dpi_stages.active_stage {
             let maxStage = max(1, editorStore.editableStageCount)
-            editorStore.editableActiveStage = max(1, min(maxStage, active + 1))
+            editorStore.editableActiveStage = max(1, min(maxStage, pendingActiveStage ?? active + 1))
         } else {
-            editorStore.editableActiveStage = 1
+            editorStore.editableActiveStage = pendingActiveStage ?? 1
         }
 
         if editorStore.editableStageCount == 1, let dpi = state.dpi?.x {

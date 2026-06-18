@@ -36,6 +36,7 @@ final class AppStateApplyController {
     private var applyDrainTask: Task<Void, Never>?
     private var lastLocalEditAt: Date?
     private var localEditDeviceIdentityKey: String?
+    private var pendingActiveStageSelectionByDeviceIdentityKey: [String: Int] = [:]
 
     init(
         environment: AppEnvironment,
@@ -147,6 +148,8 @@ final class AppStateApplyController {
     }
 
     func scheduleAutoApplyActiveStage() {
+        guard !editorController.isHydrating else { return }
+        rememberPendingActiveStageSelection(editorStore.editableActiveStage, for: deviceStore.selectedDevice)
         scheduleAutoApply(key: .activeStage, delay: 80_000_000) { [weak self] in
             guard let self else { return }
             await self.applyActiveStageOnly()
@@ -506,6 +509,9 @@ final class AppStateApplyController {
     private func applyOnboardProfileMutationForCurrentSelection(_ mutation: OnboardProfileMutation) async -> Bool {
         let start = Date()
         let succeeded = await editorController.applyOnboardProfileMutationForCurrentSelection(mutation)
+        if let activeStage = mutation.dpi?.activeStage {
+            clearPendingActiveStageSelection(matching: activeStage + 1, for: deviceStore.selectedDevice)
+        }
         if succeeded {
             clearPendingLocalEditsIfUnchanged(since: start)
         }
@@ -518,6 +524,19 @@ final class AppStateApplyController {
         hasPendingLocalEdits = false
         lastLocalEditAt = nil
         localEditDeviceIdentityKey = nil
+    }
+
+    private func rememberPendingActiveStageSelection(_ stage: Int, for device: MouseDevice?) {
+        guard let device else { return }
+        let count = max(1, min(5, editorStore.editableStageCount))
+        pendingActiveStageSelectionByDeviceIdentityKey[deviceController.deviceIdentityKey(device)] = max(1, min(count, stage))
+    }
+
+    private func clearPendingActiveStageSelection(matching stage: Int, for device: MouseDevice?) {
+        guard let device else { return }
+        let key = deviceController.deviceIdentityKey(device)
+        guard pendingActiveStageSelectionByDeviceIdentityKey[key] == stage else { return }
+        pendingActiveStageSelectionByDeviceIdentityKey.removeValue(forKey: key)
     }
 
     private func shouldTreatCurrentSourceAsExactMouseSlot(device: MouseDevice) -> Int? {
@@ -799,6 +818,11 @@ final class AppStateApplyController {
         return localEditDeviceIdentityKey == deviceController.deviceIdentityKey(device)
     }
 
+    func pendingActiveStageSelection(for device: MouseDevice?) -> Int? {
+        guard let device else { return nil }
+        return pendingActiveStageSelectionByDeviceIdentityKey[deviceController.deviceIdentityKey(device)]
+    }
+
     func cancelPendingLocalEditsForSelectionChange() {
         for task in applyTasks.values {
             task.cancel()
@@ -808,6 +832,7 @@ final class AppStateApplyController {
         hasPendingLocalEdits = false
         lastLocalEditAt = nil
         localEditDeviceIdentityKey = nil
+        pendingActiveStageSelectionByDeviceIdentityKey.removeAll()
     }
 
     func enqueueApply(_ patch: DevicePatch) {
@@ -979,6 +1004,9 @@ final class AppStateApplyController {
                 deviceController.setFastDpiSuppressed(until: suppressedUntil, for: presentationDeviceID)
                 runtimeController.setCompactInteraction(until: Date().addingTimeInterval(3.0))
             }
+            if let activeStage = patch.activeStage {
+                clearPendingActiveStageSelection(matching: activeStage + 1, for: presentationDevice)
+            }
 
             if shouldHydrateEditableState, deviceStore.selectedDeviceID == presentationDeviceID {
                 lastLocalEditAt = nil
@@ -1052,6 +1080,9 @@ final class AppStateApplyController {
                     deviceStore.errorMessage = Self.commandFailureMessage(error)
                     deviceStore.warningMessage = nil
                     if patch.dpiStages != nil || patch.dpiStagePairs != nil || patch.activeStage != nil {
+                        if let activeStage = patch.activeStage {
+                            clearPendingActiveStageSelection(matching: activeStage + 1, for: targetDevice)
+                        }
                         runtimeStore.serviceStatusMessage = "DPI update failed"
                         runtimeController.setTransientStatus(until: Date().addingTimeInterval(4.0))
                     }
