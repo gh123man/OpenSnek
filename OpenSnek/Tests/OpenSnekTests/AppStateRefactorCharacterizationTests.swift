@@ -5929,6 +5929,90 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(updates.compactMap { $0.mutation.scrollSmartReel }, [true])
     }
 
+    func testLiveUSBScrollStateHydratesOverStaleActiveOnboardSnapshot() async throws {
+        let device = makeRefactorTestDevice(
+            id: "live-scroll-hydration-device",
+            transport: .usb,
+            serial: "LIVE-SCROLL-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let initialState = makeRefactorTestState(
+            device: device,
+            connection: "usb",
+            batteryPercent: 74,
+            dpiValues: [800, 1600, 3200],
+            activeStage: 0,
+            dpiValue: 800,
+            pollRate: 1000,
+            sleepTimeout: 300,
+            activeOnboardProfile: 1,
+            onboardProfileCount: 5,
+            scrollMode: 0,
+            scrollAcceleration: false,
+            scrollSmartReel: false
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [device.id: initialState]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true)
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(
+                profileID: 1,
+                name: "Base",
+                scrollMode: 0,
+                scrollAcceleration: false,
+                scrollSmartReel: false
+            ),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+        try await waitForRefactorCondition {
+            await backend.onboardReadCount(deviceID: device.id, profileID: 1) > 0
+        }
+
+        let updatedState = makeRefactorTestState(
+            device: device,
+            connection: "usb",
+            batteryPercent: 74,
+            dpiValues: [800, 1600, 3200],
+            activeStage: 0,
+            dpiValue: 800,
+            pollRate: 1000,
+            sleepTimeout: 300,
+            activeOnboardProfile: 1,
+            onboardProfileCount: 5,
+            scrollMode: 1,
+            scrollAcceleration: false,
+            scrollSmartReel: false
+        )
+        await backend.setState(updatedState, forDeviceID: device.id)
+
+        let refreshed = await appState.deviceController.refreshState(for: device)
+        XCTAssertTrue(refreshed)
+        try await waitForRefactorCondition {
+            await MainActor.run {
+                appState.editorStore.editableScrollMode == 1
+            }
+        }
+    }
+
     func testFailedOnboardProfileDpiEditDoesNotFallbackToLiveApply() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-dpi-failure-device",
@@ -6531,6 +6615,14 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
         onboardSnapshotsByKey[onboardSnapshotKey(deviceID: deviceID, profileID: snapshot.profileID)] = snapshot
     }
 
+    func setState(_ state: MouseState, forDeviceID deviceID: String) {
+        stateByDeviceID[deviceID] = state
+        if let active = state.dpi_stages.active_stage,
+           let values = state.dpi_stages.values {
+            fastByDeviceID[deviceID] = DpiFastSnapshot(active: active, values: values)
+        }
+    }
+
     func setRenameReturnsMetadataOnly(_ value: Bool) {
         renameReturnsMetadataOnly = value
     }
@@ -6841,7 +6933,10 @@ private func makeRefactorTestState(
     pollRate: Int,
     sleepTimeout: Int,
     activeOnboardProfile: Int? = nil,
-    onboardProfileCount: Int? = nil
+    onboardProfileCount: Int? = nil,
+    scrollMode: Int? = nil,
+    scrollAcceleration: Bool? = nil,
+    scrollSmartReel: Bool? = nil
 ) -> MouseState {
     MouseState(
         device: DeviceSummary(
@@ -6859,6 +6954,9 @@ private func makeRefactorTestState(
         poll_rate: pollRate,
         sleep_timeout: sleepTimeout,
         device_mode: DeviceMode(mode: 0x00, param: 0x00),
+        scroll_mode: scrollMode,
+        scroll_acceleration: scrollAcceleration,
+        scroll_smart_reel: scrollSmartReel,
         active_onboard_profile: activeOnboardProfile,
         onboard_profile_count: onboardProfileCount,
         led_value: 64,

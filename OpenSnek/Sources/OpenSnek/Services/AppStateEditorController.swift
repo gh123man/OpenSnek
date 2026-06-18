@@ -574,27 +574,19 @@ final class AppStateEditorController {
            let device = deviceStore.selectedDevice {
             AppLog.debug(
                 "AppState",
-                "hydrateEditable.scroll source=activeOnboardSnapshot device=\(device.id) " +
+                "hydrateEditable.scroll source=stateWithActiveOnboardSnapshotFallback device=\(device.id) " +
                 "profile=\(snapshot.profileID) state=\(Self.diagnosticScrollState(state)) " +
                 "snapshot=\(Self.diagnosticScrollSnapshot(snapshot))"
             )
             hydrateEditableLighting(from: snapshot, device: device)
-            hydrateEditableScroll(from: snapshot)
+            hydrateEditableScroll(from: state, fallbackSnapshot: snapshot)
         } else {
             AppLog.debug(
                 "AppState",
                 "hydrateEditable.scroll source=state device=\(deviceStore.selectedDeviceID ?? "nil") " +
                 "state=\(Self.diagnosticScrollState(state))"
             )
-            if let scrollMode = state.scroll_mode {
-                editorStore.editableScrollMode = max(0, min(1, scrollMode))
-            }
-            if let scrollAcceleration = state.scroll_acceleration {
-                editorStore.editableScrollAcceleration = scrollAcceleration
-            }
-            if let scrollSmartReel = state.scroll_smart_reel {
-                editorStore.editableScrollSmartReel = scrollSmartReel
-            }
+            hydrateEditableScroll(from: state)
             if let led = state.led_value {
                 editorStore.editableLedBrightness = led
             }
@@ -2373,6 +2365,18 @@ final class AppStateEditorController {
             editorStore.editableScrollAcceleration = scrollAcceleration
         }
         if let scrollSmartReel = snapshot.scrollSmartReel {
+            editorStore.editableScrollSmartReel = scrollSmartReel
+        }
+    }
+
+    private func hydrateEditableScroll(from state: MouseState, fallbackSnapshot snapshot: OnboardProfileSnapshot? = nil) {
+        if let scrollMode = state.scroll_mode ?? snapshot?.scrollMode {
+            editorStore.editableScrollMode = max(0, min(1, scrollMode))
+        }
+        if let scrollAcceleration = state.scroll_acceleration ?? snapshot?.scrollAcceleration {
+            editorStore.editableScrollAcceleration = scrollAcceleration
+        }
+        if let scrollSmartReel = state.scroll_smart_reel ?? snapshot?.scrollSmartReel {
             editorStore.editableScrollSmartReel = scrollSmartReel
         }
     }
