@@ -310,6 +310,9 @@ struct DeviceOverviewBar: View {
 
                 if editorStore.supportsOnboardProfileCRUD {
                     Spacer(minLength: 12)
+                    Text("Profile")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.50))
                     OnboardProfilePillButton(editorStore: editorStore) {
                         isOnboardProfileManagerPresented.toggle()
                     }
@@ -1821,10 +1824,10 @@ private struct OnboardProfilePillButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Circle()
                     .fill(onboardProfileSlotColor(activeProfileID))
-                    .frame(width: 8, height: 8)
+                    .frame(width: 24, height: 24)
                     .overlay(
                         Circle()
                             .stroke(Color.white.opacity(0.38), lineWidth: 1)
@@ -1836,16 +1839,16 @@ private struct OnboardProfilePillButton: View {
                     .foregroundStyle(.white.opacity(0.92))
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .frame(maxWidth: 190, alignment: .leading)
+                    .frame(maxWidth: 128, alignment: .leading)
 
                 Image(systemName: "chevron.down")
                     .font(.system(size: 9, weight: .black))
                     .foregroundStyle(.white.opacity(0.54))
                     .accessibilityHidden(true)
             }
-            .padding(.leading, 10)
-            .padding(.trailing, 9)
-            .padding(.vertical, 6)
+            .padding(.leading, 1)
+            .padding(.trailing, 8)
+            .padding(.vertical, 1)
             .background(
                 Capsule()
                     .fill(Color.white.opacity(0.08))
@@ -2148,8 +2151,6 @@ private struct OnboardProfileManagerPanel: View {
     private var actionPanel: some View {
         if let selectedProfileID, let selectedSummary {
             VStack(alignment: .leading, spacing: 12) {
-                actionHeader(for: selectedSummary)
-
                 TextField(selectedSummary.isAssigned ? "Profile name" : "Name this profile", text: $renameName)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityIdentifier("onboard-profile-name-field")
@@ -2237,21 +2238,6 @@ private struct OnboardProfileManagerPanel: View {
             RoundedRectangle(cornerRadius: 7)
                 .stroke(Color(hex: 0xFFD166).opacity(0.22), lineWidth: 1)
         )
-    }
-
-    private func actionHeader(for summary: OnboardProfileSummary) -> some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(summary.isAssigned ? summary.displayName : "None")
-                    .font(.system(size: 13, weight: .black, design: .rounded))
-                    .foregroundStyle(summary.isAssigned ? Color.white : Color.white.opacity(0.54))
-                    .lineLimit(1)
-                Text(summary.profileID == 1 ? "Base" : "Slot \(summary.profileID)")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.52))
-            }
-            Spacer(minLength: 0)
-        }
     }
 
     private func assignedActions(selectedProfileID: Int) -> some View {
