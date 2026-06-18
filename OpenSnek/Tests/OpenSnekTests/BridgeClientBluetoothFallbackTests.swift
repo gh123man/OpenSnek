@@ -172,30 +172,36 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
 
     func testCompleteBluetoothOnboardProfileMetadataRequiresAllIdentityFields() throws {
         let identifier = try XCTUnwrap(UUID(uuidString: "01234567-89ab-4cde-8f01-23456789abcd"))
+        let owner = "5ed8944a85a9763fd315852f448cb7de36c5e928e13b3be427f98f7dc455f141"
         let complete = BridgeClient.completeBluetoothOnboardProfileMetadata(
             USBHIDProtocol.OnboardProfileMetadata(
                 identifier: identifier,
                 name: "Slot 2",
-                owner: "OpenSnek"
+                owner: owner
             )
         )
 
         XCTAssertEqual(complete?.identifier, identifier)
         XCTAssertEqual(complete?.name, "Slot 2")
-        XCTAssertEqual(complete?.owner, "OpenSnek")
+        XCTAssertEqual(complete?.owner, owner)
         XCTAssertNil(
             BridgeClient.completeBluetoothOnboardProfileMetadata(
-                USBHIDProtocol.OnboardProfileMetadata(identifier: nil, name: "Slot 2", owner: "OpenSnek")
+                USBHIDProtocol.OnboardProfileMetadata(identifier: nil, name: "Slot 2", owner: owner)
             )
         )
         XCTAssertNil(
             BridgeClient.completeBluetoothOnboardProfileMetadata(
-                USBHIDProtocol.OnboardProfileMetadata(identifier: identifier, name: nil, owner: "OpenSnek")
+                USBHIDProtocol.OnboardProfileMetadata(identifier: identifier, name: nil, owner: owner)
             )
         )
         XCTAssertNil(
             BridgeClient.completeBluetoothOnboardProfileMetadata(
                 USBHIDProtocol.OnboardProfileMetadata(identifier: identifier, name: "Slot 2", owner: nil)
+            )
+        )
+        XCTAssertNil(
+            BridgeClient.completeBluetoothOnboardProfileMetadata(
+                USBHIDProtocol.OnboardProfileMetadata(identifier: identifier, name: "Slot 2", owner: "OpenSnek")
             )
         )
 

@@ -8,9 +8,13 @@ All notable changes to this project are documented in this file.
 - Added mapped onboard profile CRUD support for validated Basilisk V3 Pro USB and Bluetooth devices, including inventory-backed list/read/create/rename/update/delete/activate flows, UUID/name/owner metadata, mapped DPI/button/brightness/static-color snapshots, slot creation from existing profiles, and guarded write/readback behavior.
 - Added reactive onboard profile switching for Basilisk V3 Pro USB and Bluetooth through passive HID profile-cycle detection and direct active-profile readback, so the UI follows hardware profile changes without fingerprinting the whole profile configuration.
 - Added an onboard profile manager UI with always-visible slots, active-profile selection, rename/create/delete controls, copy-from-slot creation, profile-operation loading overlays, profile color markers, profile 1 Synapse overwrite guidance, and hard RGB lighting presets.
+- Added `OpenSnekProbe usb-profile-clone`, a guarded Basilisk V3 Pro USB repair command that clones Synapse-compatible metadata and mapped profile surfaces from one stored profile to another with strict readback.
 
 ### Changed
 - Devices with mapped onboard storage now use onboard profiles as the source of truth: selecting an assigned slot activates it, profile-backed edits write the selected onboard profile, same-ID reconnects reread device state, and the legacy On Connect restore control is hidden and ignored for those devices.
+
+### Fixed
+- Onboard profile create, rename, and metadata updates now write a Synapse-compatible 64-character owner hash instead of the short `OpenSnek` marker, preventing OpenSnek-created profiles from appearing broken in Synapse while still working on the mouse.
 
 ## [2026-06-15]
 

@@ -652,7 +652,7 @@ final class USBProbeClient {
         return false
     }
 
-    func readProfileMetadata(profile: UInt8) throws -> (chunks: [USBHIDProtocol.OnboardProfileMetadataChunk], metadata: USBHIDProtocol.OnboardProfileMetadata)? {
+    func readProfileMetadataBytes(profile: UInt8) throws -> (chunks: [USBHIDProtocol.OnboardProfileMetadataChunk], bytes: [UInt8], metadata: USBHIDProtocol.OnboardProfileMetadata)? {
         var chunks: [USBHIDProtocol.OnboardProfileMetadataChunk] = []
         for offset in USBHIDProtocol.onboardProfileMetadataChunkOffsets {
             let args = USBHIDProtocol.onboardProfileMetadataReadArgs(slot: profile, offset: offset)
@@ -672,7 +672,52 @@ final class USBProbeClient {
         }
         guard !chunks.isEmpty else { return nil }
         let bytes = USBHIDProtocol.mergeOnboardProfileMetadataChunks(chunks)
-        return (chunks, USBHIDProtocol.parseOnboardProfileMetadata(bytes))
+        return (chunks, bytes, USBHIDProtocol.parseOnboardProfileMetadata(bytes))
+    }
+
+    func readProfileMetadata(profile: UInt8) throws -> (chunks: [USBHIDProtocol.OnboardProfileMetadataChunk], metadata: USBHIDProtocol.OnboardProfileMetadata)? {
+        guard let read = try readProfileMetadataBytes(profile: profile) else { return nil }
+        return (read.chunks, read.metadata)
+    }
+
+    func writeProfileMetadataBytes(profile: UInt8, metadata: [UInt8]) throws -> Bool {
+        guard metadata.count >= USBHIDProtocol.onboardProfileMetadataLength else {
+            throw ProbeError.usage("Profile metadata must be at least \(USBHIDProtocol.onboardProfileMetadataLength) bytes")
+        }
+        var sawIndeterminateTail = false
+        for offset in USBHIDProtocol.onboardProfileMetadataWritableChunkOffsets {
+            let args = USBHIDProtocol.onboardProfileMetadataWriteArgs(
+                slot: profile,
+                offset: offset,
+                metadata: metadata
+            )
+            let isTailOffset = offset >= USBHIDProtocol.onboardProfileMetadataKnownFieldLength
+            let response = try rawCommand(
+                classID: 0x05,
+                cmdID: 0x08,
+                size: USBHIDProtocol.onboardProfileMetadataReadSize,
+                args: args,
+                responseAttempts: isTailOffset ? 16 : 10,
+                responseDelayUs: 50_000
+            )
+            if response?[0] == 0x02 {
+                usleep(25_000)
+                continue
+            }
+            if isTailOffset {
+                sawIndeterminateTail = true
+                continue
+            }
+            return false
+        }
+        if sawIndeterminateTail {
+            usleep(120_000)
+        }
+        guard let readback = try readProfileMetadataBytes(profile: profile) else {
+            return false
+        }
+        return Array(readback.bytes.prefix(USBHIDProtocol.onboardProfileMetadataLength)) ==
+            Array(metadata.prefix(USBHIDProtocol.onboardProfileMetadataLength))
     }
 
     func deleteProfile(profile: UInt8) throws -> Bool {

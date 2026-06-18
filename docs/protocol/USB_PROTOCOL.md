@@ -644,6 +644,15 @@ not perform a full profile snapshot read before the metadata write, and do not
 synthesize a fallback UUID for a rename write when metadata readback is
 incomplete.
 
+The owner field at offset `0x0074` is not freeform text. Synapse-created
+profiles use a full 64-character lowercase hex owner hash. A short marker such
+as `OpenSnek` can read back cleanly and still leave the profile selectable on
+the mouse, but Synapse treats that profile as broken: it appears in the profile
+UI but cannot be selected, renamed, or edited. Product writes must preserve an
+existing 64-character owner hash from the target profile or another assigned
+onboard profile on the same mouse; if none is readable, write OpenSnek's
+built-in 64-character fallback owner hash.
+
 All-zero or all-`0xFF` UUID bytes are invalid metadata, not real UUIDs. If an
 assigned USB profile has complete known metadata chunks but an all-`0xFF` UUID,
 repair the metadata object before applying the requested rename: generate a new
@@ -658,6 +667,10 @@ Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
 - slot `0x03`, offsets `00 40` and `00 80`: owner-hash chunks matching the Bluetooth metadata structure
 - slot `0x04`, offset `00 00`: UUID `27530668-c3e2-4e0a-a06e-a4854383c4e9`, name `OS_P4_RENAMED`
 - slot `0x05`, offset `00 00`: UUID `18f2a4cc-ecb8-4765-b532-9df401a686d6`, name `OS_P5`
+- later USB readback found profile `5` still Synapse-editable with owner hash
+  `5ed8944a85a9763fd315852f448cb7de36c5e928e13b3be427f98f7dc455f141`, while
+  OpenSnek-created profiles with owner `OpenSnek` were usable on-device but
+  broken in Synapse.
 - after an unsafe partial `0x05:0x08` probe, slot `0x05` metadata read back as UUID `ffffffff-ffff-ffff-ffff-ffffffffffff`, name `nil`.
 - a later full-object `0x05:0x08` repair restored slot `0x05` to UUID `18f2a4cc-ecb8-4765-b532-9df401a686d6`, name `OS_P5_BULK_MAP`, without changing mapped DPI/brightness/button settings.
 - a full-object `0x05:0x08` repair also restored assigned slot `0x04` from all-`0xFF` metadata to UUID `27530668-c3e2-4e0a-a06e-a4854383c4e9`, name `Profile 4`, without changing mapped DPI/brightness/button settings.
@@ -687,6 +700,7 @@ Client note:
 - `OpenSnekProbe usb-profile-active-set --profile 3 --yes` wraps the validated `0x05:0x04` selector for assigned profiles.
 - `OpenSnekProbe usb-profile-verify-writes --profile 5 --yes` is the current guarded same-value write verifier for stored-profile DPI scalar, DPI stages, and brightness. It validates echoed profile/LED bytes on readback to reject stale USB feature-report replies.
 - `OpenSnekProbe usb-profile-verify-changed-writes --profile 5 --yes` is the guarded changed-value verifier. It snapshots profile `5`, writes temporary DPI scalar/stage/brightness changes, validates readback, and restores the original values before exit.
+- `OpenSnekProbe usb-profile-clone --source-profile 5 --target-profile 4 --metadata repair --yes` is the guarded clone/repair path for stored profiles. It requires Synapse-compatible source metadata, writes a full `0x00fa` metadata object with a target-specific UUID/name and the source owner hash by default, and optionally clones mapped DPI, brightness, and selected button slots with strict readback. Use `--metadata exact` only when a byte-for-byte metadata clone is needed for research.
 - `OpenSnekProbe usb-profile-delete --profile 2 --yes` is the guarded delete/unassign probe path. Confirm the physical profile-cycle behavior after running it, because the profile bank remains readable.
 - In the reconnect persistence pass, profile `5` retained temporary scalar `900x900`, first stage `500x500`, and `0x55` brightness on all three zones after USB unplug/replug, then restored to the original `800x800`, `400/800/1600/3200/6400`, and `0x54` brightness values.
 

@@ -229,10 +229,15 @@ Response:        <offset_le16><data bytes>
 |---:|---:|---|
 | `0x0000` | 16 | UUID in Windows/GUID little-endian byte order. |
 | `0x0010` | Up to 100 | UTF-8/ASCII profile name, zero-padded. |
-| `0x0074` | 64 | ASCII owner hash, zero-padded. |
+| `0x0074` | 64 | Lowercase ASCII hex owner hash. |
 
 Names longer than the available field must be rejected or truncated by the
-client before writing. The current probe uses ASCII names.
+client before writing. The owner field must be a full 64-character hex string;
+short owner markers such as `OpenSnek` can leave profiles usable on the mouse
+but broken in Synapse's profile UI. When writing metadata, preserve an existing
+64-character owner hash from the target profile or another assigned onboard
+profile on the same mouse; otherwise use OpenSnek's built-in 64-character
+fallback owner hash. The current probe uses ASCII names.
 
 ## Button Binding Encoding
 
