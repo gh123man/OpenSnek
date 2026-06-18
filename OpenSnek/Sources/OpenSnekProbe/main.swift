@@ -441,6 +441,27 @@ enum OpenSnekProbe {
             let usb = try USBProbeClient(productID: parsed.productID)
             print("usb-profile-verify-changed-writes \(usb.describe()) profile=\(parsed.profile)")
             try verifyUSBProfileChangedValueWrites(usb: usb, profile: parsed.profile)
+        case "usb-profile-clone":
+            let parsed = try parseUSBProfileCloneArgs(Array(args.dropFirst()))
+            let usb = try USBProbeClient(productID: parsed.productID)
+            print(
+                "usb-profile-clone \(usb.describe()) " +
+                "source=\(parsed.sourceProfile) \(usbProfileLabel(parsed.sourceProfile)) " +
+                "target=\(parsed.targetProfile) \(usbProfileLabel(parsed.targetProfile)) " +
+                "metadata=\(parsed.metadataMode.rawValue) " +
+                "content=\(parsed.cloneMappedContent ? "on" : "off") " +
+                "buttons=\(parsed.buttonSlots.map(String.init).joined(separator: ","))"
+            )
+            try cloneUSBProfile(
+                usb: usb,
+                sourceProfile: parsed.sourceProfile,
+                targetProfile: parsed.targetProfile,
+                metadataMode: parsed.metadataMode,
+                targetName: parsed.targetName,
+                targetIdentifier: parsed.targetIdentifier,
+                cloneMappedContent: parsed.cloneMappedContent,
+                buttonSlots: parsed.buttonSlots
+            )
         case "usb-profile-verify-metadata-write":
             throw ProbeError.protocolError("usb-profile-verify-metadata-write is disabled: 05:08 metadata chunks are mapped, but create/assign can disturb profile content and needs a guarded rewrite/readback probe")
         case "usb-profile-delete":
@@ -697,6 +718,7 @@ enum OpenSnekProbe {
           OpenSnekProbe usb-profile-active-set --profile 3 --yes [--pid 0x00ab]
           OpenSnekProbe usb-profile-verify-writes --profile 5 --yes [--pid 0x00ab]
           OpenSnekProbe usb-profile-verify-changed-writes --profile 5 --yes [--pid 0x00ab]
+          OpenSnekProbe usb-profile-clone --source-profile 5 --target-profile 4 [--metadata repair|exact] [--target-name NAME] [--target-uuid UUID] [--button-slots 5] [--content on|off] --yes [--pid 0x00ab]
           OpenSnekProbe usb-profile-verify-metadata-write [disabled: needs guarded content rewrite/readback flow]
           OpenSnekProbe usb-profile-delete --profile 2 --yes [--pid 0x00ab]
           OpenSnekProbe usb-input-listen [--pid 0x00ab] [--duration 15] [--max-reports 0]
@@ -848,6 +870,74 @@ enum OpenSnekProbe {
         return (profile, try parseOptionalUSBPID(args))
     }
 
+    private static func parseUSBProfileCloneArgs(_ args: [String]) throws -> (
+        sourceProfile: UInt8,
+        targetProfile: UInt8,
+        metadataMode: USBProfileCloneMetadataMode,
+        targetName: String?,
+        targetIdentifier: UUID?,
+        cloneMappedContent: Bool,
+        buttonSlots: [UInt8],
+        productID: Int?
+    ) {
+        let flags = parseFlags(args)
+        guard parseBoolean(flags["--yes"] ?? "off") else {
+            throw ProbeError.usage("usb-profile-clone overwrites a stored profile; pass --yes to continue\n\(usageText)")
+        }
+
+        let sourceProfile = try parseUSBProfileSelector(
+            flags: flags,
+            profileKey: "--source-profile",
+            storedSlotKey: "--source-stored-slot",
+            command: "usb-profile-clone"
+        )
+        let targetProfile = try parseUSBProfileSelector(
+            flags: flags,
+            profileKey: "--target-profile",
+            storedSlotKey: "--target-stored-slot",
+            command: "usb-profile-clone"
+        )
+        guard sourceProfile != targetProfile else {
+            throw ProbeError.usage("usb-profile-clone source and target must be different")
+        }
+        guard (0x02...0x05).contains(targetProfile) else {
+            throw ProbeError.usage("usb-profile-clone target must be a stored profile 2..5")
+        }
+
+        let buttonSlotsRaw = flags["--button-slots"] ?? "5"
+        let normalizedButtonSlots = buttonSlotsRaw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let buttonSlots: [UInt8]
+        if normalizedButtonSlots.isEmpty || normalizedButtonSlots == "none" || normalizedButtonSlots == "off" {
+            buttonSlots = []
+        } else {
+            buttonSlots = try parseUInt8List(buttonSlotsRaw)
+        }
+        let metadataMode = try USBProfileCloneMetadataMode.parse(flags["--metadata"] ?? "repair")
+        let targetName = flags["--target-name"]
+        if let targetName {
+            _ = try asciiBytes(targetName, maxLength: 0x74 - 0x10, fieldName: "--target-name")
+        }
+        let targetIdentifier: UUID?
+        if let raw = flags["--target-uuid"] {
+            guard let uuid = UUID(uuidString: raw) else {
+                throw ProbeError.usage("Invalid --target-uuid '\(raw)'")
+            }
+            targetIdentifier = uuid
+        } else {
+            targetIdentifier = nil
+        }
+        return (
+            sourceProfile,
+            targetProfile,
+            metadataMode,
+            targetName,
+            targetIdentifier,
+            parseBoolean(flags["--content"] ?? "on"),
+            uniqueByteList(buttonSlots),
+            try parseOptionalUSBPID(args)
+        )
+    }
+
     private static func parseUSBProfileActiveSetArgs(_ args: [String]) throws -> (profile: UInt8, productID: Int?) {
         let flags = parseFlags(args)
         guard parseBoolean(flags["--yes"] ?? "off") else {
@@ -883,6 +973,33 @@ enum OpenSnekProbe {
 
         let profile = try parseUSBStoredProfile(flags: flags, command: "usb-profile-delete")
         return (profile, try parseOptionalUSBPID(args))
+    }
+
+    private static func parseUSBProfileSelector(
+        flags: [String: String],
+        profileKey: String,
+        storedSlotKey: String,
+        command: String
+    ) throws -> UInt8 {
+        let profile: UInt8
+        if let raw = flags[profileKey] {
+            guard let parsed = parseUInt8(raw) else {
+                throw ProbeError.usage("Invalid \(profileKey) '\(raw)'")
+            }
+            profile = parsed
+        } else if let raw = flags[storedSlotKey] {
+            guard let storedSlot = parseUInt8(raw), (1...4).contains(storedSlot) else {
+                throw ProbeError.usage("Invalid \(storedSlotKey) '\(raw)' (expected 1..4)")
+            }
+            profile = storedSlot &+ 1
+        } else {
+            throw ProbeError.usage("Missing \(profileKey) or \(storedSlotKey)\n\(usageText)")
+        }
+
+        guard (0x01...0x05).contains(profile) else {
+            throw ProbeError.usage("\(command) only targets known USB profiles 1..5, not profile \(profile)")
+        }
+        return profile
     }
 
     private static func parseUSBStoredProfile(flags: [String: String], command: String) throws -> UInt8 {
@@ -1431,6 +1548,19 @@ enum OpenSnekProbe {
         let raw: [UInt8]
     }
 
+    private enum USBProfileCloneMetadataMode: String {
+        case repair
+        case exact
+
+        static func parse(_ raw: String) throws -> USBProfileCloneMetadataMode {
+            let normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard let mode = USBProfileCloneMetadataMode(rawValue: normalized) else {
+                throw ProbeError.usage("Invalid --metadata '\(raw)' (expected repair or exact)")
+            }
+            return mode
+        }
+    }
+
     private struct USBProfileWritableSnapshot {
         let profile: UInt8
         let scalar: DpiPair
@@ -1743,6 +1873,221 @@ enum OpenSnekProbe {
                 }
             }
             throw error
+        }
+    }
+
+    private static func cloneUSBProfile(
+        usb: USBProbeClient,
+        sourceProfile: UInt8,
+        targetProfile: UInt8,
+        metadataMode: USBProfileCloneMetadataMode,
+        targetName: String?,
+        targetIdentifier: UUID?,
+        cloneMappedContent: Bool,
+        buttonSlots: [UInt8]
+    ) throws {
+        let sourceLabel = usbProfileLabel(sourceProfile)
+        let targetLabel = usbProfileLabel(targetProfile)
+        guard let metadataRead = try usb.readProfileMetadataBytes(profile: sourceProfile) else {
+            throw ProbeError.protocolError("Unable to read source profile metadata")
+        }
+        let sourceMetadata = metadataRead.metadata
+        let sourceUUID = sourceMetadata.identifier?.uuidString.lowercased() ?? "nil"
+        let sourceName = sourceMetadata.name ?? "nil"
+        let sourceOwner = sourceMetadata.owner ?? "nil"
+        print(
+            "clone metadata-source \(sourceLabel) " +
+            "uuid=\(sourceUUID) name=\"\(sourceName)\" owner=\(sourceOwner)"
+        )
+        guard let sourceIdentifier = sourceMetadata.identifier,
+              let sourceName = sourceMetadata.name,
+              let compatibleSourceOwner = OnboardProfileMetadata.synapseCompatibleOwner(from: sourceMetadata.owner) else {
+            throw ProbeError.protocolError("Source profile metadata is not Synapse-compatible")
+        }
+
+        let targetMetadataBefore = try usb.readProfileMetadataBytes(profile: targetProfile)
+        let metadataToWrite: [UInt8]
+        let metadataExpectation: String
+        switch metadataMode {
+        case .exact:
+            metadataToWrite = metadataRead.bytes
+            metadataExpectation = "exact-source"
+        case .repair:
+            let repairedIdentifier = targetIdentifier
+                ?? repairedTargetIdentifier(
+                    current: targetMetadataBefore?.metadata.identifier,
+                    source: sourceIdentifier
+                )
+            let repairedName = targetName
+                ?? repairedTargetName(
+                    current: targetMetadataBefore?.metadata.name,
+                    source: sourceName,
+                    targetProfile: targetProfile
+                )
+            metadataToWrite = try repairedUSBProfileMetadataBytes(
+                base: targetMetadataBefore?.bytes ?? metadataRead.bytes,
+                identifier: repairedIdentifier,
+                name: repairedName,
+                owner: compatibleSourceOwner
+            )
+            metadataExpectation = "uuid=\(repairedIdentifier.uuidString.lowercased()) name=\"\(repairedName)\" owner=\(compatibleSourceOwner)"
+        }
+
+        print("clone metadata-plan \(targetLabel) mode=\(metadataMode.rawValue) expected=\(metadataExpectation)")
+        let metadataWrite = try usb.writeProfileMetadataBytes(
+            profile: targetProfile,
+            metadata: metadataToWrite
+        )
+        guard let targetMetadataRead = try usb.readProfileMetadataBytes(profile: targetProfile) else {
+            throw ProbeError.protocolError("Unable to read target profile metadata after clone")
+        }
+        let expectedMetadata = Array(metadataToWrite.prefix(USBHIDProtocol.onboardProfileMetadataLength))
+        let actualMetadata = Array(targetMetadataRead.bytes.prefix(USBHIDProtocol.onboardProfileMetadataLength))
+        let targetMetadata = targetMetadataRead.metadata
+        print(
+            "clone metadata-target \(targetLabel) " +
+            "uuid=\(targetMetadata.identifier?.uuidString.lowercased() ?? "nil") " +
+            "name=\"\(targetMetadata.name ?? "nil")\" owner=\(targetMetadata.owner ?? "nil") " +
+            "status=\(metadataWrite && actualMetadata == expectedMetadata ? "ok" : "mismatch")"
+        )
+        guard metadataWrite, actualMetadata == expectedMetadata else {
+            throw ProbeError.protocolError("Target profile metadata did not match source after clone")
+        }
+
+        guard cloneMappedContent else { return }
+
+        guard let sourceScalar = try usb.readProfileDPIScalar(profile: sourceProfile),
+              let sourcePair = sourceScalar.pair else {
+            throw ProbeError.protocolError("Unable to read source DPI scalar")
+        }
+        let scalarWrite = try usb.writeProfileDPIScalar(profile: targetProfile, pair: sourcePair)
+        guard let targetScalar = try usb.readProfileDPIScalar(profile: targetProfile),
+              let targetPair = targetScalar.pair else {
+            throw ProbeError.protocolError("Unable to read target DPI scalar after clone")
+        }
+        print(
+            "clone dpi-scalar \(sourceLabel)->\(targetLabel) " +
+            "source=\(sourcePair.x)x\(sourcePair.y) target=\(targetPair.x)x\(targetPair.y) " +
+            "status=\(scalarWrite && targetPair == sourcePair ? "ok" : "mismatch")"
+        )
+        guard scalarWrite, targetPair == sourcePair else {
+            throw ProbeError.protocolError("Target DPI scalar did not match source after clone")
+        }
+
+        guard let sourceStages = try usb.readProfileDPIStages(profile: sourceProfile) else {
+            throw ProbeError.protocolError("Unable to read source DPI stages")
+        }
+        var retargetedStagesRaw = sourceStages.raw
+        retargetedStagesRaw[0] = targetProfile
+        let stagesWrite = try usb.writeProfileDPIStagesRaw(retargetedStagesRaw)
+        guard let targetStages = try usb.readProfileDPIStages(profile: targetProfile) else {
+            throw ProbeError.protocolError("Unable to read target DPI stages after clone")
+        }
+        print(
+            "clone dpi-stages \(sourceLabel)->\(targetLabel) " +
+            "source=\(describeDpiPairs(sourceStages.pairs)) target=\(describeDpiPairs(targetStages.pairs)) " +
+            "status=\(stagesWrite && targetStages.raw == retargetedStagesRaw ? "ok" : "mismatch")"
+        )
+        guard stagesWrite, targetStages.raw == retargetedStagesRaw else {
+            throw ProbeError.protocolError("Target DPI stages did not match source after clone")
+        }
+
+        for target in usb.profileLightingTargets() {
+            guard let sourceBrightness = try usb.readProfileLightingBrightness(profile: sourceProfile, ledID: target.ledID),
+                  let sourceValue = sourceBrightness.brightness else {
+                throw ProbeError.protocolError("Unable to read source brightness for LED 0x\(String(format: "%02x", target.ledID))")
+            }
+            let brightnessWrite = try usb.writeProfileLightingBrightness(
+                profile: targetProfile,
+                ledID: target.ledID,
+                brightness: sourceValue
+            )
+            guard let targetBrightness = try usb.readProfileLightingBrightness(profile: targetProfile, ledID: target.ledID),
+                  let targetValue = targetBrightness.brightness else {
+                throw ProbeError.protocolError("Unable to read target brightness for LED 0x\(String(format: "%02x", target.ledID)) after clone")
+            }
+            print(
+                "clone brightness \(sourceLabel)->\(targetLabel) zone=\(target.zoneID) " +
+                "led=0x\(String(format: "%02x", target.ledID)) source=\(sourceValue) target=\(targetValue) " +
+                "status=\(brightnessWrite && targetValue == sourceValue ? "ok" : "mismatch")"
+            )
+            guard brightnessWrite, targetValue == sourceValue else {
+                throw ProbeError.protocolError("Target brightness did not match source for LED 0x\(String(format: "%02x", target.ledID))")
+            }
+        }
+
+        for slot in buttonSlots {
+            guard let sourceBlock = try usb.readButtonFunction(profile: sourceProfile, slot: slot) else {
+                throw ProbeError.protocolError("Unable to read source button slot \(slot)")
+            }
+            let buttonWrite = try usb.writeButtonFunction(profile: targetProfile, slot: slot, functionBlock: sourceBlock)
+            guard let targetBlock = try usb.readButtonFunction(profile: targetProfile, slot: slot) else {
+                throw ProbeError.protocolError("Unable to read target button slot \(slot) after clone")
+            }
+            print(
+                "clone button \(sourceLabel)->\(targetLabel) slot=\(slot) " +
+                "source=\(hexString(sourceBlock)) target=\(hexString(targetBlock)) " +
+                "status=\(buttonWrite && targetBlock == sourceBlock ? "ok" : "mismatch")"
+            )
+            guard buttonWrite, targetBlock == sourceBlock else {
+                throw ProbeError.protocolError("Target button slot \(slot) did not match source after clone")
+            }
+        }
+    }
+
+    private static func repairedTargetIdentifier(current: UUID?, source: UUID) -> UUID {
+        guard let current, current != source else { return UUID() }
+        return current
+    }
+
+    private static func repairedTargetName(current: String?, source: String, targetProfile: UInt8) -> String {
+        if let current = current?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !current.isEmpty,
+           current != source {
+            return current
+        }
+        let fallback = "\(source) Copy \(targetProfile)"
+        return String(fallback.prefix(0x74 - 0x10))
+    }
+
+    private static func repairedUSBProfileMetadataBytes(
+        base: [UInt8],
+        identifier: UUID,
+        name: String,
+        owner: String
+    ) throws -> [UInt8] {
+        guard OnboardProfileMetadata.isSynapseCompatibleOwner(owner) else {
+            throw ProbeError.protocolError("Owner is not a Synapse-compatible 64-character hex string")
+        }
+        var metadata = Array(base.prefix(USBHIDProtocol.onboardProfileMetadataLength))
+        if metadata.count < USBHIDProtocol.onboardProfileMetadataLength {
+            metadata.append(contentsOf: repeatElement(0x00, count: USBHIDProtocol.onboardProfileMetadataLength - metadata.count))
+        }
+
+        let guid = USBHIDProtocol.windowsGUIDBytes(from: identifier)
+        for (index, byte) in guid.enumerated() where index < 16 {
+            metadata[index] = byte
+        }
+        try writeASCIIField(name, into: &metadata, offset: 0x10, maxLength: 0x74 - 0x10, fieldName: "profile name")
+        try writeASCIIField(owner, into: &metadata, offset: 0x74, maxLength: 64, fieldName: "profile owner")
+        return metadata
+    }
+
+    private static func writeASCIIField(
+        _ value: String,
+        into metadata: inout [UInt8],
+        offset: Int,
+        maxLength: Int,
+        fieldName: String
+    ) throws {
+        let bytes = try asciiBytes(value, maxLength: maxLength, fieldName: fieldName)
+        let upperBound = min(metadata.count, offset + maxLength)
+        guard offset >= 0, offset < upperBound else { return }
+        for index in offset..<upperBound {
+            metadata[index] = 0x00
+        }
+        for (index, byte) in bytes.enumerated() {
+            metadata[offset + index] = byte
         }
     }
 

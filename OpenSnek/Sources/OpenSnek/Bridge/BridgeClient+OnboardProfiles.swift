@@ -114,10 +114,17 @@ extension BridgeClient {
             let activeSnapshot = try? await readOnboardProfile(device: device, profileID: 0)
             createMutation = createMutation.fillingMissingMappedContent(from: activeSnapshot)
         }
-        let createdMetadata = createMutation.metadata!
+        var createdMetadata = createMutation.metadata!
         switch device.transport {
         case .usb:
             return try await withUSBProfileSession(device: device) { session in
+                createdMetadata = self.usbMetadataForWrite(
+                    session,
+                    device,
+                    metadata: createdMetadata,
+                    excludingProfileID: target
+                )
+                createMutation.metadata = createdMetadata
                 let response = try self.perform(
                     session,
                     device,
@@ -168,6 +175,13 @@ extension BridgeClient {
                 )
             }
         case .bluetooth:
+            createdMetadata = await btMetadataForWrite(
+                device: device,
+                profile: profile,
+                metadata: createdMetadata,
+                excludingProfileID: target
+            )
+            createMutation.metadata = createdMetadata
             let projectedCreate = createMutation.projectedSnapshot(profileID: target, metadata: createdMetadata)
             try await btCreateOnboardProfilePrelude(device: device, target: target)
             try await btWriteOnboardProfileMetadata(device: device, target: target, metadata: createdMetadata)
@@ -229,10 +243,16 @@ extension BridgeClient {
                 )
                 let needsFullObjectRepair = currentRead.metadata == nil
                 let currentMetadata = currentRead.metadata ?? OnboardProfileMetadata(
+                    identifier: currentRead.parsed.identifier ?? UUID(),
                     name: currentRead.parsed.name ?? name,
-                    owner: currentRead.parsed.owner ?? "OpenSnek"
+                    owner: currentRead.parsed.owner ?? OnboardProfileMetadata.synapseCompatibleFallbackOwner
                 )
-                let renamed = currentMetadata.renamed(name)
+                let renamed = self.usbMetadataForWrite(
+                    session,
+                    device,
+                    metadata: currentMetadata.renamed(name),
+                    excludingProfileID: profileID
+                )
                 let projected = OnboardProfileSnapshot(profileID: profileID, metadata: renamed)
                 AppLog.debug(
                     "Bridge",
@@ -243,7 +263,7 @@ extension BridgeClient {
                 if needsFullObjectRepair {
                     AppLog.warning(
                         "Bridge",
-                        "USB onboard profile metadata UUID is invalid; repairing assigned profile metadata " +
+                        "USB onboard profile metadata identity is incomplete or has an invalid owner hash; repairing assigned profile metadata " +
                         "device=\(device.id) profile=\(profileID) requestedName=\"\(renamed.name)\""
                     )
                 }
@@ -280,12 +300,21 @@ extension BridgeClient {
             guard inventory.assignedProfileIDs.contains(profileID) else {
                 throw BridgeError.commandFailed("Onboard profile \(profileID) is not assigned.")
             }
-            let currentMetadata = try await btReadOnboardProfileMetadata(
+            let parsed = try await btReadOnboardProfileMetadataFields(
                 device: device,
-                target: profileID,
-                requireKnownFields: true
+                target: profileID
             )
-            let renamed = currentMetadata.renamed(name)
+            let currentMetadata = Self.completeBluetoothOnboardProfileMetadata(parsed) ?? OnboardProfileMetadata(
+                identifier: parsed.identifier ?? UUID(),
+                name: parsed.name ?? name,
+                owner: parsed.owner ?? OnboardProfileMetadata.synapseCompatibleFallbackOwner
+            )
+            let renamed = await btMetadataForWrite(
+                device: device,
+                profile: profile,
+                metadata: currentMetadata.renamed(name),
+                excludingProfileID: profileID
+            )
             let projected = OnboardProfileSnapshot(profileID: profileID, metadata: renamed)
             try await btWriteOnboardProfileMetadata(device: device, target: profileID, metadata: renamed)
             do {
@@ -332,7 +361,13 @@ extension BridgeClient {
         case .usb:
             return try await withUSBProfileSession(device: device) { session in
                 if let metadata = mutation.metadata {
-                    try self.usbWriteOnboardProfileMetadata(session, device, profileID: profileID, metadata: metadata)
+                    let metadataForWrite = self.usbMetadataForWrite(
+                        session,
+                        device,
+                        metadata: metadata,
+                        excludingProfileID: profileID
+                    )
+                    try self.usbWriteOnboardProfileMetadata(session, device, profileID: profileID, metadata: metadataForWrite)
                 }
                 try self.usbApplyOnboardProfileMutation(
                     session,
@@ -345,7 +380,13 @@ extension BridgeClient {
             }
         case .bluetooth:
             if let metadata = mutation.metadata {
-                try await btWriteOnboardProfileMetadata(device: device, target: profileID, metadata: metadata)
+                let metadataForWrite = await btMetadataForWrite(
+                    device: device,
+                    profile: profile,
+                    metadata: metadata,
+                    excludingProfileID: profileID
+                )
+                try await btWriteOnboardProfileMetadata(device: device, target: profileID, metadata: metadataForWrite)
             }
             try await btApplyOnboardProfileMutation(
                 device: device,
@@ -806,14 +847,79 @@ extension BridgeClient {
         let parsed = USBHIDProtocol.parseOnboardProfileMetadata(
             USBHIDProtocol.mergeOnboardProfileMetadataChunks(chunks)
         )
-        let metadata = parsed.identifier.map {
-            OnboardProfileMetadata(
-                identifier: $0,
-                name: parsed.name ?? "Profile \(profileID)",
-                owner: parsed.owner ?? "OpenSnek"
+        let metadata: OnboardProfileMetadata?
+        if let identifier = parsed.identifier,
+           let name = parsed.name,
+           let owner = OnboardProfileMetadata.synapseCompatibleOwner(from: parsed.owner) {
+            metadata = OnboardProfileMetadata(
+                identifier: identifier,
+                name: name,
+                owner: owner
             )
+        } else {
+            metadata = nil
         }
         return USBOnboardProfileMetadataRead(parsed: parsed, metadata: metadata)
+    }
+
+    func usbMetadataForWrite(
+        _ session: USBHIDControlSession,
+        _ device: MouseDevice,
+        metadata: OnboardProfileMetadata,
+        excludingProfileID: Int?
+    ) -> OnboardProfileMetadata {
+        metadata.withSynapseCompatibleOwner(
+            Self.preferredProfileOwnerForWrite(
+                preferred: metadata.owner,
+                existing: usbExistingSynapseOwnerHash(
+                    session,
+                    device,
+                    excludingProfileID: excludingProfileID
+                )
+            )
+        )
+    }
+
+    private func usbExistingSynapseOwnerHash(
+        _ session: USBHIDControlSession,
+        _ device: MouseDevice,
+        excludingProfileID: Int?
+    ) -> String? {
+        guard let response = try? perform(
+            session,
+            device,
+            classID: 0x05,
+            cmdID: 0x81,
+            size: 0x00
+        ), let inventory = USBHIDProtocol.onboardProfileInventory(from: response) else {
+            return nil
+        }
+
+        for profileID in inventory.assignedProfiles.map(Int.init).sorted()
+            where excludingProfileID.map({ profileID != $0 }) ?? true {
+            guard let read = try? usbReadOnboardProfileMetadataCandidate(
+                session,
+                device,
+                profileID: profileID,
+                requireKnownFields: false
+            ), let owner = OnboardProfileMetadata.synapseCompatibleOwner(from: read.parsed.owner) else {
+                continue
+            }
+            return owner
+        }
+        return nil
+    }
+
+    static func preferredProfileOwnerForWrite(preferred: String, existing: String?) -> String {
+        let fallback = OnboardProfileMetadata.synapseCompatibleFallbackOwner
+        let preferredOwner = OnboardProfileMetadata.synapseCompatibleOwner(from: preferred)
+        if let preferredOwner, preferredOwner != fallback {
+            return preferredOwner
+        }
+        if let existingOwner = OnboardProfileMetadata.synapseCompatibleOwner(from: existing) {
+            return existingOwner
+        }
+        return preferredOwner ?? fallback
     }
 
     func usbReadOnboardProfileMetadata(
@@ -829,11 +935,12 @@ extension BridgeClient {
             requireKnownFields: requireKnownFields
         )
         if requireKnownFields, read.metadata == nil {
-            throw BridgeError.commandFailed("USB onboard profile metadata read did not include a UUID for profile \(profileID).")
+            throw BridgeError.commandFailed("USB onboard profile metadata read did not include complete UUID/name/owner fields for profile \(profileID).")
         }
         return read.metadata ?? OnboardProfileMetadata(
+            identifier: read.parsed.identifier ?? UUID(),
             name: read.parsed.name ?? "Profile \(profileID)",
-            owner: read.parsed.owner ?? "OpenSnek"
+            owner: read.parsed.owner ?? OnboardProfileMetadata.synapseCompatibleFallbackOwner
         )
     }
 
@@ -844,10 +951,11 @@ extension BridgeClient {
         metadata: OnboardProfileMetadata,
         mode: String = "write"
     ) throws {
+        let metadataForWrite = metadata.withSynapseCompatibleOwner()
         let bytes = USBHIDProtocol.buildOnboardProfileMetadata(
-            identifier: metadata.identifier,
-            name: metadata.name,
-            owner: metadata.owner
+            identifier: metadataForWrite.identifier,
+            name: metadataForWrite.name,
+            owner: metadataForWrite.owner
         )
         for offset in USBHIDProtocol.onboardProfileMetadataWritableChunkOffsets {
             let isTailOffset = offset >= USBHIDProtocol.onboardProfileMetadataKnownFieldLength
@@ -895,9 +1003,9 @@ extension BridgeClient {
                             )
                         },
                         accepts: { readback in
-                            readback.identifier == metadata.identifier &&
-                                readback.name == metadata.name &&
-                                readback.owner == metadata.owner
+                            readback.identifier == metadataForWrite.identifier &&
+                                readback.name == metadataForWrite.name &&
+                                readback.owner == metadataForWrite.owner
                         }
                     ) {
                         AppLog.warning(
@@ -1340,6 +1448,26 @@ extension BridgeClient {
         target: Int,
         requireKnownFields: Bool = false
     ) async throws -> OnboardProfileMetadata {
+        let parsed = try await btReadOnboardProfileMetadataFields(device: device, target: target)
+        if let metadata = Self.completeBluetoothOnboardProfileMetadata(parsed) {
+            return metadata
+        }
+        if requireKnownFields {
+            throw BridgeError.commandFailed(
+                "Bluetooth onboard profile metadata read did not include complete UUID/name/owner fields for target \(target)."
+            )
+        }
+        return OnboardProfileMetadata(
+            identifier: parsed.identifier ?? UUID(),
+            name: parsed.name ?? "Profile \(target)",
+            owner: parsed.owner ?? OnboardProfileMetadata.synapseCompatibleFallbackOwner
+        )
+    }
+
+    func btReadOnboardProfileMetadataFields(
+        device: MouseDevice,
+        target: Int
+    ) async throws -> USBHIDProtocol.OnboardProfileMetadata {
         var chunks: [BLEVendorProtocol.ProfileMetadataChunk] = []
         for offset in BLEVendorProtocol.onboardProfileMetadataChunkOffsets {
             let length = min(
@@ -1355,20 +1483,7 @@ extension BridgeClient {
             }
             chunks.append(chunk)
         }
-        let parsed = BLEVendorProtocol.parseProfileMetadata(BLEVendorProtocol.mergeProfileMetadataChunks(chunks))
-        if let metadata = Self.completeBluetoothOnboardProfileMetadata(parsed) {
-            return metadata
-        }
-        if requireKnownFields {
-            throw BridgeError.commandFailed(
-                "Bluetooth onboard profile metadata read did not include complete UUID/name/owner fields for target \(target)."
-            )
-        }
-        return OnboardProfileMetadata(
-            identifier: parsed.identifier ?? UUID(),
-            name: parsed.name ?? "Profile \(target)",
-            owner: parsed.owner ?? "OpenSnek"
-        )
+        return BLEVendorProtocol.parseProfileMetadata(BLEVendorProtocol.mergeProfileMetadataChunks(chunks))
     }
 
     static func completeBluetoothOnboardProfileMetadata(
@@ -1376,17 +1491,57 @@ extension BridgeClient {
     ) -> OnboardProfileMetadata? {
         guard let identifier = parsed.identifier,
               let name = parsed.name,
-              let owner = parsed.owner else {
+              let owner = OnboardProfileMetadata.synapseCompatibleOwner(from: parsed.owner) else {
             return nil
         }
         return OnboardProfileMetadata(identifier: identifier, name: name, owner: owner)
     }
 
+    func btMetadataForWrite(
+        device: MouseDevice,
+        profile: DeviceProfile,
+        metadata: OnboardProfileMetadata,
+        excludingProfileID: Int?
+    ) async -> OnboardProfileMetadata {
+        let existingOwner = await btExistingSynapseOwnerHash(
+            device: device,
+            profile: profile,
+            excludingProfileID: excludingProfileID
+        )
+        return metadata.withSynapseCompatibleOwner(
+            Self.preferredProfileOwnerForWrite(
+                preferred: metadata.owner,
+                existing: existingOwner
+            )
+        )
+    }
+
+    private func btExistingSynapseOwnerHash(
+        device: MouseDevice,
+        profile: DeviceProfile,
+        excludingProfileID: Int?
+    ) async -> String? {
+        guard let targets = try? await btReadOnboardProfileTargets(device: device, profile: profile) else {
+            return nil
+        }
+        for target in targets where excludingProfileID.map({ target != $0 }) ?? true {
+            guard let parsed = try? await btReadOnboardProfileMetadataFields(
+                device: device,
+                target: target
+            ), let owner = OnboardProfileMetadata.synapseCompatibleOwner(from: parsed.owner) else {
+                continue
+            }
+            return owner
+        }
+        return nil
+    }
+
     func btWriteOnboardProfileMetadata(device: MouseDevice, target: Int, metadata: OnboardProfileMetadata) async throws {
+        let metadataForWrite = metadata.withSynapseCompatibleOwner()
         let bytes = BLEVendorProtocol.buildProfileMetadata(
-            identifier: metadata.identifier,
-            name: metadata.name,
-            owner: metadata.owner
+            identifier: metadataForWrite.identifier,
+            name: metadataForWrite.name,
+            owner: metadataForWrite.owner
         )
         for offset in BLEVendorProtocol.onboardProfileMetadataChunkOffsets {
             let payload = BLEVendorProtocol.profileMetadataWritePayload(offset: offset, metadata: bytes)

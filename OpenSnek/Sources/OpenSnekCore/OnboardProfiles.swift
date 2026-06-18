@@ -15,11 +15,17 @@ public enum OnboardProfileSupport: String, Codable, Hashable, Sendable {
 }
 
 public struct OnboardProfileMetadata: Codable, Hashable, Sendable {
+    public static let synapseCompatibleFallbackOwner = "31933b5452df5708882d4fb55d0b2905f16d829500fe936c56f98d5cd0241a76"
+
     public let identifier: UUID
     public let name: String
     public let owner: String
 
-    public init(identifier: UUID = UUID(), name: String, owner: String = "OpenSnek") {
+    public init(
+        identifier: UUID = UUID(),
+        name: String,
+        owner: String = "31933b5452df5708882d4fb55d0b2905f16d829500fe936c56f98d5cd0241a76"
+    ) {
         self.identifier = identifier
         self.name = Self.normalizedName(name)
         self.owner = Self.normalizedOwner(owner)
@@ -29,14 +35,47 @@ public struct OnboardProfileMetadata: Codable, Hashable, Sendable {
         OnboardProfileMetadata(identifier: identifier, name: name, owner: owner)
     }
 
+    public func replacingOwner(_ owner: String) -> OnboardProfileMetadata {
+        OnboardProfileMetadata(identifier: identifier, name: name, owner: owner)
+    }
+
+    public func withSynapseCompatibleOwner(_ owner: String? = nil) -> OnboardProfileMetadata {
+        let resolvedOwner = owner.flatMap(Self.synapseCompatibleOwner(from:))
+            ?? Self.synapseCompatibleOwner(from: self.owner)
+            ?? Self.synapseCompatibleFallbackOwner
+        return replacingOwner(resolvedOwner)
+    }
+
+    public var hasSynapseCompatibleOwner: Bool {
+        Self.synapseCompatibleOwner(from: owner) != nil
+    }
+
     public static func normalizedName(_ value: String) -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "Onboard Profile" : String(trimmed.prefix(100))
     }
 
     public static func normalizedOwner(_ value: String) -> String {
+        synapseCompatibleOwner(from: value) ?? synapseCompatibleFallbackOwner
+    }
+
+    public static func isSynapseCompatibleOwner(_ value: String) -> Bool {
+        synapseCompatibleOwner(from: value) != nil
+    }
+
+    public static func synapseCompatibleOwner(from value: String?) -> String? {
+        guard let value else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "OpenSnek" : String(trimmed.prefix(64))
+        guard trimmed.count == 64 else { return nil }
+        let scalars = trimmed.unicodeScalars
+        guard scalars.allSatisfy({ scalar in
+            (scalar.value >= 48 && scalar.value <= 57) ||
+                (scalar.value >= 65 && scalar.value <= 70) ||
+                (scalar.value >= 97 && scalar.value <= 102)
+        }) else {
+            return nil
+        }
+        return trimmed.lowercased()
     }
 }
 
