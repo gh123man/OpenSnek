@@ -5,55 +5,12 @@ All notable changes to this project are documented in this file.
 ## [2026-06-16]
 
 ### Added
-- Added mapped onboard profile CRUD support for validated Basilisk V3 Pro USB and Bluetooth devices, including inventory-backed list/read/create/rename/update/delete/activate flows, metadata UUID/name/owner handling, mapped DPI/button/brightness profile snapshots, and Bluetooth profile static-color snapshots.
-- Added USB onboard profile static-color snapshots and writes for validated Basilisk V3 Pro devices, using `0F:82` readback and `0F:02` static-color writes so USB profile changes can rehydrate the lighting color UI.
-- Added passive profile-cycle HID handling for Basilisk V3 Pro USB and Bluetooth so OpenSnek can refresh the active onboard profile from the direct active-profile register and update the UI without fingerprinting the whole device configuration.
-- Added a visible profile-load scrim for onboard profile operations and profile-cycle refreshes, plus tighter onboard profile slot styling and hard RGB lighting presets.
-- Added a Copy From selector when creating empty onboard profile slots so new slots can duplicate an existing onboard profile.
-- Added a profile 1 warning that Synapse can overwrite the live profile and settings should be saved to a stored slot when they need to persist.
+- Added mapped onboard profile CRUD support for validated Basilisk V3 Pro USB and Bluetooth devices, including inventory-backed list/read/create/rename/update/delete/activate flows, UUID/name/owner metadata, mapped DPI/button/brightness/static-color snapshots, slot creation from existing profiles, and guarded write/readback behavior.
+- Added reactive onboard profile switching for Basilisk V3 Pro USB and Bluetooth through passive HID profile-cycle detection and direct active-profile readback, so the UI follows hardware profile changes without fingerprinting the whole profile configuration.
+- Added an onboard profile manager UI with always-visible slots, active-profile selection, rename/create/delete controls, copy-from-slot creation, profile-operation loading overlays, profile color markers, profile 1 Synapse overwrite guidance, and hard RGB lighting presets.
 
 ### Changed
-- Devices with multiple onboard profile slots now hide and ignore the legacy On Connect restore setting so profile-backed settings remain the source of truth.
-- Selecting an assigned onboard profile now activates it immediately, and creating a profile activates the new slot.
-- Onboard profile slot selection now rereads the selected profile from the mouse every time, and same-ID reconnects invalidate loaded onboard profile state so vendor-side overwrites are reflected after reconnect.
-
-### Fixed
-- USB profile switching and rename/create flows no longer let stale button-hydration tasks overwrite the selected profile UI or keep the device controls in a refresh/reconnect-looking state while slow button readbacks finish.
-- USB HID presence handling now de-duplicates composite-interface events and debounces disconnect refreshes so short interface churn does not immediately clear device state or force the UI into `Reconnecting`.
-- Onboard profile create and rename now update the cached slot inventory immediately without a second full refresh, and deleting the active stored profile now activates the next assigned slot.
-- Onboard profile CRUD readback now retries briefly after firmware writes so successful creates/deletes are not reported as failures during transient inventory lag.
-- Onboard profile rename keeps the UI in sync with verified returned metadata, and profile activation projects state from the selected profile after direct active-profile readback instead of waiting on a stale full refresh.
-- Onboard profile create and rename project returned metadata into the visible slot list immediately while local inventory refresh catches up.
-- USB onboard profile metadata writes now use the full metadata object and require strict readback, avoiding partial writes that can leave Basilisk V3 Pro profile metadata invalid.
-- USB onboard profile rename now treats a missing final padding-tail metadata ACK as indeterminate and verifies the landed UUID/name/owner by strict readback instead of reporting a successful firmware write as failed.
-- Onboard profile edit failures no longer fall back to legacy live-layer writes, and USB profile rename verification now uses strict metadata-object readback to avoid long profile sweeps during editing.
-- USB onboard profiles now read and write scroll mode, acceleration, and smart reel against the selected hardware profile instead of always targeting slot 1.
-- Superseded hardware profile-load tasks now release the profile-operation busy state immediately, preventing profile rename or profile-switch races from leaving the UI dimmed without a visible loading indicator.
-- Onboard profile rename/create metadata projections now survive stale inventory refreshes, with debug logs that identify stale incoming names versus projected local names.
-- USB onboard profile commands now use the validated per-device USB transaction ID and serialize HID feature-report exchanges, so onboard profile metadata writes no longer rely on retrying rejected chunks on the happy path.
-- USB state sweeps, fast DPI reads, apply helpers, and onboard profile transactions now share an interprocess per-device exclusive HID lock, preventing the UI app, service process, polling, or hydration reads from interleaving with multi-command profile writes.
-- USB/Bluetooth onboard profile rename now uses a metadata-object transaction and requires complete UUID/name/owner metadata before writing, avoiding synthesized UUID writes and full profile read sweeps before a rename.
-- Onboard profile DPI edits now preserve the loaded profile's firmware stage IDs and marker even when the UI sends a focused DPI-only mutation.
-- Profile operation loading now dims through the transient overlay instead of mutating the underlying content opacity, avoiding a stale grayed-out detail view after rename completes.
-- USB onboard profile rename now treats all-`0xFF` metadata UUIDs as corrupt and repairs assigned profile metadata with a full-object write before applying the requested name.
-- Onboard profile tabs now show the firmware profile-color order, keep the Synapse warning at the bottom of profile 1 controls, and suppress the profile-cycle button from missing-remap notices on mapped onboard-profile devices.
-- Duplicate DPI stage values now trigger direct active-stage readback instead of inferring the selected stage from a non-unique DPI value during profile or DPI cycling.
-- Onboard profile refresh now hydrates the selected active profile snapshot when no profile is loaded yet, so app launch reflects the device's onboard lighting color instead of stale local editor state.
-- Fresh selected-device telemetry now invalidates connection-derived UI state, preventing the detail view from staying dimmed after launch until the sidebar is rebuilt.
-- Device detail controls no longer use a global reconnect/dimmed mode; explicit loading, unavailable, and profile-operation overlays now handle transient states without graying out the whole editor.
-- Bluetooth onboard profile refresh now coalesces overlapping requests and avoids full selected-profile snapshot hydration during list refresh, keeping refresh limited to active/assigned inventory reads.
-- Onboard profile refresh now uses a profile-card-local loading/error state instead of the global blocking operation overlay, so a slow or failed profile inventory read does not disable unrelated controls.
-- Bluetooth DPI stage writes now proceed from the complete requested editor stage table when the current DPI-stage pre-read returns no payload, avoiding failed writes after transient Bluetooth readback gaps.
-- Onboard profile activation and passive profile-switch refresh now validate through direct active-profile readback, Bluetooth inventory refresh reads only active/assigned slots, profile loads hydrate DPI/lighting through a foreground core snapshot without metadata/button sweeps, and button bindings refresh in a background pass to keep Bluetooth profile switching responsive.
-- Bluetooth onboard profile brightness and static-color edits now write the selected onboard profile instead of falling back to the live layer.
-- Bluetooth passive DPI cycle events no longer rewrite the currently selected stage value when the active slot is ambiguous, and stale Bluetooth active-stage reads are masked from the stage table rather than being allowed to overwrite newer HID events.
-- Bluetooth passive DPI state now remains authoritative over stale vendor DPI reads while realtime HID is active, preventing slow refreshes from flapping the UI back to an old active DPI slot.
-- Active onboard profile hydration now keeps the selected profile snapshot's DPI stage count and mapped lighting/scroll values authoritative over later live-layer Bluetooth refreshes.
-- Bluetooth onboard profile reads now seed the service cache with the active profile's mapped DPI stages so DPI-cycle HID events resolve against the selected profile instead of the stale live five-stage table.
-- Bluetooth onboard profile DPI and button edits now write the selected stored profile instead of falling back to the live profile-1 apply path, and mapped onboard devices no longer rehydrate button bindings from the legacy profile cache.
-- Bluetooth onboard profile active-ID refreshes now preserve the loaded profile DPI snapshot, passive DPI matching uses the loaded onboard profile stage table, profile loads hydrate Bluetooth button bindings from profile readback instead of stale cached bindings, and generic Bluetooth state refreshes avoid profile-owned live-layer polling on mapped onboard devices.
-- Bluetooth onboard profile button readback now prefers the authoritative `08 84` even lane over stale/default odd lanes and normalizes shortened wheel-tilt default blocks, so stored profile keymaps reflect reversed scroll and tilt defaults correctly.
-- Bluetooth passive profile-cycle detection now requires the captured `04 04 ...` prelude plus exact zero-tail `05 05 39 ...` frame, preventing scroll-wheel mode status reports from triggering onboard profile reloads.
+- Devices with mapped onboard storage now use onboard profiles as the source of truth: selecting an assigned slot activates it, profile-backed edits write the selected onboard profile, same-ID reconnects reread device state, and the legacy On Connect restore control is hidden and ignored for those devices.
 
 ## [2026-06-15]
 
