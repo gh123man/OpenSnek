@@ -17,9 +17,7 @@ extension BridgeClient {
                 try self.usbListOnboardProfiles(session, device, profile: profile)
             }
         case .bluetooth:
-            return try await withBluetoothVendorTransaction(operation: "list onboard profiles") {
-                try await self.btListOnboardProfiles(device: device, profile: profile)
-            }
+            return try await btListOnboardProfiles(device: device, profile: profile)
         }
     }
 
@@ -38,14 +36,12 @@ extension BridgeClient {
                 )
             }
         case .bluetooth:
-            return try await withBluetoothVendorTransaction(operation: "read onboard profile") {
-                try await self.btReadOnboardProfile(
-                    device: device,
-                    profile: profile,
-                    target: clampedProfileID,
-                    includeButtonBindings: true
-                )
-            }
+            return try await btReadOnboardProfile(
+                device: device,
+                profile: profile,
+                target: clampedProfileID,
+                includeButtonBindings: true
+            )
         }
     }
 
@@ -65,15 +61,13 @@ extension BridgeClient {
                 )
             }
         case .bluetooth:
-            return try await withBluetoothVendorTransaction(operation: "read onboard profile core") {
-                try await self.btReadOnboardProfile(
-                    device: device,
-                    profile: profile,
-                    target: clampedProfileID,
-                    includeMetadata: false,
-                    includeButtonBindings: false
-                )
-            }
+            return try await btReadOnboardProfile(
+                device: device,
+                profile: profile,
+                target: clampedProfileID,
+                includeMetadata: false,
+                includeButtonBindings: false
+            )
         }
     }
 
@@ -91,13 +85,11 @@ extension BridgeClient {
                 )
             }
         case .bluetooth:
-            return try await withBluetoothVendorTransaction(operation: "read onboard profile buttons") {
-                try await self.btReadOnboardProfileButtons(
-                    device: device,
-                    profile: profile,
-                    target: clampedProfileID
-                )
-            }
+            return try await btReadOnboardProfileButtons(
+                device: device,
+                profile: profile,
+                target: clampedProfileID
+            )
         }
     }
 
@@ -108,23 +100,23 @@ extension BridgeClient {
         replaceAssignedProfile: Bool
     ) async throws -> OnboardProfileSnapshot {
         let profile = try mappedOnboardProfileSupport(for: device)
+        let inventory = try await listOnboardProfiles(device: device)
+        let target = try resolveCreateTarget(
+            requested: targetProfileID,
+            inventory: inventory,
+            replaceAssignedProfile: replaceAssignedProfile
+        )
+        var createMutation = mutation
+        if createMutation.metadata == nil {
+            createMutation.metadata = OnboardProfileMetadata(name: "Profile \(target)")
+        }
+        if createMutation.needsMappedContentFill {
+            let activeSnapshot = try? await readOnboardProfile(device: device, profileID: 0)
+            createMutation = createMutation.fillingMissingMappedContent(from: activeSnapshot)
+        }
+        let createdMetadata = createMutation.metadata!
         switch device.transport {
         case .usb:
-            let inventory = try await listOnboardProfiles(device: device)
-            let target = try resolveCreateTarget(
-                requested: targetProfileID,
-                inventory: inventory,
-                replaceAssignedProfile: replaceAssignedProfile
-            )
-            var createMutation = mutation
-            if createMutation.metadata == nil {
-                createMutation.metadata = OnboardProfileMetadata(name: "Profile \(target)")
-            }
-            if createMutation.needsMappedContentFill {
-                let activeSnapshot = try? await readOnboardProfile(device: device, profileID: 0)
-                createMutation = createMutation.fillingMissingMappedContent(from: activeSnapshot)
-            }
-            let createdMetadata = createMutation.metadata!
             return try await withUSBProfileSession(device: device) { session in
                 let response = try self.perform(
                     session,
@@ -176,62 +168,45 @@ extension BridgeClient {
                 )
             }
         case .bluetooth:
-            return try await withBluetoothVendorTransaction(operation: "create onboard profile") {
-                let inventory = try await self.btListOnboardProfiles(device: device, profile: profile)
-                let target = try self.resolveCreateTarget(
-                    requested: targetProfileID,
-                    inventory: inventory,
-                    replaceAssignedProfile: replaceAssignedProfile
-                )
-                var createMutation = mutation
-                if createMutation.metadata == nil {
-                    createMutation.metadata = OnboardProfileMetadata(name: "Profile \(target)")
+            let projectedCreate = createMutation.projectedSnapshot(profileID: target, metadata: createdMetadata)
+            try await btCreateOnboardProfilePrelude(device: device, target: target)
+            try await btWriteOnboardProfileMetadata(device: device, target: target, metadata: createdMetadata)
+            try await btApplyOnboardProfileMutation(
+                device: device,
+                profile: profile,
+                target: target,
+                mutation: createMutation.withoutMetadata
+            )
+            _ = try await retryOnboardProfileReadback(
+                device: device,
+                operation: "Bluetooth onboard profile create inventory",
+                failureMessage: "Bluetooth onboard profile create readback did not list target \(target).",
+                read: {
+                    try await self.btListOnboardProfiles(device: device, profile: profile)
+                },
+                accepts: { inventory in
+                    inventory.assignedProfileIDs.contains(target)
                 }
-                if createMutation.needsMappedContentFill {
-                    let activeSnapshot = try? await self.btReadOnboardProfile(device: device, profile: profile, target: 0)
-                    createMutation = createMutation.fillingMissingMappedContent(from: activeSnapshot)
-                }
-                let createdMetadata = createMutation.metadata!
-                let projectedCreate = createMutation.projectedSnapshot(profileID: target, metadata: createdMetadata)
-                try await self.btCreateOnboardProfilePrelude(device: device, target: target)
-                try await self.btWriteOnboardProfileMetadata(device: device, target: target, metadata: createdMetadata)
-                try await self.btApplyOnboardProfileMutation(
+            )
+            do {
+                return try await retryOnboardProfileReadback(
                     device: device,
-                    profile: profile,
-                    target: target,
-                    mutation: createMutation.withoutMetadata
-                )
-                _ = try await self.retryOnboardProfileReadback(
-                    device: device,
-                    operation: "Bluetooth onboard profile create inventory",
-                    failureMessage: "Bluetooth onboard profile create readback did not list target \(target).",
+                    operation: "Bluetooth onboard profile create snapshot",
+                    failureMessage: "Bluetooth onboard profile create snapshot readback failed for target \(target).",
+                    attempts: 8,
                     read: {
-                        try await self.btListOnboardProfiles(device: device, profile: profile)
+                        try await self.btReadOnboardProfile(device: device, profile: profile, target: target)
                     },
-                    accepts: { inventory in
-                        inventory.assignedProfileIDs.contains(target)
+                    accepts: { snapshot in
+                        snapshot.profileID == target && snapshot.metadata.name == createdMetadata.name
                     }
                 )
-                do {
-                    return try await self.retryOnboardProfileReadback(
-                        device: device,
-                        operation: "Bluetooth onboard profile create snapshot",
-                        failureMessage: "Bluetooth onboard profile create snapshot readback failed for target \(target).",
-                        attempts: 8,
-                        read: {
-                            try await self.btReadOnboardProfile(device: device, profile: profile, target: target)
-                        },
-                        accepts: { snapshot in
-                            snapshot.profileID == target && snapshot.metadata.name == createdMetadata.name
-                        }
-                    )
-                } catch {
-                    AppLog.warning(
-                        "Bridge",
-                        "Bluetooth onboard profile create metadata readback lagged after successful write device=\(device.id) target=\(target): \(error.localizedDescription)"
-                    )
-                    return projectedCreate
-                }
+            } catch {
+                AppLog.warning(
+                    "Bridge",
+                    "Bluetooth onboard profile create metadata readback lagged after successful write device=\(device.id) target=\(target): \(error.localizedDescription)"
+                )
+                return projectedCreate
             }
         }
     }
@@ -301,46 +276,44 @@ extension BridgeClient {
                 return projected.renamed(metadata)
             }
         case .bluetooth:
-            return try await withBluetoothVendorTransaction(operation: "rename onboard profile") {
-                let inventory = try await self.btListOnboardProfiles(device: device, profile: profile)
-                guard inventory.assignedProfileIDs.contains(profileID) else {
-                    throw BridgeError.commandFailed("Onboard profile \(profileID) is not assigned.")
-                }
-                let currentMetadata = try await self.btReadOnboardProfileMetadata(
+            let inventory = try await listOnboardProfiles(device: device)
+            guard inventory.assignedProfileIDs.contains(profileID) else {
+                throw BridgeError.commandFailed("Onboard profile \(profileID) is not assigned.")
+            }
+            let currentMetadata = try await btReadOnboardProfileMetadata(
+                device: device,
+                target: profileID,
+                requireKnownFields: true
+            )
+            let renamed = currentMetadata.renamed(name)
+            let projected = OnboardProfileSnapshot(profileID: profileID, metadata: renamed)
+            try await btWriteOnboardProfileMetadata(device: device, target: profileID, metadata: renamed)
+            do {
+                let metadata = try await retryOnboardProfileReadback(
                     device: device,
-                    target: profileID,
-                    requireKnownFields: true
+                    operation: "Bluetooth onboard profile rename",
+                    failureMessage: "Bluetooth onboard profile rename readback did not match target \(profileID).",
+                    attempts: 3,
+                    read: {
+                        try await self.btReadOnboardProfileMetadata(
+                            device: device,
+                            target: profileID,
+                            requireKnownFields: true
+                        )
+                    },
+                    accepts: { metadata in
+                        metadata.identifier == renamed.identifier &&
+                            metadata.name == renamed.name &&
+                            metadata.owner == renamed.owner
+                    }
                 )
-                let renamed = currentMetadata.renamed(name)
-                let projected = OnboardProfileSnapshot(profileID: profileID, metadata: renamed)
-                try await self.btWriteOnboardProfileMetadata(device: device, target: profileID, metadata: renamed)
-                do {
-                    let metadata = try await self.retryOnboardProfileReadback(
-                        device: device,
-                        operation: "Bluetooth onboard profile rename",
-                        failureMessage: "Bluetooth onboard profile rename readback did not match target \(profileID).",
-                        attempts: 3,
-                        read: {
-                            try await self.btReadOnboardProfileMetadata(
-                                device: device,
-                                target: profileID,
-                                requireKnownFields: true
-                            )
-                        },
-                        accepts: { metadata in
-                            metadata.identifier == renamed.identifier &&
-                                metadata.name == renamed.name &&
-                                metadata.owner == renamed.owner
-                        }
-                    )
-                    return projected.renamed(metadata)
-                } catch {
-                    AppLog.warning(
-                        "Bridge",
-                        "Bluetooth onboard profile rename readback lagged after successful write device=\(device.id) target=\(profileID): \(error.localizedDescription)"
-                    )
-                    return projected
-                }
+                return projected.renamed(metadata)
+            } catch {
+                AppLog.warning(
+                    "Bridge",
+                    "Bluetooth onboard profile rename readback lagged after successful write device=\(device.id) target=\(profileID): \(error.localizedDescription)"
+                )
+                return projected
             }
         }
     }
@@ -371,18 +344,16 @@ extension BridgeClient {
                 return try self.usbReadOnboardProfile(session, device, profile: profile, profileID: profileID)
             }
         case .bluetooth:
-            return try await withBluetoothVendorTransaction(operation: "update onboard profile") {
-                if let metadata = mutation.metadata {
-                    try await self.btWriteOnboardProfileMetadata(device: device, target: profileID, metadata: metadata)
-                }
-                try await self.btApplyOnboardProfileMutation(
-                    device: device,
-                    profile: profile,
-                    target: profileID,
-                    mutation: mutation.withoutMetadata
-                )
-                return try await self.btReadOnboardProfile(device: device, profile: profile, target: profileID)
+            if let metadata = mutation.metadata {
+                try await btWriteOnboardProfileMetadata(device: device, target: profileID, metadata: metadata)
             }
+            try await btApplyOnboardProfileMutation(
+                device: device,
+                profile: profile,
+                target: profileID,
+                mutation: mutation.withoutMetadata
+            )
+            return try await btReadOnboardProfile(device: device, profile: profile, target: profileID)
         }
     }
 
@@ -435,29 +406,27 @@ extension BridgeClient {
                 return inventory
             }
         case .bluetooth:
-            return try await withBluetoothVendorTransaction(operation: "delete onboard profile") {
-                let req = self.nextBTReq()
-                let header = BLEVendorProtocol.buildWriteHeader(
-                    req: req,
-                    payloadLength: 0x00,
-                    key: .profileTargetDelete(target: UInt8(profileID))
-                )
-                let notifies = try await self.btExchange([header], timeout: 0.9, device: device)
-                guard self.btAckSuccess(notifies: notifies, req: req) else {
-                    throw BridgeError.commandFailed("Bluetooth onboard profile delete was rejected.")
-                }
-                return try await self.retryOnboardProfileReadback(
-                    device: device,
-                    operation: "Bluetooth onboard profile delete",
-                    failureMessage: "Bluetooth onboard profile delete readback still lists target \(profileID).",
-                    read: {
-                        try await self.btListOnboardProfiles(device: device, profile: profile)
-                    },
-                    accepts: { inventory in
-                        !inventory.assignedProfileIDs.contains(profileID)
-                    }
-                )
+            let req = nextBTReq()
+            let header = BLEVendorProtocol.buildWriteHeader(
+                req: req,
+                payloadLength: 0x00,
+                key: .profileTargetDelete(target: UInt8(profileID))
+            )
+            let notifies = try await btExchange([header], timeout: 0.9, device: device)
+            guard btAckSuccess(notifies: notifies, req: req) else {
+                throw BridgeError.commandFailed("Bluetooth onboard profile delete was rejected.")
             }
+            return try await retryOnboardProfileReadback(
+                device: device,
+                operation: "Bluetooth onboard profile delete",
+                failureMessage: "Bluetooth onboard profile delete readback still lists target \(profileID).",
+                read: {
+                    try await self.btListOnboardProfiles(device: device, profile: profile)
+                },
+                accepts: { inventory in
+                    !inventory.assignedProfileIDs.contains(profileID)
+                }
+            )
         }
     }
 
@@ -469,15 +438,23 @@ extension BridgeClient {
 
         let start = Date()
         AppLog.debug("Bridge", "activate onboard profile start device=\(device.id) transport=\(device.transport.rawValue) profile=\(profileID)")
+        let assigned: [Int]
+        switch device.transport {
+        case .usb:
+            assigned = try await withUSBProfileSession(device: device) { session in
+                try self.usbReadOnboardProfileInventory(session, device, profile: profile).assignedProfiles.map(Int.init)
+            }
+        case .bluetooth:
+            assigned = try await btReadOnboardProfileTargets(device: device, profile: profile)
+        }
+        guard assigned.contains(profileID) else {
+            throw BridgeError.commandFailed("Onboard profile \(profileID) is not assigned.")
+        }
 
         let activated: Int
         switch device.transport {
         case .usb:
             activated = try await withUSBProfileSession(device: device) { session in
-                let assigned = try self.usbReadOnboardProfileInventory(session, device, profile: profile).assignedProfiles.map(Int.init)
-                guard assigned.contains(profileID) else {
-                    throw BridgeError.commandFailed("Onboard profile \(profileID) is not assigned.")
-                }
                 let response = try self.perform(
                     session,
                     device,
@@ -504,38 +481,32 @@ extension BridgeClient {
                 )
             }
         case .bluetooth:
-            activated = try await withBluetoothVendorTransaction(operation: "activate onboard profile") {
-                let assigned = try await self.btReadOnboardProfileTargets(device: device, profile: profile)
-                guard assigned.contains(profileID) else {
-                    throw BridgeError.commandFailed("Onboard profile \(profileID) is not assigned.")
-                }
-                let req = self.nextBTReq()
-                let header = BLEVendorProtocol.buildWriteHeader(
-                    req: req,
-                    payloadLength: 0x01,
-                    key: .profileActiveTargetSet()
-                )
-                let notifies = try await self.btExchange(
-                    [header, BLEVendorProtocol.Key.profileActiveTargetSetPayload(target: UInt8(profileID))],
-                    timeout: 0.9,
-                    device: device
-                )
-                guard self.btAckSuccess(notifies: notifies, req: req) else {
-                    throw BridgeError.commandFailed("Bluetooth onboard profile selector was rejected.")
-                }
-                return try await self.retryOnboardProfileReadback(
-                    device: device,
-                    operation: "Bluetooth active onboard profile selector",
-                    failureMessage: "Bluetooth active target readback did not match target \(profileID).",
-                    attempts: 6,
-                    read: {
-                        try await self.btReadActiveOnboardProfileID(device: device) ?? -1
-                    },
-                    accepts: { active in
-                        active == profileID
-                    }
-                )
+            let req = nextBTReq()
+            let header = BLEVendorProtocol.buildWriteHeader(
+                req: req,
+                payloadLength: 0x01,
+                key: .profileActiveTargetSet()
+            )
+            let notifies = try await btExchange(
+                [header, BLEVendorProtocol.Key.profileActiveTargetSetPayload(target: UInt8(profileID))],
+                timeout: 0.9,
+                device: device
+            )
+            guard btAckSuccess(notifies: notifies, req: req) else {
+                throw BridgeError.commandFailed("Bluetooth onboard profile selector was rejected.")
             }
+            activated = try await retryOnboardProfileReadback(
+                device: device,
+                operation: "Bluetooth active onboard profile selector",
+                failureMessage: "Bluetooth active target readback did not match target \(profileID).",
+                attempts: 6,
+                read: {
+                    try await self.btReadActiveOnboardProfileID(device: device) ?? -1
+                },
+                accepts: { active in
+                    active == profileID
+                }
+            )
         }
         AppLog.debug(
             "Bridge",
