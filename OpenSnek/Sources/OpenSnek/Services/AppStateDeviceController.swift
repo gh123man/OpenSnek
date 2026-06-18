@@ -197,6 +197,7 @@ final class AppStateDeviceController {
                 "active=\(selectedState.dpi_stages.active_stage.map(String.init) ?? "nil") " +
                 "dpi=\(Self.diagnosticDpiPair(selectedState.dpi)) " +
                 "values=\(selectedState.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
+                "scroll=\(Self.diagnosticScrollState(selectedState)) " +
                 "pendingLocal=\(applyController.hasPendingLocalEdits) " +
                 "pendingActive=\(applyController.pendingActiveStageSelection(for: selectedDevice).map(String.init) ?? "nil")"
             )
@@ -259,9 +260,11 @@ final class AppStateDeviceController {
             "backendStateUpdate apply device=\(presentationDeviceID) source=\(deviceID) " +
             "incomingActive=\(updatedState.dpi_stages.active_stage.map(String.init) ?? "nil") " +
             "incomingDpi=\(Self.diagnosticDpiPair(updatedState.dpi)) " +
+            "incomingScroll=\(Self.diagnosticScrollState(updatedState)) " +
             "mergedActive=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
             "mergedDpi=\(Self.diagnosticDpiPair(merged.dpi)) " +
             "mergedValues=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
+            "mergedScroll=\(Self.diagnosticScrollState(merged)) " +
             "selected=\(deviceStore.selectedDeviceID ?? "nil") " +
             "pendingLocal=\(applyController.hasPendingLocalEdits) " +
             "pendingActive=\(applyController.pendingActiveStageSelection(for: presentationDevice).map(String.init) ?? "nil")"
@@ -1141,6 +1144,12 @@ final class AppStateDeviceController {
         return "(\(pair.x),\(pair.y))"
     }
 
+    private static func diagnosticScrollState(_ state: MouseState) -> String {
+        "mode=\(state.scroll_mode.map(String.init) ?? "nil")," +
+            "accel=\(state.scroll_acceleration.map(String.init) ?? "nil")," +
+            "smart=\(state.scroll_smart_reel.map(String.init) ?? "nil")"
+    }
+
     func latestCachedUpdateAt(sourceDeviceID: String, presentationDeviceID: String) -> Date? {
         [lastUpdatedByDeviceID[sourceDeviceID], lastUpdatedByDeviceID[presentationDeviceID]]
             .compactMap { $0 }
@@ -1462,7 +1471,8 @@ final class AppStateDeviceController {
                 AppLog.debug(
                     "AppState",
                     "refreshState merged recent-fast-dpi device=\(presentationDeviceID) active=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
-                    "values=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil")"
+                    "values=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
+                    "scroll=\(Self.diagnosticScrollState(merged))"
                 )
                 return true
             }
@@ -1515,6 +1525,7 @@ final class AppStateDeviceController {
                 "AppState",
                 "refreshState ok device=\(presentationDeviceID) active=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
                 "values=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
+                "scroll=\(Self.diagnosticScrollState(merged)) " +
                 "elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
             )
             return true

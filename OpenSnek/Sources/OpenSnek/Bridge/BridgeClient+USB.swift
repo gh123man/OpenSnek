@@ -181,6 +181,13 @@ extension BridgeClient {
                 "tableActive=\(stages?.active.description ?? "nil") live=(\(dpi.0),\(dpi.1)) " +
                 "resolved=\(active) values=\(values.map(String.init).joined(separator: ","))"
             )
+            AppLog.debug(
+                "Bridge",
+                "readUSBState scroll device=\(device.id) profile=\(scrollProfileID) " +
+                "mode=\(scrollMode.map(String.init) ?? "nil") " +
+                "accel=\(scrollAcceleration.map(String.init) ?? "nil") " +
+                "smart=\(scrollSmartReel.map(String.init) ?? "nil")"
+            )
 
             return MouseState(
                 device: DeviceSummary(

@@ -572,9 +572,20 @@ final class AppStateEditorController {
 
         if let snapshot = activeOnboardSnapshot,
            let device = deviceStore.selectedDevice {
+            AppLog.debug(
+                "AppState",
+                "hydrateEditable.scroll source=activeOnboardSnapshot device=\(device.id) " +
+                "profile=\(snapshot.profileID) state=\(Self.diagnosticScrollState(state)) " +
+                "snapshot=\(Self.diagnosticScrollSnapshot(snapshot))"
+            )
             hydrateEditableLighting(from: snapshot, device: device)
             hydrateEditableScroll(from: snapshot)
         } else {
+            AppLog.debug(
+                "AppState",
+                "hydrateEditable.scroll source=state device=\(deviceStore.selectedDeviceID ?? "nil") " +
+                "state=\(Self.diagnosticScrollState(state))"
+            )
             if let scrollMode = state.scroll_mode {
                 editorStore.editableScrollMode = max(0, min(1, scrollMode))
             }
@@ -738,6 +749,11 @@ final class AppStateEditorController {
         if let lowBatteryThresholdRaw = snapshot.lowBatteryThresholdRaw {
             editorStore.editableLowBatteryThresholdRaw = max(0x0C, min(0x3F, lowBatteryThresholdRaw))
         }
+        AppLog.debug(
+            "AppState",
+            "hydrateConnectPresentation.scroll source=persistedSnapshot device=\(device.id) " +
+            "snapshot=\(Self.diagnosticScrollSnapshot(snapshot))"
+        )
         if let scrollMode = snapshot.scrollMode {
             editorStore.editableScrollMode = max(0, min(1, scrollMode))
         }
@@ -2291,6 +2307,24 @@ final class AppStateEditorController {
         return matchingIndices.count == 1 ? matchingIndices[0] : nil
     }
 
+    private nonisolated static func diagnosticScrollState(_ state: MouseState) -> String {
+        "mode=\(state.scroll_mode.map(String.init) ?? "nil")," +
+            "accel=\(state.scroll_acceleration.map(String.init) ?? "nil")," +
+            "smart=\(state.scroll_smart_reel.map(String.init) ?? "nil")"
+    }
+
+    private nonisolated static func diagnosticScrollSnapshot(_ snapshot: OnboardProfileSnapshot) -> String {
+        "mode=\(snapshot.scrollMode.map(String.init) ?? "nil")," +
+            "accel=\(snapshot.scrollAcceleration.map(String.init) ?? "nil")," +
+            "smart=\(snapshot.scrollSmartReel.map(String.init) ?? "nil")"
+    }
+
+    private nonisolated static func diagnosticScrollSnapshot(_ snapshot: PersistedDeviceSettingsSnapshot) -> String {
+        "mode=\(snapshot.scrollMode.map(String.init) ?? "nil")," +
+            "accel=\(snapshot.scrollAcceleration.map(String.init) ?? "nil")," +
+            "smart=\(snapshot.scrollSmartReel.map(String.init) ?? "nil")"
+    }
+
     private func hydrateEditableLighting(from snapshot: OnboardProfileSnapshot, device: MouseDevice) {
         if let brightness = snapshot.brightnessByLEDID.values.max() {
             editorStore.editableLedBrightness = brightness
@@ -2327,6 +2361,11 @@ final class AppStateEditorController {
     }
 
     private func hydrateEditableScroll(from snapshot: OnboardProfileSnapshot) {
+        AppLog.debug(
+            "AppState",
+            "hydrateEditableScroll snapshot profile=\(snapshot.profileID) " +
+            "scroll=\(Self.diagnosticScrollSnapshot(snapshot))"
+        )
         if let scrollMode = snapshot.scrollMode {
             editorStore.editableScrollMode = max(0, min(1, scrollMode))
         }
