@@ -27,6 +27,25 @@ protocol DeviceBackend: AnyObject, Sendable {
     func stateUpdates() async -> AsyncStream<BackendStateUpdate>
     func updateRemoteClientPresence(sourceProcessID: Int32, selectedDeviceID: String?) async
     func apply(device: MouseDevice, patch: DevicePatch) async throws -> MouseState
+    func listOnboardProfiles(device: MouseDevice) async throws -> OnboardProfileInventory
+    func readOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot
+    func readOnboardProfileCore(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot
+    func readOnboardProfileButtonBindings(device: MouseDevice, profileID: Int) async throws -> [Int: ButtonBindingDraft]
+    func createOnboardProfile(
+        device: MouseDevice,
+        mutation: OnboardProfileMutation,
+        targetProfileID: Int?,
+        replaceAssignedProfile: Bool
+    ) async throws -> OnboardProfileSnapshot
+    func renameOnboardProfile(device: MouseDevice, profileID: Int, name: String) async throws -> OnboardProfileSnapshot
+    func updateOnboardProfile(
+        device: MouseDevice,
+        profileID: Int,
+        mutation: OnboardProfileMutation
+    ) async throws -> OnboardProfileSnapshot
+    func deleteOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileInventory
+    func activateOnboardProfile(device: MouseDevice, profileID: Int) async throws -> MouseState
+    func refreshActiveOnboardProfile(device: MouseDevice) async throws -> MouseState
     func readLightingColor(device: MouseDevice) async throws -> RGBPatch?
     func debugUSBReadButtonBinding(device: MouseDevice, slot: Int, profile: Int) async throws -> [UInt8]?
 }
@@ -72,6 +91,55 @@ final actor BootstrapPendingBackend: DeviceBackend {
         throw BridgeError.commandFailed("Backend is still starting")
     }
 
+    func listOnboardProfiles(device _: MouseDevice) async throws -> OnboardProfileInventory {
+        throw BridgeError.commandFailed("Backend is still starting")
+    }
+
+    func readOnboardProfile(device _: MouseDevice, profileID _: Int) async throws -> OnboardProfileSnapshot {
+        throw BridgeError.commandFailed("Backend is still starting")
+    }
+
+    func readOnboardProfileCore(device _: MouseDevice, profileID _: Int) async throws -> OnboardProfileSnapshot {
+        throw BridgeError.commandFailed("Backend is still starting")
+    }
+
+    func readOnboardProfileButtonBindings(device _: MouseDevice, profileID _: Int) async throws -> [Int: ButtonBindingDraft] {
+        throw BridgeError.commandFailed("Backend is still starting")
+    }
+
+    func createOnboardProfile(
+        device _: MouseDevice,
+        mutation _: OnboardProfileMutation,
+        targetProfileID _: Int?,
+        replaceAssignedProfile _: Bool
+    ) async throws -> OnboardProfileSnapshot {
+        throw BridgeError.commandFailed("Backend is still starting")
+    }
+
+    func renameOnboardProfile(device _: MouseDevice, profileID _: Int, name _: String) async throws -> OnboardProfileSnapshot {
+        throw BridgeError.commandFailed("Backend is still starting")
+    }
+
+    func updateOnboardProfile(
+        device _: MouseDevice,
+        profileID _: Int,
+        mutation _: OnboardProfileMutation
+    ) async throws -> OnboardProfileSnapshot {
+        throw BridgeError.commandFailed("Backend is still starting")
+    }
+
+    func deleteOnboardProfile(device _: MouseDevice, profileID _: Int) async throws -> OnboardProfileInventory {
+        throw BridgeError.commandFailed("Backend is still starting")
+    }
+
+    func activateOnboardProfile(device _: MouseDevice, profileID _: Int) async throws -> MouseState {
+        throw BridgeError.commandFailed("Backend is still starting")
+    }
+
+    func refreshActiveOnboardProfile(device _: MouseDevice) async throws -> MouseState {
+        throw BridgeError.commandFailed("Backend is still starting")
+    }
+
     func readLightingColor(device _: MouseDevice) async throws -> RGBPatch? { nil }
 
     func debugUSBReadButtonBinding(device _: MouseDevice, slot _: Int, profile _: Int) async throws -> [UInt8]? { nil }
@@ -84,6 +152,55 @@ extension DeviceBackend {
     }
 
     func updateRemoteClientPresence(sourceProcessID _: Int32, selectedDeviceID _: String?) async {
+    }
+
+    func listOnboardProfiles(device _: MouseDevice) async throws -> OnboardProfileInventory {
+        throw BridgeError.commandFailed("Onboard profile CRUD is not supported by this backend.")
+    }
+
+    func readOnboardProfile(device _: MouseDevice, profileID _: Int) async throws -> OnboardProfileSnapshot {
+        throw BridgeError.commandFailed("Onboard profile CRUD is not supported by this backend.")
+    }
+
+    func readOnboardProfileCore(device _: MouseDevice, profileID _: Int) async throws -> OnboardProfileSnapshot {
+        throw BridgeError.commandFailed("Onboard profile CRUD is not supported by this backend.")
+    }
+
+    func readOnboardProfileButtonBindings(device _: MouseDevice, profileID _: Int) async throws -> [Int: ButtonBindingDraft] {
+        throw BridgeError.commandFailed("Onboard profile CRUD is not supported by this backend.")
+    }
+
+    func createOnboardProfile(
+        device _: MouseDevice,
+        mutation _: OnboardProfileMutation,
+        targetProfileID _: Int?,
+        replaceAssignedProfile _: Bool
+    ) async throws -> OnboardProfileSnapshot {
+        throw BridgeError.commandFailed("Onboard profile CRUD is not supported by this backend.")
+    }
+
+    func renameOnboardProfile(device _: MouseDevice, profileID _: Int, name _: String) async throws -> OnboardProfileSnapshot {
+        throw BridgeError.commandFailed("Onboard profile CRUD is not supported by this backend.")
+    }
+
+    func updateOnboardProfile(
+        device _: MouseDevice,
+        profileID _: Int,
+        mutation _: OnboardProfileMutation
+    ) async throws -> OnboardProfileSnapshot {
+        throw BridgeError.commandFailed("Onboard profile CRUD is not supported by this backend.")
+    }
+
+    func deleteOnboardProfile(device _: MouseDevice, profileID _: Int) async throws -> OnboardProfileInventory {
+        throw BridgeError.commandFailed("Onboard profile CRUD is not supported by this backend.")
+    }
+
+    func activateOnboardProfile(device _: MouseDevice, profileID _: Int) async throws -> MouseState {
+        throw BridgeError.commandFailed("Onboard profile CRUD is not supported by this backend.")
+    }
+
+    func refreshActiveOnboardProfile(device _: MouseDevice) async throws -> MouseState {
+        throw BridgeError.commandFailed("Onboard profile CRUD is not supported by this backend.")
     }
 }
 
@@ -188,14 +305,16 @@ func mergedStateFromPassiveDpiEvent(
         let matchingIndices = stageValues.enumerated().compactMap { index, value in
             value == event.dpiX ? index : nil
         }
-        resolvedActiveStage = matchingIndices.count == 1 ? matchingIndices[0] : previous.dpi_stages.active_stage
-        if let resolvedActiveStage,
-           var basePairs,
-           resolvedActiveStage >= 0,
-           resolvedActiveStage < basePairs.count {
-            basePairs[resolvedActiveStage] = DpiPair(x: event.dpiX, y: event.dpiY)
+        if matchingIndices.count == 1,
+           var basePairs {
+            let matchedStage = matchingIndices[0]
+            resolvedActiveStage = matchedStage
+            if matchedStage >= 0, matchedStage < basePairs.count {
+                basePairs[matchedStage] = DpiPair(x: event.dpiX, y: event.dpiY)
+            }
             resolvedStagePairs = basePairs
         } else {
+            resolvedActiveStage = previous.dpi_stages.active_stage
             resolvedStagePairs = basePairs
         }
     }
@@ -223,6 +342,7 @@ func mergedStateFromPassiveDpiEvent(
 
 final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptionsSupportingBackend {
     static let shared = LocalBridgeBackend()
+    private static let usbDisconnectDebounceInterval: TimeInterval = 0.75
 
     private let client = BridgeClient()
     private var cachedDevices: [MouseDevice] = []
@@ -235,6 +355,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     private var bluetoothControlReadyDeviceIDs: Set<String> = []
     private let stateUpdatesStream = BroadcastStream<BackendStateUpdate>()
     private var devicePresenceRefreshTask: Task<Void, Never>?
+    private var pendingUSBDisconnectRefreshTasks: [String: Task<Void, Never>] = [:]
     private var activeBluetoothWarmupKeys: Set<String> = []
 
     nonisolated var usesRemoteServiceTransport: Bool { false }
@@ -252,6 +373,13 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
             let stream = await self.client.passiveDpiHeartbeatStream()
             for await event in stream {
                 await self.handlePassiveDpiHeartbeat(event)
+            }
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            let stream = await self.client.passiveProfileSwitchEventStream()
+            for await event in stream {
+                await self.handlePassiveProfileSwitch(event)
             }
         }
         Task { [weak self] in
@@ -282,11 +410,11 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     func readState(device: MouseDevice) async throws -> MouseState {
         let readStartedAt = Date()
         let cachedStateBeforeRead = cachedStateByDeviceID[device.id]
+        let shouldUseFastPolling = device.transport == .bluetooth
+            ? await client.shouldUseFastDPIPolling(device: device)
+            : true
         if let cachedAt = cachedStateAtByDeviceID[device.id],
            let cached = cachedStateByDeviceID[device.id] {
-            let shouldUseFastPolling = device.transport == .bluetooth
-                ? await client.shouldUseFastDPIPolling(device: device)
-                : true
             if Self.shouldReuseCachedStateForRead(
                 device: device,
                 cachedAt: cachedAt,
@@ -315,6 +443,23 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
                 "cachedAt=\(cachedStateAtByDeviceID[device.id]?.timeIntervalSince1970 ?? 0)"
             )
             return cached
+        }
+        if device.transport == .bluetooth,
+           !shouldUseFastPolling,
+           let cached = cachedStateByDeviceID[device.id] {
+            let merged = cached.mergedWithStableReadTelemetry(from: state)
+            let now = Date()
+            cachedStateByDeviceID[device.id] = merged
+            cachedStateAtByDeviceID[device.id] = now
+            reconnectSeedStateByDeviceID[device.id] = merged
+            publishSnapshotIfService()
+            AppLog.debug(
+                "Backend",
+                "readState preserved passive BT DPI device=\(device.id) " +
+                "cachedActive=\(cached.dpi_stages.active_stage.map(String.init) ?? "nil") " +
+                "readActive=\(state.dpi_stages.active_stage.map(String.init) ?? "nil")"
+            )
+            return merged
         }
         cachedStateByDeviceID[device.id] = state
         cachedStateAtByDeviceID[device.id] = Date()
@@ -394,6 +539,104 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         return merged
     }
 
+    func listOnboardProfiles(device: MouseDevice) async throws -> OnboardProfileInventory {
+        try await client.listOnboardProfiles(device: device)
+    }
+
+    func readOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot {
+        let snapshot = try await client.readOnboardProfile(device: device, profileID: profileID)
+        await cacheActiveOnboardProfileSnapshotIfCurrent(snapshot, device: device, source: "readOnboardProfile")
+        return snapshot
+    }
+
+    func readOnboardProfileCore(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot {
+        let snapshot = try await client.readOnboardProfileCore(device: device, profileID: profileID)
+        await cacheActiveOnboardProfileSnapshotIfCurrent(snapshot, device: device, source: "readOnboardProfileCore")
+        return snapshot
+    }
+
+    func readOnboardProfileButtonBindings(device: MouseDevice, profileID: Int) async throws -> [Int: ButtonBindingDraft] {
+        try await client.readOnboardProfileButtonBindings(device: device, profileID: profileID)
+    }
+
+    func createOnboardProfile(
+        device: MouseDevice,
+        mutation: OnboardProfileMutation,
+        targetProfileID: Int?,
+        replaceAssignedProfile: Bool
+    ) async throws -> OnboardProfileSnapshot {
+        try await client.createOnboardProfile(
+            device: device,
+            mutation: mutation,
+            targetProfileID: targetProfileID,
+            replaceAssignedProfile: replaceAssignedProfile
+        )
+    }
+
+    func renameOnboardProfile(device: MouseDevice, profileID: Int, name: String) async throws -> OnboardProfileSnapshot {
+        try await client.renameOnboardProfile(device: device, profileID: profileID, name: name)
+    }
+
+    func updateOnboardProfile(
+        device: MouseDevice,
+        profileID: Int,
+        mutation: OnboardProfileMutation
+    ) async throws -> OnboardProfileSnapshot {
+        try await client.updateOnboardProfile(device: device, profileID: profileID, mutation: mutation)
+    }
+
+    func deleteOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileInventory {
+        try await client.deleteOnboardProfile(device: device, profileID: profileID)
+    }
+
+    func activateOnboardProfile(device: MouseDevice, profileID: Int) async throws -> MouseState {
+        let state = try await client.activateOnboardProfile(device: device, profileID: profileID)
+        cacheAndPublishState(state, for: device.id, updatedAt: Date())
+        return state
+    }
+
+    func refreshActiveOnboardProfile(device: MouseDevice) async throws -> MouseState {
+        let state = try await client.refreshActiveOnboardProfile(device: device)
+        cacheAndPublishState(state, for: device.id, updatedAt: Date())
+        return state
+    }
+
+    private func cacheActiveOnboardProfileSnapshotIfCurrent(
+        _ snapshot: OnboardProfileSnapshot,
+        device: MouseDevice,
+        source: String
+    ) async {
+        guard snapshot.profileID > 0,
+              let active = cachedStateByDeviceID[device.id]?.active_onboard_profile
+                ?? reconnectSeedStateByDeviceID[device.id]?.active_onboard_profile,
+              active == snapshot.profileID else {
+            return
+        }
+
+        do {
+            let profile = try await client.mappedOnboardProfileSupport(for: device)
+            let state = await client.storeProjectedActiveOnboardProfileState(
+                device: device,
+                profile: profile,
+                activeProfileID: active,
+                snapshot: snapshot
+            )
+            cacheAndPublishState(state, for: device.id, updatedAt: Date())
+            AppLog.debug(
+                "Backend",
+                "cached active onboard profile snapshot source=\(source) device=\(device.id) " +
+                    "profile=\(snapshot.profileID) dpiCount=\(snapshot.dpi?.stageCount ?? 0) " +
+                    "dpiValues=\(snapshot.dpi?.values.map(String.init).joined(separator: ",") ?? "<none>")"
+            )
+        } catch {
+            AppLog.debug(
+                "Backend",
+                "active onboard profile snapshot cache skipped source=\(source) device=\(device.id) " +
+                    "profile=\(snapshot.profileID): \(error.localizedDescription)"
+            )
+        }
+    }
+
     func readLightingColor(device: MouseDevice) async throws -> RGBPatch? {
         try await client.readLightingColor(device: device)
     }
@@ -425,22 +668,31 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         now: Date,
         shouldUseFastDPIPolling: Bool
     ) -> Bool {
-        let maxAge: TimeInterval
         if device.transport == .bluetooth, !shouldUseFastDPIPolling {
-            // While passive BT DPI events are flowing, prefer the latest cached state
-            // and defer vendor reads until the stream has been quiet for roughly one
-            // correction interval.
-            maxAge = 0.9
-        } else {
-            maxAge = 0.2
+            return true
         }
 
-        return now.timeIntervalSince(cachedAt) < maxAge
+        return now.timeIntervalSince(cachedAt) < 0.2
     }
 
     nonisolated static func completedReadWasSuperseded(startedAt: Date, latestCachedAt: Date?) -> Bool {
         guard let latestCachedAt else { return false }
         return latestCachedAt > startedAt
+    }
+
+    nonisolated static func passiveDpiEventHasAmbiguousStageMatch(
+        previous: MouseState?,
+        event: PassiveDPIEvent
+    ) -> Bool {
+        guard let previous,
+              let values = previous.dpi_stages.values,
+              values.count > 1 else {
+            return false
+        }
+        let matchingIndices = values.enumerated().compactMap { index, value in
+            value == event.dpiX ? index : nil
+        }
+        return matchingIndices.count != 1
     }
 
     nonisolated static func seededStateForPassiveDpiEvent(
@@ -501,6 +753,20 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     }
 
     private func handleDevicePresenceEvent(_ event: HIDDevicePresenceEvent) {
+        if event.transport == .usb {
+            if event.change == .connected {
+                pendingUSBDisconnectRefreshTasks.removeValue(forKey: event.deviceID)?.cancel()
+                devicePresenceRefreshTask?.cancel()
+                devicePresenceRefreshTask = Task { [weak self] in
+                    guard let self, !Task.isCancelled else { return }
+                    await self.refreshCachedDevicesAfterPresenceChange(observedAt: event.observedAt, event: event)
+                }
+            } else {
+                scheduleUSBDisconnectRefresh(for: event)
+            }
+            return
+        }
+
         invalidateCachedTelemetry(for: event.deviceID)
         scheduleBluetoothWarmup(for: event)
         devicePresenceRefreshTask?.cancel()
@@ -517,6 +783,29 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
             }
 
             guard !Task.isCancelled else { return }
+            await self.refreshCachedDevicesAfterPresenceChange(observedAt: Date(), event: event)
+        }
+    }
+
+    private func scheduleUSBDisconnectRefresh(for event: HIDDevicePresenceEvent) {
+        pendingUSBDisconnectRefreshTasks.removeValue(forKey: event.deviceID)?.cancel()
+        pendingUSBDisconnectRefreshTasks[event.deviceID] = Task { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: UInt64(Self.usbDisconnectDebounceInterval * 1_000_000_000))
+            } catch {
+                return
+            }
+            guard let self, !Task.isCancelled else { return }
+            await self.finishUSBDisconnectRefresh(for: event)
+        }
+    }
+
+    private func finishUSBDisconnectRefresh(for event: HIDDevicePresenceEvent) async {
+        guard pendingUSBDisconnectRefreshTasks[event.deviceID] != nil else { return }
+        pendingUSBDisconnectRefreshTasks[event.deviceID] = nil
+        devicePresenceRefreshTask?.cancel()
+        devicePresenceRefreshTask = Task { [weak self] in
+            guard let self, !Task.isCancelled else { return }
             await self.refreshCachedDevicesAfterPresenceChange(observedAt: Date(), event: event)
         }
     }
@@ -590,8 +879,9 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         publishSnapshotIfService()
     }
 
-    private func updateCachedStateFromFastSnapshot(_ snapshot: DpiFastSnapshot, for deviceID: String) {
-        guard let previous = cachedStateByDeviceID[deviceID], !snapshot.values.isEmpty else { return }
+    @discardableResult
+    private func updateCachedStateFromFastSnapshot(_ snapshot: DpiFastSnapshot, for deviceID: String) -> MouseState? {
+        guard let previous = cachedStateByDeviceID[deviceID], !snapshot.values.isEmpty else { return nil }
         let active = max(0, min(snapshot.values.count - 1, snapshot.active))
         let currentStagePairs = BridgeClient.resolveDpiStagePairs(
             values: snapshot.values,
@@ -624,9 +914,10 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         )
         cachedStateByDeviceID[deviceID] = updated
         reconnectSeedStateByDeviceID[deviceID] = updated
+        return updated
     }
 
-    private func handlePassiveDpiEvent(_ event: PassiveDPIEvent) {
+    private func handlePassiveDpiEvent(_ event: PassiveDPIEvent) async {
         let previousState: MouseState?
         if let cached = cachedStateByDeviceID[event.deviceID] {
             previousState = cached
@@ -652,10 +943,38 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         cachedStateByDeviceID[event.deviceID] = updated
         cachedStateAtByDeviceID[event.deviceID] = event.observedAt
         reconnectSeedStateByDeviceID[event.deviceID] = updated
+        let needsDirectActiveRead = Self.passiveDpiEventHasAmbiguousStageMatch(previous: previousState, event: event)
         let fastActive = updated.dpi_stages.active_stage ?? cachedFastByDeviceID[event.deviceID]?.active ?? 0
         if let values = updated.dpi_stages.values {
-            cachedFastByDeviceID[event.deviceID] = DpiFastSnapshot(active: fastActive, values: values)
-            cachedFastAtByDeviceID[event.deviceID] = event.observedAt
+            if needsDirectActiveRead {
+                cachedFastByDeviceID.removeValue(forKey: event.deviceID)
+                cachedFastAtByDeviceID.removeValue(forKey: event.deviceID)
+            } else {
+                cachedFastByDeviceID[event.deviceID] = DpiFastSnapshot(active: fastActive, values: values)
+                cachedFastAtByDeviceID[event.deviceID] = event.observedAt
+            }
+        }
+
+        if needsDirectActiveRead,
+           let device = cachedDevices.first(where: { $0.id == event.deviceID }) {
+            do {
+                if let snapshot = try await client.readDpiStagesFast(device: device) {
+                    let fast = DpiFastSnapshot(active: snapshot.active, values: snapshot.values)
+                    let readAt = Date()
+                    cachedFastByDeviceID[event.deviceID] = fast
+                    cachedFastAtByDeviceID[event.deviceID] = readAt
+                    if let precise = updateCachedStateFromFastSnapshot(fast, for: event.deviceID) {
+                        publishStateUpdate(.deviceState(deviceID: event.deviceID, state: precise, updatedAt: readAt))
+                        publishSnapshotIfService()
+                        return
+                    }
+                }
+            } catch {
+                AppLog.debug(
+                    "Backend",
+                    "passive DPI ambiguous active-stage read failed device=\(event.deviceID): \(error.localizedDescription)"
+                )
+            }
         }
 
         publishStateUpdate(.deviceState(deviceID: event.deviceID, state: updated, updatedAt: event.observedAt))
@@ -670,6 +989,36 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
                 updatedAt: event.observedAt
             )
         )
+    }
+
+    private func handlePassiveProfileSwitch(_ event: PassiveProfileSwitchEvent) async {
+        guard let device = cachedDevices.first(where: { $0.id == event.deviceID }) else { return }
+        do {
+            let state = try await client.refreshActiveOnboardProfile(device: device)
+            cacheAndPublishState(state, for: event.deviceID, updatedAt: event.observedAt)
+        } catch {
+            AppLog.warning(
+                "Backend",
+                "passive profile switch refresh failed device=\(event.deviceID): \(error.localizedDescription)"
+            )
+        }
+    }
+
+    private func cacheAndPublishState(_ state: MouseState, for deviceID: String, updatedAt: Date) {
+        let merged = Self.mergedApplyState(
+            state,
+            previous: cachedStateByDeviceID[deviceID] ?? reconnectSeedStateByDeviceID[deviceID]
+        )
+        cachedStateByDeviceID[deviceID] = merged
+        cachedStateAtByDeviceID[deviceID] = updatedAt
+        reconnectSeedStateByDeviceID[deviceID] = merged
+        if let values = merged.dpi_stages.values,
+           let active = merged.dpi_stages.active_stage {
+            cachedFastByDeviceID[deviceID] = DpiFastSnapshot(active: active, values: values)
+            cachedFastAtByDeviceID[deviceID] = updatedAt
+        }
+        publishStateUpdate(.deviceState(deviceID: deviceID, state: merged, updatedAt: updatedAt))
+        publishSnapshotIfService()
     }
 
     private func publishStateUpdate(_ update: BackendStateUpdate) {
@@ -817,6 +1166,80 @@ private actor BackgroundServiceRequestHandler {
                     try await backend.apply(device: applyRequest.device, patch: applyRequest.patch)
                 )
             }
+        case .listOnboardProfiles:
+            let device = try decodePayload(MouseDevice.self, from: request.payload)
+            payload = try BackendCodec.encode(try await backend.listOnboardProfiles(device: device))
+        case .readOnboardProfile:
+            let onboardRequest = try decodePayload(OnboardProfileIDRequest.self, from: request.payload)
+            payload = try BackendCodec.encode(
+                try await backend.readOnboardProfile(
+                    device: onboardRequest.device,
+                    profileID: onboardRequest.profileID
+                )
+            )
+        case .readOnboardProfileCore:
+            let onboardRequest = try decodePayload(OnboardProfileIDRequest.self, from: request.payload)
+            payload = try BackendCodec.encode(
+                try await backend.readOnboardProfileCore(
+                    device: onboardRequest.device,
+                    profileID: onboardRequest.profileID
+                )
+            )
+        case .readOnboardProfileButtonBindings:
+            let onboardRequest = try decodePayload(OnboardProfileIDRequest.self, from: request.payload)
+            payload = try BackendCodec.encode(
+                try await backend.readOnboardProfileButtonBindings(
+                    device: onboardRequest.device,
+                    profileID: onboardRequest.profileID
+                )
+            )
+        case .createOnboardProfile:
+            let onboardRequest = try decodePayload(OnboardProfileCreateRequest.self, from: request.payload)
+            payload = try BackendCodec.encode(
+                try await backend.createOnboardProfile(
+                    device: onboardRequest.device,
+                    mutation: onboardRequest.mutation,
+                    targetProfileID: onboardRequest.targetProfileID,
+                    replaceAssignedProfile: onboardRequest.replaceAssignedProfile
+                )
+            )
+        case .renameOnboardProfile:
+            let onboardRequest = try decodePayload(OnboardProfileRenameRequest.self, from: request.payload)
+            payload = try BackendCodec.encode(
+                try await backend.renameOnboardProfile(
+                    device: onboardRequest.device,
+                    profileID: onboardRequest.profileID,
+                    name: onboardRequest.name
+                )
+            )
+        case .updateOnboardProfile:
+            let onboardRequest = try decodePayload(OnboardProfileUpdateRequest.self, from: request.payload)
+            payload = try BackendCodec.encode(
+                try await backend.updateOnboardProfile(
+                    device: onboardRequest.device,
+                    profileID: onboardRequest.profileID,
+                    mutation: onboardRequest.mutation
+                )
+            )
+        case .deleteOnboardProfile:
+            let onboardRequest = try decodePayload(OnboardProfileIDRequest.self, from: request.payload)
+            payload = try BackendCodec.encode(
+                try await backend.deleteOnboardProfile(
+                    device: onboardRequest.device,
+                    profileID: onboardRequest.profileID
+                )
+            )
+        case .activateOnboardProfile:
+            let onboardRequest = try decodePayload(OnboardProfileIDRequest.self, from: request.payload)
+            payload = try BackendCodec.encode(
+                try await backend.activateOnboardProfile(
+                    device: onboardRequest.device,
+                    profileID: onboardRequest.profileID
+                )
+            )
+        case .refreshActiveOnboardProfile:
+            let device = try decodePayload(MouseDevice.self, from: request.payload)
+            payload = try BackendCodec.encode(try await backend.refreshActiveOnboardProfile(device: device))
         case .readLightingColor:
             let device = try decodePayload(MouseDevice.self, from: request.payload)
             payload = try BackendCodec.encode(try await backend.readLightingColor(device: device))
@@ -939,6 +1362,106 @@ final actor IPCDeviceBackend: HIDAccessRefreshControllingBackend, ApplyOptionsSu
         try await request(
             method: .apply,
             payload: try BackendCodec.encode(ApplyRequest(device: device, patch: patch, options: options)),
+            responseType: MouseState.self
+        )
+    }
+
+    func listOnboardProfiles(device: MouseDevice) async throws -> OnboardProfileInventory {
+        try await request(
+            method: .listOnboardProfiles,
+            payload: try BackendCodec.encode(device),
+            responseType: OnboardProfileInventory.self
+        )
+    }
+
+    func readOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot {
+        try await request(
+            method: .readOnboardProfile,
+            payload: try BackendCodec.encode(OnboardProfileIDRequest(device: device, profileID: profileID)),
+            responseType: OnboardProfileSnapshot.self
+        )
+    }
+
+    func readOnboardProfileCore(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot {
+        try await request(
+            method: .readOnboardProfileCore,
+            payload: try BackendCodec.encode(OnboardProfileIDRequest(device: device, profileID: profileID)),
+            responseType: OnboardProfileSnapshot.self
+        )
+    }
+
+    func readOnboardProfileButtonBindings(device: MouseDevice, profileID: Int) async throws -> [Int: ButtonBindingDraft] {
+        try await request(
+            method: .readOnboardProfileButtonBindings,
+            payload: try BackendCodec.encode(OnboardProfileIDRequest(device: device, profileID: profileID)),
+            responseType: [Int: ButtonBindingDraft].self
+        )
+    }
+
+    func createOnboardProfile(
+        device: MouseDevice,
+        mutation: OnboardProfileMutation,
+        targetProfileID: Int?,
+        replaceAssignedProfile: Bool
+    ) async throws -> OnboardProfileSnapshot {
+        try await request(
+            method: .createOnboardProfile,
+            payload: try BackendCodec.encode(
+                OnboardProfileCreateRequest(
+                    device: device,
+                    mutation: mutation,
+                    targetProfileID: targetProfileID,
+                    replaceAssignedProfile: replaceAssignedProfile
+                )
+            ),
+            responseType: OnboardProfileSnapshot.self
+        )
+    }
+
+    func renameOnboardProfile(device: MouseDevice, profileID: Int, name: String) async throws -> OnboardProfileSnapshot {
+        try await request(
+            method: .renameOnboardProfile,
+            payload: try BackendCodec.encode(
+                OnboardProfileRenameRequest(device: device, profileID: profileID, name: name)
+            ),
+            responseType: OnboardProfileSnapshot.self
+        )
+    }
+
+    func updateOnboardProfile(
+        device: MouseDevice,
+        profileID: Int,
+        mutation: OnboardProfileMutation
+    ) async throws -> OnboardProfileSnapshot {
+        try await request(
+            method: .updateOnboardProfile,
+            payload: try BackendCodec.encode(
+                OnboardProfileUpdateRequest(device: device, profileID: profileID, mutation: mutation)
+            ),
+            responseType: OnboardProfileSnapshot.self
+        )
+    }
+
+    func deleteOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileInventory {
+        try await request(
+            method: .deleteOnboardProfile,
+            payload: try BackendCodec.encode(OnboardProfileIDRequest(device: device, profileID: profileID)),
+            responseType: OnboardProfileInventory.self
+        )
+    }
+
+    func activateOnboardProfile(device: MouseDevice, profileID: Int) async throws -> MouseState {
+        try await request(
+            method: .activateOnboardProfile,
+            payload: try BackendCodec.encode(OnboardProfileIDRequest(device: device, profileID: profileID)),
+            responseType: MouseState.self
+        )
+    }
+
+    func refreshActiveOnboardProfile(device: MouseDevice) async throws -> MouseState {
+        try await request(
+            method: .refreshActiveOnboardProfile,
+            payload: try BackendCodec.encode(device),
             responseType: MouseState.self
         )
     }

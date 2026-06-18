@@ -139,6 +139,8 @@ public struct PassiveDPIInputDescriptor: Hashable, Codable, Sendable {
     public let reportID: UInt8
     public let subtype: UInt8
     public let heartbeatSubtype: UInt8?
+    public let profileSwitchPrefixes: [[UInt8]]
+    public let profileSwitchPreludePrefixes: [[UInt8]]
     public let minInputReportSize: Int
     public let maxFeatureReportSize: Int?
     public let maximumDPI: Int
@@ -149,6 +151,8 @@ public struct PassiveDPIInputDescriptor: Hashable, Codable, Sendable {
         reportID: UInt8,
         subtype: UInt8,
         heartbeatSubtype: UInt8? = nil,
+        profileSwitchPrefixes: [[UInt8]] = [],
+        profileSwitchPreludePrefixes: [[UInt8]] = [],
         minInputReportSize: Int,
         maxFeatureReportSize: Int? = nil,
         maximumDPI: Int = 30_000
@@ -158,9 +162,54 @@ public struct PassiveDPIInputDescriptor: Hashable, Codable, Sendable {
         self.reportID = reportID
         self.subtype = subtype
         self.heartbeatSubtype = heartbeatSubtype
+        self.profileSwitchPrefixes = profileSwitchPrefixes
+        self.profileSwitchPreludePrefixes = profileSwitchPreludePrefixes
         self.minInputReportSize = max(1, minInputReportSize)
         self.maxFeatureReportSize = maxFeatureReportSize
         self.maximumDPI = max(100, maximumDPI)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case usagePage
+        case usage
+        case reportID
+        case subtype
+        case heartbeatSubtype
+        case profileSwitchPrefixes
+        case profileSwitchPreludePrefixes
+        case minInputReportSize
+        case maxFeatureReportSize
+        case maximumDPI
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            usagePage: try container.decode(Int.self, forKey: .usagePage),
+            usage: try container.decode(Int.self, forKey: .usage),
+            reportID: try container.decode(UInt8.self, forKey: .reportID),
+            subtype: try container.decode(UInt8.self, forKey: .subtype),
+            heartbeatSubtype: try container.decodeIfPresent(UInt8.self, forKey: .heartbeatSubtype),
+            profileSwitchPrefixes: try container.decodeIfPresent([[UInt8]].self, forKey: .profileSwitchPrefixes) ?? [],
+            profileSwitchPreludePrefixes: try container.decodeIfPresent([[UInt8]].self, forKey: .profileSwitchPreludePrefixes) ?? [],
+            minInputReportSize: try container.decodeIfPresent(Int.self, forKey: .minInputReportSize) ?? 6,
+            maxFeatureReportSize: try container.decodeIfPresent(Int.self, forKey: .maxFeatureReportSize),
+            maximumDPI: try container.decodeIfPresent(Int.self, forKey: .maximumDPI) ?? 30_000
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(usagePage, forKey: .usagePage)
+        try container.encode(usage, forKey: .usage)
+        try container.encode(reportID, forKey: .reportID)
+        try container.encode(subtype, forKey: .subtype)
+        try container.encodeIfPresent(heartbeatSubtype, forKey: .heartbeatSubtype)
+        try container.encode(profileSwitchPrefixes, forKey: .profileSwitchPrefixes)
+        try container.encode(profileSwitchPreludePrefixes, forKey: .profileSwitchPreludePrefixes)
+        try container.encode(minInputReportSize, forKey: .minInputReportSize)
+        try container.encodeIfPresent(maxFeatureReportSize, forKey: .maxFeatureReportSize)
+        try container.encode(maximumDPI, forKey: .maximumDPI)
     }
 }
 
@@ -225,6 +274,7 @@ public struct DeviceProfile: Hashable, Sendable {
     public let productName: String
     public let transport: DeviceTransportKind
     public let supportedProducts: Set<Int>
+    public let usbTransactionID: UInt8?
     public let buttonLayout: ButtonSlotLayout
     public let supportsAdvancedLightingEffects: Bool
     public let supportedLightingEffects: [LightingEffectKind]
@@ -232,6 +282,7 @@ public struct DeviceProfile: Hashable, Sendable {
     public let usbLightingZones: [USBLightingZoneDescriptor]
     public let passiveDPIInput: PassiveDPIInputDescriptor?
     public let supportsIndependentXYDPI: Bool
+    public let onboardProfileSupport: OnboardProfileSupport
     public let onboardProfileCount: Int
     public let isLocallyValidated: Bool
 
@@ -240,6 +291,7 @@ public struct DeviceProfile: Hashable, Sendable {
         productName: String,
         transport: DeviceTransportKind,
         supportedProducts: Set<Int>,
+        usbTransactionID: UInt8? = nil,
         buttonLayout: ButtonSlotLayout,
         supportsAdvancedLightingEffects: Bool,
         supportedLightingEffects: [LightingEffectKind] = LightingEffectKind.allCases,
@@ -247,6 +299,7 @@ public struct DeviceProfile: Hashable, Sendable {
         usbLightingZones: [USBLightingZoneDescriptor] = [],
         passiveDPIInput: PassiveDPIInputDescriptor? = nil,
         supportsIndependentXYDPI: Bool = false,
+        onboardProfileSupport: OnboardProfileSupport = .unavailable,
         onboardProfileCount: Int = 1,
         isLocallyValidated: Bool = true
     ) {
@@ -254,6 +307,7 @@ public struct DeviceProfile: Hashable, Sendable {
         self.productName = productName
         self.transport = transport
         self.supportedProducts = supportedProducts
+        self.usbTransactionID = usbTransactionID
         self.buttonLayout = buttonLayout
         self.supportsAdvancedLightingEffects = supportsAdvancedLightingEffects
         self.supportedLightingEffects = supportedLightingEffects
@@ -261,6 +315,7 @@ public struct DeviceProfile: Hashable, Sendable {
         self.usbLightingZones = usbLightingZones
         self.passiveDPIInput = passiveDPIInput
         self.supportsIndependentXYDPI = supportsIndependentXYDPI
+        self.onboardProfileSupport = onboardProfileSupport
         self.onboardProfileCount = max(1, onboardProfileCount)
         self.isLocallyValidated = isLocallyValidated
     }
@@ -310,6 +365,10 @@ public struct DeviceProfile: Hashable, Sendable {
 
     public func lightingLEDIDs(for zoneID: String? = nil) -> [UInt8]? {
         lightingTargets(for: zoneID)?.map(\.ledID)
+    }
+
+    public var supportsMappedOnboardProfileCRUD: Bool {
+        onboardProfileSupport == .mappedCore
     }
 }
 
@@ -456,6 +515,7 @@ public enum DeviceProfiles {
         productName: "Basilisk V3 X HyperSpeed",
         transport: .usb,
         supportedProducts: [0x00B9],
+        usbTransactionID: 0x1F,
         buttonLayout: ButtonSlotLayout(
             visibleSlots: basiliskV3XButtonSlots,
             writableSlots: basiliskV3XButtonSlots.map(\.slot)
@@ -480,6 +540,7 @@ public enum DeviceProfiles {
         productName: "Basilisk V3 35K",
         transport: .usb,
         supportedProducts: [0x00CB],
+        usbTransactionID: 0x1F,
         buttonLayout: ButtonSlotLayout(
             visibleSlots: basiliskV335KUSBButtonSlots,
             writableSlots: [1, 2, 3, 4, 5, 9, 10, 15, 52, 53, 96],
@@ -532,6 +593,7 @@ public enum DeviceProfiles {
         productName: "Basilisk V3 Pro",
         transport: .usb,
         supportedProducts: [0x00AA, 0x00AB],
+        usbTransactionID: 0x1F,
         buttonLayout: ButtonSlotLayout(
             visibleSlots: basiliskV3ProUSBButtonSlots,
             writableSlots: [1, 2, 3, 4, 5, 9, 10, 15, 52, 53],
@@ -546,10 +608,12 @@ public enum DeviceProfiles {
             usage: 0x06,
             reportID: 0x05,
             subtype: 0x02,
+            profileSwitchPrefixes: [[0x05, 0x39]],
             minInputReportSize: 5,
             maximumDPI: 30_000
         ),
         supportsIndependentXYDPI: true,
+        onboardProfileSupport: .mappedCore,
         onboardProfileCount: 5
     )
 
@@ -600,12 +664,15 @@ public enum DeviceProfiles {
             reportID: 0x05,
             subtype: 0x02,
             heartbeatSubtype: 0x10,
+            profileSwitchPrefixes: [[0x05, 0x05, 0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]],
+            profileSwitchPreludePrefixes: [[0x04, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]],
             minInputReportSize: 7,
             maxFeatureReportSize: 1,
             maximumDPI: 30_000
         ),
         supportsIndependentXYDPI: true,
-        onboardProfileCount: 3
+        onboardProfileSupport: .mappedCore,
+        onboardProfileCount: 5
     )
 
     public static let orochiV2BluetoothButtonSlots: [ButtonSlotDescriptor] = [

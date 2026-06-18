@@ -13,6 +13,10 @@ extension BridgeClient {
         passiveDpiHeartbeatEvents.makeStream()
     }
 
+    func passiveProfileSwitchEventStream() -> AsyncStream<PassiveProfileSwitchEvent> {
+        passiveProfileSwitchEvents.makeStream()
+    }
+
     func shouldUseFastDPIPolling(device: MouseDevice) -> Bool {
         Self.shouldUseFastDPIPolling(
             device: device,
@@ -106,6 +110,12 @@ extension BridgeClient {
             )
         }
         passiveDpiHeartbeatEvents.yield(event)
+    }
+
+    func handlePassiveProfileSwitch(_ event: PassiveProfileSwitchEvent) {
+        guard DeveloperRuntimeOptions.passiveHIDUpdatesEnabled() else { return }
+        guard passiveDpiArmedDeviceIDs.contains(event.deviceID) else { return }
+        passiveProfileSwitchEvents.yield(event)
     }
 
     func seedBluetoothPassiveDpiExpectation(_ event: PassiveDPIEvent) {
@@ -297,32 +307,17 @@ extension BridgeClient {
     }
 
     nonisolated static func shouldResetBluetoothPassiveObservation(
-        previousState: MouseState?,
-        active: Int,
-        values: [Int],
-        lastHeartbeatAt: Date?,
-        lastObservedAt: Date?,
-        now: Date
+        previousState _: MouseState?,
+        active _: Int,
+        values _: [Int],
+        lastHeartbeatAt _: Date?,
+        lastObservedAt _: Date?,
+        now _: Date
     ) -> Bool {
-        guard let previousState,
-              let previousValues = previousState.dpi_stages.values,
-              !values.isEmpty else {
-            return false
-        }
-
-        let previousActive = max(0, min(previousValues.count - 1, previousState.dpi_stages.active_stage ?? 0))
-        let nextActive = max(0, min(values.count - 1, active))
-        let previousValue = previousValues[previousActive]
-        let nextValue = values[nextActive]
-        guard previousActive != nextActive || previousValue != nextValue || previousValues != values else {
-            return false
-        }
-
-        guard let lastObservedAt else { return true }
-        if isBluetoothPassiveHeartbeatHealthy(lastHeartbeatAt: lastHeartbeatAt, now: now) {
-            return false
-        }
-        return now.timeIntervalSince(lastObservedAt) > bluetoothPassiveResetSilenceInterval
+        // Basilisk V3 Pro Bluetooth can leave the vendor DPI active-stage read
+        // behind passive HID updates indefinitely. Passive HID is the trusted
+        // real-time source once observed; only registration/device failures clear it.
+        return false
     }
 
     nonisolated static func shouldMaskBluetoothExpectedRead(
@@ -339,11 +334,6 @@ extension BridgeClient {
 
         let clampedPreviousActive = max(0, min(previousValues.count - 1, previousActive))
         let normalizedParsedValues = Array(parsedValues.prefix(previousValues.count))
-        if let previousPairs = expected.previousPairs,
-           !previousPairs.isEmpty {
-            let normalizedParsedPairs = Array(parsedPairs.prefix(previousPairs.count))
-            return parsedActive == clampedPreviousActive && normalizedParsedPairs == previousPairs
-        }
         return parsedActive == clampedPreviousActive && normalizedParsedValues == previousValues
     }
 

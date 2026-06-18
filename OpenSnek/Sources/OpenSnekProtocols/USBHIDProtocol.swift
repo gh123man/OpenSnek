@@ -1,4 +1,5 @@
 import Foundation
+import OpenSnekCore
 
 public enum USBHIDProtocol {
     public struct OnboardProfileMetadata: Equatable, Sendable {
@@ -37,9 +38,33 @@ public enum USBHIDProtocol {
         }
     }
 
+    public struct LightingEffectState: Equatable, Sendable {
+        public let storageEcho: UInt8
+        public let ledID: UInt8
+        public let effectID: UInt8
+        public let payload: [UInt8]
+
+        public init(storageEcho: UInt8, ledID: UInt8, effectID: UInt8, payload: [UInt8]) {
+            self.storageEcho = storageEcho
+            self.ledID = ledID
+            self.effectID = effectID
+            self.payload = payload
+        }
+
+        public var staticColor: RGBPatch? {
+            guard effectID == 0x01,
+                  payload.count >= 9,
+                  payload[5] >= 0x01 else {
+                return nil
+            }
+            return RGBPatch(r: Int(payload[6]), g: Int(payload[7]), b: Int(payload[8]))
+        }
+    }
+
     public static let onboardProfileMetadataLength = 0xFA
     public static let onboardProfileMetadataReadSize: UInt8 = 0x50
     public static let onboardProfileMetadataChunkDataLength = Int(onboardProfileMetadataReadSize) - 5
+    public static let onboardProfileMetadataKnownFieldLength = 0xB4
     public static let onboardProfileMetadataChunkOffsets = Array(
         stride(
             from: 0,
@@ -47,6 +72,7 @@ public enum USBHIDProtocol {
             by: onboardProfileMetadataChunkDataLength
         )
     )
+    public static let onboardProfileMetadataWritableChunkOffsets = onboardProfileMetadataChunkOffsets
 
     public static func activeProfileID(from response: [UInt8]) -> UInt8? {
         guard response.count > 8,
@@ -67,6 +93,36 @@ public enum USBHIDProtocol {
               response[0] == 0x02,
               response[6] == 0x05,
               response[7] == 0x04,
+              response[5] >= 0x01 else {
+            return false
+        }
+        return response[8] == profile
+    }
+
+    public static func onboardProfileCreateArgs(profile: UInt8) -> [UInt8] {
+        [profile]
+    }
+
+    public static func onboardProfileCreateAccepted(from response: [UInt8], profile: UInt8) -> Bool {
+        guard response.count > 8,
+              response[0] == 0x02,
+              response[6] == 0x05,
+              response[7] == 0x02,
+              response[5] >= 0x01 else {
+            return false
+        }
+        return response[8] == profile
+    }
+
+    public static func onboardProfileDeleteArgs(profile: UInt8) -> [UInt8] {
+        [profile]
+    }
+
+    public static func onboardProfileDeleteAccepted(from response: [UInt8], profile: UInt8) -> Bool {
+        guard response.count > 8,
+              response[0] == 0x02,
+              response[6] == 0x05,
+              response[7] == 0x03,
               response[5] >= 0x01 else {
             return false
         }
@@ -96,6 +152,46 @@ public enum USBHIDProtocol {
         return OnboardProfileInventory(
             maxProfileID: payload[0],
             assignedProfiles: Array(payload.dropFirst()).filter { $0 != 0x00 }
+        )
+    }
+
+    public static func profileLightingEffectReadArgs(profile: UInt8, ledID: UInt8) -> [UInt8] {
+        [profile, ledID] + [UInt8](repeating: 0x00, count: 10)
+    }
+
+    public static func profileLightingStaticColorSetArgs(profile: UInt8, ledID: UInt8, color: RGBPatch) -> [UInt8] {
+        [
+            profile,
+            ledID,
+            0x01,
+            0x00,
+            0x00,
+            0x01,
+            UInt8(max(0, min(255, color.r))),
+            UInt8(max(0, min(255, color.g))),
+            UInt8(max(0, min(255, color.b))),
+        ]
+    }
+
+    public static func profileLightingEffectState(
+        from response: [UInt8],
+        expectedLEDID: UInt8? = nil
+    ) -> LightingEffectState? {
+        guard response.count > 10,
+              response[0] == 0x02,
+              response[6] == 0x0F,
+              response[7] == 0x82 else {
+            return nil
+        }
+        let argCount = max(0, min(Int(response[5]), min(80, response.count - 8)))
+        guard argCount >= 3 else { return nil }
+        let payload = Array(response[8..<(8 + argCount)])
+        guard expectedLEDID == nil || payload[1] == expectedLEDID else { return nil }
+        return LightingEffectState(
+            storageEcho: payload[0],
+            ledID: payload[1],
+            effectID: payload[2],
+            payload: payload
         )
     }
 
@@ -159,6 +255,53 @@ public enum USBHIDProtocol {
         ]
     }
 
+    public static func buildOnboardProfileMetadata(
+        identifier: UUID,
+        name: String,
+        owner: String
+    ) -> [UInt8] {
+        var metadata = [UInt8](repeating: 0x00, count: onboardProfileMetadataLength)
+        let guid = windowsGUIDBytes(from: identifier)
+        for (index, byte) in guid.enumerated() where index < metadata.count {
+            metadata[index] = byte
+        }
+        writeASCII(
+            name,
+            into: &metadata,
+            offset: 0x10,
+            maxLength: 0x74 - 0x10
+        )
+        writeASCII(
+            owner,
+            into: &metadata,
+            offset: 0x74,
+            maxLength: 64
+        )
+        return metadata
+    }
+
+    public static func onboardProfileMetadataWriteArgs(
+        slot: UInt8,
+        offset: Int,
+        metadata: [UInt8]
+    ) -> [UInt8] {
+        let clampedOffset = max(0, min(onboardProfileMetadataLength, offset))
+        let end = min(metadata.count, clampedOffset + onboardProfileMetadataChunkDataLength)
+        let chunk = clampedOffset < end ? Array(metadata[clampedOffset..<end]) : []
+        var args = [
+            slot,
+            UInt8((clampedOffset >> 8) & 0xFF),
+            UInt8(clampedOffset & 0xFF),
+            UInt8((onboardProfileMetadataLength >> 8) & 0xFF),
+            UInt8(onboardProfileMetadataLength & 0xFF),
+        ]
+        args.append(contentsOf: chunk)
+        if args.count < Int(onboardProfileMetadataReadSize) {
+            args.append(contentsOf: repeatElement(0x00, count: Int(onboardProfileMetadataReadSize) - args.count))
+        }
+        return Array(args.prefix(Int(onboardProfileMetadataReadSize)))
+    }
+
     public static func onboardProfileMetadataChunk(
         from response: [UInt8],
         expectedSlot: UInt8? = nil,
@@ -218,6 +361,7 @@ public enum USBHIDProtocol {
         guard bytes.count >= 16 else { return nil }
         let raw = Array(bytes.prefix(16))
         guard raw.contains(where: { $0 != 0x00 }) else { return nil }
+        guard raw.contains(where: { $0 != 0xFF }) else { return nil }
         let uuidBytes = [
             raw[3], raw[2], raw[1], raw[0],
             raw[5], raw[4],
@@ -257,5 +401,24 @@ public enum USBHIDProtocol {
             return nil
         }
         return String(bytes: raw, encoding: .ascii)
+    }
+
+    private static func writeASCII(_ value: String, into metadata: inout [UInt8], offset: Int, maxLength: Int) {
+        guard offset >= 0, maxLength > 0, offset < metadata.count else { return }
+        let upperBound = min(metadata.count, offset + maxLength)
+        for index in offset..<upperBound {
+            metadata[index] = 0x00
+        }
+        let bytes = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .unicodeScalars
+            .compactMap { scalar -> UInt8? in
+                guard scalar.value >= 0x20, scalar.value <= 0x7E else { return nil }
+                return UInt8(scalar.value)
+            }
+            .prefix(maxLength)
+        for (index, byte) in bytes.enumerated() {
+            metadata[offset + index] = byte
+        }
     }
 }

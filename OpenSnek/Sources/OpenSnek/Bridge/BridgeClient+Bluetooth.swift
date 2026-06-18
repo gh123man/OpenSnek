@@ -40,15 +40,15 @@ extension BridgeClient {
             .joined(separator: ",")
     }
 
-    private func btHex(_ data: Data) -> String {
+    func btHex(_ data: Data) -> String {
         data.map { String(format: "%02x", $0) }.joined()
     }
 
-    private func btKeyLabel(_ key: BLEVendorProtocol.Key) -> String {
+    func btKeyLabel(_ key: BLEVendorProtocol.Key) -> String {
         btHex(Data(key.bytes))
     }
 
-    private func btNotifySummary(_ notifies: [Data]) -> String {
+    func btNotifySummary(_ notifies: [Data]) -> String {
         notifies
             .map(btHex)
             .joined(separator: " | ")
@@ -140,19 +140,52 @@ extension BridgeClient {
 
     func readBluetoothState(device: MouseDevice, session: USBHIDControlSession?) async throws -> MouseState {
         let supportsLighting = device.showsLightingControls
-        let btStages = (try? await btGetDpiStages(device: device))
-            ?? btDpiSnapshotByDeviceID[device.id].map { snapshot in
-                (
-                    active: snapshot.active,
-                    values: Array(snapshot.slots.prefix(snapshot.count)),
-                    pairs: Array(snapshot.pairs.prefix(snapshot.count)),
-                    marker: snapshot.marker
-                )
+        let profile = DeviceProfiles.resolve(
+            vendorID: device.vendor_id,
+            productID: device.product_id,
+            transport: device.transport
+        )
+        let supportsMappedOnboardProfiles = profile?.supportsMappedOnboardProfileCRUD == true
+        let btStages: (active: Int, values: [Int], pairs: [DpiPair], marker: UInt8)?
+        if supportsMappedOnboardProfiles {
+            btStages = lastStateByDeviceID[device.id].flatMap { state in
+                guard let values = state.dpi_stages.values, !values.isEmpty else { return nil }
+                let active = max(0, min(values.count - 1, state.dpi_stages.active_stage ?? 0))
+                let pairs = state.dpi_stages.pairs ?? values.map { DpiPair(x: $0, y: $0) }
+                return (active: active, values: values, pairs: pairs, marker: 0x03)
             }
-        let batteryRaw = (try? await btGetScalar(device: device, key: .batteryRaw, size: 1)) ?? nil
-        let batteryStatus = (try? await btGetScalar(device: device, key: .batteryStatus, size: 1)) ?? nil
-        let lighting = supportsLighting ? (try? await btGetLightingValue(device: device)) : nil
-        let sleepTimeout = (try? await btGetScalar(device: device, key: .powerTimeoutGet, size: 2)) ?? nil
+        } else {
+            btStages = (try? await btGetDpiStages(device: device))
+                ?? btDpiSnapshotByDeviceID[device.id].map { snapshot in
+                    (
+                        active: snapshot.active,
+                        values: Array(snapshot.slots.prefix(snapshot.count)),
+                        pairs: Array(snapshot.pairs.prefix(snapshot.count)),
+                        marker: snapshot.marker
+                    )
+                }
+        }
+        let shouldPollGenericTelemetry = Self.shouldPollBluetoothGenericTelemetryForReadState(
+            supportsMappedOnboardProfiles: supportsMappedOnboardProfiles
+        )
+        let batteryRaw: Int?
+        let batteryStatus: Int?
+        let lighting: Int?
+        let sleepTimeout: Int?
+        if !shouldPollGenericTelemetry {
+            batteryRaw = nil
+            batteryStatus = nil
+            lighting = nil
+            sleepTimeout = nil
+        } else {
+            batteryRaw = (try? await btGetScalar(device: device, key: .batteryRaw, size: 1)) ?? nil
+            batteryStatus = (try? await btGetScalar(device: device, key: .batteryStatus, size: 1)) ?? nil
+            lighting = supportsLighting ? (try? await btGetLightingValue(device: device)) : nil
+            sleepTimeout = (try? await btGetScalar(device: device, key: .powerTimeoutGet, size: 2)) ?? nil
+        }
+        let activeOnboardProfile = profile?.supportsMappedOnboardProfileCRUD == true
+            ? (try? await btReadActiveOnboardProfileID(device: device)) ?? nil
+            : nil
 
         let usbBatteryFallback = session.flatMap { try? getBattery($0, device) }
         let batteryState = Self.resolveBluetoothBatteryState(
@@ -190,6 +223,8 @@ extension BridgeClient {
             poll_rate: nil,
             sleep_timeout: sleepTimeout,
             device_mode: nil,
+            active_onboard_profile: activeOnboardProfile,
+            onboard_profile_count: profile?.supportsMappedOnboardProfileCRUD == true ? profile?.onboardProfileCount : nil,
             led_value: lighting,
             capabilities: Capabilities(
                 dpi_stages: true,
@@ -199,6 +234,12 @@ extension BridgeClient {
                 lighting: supportsLighting
             )
         )
+    }
+
+    nonisolated static func shouldPollBluetoothGenericTelemetryForReadState(
+        supportsMappedOnboardProfiles: Bool
+    ) -> Bool {
+        !supportsMappedOnboardProfiles
     }
 
     func buildBluetoothDeltaState(

@@ -18,6 +18,47 @@ actor BridgeClient {
         remainingMasks: Int
     )
     static let bluetoothPassiveResetSilenceInterval: TimeInterval = 1.0
+
+    nonisolated static func resolveBluetoothDpiStageWrite(
+        device: MouseDevice,
+        patch: DevicePatch,
+        current: (active: Int, count: Int, slots: [Int], pairs: [DpiPair])?
+    ) throws -> (active: Int, stages: [Int], pairs: [DpiPair]) {
+        let resolvedValues = patch.dpiStagePairs?.map(\.x) ??
+            patch.dpiStages ??
+            current.map { Array($0.slots.prefix($0.count)) }
+        guard let resolvedValues, !resolvedValues.isEmpty else {
+            throw BridgeError.commandFailed("Failed to resolve Bluetooth DPI stages")
+        }
+        let stages = resolvedValues.map {
+            DeviceProfiles.clampDPI($0, device: device)
+        }
+        let stagePairs = Self.resolveDpiStagePairs(
+            values: patch.dpiStages,
+            pairs: patch.dpiStagePairs,
+            fallbackPairs: current.map { Array($0.pairs.prefix($0.count)) }
+        )?.map { pair in
+            DpiPair(
+                x: DeviceProfiles.clampDPI(pair.x, device: device),
+                y: DeviceProfiles.clampDPI(pair.y, device: device)
+            )
+        } ?? stages.map { DpiPair(x: $0, y: $0) }
+        let active = patch.activeStage ?? current?.active ?? 0
+        return (active: active, stages: stages, pairs: stagePairs)
+    }
+
+    nonisolated static func resolvedUSBFastDpiActiveStage(
+        stages: USBDpiStageSnapshot,
+        liveDpi: Int?
+    ) -> Int {
+        guard let liveDpi else {
+            return stages.active
+        }
+        let matchingIndices = stages.values.enumerated().compactMap { index, value in
+            value == liveDpi ? index : nil
+        }
+        return matchingIndices.count == 1 ? matchingIndices[0] : stages.active
+    }
     static let bluetoothPassiveHeartbeatHealthyInterval: TimeInterval = 1.5
     static let usbReconnectSettleInterval: TimeInterval = 2.0
 
@@ -28,6 +69,7 @@ actor BridgeClient {
     let devicePresenceEvents = BroadcastStream<HIDDevicePresenceEvent>()
     let passiveDpiEvents = BroadcastStream<PassiveDPIEvent>()
     let passiveDpiHeartbeatEvents = BroadcastStream<PassiveDPIHeartbeatEvent>()
+    let passiveProfileSwitchEvents = BroadcastStream<PassiveProfileSwitchEvent>()
     var passiveDpiArmedDeviceIDs: Set<String> = []
     var passiveDpiHeartbeatDeviceIDs: Set<String> = []
     var passiveDpiObservedDeviceIDs: Set<String> = []
@@ -67,6 +109,11 @@ actor BridgeClient {
         passiveDpiMonitor.onHeartbeat = { [weak self] event in
             Task {
                 await self?.handlePassiveDpiHeartbeat(event)
+            }
+        }
+        passiveDpiMonitor.onProfileSwitch = { [weak self] event in
+            Task {
+                await self?.handlePassiveProfileSwitch(event)
             }
         }
         if startHIDMonitoring {
@@ -437,10 +484,24 @@ actor BridgeClient {
         if device.transport == .bluetooth {
             do {
                 let session = sessionFor(device: device)
+                let previous = lastStateByDeviceID[device.id]
                 let state = try await readBluetoothState(device: device, session: session)
-                lastStateByDeviceID[device.id] = state
+                let resolved: MouseState
+                if passiveDpiObservedDeviceIDs.contains(device.id),
+                   let previous {
+                    resolved = previous.mergedWithStableReadTelemetry(from: state)
+                    AppLog.debug(
+                        "Bridge",
+                        "readState bt preserved passive DPI device=\(device.id) " +
+                        "previousActive=\(previous.dpi_stages.active_stage.map(String.init) ?? "nil") " +
+                        "readActive=\(state.dpi_stages.active_stage.map(String.init) ?? "nil")"
+                    )
+                } else {
+                    resolved = state
+                }
+                lastStateByDeviceID[device.id] = resolved
                 AppLog.debug("Bridge", "readState bt device=\(device.id) elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s")
-                return state
+                return resolved
             } catch {
                 clearPassiveDpiObservation(deviceID: device.id, reason: "read-state-failed")
                 throw error
@@ -509,6 +570,27 @@ actor BridgeClient {
 
     func readDpiStagesFast(device: MouseDevice) async throws -> (active: Int, values: [Int])? {
         if device.transport == .bluetooth {
+            let supportsMappedOnboardProfiles = DeviceProfiles.resolve(
+                vendorID: device.vendor_id,
+                productID: device.product_id,
+                transport: device.transport
+            )?.supportsMappedOnboardProfileCRUD == true
+            if passiveDpiObservedDeviceIDs.contains(device.id),
+               let state = lastStateByDeviceID[device.id],
+               let active = state.dpi_stages.active_stage,
+               let values = state.dpi_stages.values,
+               !values.isEmpty {
+                return (active: max(0, min(values.count - 1, active)), values: values)
+            }
+            if supportsMappedOnboardProfiles {
+                guard let state = lastStateByDeviceID[device.id],
+                      let values = state.dpi_stages.values,
+                      !values.isEmpty else {
+                    return nil
+                }
+                let active = max(0, min(values.count - 1, state.dpi_stages.active_stage ?? 0))
+                return (active: active, values: values)
+            }
             guard let parsed = try await btGetDpiStages(device: device) else { return nil }
             let now = Date()
             if passiveDpiObservedDeviceIDs.contains(device.id),
@@ -537,17 +619,16 @@ actor BridgeClient {
         var firstError: Error?
         for session in orderedSessions {
             do {
-                guard let stages = try getDPIStageSnapshot(session, device) else { continue }
-                let liveDpi = try getDPI(session, device)?.0
-                let active: Int
-                if let liveDpi, let exact = stages.values.firstIndex(of: liveDpi) {
-                    active = exact
-                } else {
-                    active = stages.active
+                let snapshot = try session.withExclusiveDeviceAccess { () throws -> (active: Int, values: [Int])? in
+                    guard let stages = try getDPIStageSnapshot(session, device) else { return nil }
+                    let liveDpi = try getDPI(session, device)?.0
+                    let active = Self.resolvedUSBFastDpiActiveStage(stages: stages, liveDpi: liveDpi)
+                    return (active: active, values: stages.values)
                 }
+                guard let snapshot else { continue }
                 deviceSessions[device.id] = session
                 await maybeUpgradeUSBPassiveDpiFromPolling(device: device, reason: "fast-poll-ok")
-                return (active: active, values: stages.values)
+                return snapshot
             } catch {
                 if firstError == nil {
                     firstError = error
@@ -597,24 +678,19 @@ actor BridgeClient {
                 } else {
                     current = try await btGetDpiStageSnapshot(device: device)
                 }
-                guard let current else {
-                    throw BridgeError.commandFailed("Failed to read current Bluetooth DPI stages")
-                }
-                let stages = (patch.dpiStagePairs?.map(\.x) ?? patch.dpiStages ?? Array(current.slots.prefix(current.count))).map {
-                    DeviceProfiles.clampDPI($0, device: device)
-                }
-                let stagePairs = Self.resolveDpiStagePairs(
-                    values: patch.dpiStages,
-                    pairs: patch.dpiStagePairs,
-                    fallbackPairs: Array(current.pairs.prefix(current.count))
-                )?.map { pair in
-                    DpiPair(
-                        x: DeviceProfiles.clampDPI(pair.x, device: device),
-                        y: DeviceProfiles.clampDPI(pair.y, device: device)
-                    )
-                } ?? stages.map { DpiPair(x: $0, y: $0) }
-                let active = patch.activeStage ?? current.active
-                guard try await btSetDpiStages(device: device, active: active, values: stages, pairs: stagePairs) else {
+                let resolved = try Self.resolveBluetoothDpiStageWrite(
+                    device: device,
+                    patch: patch,
+                    current: current.map {
+                        (
+                            active: $0.active,
+                            count: $0.count,
+                            slots: $0.slots,
+                            pairs: $0.pairs
+                        )
+                    }
+                )
+                guard try await btSetDpiStages(device: device, active: resolved.active, values: resolved.stages, pairs: resolved.pairs) else {
                     throw BridgeError.commandFailed("Failed to set Bluetooth DPI stages")
                 }
             }
@@ -702,7 +778,7 @@ actor BridgeClient {
                 var firstError: Error?
                 for session in orderedSessions {
                     do {
-                        if try operation(session) {
+                        if try session.withExclusiveDeviceAccess({ try operation(session) }) {
                             deviceSessions[device.id] = session
                             return true
                         }
@@ -722,7 +798,9 @@ actor BridgeClient {
                 var firstError: Error?
                 for session in orderedSessions {
                     do {
-                        if let current = try getDPIStageSnapshot(session, device) {
+                        if let current = try session.withExclusiveDeviceAccess({
+                            try getDPIStageSnapshot(session, device)
+                        }) {
                             deviceSessions[device.id] = session
                             return current
                         }
@@ -742,7 +820,9 @@ actor BridgeClient {
                 var firstError: Error?
                 for session in orderedSessions {
                     do {
-                        if let current = try getDPI(session, device) {
+                        if let current = try session.withExclusiveDeviceAccess({
+                            try getDPI(session, device)
+                        }) {
                             deviceSessions[device.id] = session
                             return current
                         }

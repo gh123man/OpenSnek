@@ -54,4 +54,23 @@ final class USBDpiStageParsingTests: XCTestCase {
         XCTAssertEqual(snapshot?.pairs, [DpiPair(x: 1600, y: 1800)])
         XCTAssertEqual(snapshot?.stageIDs, [0x05])
     }
+
+    func testUSBFastDpiActiveResolutionUsesLiveValueOnlyWhenUnique() {
+        let uniqueStages: BridgeClient.USBDpiStageSnapshot = (
+            active: 0,
+            values: [800, 1600, 3200],
+            pairs: [800, 1600, 3200].map { DpiPair(x: $0, y: $0) },
+            stageIDs: [0x01, 0x02, 0x03]
+        )
+        let duplicateStages: BridgeClient.USBDpiStageSnapshot = (
+            active: 2,
+            values: [800, 1600, 1600],
+            pairs: [800, 1600, 1600].map { DpiPair(x: $0, y: $0) },
+            stageIDs: [0x01, 0x02, 0x03]
+        )
+
+        XCTAssertEqual(BridgeClient.resolvedUSBFastDpiActiveStage(stages: uniqueStages, liveDpi: 1600), 1)
+        XCTAssertEqual(BridgeClient.resolvedUSBFastDpiActiveStage(stages: duplicateStages, liveDpi: 1600), 2)
+        XCTAssertEqual(BridgeClient.resolvedUSBFastDpiActiveStage(stages: duplicateStages, liveDpi: nil), 2)
+    }
 }

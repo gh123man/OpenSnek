@@ -192,10 +192,14 @@ final class DeviceStore {
     }
 
     var hiddenUnsupportedButtonSlots: [DocumentedButtonSlot] {
-        guard let layout = selectedDevice?.button_layout else { return [] }
+        guard let selectedDevice, let layout = selectedDevice.button_layout else { return [] }
         let visible = Set(layout.visibleSlots.map(\.slot))
+        let suppressHardwareProfileButton = resolvedProfile(for: selectedDevice)?.supportsMappedOnboardProfileCRUD == true
         return layout.documentedSlots.filter { slot in
-            slot.access != .editable && !visible.contains(slot.slot)
+            if suppressHardwareProfileButton, slot.slot == 106 {
+                return false
+            }
+            return slot.access != .editable && !visible.contains(slot.slot)
         }
     }
 

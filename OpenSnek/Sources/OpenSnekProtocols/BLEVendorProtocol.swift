@@ -5,7 +5,26 @@ public enum BLEVendorProtocol {
     public static let serviceUUID = UUID(uuidString: "52401523-F97C-7F90-0E7F-6C6F4E36DB1C")!
     public static let writeUUID = UUID(uuidString: "52401524-F97C-7F90-0E7F-6C6F4E36DB1C")!
     public static let notifyUUID = UUID(uuidString: "52401525-F97C-7F90-0E7F-6C6F4E36DB1C")!
+    public static let onboardProfileMetadataLength = 0xFA
+    public static let onboardProfileMetadataChunkDataLength = 0x4C
+    public static let onboardProfileMetadataChunkOffsets = Array(
+        stride(
+            from: 0,
+            to: onboardProfileMetadataLength,
+            by: onboardProfileMetadataChunkDataLength
+        )
+    )
     private static let basiliskV3FamilyHorizontalScrollTurboRate: UInt8 = 0x14
+
+    public struct ProfileMetadataChunk: Equatable, Sendable {
+        public let offset: Int
+        public let data: [UInt8]
+
+        public init(offset: Int, data: [UInt8]) {
+            self.offset = offset
+            self.data = data
+        }
+    }
 
     public struct Key: Equatable, Sendable {
         public let b0: UInt8
@@ -169,6 +188,26 @@ public enum BLEVendorProtocol {
         Data([req, payloadLength, 0x00, 0x00] + key.bytes)
     }
 
+    public static func buildWriteFrames(
+        req: UInt8,
+        key: Key,
+        payload: Data,
+        maxPayloadFrameLength: Int = 20
+    ) -> [Data] {
+        let payloadLength = UInt8(max(0, min(255, payload.count)))
+        var frames = [buildWriteHeader(req: req, payloadLength: payloadLength, key: key)]
+        guard !payload.isEmpty else { return frames }
+
+        let chunkSize = max(1, maxPayloadFrameLength)
+        var offset = 0
+        while offset < payload.count {
+            let nextOffset = min(offset + chunkSize, payload.count)
+            frames.append(payload.subdata(in: offset..<nextOffset))
+            offset = nextOffset
+        }
+        return frames
+    }
+
     public static func parsePayloadFrames(notifies: [Data], req: UInt8) -> Data? {
         guard let headerIndex = notifies.firstIndex(where: { frame in
             guard let hdr = NotifyHeader(data: frame) else { return false }
@@ -194,6 +233,136 @@ public enum BLEVendorProtocol {
         }
         if header.payloadLength == 0 { return Data() }
         return payload.prefix(header.payloadLength)
+    }
+
+    public static func parseProfileTargets(payload: Data, maxProfileID: Int = 5) -> [Int] {
+        let maxID = max(1, min(255, maxProfileID))
+        return Array(
+            Set(
+                payload.compactMap { byte -> Int? in
+                    let value = Int(byte)
+                    guard value >= 1, value <= maxID else { return nil }
+                    return value
+                }
+            )
+        ).sorted()
+    }
+
+    public static func parseActiveTarget(payload: Data) -> Int? {
+        guard let first = payload.first, first <= 0x05 else { return nil }
+        return Int(first)
+    }
+
+    public static func buildProfileMetadata(identifier: UUID, name: String, owner: String) -> [UInt8] {
+        USBHIDProtocol.buildOnboardProfileMetadata(identifier: identifier, name: name, owner: owner)
+    }
+
+    public static func profileMetadataReadRequest(offset: Int, length: Int = onboardProfileMetadataChunkDataLength) -> Data {
+        let clampedOffset = max(0, min(0xFFFF, offset))
+        let remaining = max(0, onboardProfileMetadataLength - clampedOffset)
+        let clampedLength = max(0, min(0xFFFF, min(length, remaining)))
+        return Data([
+            UInt8(clampedOffset & 0xFF),
+            UInt8((clampedOffset >> 8) & 0xFF),
+            UInt8(clampedLength & 0xFF),
+            UInt8((clampedLength >> 8) & 0xFF),
+        ])
+    }
+
+    public static func profileMetadataWritePayload(offset: Int, metadata: [UInt8]) -> Data {
+        let clampedOffset = max(0, min(onboardProfileMetadataLength, offset))
+        let end = min(metadata.count, clampedOffset + onboardProfileMetadataChunkDataLength)
+        var payload = Data([
+            UInt8(onboardProfileMetadataLength & 0xFF),
+            UInt8((onboardProfileMetadataLength >> 8) & 0xFF),
+            UInt8(clampedOffset & 0xFF),
+            UInt8((clampedOffset >> 8) & 0xFF),
+        ])
+        if clampedOffset < end {
+            payload.append(contentsOf: metadata[clampedOffset..<end])
+        }
+        if payload.count < 4 + onboardProfileMetadataChunkDataLength {
+            payload.append(contentsOf: repeatElement(0x00, count: 4 + onboardProfileMetadataChunkDataLength - payload.count))
+        }
+        return payload
+    }
+
+    public static func profileMetadataChunk(from payload: Data, expectedOffset: Int? = nil) -> ProfileMetadataChunk? {
+        guard payload.count >= 2 else { return nil }
+        let offset = Int(payload[0]) | (Int(payload[1]) << 8)
+        if let expectedOffset, offset != expectedOffset { return nil }
+        return ProfileMetadataChunk(offset: offset, data: Array(payload.dropFirst(2)))
+    }
+
+    public static func mergeProfileMetadataChunks(_ chunks: [ProfileMetadataChunk]) -> [UInt8] {
+        var metadata = [UInt8](repeating: 0x00, count: onboardProfileMetadataLength)
+        for chunk in chunks.sorted(by: { $0.offset < $1.offset }) {
+            guard chunk.offset >= 0 else { continue }
+            let end = min(metadata.count, chunk.offset + chunk.data.count)
+            guard chunk.offset < end else { continue }
+            for index in chunk.offset..<end {
+                metadata[index] = chunk.data[index - chunk.offset]
+            }
+        }
+        return metadata
+    }
+
+    public static func parseProfileMetadata(_ bytes: [UInt8]) -> USBHIDProtocol.OnboardProfileMetadata {
+        USBHIDProtocol.parseOnboardProfileMetadata(bytes)
+    }
+
+    public static func extractBluetoothFunctionBlock(
+        payload: Data,
+        target: UInt8,
+        slot: UInt8,
+        profileID: DeviceProfileID? = nil
+    ) -> [UInt8]? {
+        let bytes = Array(payload)
+        if bytes.count >= 10, bytes[0] == target, bytes[1] == slot {
+            let candidate = [bytes[3], bytes[4], bytes[5], bytes[6], bytes[7], bytes[8], bytes[9]]
+            if ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
+                slot: Int(slot),
+                functionBlock: candidate,
+                profileID: profileID
+            ) != nil {
+                return candidate
+            }
+            return candidate
+        }
+        if bytes.count >= 9, bytes[0] == slot {
+            let tail = Array(bytes.dropFirst(2))
+            if tail.count >= 14 {
+                let evenLane = Array(tail.enumerated().compactMap { index, byte in
+                    index.isMultiple(of: 2) ? byte : nil
+                }.prefix(7))
+                let oddLane = Array(tail.enumerated().compactMap { index, byte in
+                    index.isMultiple(of: 2) ? nil : byte
+                }.prefix(7))
+                let lanes = [evenLane, oddLane]
+                if let parsed = lanes.first(where: {
+                    ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
+                        slot: Int(slot),
+                        functionBlock: $0,
+                        profileID: profileID
+                    ) != nil
+                }) {
+                    return parsed
+                }
+                return evenLane
+            }
+            if tail.count >= 7 {
+                let candidate = Array(tail.prefix(7))
+                if ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
+                    slot: Int(slot),
+                    functionBlock: candidate,
+                    profileID: profileID
+                ) != nil {
+                    return candidate
+                }
+                return candidate
+            }
+        }
+        return nil
     }
 
     public static func parseDpiStageSnapshot(blob: Data) -> (active: Int, count: Int, slots: [Int], pairs: [DpiPair], stageIDs: [UInt8], marker: UInt8)? {

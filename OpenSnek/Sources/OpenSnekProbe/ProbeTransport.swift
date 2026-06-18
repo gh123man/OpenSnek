@@ -1437,6 +1437,8 @@ final class BTProfileHIDReportProbe: @unchecked Sendable {
                 return .dpi(reading)
             case .heartbeat:
                 return .heartbeat
+            case .profileSwitch:
+                return .profileCycleFollowUp
             case .other:
                 break
             }

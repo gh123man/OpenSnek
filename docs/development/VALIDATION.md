@@ -17,6 +17,25 @@ Prefer the smallest useful command first. Expand only when the change crosses bo
 
 Avoid `swift test --package-path OpenSnek` unless the change is broad or the user explicitly wants a full package run.
 
+## Protocol Implementation Guardrails
+
+Protocol transactions should encode the device contract directly rather than
+assuming every successful command has the same ACK/readback shape.
+
+- Serialize multi-command device transactions for a single device, including app
+  and service process access.
+- Treat write ACKs as transport evidence only. Product operations must succeed
+  from authoritative readback of the fields they changed.
+- If a validated command can return no status after the firmware accepted it,
+  model that response as indeterminate and resolve it by bounded strict
+  readback. Do not retry writes on the happy path unless readback proves the
+  write did not land.
+- Prefer direct registers or inventory commands over fingerprinting or inferred
+  state. Use fingerprinting only when no direct register is mapped.
+- Do not infer identity from non-unique values. For example, passive DPI events
+  identify an active stage by DPI value only when that value maps to exactly one
+  configured stage; duplicate values require a direct fast stage read.
+
 ## Hardware Gates
 
 Required for BLE DPI/stage changes when supported hardware is connected:

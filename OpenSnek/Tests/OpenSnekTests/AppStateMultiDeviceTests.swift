@@ -5,6 +5,41 @@ import OpenSnekCore
 @testable import OpenSnek
 
 final class AppStateMultiDeviceTests: XCTestCase {
+    func testMappedOnboardProfileDevicesHideProfileButtonFromUnsupportedFootnote() async {
+        let device = makeTestDevice(
+            id: "profile-button-footnote-device",
+            productName: "Profile Button Test Mouse",
+            transport: .bluetooth,
+            serial: "PROFILE-BUTTON",
+            locationID: 1,
+            profile: .basiliskV3Pro
+        )
+        let backend = MultiDeviceStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeTestState(
+                    device: device,
+                    connection: "bluetooth",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+
+        let hiddenSlots = await MainActor.run {
+            appState.deviceStore.hiddenUnsupportedButtonSlots.map { $0.slot }
+        }
+
+        XCTAssertFalse(hiddenSlots.contains(106))
+    }
+
     func testRefreshDevicesRefreshesAllDeviceCachesAndKeepsSelectedPresentationStable() async {
         let alphaDevice = makeTestDevice(
             id: "alpha-device",
@@ -467,6 +502,48 @@ final class AppStateMultiDeviceTests: XCTestCase {
         XCTAssertGreaterThan(updatedRevision, initialRevision)
         XCTAssertEqual(indicator.label, "Connected")
         XCTAssertEqual(OpenSnekCore.RGBColor.fromColor(indicator.color), RGBColor(r: 48, g: 209, b: 88))
+    }
+
+    func testSelectedStateRefreshInvalidatesConnectionDiagnosticsAndUnlocksControls() async {
+        let usbDevice = makeTestDevice(
+            id: "usb-refresh-unlocks-controls",
+            productName: "Basilisk V3 Pro",
+            transport: .usb,
+            serial: "USB-UNLOCKS",
+            locationID: 7,
+            profile: .basiliskV3Pro
+        )
+        let refreshedState = makeTestState(
+            device: usbDevice,
+            connection: "usb",
+            batteryPercent: 72,
+            dpiValues: [800, 1600, 3200],
+            activeStage: 1,
+            dpiValue: 1600
+        )
+        let backend = DeviceListUpdatingStubBackend(
+            devices: [usbDevice],
+            stateByDeviceID: [usbDevice.id: refreshedState]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await MainActor.run {
+            appState.deviceStore.devices = [usbDevice]
+            appState.deviceStore.selectedDeviceID = usbDevice.id
+        }
+
+        let initialRevision = await MainActor.run { appState.deviceStore.connectionDiagnosticsRevision }
+        let initiallyEnabled = await MainActor.run { appState.deviceStore.selectedDeviceControlsEnabled }
+
+        await appState.deviceStore.refreshState()
+
+        let updatedRevision = await MainActor.run { appState.deviceStore.connectionDiagnosticsRevision }
+        let updatedEnabled = await MainActor.run { appState.deviceStore.selectedDeviceControlsEnabled }
+
+        XCTAssertFalse(initiallyEnabled)
+        XCTAssertGreaterThan(updatedRevision, initialRevision)
+        XCTAssertTrue(updatedEnabled)
     }
 
     func testFastDpiPollingDoesNotDowngradeListeningStatusToFallback() async {

@@ -39,7 +39,7 @@ Button remap keyboard actions support modifier chords on shipped USB and Bluetoo
 |---|---|---|---|
 | Basilisk V3 X HyperSpeed | `Validated` | `Validated` | Bluetooth keeps lighting to static color, hides poll-rate and threshold controls, and leaves the Hypershift/sniper path read-only |
 | Basilisk V3 | `Mapped` | `No transport` | The whole USB profile is still the unvalidated mapped profile |
-| Basilisk V3 Pro | `Validated` | `Validated` | Bluetooth keeps lighting static-only, hides poll-rate and threshold controls, and does not ship clutch/profile-button remap |
+| Basilisk V3 Pro | `Validated` | `Validated` | Ships mapped onboard profile CRUD on USB and Bluetooth; Bluetooth keeps lighting static-only, hides poll-rate and threshold controls, and does not ship clutch/profile-button remap |
 | Basilisk V3 35K | `Validated` | `No transport` | Onboard hardware profiles are still not shipped, and a few buttons remain unsupported footnotes instead of editable controls |
 | Orochi V2 | `Not shipped` | `Contributor validated` | Contributor validated Bluetooth DPI stages, battery, and no-RGB behavior; button remap is profile-mapped pending hardware readback validation |
 
@@ -100,8 +100,8 @@ USB PIDs `0x00AA` / `0x00AB`, Bluetooth PID `0x00AC`
 | Lighting: extra effects | `Shipped` | `Limited` | USB advertises `off`, `static`, `spectrum`, and `wave`; BT is static-only because the BT profile advertises only `.staticColor` |
 | Button remap: shipped editable slots | `Shipped` | `Shipped` | USB writable slots are `1-5`, `9`, `10`, `15`, `52`, `53`; BT writable slots are `1-5`, `9`, `10`, `52`, `53` |
 | Button remap: unsupported slots | `Hidden` | `Hidden` | USB profile button `106` is kept out of the editable layout; BT clutch `15` and profile button `106` are also kept out of the editable layout and only appear as unsupported footnotes |
-| Scroll controls | `Shipped` | `Hidden` | V3 Pro USB uses the shared `get/setScrollMode`, `get/setScrollAcceleration`, and `get/setScrollSmartReel` implementation, and the scroll card is rendered from those state values on USB; BT never publishes those fields and the UI excludes BT scroll controls |
-| Onboard hardware profiles | `Not shipped` | `Not shipped` | OpenSnek does not currently claim shipped onboard hardware-profile support for the V3 Pro on either transport |
+| Scroll controls | `Shipped` | `Hidden` | V3 Pro USB uses profile-scoped `get/setScrollMode`, `get/setScrollAcceleration`, and `get/setScrollSmartReel`; BT never publishes those fields and the UI excludes BT scroll controls |
+| Onboard hardware profiles | `Shipped` | `Shipped` | V3 Pro USB and BT expose inventory-backed mapped core profile CRUD: list, read, create, rename, update, delete/unassign, activate, and passive profile-cycle refresh. Profile snapshots include metadata, DPI, mapped button bindings, brightness, USB scroll controls, USB/BT static color where mapped, and leave global settings plus advanced profile surfaces outside the v1 profile snapshot. |
 
 ## Basilisk V3 35K
 

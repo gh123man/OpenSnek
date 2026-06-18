@@ -1,5 +1,6 @@
 import XCTest
 import Foundation
+import OpenSnekCore
 import OpenSnekProtocols
 
 final class USBHIDProtocolTests: XCTestCase {
@@ -21,6 +22,11 @@ final class USBHIDProtocolTests: XCTestCase {
         XCTAssertEqual(USBHIDProtocol.onboardProfileMetadataChunkDataLength, 0x4B)
         XCTAssertEqual(
             USBHIDProtocol.onboardProfileMetadataChunkOffsets,
+            [0x0000, 0x004B, 0x0096, 0x00E1]
+        )
+        XCTAssertEqual(USBHIDProtocol.onboardProfileMetadataKnownFieldLength, 0x00B4)
+        XCTAssertEqual(
+            USBHIDProtocol.onboardProfileMetadataWritableChunkOffsets,
             [0x0000, 0x004B, 0x0096, 0x00E1]
         )
         XCTAssertEqual(
@@ -110,6 +116,57 @@ final class USBHIDProtocolTests: XCTestCase {
         XCTAssertEqual(USBHIDProtocol.onboardProfileCount(from: response), 0x02)
     }
 
+    func testProfileLightingEffectReadAndStaticWriteArgs() {
+        XCTAssertEqual(
+            USBHIDProtocol.profileLightingEffectReadArgs(profile: 0x02, ledID: 0x0A),
+            [0x02, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        )
+        XCTAssertEqual(
+            USBHIDProtocol.profileLightingStaticColorSetArgs(
+                profile: 0x02,
+                ledID: 0x04,
+                color: RGBPatch(r: 0x23, g: 0x45, b: 0x67)
+            ),
+            [0x02, 0x04, 0x01, 0x00, 0x00, 0x01, 0x23, 0x45, 0x67]
+        )
+    }
+
+    func testProfileLightingEffectStateParsesStaticColorReadback() throws {
+        var response = USBHIDProtocol.createReport(
+            txn: 0x1F,
+            classID: 0x0F,
+            cmdID: 0x82,
+            size: 0x0C,
+            args: [0x00, 0x04, 0x01, 0x00, 0x00, 0x01, 0x23, 0x45, 0x67, 0x00, 0x00, 0x00]
+        )
+        response[0] = 0x02
+
+        let state = try XCTUnwrap(USBHIDProtocol.profileLightingEffectState(from: response, expectedLEDID: 0x04))
+
+        XCTAssertEqual(state.storageEcho, 0x00)
+        XCTAssertEqual(state.ledID, 0x04)
+        XCTAssertEqual(state.effectID, 0x01)
+        XCTAssertEqual(state.staticColor, RGBPatch(r: 0x23, g: 0x45, b: 0x67))
+        XCTAssertNil(USBHIDProtocol.profileLightingEffectState(from: response, expectedLEDID: 0x01))
+    }
+
+    func testProfileLightingEffectStateKeepsNonStaticPayloadRaw() throws {
+        var response = USBHIDProtocol.createReport(
+            txn: 0x1F,
+            classID: 0x0F,
+            cmdID: 0x82,
+            size: 0x0C,
+            args: [0x00, 0x01, 0x03, 0x01, 0x28, 0x01, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00]
+        )
+        response[0] = 0x02
+
+        let state = try XCTUnwrap(USBHIDProtocol.profileLightingEffectState(from: response, expectedLEDID: 0x01))
+
+        XCTAssertEqual(state.effectID, 0x03)
+        XCTAssertEqual(state.payload, [0x00, 0x01, 0x03, 0x01, 0x28, 0x01, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00])
+        XCTAssertNil(state.staticColor)
+    }
+
     func testOnboardProfileMetadataChunkParsesEchoedHeaderAndData() {
         let chunkData: [UInt8] = [0x9E, 0xE3, 0xAA, 0xC7, 0xB0, 0x43]
         let args = USBHIDProtocol.onboardProfileMetadataReadArgs(slot: 0x03, offset: 0x0040) + chunkData
@@ -161,6 +218,19 @@ final class USBHIDProtocolTests: XCTestCase {
         XCTAssertEqual(USBHIDProtocol.uuidFromWindowsGUIDBytes(bytes), uuid)
     }
 
+    func testAllFFProfileMetadataUUIDIsInvalid() {
+        XCTAssertNil(USBHIDProtocol.uuidFromWindowsGUIDBytes([UInt8](repeating: 0xFF, count: 16)))
+
+        var metadata = [UInt8](repeating: 0x00, count: USBHIDProtocol.onboardProfileMetadataLength)
+        metadata.replaceSubrange(0..<16, with: [UInt8](repeating: 0xFF, count: 16))
+        metadata.replaceSubrange(0x10..<(0x10 + "Corrupt".utf8.count), with: "Corrupt".utf8)
+
+        let parsed = USBHIDProtocol.parseOnboardProfileMetadata(metadata)
+
+        XCTAssertNil(parsed.identifier)
+        XCTAssertEqual(parsed.name, "Corrupt")
+    }
+
     func testMergeOnboardProfileMetadataChunksUsesOffsets() {
         let prefix = USBHIDProtocol.OnboardProfileMetadataChunk(
             slot: 0x03,
@@ -182,5 +252,49 @@ final class USBHIDProtocolTests: XCTestCase {
         XCTAssertEqual(merged[1], 0xBB)
         XCTAssertEqual(merged[0x40], 0xCC)
         XCTAssertEqual(merged[0x41], 0xDD)
+    }
+
+    func testOnboardProfileMetadataWriteArgsUseFullUSBChunkShape() throws {
+        let uuid = try XCTUnwrap(UUID(uuidString: "01234567-89ab-4cde-8f01-23456789abcd"))
+        let metadata = USBHIDProtocol.buildOnboardProfileMetadata(
+            identifier: uuid,
+            name: "Slot 2",
+            owner: "OpenSnek"
+        )
+        let args = USBHIDProtocol.onboardProfileMetadataWriteArgs(
+            slot: 0x02,
+            offset: 0x004B,
+            metadata: metadata
+        )
+
+        XCTAssertEqual(args.count, 0x50)
+        XCTAssertEqual(Array(args.prefix(5)), [0x02, 0x00, 0x4B, 0x00, 0xFA])
+        XCTAssertEqual(USBHIDProtocol.parseOnboardProfileMetadata(metadata).identifier, uuid)
+        XCTAssertEqual(USBHIDProtocol.parseOnboardProfileMetadata(metadata).name, "Slot 2")
+        XCTAssertEqual(USBHIDProtocol.parseOnboardProfileMetadata(metadata).owner, "OpenSnek")
+    }
+
+    func testOnboardProfileCreateAndDeleteAckParsing() {
+        var create = USBHIDProtocol.createReport(
+            txn: 0x1F,
+            classID: 0x05,
+            cmdID: 0x02,
+            size: 0x01,
+            args: USBHIDProtocol.onboardProfileCreateArgs(profile: 0x02)
+        )
+        create[0] = 0x02
+        var delete = USBHIDProtocol.createReport(
+            txn: 0x20,
+            classID: 0x05,
+            cmdID: 0x03,
+            size: 0x01,
+            args: USBHIDProtocol.onboardProfileDeleteArgs(profile: 0x02)
+        )
+        delete[0] = 0x02
+
+        XCTAssertTrue(USBHIDProtocol.onboardProfileCreateAccepted(from: create, profile: 0x02))
+        XCTAssertFalse(USBHIDProtocol.onboardProfileCreateAccepted(from: create, profile: 0x03))
+        XCTAssertTrue(USBHIDProtocol.onboardProfileDeleteAccepted(from: delete, profile: 0x02))
+        XCTAssertFalse(USBHIDProtocol.onboardProfileDeleteAccepted(from: delete, profile: 0x03))
     }
 }

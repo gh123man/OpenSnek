@@ -39,17 +39,39 @@ public struct PassiveDPIHeartbeatEvent: Sendable {
     }
 }
 
+public struct PassiveProfileSwitchEvent: Sendable {
+    public let deviceID: String
+    public let observedAt: Date
+
+    public init(
+        deviceID: String,
+        observedAt: Date
+    ) {
+        self.deviceID = deviceID
+        self.observedAt = observedAt
+    }
+}
+
 public enum PassiveDPIInputClassification: Hashable, Sendable {
     case dpi(PassiveDPIReading)
     case heartbeat
+    case profileSwitch
     case other
 }
 
 public enum PassiveDPIParser {
     public static func classify(
         report: [UInt8],
-        descriptor: PassiveDPIInputDescriptor
+        descriptor: PassiveDPIInputDescriptor,
+        profileSwitchPreludeSatisfied: Bool = false
     ) -> PassiveDPIInputClassification {
+        if matchesProfileSwitchPrefix(report: report, descriptor: descriptor) {
+            guard descriptor.profileSwitchPreludePrefixes.isEmpty || profileSwitchPreludeSatisfied else {
+                return .other
+            }
+            return .profileSwitch
+        }
+
         let allowedSubtypes = [descriptor.subtype, descriptor.heartbeatSubtype].compactMap { $0 }
         guard report.count >= descriptor.minInputReportSize,
               let payloadStart = payloadStartIndex(
@@ -86,6 +108,16 @@ public enum PassiveDPIParser {
         return reading
     }
 
+    public static func matchesProfileSwitchPrelude(
+        report: [UInt8],
+        descriptor: PassiveDPIInputDescriptor
+    ) -> Bool {
+        matchesAnyPrefix(
+            report: report,
+            prefixes: descriptor.profileSwitchPreludePrefixes
+        )
+    }
+
     private static func payloadStartIndex(
         in report: [UInt8],
         descriptor: PassiveDPIInputDescriptor,
@@ -105,6 +137,28 @@ public enum PassiveDPIParser {
         }
 
         return nil
+    }
+
+    private static func matchesProfileSwitchPrefix(
+        report: [UInt8],
+        descriptor: PassiveDPIInputDescriptor
+    ) -> Bool {
+        matchesAnyPrefix(
+            report: report,
+            prefixes: descriptor.profileSwitchPrefixes
+        )
+    }
+
+    private static func matchesAnyPrefix(
+        report: [UInt8],
+        prefixes: [[UInt8]]
+    ) -> Bool {
+        prefixes.contains { prefix in
+            guard !prefix.isEmpty, report.count >= prefix.count else { return false }
+            return zip(prefix, report).allSatisfy { expected, actual in
+                expected == actual
+            }
+        }
     }
 }
 
@@ -136,17 +190,32 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         let descriptor: PassiveDPIInputDescriptor
         let emit: @Sendable (PassiveDPIEvent) -> Void
         let emitHeartbeat: @Sendable (PassiveDPIHeartbeatEvent) -> Void
+        let emitProfileSwitch: @Sendable (PassiveProfileSwitchEvent) -> Void
+        var lastProfileSwitchPreludeAt: Date?
 
         init(
             deviceID: String,
             descriptor: PassiveDPIInputDescriptor,
             emit: @escaping @Sendable (PassiveDPIEvent) -> Void,
-            emitHeartbeat: @escaping @Sendable (PassiveDPIHeartbeatEvent) -> Void
+            emitHeartbeat: @escaping @Sendable (PassiveDPIHeartbeatEvent) -> Void,
+            emitProfileSwitch: @escaping @Sendable (PassiveProfileSwitchEvent) -> Void
         ) {
             self.deviceID = deviceID
             self.descriptor = descriptor
             self.emit = emit
             self.emitHeartbeat = emitHeartbeat
+            self.emitProfileSwitch = emitProfileSwitch
+        }
+
+        func profileSwitchPreludeSatisfied(observedAt: Date, window: TimeInterval) -> Bool {
+            guard !descriptor.profileSwitchPreludePrefixes.isEmpty else { return true }
+            guard let lastProfileSwitchPreludeAt else { return false }
+            let age = observedAt.timeIntervalSince(lastProfileSwitchPreludeAt)
+            if age >= 0, age <= window {
+                return true
+            }
+            self.lastProfileSwitchPreludeAt = nil
+            return false
         }
     }
 
@@ -175,6 +244,8 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
 
     public var onEvent: (@Sendable (PassiveDPIEvent) -> Void)?
     public var onHeartbeat: (@Sendable (PassiveDPIHeartbeatEvent) -> Void)?
+    public var onProfileSwitch: (@Sendable (PassiveProfileSwitchEvent) -> Void)?
+    private static let profileSwitchPreludeWindow: TimeInterval = 0.5
     private let queue = DispatchQueue(label: "open.snek.hid.passive-dpi")
     private let runLoopStateLock = NSLock()
     private var runLoop: CFRunLoop?
@@ -318,6 +389,8 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
             self?.onEvent?(event)
         } emitHeartbeat: { [weak self] event in
             self?.onHeartbeat?(event)
+        } emitProfileSwitch: { [weak self] event in
+            self?.onProfileSwitch?(event)
         }
         let context = UnsafeMutableRawPointer(Unmanaged.passRetained(contextBox).toOpaque())
 
@@ -369,7 +442,20 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         let callbackContext = Unmanaged<CallbackContext>.fromOpaque(context).takeUnretainedValue()
         let bytes = Array(UnsafeBufferPointer(start: report, count: max(0, reportLength)))
         let observedAt = Date()
-        switch PassiveDPIParser.classify(report: bytes, descriptor: callbackContext.descriptor) {
+        if PassiveDPIParser.matchesProfileSwitchPrelude(report: bytes, descriptor: callbackContext.descriptor) {
+            callbackContext.lastProfileSwitchPreludeAt = observedAt
+            return
+        }
+
+        let profileSwitchPreludeSatisfied = callbackContext.profileSwitchPreludeSatisfied(
+            observedAt: observedAt,
+            window: PassiveDPIEventMonitor.profileSwitchPreludeWindow
+        )
+        switch PassiveDPIParser.classify(
+            report: bytes,
+            descriptor: callbackContext.descriptor,
+            profileSwitchPreludeSatisfied: profileSwitchPreludeSatisfied
+        ) {
         case .dpi(let reading):
             callbackContext.emit(
                 PassiveDPIEvent(
@@ -382,6 +468,14 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         case .heartbeat:
             callbackContext.emitHeartbeat(
                 PassiveDPIHeartbeatEvent(
+                    deviceID: callbackContext.deviceID,
+                    observedAt: observedAt
+                )
+            )
+        case .profileSwitch:
+            callbackContext.lastProfileSwitchPreludeAt = nil
+            callbackContext.emitProfileSwitch(
+                PassiveProfileSwitchEvent(
                     deviceID: callbackContext.deviceID,
                     observedAt: observedAt
                 )

@@ -13,6 +13,19 @@ final class BLEVendorProtocolTests: XCTestCase {
         XCTAssertEqual(Array(data), [0x34, 0x26, 0x00, 0x00, 0x0B, 0x04, 0x01, 0x00])
     }
 
+    func testWriteFramesChunkLargePayloads() {
+        let payload = Data((0..<0x4C).map(UInt8.init))
+        let frames = BLEVendorProtocol.buildWriteFrames(
+            req: 0x44,
+            key: .profileMetadataSet(target: 0x02),
+            payload: payload
+        )
+
+        XCTAssertEqual(Array(frames[0]), [0x44, 0x4C, 0x00, 0x00, 0x03, 0x04, 0x02, 0x00])
+        XCTAssertEqual(frames.map(\.count), [8, 20, 20, 20, 16])
+        XCTAssertEqual(frames.dropFirst().reduce(into: Data()) { $0.append($1) }, payload)
+    }
+
     func testLightingBrightnessKeyBuildersSupportPerZoneIDs() {
         XCTAssertEqual(BLEVendorProtocol.Key.lightingBrightnessGet(ledID: 0x04).bytes, [0x10, 0x85, 0x01, 0x04])
         XCTAssertEqual(BLEVendorProtocol.Key.lightingBrightnessSet(ledID: 0x0A).bytes, [0x10, 0x05, 0x01, 0x0A])
@@ -47,6 +60,66 @@ final class BLEVendorProtocolTests: XCTestCase {
         XCTAssertEqual(BLEVendorProtocol.Key.profileLightingBrightnessGet(target: 0x03, ledID: 0x04).bytes, [0x10, 0x85, 0x03, 0x04])
         XCTAssertEqual(BLEVendorProtocol.Key.profileLightingZoneStateGet(target: 0x03, ledID: 0x01).bytes, [0x10, 0x83, 0x03, 0x01])
         XCTAssertEqual(BLEVendorProtocol.Key.profileLightingZoneStateSet(target: 0x03, ledID: 0x0A).bytes, [0x10, 0x03, 0x03, 0x0A])
+    }
+
+    func testBluetoothButtonReadPrefersAuthoritativeEvenLaneOverDefaultOddLane() {
+        let payload = Data([
+            0x09, 0x00,
+            0x01, 0x01,
+            0x01, 0x01,
+            0x0A, 0x09,
+            0x00, 0x00,
+            0x00, 0x00,
+            0x00, 0x00,
+            0x00, 0x00,
+        ])
+
+        let block = BLEVendorProtocol.extractBluetoothFunctionBlock(
+            payload: payload,
+            target: 0x02,
+            slot: 0x09,
+            profileID: .basiliskV3Pro
+        )
+        let draft = block.flatMap {
+            ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
+                slot: 9,
+                functionBlock: $0,
+                profileID: .basiliskV3Pro
+            )
+        }
+
+        XCTAssertEqual(block, [0x01, 0x01, 0x0A, 0x00, 0x00, 0x00, 0x00])
+        XCTAssertEqual(draft?.kind, .scrollDown)
+    }
+
+    func testBluetoothButtonReadTreatsShortWheelTiltBlockAsSlotDefault() {
+        let payload = Data([
+            0x34, 0x00,
+            0x0E, 0x0E,
+            0x01, 0x01,
+            0x68, 0x68,
+            0x00, 0x00,
+            0x14, 0x14,
+            0x00, 0x00,
+            0x00, 0x00,
+        ])
+
+        let block = BLEVendorProtocol.extractBluetoothFunctionBlock(
+            payload: payload,
+            target: 0x02,
+            slot: 0x34,
+            profileID: .basiliskV3Pro
+        )
+        let draft = block.flatMap {
+            ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
+                slot: 52,
+                functionBlock: $0,
+                profileID: .basiliskV3Pro
+            )
+        }
+
+        XCTAssertEqual(block, [0x0E, 0x01, 0x68, 0x00, 0x14, 0x00, 0x00])
+        XCTAssertEqual(draft?.kind, .default)
     }
 
     func testParsePayloadFramesSuccess() {
@@ -169,6 +242,48 @@ final class BLEVendorProtocolTests: XCTestCase {
         let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x05, kind: .keyboardSimple, hidKey: 0x09)
         let storedTargetPayload = BLEVendorProtocol.retargetButtonPayload(payload, target: 0x05, slot: 0x05)
         XCTAssertEqual(Array(storedTargetPayload), [0x05, 0x05, 0x00, 0x02, 0x02, 0x00, 0x09, 0x00, 0x00, 0x00])
+    }
+
+    func testProfileInventoryAndActiveTargetParsing() {
+        XCTAssertEqual(BLEVendorProtocol.parseProfileTargets(payload: Data([0x01, 0x03, 0x00, 0x09]), maxProfileID: 5), [1, 3])
+        XCTAssertEqual(BLEVendorProtocol.parseActiveTarget(payload: Data([0x03])), 3)
+        XCTAssertNil(BLEVendorProtocol.parseActiveTarget(payload: Data([0x09])))
+    }
+
+    func testProfileMetadataReadAndWriteChunkHelpers() throws {
+        let uuid = try XCTUnwrap(UUID(uuidString: "01234567-89ab-4cde-8f01-23456789abcd"))
+        let metadata = BLEVendorProtocol.buildProfileMetadata(identifier: uuid, name: "BT Slot", owner: "OpenSnek")
+        let readRequest = BLEVendorProtocol.profileMetadataReadRequest(offset: 0x0098, length: 0x4C)
+        let writePayload = BLEVendorProtocol.profileMetadataWritePayload(offset: 0x0098, metadata: metadata)
+        let responsePayload = Data([0x98, 0x00]) + Data(metadata[0x0098..<(0x0098 + 0x04)])
+        let chunk = BLEVendorProtocol.profileMetadataChunk(from: responsePayload, expectedOffset: 0x0098)
+
+        XCTAssertEqual(Array(readRequest), [0x98, 0x00, 0x4C, 0x00])
+        XCTAssertEqual(Array(writePayload.prefix(4)), [0xFA, 0x00, 0x98, 0x00])
+        XCTAssertEqual(chunk?.offset, 0x0098)
+        XCTAssertEqual(chunk?.data, Array(metadata[0x0098..<(0x0098 + 0x04)]))
+        XCTAssertEqual(BLEVendorProtocol.parseProfileMetadata(metadata).identifier, uuid)
+        XCTAssertEqual(BLEVendorProtocol.parseProfileMetadata(metadata).name, "BT Slot")
+    }
+
+    func testBluetoothButtonReadbackExtractsInterleavedFunctionBlock() {
+        let functionBlock: [UInt8] = [0x01, 0x01, 0x05, 0x00, 0x00, 0x00, 0x00]
+        let previousBlock: [UInt8] = [0x01, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00]
+        var interleaved: [UInt8] = [0x05, 0x00]
+        for index in functionBlock.indices {
+            interleaved.append(functionBlock[index])
+            interleaved.append(previousBlock[index])
+        }
+
+        XCTAssertEqual(
+            BLEVendorProtocol.extractBluetoothFunctionBlock(
+                payload: Data(interleaved),
+                target: 0x02,
+                slot: 0x05,
+                profileID: .basiliskV3Pro
+            ),
+            functionBlock
+        )
     }
 
     func testButtonPayloadKeyboardShortcutIncludesModifiers() {
@@ -449,5 +564,24 @@ final class BLEVendorProtocolTests: XCTestCase {
         XCTAssertEqual(parsed?.active, 1)
         XCTAssertEqual(parsed?.count, 3)
         XCTAssertEqual(parsed?.values, [800, 1600, 3200])
+    }
+
+    func testParseStoredProfileProjectionUsesDeclaredCount() {
+        let blob = Data([
+            0x03, 0x03,
+            0x01, 0x90, 0x01, 0x90, 0x01, 0x00, 0x00,
+            0x02, 0xB0, 0x04, 0xB0, 0x04, 0x00, 0x00,
+            0x03, 0x14, 0x05, 0x14, 0x05, 0x00,
+        ])
+        let parsed = BLEVendorProtocol.parseDpiStages(blob: blob)
+
+        XCTAssertEqual(parsed?.count, 3)
+        XCTAssertEqual(parsed?.values, [400, 1200, 1300])
+        XCTAssertEqual(parsed?.pairs, [
+            DpiPair(x: 400, y: 400),
+            DpiPair(x: 1200, y: 1200),
+            DpiPair(x: 1300, y: 1300),
+        ])
+        XCTAssertEqual(parsed?.active, 2)
     }
 }

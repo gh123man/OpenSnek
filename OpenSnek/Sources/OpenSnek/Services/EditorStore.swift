@@ -50,12 +50,22 @@ final class EditorStore {
     var isEditingDpiControl = false
     var isButtonProfileOperationInFlight = false
     var buttonProfileOperationStatusText: String?
+    var isOnboardProfileRefreshInFlight = false
+    var onboardProfileRefreshErrorMessage: String?
+    var isOnboardProfileLoadInFlight = false
+    var onboardProfileLoadStatusText: String?
     var usbButtonProfilesRevision = 0
+    var onboardProfilesRevision = 0
     var connectBehaviorRevision = 0
 
     @ObservationIgnored private weak var editorControllerStorage: AppStateEditorController?
     @ObservationIgnored private weak var applyControllerStorage: AppStateApplyController?
-    @ObservationIgnored private var buttonProfileOperationDepth = 0
+    @ObservationIgnored private var buttonProfileOperationIDs: Set<UUID> = []
+    @ObservationIgnored private var buttonProfileOperationOrder: [UUID] = []
+    @ObservationIgnored private var buttonProfileOperationStatusByID: [UUID: String] = [:]
+    @ObservationIgnored private var onboardProfileLoadOperationIDs: Set<UUID> = []
+    @ObservationIgnored private var onboardProfileLoadOperationOrder: [UUID] = []
+    @ObservationIgnored private var onboardProfileLoadOperationStatusByID: [UUID: String] = [:]
     @ObservationIgnored private var isSyncingEditableStageRepresentations = false
 
     init(deviceStore: DeviceStore) {
@@ -92,19 +102,86 @@ final class EditorStore {
         return applyControllerStorage
     }
 
+    @discardableResult
+    func beginButtonProfileOperation(statusText: String) -> UUID {
+        let operationID = UUID()
+        buttonProfileOperationIDs.insert(operationID)
+        buttonProfileOperationOrder.append(operationID)
+        buttonProfileOperationStatusByID[operationID] = statusText
+        refreshButtonProfileOperationPresentation()
+        return operationID
+    }
+
+    func endButtonProfileOperation() {
+        guard let operationID = buttonProfileOperationOrder.last(where: { buttonProfileOperationIDs.contains($0) }) else {
+            refreshButtonProfileOperationPresentation()
+            return
+        }
+        endButtonProfileOperation(operationID)
+    }
+
+    func endButtonProfileOperation(_ operationID: UUID) {
+        guard buttonProfileOperationIDs.remove(operationID) != nil else { return }
+        buttonProfileOperationStatusByID.removeValue(forKey: operationID)
+        buttonProfileOperationOrder.removeAll { $0 == operationID }
+        refreshButtonProfileOperationPresentation()
+    }
+
+    private func refreshButtonProfileOperationPresentation() {
+        guard let operationID = buttonProfileOperationOrder.last(where: { buttonProfileOperationIDs.contains($0) }) else {
+            isButtonProfileOperationInFlight = false
+            buttonProfileOperationStatusText = nil
+            return
+        }
+        isButtonProfileOperationInFlight = true
+        buttonProfileOperationStatusText = buttonProfileOperationStatusByID[operationID]
+    }
+
     private func withButtonProfileOperation<T>(
         statusText: String,
         _ operation: @escaping @MainActor () async -> T
     ) async -> T {
-        buttonProfileOperationDepth += 1
-        isButtonProfileOperationInFlight = true
-        buttonProfileOperationStatusText = statusText
+        let operationID = beginButtonProfileOperation(statusText: statusText)
         defer {
-            buttonProfileOperationDepth = max(0, buttonProfileOperationDepth - 1)
-            isButtonProfileOperationInFlight = buttonProfileOperationDepth > 0
-            if buttonProfileOperationDepth == 0 {
-                buttonProfileOperationStatusText = nil
-            }
+            endButtonProfileOperation(operationID)
+        }
+        return await operation()
+    }
+
+    @discardableResult
+    func beginOnboardProfileLoad(statusText: String) -> UUID {
+        let operationID = UUID()
+        onboardProfileLoadOperationIDs.insert(operationID)
+        onboardProfileLoadOperationOrder.append(operationID)
+        onboardProfileLoadOperationStatusByID[operationID] = statusText
+        refreshOnboardProfileLoadPresentation()
+        return operationID
+    }
+
+    func endOnboardProfileLoad(_ operationID: UUID) {
+        guard onboardProfileLoadOperationIDs.remove(operationID) != nil else { return }
+        onboardProfileLoadOperationStatusByID.removeValue(forKey: operationID)
+        onboardProfileLoadOperationOrder.removeAll { $0 == operationID }
+        refreshOnboardProfileLoadPresentation()
+    }
+
+    private func refreshOnboardProfileLoadPresentation() {
+        guard let operationID = onboardProfileLoadOperationOrder.last(where: { onboardProfileLoadOperationIDs.contains($0) }) else {
+            isOnboardProfileLoadInFlight = false
+            onboardProfileLoadStatusText = nil
+            return
+        }
+        isOnboardProfileLoadInFlight = true
+        onboardProfileLoadStatusText = onboardProfileLoadOperationStatusByID[operationID]
+    }
+
+    private func withOnboardProfileLoad<T>(
+        statusText: String,
+        _ operation: @escaping @MainActor () async -> T
+    ) async -> T {
+        let operationID = beginOnboardProfileLoad(statusText: statusText)
+        defer {
+            endOnboardProfileLoad(operationID)
         }
         return await operation()
     }
@@ -156,6 +233,37 @@ final class EditorStore {
 
     var supportsMultipleOnboardProfiles: Bool {
         deviceStore.selectedDevice?.transport == .usb && visibleOnboardProfileCount > 1
+    }
+
+    var supportsOnboardProfileCRUD: Bool {
+        guard let selectedDevice = deviceStore.selectedDevice else { return false }
+        return DeviceProfiles
+            .resolve(
+                vendorID: selectedDevice.vendor_id,
+                productID: selectedDevice.product_id,
+                transport: selectedDevice.transport
+            )?
+            .supportsMappedOnboardProfileCRUD == true
+    }
+
+    var onboardProfileSummaries: [OnboardProfileSummary] {
+        _ = onboardProfilesRevision
+        return editorController.onboardProfileSummaries()
+    }
+
+    var selectedOnboardProfileID: Int? {
+        _ = onboardProfilesRevision
+        return editorController.selectedOnboardProfileID()
+    }
+
+    var selectedOnboardProfileName: String {
+        _ = onboardProfilesRevision
+        return editorController.selectedOnboardProfileName()
+    }
+
+    var selectedOnboardProfileIsActive: Bool {
+        _ = onboardProfilesRevision
+        return editorController.selectedOnboardProfileIsActive()
     }
 
     var visibleUSBButtonProfiles: [USBButtonProfileSummary] {
@@ -267,6 +375,64 @@ final class EditorStore {
 
     func refreshButtonProfilePresentation() {
         editorController.refreshButtonProfilePresentation()
+    }
+
+    func refreshOnboardProfiles() async {
+        let ownsRefreshPresentation = !isOnboardProfileRefreshInFlight
+        if ownsRefreshPresentation {
+            isOnboardProfileRefreshInFlight = true
+            onboardProfileRefreshErrorMessage = nil
+        }
+        defer {
+            if ownsRefreshPresentation {
+                isOnboardProfileRefreshInFlight = false
+            }
+        }
+        await editorController.refreshOnboardProfiles()
+        if ownsRefreshPresentation,
+           onboardProfileSummaries.isEmpty,
+           let errorMessage = deviceStore.errorMessage,
+           errorMessage.hasPrefix("Failed to refresh onboard profiles:") {
+            onboardProfileRefreshErrorMessage = errorMessage
+        }
+    }
+
+    func selectOnboardProfile(_ profileID: Int) async {
+        await withOnboardProfileLoad(statusText: "Loading profile...") { [self] in
+            await self.editorController.selectOnboardProfile(profileID)
+        }
+    }
+
+    func activateOnboardProfile(_ profileID: Int) async {
+        await withOnboardProfileLoad(statusText: "Activating profile...") { [self] in
+            await self.editorController.activateOnboardProfile(profileID)
+        }
+    }
+
+    func createOnboardProfile(
+        name: String,
+        targetProfileID: Int? = nil,
+        copyFromProfileID: Int? = nil
+    ) async {
+        await withButtonProfileOperation(statusText: "Creating profile...") { [self] in
+            await self.editorController.createOnboardProfile(
+                name: name,
+                targetProfileID: targetProfileID,
+                copyFromProfileID: copyFromProfileID
+            )
+        }
+    }
+
+    func renameSelectedOnboardProfile(name: String) async {
+        await withButtonProfileOperation(statusText: "Renaming profile...") { [self] in
+            await self.editorController.renameSelectedOnboardProfile(name: name)
+        }
+    }
+
+    func deleteSelectedOnboardProfile() async {
+        await withButtonProfileOperation(statusText: "Deleting profile...") { [self] in
+            await self.editorController.deleteSelectedOnboardProfile()
+        }
     }
 
     var canDuplicateSelectedUSBButtonProfile: Bool {

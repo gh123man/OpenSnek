@@ -42,12 +42,33 @@ public enum ButtonBindingSupport {
         return [0x0E, 0x03, buttonID, turboHi, turboLo, 0x00, 0x00]
     }
 
+    private static func basiliskV3FamilyShortHorizontalScrollBlock(
+        buttonID: UInt8,
+        turboRate: Int = basiliskV3FamilyHorizontalScrollTurboRate
+    ) -> [UInt8] {
+        let turbo = UInt16(max(1, min(255, turboRate)))
+        let turboHi = UInt8((turbo >> 8) & 0xFF)
+        let turboLo = UInt8(turbo & 0xFF)
+        return [0x0E, 0x01, buttonID, turboHi, turboLo, 0x00, 0x00]
+    }
+
     private static func usesBasiliskV3FamilyHorizontalScrollBlock(_ profileID: DeviceProfileID?) -> Bool {
         switch profileID {
         case .basiliskV3, .basiliskV3Pro, .basiliskV335K:
             return true
         case .basiliskV3XHyperspeed, .orochiV2, .none:
             return false
+        }
+    }
+
+    private static func defaultHorizontalScrollButtonID(forSlot slot: UInt8) -> UInt8? {
+        switch slot {
+        case 0x34:
+            return horizontalScrollLeftButtonID
+        case 0x35:
+            return horizontalScrollRightButtonID
+        default:
+            return nil
         }
     }
 
@@ -137,6 +158,12 @@ public enum ButtonBindingSupport {
             return defaultButtonBinding(for: slot, profileID: profileID)
         }
 
+        if usesBasiliskV3FamilyHorizontalScrollBlock(profileID),
+           let defaultButtonID = defaultHorizontalScrollButtonID(forSlot: UInt8(max(0, min(255, slot)))),
+           functionBlock == basiliskV3FamilyShortHorizontalScrollBlock(buttonID: defaultButtonID) {
+            return defaultButtonBinding(for: slot, profileID: profileID)
+        }
+
         let fnClass = functionBlock[0]
         let length = max(0, min(5, Int(functionBlock[1])))
         let data = Array(functionBlock[2..<(2 + length)])
@@ -195,9 +222,17 @@ public enum ButtonBindingSupport {
                 turboRate: max(1, min(255, rawRate))
             )
         case 0x0E:
-            guard data.count >= 3,
-                  let kind = buttonKindFromUSBMouseButton(data[0])
+            guard let buttonID = data.first,
+                  let kind = buttonKindFromUSBMouseButton(buttonID)
             else { return nil }
+            guard data.count >= 3 else {
+                return ButtonBindingDraft(
+                    kind: kind,
+                    hidKey: 4,
+                    turboEnabled: false,
+                    turboRate: fallbackRate
+                )
+            }
             let rawRate = (Int(data[1]) << 8) | Int(data[2])
             return ButtonBindingDraft(
                 kind: kind,

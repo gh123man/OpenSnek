@@ -17,34 +17,29 @@ struct DeviceDetailView: View {
     private let verticalPadding: CGFloat = 18
 
     private let swatches: [LightingSwatch] = [
-        LightingSwatch(hex: 0xFF3B30), LightingSwatch(hex: 0xFF9500), LightingSwatch(hex: 0xFFCC00), LightingSwatch(hex: 0x34C759),
-        LightingSwatch(hex: 0x00C7BE), LightingSwatch(hex: 0x0A84FF), LightingSwatch(hex: 0xBF5AF2), LightingSwatch(hex: 0xFFFFFF),
+        LightingSwatch(hex: 0xFF0000), LightingSwatch(hex: 0x00FF00), LightingSwatch(hex: 0x0000FF), LightingSwatch(hex: 0xFFFF00),
+        LightingSwatch(hex: 0x00FFFF), LightingSwatch(hex: 0xFF00FF), LightingSwatch(hex: 0xFFFFFF), LightingSwatch(hex: 0xFF8000),
     ]
 
     var body: some View {
         GeometryReader { proxy in
             let sections = detailSections
             let contentWidth = detailContentWidth(for: proxy.size.width)
-            let controlsEnabled = deviceStore.selectedDeviceControlsEnabled
 
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 18) {
                     DeviceOverviewBar(deviceStore: deviceStore, selected: selected, state: state)
-                    VStack(alignment: .leading, spacing: 12) {
-                        DetailColumnsLayout(
-                            minTwoColumnCardWidth: detailTwoColumnMinWidth,
-                            twoColumnBreakpointPadding: twoColumnBreakpointPadding,
-                            spacing: cardSpacing,
-                            maxCardWidth: detailCardMaxWidth
-                        ) {
-                            ForEach(sections, id: \.self) { section in
-                                detailCard(for: section)
-                                    .layoutValue(key: PreferredDetailColumnLayoutKey.self, value: preferredColumn(for: section))
-                                    .layoutValue(key: DetailCardMaxWidthLayoutKey.self, value: section == .buttonRemap ? detailContentMaxWidth : detailCardMaxWidth)
-                            }
+                    DetailColumnsLayout(
+                        minTwoColumnCardWidth: detailTwoColumnMinWidth,
+                        twoColumnBreakpointPadding: twoColumnBreakpointPadding,
+                        spacing: cardSpacing,
+                        maxCardWidth: detailCardMaxWidth
+                    ) {
+                        ForEach(sections, id: \.self) { section in
+                            detailCard(for: section)
+                                .layoutValue(key: PreferredDetailColumnLayoutKey.self, value: preferredColumn(for: section))
+                                .layoutValue(key: DetailCardMaxWidthLayoutKey.self, value: section == .buttonRemap ? detailContentMaxWidth : detailCardMaxWidth)
                         }
-                        .disabled(!controlsEnabled)
-                        .opacity(controlsEnabled ? 1.0 : 0.44)
                     }
                     DiagnosticsFooter(deviceStore: deviceStore, device: selected, state: state)
                 }
@@ -55,6 +50,10 @@ struct DeviceDetailView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(WindowDragBlocker())
+            .loadingScrim(
+                isPresented: editorStore.isButtonProfileOperationInFlight || editorStore.isOnboardProfileLoadInFlight,
+                label: editorStore.buttonProfileOperationStatusText ?? editorStore.onboardProfileLoadStatusText
+            )
             .task(id: selected.id) {
                 await deviceStore.refreshConnectionDiagnostics(for: selected)
             }
@@ -68,6 +67,9 @@ struct DeviceDetailView: View {
         }
         if editorStore.showsConnectBehaviorCard {
             sections.append(.onConnect)
+        }
+        if editorStore.supportsOnboardProfileCRUD {
+            sections.append(.onboardProfiles)
         }
         if selected.showsLightingControls, state.capabilities.lighting {
             sections.append(.lighting)
@@ -98,6 +100,8 @@ struct DeviceDetailView: View {
             DpiStagesCard(editorStore: editorStore)
         case .onConnect:
             OnConnectBehaviorCard(editorStore: editorStore)
+        case .onboardProfiles:
+            OnboardProfileManagerCard(editorStore: editorStore)
         case .lighting:
             LightingCard(editorStore: editorStore, selected: selected, swatches: swatches)
         case .pollRate:
@@ -119,7 +123,7 @@ struct DeviceDetailView: View {
 
     private func preferredColumn(for section: DetailSection) -> Int {
         switch section {
-        case .lighting, .buttonRemap:
+        case .onboardProfiles, .lighting, .buttonRemap:
             return 1
         default:
             return 0
@@ -130,6 +134,7 @@ struct DeviceDetailView: View {
 private enum DetailSection: Hashable {
     case dpiStages
     case onConnect
+    case onboardProfiles
     case lighting
     case pollRate
     case powerManagement
@@ -836,24 +841,28 @@ struct LightingCard: View {
     private func staticLightingZoneEditor() -> some View {
         if showsStaticLightingZonePicker {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Editing Zone")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.82))
-
-                Picker(
-                    "Editing Zone",
-                    selection: Binding(
-                        get: { editorStore.editableUSBLightingZoneID },
-                        set: {
-                            editorStore.updateUSBLightingZoneID($0)
+                HStack(spacing: 12) {
+                    Text("Editing Zone")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.82))
+                    Spacer(minLength: 8)
+                    Picker(
+                        "",
+                        selection: Binding(
+                            get: { editorStore.editableUSBLightingZoneID },
+                            set: {
+                                editorStore.updateUSBLightingZoneID($0)
+                            }
+                        )
+                    ) {
+                        ForEach(editorStore.visibleUSBLightingZones) { zone in
+                            Text(zone.label).tag(zone.id)
                         }
-                    )
-                ) {
-                    ForEach(editorStore.visibleUSBLightingZones) { zone in
-                        Text(zone.label).tag(zone.id)
                     }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 340, alignment: .trailing)
                 }
-                .pickerStyle(.segmented)
 
                 HStack(alignment: .center, spacing: 12) {
                     Text("Color edits affect only the selected zone.")
@@ -1129,6 +1138,7 @@ struct DpiStagesCard: View {
     let editorStore: EditorStore
 
     var body: some View {
+        _ = editorStore.onboardProfilesRevision
         let profileID = editorStore.selectedDeviceProfileID
         let supportsIndependentXYDPI = editorStore.selectedDeviceSupportsIndependentXYDPI
         let supportsMultiStage = true
@@ -1647,11 +1657,12 @@ struct ButtonMappingTableCard: View {
     let title: String
 
     private var isBusy: Bool {
-        editorStore.isButtonProfileOperationInFlight
+        editorStore.isButtonProfileOperationInFlight || editorStore.isOnboardProfileLoadInFlight
     }
 
     private var rows: [ButtonBindingRowModel] {
-        deviceStore.visibleButtonSlots.map { slot in
+        _ = editorStore.usbButtonProfilesRevision
+        return deviceStore.visibleButtonSlots.map { slot in
             let kind = editorStore.buttonBindingKind(for: slot.slot)
             let turboEnabled = editorStore.buttonBindingTurboEnabled(for: slot.slot)
             let turboRate = editorStore.buttonBindingTurboRatePressesPerSecond(for: slot.slot)
@@ -1691,235 +1702,505 @@ struct ButtonMappingTableCard: View {
     }
 }
 
-private struct ButtonProfileWorkspaceStrip: View {
-    let deviceStore: DeviceStore
+private struct OnboardProfileManagerCard: View {
     let editorStore: EditorStore
-    let isBusy: Bool
 
-    @State private var saveProfileName = ""
-    @State private var showsLoadPopover = false
-    @State private var showsManageProfiles = false
-    @State private var showsSaveProfileSheet = false
-    @State private var showsStorePopover = false
+    @State private var renameName = ""
+    @State private var copyFromProfileID = 1
+    @State private var hoveredProfileID: Int?
+    private let slotColumnWidth: CGFloat = 188
+    private let connectorWidth: CGFloat = 14
+    private let slotRowHeight: CGFloat = 48
+    private let slotRowSpacing: CGFloat = 8
+    private let columnSpacing: CGFloat = 10
+    private let actionPanelCornerRadius: CGFloat = 8
 
-    private var currentSource: ButtonProfileSource? {
-        editorStore.currentButtonProfileSource
+    private var isBusy: Bool {
+        editorStore.isButtonProfileOperationInFlight || editorStore.isOnboardProfileLoadInFlight
     }
 
-    private var currentMouseSlot: Int? {
-        guard case .mouseSlot(let slot)? = currentSource else { return nil }
-        return slot
-    }
-
-    private var loadedFromLabel: String? {
-        guard let currentSource else { return nil }
-        return loadedFromDisplayLabel(for: currentSource)
+    private var isRefreshing: Bool {
+        editorStore.isOnboardProfileRefreshInFlight
     }
 
     private var statusLabel: String? {
-        editorStore.buttonProfileOperationStatusText
+        editorStore.buttonProfileOperationStatusText ?? editorStore.onboardProfileLoadStatusText
+    }
+
+    private var selectedProfileID: Int? {
+        editorStore.selectedOnboardProfileID
+    }
+
+    private var selectedSummary: OnboardProfileSummary? {
+        guard let selectedProfileID else { return nil }
+        return editorStore.onboardProfileSummaries.first(where: { $0.profileID == selectedProfileID })
+    }
+
+    private var selectedNameIsEmpty: Bool {
+        renameName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var profileListHeight: CGFloat {
+        let count = max(1, editorStore.onboardProfileSummaries.count)
+        return CGFloat(count) * slotRowHeight + CGFloat(max(0, count - 1)) * slotRowSpacing
+    }
+
+    private var selectedProfileIndex: Int {
+        guard let selectedProfileID,
+              let index = editorStore.onboardProfileSummaries.firstIndex(where: { $0.profileID == selectedProfileID }) else {
+            return 0
+        }
+        return index
+    }
+
+    private var selectedArrowCenterY: CGFloat {
+        CGFloat(selectedProfileIndex) * (slotRowHeight + slotRowSpacing) + (slotRowHeight / 2)
+    }
+
+    private var copySourceSummaries: [OnboardProfileSummary] {
+        editorStore.onboardProfileSummaries.filter(\.isAssigned)
+    }
+
+    private var resolvedCopyFromProfileID: Int {
+        let sourceIDs = Set(copySourceSummaries.map(\.profileID))
+        if sourceIDs.contains(copyFromProfileID) {
+            return copyFromProfileID
+        }
+        if let active = copySourceSummaries.first(where: \.isActive)?.profileID {
+            return active
+        }
+        return copySourceSummaries.first?.profileID ?? 1
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Profiles")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.62))
+        Card(title: "Onboard Profiles") {
+            VStack(alignment: .leading, spacing: 12) {
+                if editorStore.onboardProfileSummaries.isEmpty {
+                    if isRefreshing {
+                        loadingRow
+                    } else {
+                        emptyRefreshState
+                    }
+                } else {
+                    profileLayout
+                }
+            }
+            .task {
+                await editorStore.refreshOnboardProfiles()
+            }
+        }
+    }
 
-                headerControls
+    private var loadingRow: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.small)
+            Text("Reading onboard profiles")
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.58))
+        }
+    }
+
+    private var emptyRefreshState: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Profiles unavailable")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.78))
+                Text(editorStore.onboardProfileRefreshErrorMessage ?? "Profile inventory has not loaded yet.")
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.48))
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
+            Button {
+                Task { await editorStore.refreshOnboardProfiles() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 13, weight: .bold))
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .help("Refresh profiles")
+        }
+    }
+
+    private var profileLayout: some View {
+        HStack(alignment: .top, spacing: columnSpacing) {
+            VStack(alignment: .leading, spacing: slotRowSpacing) {
+                ForEach(editorStore.onboardProfileSummaries) { profile in
+                    profileSlotRow(profile)
+                        .frame(width: slotColumnWidth, height: slotRowHeight)
+                }
             }
 
-            if let statusLabel {
+            actionPanel
+                .frame(maxWidth: .infinity, minHeight: profileListHeight, alignment: .topLeading)
+        }
+    }
+
+    private func profileSlotRow(_ profile: OnboardProfileSummary) -> some View {
+        let isSelected = profile.profileID == selectedProfileID
+        let isEmptySlot = !profile.isAssigned
+        let isHovered = hoveredProfileID == profile.profileID
+        let titleOpacity = profileTitleOpacity(profile: profile, isSelected: isSelected, isHovered: isHovered)
+        let subtitleOpacity = profileSubtitleOpacity(profile: profile, isSelected: isSelected, isHovered: isHovered)
+        let fillOpacity = profileFillOpacity(profile: profile, isSelected: isSelected, isHovered: isHovered)
+        let strokeOpacity = profileStrokeOpacity(profile: profile, isSelected: isSelected, isHovered: isHovered)
+        let plusOpacity = isEmptySlot && isHovered ? 0.82 : 0.0
+        let slotColor = profileSlotColor(profile.profileID)
+
+        return Button {
+            Task { await editorStore.selectOnboardProfile(profile.profileID) }
+        } label: {
+            ZStack(alignment: .topTrailing) {
                 HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text(statusLabel)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.64))
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(slotColor.opacity(profile.isAssigned || isSelected ? 0.95 : 0.45))
+                        .frame(width: 4, height: 30)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(profile.isAssigned ? profile.displayName : "None")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Color.white.opacity(titleOpacity))
+                            .lineLimit(1)
+                        Text(profile.profileID == 1 ? "Base" : "Slot \(profile.profileID)")
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(subtitleOpacity))
+                    }
+                    Spacer(minLength: 0)
+                    if isEmptySlot {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(Color.white.opacity(plusOpacity))
+                            .frame(width: 22, height: 22)
+                            .accessibilityLabel("Create profile")
+                    }
+                }
+                .padding(.leading, 8)
+                .padding(.trailing, 10)
+                .padding(.vertical, 7)
+
+                if profile.isActive {
+                    Text("active")
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color(hex: 0x30D158))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(Color(hex: 0x30D158).opacity(0.14))
+                        )
+                        .offset(x: -6, y: 5)
                 }
             }
-
-            if let loadedFromLabel {
-                Text("Loaded from \(loadedFromLabel)")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.58))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if editorStore.currentButtonProfileHasUnsupportedBindings {
-                Text("Some bindings in this saved profile aren't available on this mouse. OpenSnek will keep them in the profile, but only supported buttons can be applied here.")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.58))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white.opacity(0.035))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.white.opacity(fillOpacity))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(
+                        profile.isActive
+                            ? Color(hex: 0x30D158).opacity(0.95)
+                            : Color.white.opacity(strokeOpacity),
+                        lineWidth: profile.isActive ? 2 : 1
                     )
-        )
-        .sheet(isPresented: $showsSaveProfileSheet) {
-            SaveButtonProfileSheet(
-                initialName: saveProfileName,
-                existingProfiles: editorStore.savedButtonProfiles,
-                onSaveNew: { name in
-                    _ = editorStore.saveCurrentButtonWorkspaceAsNewProfile(name: name)
-                },
-                onOverwrite: { id in
-                    _ = editorStore.updateOpenSnekButtonProfile(id: id)
-                }
+            )
+            .shadow(
+                color: profile.isActive ? Color(hex: 0x30D158).opacity(0.35) : .clear,
+                radius: profile.isActive ? 8 : 0,
+                x: 0,
+                y: 0
             )
         }
-        .sheet(isPresented: $showsManageProfiles) {
-            ManageButtonProfilesSheet(
-                profiles: editorStore.savedButtonProfiles,
-                onRename: { id, name in
-                    _ = editorStore.renameOpenSnekButtonProfile(id: id, name: name)
-                },
-                onDelete: { id in
-                    editorStore.deleteOpenSnekButtonProfile(id: id)
-                }
-            )
+        .buttonStyle(.plain)
+        .disabled(isBusy)
+        .onHover { isHovered in
+            if isHovered {
+                hoveredProfileID = profile.profileID
+            } else if hoveredProfileID == profile.profileID {
+                hoveredProfileID = nil
+            }
+        }
+    }
+
+    private func profileTitleOpacity(profile: OnboardProfileSummary, isSelected: Bool, isHovered: Bool) -> Double {
+        if profile.isActive || isSelected { return 1.0 }
+        if profile.isAssigned { return isHovered ? 0.88 : 0.72 }
+        return isHovered ? 0.54 : 0.22
+    }
+
+    private func profileSubtitleOpacity(profile: OnboardProfileSummary, isSelected: Bool, isHovered: Bool) -> Double {
+        if profile.isActive || isSelected { return 0.56 }
+        if profile.isAssigned { return isHovered ? 0.54 : 0.42 }
+        return isHovered ? 0.34 : 0.18
+    }
+
+    private func profileFillOpacity(profile: OnboardProfileSummary, isSelected: Bool, isHovered: Bool) -> Double {
+        if isSelected { return 0.12 }
+        if profile.isAssigned { return isHovered ? 0.065 : 0.040 }
+        return isHovered ? 0.034 : 0.010
+    }
+
+    private func profileStrokeOpacity(profile: OnboardProfileSummary, isSelected: Bool, isHovered: Bool) -> Double {
+        if isSelected { return 0.18 }
+        if profile.isAssigned { return isHovered ? 0.14 : 0.085 }
+        return isHovered ? 0.10 : 0.025
+    }
+
+    private func profileSlotColor(_ profileID: Int) -> Color {
+        switch profileID {
+        case 1: Color.white
+        case 2: Color(hex: 0xFF3B30)
+        case 3: Color(hex: 0x30D158)
+        case 4: Color(hex: 0x0A84FF)
+        case 5: Color(hex: 0x64D2FF)
+        default: Color.white.opacity(0.65)
         }
     }
 
     @ViewBuilder
-    private var headerControls: some View {
-        HStack(alignment: .center, spacing: 10) {
-            loadButton
-            storeButton
-            Button("Manage") {
-                showsManageProfiles = true
+    private var actionPanel: some View {
+        if let selectedProfileID, let selectedSummary {
+            VStack(alignment: .leading, spacing: 12) {
+                actionHeader(for: selectedSummary)
+
+                TextField(selectedSummary.isAssigned ? "Profile name" : "Name this profile", text: $renameName)
+                    .textFieldStyle(.roundedBorder)
+                    .onAppear {
+                        resetNameField(forProfileID: selectedProfileID)
+                    }
+                    .onChange(of: selectedProfileID) { _, newValue in
+                        resetNameField(forProfileID: newValue)
+                    }
+                    .onChange(of: editorStore.selectedOnboardProfileName) { _, newValue in
+                        resetNameFieldFromSelectedProfileName(newValue)
+                    }
+
+                if selectedSummary.isAssigned {
+                    assignedActions(selectedProfileID: selectedProfileID)
+                } else {
+                    copyFromPicker
+                    createAction(selectedProfileID: selectedProfileID)
+                }
+
+                if let statusLabel {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text(statusLabel)
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.64))
+                    }
+                }
+
+                if selectedSummary.profileID == 1 {
+                    Spacer(minLength: 4)
+                    baseProfileWarning
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: max(0, profileListHeight - 24), alignment: .topLeading)
+            .padding(.leading, connectorWidth + 10)
+            .padding(.trailing, 12)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, minHeight: profileListHeight, alignment: .topLeading)
+            .background(
+                ProfileActionPanelShape(
+                    arrowCenterY: selectedArrowCenterY,
+                    arrowWidth: connectorWidth,
+                    arrowHeight: 20,
+                    cornerRadius: actionPanelCornerRadius
+                )
+                    .fill(Color.white.opacity(0.06))
+                    .overlay(
+                        ProfileActionPanelShape(
+                            arrowCenterY: selectedArrowCenterY,
+                            arrowWidth: connectorWidth,
+                            arrowHeight: 20,
+                            cornerRadius: actionPanelCornerRadius
+                        )
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+            )
+        } else {
+            Color.clear
+                .frame(height: slotRowHeight)
+        }
+    }
+
+    private var baseProfileWarning: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Color(hex: 0xFFD166))
+                .frame(width: 14, height: 14)
+            Text("Synapse will overwrite this profile. Save settings to a stored slot if you want to keep them.")
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color(hex: 0xFFD166).opacity(0.92))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 7)
+                .fill(Color(hex: 0xFFD166).opacity(0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(Color(hex: 0xFFD166).opacity(0.22), lineWidth: 1)
+        )
+    }
+
+    private func actionHeader(for summary: OnboardProfileSummary) -> some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(summary.isAssigned ? summary.displayName : "None")
+                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .foregroundStyle(summary.isAssigned ? Color.white : Color.white.opacity(0.54))
+                    .lineLimit(1)
+                Text(summary.profileID == 1 ? "Base" : "Slot \(summary.profileID)")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.52))
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func assignedActions(selectedProfileID: Int) -> some View {
+        HStack(spacing: 8) {
+            Button {
+                Task { await editorStore.renameSelectedOnboardProfile(name: renameName) }
+            } label: {
+                Label("Rename", systemImage: "pencil")
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isBusy || selectedNameIsEmpty)
+
+            Button {
+                Task { await editorStore.deleteSelectedOnboardProfile() }
+            } label: {
+                Label("Delete", systemImage: "trash")
             }
             .buttonStyle(.bordered)
-            .disabled(isBusy)
+            .disabled(isBusy || selectedProfileID <= 1)
         }
+        .controlSize(.small)
     }
 
-    private var loadButton: some View {
-        Button {
-            showsLoadPopover.toggle()
-        } label: {
-            Text("Load")
-        }
-        .buttonStyle(.bordered)
-        .disabled(isBusy)
-        .popover(isPresented: $showsLoadPopover, arrowEdge: .bottom) {
-            LoadButtonProfilePopover(
-                editorStore: editorStore,
-                pickerLabel: { source in
-                    sourceDisplayLabel(for: source)
-                },
-                onSelect: { source in
-                    Task {
-                        await MainActor.run { showsLoadPopover = false }
-                        await editorStore.loadButtonProfileSourceIntoLive(source)
+    @ViewBuilder
+    private var copyFromPicker: some View {
+        if !copySourceSummaries.isEmpty {
+            HStack(spacing: 12) {
+                Text("Copy From")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.68))
+                Spacer(minLength: 8)
+                Picker(
+                    "",
+                    selection: Binding(
+                        get: { resolvedCopyFromProfileID },
+                        set: { copyFromProfileID = $0 }
+                    )
+                ) {
+                    ForEach(copySourceSummaries) { profile in
+                        Text(profile.displayName).tag(profile.profileID)
                     }
                 }
-            )
-        }
-        .onChange(of: showsLoadPopover) { _, isPresented in
-            if isPresented {
-                editorStore.refreshButtonProfilePresentation()
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 180, alignment: .trailing)
             }
         }
     }
 
-    private var storeButton: some View {
+    private func createAction(selectedProfileID: Int) -> some View {
         Button {
-            showsStorePopover.toggle()
+            let name = renameName
+            let copyFrom = copySourceSummaries.isEmpty ? nil : resolvedCopyFromProfileID
+            Task {
+                await editorStore.createOnboardProfile(
+                    name: name,
+                    targetProfileID: selectedProfileID,
+                    copyFromProfileID: copyFrom
+                )
+            }
         } label: {
-            Text("Store")
+            Label("Create", systemImage: "plus.circle.fill")
         }
-        .buttonStyle(.bordered)
-        .disabled(isBusy)
-        .popover(isPresented: $showsStorePopover, arrowEdge: .bottom) {
-            StoreButtonProfilePopover(
-                editorStore: editorStore,
-                currentMouseSlot: currentMouseSlot,
-                pickerLabel: { source in
-                    pickerLabel(for: source)
-                },
-                onSave: {
-                    showsStorePopover = false
-                    prepareSaveProfileSheet()
-                },
-                onWriteStoredSlot: { slot in
-                    showsStorePopover = false
-                    Task {
-                        await editorStore.writeCurrentButtonWorkspaceToMouseSlot(slot)
-                    }
-                },
-                onReplaceCurrentSlot: {
-                    guard let currentMouseSlot else { return }
-                    showsStorePopover = false
-                    Task {
-                        await editorStore.writeCurrentButtonWorkspaceToMouseSlot(currentMouseSlot)
-                    }
-                },
-                onRevertToSource: {
-                    showsStorePopover = false
-                    editorStore.revertButtonWorkspaceToSource()
-                }
-            )
+        .buttonStyle(.borderedProminent)
+        .controlSize(.small)
+        .disabled(isBusy || selectedNameIsEmpty)
+    }
+
+    private func resetNameField(forProfileID profileID: Int?) {
+        guard let profileID,
+              let summary = editorStore.onboardProfileSummaries.first(where: { $0.profileID == profileID }) else {
+            return
+        }
+        renameName = summary.isAssigned ? summary.displayName : ""
+        if !summary.isAssigned {
+            copyFromProfileID = resolvedCopyFromProfileID
         }
     }
 
-    private func prepareSaveProfileSheet() {
-        saveProfileName = suggestedProfileName()
-        showsSaveProfileSheet = true
-    }
-
-    private func suggestedProfileName() -> String {
-        if let currentSource {
-            return editorStore.buttonProfileSourceDisplayName(currentSource)
+    private func resetNameFieldFromSelectedProfileName(_ name: String) {
+        guard let selectedProfileID,
+              let summary = editorStore.onboardProfileSummaries.first(where: { $0.profileID == selectedProfileID }) else {
+            return
         }
-        return "Live Buttons"
-    }
-
-    private func pickerLabel(for source: ButtonProfileSource) -> String {
-        switch source {
-        case .openSnekProfile:
-            return sourceDisplayLabel(for: source)
-        case .mouseSlot(let slot):
-            return sourceDisplayLabel(for: .mouseSlot(slot))
+        renameName = summary.isAssigned ? name : ""
+        if !summary.isAssigned {
+            copyFromProfileID = resolvedCopyFromProfileID
         }
     }
+}
 
-    private func sourceDisplayLabel(for source: ButtonProfileSource) -> String {
-        let baseLabel: String
-        switch source {
-        case .openSnekProfile:
-            baseLabel = editorStore.buttonProfileSourceDisplayName(source)
-        case .mouseSlot(let slot):
-            baseLabel = slot == 1 ? "Current Buttons (Slot 1)" : "Stored Slot \(slot)"
-        }
+private struct ProfileActionPanelShape: Shape {
+    let arrowCenterY: CGFloat
+    let arrowWidth: CGFloat
+    let arrowHeight: CGFloat
+    let cornerRadius: CGFloat
 
-        if source == currentSource, editorStore.buttonWorkspaceHasUnsavedSourceChanges {
-            return baseLabel
-        }
+    func path(in rect: CGRect) -> Path {
+        let bodyMinX = rect.minX + max(0, arrowWidth)
+        let radius = min(max(0, cornerRadius), min((rect.maxX - bodyMinX) / 2, rect.height / 2))
+        let halfArrowHeight = max(0, arrowHeight / 2)
+        let minArrowCenterY = rect.minY + radius + halfArrowHeight
+        let maxArrowCenterY = rect.maxY - radius - halfArrowHeight
+        let resolvedArrowCenterY = min(max(rect.minY + arrowCenterY, minArrowCenterY), maxArrowCenterY)
 
-        guard let matchDescription = editorStore.buttonProfileSourceMatchDescription(source) else {
-            return baseLabel
-        }
-        return "\(baseLabel) (\(matchDescription))"
+        var path = Path()
+        path.move(to: CGPoint(x: bodyMinX + radius, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX - radius, y: rect.minY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX, y: rect.minY + radius),
+            control: CGPoint(x: rect.maxX, y: rect.minY)
+        )
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - radius))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX - radius, y: rect.maxY),
+            control: CGPoint(x: rect.maxX, y: rect.maxY)
+        )
+        path.addLine(to: CGPoint(x: bodyMinX + radius, y: rect.maxY))
+        path.addQuadCurve(
+            to: CGPoint(x: bodyMinX, y: rect.maxY - radius),
+            control: CGPoint(x: bodyMinX, y: rect.maxY)
+        )
+        path.addLine(to: CGPoint(x: bodyMinX, y: resolvedArrowCenterY + halfArrowHeight))
+        path.addLine(to: CGPoint(x: rect.minX, y: resolvedArrowCenterY))
+        path.addLine(to: CGPoint(x: bodyMinX, y: resolvedArrowCenterY - halfArrowHeight))
+        path.addLine(to: CGPoint(x: bodyMinX, y: rect.minY + radius))
+        path.addQuadCurve(
+            to: CGPoint(x: bodyMinX + radius, y: rect.minY),
+            control: CGPoint(x: bodyMinX, y: rect.minY)
+        )
+        path.closeSubpath()
+        return path
     }
-
-    private func loadedFromDisplayLabel(for source: ButtonProfileSource) -> String {
-        switch source {
-        case .openSnekProfile:
-            return editorStore.buttonProfileSourceDisplayName(source)
-        case .mouseSlot(let slot):
-            return slot == 1 ? "Current Buttons" : "Stored Slot \(slot)"
-        }
-    }
-
 }
 
 private struct LoadButtonProfilePopover: View {
@@ -2414,6 +2695,7 @@ private struct ButtonBindingRow: View {
     let row: ButtonBindingRowModel
 
     var body: some View {
+        _ = editorStore.usbButtonProfilesRevision
         let profileID = editorStore.selectedDeviceProfileID
         let dpiRange = DeviceProfiles.dpiRange(for: profileID)
         return VStack(alignment: .leading, spacing: 8) {

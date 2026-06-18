@@ -23,6 +23,22 @@ final class AppStateEditorController {
     private var buttonProfileLiveSourceByDeviceID: [String: ButtonProfileSource] = [:]
     private var buttonProfileLiveBindingsByDeviceID: [String: [Int: ButtonBindingDraft]] = [:]
     private var softwareActiveUSBButtonProfileOverrideByDeviceID: [String: Int] = [:]
+    private var onboardProfileInventoryByDeviceID: [String: OnboardProfileInventory] = [:]
+    private var projectedOnboardProfileMetadataByDeviceID: [String: [Int: OnboardProfileMetadata]] = [:]
+    private var currentOnboardProfileSnapshotByDeviceID: [String: OnboardProfileSnapshot] = [:]
+    private var onboardProfileLightingColorsByDeviceID: [String: [String: RGBColor]] = [:]
+    private var selectedOnboardProfileIDByDeviceID: [String: Int] = [:]
+    private var lastHardwareActiveOnboardProfileIDByDeviceID: [String: Int] = [:]
+    private var onboardProfileReloadRequiredDeviceIDs: Set<String> = []
+    private var onboardProfileRefreshInFlightDeviceIDs: Set<String> = []
+    private var selectedMouseSlotHydrationTasksByDeviceID: [String: Task<Void, Never>] = [:]
+    private var selectedMouseSlotHydrationTokensByDeviceID: [String: UUID] = [:]
+    private var activeOnboardProfileLoadTasksByDeviceID: [String: Task<Void, Never>] = [:]
+    private var activeOnboardProfileLoadTokensByDeviceID: [String: UUID] = [:]
+    private var activeOnboardProfileLoadOperationIDsByDeviceID: [String: UUID] = [:]
+    private var onboardProfileButtonHydrationTasksByDeviceID: [String: Task<Void, Never>] = [:]
+    private var onboardProfileButtonHydrationTokensByDeviceID: [String: UUID] = [:]
+    private var manualOnboardProfileActivationTargetByDeviceID: [String: Int] = [:]
     private var buttonWorkspaceEditRevision: UInt64 = 0
     private var isTearingDown = false
 
@@ -40,6 +56,20 @@ final class AppStateEditorController {
 
     func tearDown() {
         isTearingDown = true
+        selectedMouseSlotHydrationTasksByDeviceID.values.forEach { $0.cancel() }
+        selectedMouseSlotHydrationTasksByDeviceID.removeAll()
+        selectedMouseSlotHydrationTokensByDeviceID.removeAll()
+        activeOnboardProfileLoadTasksByDeviceID.values.forEach { $0.cancel() }
+        activeOnboardProfileLoadTasksByDeviceID.removeAll()
+        activeOnboardProfileLoadTokensByDeviceID.removeAll()
+        activeOnboardProfileLoadOperationIDsByDeviceID.values.forEach {
+            editorStore.endOnboardProfileLoad($0)
+        }
+        activeOnboardProfileLoadOperationIDsByDeviceID.removeAll()
+        onboardProfileButtonHydrationTasksByDeviceID.values.forEach { $0.cancel() }
+        onboardProfileButtonHydrationTasksByDeviceID.removeAll()
+        onboardProfileButtonHydrationTokensByDeviceID.removeAll()
+        manualOnboardProfileActivationTargetByDeviceID.removeAll()
     }
 
     func bind(applyController: AppStateApplyController) {
@@ -48,6 +78,23 @@ final class AppStateEditorController {
 
     private func bumpUSBButtonProfilesRevision() {
         editorStore.usbButtonProfilesRevision &+= 1
+    }
+
+    private func bumpOnboardProfilesRevision() {
+        editorStore.onboardProfilesRevision &+= 1
+    }
+
+    private func cancelActiveOnboardProfileLoad(deviceID: String) {
+        activeOnboardProfileLoadTasksByDeviceID.removeValue(forKey: deviceID)?.cancel()
+        activeOnboardProfileLoadTokensByDeviceID.removeValue(forKey: deviceID)
+        if let operationID = activeOnboardProfileLoadOperationIDsByDeviceID.removeValue(forKey: deviceID) {
+            editorStore.endOnboardProfileLoad(operationID)
+        }
+    }
+
+    private func cancelOnboardProfileButtonHydration(deviceID: String) {
+        onboardProfileButtonHydrationTasksByDeviceID.removeValue(forKey: deviceID)?.cancel()
+        onboardProfileButtonHydrationTokensByDeviceID.removeValue(forKey: deviceID)
     }
 
     private func bumpConnectBehaviorRevision() {
@@ -59,8 +106,24 @@ final class AppStateEditorController {
         return trimmed.isEmpty ? "Untitled Profile" : trimmed
     }
 
+    private func buttonBindingsDebugSummary(_ bindings: [Int: ButtonBindingDraft]) -> String {
+        guard !bindings.isEmpty else { return "<none>" }
+        return bindings.keys.sorted().map { slot in
+            guard let binding = bindings[slot] else { return "\(slot):<missing>" }
+            var suffix = ""
+            if binding.kind == .keyboardSimple {
+                suffix = ":key\(binding.hidKey):mods\(binding.hidModifiers)"
+            }
+            return "\(slot):\(binding.kind.rawValue)\(suffix)"
+        }.joined(separator: ",")
+    }
+
     private func forcesRestoreOpenSnekSettingsOnConnect(for device: MouseDevice) -> Bool {
         device.transport == .bluetooth && device.profile_id == .basiliskV3XHyperspeed
+    }
+
+    private func hasOnboardProfileStorage(_ device: MouseDevice) -> Bool {
+        device.onboard_profile_count > 1
     }
 
     private func buttonProfileSource(for device: MouseDevice) -> ButtonProfileSource {
@@ -220,6 +283,25 @@ final class AppStateEditorController {
         buttonProfileLiveBindingsByDeviceID = buttonProfileLiveBindingsByDeviceID.filter { key, _ in
             !removedDeviceIDs.contains(key)
         }
+        onboardProfileInventoryByDeviceID = onboardProfileInventoryByDeviceID.filter { key, _ in
+            !removedDeviceIDs.contains(key)
+        }
+        projectedOnboardProfileMetadataByDeviceID = projectedOnboardProfileMetadataByDeviceID.filter { key, _ in
+            !removedDeviceIDs.contains(key)
+        }
+        currentOnboardProfileSnapshotByDeviceID = currentOnboardProfileSnapshotByDeviceID.filter { key, _ in
+            !removedDeviceIDs.contains(key)
+        }
+        onboardProfileLightingColorsByDeviceID = onboardProfileLightingColorsByDeviceID.filter { key, _ in
+            !removedDeviceIDs.contains(key)
+        }
+        selectedOnboardProfileIDByDeviceID = selectedOnboardProfileIDByDeviceID.filter { key, _ in
+            !removedDeviceIDs.contains(key)
+        }
+        lastHardwareActiveOnboardProfileIDByDeviceID = lastHardwareActiveOnboardProfileIDByDeviceID.filter { key, _ in
+            !removedDeviceIDs.contains(key)
+        }
+        onboardProfileReloadRequiredDeviceIDs.subtract(removedDeviceIDs)
         buttonBindingsCacheByHydrationKey = buttonBindingsCacheByHydrationKey.filter { key, _ in
             guard let hydratedDeviceID = key.split(separator: "#").first else { return true }
             return !removedDeviceIDs.contains(String(hydratedDeviceID))
@@ -233,12 +315,46 @@ final class AppStateEditorController {
             return !removedDeviceIDs.contains(String(hydratedDeviceID))
         }
         buttonProfileSummaryHydrationInFlightDeviceIDs.subtract(removedDeviceIDs)
+        for deviceID in removedDeviceIDs {
+            selectedMouseSlotHydrationTasksByDeviceID.removeValue(forKey: deviceID)?.cancel()
+            selectedMouseSlotHydrationTokensByDeviceID.removeValue(forKey: deviceID)
+            cancelActiveOnboardProfileLoad(deviceID: deviceID)
+            cancelOnboardProfileButtonHydration(deviceID: deviceID)
+        }
         if let hydratedButtonBindingsKey,
            let hydratedDeviceID = hydratedButtonBindingsKey.split(separator: "#").first,
            removedDeviceIDs.contains(String(hydratedDeviceID)) {
             self.hydratedButtonBindingsKey = nil
         }
         bumpUSBButtonProfilesRevision()
+        bumpOnboardProfilesRevision()
+    }
+
+    func invalidateOnboardProfileState(for deviceIDs: Set<String>) {
+        guard !deviceIDs.isEmpty else { return }
+        onboardProfileInventoryByDeviceID = onboardProfileInventoryByDeviceID.filter { key, _ in
+            !deviceIDs.contains(key)
+        }
+        projectedOnboardProfileMetadataByDeviceID = projectedOnboardProfileMetadataByDeviceID.filter { key, _ in
+            !deviceIDs.contains(key)
+        }
+        currentOnboardProfileSnapshotByDeviceID = currentOnboardProfileSnapshotByDeviceID.filter { key, _ in
+            !deviceIDs.contains(key)
+        }
+        onboardProfileLightingColorsByDeviceID = onboardProfileLightingColorsByDeviceID.filter { key, _ in
+            !deviceIDs.contains(key)
+        }
+        selectedOnboardProfileIDByDeviceID = selectedOnboardProfileIDByDeviceID.filter { key, _ in
+            !deviceIDs.contains(key)
+        }
+        lastHardwareActiveOnboardProfileIDByDeviceID = lastHardwareActiveOnboardProfileIDByDeviceID.filter { key, _ in
+            !deviceIDs.contains(key)
+        }
+        onboardProfileReloadRequiredDeviceIDs.formUnion(deviceIDs)
+        for deviceID in deviceIDs {
+            cancelOnboardProfileButtonHydration(deviceID: deviceID)
+        }
+        bumpOnboardProfilesRevision()
     }
 
     func telemetryWarning(for state: MouseState, device: MouseDevice) -> String? {
@@ -256,16 +372,20 @@ final class AppStateEditorController {
         if forcesRestoreOpenSnekSettingsOnConnect(for: device) {
             return .restoreOpenSnekSettings
         }
+        if hasOnboardProfileStorage(device) {
+            return .useMouseSettings
+        }
         return preferenceStore.loadConnectBehavior(device: device) ?? .useMouseSettings
     }
 
     func showsConnectBehaviorCard(for device: MouseDevice) -> Bool {
-        !forcesRestoreOpenSnekSettingsOnConnect(for: device)
+        !forcesRestoreOpenSnekSettingsOnConnect(for: device) && !hasOnboardProfileStorage(device)
     }
 
     func updateConnectBehavior(_ behavior: DeviceConnectBehavior) {
         guard let selectedDevice = deviceStore.selectedDevice else { return }
         guard !forcesRestoreOpenSnekSettingsOnConnect(for: selectedDevice) else { return }
+        guard !hasOnboardProfileStorage(selectedDevice) else { return }
         preferenceStore.persistConnectBehavior(behavior, device: selectedDevice)
         bumpConnectBehaviorRevision()
     }
@@ -388,7 +508,14 @@ final class AppStateEditorController {
         isHydrating = true
         defer { isHydrating = false }
 
-        if let pairs = state.dpi_stages.pairs, !pairs.isEmpty {
+        handleActiveOnboardProfilePresentation(from: state)
+
+        let activeOnboardSnapshot = currentActiveOnboardProfileSnapshot(for: state)
+        if let snapshot = activeOnboardSnapshot,
+           let dpi = snapshot.dpi,
+           let device = deviceStore.selectedDevice {
+            hydrateEditableDPI(from: dpi, device: device, liveDPI: state.dpi)
+        } else if let pairs = state.dpi_stages.pairs, !pairs.isEmpty {
             editorStore.editableStageCount = max(1, min(5, pairs.count))
             let profileID = deviceStore.selectedDevice?.profile_id
             for index in 0..<editorStore.editableStagePairs.count {
@@ -414,11 +541,13 @@ final class AppStateEditorController {
             editorStore.editableStagePairs[0] = DpiPair(x: clampedX, y: clampedY)
         }
 
-        if let active = state.dpi_stages.active_stage {
-            let maxStage = max(1, editorStore.editableStageCount)
-            editorStore.editableActiveStage = max(1, min(maxStage, active + 1))
-        } else {
-            editorStore.editableActiveStage = 1
+        if activeOnboardSnapshot?.dpi == nil {
+            if let active = state.dpi_stages.active_stage {
+                let maxStage = max(1, editorStore.editableStageCount)
+                editorStore.editableActiveStage = max(1, min(maxStage, active + 1))
+            } else {
+                editorStore.editableActiveStage = 1
+            }
         }
         editorStore.normalizeExpandedXYStages()
 
@@ -438,20 +567,23 @@ final class AppStateEditorController {
             editorStore.editableLowBatteryThresholdRaw = max(0x0C, min(0x3F, lowBatteryRaw))
         }
 
-        if let scrollMode = state.scroll_mode {
-            editorStore.editableScrollMode = max(0, min(1, scrollMode))
-        }
-
-        if let scrollAcceleration = state.scroll_acceleration {
-            editorStore.editableScrollAcceleration = scrollAcceleration
-        }
-
-        if let scrollSmartReel = state.scroll_smart_reel {
-            editorStore.editableScrollSmartReel = scrollSmartReel
-        }
-
-        if let led = state.led_value {
-            editorStore.editableLedBrightness = led
+        if let snapshot = activeOnboardSnapshot,
+           let device = deviceStore.selectedDevice {
+            hydrateEditableLighting(from: snapshot, device: device)
+            hydrateEditableScroll(from: snapshot)
+        } else {
+            if let scrollMode = state.scroll_mode {
+                editorStore.editableScrollMode = max(0, min(1, scrollMode))
+            }
+            if let scrollAcceleration = state.scroll_acceleration {
+                editorStore.editableScrollAcceleration = scrollAcceleration
+            }
+            if let scrollSmartReel = state.scroll_smart_reel {
+                editorStore.editableScrollSmartReel = scrollSmartReel
+            }
+            if let led = state.led_value {
+                editorStore.editableLedBrightness = led
+            }
         }
 
         syncUSBButtonProfileSelection(from: state)
@@ -462,7 +594,13 @@ final class AppStateEditorController {
         isHydrating = true
         defer { isHydrating = false }
 
-        if let active = state.dpi_stages.active_stage {
+        handleActiveOnboardProfilePresentation(from: state)
+
+        if let snapshot = currentActiveOnboardProfileSnapshot(for: state),
+           let dpi = snapshot.dpi,
+           let device = deviceStore.selectedDevice {
+            hydrateEditableDPI(from: dpi, device: device, liveDPI: state.dpi)
+        } else if let active = state.dpi_stages.active_stage {
             let maxStage = max(1, editorStore.editableStageCount)
             editorStore.editableActiveStage = max(1, min(maxStage, active + 1))
         } else {
@@ -637,6 +775,7 @@ final class AppStateEditorController {
 
     func hydrateButtonBindingsIfNeeded(device: MouseDevice) async {
         guard !isTearingDown else { return }
+        guard !(device.transport == .bluetooth && supportsOnboardProfileCRUD(device: device)) else { return }
         let source = buttonProfileSource(for: device)
         if case .openSnekProfile = source {
             let bindings = currentSourceBindings(for: device)
@@ -665,6 +804,10 @@ final class AppStateEditorController {
             buttonBindingsReadbackInFlightKeys.insert(hydrationKey)
             bumpUSBButtonProfilesRevision()
             await refreshUSBButtonBindingsFromDevice(device: device, hydrationKey: hydrationKey, profile: profile)
+        }
+        guard buttonProfileSource(for: device) == source,
+              editorStore.editableUSBButtonProfile == profile else {
+            return
         }
         let cached = cachedButtonBindings(device: device, profile: profile)
         if device.transport != .usb || buttonBindingsCacheByHydrationKey[hydrationKey] != nil {
@@ -726,6 +869,7 @@ final class AppStateEditorController {
             )
             return
         }
+        guard !Task.isCancelled else { return }
 
         let selectedDeviceMatches = deviceStore.selectedDevice?.id == device.id
         let isCurrentEditableProfile = selectedDeviceMatches && hydratedButtonBindingsKey == hydrationKey
@@ -794,7 +938,7 @@ final class AppStateEditorController {
     }
 
     func loadUSBButtonBindingsFromDevice(device: MouseDevice, profile: Int) async -> [Int: ButtonBindingDraft]? {
-        guard !isTearingDown else { return nil }
+        guard !isTearingDown, !Task.isCancelled else { return nil }
         let slots = (device.button_layout?.visibleSlots ?? buttonSlots)
             .map(\.slot)
             .filter { $0 != 6 }
@@ -804,17 +948,18 @@ final class AppStateEditorController {
         let shouldReadDirect = !editorStore.supportsMultipleOnboardProfiles || persistentProfile == liveUSBButtonProfile(for: device)
 
         for slot in slots {
+            guard !Task.isCancelled else { return nil }
             do {
                 let persistentBlock = try await environment.backend.debugUSBReadButtonBinding(
                     device: device,
                     slot: slot,
                     profile: persistentProfile
                 )
-                guard !isTearingDown else { return nil }
+                guard !isTearingDown, !Task.isCancelled else { return nil }
                 let directBlock = shouldReadDirect
                     ? try await environment.backend.debugUSBReadButtonBinding(device: device, slot: slot, profile: 0x00)
                     : nil
-                guard !isTearingDown else { return nil }
+                guard !isTearingDown, !Task.isCancelled else { return nil }
                 let block = directBlock ?? persistentBlock
                 if let block {
                     readAnyBlock = true
@@ -880,6 +1025,7 @@ final class AppStateEditorController {
 
     func savePersistedButtonBindings(device: MouseDevice, bindings: [Int: ButtonBindingDraft], profile: Int) {
         guard device.transport != .usb else { return }
+        guard !supportsOnboardProfileCRUD(device: device) else { return }
         preferenceStore.savePersistedButtonBindings(device: device, bindings: bindings, profile: profile)
     }
 
@@ -1051,6 +1197,1123 @@ final class AppStateEditorController {
         if let device = deviceStore.selectedDevice {
             primeUSBButtonProfileSummariesIfNeeded(device: device)
         }
+        bumpUSBButtonProfilesRevision()
+    }
+
+    private func readLatestOnboardProfileSnapshot(
+        device: MouseDevice,
+        profileID: Int,
+        storeForEditing: Bool = true
+    ) async throws -> OnboardProfileSnapshot {
+        let snapshot = try await environment.backend.readOnboardProfile(device: device, profileID: profileID)
+        if storeForEditing {
+            storeCurrentOnboardProfileSnapshot(snapshot, device: device, source: "readOnboardProfile")
+        }
+        return snapshot
+    }
+
+    private func readLatestOnboardProfileCoreSnapshot(
+        device: MouseDevice,
+        profileID: Int
+    ) async throws -> OnboardProfileSnapshot {
+        try await environment.backend.readOnboardProfileCore(device: device, profileID: profileID)
+    }
+
+    private func updateCachedOnboardInventoryActiveProfile(deviceID: String, activeProfileID: Int) {
+        guard let inventory = onboardProfileInventoryByDeviceID[deviceID] else { return }
+        let profiles = synthesizedOnboardProfileSummaries(from: inventory).map { summary in
+            OnboardProfileSummary(
+                profileID: summary.profileID,
+                metadata: summary.metadata,
+                isAssigned: summary.isAssigned,
+                isActive: summary.profileID == activeProfileID,
+                isBaseProfile: summary.isBaseProfile
+            )
+        }
+        onboardProfileInventoryByDeviceID[deviceID] = OnboardProfileInventory(
+            activeProfileID: activeProfileID,
+            maxProfileID: inventory.maxProfileID,
+            assignedProfileIDs: inventory.assignedProfileIDs,
+            profiles: profiles
+        )
+    }
+
+    private func storeSelectedDeviceState(_ state: MouseState, for device: MouseDevice) -> MouseState {
+        let merged = state.merged(with: deviceStore.state)
+        guard deviceStore.selectedDeviceID == device.id else { return merged }
+        deviceStore.state = merged
+        deviceStore.lastUpdated = Date()
+        return merged
+    }
+
+    private func storeActiveOnboardProfileState(
+        _ state: MouseState,
+        for device: MouseDevice,
+        fallbackActiveProfileID: Int
+    ) -> Int {
+        let merged = storeSelectedDeviceState(state, for: device)
+        let active = merged.active_onboard_profile ?? fallbackActiveProfileID
+        updateCachedOnboardInventoryActiveProfile(deviceID: device.id, activeProfileID: active)
+        lastHardwareActiveOnboardProfileIDByDeviceID[device.id] = active
+        return active
+    }
+
+    private func isOnboardProfileActive(deviceID: String, profileID: Int) -> Bool {
+        if let inventory = onboardProfileInventoryByDeviceID[deviceID] {
+            return inventory.activeProfileID == profileID || inventory.summary(for: profileID)?.isActive == true
+        }
+        return deviceStore.state?.active_onboard_profile == profileID
+    }
+
+    private func nextAssignedOnboardProfile(afterDeleting profileID: Int, in inventory: OnboardProfileInventory) -> Int? {
+        let assigned = inventory.assignedProfileIDs.filter { $0 != profileID }.sorted()
+        return assigned.first(where: { $0 > profileID }) ?? assigned.first
+    }
+
+    private func handleActiveOnboardProfilePresentation(from state: MouseState) {
+        guard let device = deviceStore.selectedDevice,
+              supportsOnboardProfileCRUD(device: device),
+              let active = state.active_onboard_profile else {
+            return
+        }
+        let previousActive = lastHardwareActiveOnboardProfileIDByDeviceID[device.id]
+        let selected = selectedOnboardProfileIDByDeviceID[device.id]
+        let activeChanged = previousActive != nil && active != previousActive
+        let reloadRequired = onboardProfileReloadRequiredDeviceIDs.contains(device.id)
+        let shouldFollowActive = selected == nil || selected == previousActive || activeChanged
+        if shouldFollowActive {
+            selectedOnboardProfileIDByDeviceID[device.id] = active
+        }
+        lastHardwareActiveOnboardProfileIDByDeviceID[device.id] = active
+        updateCachedOnboardInventoryActiveProfile(deviceID: device.id, activeProfileID: active)
+        bumpOnboardProfilesRevision()
+        if manualOnboardProfileActivationTargetByDeviceID[device.id] == active {
+            AppLog.debug(
+                "AppState",
+                "active onboard profile presentation skipped duplicate manual load device=\(device.id) active=\(active)"
+            )
+            return
+        }
+        guard environment.launchRole == .app else {
+            AppLog.debug(
+                "AppState",
+                "active onboard profile presentation skipped service profile load device=\(device.id) active=\(active)"
+            )
+            return
+        }
+        guard shouldFollowActive, activeChanged || reloadRequired else { return }
+        onboardProfileReloadRequiredDeviceIDs.remove(device.id)
+
+        applyController.cancelPendingLocalEditsForSelectionChange()
+        scheduleActiveOnboardProfileLoad(device: device, profileID: active)
+    }
+
+    private func scheduleActiveOnboardProfileLoad(device: MouseDevice, profileID: Int) {
+        cancelActiveOnboardProfileLoad(deviceID: device.id)
+        let token = UUID()
+        activeOnboardProfileLoadTokensByDeviceID[device.id] = token
+        activeOnboardProfileLoadTasksByDeviceID[device.id] = Task(priority: .userInitiated) { @MainActor [weak self, editorStore] in
+            defer {
+                if let self, self.activeOnboardProfileLoadTokensByDeviceID[device.id] == token {
+                    self.activeOnboardProfileLoadTasksByDeviceID.removeValue(forKey: device.id)
+                    self.activeOnboardProfileLoadTokensByDeviceID.removeValue(forKey: device.id)
+                }
+            }
+            guard let self, !Task.isCancelled else { return }
+            let operationID = editorStore.beginOnboardProfileLoad(statusText: "Loading profile...")
+            self.activeOnboardProfileLoadOperationIDsByDeviceID[device.id] = operationID
+            defer {
+                editorStore.endOnboardProfileLoad(operationID)
+                if self.activeOnboardProfileLoadOperationIDsByDeviceID[device.id] == operationID {
+                    self.activeOnboardProfileLoadOperationIDsByDeviceID.removeValue(forKey: device.id)
+                }
+            }
+            await self.selectOnboardProfile(profileID)
+        }
+    }
+
+    private func synthesizedOnboardProfileSummaries(from inventory: OnboardProfileInventory) -> [OnboardProfileSummary] {
+        (1...inventory.maxProfileID).map { profileID in
+            if let summary = inventory.summary(for: profileID) {
+                return summary
+            }
+            return OnboardProfileSummary(
+                profileID: profileID,
+                metadata: nil,
+                isAssigned: profileID == 1,
+                isActive: profileID == inventory.activeProfileID,
+                isBaseProfile: profileID == 1
+            )
+        }
+    }
+
+    private func storeCurrentOnboardProfileSnapshot(
+        _ snapshot: OnboardProfileSnapshot,
+        device: MouseDevice,
+        source: String = "snapshot",
+        projectMetadataForRefresh: Bool = false
+    ) {
+        let priorName = onboardProfileInventoryByDeviceID[device.id]?
+            .summary(for: snapshot.profileID)?
+            .displayName ?? "<missing>"
+        let storedSnapshot: OnboardProfileSnapshot
+        if snapshot.isMetadataOnly,
+           let current = currentOnboardProfileSnapshotByDeviceID[device.id],
+           current.profileID == snapshot.profileID,
+           !current.isMetadataOnly {
+            storedSnapshot = current.replacingMetadata(snapshot.metadata)
+        } else {
+            storedSnapshot = snapshot
+        }
+        currentOnboardProfileSnapshotByDeviceID[device.id] = storedSnapshot
+        if projectMetadataForRefresh {
+            var projectedMetadata = projectedOnboardProfileMetadataByDeviceID[device.id] ?? [:]
+            projectedMetadata[storedSnapshot.profileID] = storedSnapshot.metadata
+            projectedOnboardProfileMetadataByDeviceID[device.id] = projectedMetadata
+        } else if projectedOnboardProfileMetadataByDeviceID[device.id]?[storedSnapshot.profileID] == storedSnapshot.metadata {
+            projectedOnboardProfileMetadataByDeviceID[device.id]?.removeValue(forKey: storedSnapshot.profileID)
+            if projectedOnboardProfileMetadataByDeviceID[device.id]?.isEmpty == true {
+                projectedOnboardProfileMetadataByDeviceID.removeValue(forKey: device.id)
+            }
+            AppLog.debug(
+                "AppState",
+                "onboard profile metadata projection confirmed by snapshot source=\(source) device=\(device.id) profile=\(storedSnapshot.profileID) name=\"\(storedSnapshot.metadata.name)\""
+            )
+        }
+        let inventory = onboardProfileInventoryByDeviceID[device.id] ?? synthesizedOnboardProfileInventory(
+            device: device,
+            including: storedSnapshot
+        )
+        var summaries = synthesizedOnboardProfileSummaries(from: inventory).filter { $0.profileID != storedSnapshot.profileID }
+        summaries.append(OnboardProfileSummary(
+            profileID: storedSnapshot.profileID,
+            metadata: storedSnapshot.metadata,
+            isAssigned: true,
+            isActive: storedSnapshot.profileID == inventory.activeProfileID,
+            isBaseProfile: storedSnapshot.profileID == 1
+        ))
+        let assigned = Set(inventory.assignedProfileIDs + [storedSnapshot.profileID])
+        let updatedInventory = OnboardProfileInventory(
+            activeProfileID: inventory.activeProfileID,
+            maxProfileID: inventory.maxProfileID,
+            assignedProfileIDs: Array(assigned).sorted(),
+            profiles: summaries
+        )
+        onboardProfileInventoryByDeviceID[device.id] = inventoryApplyingProjectedOnboardMetadata(
+            updatedInventory,
+            deviceID: device.id,
+            source: source,
+            confirmMatchingProjections: false
+        )
+        let storedName = onboardProfileInventoryByDeviceID[device.id]?
+            .summary(for: storedSnapshot.profileID)?
+            .displayName ?? "<missing>"
+        AppLog.debug(
+            "AppState",
+            "onboard profile snapshot stored source=\(source) device=\(device.id) profile=\(storedSnapshot.profileID) priorName=\"\(priorName)\" snapshotName=\"\(storedSnapshot.metadata.name)\" storedName=\"\(storedName)\" projected=\(projectMetadataForRefresh)"
+                + " dpiCount=\(storedSnapshot.dpi?.stageCount ?? 0) dpiValues=\(storedSnapshot.dpi?.values.map(String.init).joined(separator: ",") ?? "<none>")"
+        )
+    }
+
+    private func inventoryApplyingProjectedOnboardMetadata(
+        _ inventory: OnboardProfileInventory,
+        deviceID: String,
+        source: String,
+        confirmMatchingProjections: Bool
+    ) -> OnboardProfileInventory {
+        guard let projections = projectedOnboardProfileMetadataByDeviceID[deviceID], !projections.isEmpty else {
+            return inventory
+        }
+
+        var remainingProjections = projections
+        let assignedProfileIDs = Set(inventory.assignedProfileIDs)
+        let summaries = (1...inventory.maxProfileID).map { profileID -> OnboardProfileSummary in
+            let existing = inventory.summary(for: profileID)
+            let baseSummary = existing ?? OnboardProfileSummary(
+                profileID: profileID,
+                metadata: nil,
+                isAssigned: assignedProfileIDs.contains(profileID),
+                isActive: profileID == inventory.activeProfileID,
+                isBaseProfile: profileID == 1
+            )
+            guard let projected = projections[profileID] else {
+                return baseSummary
+            }
+
+            guard baseSummary.isAssigned else {
+                remainingProjections.removeValue(forKey: profileID)
+                AppLog.debug(
+                    "AppState",
+                    "onboard profile metadata projection dropped for unassigned profile source=\(source) device=\(deviceID) profile=\(profileID)"
+                )
+                return baseSummary
+            }
+
+            if baseSummary.isAssigned, baseSummary.metadata == projected {
+                if !confirmMatchingProjections {
+                    return baseSummary
+                }
+                remainingProjections.removeValue(forKey: profileID)
+                AppLog.debug(
+                    "AppState",
+                    "onboard profile metadata projection confirmed by inventory source=\(source) device=\(deviceID) profile=\(profileID) name=\"\(projected.name)\""
+                )
+                return baseSummary
+            }
+
+            AppLog.warning(
+                "AppState",
+                "onboard profile inventory returned stale metadata; preserving projected name source=\(source) device=\(deviceID) profile=\(profileID) incomingAssigned=\(baseSummary.isAssigned) incomingName=\"\(baseSummary.metadata?.name ?? "<nil>")\" projectedName=\"\(projected.name)\""
+            )
+            return OnboardProfileSummary(
+                profileID: profileID,
+                metadata: projected,
+                isAssigned: true,
+                isActive: profileID == inventory.activeProfileID,
+                isBaseProfile: profileID == 1
+            )
+        }
+
+        if remainingProjections.isEmpty {
+            projectedOnboardProfileMetadataByDeviceID.removeValue(forKey: deviceID)
+        } else {
+            projectedOnboardProfileMetadataByDeviceID[deviceID] = remainingProjections
+        }
+
+        return OnboardProfileInventory(
+            activeProfileID: inventory.activeProfileID,
+            maxProfileID: inventory.maxProfileID,
+            assignedProfileIDs: assignedProfileIDs.sorted(),
+            profiles: summaries
+        )
+    }
+
+    private func inventoryPreservingKnownOnboardMetadata(
+        _ inventory: OnboardProfileInventory,
+        deviceID: String
+    ) -> OnboardProfileInventory {
+        let existing = onboardProfileInventoryByDeviceID[deviceID]
+        let assignedProfileIDs = Set(inventory.assignedProfileIDs)
+        let profiles = (1...inventory.maxProfileID).map { profileID -> OnboardProfileSummary in
+            let incoming = inventory.summary(for: profileID)
+            let isAssigned = assignedProfileIDs.contains(profileID)
+            let metadata = isAssigned ? incoming?.metadata ?? existing?.summary(for: profileID)?.metadata : nil
+            return OnboardProfileSummary(
+                profileID: profileID,
+                metadata: metadata,
+                isAssigned: isAssigned,
+                isActive: profileID == inventory.activeProfileID,
+                isBaseProfile: profileID == 1
+            )
+        }
+        return OnboardProfileInventory(
+            activeProfileID: inventory.activeProfileID,
+            maxProfileID: inventory.maxProfileID,
+            assignedProfileIDs: inventory.assignedProfileIDs,
+            profiles: profiles
+        )
+    }
+
+    private func synthesizedOnboardProfileInventory(
+        device: MouseDevice,
+        including snapshot: OnboardProfileSnapshot
+    ) -> OnboardProfileInventory {
+        let maxProfileID = max(
+            snapshot.profileID,
+            max(device.onboard_profile_count, deviceStore.state?.onboard_profile_count ?? 1)
+        )
+        let active = max(1, min(maxProfileID, deviceStore.state?.active_onboard_profile ?? snapshot.profileID))
+        let assigned = Set([1, max(1, snapshot.profileID)])
+        var profiles: [OnboardProfileSummary] = []
+        if snapshot.profileID != 1 {
+            profiles.append(OnboardProfileSummary(
+                profileID: 1,
+                metadata: nil,
+                isAssigned: true,
+                isActive: active == 1,
+                isBaseProfile: true
+            ))
+        }
+        profiles.append(OnboardProfileSummary(
+            profileID: snapshot.profileID,
+            metadata: snapshot.metadata,
+            isAssigned: true,
+            isActive: snapshot.profileID == active,
+            isBaseProfile: snapshot.profileID == 1
+        ))
+        return OnboardProfileInventory(
+            activeProfileID: active,
+            maxProfileID: maxProfileID,
+            assignedProfileIDs: Array(assigned).sorted(),
+            profiles: profiles
+        )
+    }
+
+    private func resolvedDeviceProfile(for device: MouseDevice) -> DeviceProfile? {
+        DeviceProfiles.resolve(
+            vendorID: device.vendor_id,
+            productID: device.product_id,
+            transport: device.transport
+        )
+    }
+
+    private func supportsOnboardProfileCRUD(device: MouseDevice) -> Bool {
+        resolvedDeviceProfile(for: device)?.supportsMappedOnboardProfileCRUD == true
+    }
+
+    private func shouldHydrateSelectedProfileDuringRefresh(device: MouseDevice) -> Bool {
+        supportsOnboardProfileCRUD(device: device)
+    }
+
+    private func lightingLEDIDs(for device: MouseDevice) -> [UInt8] {
+        resolvedDeviceProfile(for: device)?.allUSBLightingLEDIDs ?? [0x01]
+    }
+
+    func onboardProfileSummaries() -> [OnboardProfileSummary] {
+        guard let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return [] }
+        if let inventory = onboardProfileInventoryByDeviceID[device.id] {
+            return synthesizedOnboardProfileSummaries(from: inventory)
+        }
+        return []
+    }
+
+    func selectedOnboardProfileID() -> Int? {
+        guard let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return nil }
+        return selectedOnboardProfileIDByDeviceID[device.id] ?? deviceStore.state?.active_onboard_profile
+    }
+
+    func selectedOnboardProfileName() -> String {
+        guard let selected = selectedOnboardProfileID() else {
+            AppLog.debug("AppState", "selected onboard profile name fallback: no selected profile")
+            return "Onboard Profile"
+        }
+        let summaries = onboardProfileSummaries()
+        guard let summary = summaries.first(where: { $0.profileID == selected }) else {
+            AppLog.debug(
+                "AppState",
+                "selected onboard profile name fallback: missing summary selected=\(selected) visible=\(summaries.map(\.profileID).map(String.init).joined(separator: ","))"
+            )
+            return "Onboard Profile"
+        }
+        return summary.isAssigned ? summary.displayName : "None"
+    }
+
+    func selectedOnboardProfileIsActive() -> Bool {
+        guard let device = deviceStore.selectedDevice,
+              let selected = selectedOnboardProfileID() else { return false }
+        return isOnboardProfileActive(deviceID: device.id, profileID: selected)
+    }
+
+    func refreshOnboardProfiles(hydrateSelectedProfile: Bool = true) async {
+        guard !isTearingDown, let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return }
+        guard onboardProfileRefreshInFlightDeviceIDs.insert(device.id).inserted else {
+            AppLog.debug("AppState", "refresh onboard profiles coalesced device=\(device.id)")
+            return
+        }
+        defer {
+            onboardProfileRefreshInFlightDeviceIDs.remove(device.id)
+        }
+        do {
+            AppLog.debug(
+                "AppState",
+                "refresh onboard profiles start device=\(device.id) selected=\(selectedOnboardProfileIDByDeviceID[device.id].map(String.init) ?? "<nil>") pendingMetadataProfiles=\((projectedOnboardProfileMetadataByDeviceID[device.id]?.keys.sorted() ?? []).map(String.init).joined(separator: ","))"
+            )
+            let inventory = try await environment.backend.listOnboardProfiles(device: device)
+            let priorNames = onboardProfileInventoryByDeviceID[device.id]?.profiles.reduce(into: [Int: String]()) { partialResult, summary in
+                partialResult[summary.profileID] = summary.displayName
+            } ?? [:]
+            let projectedInventory = inventoryApplyingProjectedOnboardMetadata(
+                inventoryPreservingKnownOnboardMetadata(inventory, deviceID: device.id),
+                deviceID: device.id,
+                source: "refreshOnboardProfiles",
+                confirmMatchingProjections: true
+            )
+            onboardProfileInventoryByDeviceID[device.id] = projectedInventory
+            lastHardwareActiveOnboardProfileIDByDeviceID[device.id] = inventory.activeProfileID
+            let selected = selectedOnboardProfileIDByDeviceID[device.id]
+            if selected == nil || !projectedInventory.assignedProfileIDs.contains(selected ?? -1) {
+                selectedOnboardProfileIDByDeviceID[device.id] = projectedInventory.activeProfileID
+            }
+
+            let selectedAfterRefresh = selectedOnboardProfileIDByDeviceID[device.id] ?? projectedInventory.activeProfileID
+            if hydrateSelectedProfile,
+               shouldHydrateSelectedProfileDuringRefresh(device: device),
+               selectedAfterRefresh == projectedInventory.activeProfileID,
+               projectedInventory.assignedProfileIDs.contains(selectedAfterRefresh),
+               currentOnboardProfileSnapshotByDeviceID[device.id]?.profileID != selectedAfterRefresh {
+                let snapshot = try await readLatestOnboardProfileSnapshot(device: device, profileID: selectedAfterRefresh)
+                hydrateEditable(from: snapshot, device: device)
+            }
+
+            let visibleInventory = onboardProfileInventoryByDeviceID[device.id] ?? projectedInventory
+            let currentNames = visibleInventory.profiles.reduce(into: [Int: String]()) { partialResult, summary in
+                partialResult[summary.profileID] = summary.displayName
+            }
+            let changedNames = currentNames
+                .keys
+                .sorted()
+                .compactMap { profileID -> String? in
+                    guard priorNames[profileID] != currentNames[profileID] else { return nil }
+                    return "\(profileID):\"\(priorNames[profileID] ?? "<missing>")\"->\"\(currentNames[profileID] ?? "<missing>")\""
+                }
+                .joined(separator: ",")
+            AppLog.debug(
+                "AppState",
+                "refresh onboard profiles ok device=\(device.id) active=\(visibleInventory.activeProfileID) assigned=\(visibleInventory.assignedProfileIDs.map(String.init).joined(separator: ",")) selected=\(selectedOnboardProfileIDByDeviceID[device.id].map(String.init) ?? "<nil>") changedNames=\(changedNames.isEmpty ? "<none>" : changedNames)"
+            )
+            editorStore.onboardProfileRefreshErrorMessage = nil
+            bumpOnboardProfilesRevision()
+        } catch {
+            AppLog.error("AppState", "refresh onboard profiles failed device=\(device.id): \(error.localizedDescription)")
+            editorStore.onboardProfileRefreshErrorMessage = "Failed to refresh onboard profiles: \(error.localizedDescription)"
+        }
+    }
+
+    func selectOnboardProfile(_ profileID: Int) async {
+        guard !isTearingDown, let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return }
+        applyController.cancelPendingLocalEditsForSelectionChange()
+        cancelSelectedMouseSlotHydration(deviceID: device.id)
+        cancelOnboardProfileButtonHydration(deviceID: device.id)
+        let start = Date()
+        do {
+            AppLog.debug("AppState", "select onboard profile start device=\(device.id) profile=\(profileID)")
+            if onboardProfileInventoryByDeviceID[device.id] == nil {
+                await refreshOnboardProfiles(hydrateSelectedProfile: false)
+            }
+            var inventory = onboardProfileInventoryByDeviceID[device.id]
+            if inventory?.assignedProfileIDs.contains(profileID) != true,
+               profileID == lastHardwareActiveOnboardProfileIDByDeviceID[device.id] {
+                await refreshOnboardProfiles(hydrateSelectedProfile: false)
+                inventory = onboardProfileInventoryByDeviceID[device.id]
+            }
+            guard let inventory,
+                  profileID >= 1,
+                  profileID <= inventory.maxProfileID else {
+                deviceStore.errorMessage = "Profile \(profileID) is outside the supported profile range."
+                return
+            }
+            guard inventory.assignedProfileIDs.contains(profileID) else {
+                selectedOnboardProfileIDByDeviceID[device.id] = profileID
+                currentOnboardProfileSnapshotByDeviceID.removeValue(forKey: device.id)
+                deviceStore.errorMessage = nil
+                bumpOnboardProfilesRevision()
+                return
+            }
+            guard isOnboardProfileActive(deviceID: device.id, profileID: profileID) else {
+                await activateOnboardProfile(profileID)
+                return
+            }
+            let snapshot = snapshotWithCachedButtonBindings(
+                try await readLatestOnboardProfileCoreSnapshot(device: device, profileID: profileID),
+                device: device
+            )
+            storeCurrentOnboardProfileSnapshot(snapshot, device: device, source: "readOnboardProfileCore")
+            selectedOnboardProfileIDByDeviceID[device.id] = profileID
+            hydrateEditable(from: snapshot, device: device)
+            if shouldHydrateOnboardProfileButtonsInline(device: device) {
+                await readOnboardProfileButtonBindingsForSelection(device: device, profileID: profileID)
+            } else {
+                scheduleOnboardProfileButtonHydration(device: device, profileID: profileID)
+            }
+            deviceStore.errorMessage = nil
+            bumpOnboardProfilesRevision()
+            AppLog.debug(
+                "AppState",
+                "select onboard profile ok device=\(device.id) profile=\(profileID) elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
+            )
+        } catch {
+            AppLog.error("AppState", "select onboard profile failed profile=\(profileID): \(error.localizedDescription)")
+            deviceStore.errorMessage = "Failed to load onboard profile: \(error.localizedDescription)"
+        }
+    }
+
+    func activateOnboardProfile(_ profileID: Int) async {
+        guard !isTearingDown, let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return }
+        applyController.cancelPendingLocalEditsForSelectionChange()
+        cancelSelectedMouseSlotHydration(deviceID: device.id)
+        cancelOnboardProfileButtonHydration(deviceID: device.id)
+        let start = Date()
+        manualOnboardProfileActivationTargetByDeviceID[device.id] = profileID
+        defer {
+            if manualOnboardProfileActivationTargetByDeviceID[device.id] == profileID {
+                manualOnboardProfileActivationTargetByDeviceID.removeValue(forKey: device.id)
+            }
+        }
+        do {
+            AppLog.debug("AppState", "activate onboard profile start device=\(device.id) profile=\(profileID)")
+            let state = try await environment.backend.activateOnboardProfile(device: device, profileID: profileID)
+            let active = storeActiveOnboardProfileState(state, for: device, fallbackActiveProfileID: profileID)
+            selectedOnboardProfileIDByDeviceID[device.id] = active
+            let snapshot = snapshotWithCachedButtonBindings(
+                try await readLatestOnboardProfileCoreSnapshot(device: device, profileID: active),
+                device: device
+            )
+            storeCurrentOnboardProfileSnapshot(snapshot, device: device, source: "activateOnboardProfileCore")
+            hydrateEditable(from: snapshot, device: device)
+            if shouldHydrateOnboardProfileButtonsInline(device: device) {
+                await readOnboardProfileButtonBindingsForSelection(device: device, profileID: active)
+            } else {
+                scheduleOnboardProfileButtonHydration(device: device, profileID: active)
+            }
+            deviceStore.errorMessage = nil
+            bumpOnboardProfilesRevision()
+            AppLog.debug(
+                "AppState",
+                "activate onboard profile ok device=\(device.id) requested=\(profileID) active=\(active) elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
+            )
+        } catch {
+            AppLog.error("AppState", "activate onboard profile failed profile=\(profileID): \(error.localizedDescription)")
+            deviceStore.errorMessage = "Failed to activate onboard profile: \(error.localizedDescription)"
+        }
+    }
+
+    func createOnboardProfile(
+        name: String,
+        targetProfileID: Int? = nil,
+        copyFromProfileID: Int? = nil
+    ) async {
+        guard !isTearingDown, let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return }
+        cancelSelectedMouseSlotHydration(deviceID: device.id)
+        do {
+            let metadata = OnboardProfileMetadata(name: name)
+            let mutation: OnboardProfileMutation
+            if let copyFromProfileID {
+                let sourceSnapshot = try await readLatestOnboardProfileSnapshot(
+                    device: device,
+                    profileID: copyFromProfileID,
+                    storeForEditing: false
+                )
+                mutation = onboardProfileMutation(copying: sourceSnapshot, metadata: metadata)
+            } else {
+                mutation = currentOnboardProfileMutation(device: device, metadata: metadata)
+            }
+            let snapshot = try await environment.backend.createOnboardProfile(
+                device: device,
+                mutation: mutation,
+                targetProfileID: targetProfileID,
+                replaceAssignedProfile: false
+            )
+            storeCurrentOnboardProfileSnapshot(
+                snapshot,
+                device: device,
+                source: "createOnboardProfile",
+                projectMetadataForRefresh: true
+            )
+            let state = try await environment.backend.activateOnboardProfile(device: device, profileID: snapshot.profileID)
+            let active = storeActiveOnboardProfileState(state, for: device, fallbackActiveProfileID: snapshot.profileID)
+            selectedOnboardProfileIDByDeviceID[device.id] = active
+            if active == snapshot.profileID {
+                hydrateEditable(from: snapshot, device: device)
+            } else {
+                let activeSnapshot = try await readLatestOnboardProfileSnapshot(device: device, profileID: active)
+                hydrateEditable(from: activeSnapshot, device: device)
+            }
+            deviceStore.errorMessage = nil
+            bumpOnboardProfilesRevision()
+        } catch {
+            AppLog.error("AppState", "create onboard profile failed target=\(targetProfileID.map(String.init) ?? "auto"): \(error.localizedDescription)")
+            deviceStore.errorMessage = "Failed to create onboard profile: \(error.localizedDescription)"
+        }
+    }
+
+    func renameSelectedOnboardProfile(name: String) async {
+        guard !isTearingDown,
+              let device = deviceStore.selectedDevice,
+              supportsOnboardProfileCRUD(device: device),
+              let selected = selectedOnboardProfileID() else { return }
+        cancelSelectedMouseSlotHydration(deviceID: device.id)
+        do {
+            let requestedName = OnboardProfileMetadata.normalizedName(name)
+            let priorName = onboardProfileInventoryByDeviceID[device.id]?
+                .summary(for: selected)?
+                .displayName ?? "<missing>"
+            AppLog.debug(
+                "AppState",
+                "rename onboard profile start device=\(device.id) transport=\(device.transport.rawValue) profile=\(selected) priorName=\"\(priorName)\" requestedName=\"\(requestedName)\" active=\(deviceStore.state?.active_onboard_profile.map(String.init) ?? "<nil>")"
+            )
+            let snapshot = try await environment.backend.renameOnboardProfile(
+                device: device,
+                profileID: selected,
+                name: name
+            )
+            storeCurrentOnboardProfileSnapshot(
+                snapshot,
+                device: device,
+                source: "renameOnboardProfile",
+                projectMetadataForRefresh: true
+            )
+            selectedOnboardProfileIDByDeviceID[device.id] = selected
+            deviceStore.errorMessage = nil
+            bumpOnboardProfilesRevision()
+            let visibleName = onboardProfileInventoryByDeviceID[device.id]?
+                .summary(for: selected)?
+                .displayName ?? "<missing>"
+            AppLog.debug(
+                "AppState",
+                "rename onboard profile ok device=\(device.id) profile=\(selected) requestedName=\"\(requestedName)\" snapshotName=\"\(snapshot.metadata.name)\" visibleName=\"\(visibleName)\" revision=\(editorStore.onboardProfilesRevision)"
+            )
+        } catch {
+            AppLog.error("AppState", "rename onboard profile failed profile=\(selected): \(error.localizedDescription)")
+            deviceStore.errorMessage = "Failed to rename onboard profile: \(error.localizedDescription)"
+        }
+    }
+
+    func deleteSelectedOnboardProfile() async {
+        guard !isTearingDown,
+              let device = deviceStore.selectedDevice,
+              supportsOnboardProfileCRUD(device: device),
+              let selected = selectedOnboardProfileID(),
+              selected >= 2 else { return }
+        cancelSelectedMouseSlotHydration(deviceID: device.id)
+        do {
+            let wasActive = isOnboardProfileActive(deviceID: device.id, profileID: selected)
+            var inventory = try await environment.backend.deleteOnboardProfile(device: device, profileID: selected)
+            onboardProfileInventoryByDeviceID[device.id] = inventory
+            if currentOnboardProfileSnapshotByDeviceID[device.id]?.profileID == selected {
+                currentOnboardProfileSnapshotByDeviceID.removeValue(forKey: device.id)
+            }
+
+            var nextSelected: Int?
+            if wasActive {
+                nextSelected = nextAssignedOnboardProfile(afterDeleting: selected, in: inventory)
+            } else if inventory.assignedProfileIDs.contains(inventory.activeProfileID) {
+                nextSelected = inventory.activeProfileID
+            } else {
+                nextSelected = nextAssignedOnboardProfile(afterDeleting: selected, in: inventory)
+            }
+
+            if wasActive, let activationTarget = nextSelected {
+                let state = try await environment.backend.activateOnboardProfile(device: device, profileID: activationTarget)
+                let active = storeActiveOnboardProfileState(state, for: device, fallbackActiveProfileID: activationTarget)
+                nextSelected = active
+                let profiles = synthesizedOnboardProfileSummaries(from: inventory).map { summary in
+                    OnboardProfileSummary(
+                        profileID: summary.profileID,
+                        metadata: summary.metadata,
+                        isAssigned: summary.isAssigned,
+                        isActive: summary.profileID == active,
+                        isBaseProfile: summary.isBaseProfile
+                    )
+                }
+                inventory = OnboardProfileInventory(
+                    activeProfileID: active,
+                    maxProfileID: inventory.maxProfileID,
+                    assignedProfileIDs: inventory.assignedProfileIDs,
+                    profiles: profiles
+                )
+                onboardProfileInventoryByDeviceID[device.id] = inventory
+            }
+
+            lastHardwareActiveOnboardProfileIDByDeviceID[device.id] = inventory.activeProfileID
+            if let nextSelected {
+                selectedOnboardProfileIDByDeviceID[device.id] = nextSelected
+                if let snapshot = try? await readLatestOnboardProfileSnapshot(device: device, profileID: nextSelected) {
+                    hydrateEditable(from: snapshot, device: device)
+                }
+            } else {
+                selectedOnboardProfileIDByDeviceID.removeValue(forKey: device.id)
+            }
+            deviceStore.errorMessage = nil
+            bumpOnboardProfilesRevision()
+        } catch {
+            AppLog.error("AppState", "delete onboard profile failed profile=\(selected): \(error.localizedDescription)")
+            deviceStore.errorMessage = "Failed to delete onboard profile: \(error.localizedDescription)"
+        }
+    }
+
+    func applyOnboardProfileMutationForCurrentSelection(_ mutation: OnboardProfileMutation) async -> Bool {
+        guard !isTearingDown,
+              let device = deviceStore.selectedDevice,
+              supportsOnboardProfileCRUD(device: device),
+              let selected = selectedOnboardProfileID(),
+              !mutation.isEmpty else { return false }
+        cancelSelectedMouseSlotHydration(deviceID: device.id)
+        do {
+            let resolvedMutation = mutation.preservingDpiIdentity(
+                from: currentSelectedOnboardProfileSnapshot(device: device)
+            )
+            let snapshot = try await environment.backend.updateOnboardProfile(
+                device: device,
+                profileID: selected,
+                mutation: resolvedMutation
+            )
+            guard deviceStore.selectedDeviceID == device.id,
+                  selectedOnboardProfileIDByDeviceID[device.id] == selected else {
+                AppLog.debug(
+                    "AppState",
+                    "update onboard profile stale-drop device=\(device.id) profile=\(selected)"
+                )
+                return true
+            }
+            storeCurrentOnboardProfileSnapshot(
+                snapshot,
+                device: device,
+                source: "updateOnboardProfile",
+                projectMetadataForRefresh: resolvedMutation.metadata != nil
+            )
+            if selectedOnboardProfileIDByDeviceID[device.id] == selected {
+                if let bindings = resolvedMutation.buttonBindings {
+                    cacheSelectedOnboardProfileButtonBindings(
+                        snapshot.buttonBindings.merging(bindings) { _, updated in updated },
+                        device: device,
+                        profileID: selected
+                    )
+                }
+                hydrateEditableLighting(from: snapshot, device: device)
+                hydrateEditableScroll(from: snapshot)
+            }
+            if selectedOnboardProfileIsActive() {
+                _ = try await environment.backend.refreshActiveOnboardProfile(device: device)
+            }
+            bumpOnboardProfilesRevision()
+            return true
+        } catch {
+            AppLog.error("AppState", "update onboard profile failed profile=\(selected): \(error.localizedDescription)")
+            deviceStore.errorMessage = "Failed to update onboard profile: \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    func currentOnboardProfileMutation(
+        device: MouseDevice,
+        metadata: OnboardProfileMetadata? = nil
+    ) -> OnboardProfileMutation {
+        let count = max(1, min(5, editorStore.editableStageCount))
+        let pairs = Array(editorStore.editableStagePairs.prefix(count)).map { pair in
+            DpiPair(
+                x: DeviceProfiles.clampDPI(pair.x, device: device),
+                y: DeviceProfiles.clampDPI(pair.y, device: device)
+            )
+        }
+        let activeStage = max(0, min(count - 1, editorStore.editableActiveStage - 1))
+        let scalar = pairs.indices.contains(activeStage) ? pairs[activeStage] : pairs.first
+        let brightness = Dictionary(
+            uniqueKeysWithValues: lightingLEDIDs(for: device).map { ledID in
+                (Int(ledID), editorStore.editableLedBrightness)
+            }
+        )
+        let colors: [Int: RGBPatch]
+        if editorStore.editableLightingEffect == .staticColor || !device.supports_advanced_lighting_effects {
+            colors = Dictionary(
+                uniqueKeysWithValues: lightingLEDIDs(for: device).map { ledID in
+                    (Int(ledID), RGBPatch(r: editorStore.editableColor.r, g: editorStore.editableColor.g, b: editorStore.editableColor.b))
+                }
+            )
+        } else {
+            colors = [:]
+        }
+        return OnboardProfileMutation(
+            metadata: metadata,
+            dpi: OnboardDPIProfileSnapshot(
+                scalar: scalar,
+                activeStage: activeStage,
+                pairs: pairs,
+                stageIDs: currentSelectedOnboardProfileSnapshot(device: device)?.dpi?.stageIDs ?? [],
+                marker: currentSelectedOnboardProfileSnapshot(device: device)?.dpi?.marker
+            ),
+            buttonBindings: editorStore.editableButtonBindings,
+            brightnessByLEDID: brightness,
+            staticColorByLEDID: colors.isEmpty ? nil : colors,
+            scrollMode: device.transport == .usb ? editorStore.editableScrollMode : nil,
+            scrollAcceleration: device.transport == .usb ? editorStore.editableScrollAcceleration : nil,
+            scrollSmartReel: device.transport == .usb ? editorStore.editableScrollSmartReel : nil
+        )
+    }
+
+    private func onboardProfileMutation(
+        copying snapshot: OnboardProfileSnapshot,
+        metadata: OnboardProfileMetadata
+    ) -> OnboardProfileMutation {
+        OnboardProfileMutation(
+            metadata: metadata,
+            dpi: snapshot.dpi,
+            buttonBindings: snapshot.buttonBindings,
+            brightnessByLEDID: snapshot.brightnessByLEDID,
+            staticColorByLEDID: snapshot.staticColorByLEDID,
+            scrollMode: snapshot.scrollMode,
+            scrollAcceleration: snapshot.scrollAcceleration,
+            scrollSmartReel: snapshot.scrollSmartReel
+        )
+    }
+
+    private func snapshotWithCachedButtonBindings(
+        _ snapshot: OnboardProfileSnapshot,
+        device: MouseDevice
+    ) -> OnboardProfileSnapshot {
+        let metadataResolvedSnapshot: OnboardProfileSnapshot
+        if let metadata = onboardProfileInventoryByDeviceID[device.id]?.summary(for: snapshot.profileID)?.metadata {
+            metadataResolvedSnapshot = snapshot.replacingMetadata(metadata)
+        } else {
+            metadataResolvedSnapshot = snapshot
+        }
+        guard !(device.transport == .bluetooth && supportsOnboardProfileCRUD(device: device)) else {
+            return metadataResolvedSnapshot
+        }
+        let cached = cachedButtonBindings(device: device, profile: max(1, snapshot.profileID))
+        guard !cached.isEmpty else { return metadataResolvedSnapshot }
+        return metadataResolvedSnapshot.replacingButtonBindings(cached)
+    }
+
+    private func shouldHydrateOnboardProfileButtonsInline(device: MouseDevice) -> Bool {
+        device.transport == .bluetooth && supportsOnboardProfileCRUD(device: device)
+    }
+
+    private func readOnboardProfileButtonBindingsForSelection(device: MouseDevice, profileID: Int) async {
+        do {
+            let bindings = try await environment.backend.readOnboardProfileButtonBindings(
+                device: device,
+                profileID: profileID
+            )
+            guard deviceStore.selectedDeviceID == device.id,
+                  selectedOnboardProfileIDByDeviceID[device.id] == profileID else {
+                return
+            }
+            storeOnboardProfileButtonBindings(bindings, device: device, profileID: profileID)
+        } catch {
+            AppLog.debug(
+                "AppState",
+                "onboard profile button hydration failed device=\(device.id) profile=\(profileID): \(error.localizedDescription)"
+            )
+        }
+    }
+
+    private func scheduleOnboardProfileButtonHydration(device: MouseDevice, profileID: Int) {
+        cancelOnboardProfileButtonHydration(deviceID: device.id)
+        guard deviceStore.selectedDeviceID == device.id else { return }
+        let token = UUID()
+        onboardProfileButtonHydrationTokensByDeviceID[device.id] = token
+        onboardProfileButtonHydrationTasksByDeviceID[device.id] = Task(priority: .utility) { @MainActor [weak self] in
+            defer {
+                if let self, self.onboardProfileButtonHydrationTokensByDeviceID[device.id] == token {
+                    self.onboardProfileButtonHydrationTasksByDeviceID.removeValue(forKey: device.id)
+                    self.onboardProfileButtonHydrationTokensByDeviceID.removeValue(forKey: device.id)
+                }
+            }
+            guard let self, !Task.isCancelled else { return }
+            do {
+                let bindings = try await self.environment.backend.readOnboardProfileButtonBindings(
+                    device: device,
+                    profileID: profileID
+                )
+                guard !Task.isCancelled,
+                      self.deviceStore.selectedDeviceID == device.id,
+                      self.selectedOnboardProfileIDByDeviceID[device.id] == profileID else {
+                    return
+                }
+                self.storeOnboardProfileButtonBindings(bindings, device: device, profileID: profileID)
+            } catch {
+                AppLog.debug(
+                    "AppState",
+                    "onboard profile button hydration failed device=\(device.id) profile=\(profileID): \(error.localizedDescription)"
+                )
+            }
+        }
+    }
+
+    private func storeOnboardProfileButtonBindings(
+        _ bindings: [Int: ButtonBindingDraft],
+        device: MouseDevice,
+        profileID: Int
+    ) {
+        let snapshot = currentOnboardProfileSnapshotByDeviceID[device.id]
+        let persistentProfileID = max(1, profileID)
+        let hydrationKey = buttonBindingsHydrationKey(device: device, profile: persistentProfileID)
+        buttonBindingsCacheByHydrationKey[hydrationKey] = bindings
+        buttonBindingsReadbackAttemptedKeys.insert(hydrationKey)
+
+        guard let snapshot, snapshot.profileID == profileID else {
+            AppLog.debug(
+                "AppState",
+                "onboard profile button hydration stale-drop device=\(device.id) profile=\(profileID) " +
+                "currentProfile=\(snapshot.map { String($0.profileID) } ?? "nil") bindings=\(buttonBindingsDebugSummary(bindings))"
+            )
+            bumpUSBButtonProfilesRevision()
+            return
+        }
+
+        let updatedSnapshot = snapshot.replacingButtonBindings(bindings)
+        storeCurrentOnboardProfileSnapshot(
+            updatedSnapshot,
+            device: device,
+            source: "readOnboardProfileButtonBindings"
+        )
+        if selectedOnboardProfileIDByDeviceID[device.id] == profileID,
+           deviceStore.selectedDeviceID == device.id {
+            hydratedButtonBindingsKey = hydrationKey
+            editorStore.editableButtonBindings = bindings
+            bumpUSBButtonProfilesRevision()
+        }
+        AppLog.debug(
+            "AppState",
+            "onboard profile button hydration ok device=\(device.id) profile=\(profileID) bindings=\(buttonBindingsDebugSummary(bindings))"
+        )
+    }
+
+    private func cacheSelectedOnboardProfileButtonBindings(
+        _ bindings: [Int: ButtonBindingDraft],
+        device: MouseDevice,
+        profileID: Int
+    ) {
+        let persistentProfileID = max(1, profileID)
+        let hydrationKey = buttonBindingsHydrationKey(device: device, profile: persistentProfileID)
+        buttonBindingsCacheByHydrationKey[hydrationKey] = bindings
+        savePersistedButtonBindings(device: device, bindings: bindings, profile: persistentProfileID)
+        buttonBindingsReadbackAttemptedKeys.insert(hydrationKey)
+        if selectedOnboardProfileIDByDeviceID[device.id] == profileID,
+           deviceStore.selectedDeviceID == device.id {
+            hydratedButtonBindingsKey = hydrationKey
+            editorStore.editableButtonBindings = bindings
+            bumpUSBButtonProfilesRevision()
+        }
+    }
+
+    private func currentSelectedOnboardProfileSnapshot(device: MouseDevice) -> OnboardProfileSnapshot? {
+        guard let selected = selectedOnboardProfileIDByDeviceID[device.id] else { return nil }
+        guard let snapshot = currentOnboardProfileSnapshotByDeviceID[device.id],
+              snapshot.profileID == selected else {
+            return nil
+        }
+        return snapshot
+    }
+
+    private func rgbColor(from patch: RGBPatch) -> RGBColor {
+        RGBColor(r: patch.r, g: patch.g, b: patch.b)
+    }
+
+    private func onboardProfileLightingZoneColors(from snapshot: OnboardProfileSnapshot, device: MouseDevice) -> [String: RGBColor] {
+        guard !snapshot.staticColorByLEDID.isEmpty else { return [:] }
+        let profile = resolvedDeviceProfile(for: device)
+        let targets = profile?.lightingTargets() ?? lightingLEDIDs(for: device).map { ledID in
+            USBLightingTargetDescriptor(
+                zoneID: String(format: "led_%02x", ledID),
+                zoneLabel: String(format: "LED 0x%02X", ledID),
+                ledID: ledID
+            )
+        }
+
+        var colors: [String: RGBColor] = [:]
+        for target in targets where colors[target.zoneID] == nil {
+            guard let patch = snapshot.staticColorByLEDID[Int(target.ledID)] else { continue }
+            colors[target.zoneID] = rgbColor(from: patch)
+        }
+        if colors.isEmpty, let first = snapshot.staticColorByLEDID.sorted(by: { $0.key < $1.key }).first {
+            colors["all"] = rgbColor(from: first.value)
+        }
+        return colors
+    }
+
+    private func currentActiveOnboardProfileSnapshot(for state: MouseState) -> OnboardProfileSnapshot? {
+        guard let device = deviceStore.selectedDevice,
+              supportsOnboardProfileCRUD(device: device),
+              let snapshot = currentOnboardProfileSnapshotByDeviceID[device.id],
+              !snapshot.isMetadataOnly else {
+            return nil
+        }
+        let active = state.active_onboard_profile ?? deviceStore.state?.active_onboard_profile
+        let selected = selectedOnboardProfileIDByDeviceID[device.id] ?? active
+        guard snapshot.profileID == selected else { return nil }
+        if let active, active != snapshot.profileID {
+            return nil
+        }
+        return snapshot
+    }
+
+    private func hydrateEditableDPI(
+        from dpi: OnboardDPIProfileSnapshot,
+        device: MouseDevice,
+        liveDPI: DpiPair? = nil
+    ) {
+        let sourcePairs = !dpi.pairs.isEmpty
+            ? dpi.pairs
+            : dpi.scalar.map { [$0] } ?? []
+        guard !sourcePairs.isEmpty else { return }
+
+        let count = max(1, min(5, sourcePairs.count))
+        var nextPairs = editorStore.editableStagePairs
+        for index in 0..<nextPairs.count where index < count {
+            let pair = sourcePairs[index]
+            nextPairs[index] = DpiPair(
+                x: DeviceProfiles.clampDPI(pair.x, device: device),
+                y: DeviceProfiles.clampDPI(pair.y, device: device)
+            )
+        }
+        editorStore.editableStageCount = count
+        editorStore.editableStagePairs = nextPairs
+        let matchedActiveStage = liveDPI.flatMap { liveDPI in
+            Self.uniqueDPIStageIndex(matching: liveDPI, in: Array(sourcePairs.prefix(count)))
+        }
+        editorStore.editableActiveStage = max(1, min(count, (matchedActiveStage ?? dpi.activeStage ?? 0) + 1))
+        editorStore.normalizeExpandedXYStages()
+    }
+
+    private nonisolated static func uniqueDPIStageIndex(matching liveDPI: DpiPair, in pairs: [DpiPair]) -> Int? {
+        let matchingIndices = pairs.enumerated().compactMap { index, pair in
+            pair.x == liveDPI.x && pair.y == liveDPI.y ? index : nil
+        }
+        return matchingIndices.count == 1 ? matchingIndices[0] : nil
+    }
+
+    private func hydrateEditableLighting(from snapshot: OnboardProfileSnapshot, device: MouseDevice) {
+        if let brightness = snapshot.brightnessByLEDID.values.max() {
+            editorStore.editableLedBrightness = brightness
+            editorStore.noteLightingGradientColorsChanged()
+        }
+
+        let zoneColors = onboardProfileLightingZoneColors(from: snapshot, device: device)
+        guard !zoneColors.isEmpty else {
+            if onboardProfileLightingColorsByDeviceID.removeValue(forKey: device.id) != nil {
+                editorStore.noteLightingGradientColorsChanged()
+            }
+            return
+        }
+
+        onboardProfileLightingColorsByDeviceID[device.id] = zoneColors
+        editorStore.editableLightingEffect = .staticColor
+
+        let visibleZoneIDs = editorStore.visibleUSBLightingZones.map(\.id)
+        let currentZoneID = normalizedLightingZoneID(for: device, preferredZoneID: editorStore.editableUSBLightingZoneID)
+        let resolvedZoneID: String
+        if currentZoneID != "all", zoneColors[currentZoneID] != nil {
+            resolvedZoneID = currentZoneID
+        } else if let firstVisibleZoneID = visibleZoneIDs.first(where: { zoneColors[$0] != nil }) {
+            resolvedZoneID = firstVisibleZoneID
+        } else {
+            resolvedZoneID = "all"
+        }
+
+        editorStore.editableUSBLightingZoneID = resolvedZoneID
+        if let color = zoneColors[resolvedZoneID] ?? zoneColors["all"] ?? zoneColors.sorted(by: { $0.key < $1.key }).first?.value {
+            editorStore.editableColor = color
+        }
+        editorStore.noteLightingGradientColorsChanged()
+    }
+
+    private func hydrateEditableScroll(from snapshot: OnboardProfileSnapshot) {
+        if let scrollMode = snapshot.scrollMode {
+            editorStore.editableScrollMode = max(0, min(1, scrollMode))
+        }
+        if let scrollAcceleration = snapshot.scrollAcceleration {
+            editorStore.editableScrollAcceleration = scrollAcceleration
+        }
+        if let scrollSmartReel = snapshot.scrollSmartReel {
+            editorStore.editableScrollSmartReel = scrollSmartReel
+        }
+    }
+
+    private func hydrateEditable(from snapshot: OnboardProfileSnapshot, device: MouseDevice) {
+        isHydrating = true
+        defer { isHydrating = false }
+
+        if let dpi = snapshot.dpi {
+            hydrateEditableDPI(from: dpi, device: device)
+        }
+        hydrateEditableLighting(from: snapshot, device: device)
+        hydrateEditableScroll(from: snapshot)
+        editorStore.editableButtonBindings = snapshot.buttonBindings
+        let hydrationKey = buttonBindingsHydrationKey(device: device, profile: max(1, snapshot.profileID))
+        buttonBindingsCacheByHydrationKey[hydrationKey] = snapshot.buttonBindings
+        buttonBindingsReadbackAttemptedKeys.insert(hydrationKey)
+        hydratedButtonBindingsKey = hydrationKey
         bumpUSBButtonProfilesRevision()
     }
 
@@ -1299,10 +2562,14 @@ final class AppStateEditorController {
             for: selectedDevice,
             preferredZoneID: editorStore.editableUSBLightingZoneID
         )
+        let onboardProfileColors = onboardProfileLightingColorsByDeviceID[selectedDevice.id]
         let globalColor = loadPersistedLightingColor(device: selectedDevice)
         return editorStore.visibleUSBLightingZones.map { zone in
             if selectedZoneID != "all", zone.id == selectedZoneID {
                 return editorStore.editableColor
+            }
+            if let profileColor = onboardProfileColors?[zone.id] {
+                return profileColor
             }
             return loadPersistedLightingColor(device: selectedDevice, zoneID: zone.id)
                 ?? globalColor
@@ -1412,6 +2679,9 @@ final class AppStateEditorController {
                 resolvedZoneID = normalizedLightingZoneID(for: selectedDevice, preferredZoneID: zoneID)
             }
             if editorStore.editableLightingEffect == .staticColor,
+               let profileColor = onboardProfileLightingColorsByDeviceID[selectedDevice.id]?[resolvedZoneID] {
+                editorStore.editableColor = profileColor
+            } else if editorStore.editableLightingEffect == .staticColor,
                let persistedColor = loadPersistedLightingColor(device: selectedDevice, zoneID: resolvedZoneID) {
                 editorStore.editableColor = persistedColor
             }
@@ -1450,11 +2720,14 @@ final class AppStateEditorController {
             let hydrationKey = buttonBindingsHydrationKey(device: selectedDevice, profile: clamped)
             editorStore.editableButtonBindings = cachedButtonBindings(device: selectedDevice, profile: clamped)
             hydratedButtonBindingsKey = hydrationKey
-            Task { [weak self] in
-                await self?.hydrateButtonBindingsIfNeeded(device: selectedDevice)
-            }
+            scheduleSelectedMouseSlotHydration(
+                device: selectedDevice,
+                profile: clamped,
+                hydrationKey: hydrationKey
+            )
         case .openSnekProfile(let id):
             guard let profile = preferenceStore.loadOpenSnekButtonProfiles().first(where: { $0.id == id }) else { return }
+            cancelSelectedMouseSlotHydration(deviceID: selectedDevice.id)
             setButtonProfileSource(.openSnekProfile(id), for: selectedDevice)
             hydratedButtonBindingsKey = nil
             editorStore.editableButtonBindings = profile.bindings
@@ -1512,17 +2785,55 @@ final class AppStateEditorController {
         hydrationKey: String
     ) async {
         guard buttonProfileSource(for: device) == .mouseSlot(profile) else { return }
+        let workspaceEditRevisionAtStart = buttonWorkspaceEditRevision
+        AppLog.debug("AppState", "usb button slot selection hydration start id=\(device.id) profile=\(profile)")
         guard let fromDevice = await loadUSBButtonBindingsFromDevice(device: device, profile: profile) else { return }
-
-        saveCachedButtonBindings(device: device, bindings: fromDevice, profile: profile)
-        guard buttonProfileSource(for: device) == .mouseSlot(profile),
-              !shouldPreserveLocalButtonWorkspace(device: device) else {
+        guard !Task.isCancelled else { return }
+        guard deviceStore.selectedDevice?.id == device.id,
+              buttonProfileSource(for: device) == .mouseSlot(profile),
+              buttonWorkspaceEditRevision == workspaceEditRevisionAtStart else {
             return
         }
 
+        saveCachedButtonBindings(device: device, bindings: fromDevice, profile: profile)
         editorStore.editableButtonBindings = fromDevice
         hydratedButtonBindingsKey = hydrationKey
         bumpUSBButtonProfilesRevision()
+        AppLog.debug("AppState", "usb button slot selection hydration ok id=\(device.id) profile=\(profile) slots=\(fromDevice.keys.sorted())")
+    }
+
+    private func scheduleSelectedMouseSlotHydration(
+        device: MouseDevice,
+        profile: Int,
+        hydrationKey: String
+    ) {
+        selectedMouseSlotHydrationTasksByDeviceID.removeValue(forKey: device.id)?.cancel()
+        let token = UUID()
+        selectedMouseSlotHydrationTokensByDeviceID[device.id] = token
+        selectedMouseSlotHydrationTasksByDeviceID[device.id] = Task(priority: .userInitiated) { @MainActor [weak self] in
+            defer {
+                if let self, self.selectedMouseSlotHydrationTokensByDeviceID[device.id] == token {
+                    self.selectedMouseSlotHydrationTasksByDeviceID.removeValue(forKey: device.id)
+                    self.selectedMouseSlotHydrationTokensByDeviceID.removeValue(forKey: device.id)
+                }
+            }
+            guard let self, !Task.isCancelled else { return }
+            if device.transport == .usb,
+               self.buttonBindingsCacheByHydrationKey[hydrationKey] == nil {
+                await self.refreshSelectedMouseSlotFromDeviceIfNeeded(
+                    device: device,
+                    profile: profile,
+                    hydrationKey: hydrationKey
+                )
+            } else {
+                await self.hydrateButtonBindingsIfNeeded(device: device)
+            }
+        }
+    }
+
+    private func cancelSelectedMouseSlotHydration(deviceID: String) {
+        selectedMouseSlotHydrationTasksByDeviceID.removeValue(forKey: deviceID)?.cancel()
+        selectedMouseSlotHydrationTokensByDeviceID.removeValue(forKey: deviceID)
     }
 
     func selectNextOnboardButtonProfile() {
@@ -1705,5 +3016,71 @@ final class AppStateEditorController {
         next.clutchDPI = DeviceProfiles.clampDPI(dpi, profileID: deviceStore.selectedDevice?.profile_id)
         editorStore.editableButtonBindings[slot] = next
         handleButtonWorkspaceDidChange(slot: slot)
+    }
+}
+
+private extension OnboardProfileSnapshot {
+    var isMetadataOnly: Bool {
+        dpi == nil &&
+            buttonBindings.isEmpty &&
+            brightnessByLEDID.isEmpty &&
+            staticColorByLEDID.isEmpty &&
+            scrollMode == nil &&
+            scrollAcceleration == nil &&
+            scrollSmartReel == nil
+    }
+
+    func replacingMetadata(_ metadata: OnboardProfileMetadata) -> OnboardProfileSnapshot {
+        OnboardProfileSnapshot(
+            profileID: profileID,
+            metadata: metadata,
+            dpi: dpi,
+            buttonBindings: buttonBindings,
+            brightnessByLEDID: brightnessByLEDID,
+            staticColorByLEDID: staticColorByLEDID,
+            scrollMode: scrollMode,
+            scrollAcceleration: scrollAcceleration,
+            scrollSmartReel: scrollSmartReel
+        )
+    }
+
+    func replacingButtonBindings(_ bindings: [Int: ButtonBindingDraft]) -> OnboardProfileSnapshot {
+        OnboardProfileSnapshot(
+            profileID: profileID,
+            metadata: metadata,
+            dpi: dpi,
+            buttonBindings: bindings,
+            brightnessByLEDID: brightnessByLEDID,
+            staticColorByLEDID: staticColorByLEDID,
+            scrollMode: scrollMode,
+            scrollAcceleration: scrollAcceleration,
+            scrollSmartReel: scrollSmartReel
+        )
+    }
+}
+
+private extension OnboardProfileMutation {
+    func preservingDpiIdentity(from snapshot: OnboardProfileSnapshot?) -> OnboardProfileMutation {
+        guard let dpi, let previousDPI = snapshot?.dpi else { return self }
+        let stageIDs = dpi.stageIDs.isEmpty ? previousDPI.stageIDs : dpi.stageIDs
+        let marker = dpi.marker ?? previousDPI.marker
+        guard stageIDs != dpi.stageIDs || marker != dpi.marker else { return self }
+
+        return OnboardProfileMutation(
+            metadata: metadata,
+            dpi: OnboardDPIProfileSnapshot(
+                scalar: dpi.scalar,
+                activeStage: dpi.activeStage,
+                pairs: dpi.pairs,
+                stageIDs: stageIDs,
+                marker: marker
+            ),
+            buttonBindings: buttonBindings,
+            brightnessByLEDID: brightnessByLEDID,
+            staticColorByLEDID: staticColorByLEDID,
+            scrollMode: scrollMode,
+            scrollAcceleration: scrollAcceleration,
+            scrollSmartReel: scrollSmartReel
+        )
     }
 }

@@ -2,6 +2,7 @@ import XCTest
 @testable import OpenSnek
 import OpenSnekCore
 import OpenSnekHardware
+import OpenSnekProtocols
 
 final class BridgeClientBluetoothFallbackTests: XCTestCase {
     private func makeBluetoothDevice(
@@ -68,6 +69,140 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
 
         XCTAssertFalse(state.capabilities.lighting)
         XCTAssertNil(state.led_value)
+    }
+
+    func testBluetoothDpiStageWriteResolvesCompletePatchWithoutCurrentRead() throws {
+        let device = makeBluetoothDevice(productID: 0x00AC, profileID: .basiliskV3Pro)
+        let pairs = [
+            DpiPair(x: 500, y: 500),
+            DpiPair(x: 900, y: 900),
+            DpiPair(x: 1400, y: 1400),
+        ]
+        let resolved = try BridgeClient.resolveBluetoothDpiStageWrite(
+            device: device,
+            patch: DevicePatch(
+                dpiStages: pairs.map(\.x),
+                dpiStagePairs: pairs,
+                activeStage: 2
+            ),
+            current: nil
+        )
+
+        XCTAssertEqual(resolved.active, 2)
+        XCTAssertEqual(resolved.stages, [500, 900, 1400])
+        XCTAssertEqual(resolved.pairs, pairs)
+    }
+
+    func testBluetoothOnboardActiveOnlyProjectionDoesNotCarryStaleDpi() async throws {
+        let device = makeBluetoothDevice(productID: 0x00AC, profileID: .basiliskV3Pro)
+        let profile = try XCTUnwrap(DeviceProfiles.resolve(
+            vendorID: device.vendor_id,
+            productID: device.product_id,
+            transport: device.transport
+        ))
+        let client = BridgeClient(startHIDMonitoring: false)
+        let loadedSnapshot = OnboardProfileSnapshot(
+            profileID: 2,
+            metadata: OnboardProfileMetadata(name: "Stored 2"),
+            dpi: OnboardDPIProfileSnapshot(
+                scalar: DpiPair(x: 1200, y: 1200),
+                activeStage: 1,
+                pairs: [
+                    DpiPair(x: 400, y: 400),
+                    DpiPair(x: 1200, y: 1200),
+                    DpiPair(x: 1300, y: 1300),
+                ],
+                stageIDs: [1, 2, 3],
+                marker: 0x03
+            )
+        )
+
+        let loadedState = await client.storeProjectedActiveOnboardProfileState(
+            device: device,
+            profile: profile,
+            activeProfileID: 2,
+            snapshot: loadedSnapshot
+        )
+        XCTAssertEqual(loadedState.dpi_stages.values, [400, 1200, 1300])
+
+        let activeOnly = await client.storeProjectedActiveOnboardProfileState(
+            device: device,
+            profile: profile,
+            activeProfileID: 2
+        )
+        XCTAssertNil(activeOnly.dpi)
+        XCTAssertNil(activeOnly.dpi_stages.active_stage)
+        XCTAssertNil(activeOnly.dpi_stages.values)
+        XCTAssertEqual(activeOnly.active_onboard_profile, 2)
+    }
+
+    func testBluetoothOnboardSnapshotDrivesPassiveDpiExpectation() {
+        let dpi = OnboardDPIProfileSnapshot(
+            scalar: DpiPair(x: 1200, y: 1200),
+            activeStage: 1,
+            pairs: [
+                DpiPair(x: 400, y: 400),
+                DpiPair(x: 1200, y: 1200),
+                DpiPair(x: 1300, y: 1300),
+            ],
+            stageIDs: [1, 2, 3],
+            marker: 0x03
+        )
+        let snapshot = BridgeClient.bluetoothDpiSnapshot(from: dpi)
+        let expected = BridgeClient.bluetoothPassiveDpiExpectation(
+            event: PassiveDPIEvent(deviceID: "bt-device:bluetooth", dpiX: 1200, dpiY: 1200, observedAt: Date()),
+            snapshot: snapshot,
+            state: nil
+        )
+
+        XCTAssertEqual(snapshot.count, 3)
+        XCTAssertEqual(Array(snapshot.slots.prefix(snapshot.count)), [400, 1200, 1300])
+        XCTAssertEqual(expected?.active, 1)
+        XCTAssertEqual(expected?.values, [400, 1200, 1300])
+    }
+
+    func testBluetoothOnboardProfileReadStateSkipsGenericTelemetryPolling() {
+        XCTAssertFalse(
+            BridgeClient.shouldPollBluetoothGenericTelemetryForReadState(supportsMappedOnboardProfiles: true)
+        )
+        XCTAssertTrue(
+            BridgeClient.shouldPollBluetoothGenericTelemetryForReadState(supportsMappedOnboardProfiles: false)
+        )
+    }
+
+    func testCompleteBluetoothOnboardProfileMetadataRequiresAllIdentityFields() throws {
+        let identifier = try XCTUnwrap(UUID(uuidString: "01234567-89ab-4cde-8f01-23456789abcd"))
+        let complete = BridgeClient.completeBluetoothOnboardProfileMetadata(
+            USBHIDProtocol.OnboardProfileMetadata(
+                identifier: identifier,
+                name: "Slot 2",
+                owner: "OpenSnek"
+            )
+        )
+
+        XCTAssertEqual(complete?.identifier, identifier)
+        XCTAssertEqual(complete?.name, "Slot 2")
+        XCTAssertEqual(complete?.owner, "OpenSnek")
+        XCTAssertNil(
+            BridgeClient.completeBluetoothOnboardProfileMetadata(
+                USBHIDProtocol.OnboardProfileMetadata(identifier: nil, name: "Slot 2", owner: "OpenSnek")
+            )
+        )
+        XCTAssertNil(
+            BridgeClient.completeBluetoothOnboardProfileMetadata(
+                USBHIDProtocol.OnboardProfileMetadata(identifier: identifier, name: nil, owner: "OpenSnek")
+            )
+        )
+        XCTAssertNil(
+            BridgeClient.completeBluetoothOnboardProfileMetadata(
+                USBHIDProtocol.OnboardProfileMetadata(identifier: identifier, name: "Slot 2", owner: nil)
+            )
+        )
+
+        let erased = BLEVendorProtocol.parseProfileMetadata(
+            [UInt8](repeating: 0xFF, count: BLEVendorProtocol.onboardProfileMetadataLength)
+        )
+        XCTAssertNil(BridgeClient.completeBluetoothOnboardProfileMetadata(erased))
     }
 
     func testResolveBluetoothBatteryStateKeepsChargingUnknownWhenStatusMissing() {

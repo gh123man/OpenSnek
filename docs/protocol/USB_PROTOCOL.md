@@ -52,6 +52,21 @@ Offset  Size  Field              Description
 89      1     Reserved           Always 0x00
 ```
 
+Client implementations should use the validated transaction ID for the resolved
+device profile when one is known. For those devices, a command-level `0x03`
+response is a firmware rejection for that command and state; do not treat it as
+a signal to retry the same command with another transaction ID. Transaction-ID
+candidate scanning is only a fallback for devices without a validated profile
+transaction ID.
+
+Multi-command flows must also be serialized per physical device, not merely per
+HID handle or process. This includes full state sweeps, read-modify-write
+helpers, and onboard profile create/rename/update/delete/select transactions.
+macOS can expose more than one HID handle for the same mouse, and OpenSnek can
+have both the UI app and background service alive. Interleaving a polling read
+sweep with a profile metadata write can produce valid-looking command rejections
+even when each command is correct in isolation.
+
 ### CRC Calculation
 
 ```python
@@ -140,7 +155,7 @@ Modes:
 #### Get Scroll Mode
 ```
 Command:  Class 0x02, ID 0x94, Size 0x02
-Args:     [0] = VARSTORE (0x01)
+Args:     [0] = storage/profile ID
 Response: args[1] = mode (0x00=tactile, 0x01=freespin)
 TxnID:    0x1F
 ```
@@ -148,21 +163,21 @@ TxnID:    0x1F
 #### Set Scroll Mode
 ```
 Command:  Class 0x02, ID 0x14, Size 0x02
-Args:     [0] = VARSTORE (0x01), [1] = mode
+Args:     [0] = storage/profile ID, [1] = mode
 TxnID:    0x1F
 ```
 
 #### Get/Set Scroll Acceleration
 ```
 Command:  Class 0x02, ID 0x96 (get) / 0x16 (set), Size 0x02
-Args:     [0] = VARSTORE (0x01), [1] = enabled (0x00/0x01)
+Args:     [0] = storage/profile ID, [1] = enabled (0x00/0x01)
 TxnID:    0x1F
 ```
 
 #### Get/Set Scroll Smart Reel
 ```
 Command:  Class 0x02, ID 0x97 (get) / 0x17 (set), Size 0x02
-Args:     [0] = VARSTORE (0x01), [1] = enabled (0x00/0x01)
+Args:     [0] = storage/profile ID, [1] = enabled (0x00/0x01)
 TxnID:    0x1F
 ```
 
@@ -326,7 +341,7 @@ TxnID:    0x1F
 #### Get DPI Stages
 ```
 Command:  Class 0x04, ID 0x86, Size 0x26
-Args:     [0] = VARSTORE (0x01)
+Args:     [0] = storage/profile ID
 Response: args[0] = storage
           args[1] = active stage ID (on Basilisk V3 X this is 1-indexed)
           args[2] = number of stages (1-5)
@@ -343,7 +358,7 @@ TxnID:    0x1F
 #### Set DPI Stages
 ```
 Command:  Class 0x04, ID 0x06, Size 0x26
-Args:     [0] = VARSTORE (0x01)
+Args:     [0] = storage/profile ID
           [1] = active stage ID (must match a stage entry ID)
           [2] = count (1-5)
           [3+n*7] = stage data (same format as above)
@@ -448,20 +463,20 @@ Examples:
 #### Get/Set Scroll Mode
 ```
 Command:  Class 0x02, ID 0x94 (get) / 0x14 (set), Size 0x02
-Args:     [0] = VARSTORE (0x01), [1] = mode
+Args:     [0] = storage/profile ID, [1] = mode
 Modes:    0x00=tactile, 0x01=freespin
 ```
 
 #### Get/Set Scroll Acceleration
 ```
 Command:  Class 0x02, ID 0x96 (get) / 0x16 (set), Size 0x02
-Args:     [0] = VARSTORE (0x01), [1] = enabled (0x00/0x01)
+Args:     [0] = storage/profile ID, [1] = enabled (0x00/0x01)
 ```
 
 #### Get/Set Scroll Smart Reel
 ```
 Command:  Class 0x02, ID 0x97 (get) / 0x17 (set), Size 0x02
-Args:     [0] = VARSTORE (0x01), [1] = enabled (0x00/0x01)
+Args:     [0] = storage/profile ID, [1] = enabled (0x00/0x01)
 ```
 
 ### Class 0x0F - Scroll LED Brightness and Effects
@@ -494,10 +509,11 @@ Client note:
 - On the attached Basilisk V3 35K, brightness reads on `0x0F:0x84` succeed for both storage `0x00` and `0x01`. Treat lighting the same way as DPI until proven otherwise: a separate live/persisted layer, not a slot-addressed onboard-profile store.
 - On the attached Basilisk V3 Pro on June 16, 2026, brightness reads on `0x0F:0x84` succeeded for storage/profile IDs `0..5` and all validated LED IDs. Storage `3` returned `0x60`, matching the Bluetooth-recreated target-`3` profile, while the other banks returned `0x54`. Treat brightness as profile-scoped on this device. Changed-value `0x0F:0x04` stored-bank write/readback with restore is validated on profile `5`, and those values persisted across USB reconnect. Cross-transport readback and power-cycle persistence still need guarded validation before shipping.
 
-#### Set Scroll LED Effects
+#### Get/Set Scroll LED Effects
 ```
-Command:  Class 0x0F, ID 0x02, Size varies
-Common:   [0] = VARSTORE (0x01), [1] = LED ID (0x01 scroll wheel), [2] = effect id
+Get:      Class 0x0F, ID 0x82, Size 0x0C
+Set:      Class 0x0F, ID 0x02, Size varies
+Common:   [0] = storage/profile ID, [1] = LED ID, [2] = effect id
 ```
 
 Observed-working payload families:
@@ -509,6 +525,13 @@ Observed-working payload families:
 - breath random: `01 01 02 00 00 00`
 - breath single: `01 01 02 01 00 01 <R> <G> <B>`
 - breath dual: `01 01 02 02 00 02 <R1> <G1> <B1> <R2> <G2> <B2>`
+
+Validated on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
+- `0x0F:0x82`, size `0x0C`, args `<profile> <led> 00 00 00 00 00 00 00 00 00 00` returns a 12-byte effect-state payload for profile IDs `0..5` and LED IDs `0x01`, `0x04`, and `0x0A`.
+- static-color readback shape: `00 <led> 01 00 00 01 <R> <G> <B> 00 00 00`. The first response byte stayed `00` even for stored profile reads; use the requested profile plus the LED echo, not that storage echo, to associate the response.
+- assigned stored profile `2` accepted per-zone static-color writes through `0x0F:0x02`, size `0x09`, payload `<profile> <led> 01 00 00 01 <R> <G> <B>`.
+- after selecting profile `2` with `0x05:0x04`, effective profile `0` returned the same per-zone static colors through `0x0F:0x82`; selecting profile `1` restored effective profile `0` to profile `1`'s static red state.
+- non-static payloads are readable raw effect state. OpenSnek currently decodes/writes static colors in onboard profile snapshots and leaves non-static effect editing outside the v1 profile CRUD model.
 
 ---
 
@@ -533,6 +556,7 @@ Open questions:
 Current known USB profile support is setting-bank oriented:
 - DPI scalar/stages: `0x04:0x85/0x05` and `0x04:0x86/0x06` with storage/profile IDs
 - button bindings: `0x02:0x8C/0x0C` with profile IDs
+- scroll mode / acceleration / smart reel: `0x02:0x94/0x14`, `0x02:0x96/0x16`, `0x02:0x97/0x17` with storage/profile IDs
 - lighting brightness: `0x0F:0x84/0x04` with storage/profile IDs
 - active profile ID read: `0x05:0x84`, size `0x00`
 - active profile selector: `0x05:0x04` with a profile ID
@@ -598,9 +622,35 @@ Response: args[0-4] echo the chunk header
           args[5...] = metadata bytes
 ```
 
-The object length is `0x00FA` bytes. Use four full `0x50` chunks with offsets
-`0x0000`, `0x004B`, `0x0096`, and `0x00E1`; pad write data past the object end
-with zeroes.
+The object length is `0x00FA` bytes. Reads use four full `0x50` chunks with
+offsets `0x0000`, `0x004B`, `0x0096`, and `0x00E1`.
+
+Product metadata writes must write the full `0x00FA` object using offsets
+`0x0000`, `0x004B`, `0x0096`, and `0x00E1`. The `0x00E1` chunk is padding-only
+for the mapped UUID/name/owner fields, but Basilisk V3 Pro USB firmware can
+leave the metadata object invalid after partial known-field writes. Treat strict
+metadata readback as required for create/rename success.
+
+The padding-tail write at offset `0x00E1` can return no status even when the
+firmware has accepted the full metadata object. Treat a missing tail response as
+indeterminate, not as a final failure: do not issue a second metadata write
+unless readback proves the object did not land. Require strict `05:88` readback
+of the UUID/name/owner fields before reporting success.
+
+Rename transactions are metadata-object-only. Check assignment from raw
+inventory, read the existing UUID/name/owner chunks completely, then write the
+full renamed metadata object while preserving the existing UUID and owner. Do
+not perform a full profile snapshot read before the metadata write, and do not
+synthesize a fallback UUID for a rename write when metadata readback is
+incomplete.
+
+All-zero or all-`0xFF` UUID bytes are invalid metadata, not real UUIDs. If an
+assigned USB profile has complete known metadata chunks but an all-`0xFF` UUID,
+repair the metadata object before applying the requested rename: generate a new
+UUID, preserve any readable owner if present, write the full `0x00FA` metadata
+object, then require strict metadata readback. This repair path is only for
+assigned profiles with corrupt metadata; ordinary create/rename transactions
+also use full metadata object writes.
 
 Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
 - slot `0x02`, offset `00 00`: UUID `3a35ec93-bee1-4b29-9d3d-0d2b88f9edef`, name `OPENSNEK_MAC_SLOT_1`
@@ -610,6 +660,7 @@ Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
 - slot `0x05`, offset `00 00`: UUID `18f2a4cc-ecb8-4765-b532-9df401a686d6`, name `OS_P5`
 - after an unsafe partial `0x05:0x08` probe, slot `0x05` metadata read back as UUID `ffffffff-ffff-ffff-ffff-ffffffffffff`, name `nil`.
 - a later full-object `0x05:0x08` repair restored slot `0x05` to UUID `18f2a4cc-ecb8-4765-b532-9df401a686d6`, name `OS_P5_BULK_MAP`, without changing mapped DPI/brightness/button settings.
+- a full-object `0x05:0x08` repair also restored assigned slot `0x04` from all-`0xFF` metadata to UUID `27530668-c3e2-4e0a-a06e-a4854383c4e9`, name `Profile 4`, without changing mapped DPI/brightness/button settings.
 - direct `0x05:0x08` on unassigned slot `0x04` returned status `0x03`; `0x05:0x02 04` followed by four full `0x05:0x08` chunks assigned it and made `0x05:0x04 04` ACK.
 - the `0x05:0x02` assignment path disturbed profile `4` DPI/brightness and required profile-addressed content restore. Treat create as metadata assignment followed by explicit content writes/readback.
 
@@ -641,7 +692,7 @@ Client note:
 
 Unresolved:
 - power-cycle and cross-transport persistence for full create/rename/delete flows
-- static/effect lighting, macro, and any other Synapse-only per-profile surfaces
+- non-static effect payload editing, macro, and any other Synapse-only per-profile surfaces
 
 ### RGB Lighting (Class 0x0F)
 
