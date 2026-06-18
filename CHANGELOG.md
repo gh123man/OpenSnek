@@ -11,6 +11,7 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 - DPI stage selection no longer briefly snaps back to the previous stage when stale telemetry arrives before the apply result.
+- USB state refresh now resolves the active DPI stage from the live DPI value when the stage-table active token is stale.
 
 ## [2026-06-16]
 

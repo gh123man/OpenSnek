@@ -47,17 +47,31 @@ actor BridgeClient {
         return (active: active, stages: stages, pairs: stagePairs)
     }
 
-    nonisolated static func resolvedUSBFastDpiActiveStage(
+    nonisolated static func resolvedUSBActiveStage(
         stages: USBDpiStageSnapshot,
-        liveDpi: Int?
+        liveDpi: DpiPair?
     ) -> Int {
         guard let liveDpi else {
             return stages.active
         }
-        let matchingIndices = stages.values.enumerated().compactMap { index, value in
-            value == liveDpi ? index : nil
+        let pairs = stages.pairs.isEmpty
+            ? stages.values.map { DpiPair(x: $0, y: $0) }
+            : stages.pairs
+        let visiblePairs = Array(pairs.prefix(max(1, min(stages.values.count, pairs.count))))
+        let matchingIndices = visiblePairs.enumerated().compactMap { index, pair in
+            pair == liveDpi ? index : nil
         }
         return matchingIndices.count == 1 ? matchingIndices[0] : stages.active
+    }
+
+    nonisolated static func resolvedUSBFastDpiActiveStage(
+        stages: USBDpiStageSnapshot,
+        liveDpi: Int?
+    ) -> Int {
+        resolvedUSBActiveStage(
+            stages: stages,
+            liveDpi: liveDpi.map { DpiPair(x: $0, y: $0) }
+        )
     }
     static let bluetoothPassiveHeartbeatHealthyInterval: TimeInterval = 1.5
     static let usbReconnectSettleInterval: TimeInterval = 2.0

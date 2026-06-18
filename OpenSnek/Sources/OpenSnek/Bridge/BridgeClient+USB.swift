@@ -170,7 +170,9 @@ extension BridgeClient {
                 led: led
             )
 
-            let active = stages?.active ?? 0
+            let active = stages.map {
+                Self.resolvedUSBActiveStage(stages: $0, liveDpi: DpiPair(x: dpi.0, y: dpi.1))
+            } ?? 0
             let values = stages?.values ?? [dpi.0]
             let pairs = stages?.pairs
 
