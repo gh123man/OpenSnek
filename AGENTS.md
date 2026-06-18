@@ -69,6 +69,38 @@ swift test --package-path OpenSnek --filter AppStateRefactorCharacterizationTest
 swift test --package-path OpenSnek --filter BackgroundServiceTransportTests
 ```
 
+Manual XCUITest happy path. This is manual-only and runs the full macOS app against a connected real USB device. The default scope is Basilisk V3 Pro USB (`vendor 0x1532`, `product 0x00AB`, `protocol usb-hid`, profile `basilisk_v3_pro`); override it with the `OPEN_SNEK_UITEST_EXPECTED_*` environment variables when intentionally testing another supported device.
+
+```bash
+./OpenSnek/scripts/xcodebuild_generated.sh \
+  -scheme OpenSnekUITests \
+  -destination 'platform=macOS' \
+  -only-testing:OpenSnekUITests/PollRateHappyPathUITests/testChangingPollRateAppliesExpectedUSBCommandAndState \
+  test
+```
+
+Manual V3 Pro USB master feature sweep. This changes and restores several hardware settings in one full-app XCUITest to catch cross-feature interference between back-to-back UI actions.
+
+```bash
+./OpenSnek/scripts/xcodebuild_generated.sh \
+  -scheme OpenSnekUITests \
+  -destination 'platform=macOS' \
+  -only-testing:OpenSnekUITests/V3ProUSBMasterFeatureUITests/testV3ProUSBMasterFeatureSweepDoesNotCrossInterfere \
+  test
+```
+
+Manual V3 Pro Bluetooth master feature sweep. This runs the same composable feature harness against the real Bluetooth protocol scope (`vendor 0x068E`, `product 0x00AC`, `protocol ble-vendor`, profile `basilisk_v3_pro`).
+
+```bash
+./OpenSnek/scripts/xcodebuild_generated.sh \
+  -scheme OpenSnekUITests \
+  -destination 'platform=macOS' \
+  -only-testing:OpenSnekUITests/V3ProBluetoothMasterFeatureUITests/testV3ProBluetoothMasterFeatureSweepDoesNotCrossInterfere \
+  test
+```
+
+The test requires Input Monitoring for the built `OpenSnek.app` and Accessibility permission for the app launching `xcodebuild` (`Terminal`, `Codex`, or `Xcode`). Permission or device-scope failures should be reported as clear XCUITest failures with the attached event log.
+
 Hardware gate for BLE DPI/stage changes when a supported device is connected:
 
 ```bash

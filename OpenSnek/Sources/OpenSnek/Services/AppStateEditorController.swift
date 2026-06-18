@@ -39,6 +39,8 @@ final class AppStateEditorController {
     private var onboardProfileButtonHydrationTasksByDeviceID: [String: Task<Void, Never>] = [:]
     private var onboardProfileButtonHydrationTokensByDeviceID: [String: UUID] = [:]
     private var manualOnboardProfileActivationTargetByDeviceID: [String: Int] = [:]
+    private var activeOnboardProfileMutationCount = 0
+    private var maxConcurrentOnboardProfileMutationCount = 0
     private var buttonWorkspaceEditRevision: UInt64 = 0
     private var isTearingDown = false
 
@@ -542,15 +544,15 @@ final class AppStateEditorController {
         }
 
         if activeOnboardSnapshot?.dpi == nil {
-            if let active = state.dpi_stages.active_stage {
-                let maxStage = max(1, editorStore.editableStageCount)
-                editorStore.setEditableActiveStage(
-                    max(1, min(maxStage, active + 1)),
-                    source: "hydrateEditable.state active=\(active)"
-                )
-            } else {
-                editorStore.setEditableActiveStage(1, source: "hydrateEditable.state missing-active")
-            }
+            let maxStage = max(1, editorStore.editableStageCount)
+            let liveMatchedStage = liveMatchedEditableStage(from: state, maxStage: maxStage)
+            let stateStage = state.dpi_stages.active_stage.map { $0 + 1 }
+            let nextStage = liveMatchedStage ?? stateStage ?? 1
+            editorStore.setEditableActiveStage(
+                max(1, min(maxStage, nextStage)),
+                source: "hydrateEditable.state liveMatched=\(liveMatchedStage.map(String.init) ?? "nil") " +
+                    "state=\(stateStage.map(String.init) ?? "nil")"
+            )
         }
         editorStore.normalizeExpandedXYStages()
 
@@ -609,40 +611,83 @@ final class AppStateEditorController {
         if let snapshot = currentActiveOnboardProfileSnapshot(for: state),
            let dpi = snapshot.dpi,
            let device = deviceStore.selectedDevice {
-            hydrateEditableDPI(
-                from: dpi,
-                device: device,
-                liveDPI: state.dpi,
-                activeStageOverride: pendingActiveStage,
-                source: "hydrateLiveDpi.snapshot pending=\(pendingActiveStage.map(String.init) ?? "nil")"
-            )
-            if let pendingActiveStage {
-                let maxStage = max(1, editorStore.editableStageCount)
-                editorStore.setEditableActiveStage(
-                    max(1, min(maxStage, pendingActiveStage)),
-                    source: "hydrateLiveDpi.pendingSnapshot pending=\(pendingActiveStage)"
+            if applyController.shouldHydrateEditable(for: device) {
+                hydrateEditableDPI(
+                    from: dpi,
+                    device: device,
+                    liveDPI: state.dpi,
+                    activeStageOverride: pendingActiveStage,
+                    source: "hydrateLiveDpi.snapshot pending=\(pendingActiveStage.map(String.init) ?? "nil")"
+                )
+            } else {
+                hydrateLiveDpiActiveStageOnly(
+                    from: state,
+                    snapshotDPI: dpi,
+                    pendingActiveStage: pendingActiveStage,
+                    source: "hydrateLiveDpi.pendingLocalSnapshot"
                 )
             }
-        } else if let active = state.dpi_stages.active_stage {
+        } else if state.dpi_stages.active_stage != nil {
             let maxStage = max(1, editorStore.editableStageCount)
+            let liveMatchedStage = liveMatchedEditableStage(from: state, maxStage: maxStage)
+            let stateStage = state.dpi_stages.active_stage.map { $0 + 1 }
+            let nextStage = pendingActiveStage ?? liveMatchedStage ?? stateStage ?? editorStore.editableActiveStage
             editorStore.setEditableActiveStage(
-                max(1, min(maxStage, pendingActiveStage ?? active + 1)),
-                source: "hydrateLiveDpi.state active=\(active) pending=\(pendingActiveStage.map(String.init) ?? "nil")"
+                max(1, min(maxStage, nextStage)),
+                source: "hydrateLiveDpi.state pending=\(pendingActiveStage.map(String.init) ?? "nil") " +
+                    "liveMatched=\(liveMatchedStage.map(String.init) ?? "nil") " +
+                    "state=\(stateStage.map(String.init) ?? "nil")"
             )
         } else {
+            let maxStage = max(1, editorStore.editableStageCount)
+            let liveMatchedStage = liveMatchedEditableStage(from: state, maxStage: maxStage)
             editorStore.setEditableActiveStage(
-                pendingActiveStage ?? 1,
-                source: "hydrateLiveDpi.state missing-active pending=\(pendingActiveStage.map(String.init) ?? "nil")"
+                max(1, min(maxStage, pendingActiveStage ?? liveMatchedStage ?? 1)),
+                source: "hydrateLiveDpi.state missing-active pending=\(pendingActiveStage.map(String.init) ?? "nil") " +
+                    "liveMatched=\(liveMatchedStage.map(String.init) ?? "nil")"
             )
         }
 
-        if editorStore.editableStageCount == 1, let dpi = state.dpi?.x {
+        if applyController.shouldHydrateEditable,
+           editorStore.editableStageCount == 1,
+           let dpi = state.dpi?.x {
             let clampedX = DeviceProfiles.clampDPI(dpi, profileID: deviceStore.selectedDevice?.profile_id)
             let clampedY = DeviceProfiles.clampDPI(state.dpi?.y ?? dpi, profileID: deviceStore.selectedDevice?.profile_id)
             editorStore.editableStagePairs[0] = DpiPair(x: clampedX, y: clampedY)
         }
 
         editorStore.normalizeExpandedXYStages()
+    }
+
+    private func hydrateLiveDpiActiveStageOnly(
+        from state: MouseState,
+        snapshotDPI: OnboardDPIProfileSnapshot,
+        pendingActiveStage: Int?,
+        source: String
+    ) {
+        let maxStage = max(1, editorStore.editableStageCount)
+        let liveMatchedStage = state.dpi.flatMap { liveDPI in
+            Self.uniqueDPIStageIndex(matching: liveDPI, in: snapshotDPI.pairs)
+        }.map { $0 + 1 }
+        let snapshotStage = snapshotDPI.activeStage.map { $0 + 1 }
+        let stateStage = state.dpi_stages.active_stage.map { $0 + 1 }
+        let nextStage = pendingActiveStage ?? liveMatchedStage ?? snapshotStage ?? stateStage ?? editorStore.editableActiveStage
+        editorStore.setEditableActiveStage(
+            max(1, min(maxStage, nextStage)),
+            source: "\(source) pending=\(pendingActiveStage.map(String.init) ?? "nil") " +
+                "liveMatched=\(liveMatchedStage.map(String.init) ?? "nil") " +
+                "snapshot=\(snapshotStage.map(String.init) ?? "nil") " +
+                "state=\(stateStage.map(String.init) ?? "nil")"
+        )
+    }
+
+    private func liveMatchedEditableStage(from state: MouseState, maxStage: Int) -> Int? {
+        guard maxStage > 0,
+              let liveDPI = state.dpi else {
+            return nil
+        }
+        let visiblePairs = Array(editorStore.editableStagePairs.prefix(maxStage))
+        return Self.uniqueDPIStageIndex(matching: liveDPI, in: visiblePairs).map { $0 + 1 }
     }
 
     func hydrateLightingStateIfNeeded(device: MouseDevice) async {
@@ -1679,7 +1724,14 @@ final class AppStateEditorController {
                projectedInventory.assignedProfileIDs.contains(selectedAfterRefresh),
                currentOnboardProfileSnapshotByDeviceID[device.id]?.profileID != selectedAfterRefresh {
                 let snapshot = try await readLatestOnboardProfileSnapshot(device: device, profileID: selectedAfterRefresh)
-                hydrateEditable(from: snapshot, device: device)
+                if applyController.shouldHydrateEditable(for: device) {
+                    hydrateEditable(from: snapshot, device: device)
+                } else {
+                    AppLog.debug(
+                        "AppState",
+                        "refresh onboard profiles skipped selected snapshot hydration pending local edit device=\(device.id) profile=\(selectedAfterRefresh)"
+                    )
+                }
             }
 
             let visibleInventory = onboardProfileInventoryByDeviceID[device.id] ?? projectedInventory
@@ -1965,6 +2017,33 @@ final class AppStateEditorController {
               let selected = selectedOnboardProfileID(),
               !mutation.isEmpty else { return false }
         cancelSelectedMouseSlotHydration(deviceID: device.id)
+        let startedAt = Date()
+        activeOnboardProfileMutationCount += 1
+        maxConcurrentOnboardProfileMutationCount = max(
+            maxConcurrentOnboardProfileMutationCount,
+            activeOnboardProfileMutationCount
+        )
+#if DEBUG
+        OpenSnekUITestSupport.recordOnboardProfileMutationStart(
+            device: device,
+            profileID: selected,
+            mutation: mutation,
+            activeMutationCount: activeOnboardProfileMutationCount,
+            maxConcurrentMutationCount: maxConcurrentOnboardProfileMutationCount
+        )
+        if activeOnboardProfileMutationCount > 1 {
+            OpenSnekUITestSupport.recordOnboardProfileMutationOverlapDetected(
+                device: device,
+                profileID: selected,
+                mutation: mutation,
+                activeMutationCount: activeOnboardProfileMutationCount,
+                maxConcurrentMutationCount: maxConcurrentOnboardProfileMutationCount
+            )
+        }
+#endif
+        defer {
+            activeOnboardProfileMutationCount -= 1
+        }
         do {
             let resolvedMutation = mutation.preservingDpiIdentity(
                 from: currentSelectedOnboardProfileSnapshot(device: device)
@@ -1980,6 +2059,16 @@ final class AppStateEditorController {
                     "AppState",
                     "update onboard profile stale-drop device=\(device.id) profile=\(selected)"
                 )
+#if DEBUG
+                OpenSnekUITestSupport.recordOnboardProfileMutationEnd(
+                    device: device,
+                    profileID: selected,
+                    mutation: resolvedMutation,
+                    activeMutationCount: activeOnboardProfileMutationCount,
+                    maxConcurrentMutationCount: maxConcurrentOnboardProfileMutationCount,
+                    elapsed: Date().timeIntervalSince(startedAt)
+                )
+#endif
                 return true
             }
             storeCurrentOnboardProfileSnapshot(
@@ -2003,10 +2092,31 @@ final class AppStateEditorController {
                 _ = try await environment.backend.refreshActiveOnboardProfile(device: device)
             }
             bumpOnboardProfilesRevision()
+#if DEBUG
+            OpenSnekUITestSupport.recordOnboardProfileMutationEnd(
+                device: device,
+                profileID: selected,
+                mutation: resolvedMutation,
+                activeMutationCount: activeOnboardProfileMutationCount,
+                maxConcurrentMutationCount: maxConcurrentOnboardProfileMutationCount,
+                elapsed: Date().timeIntervalSince(startedAt)
+            )
+#endif
             return true
         } catch {
             AppLog.error("AppState", "update onboard profile failed profile=\(selected): \(error.localizedDescription)")
             deviceStore.errorMessage = "Failed to update onboard profile: \(error.localizedDescription)"
+#if DEBUG
+            OpenSnekUITestSupport.recordOnboardProfileMutationError(
+                device: device,
+                profileID: selected,
+                mutation: mutation,
+                activeMutationCount: activeOnboardProfileMutationCount,
+                maxConcurrentMutationCount: maxConcurrentOnboardProfileMutationCount,
+                elapsed: Date().timeIntervalSince(startedAt),
+                error: error
+            )
+#endif
             return false
         }
     }

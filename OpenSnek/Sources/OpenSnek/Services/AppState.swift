@@ -77,6 +77,11 @@ final class AppState {
         launchRole: OpenSnekProcessRole,
         serviceCoordinator: BackgroundServiceCoordinator
     ) -> any DeviceBackend {
+#if DEBUG
+        if OpenSnekUITestSupport.forcesLocalBackend {
+            return LocalBridgeBackend.shared
+        }
+#endif
         if launchRole.isService || !serviceCoordinator.backgroundServiceEnabled {
             return LocalBridgeBackend.shared
         }

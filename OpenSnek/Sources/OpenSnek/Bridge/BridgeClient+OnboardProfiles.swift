@@ -356,6 +356,7 @@ extension BridgeClient {
         switch device.transport {
         case .usb:
             return try await withUSBProfileSession(device: device) { session in
+                let activeBeforeMutation = try? self.usbReadActiveOnboardProfileID(session, device)
                 if let metadata = mutation.metadata {
                     let metadataForWrite = self.usbMetadataForWrite(
                         session,
@@ -372,6 +373,9 @@ extension BridgeClient {
                     profileID: profileID,
                     mutation: mutation.withoutMetadata
                 )
+                if activeBeforeMutation == profileID {
+                    _ = try self.usbWriteActiveOnboardProfileID(session, device, profileID: profileID)
+                }
                 return try self.usbReadOnboardProfile(session, device, profile: profile, profileID: profileID)
             }
         case .bluetooth:
@@ -492,29 +496,7 @@ extension BridgeClient {
         switch device.transport {
         case .usb:
             activated = try await withUSBProfileSession(device: device) { session in
-                let response = try self.perform(
-                    session,
-                    device,
-                    classID: 0x05,
-                    cmdID: 0x04,
-                    size: 0x01,
-                    args: USBHIDProtocol.activeProfileSetArgs(profile: UInt8(profileID))
-                )
-                guard let response,
-                      USBHIDProtocol.activeProfileSetAccepted(from: response, profile: UInt8(profileID)) else {
-                    throw BridgeError.commandFailed("USB onboard profile selector was rejected.")
-                }
-                return try self.validateUSBOnboardProfileReadback(
-                    device: device,
-                    operation: "USB active onboard profile selector",
-                    failureMessage: "USB active profile readback did not match profile \(profileID).",
-                    read: {
-                        try self.usbReadActiveOnboardProfileID(session, device) ?? -1
-                    },
-                    accepts: { active in
-                        active == profileID
-                    }
-                )
+                try self.usbWriteActiveOnboardProfileID(session, device, profileID: profileID)
             }
         case .bluetooth:
             let req = nextBTReq()
@@ -716,6 +698,36 @@ extension BridgeClient {
             return nil
         }
         return Int(active)
+    }
+
+    func usbWriteActiveOnboardProfileID(
+        _ session: USBHIDControlSession,
+        _ device: MouseDevice,
+        profileID: Int
+    ) throws -> Int {
+        let response = try perform(
+            session,
+            device,
+            classID: 0x05,
+            cmdID: 0x04,
+            size: 0x01,
+            args: USBHIDProtocol.activeProfileSetArgs(profile: UInt8(profileID))
+        )
+        guard let response,
+              USBHIDProtocol.activeProfileSetAccepted(from: response, profile: UInt8(profileID)) else {
+            throw BridgeError.commandFailed("USB onboard profile selector was rejected.")
+        }
+        return try validateUSBOnboardProfileReadback(
+            device: device,
+            operation: "USB active onboard profile selector",
+            failureMessage: "USB active profile readback did not match profile \(profileID).",
+            read: {
+                try self.usbReadActiveOnboardProfileID(session, device) ?? -1
+            },
+            accepts: { active in
+                active == profileID
+            }
+        )
     }
 
     func usbReadOnboardProfile(

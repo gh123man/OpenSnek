@@ -56,6 +56,7 @@ struct DeviceSidebarView: View {
                                 )
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("device-row-\(device.id)")
                         }
                     }
                     .padding(.vertical, 2)
@@ -157,6 +158,8 @@ struct DeviceRow: View {
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("device-row-name-\(device.id)")
+                    .accessibilityLabel(device.product_name)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 

@@ -239,6 +239,15 @@ extension BridgeClient {
         responseAttempts: Int = 6,
         responseDelayUs: useconds_t = 30_000
     ) throws -> [UInt8]? {
+#if DEBUG
+        OpenSnekUITestSupport.recordUSBCommand(
+            device: device,
+            classID: classID,
+            cmdID: cmdID,
+            size: size,
+            args: args
+        )
+#endif
         do {
             let response = try session.perform(
                 classID: classID,

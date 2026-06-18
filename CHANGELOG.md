@@ -9,9 +9,12 @@ All notable changes to this project are documented in this file.
 - `OpenSnekProbe dpi-set` now performs one post-write verification read and removed the `--verify-retries` / `--verify-delay-ms` flags.
 - DPI stage selection from the UI now applies only the selected live stage instead of rewriting the full stage table when stage values were not edited.
 - Debug logs now identify DPI active-stage UI mutations, hydrators, backend snapshots, USB read resolution, and active-stage apply requests so stale-state overwrites can be traced from a single repro.
+- Basilisk V3 Pro USB active onboard-profile writes now refresh the active selector before readback so back-to-back profile-backed UI edits keep profile hydration available.
 
 ### Fixed
 - DPI stage selection no longer briefly snaps back to the previous stage when stale telemetry arrives before the apply result, including mapped onboard-profile devices whose live DPI readback can lag behind the stored profile update.
+- Bluetooth onboard-profile DPI edits no longer let a stale profile refresh briefly roll the visible DPI field and slider back to the previous value while the write is still in flight.
+- Bluetooth DPI-stage selection now follows live DPI changes from the mouse even when passive telemetry reports a stale active-stage token.
 - USB scroll mode controls now follow live wheel-mode changes from the mouse even when the cached active onboard-profile snapshot still has the previous scroll mode.
 - USB state refresh now resolves the active DPI stage from the live DPI value when the stage-table active token is stale.
 - Selected USB devices with unavailable feature-report telemetry now enter a degraded cooldown instead of repeatedly reissuing full-state reads while passive HID updates show the mouse is still connected.

@@ -357,6 +357,8 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     private var devicePresenceRefreshTask: Task<Void, Never>?
     private var pendingUSBDisconnectRefreshTasks: [String: Task<Void, Never>] = [:]
     private var activeBluetoothWarmupKeys: Set<String> = []
+    private var activeApplyCount = 0
+    private var maxConcurrentApplyCount = 0
 
     nonisolated var usesRemoteServiceTransport: Bool { false }
 
@@ -392,19 +394,45 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     }
 
     func listDevices() async throws -> [MouseDevice] {
+        let startedAt = Date()
         if let cachedDevicesAt,
            Date().timeIntervalSince(cachedDevicesAt) < 1.0,
            !cachedDevices.isEmpty {
+#if DEBUG
+            OpenSnekUITestSupport.recordListDevices(
+                cachedDevices,
+                elapsed: Date().timeIntervalSince(startedAt),
+                source: "local-cache"
+            )
+#endif
             return cachedDevices
         }
-        let previousIDs = Set(cachedDevices.map(\.id))
-        let devices = try await client.listDevices()
-        updateCachedDevices(devices, updatedAt: Date(), publishUpdate: false)
-        scheduleBluetoothWarmups(for: devices.filter { device in
-            device.transport == .bluetooth && !previousIDs.contains(device.id)
-        })
-        publishSnapshotIfService()
-        return devices
+        do {
+            let previousIDs = Set(cachedDevices.map(\.id))
+            let devices = try await client.listDevices()
+            updateCachedDevices(devices, updatedAt: Date(), publishUpdate: false)
+            scheduleBluetoothWarmups(for: devices.filter { device in
+                device.transport == .bluetooth && !previousIDs.contains(device.id)
+            })
+            publishSnapshotIfService()
+#if DEBUG
+            OpenSnekUITestSupport.recordListDevices(
+                devices,
+                elapsed: Date().timeIntervalSince(startedAt),
+                source: "local"
+            )
+#endif
+            return devices
+        } catch {
+#if DEBUG
+            OpenSnekUITestSupport.recordListDevicesError(
+                error,
+                elapsed: Date().timeIntervalSince(startedAt),
+                source: "local"
+            )
+#endif
+            throw error
+        }
     }
 
     func readState(device: MouseDevice) async throws -> MouseState {
@@ -421,6 +449,14 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
                 now: readStartedAt,
                 shouldUseFastDPIPolling: shouldUseFastPolling
             ) {
+#if DEBUG
+                OpenSnekUITestSupport.recordReadState(
+                    device: device,
+                    state: cached,
+                    elapsed: Date().timeIntervalSince(readStartedAt),
+                    source: "local-cache"
+                )
+#endif
                 return cached
             }
         }
@@ -435,6 +471,14 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
                 cachedStateAtByDeviceID[device.id] = now
                 reconnectSeedStateByDeviceID[device.id] = merged
                 publishSnapshotIfService()
+#if DEBUG
+                OpenSnekUITestSupport.recordReadState(
+                    device: device,
+                    state: merged,
+                    elapsed: Date().timeIntervalSince(readStartedAt),
+                    source: "local-merged"
+                )
+#endif
                 return merged
             }
             AppLog.debug(
@@ -442,6 +486,14 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
                 "readState stale-result masked device=\(device.id) startedAt=\(readStartedAt.timeIntervalSince1970) " +
                 "cachedAt=\(cachedStateAtByDeviceID[device.id]?.timeIntervalSince1970 ?? 0)"
             )
+#if DEBUG
+            OpenSnekUITestSupport.recordReadState(
+                device: device,
+                state: cached,
+                elapsed: Date().timeIntervalSince(readStartedAt),
+                source: "local-stale-mask"
+            )
+#endif
             return cached
         }
         if device.transport == .bluetooth,
@@ -459,12 +511,28 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
                 "cachedActive=\(cached.dpi_stages.active_stage.map(String.init) ?? "nil") " +
                 "readActive=\(state.dpi_stages.active_stage.map(String.init) ?? "nil")"
             )
+#if DEBUG
+            OpenSnekUITestSupport.recordReadState(
+                device: device,
+                state: merged,
+                elapsed: Date().timeIntervalSince(readStartedAt),
+                source: "local-merged"
+            )
+#endif
             return merged
         }
         cachedStateByDeviceID[device.id] = state
         cachedStateAtByDeviceID[device.id] = Date()
         reconnectSeedStateByDeviceID[device.id] = state
         publishSnapshotIfService()
+#if DEBUG
+        OpenSnekUITestSupport.recordReadState(
+            device: device,
+            state: state,
+            elapsed: Date().timeIntervalSince(readStartedAt),
+            source: "local"
+        )
+#endif
         return state
     }
 
@@ -512,7 +580,11 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     }
 
     func hidAccessStatus(forceRefresh: Bool) async -> HIDAccessStatus {
-        await client.hidAccessStatus(forceRefresh: forceRefresh)
+        let status = await client.hidAccessStatus(forceRefresh: forceRefresh)
+#if DEBUG
+        OpenSnekUITestSupport.recordHIDAccessStatus(status, source: "local")
+#endif
+        return status
     }
 
     func stateUpdates() async -> AsyncStream<BackendStateUpdate> {
@@ -520,7 +592,47 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     }
 
     func apply(device: MouseDevice, patch: DevicePatch, options: ApplyOptions) async throws -> MouseState {
-        let state = try await client.apply(device: device, patch: patch, options: options)
+        let startedAt = Date()
+        activeApplyCount += 1
+        maxConcurrentApplyCount = max(maxConcurrentApplyCount, activeApplyCount)
+#if DEBUG
+        OpenSnekUITestSupport.recordApplyStart(
+            device: device,
+            patch: patch,
+            activeApplyCount: activeApplyCount,
+            maxConcurrentApplyCount: maxConcurrentApplyCount,
+            readbackPolicy: options.readbackPolicy.rawValue
+        )
+        if activeApplyCount > 1 {
+            OpenSnekUITestSupport.recordOverlapDetected(
+                device: device,
+                patch: patch,
+                activeApplyCount: activeApplyCount,
+                maxConcurrentApplyCount: maxConcurrentApplyCount
+            )
+        }
+#endif
+        defer {
+            activeApplyCount -= 1
+        }
+
+        let state: MouseState
+        do {
+            state = try await client.apply(device: device, patch: patch, options: options)
+        } catch {
+#if DEBUG
+            OpenSnekUITestSupport.recordApplyError(
+                device: device,
+                patch: patch,
+                activeApplyCount: activeApplyCount,
+                maxConcurrentApplyCount: maxConcurrentApplyCount,
+                elapsed: Date().timeIntervalSince(startedAt),
+                readbackPolicy: options.readbackPolicy.rawValue,
+                error: error
+            )
+#endif
+            throw error
+        }
         let merged = Self.mergedApplyState(
             state,
             previous: cachedStateByDeviceID[device.id] ?? reconnectSeedStateByDeviceID[device.id]
@@ -536,6 +648,17 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
             cachedFastAtByDeviceID[device.id] = now
         }
         publishSnapshotIfService()
+#if DEBUG
+        OpenSnekUITestSupport.recordApplyEnd(
+            device: device,
+            patch: patch,
+            state: merged,
+            activeApplyCount: activeApplyCount,
+            maxConcurrentApplyCount: maxConcurrentApplyCount,
+            elapsed: Date().timeIntervalSince(startedAt),
+            readbackPolicy: options.readbackPolicy.rawValue
+        )
+#endif
         return merged
     }
 

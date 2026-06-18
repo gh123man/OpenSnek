@@ -48,6 +48,7 @@ struct DeviceDetailView: View {
                 .padding(.vertical, verticalPadding)
                 .frame(maxWidth: .infinity, alignment: .top)
             }
+            .accessibilityIdentifier("device-detail-scroll-view")
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(WindowDragBlocker())
             .loadingScrim(
@@ -261,6 +262,8 @@ struct DeviceOverviewBar: View {
                     Text(selected.product_name)
                         .font(.system(size: 32, weight: .black, design: .rounded))
                         .foregroundStyle(.white)
+                        .accessibilityIdentifier("selected-device-name")
+                        .accessibilityLabel(selected.product_name)
                     if showsUnsupportedUSBMarker {
                         UnsupportedUSBInlineBanner()
                     }
@@ -303,6 +306,7 @@ struct DeviceOverviewBar: View {
                     text: state.connection,
                     color: selected.transport == .bluetooth ? Color(hex: 0x66D9FF) : Color(hex: 0xA8F46A)
                 )
+                .accessibilityIdentifier("selected-device-connection")
                 DeviceStatusBadge(
                     indicator: deviceStore.currentDeviceStatusIndicator,
                     helpText: deviceStore.currentDeviceConnectionTooltip
@@ -612,6 +616,8 @@ struct DeviceStatusBadge: View {
             Text(indicator.label)
                 .font(.system(size: 11, weight: .black, design: .rounded))
                 .foregroundStyle(.white.opacity(0.82))
+                .accessibilityIdentifier("device-status-label")
+                .accessibilityLabel(indicator.label)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -625,6 +631,9 @@ struct DeviceStatusBadge: View {
         )
         .contentShape(Capsule())
         .hoverTooltip(helpText, xOffset: 6, yOffset: 34, maxWidth: 360)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(indicator.label)
+        .accessibilityIdentifier("device-status-badge")
     }
 }
 
@@ -758,7 +767,7 @@ struct OnConnectBehaviorCard: View {
     }
 
     var body: some View {
-        Card(title: "On Connect") {
+        Card(title: "On Connect", accessibilityIdentifier: "on-connect-card") {
             VStack(alignment: .leading, spacing: 12) {
                 Picker("On Connect Behavior", selection: connectBehaviorBinding) {
                     Text("Use Mouse Settings").tag(DeviceConnectBehavior.useMouseSettings)
@@ -766,6 +775,7 @@ struct OnConnectBehaviorCard: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.segmented)
+                .accessibilityIdentifier("on-connect-picker")
 
                 HStack(alignment: .top, spacing: 10) {
                     Text(selectedDescription)
@@ -781,6 +791,7 @@ struct OnConnectBehaviorCard: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(showsExpandedInfo ? "Hide on connect details" : "Show on connect details")
+                    .accessibilityIdentifier("on-connect-details-button")
                 }
 
                 if showsExpandedInfo {
@@ -862,6 +873,7 @@ struct LightingCard: View {
                     .labelsHidden()
                     .pickerStyle(.segmented)
                     .frame(maxWidth: 340, alignment: .trailing)
+                    .accessibilityIdentifier("lighting-zone-picker")
                 }
 
                 HStack(alignment: .center, spacing: 12) {
@@ -879,13 +891,14 @@ struct LightingCard: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                     .tint(accentBase)
+                    .accessibilityIdentifier("lighting-apply-all-zones-button")
                 }
             }
         }
     }
 
     var body: some View {
-        Card(title: "Lighting") {
+        Card(title: "Lighting", accessibilityIdentifier: "lighting-card") {
             HStack {
                 Text("Brightness")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -909,12 +922,14 @@ struct LightingCard: View {
             )
             .tint(accentBase)
             .padding(.vertical, 8)
+            .accessibilityIdentifier("lighting-brightness-slider")
 
             if !selected.supports_advanced_lighting_effects {
                 staticLightingZoneEditor()
 
                 LightingColorEditor(
                     title: "Color",
+                    identifierPrefix: "lighting-color",
                     color: Binding(
                         get: { editorStore.editableColor },
                         set: {
@@ -947,6 +962,7 @@ struct LightingCard: View {
                     .labelsHidden()
                     .pickerStyle(.menu)
                     .frame(width: 220, alignment: .trailing)
+                    .accessibilityIdentifier("lighting-effect-picker")
                 }
 
                 if editorStore.editableLightingEffect.usesWaveDirection {
@@ -970,6 +986,7 @@ struct LightingCard: View {
                         }
                         .pickerStyle(.segmented)
                         .frame(width: 220)
+                        .accessibilityIdentifier("lighting-direction-picker")
                     }
                 }
 
@@ -996,6 +1013,7 @@ struct LightingCard: View {
                         }
                         .pickerStyle(.segmented)
                         .frame(width: 220)
+                        .accessibilityIdentifier("lighting-speed-picker")
                     }
                 }
 
@@ -1004,6 +1022,7 @@ struct LightingCard: View {
 
                     LightingColorEditor(
                         title: "Primary Color",
+                        identifierPrefix: "lighting-primary-color",
                         color: Binding(
                             get: { editorStore.editableColor },
                             set: {
@@ -1018,6 +1037,7 @@ struct LightingCard: View {
                 if editorStore.editableLightingEffect.usesSecondaryColor {
                     LightingColorEditor(
                         title: "Secondary Color",
+                        identifierPrefix: "lighting-secondary-color",
                         color: Binding(
                             get: { editorStore.editableSecondaryColor },
                             set: {
@@ -1045,6 +1065,7 @@ struct LightingCard: View {
 
 struct LightingColorEditor: View {
     let title: String
+    var identifierPrefix: String? = nil
     @Binding var color: OpenSnekCore.RGBColor
     let swatches: [LightingSwatch]
 
@@ -1066,6 +1087,7 @@ struct LightingColorEditor: View {
 
             RGBSliderRow(
                 label: "R",
+                accessibilityIdentifier: identifierPrefix.map { "\($0)-red-slider" },
                 tint: Color.red,
                 value: Binding(
                     get: { color.r },
@@ -1075,6 +1097,7 @@ struct LightingColorEditor: View {
 
             RGBSliderRow(
                 label: "G",
+                accessibilityIdentifier: identifierPrefix.map { "\($0)-green-slider" },
                 tint: Color.green,
                 value: Binding(
                     get: { color.g },
@@ -1084,6 +1107,7 @@ struct LightingColorEditor: View {
 
             RGBSliderRow(
                 label: "B",
+                accessibilityIdentifier: identifierPrefix.map { "\($0)-blue-slider" },
                 tint: Color.blue,
                 value: Binding(
                     get: { color.b },
@@ -1104,11 +1128,13 @@ struct LightingColorEditor: View {
                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                 )
         )
+        .optionalAccessibilityIdentifier(identifierPrefix.map { "\($0)-editor" })
     }
 }
 
 struct RGBSliderRow: View {
     let label: String
+    var accessibilityIdentifier: String? = nil
     let tint: Color
     @Binding var value: Int
 
@@ -1126,6 +1152,7 @@ struct RGBSliderRow: View {
                 in: 0...255
             )
             .tint(tint)
+            .optionalAccessibilityIdentifier(accessibilityIdentifier)
             Text("\(value)")
                 .font(.system(size: 12, weight: .bold, design: .monospaced))
                 .foregroundStyle(.white.opacity(0.8))
@@ -1143,7 +1170,7 @@ struct DpiStagesCard: View {
         let supportsIndependentXYDPI = editorStore.selectedDeviceSupportsIndependentXYDPI
         let supportsMultiStage = true
         let stageCount = supportsMultiStage ? editorStore.editableStageCount : 1
-        return Card(title: "DPI Stages") {
+        return Card(title: "DPI Stages", accessibilityIdentifier: "dpi-stages-card") {
             HStack {
                 Text(
                     supportsMultiStage
@@ -1172,6 +1199,7 @@ struct DpiStagesCard: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(supportsMultiStage && editorStore.editableStageCount > 1 ? .white : .white.opacity(0.35))
                     .disabled(!supportsMultiStage || editorStore.editableStageCount <= 1)
+                    .accessibilityIdentifier("dpi-stage-count-decrease-button")
 
                     Button {
                         guard supportsMultiStage else { return }
@@ -1187,6 +1215,7 @@ struct DpiStagesCard: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(supportsMultiStage && editorStore.editableStageCount < 5 ? .white : .white.opacity(0.35))
                     .disabled(!supportsMultiStage || editorStore.editableStageCount >= 5)
+                    .accessibilityIdentifier("dpi-stage-count-increase-button")
                 }
             }
 
@@ -1203,11 +1232,11 @@ struct DpiStagesCard: View {
 
                         if isXYExpanded {
                             HStack(spacing: 8) {
-                                axisTextField(label: "X", value: stagePair.x) { parsed in
+                                axisTextField(label: "X", value: stagePair.x, stageIndex: idx) { parsed in
                                     editorStore.updateStageX(idx, value: parsed)
                                     editorStore.scheduleAutoApplyDpi()
                                 }
-                                axisTextField(label: "Y", value: stagePair.y) { parsed in
+                                axisTextField(label: "Y", value: stagePair.y, stageIndex: idx) { parsed in
                                     editorStore.updateStageY(idx, value: parsed)
                                     editorStore.scheduleAutoApplyDpi()
                                 }
@@ -1216,7 +1245,8 @@ struct DpiStagesCard: View {
                             DpiValueField(
                                 placeholder: "DPI",
                                 value: editorStore.stageValue(idx),
-                                width: 100
+                                width: 100,
+                                accessibilityIdentifier: "dpi-stage-\(idx + 1)-value-field"
                             ) { parsed in
                                 editorStore.updateStage(idx, value: parsed)
                                 editorStore.scheduleAutoApplyDpi()
@@ -1242,6 +1272,7 @@ struct DpiStagesCard: View {
                         axisSlider(
                             label: "X",
                             value: stagePair.x,
+                            stageIndex: idx,
                             profileID: profileID,
                             tint: isSelectedStage ? stageColor : Color.white.opacity(0.80)
                         ) { quantized in
@@ -1251,6 +1282,7 @@ struct DpiStagesCard: View {
                         axisSlider(
                             label: "Y",
                             value: stagePair.y,
+                            stageIndex: idx,
                             profileID: profileID,
                             tint: isSelectedStage ? stageColor.opacity(0.8) : Color.white.opacity(0.65)
                         ) { quantized in
@@ -1281,6 +1313,7 @@ struct DpiStagesCard: View {
                                 }
                             )
                             .tint(isSelectedStage ? stageColor : Color.white.opacity(0.80))
+                            .accessibilityIdentifier("dpi-stage-\(idx + 1)-slider")
 
                             DpiSliderScaleMarkers(
                                 profileID: profileID,
@@ -1303,7 +1336,7 @@ struct DpiStagesCard: View {
         }
     }
 
-    private func axisTextField(label: String, value: Int, onCommit: @escaping (Int) -> Void) -> some View {
+    private func axisTextField(label: String, value: Int, stageIndex: Int, onCommit: @escaping (Int) -> Void) -> some View {
         HStack(spacing: 6) {
             Text(label)
                 .font(.system(size: 11, weight: .black, design: .monospaced))
@@ -1311,7 +1344,8 @@ struct DpiStagesCard: View {
             DpiValueField(
                 placeholder: label,
                 value: value,
-                width: 88
+                width: 88,
+                accessibilityIdentifier: "dpi-stage-\(stageIndex + 1)-\(label.lowercased())-field"
             ) { parsed in
                 onCommit(parsed)
             }
@@ -1340,6 +1374,7 @@ struct DpiStagesCard: View {
     private func axisSlider(
         label: String,
         value: Int,
+        stageIndex: Int,
         profileID: DeviceProfileID?,
         tint: Color,
         onChange: @escaping (Int) -> Void
@@ -1362,6 +1397,7 @@ struct DpiStagesCard: View {
                     }
                 )
                 .tint(tint)
+                .accessibilityIdentifier("dpi-stage-\(stageIndex + 1)-\(label.lowercased())-axis-slider")
 
                 DpiSliderScaleMarkers(
                     profileID: profileID,
@@ -1403,6 +1439,7 @@ struct DpiStagesCard: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(isSelectedStage ? stageColor : .white)
+            .accessibilityIdentifier("dpi-stage-\(index + 1)-select-button")
         }
     }
 
@@ -1423,6 +1460,7 @@ private struct DpiValueField: View {
     let width: CGFloat
     var alignment: TextAlignment = .leading
     var isDisabled: Bool = false
+    var accessibilityIdentifier: String? = nil
     let onCommit: (Int) -> Void
 
     @State private var draft: String
@@ -1434,6 +1472,7 @@ private struct DpiValueField: View {
         width: CGFloat,
         alignment: TextAlignment = .leading,
         isDisabled: Bool = false,
+        accessibilityIdentifier: String? = nil,
         onCommit: @escaping (Int) -> Void
     ) {
         self.placeholder = placeholder
@@ -1441,6 +1480,7 @@ private struct DpiValueField: View {
         self.width = width
         self.alignment = alignment
         self.isDisabled = isDisabled
+        self.accessibilityIdentifier = accessibilityIdentifier
         self.onCommit = onCommit
         _draft = State(initialValue: String(value))
     }
@@ -1451,6 +1491,7 @@ private struct DpiValueField: View {
             .frame(width: width)
             .multilineTextAlignment(alignment)
             .disabled(isDisabled)
+            .optionalAccessibilityIdentifier(accessibilityIdentifier)
             .focused($isFocused)
             .onSubmit {
                 commitDraft()
@@ -1485,29 +1526,58 @@ private struct DpiValueField: View {
 
 struct PollRateCard: View {
     let editorStore: EditorStore
+    private let pollRates = [125, 500, 1000]
 
     var body: some View {
-        Card(title: "Polling Rate") {
+        Card(title: "Polling Rate", accessibilityIdentifier: "poll-rate-card") {
             LabeledControlRow(title: "Rate") {
-                Picker(
-                    "Rate",
-                    selection: Binding(
-                        get: { editorStore.editablePollRate },
-                        set: { editorStore.editablePollRate = $0 }
-                    )
-                ) {
-                    Text("125 Hz").tag(125)
-                    Text("500 Hz").tag(500)
-                    Text("1000 Hz").tag(1000)
+                HStack(spacing: 0) {
+                    ForEach(Array(pollRates.enumerated()), id: \.element) { index, rate in
+                        pollRateButton(rate)
+                        if index < pollRates.count - 1 {
+                            Rectangle()
+                                .fill(Color.white.opacity(0.14))
+                                .frame(width: 1, height: 18)
+                        }
+                    }
                 }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .frame(width: 220)
+                .frame(width: 220, height: 30)
+                .background(
+                    RoundedRectangle(cornerRadius: 7)
+                        .fill(Color.white.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7)
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 7))
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Polling Rate")
+                .accessibilityIdentifier("poll-rate-picker")
             }
         }
         .onChange(of: editorStore.editablePollRate) { _, _ in
             editorStore.scheduleAutoApplyPollRate()
         }
+    }
+
+    private func pollRateButton(_ rate: Int) -> some View {
+        let isSelected = editorStore.editablePollRate == rate
+        return Button {
+            editorStore.editablePollRate = rate
+        } label: {
+            Text("\(rate) Hz")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(isSelected ? .white : .white.opacity(0.72))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(isSelected ? Color.white.opacity(0.20) : Color.clear)
+        .accessibilityIdentifier("poll-rate-option-\(rate)")
+        .accessibilityLabel("\(rate) Hz")
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -1515,7 +1585,7 @@ struct SleepTimeoutCard: View {
     let editorStore: EditorStore
 
     var body: some View {
-        Card(title: "Power Management") {
+        Card(title: "Power Management", accessibilityIdentifier: "power-management-card") {
             HStack {
                 Text("Sleep timeout")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -1537,6 +1607,7 @@ struct SleepTimeoutCard: View {
                 ),
                 in: 60...900
             )
+            .accessibilityIdentifier("sleep-timeout-slider")
         }
     }
 
@@ -1552,7 +1623,7 @@ struct LowBatteryThresholdCard: View {
     let editorStore: EditorStore
 
     var body: some View {
-        Card(title: "Low Battery Threshold") {
+        Card(title: "Low Battery Threshold", accessibilityIdentifier: "low-battery-threshold-card") {
             HStack {
                 Text("Threshold")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -1574,6 +1645,7 @@ struct LowBatteryThresholdCard: View {
                 ),
                 in: Double(0x0C)...Double(0x3F)
             )
+            .accessibilityIdentifier("low-battery-threshold-slider")
 
             Text("Approximate warning level")
                 .hintTextStyle()
@@ -1590,7 +1662,7 @@ struct ScrollControlsCard: View {
     let state: MouseState
 
     var body: some View {
-        Card(title: "Scroll Controls") {
+        Card(title: "Scroll Controls", accessibilityIdentifier: "scroll-controls-card") {
             VStack(alignment: .leading, spacing: 12) {
                 if state.scroll_mode != nil {
                     LabeledControlRow(title: "Wheel") {
@@ -1610,6 +1682,7 @@ struct ScrollControlsCard: View {
                         .labelsHidden()
                         .pickerStyle(.segmented)
                         .frame(width: 220, alignment: .trailing)
+                        .accessibilityIdentifier("scroll-mode-picker")
                     }
                 }
 
@@ -1628,6 +1701,7 @@ struct ScrollControlsCard: View {
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.regular)
+                        .accessibilityIdentifier("scroll-acceleration-toggle")
                     }
                 }
 
@@ -1646,6 +1720,7 @@ struct ScrollControlsCard: View {
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.regular)
+                        .accessibilityIdentifier("scroll-smart-reel-toggle")
                     }
                 }
             }
@@ -1689,7 +1764,7 @@ struct ButtonMappingTableCard: View {
     }
 
     var body: some View {
-        Card(title: title) {
+        Card(title: title, accessibilityIdentifier: "button-mapping-card") {
             VStack(alignment: .leading, spacing: 12) {
                 LazyVStack(alignment: .leading, spacing: 10) {
                     ForEach(rows) { row in
@@ -1776,7 +1851,7 @@ private struct OnboardProfileManagerCard: View {
     }
 
     var body: some View {
-        Card(title: "Onboard Profiles") {
+        Card(title: "Onboard Profiles", accessibilityIdentifier: "onboard-profiles-card") {
             VStack(alignment: .leading, spacing: 12) {
                 if editorStore.onboardProfileSummaries.isEmpty {
                     if isRefreshing {
@@ -1825,6 +1900,7 @@ private struct OnboardProfileManagerCard: View {
             }
             .buttonStyle(.plain)
             .help("Refresh profiles")
+            .accessibilityIdentifier("onboard-profiles-refresh-button")
         }
     }
 
@@ -1920,6 +1996,7 @@ private struct OnboardProfileManagerCard: View {
         }
         .buttonStyle(.plain)
         .disabled(isBusy)
+        .accessibilityIdentifier("onboard-profile-row-\(profile.profileID)")
         .onHover { isHovered in
             if isHovered {
                 hoveredProfileID = profile.profileID
@@ -1972,6 +2049,7 @@ private struct OnboardProfileManagerCard: View {
 
                 TextField(selectedSummary.isAssigned ? "Profile name" : "Name this profile", text: $renameName)
                     .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("onboard-profile-name-field")
                     .onAppear {
                         resetNameField(forProfileID: selectedProfileID)
                     }
@@ -2082,6 +2160,7 @@ private struct OnboardProfileManagerCard: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(isBusy || selectedNameIsEmpty)
+            .accessibilityIdentifier("onboard-profile-rename-button")
 
             Button {
                 Task { await editorStore.deleteSelectedOnboardProfile() }
@@ -2090,6 +2169,7 @@ private struct OnboardProfileManagerCard: View {
             }
             .buttonStyle(.bordered)
             .disabled(isBusy || selectedProfileID <= 1)
+            .accessibilityIdentifier("onboard-profile-delete-button")
         }
         .controlSize(.small)
     }
@@ -2116,6 +2196,7 @@ private struct OnboardProfileManagerCard: View {
                 .labelsHidden()
                 .pickerStyle(.menu)
                 .frame(width: 180, alignment: .trailing)
+                .accessibilityIdentifier("onboard-profile-copy-from-picker")
             }
         }
     }
@@ -2137,6 +2218,7 @@ private struct OnboardProfileManagerCard: View {
         .buttonStyle(.borderedProminent)
         .controlSize(.small)
         .disabled(isBusy || selectedNameIsEmpty)
+        .accessibilityIdentifier("onboard-profile-create-button")
     }
 
     private func resetNameField(forProfileID profileID: Int?) {
@@ -2706,6 +2788,7 @@ private struct ButtonBindingRow: View {
                 Text(row.friendlyName)
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
+                    .accessibilityIdentifier("button-binding-row-\(row.slot)")
 
                 Spacer(minLength: 12)
 
@@ -2724,6 +2807,7 @@ private struct ButtonBindingRow: View {
                 .pickerStyle(.menu)
                 .frame(width: 220, alignment: .trailing)
                 .disabled(!row.isEditable)
+                .accessibilityIdentifier("button-binding-kind-picker-\(row.slot)")
             }
 
             if row.selectedKind == .keyboardSimple {
@@ -2757,7 +2841,8 @@ private struct ButtonBindingRow: View {
                             value: editorStore.buttonBindingClutchDPI(for: row.slot),
                             width: 120,
                             alignment: .center,
-                            isDisabled: !row.isEditable
+                            isDisabled: !row.isEditable,
+                            accessibilityIdentifier: "button-binding-clutch-dpi-field-\(row.slot)"
                         ) { parsed in
                             editorStore.updateButtonBindingClutchDPI(slot: row.slot, dpi: parsed)
                         }
@@ -2791,6 +2876,7 @@ private struct ButtonBindingRow: View {
                         )
                         .frame(width: 140)
                         .disabled(!row.isEditable)
+                        .accessibilityIdentifier("button-binding-clutch-dpi-slider-\(row.slot)")
 
                         DpiSliderScaleMarkers(
                             profileID: profileID,
@@ -2834,6 +2920,7 @@ private struct ButtonBindingRow: View {
                         )
                         .frame(width: 140)
                         .disabled(!row.isEditable)
+                        .accessibilityIdentifier("button-binding-turbo-rate-slider-\(row.slot)")
 
                         Text("Fast")
                             .font(.system(size: 12, weight: .bold, design: .rounded))
@@ -2887,5 +2974,6 @@ private struct ButtonBindingRow: View {
         .font(.system(size: 12, weight: .bold, design: .rounded))
         .foregroundStyle(.white.opacity(0.76))
         .disabled(!row.isEditable)
+        .accessibilityIdentifier("button-binding-turbo-toggle-\(row.slot)")
     }
 }
