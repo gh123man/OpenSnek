@@ -611,18 +611,20 @@ final class AppStateEditorController {
         if let snapshot = currentActiveOnboardProfileSnapshot(for: state),
            let dpi = snapshot.dpi,
            let device = deviceStore.selectedDevice {
-            hydrateEditableDPI(
-                from: dpi,
-                device: device,
-                liveDPI: state.dpi,
-                activeStageOverride: pendingActiveStage,
-                source: "hydrateLiveDpi.snapshot pending=\(pendingActiveStage.map(String.init) ?? "nil")"
-            )
-            if let pendingActiveStage {
-                let maxStage = max(1, editorStore.editableStageCount)
-                editorStore.setEditableActiveStage(
-                    max(1, min(maxStage, pendingActiveStage)),
-                    source: "hydrateLiveDpi.pendingSnapshot pending=\(pendingActiveStage)"
+            if applyController.shouldHydrateEditable(for: device) {
+                hydrateEditableDPI(
+                    from: dpi,
+                    device: device,
+                    liveDPI: state.dpi,
+                    activeStageOverride: pendingActiveStage,
+                    source: "hydrateLiveDpi.snapshot pending=\(pendingActiveStage.map(String.init) ?? "nil")"
+                )
+            } else {
+                hydrateLiveDpiActiveStageOnly(
+                    from: state,
+                    snapshotDPI: dpi,
+                    pendingActiveStage: pendingActiveStage,
+                    source: "hydrateLiveDpi.pendingLocalSnapshot"
                 )
             }
         } else if let active = state.dpi_stages.active_stage {
@@ -638,13 +640,37 @@ final class AppStateEditorController {
             )
         }
 
-        if editorStore.editableStageCount == 1, let dpi = state.dpi?.x {
+        if applyController.shouldHydrateEditable,
+           editorStore.editableStageCount == 1,
+           let dpi = state.dpi?.x {
             let clampedX = DeviceProfiles.clampDPI(dpi, profileID: deviceStore.selectedDevice?.profile_id)
             let clampedY = DeviceProfiles.clampDPI(state.dpi?.y ?? dpi, profileID: deviceStore.selectedDevice?.profile_id)
             editorStore.editableStagePairs[0] = DpiPair(x: clampedX, y: clampedY)
         }
 
         editorStore.normalizeExpandedXYStages()
+    }
+
+    private func hydrateLiveDpiActiveStageOnly(
+        from state: MouseState,
+        snapshotDPI: OnboardDPIProfileSnapshot,
+        pendingActiveStage: Int?,
+        source: String
+    ) {
+        let maxStage = max(1, editorStore.editableStageCount)
+        let liveMatchedStage = state.dpi.flatMap { liveDPI in
+            Self.uniqueDPIStageIndex(matching: liveDPI, in: snapshotDPI.pairs)
+        }.map { $0 + 1 }
+        let snapshotStage = snapshotDPI.activeStage.map { $0 + 1 }
+        let stateStage = state.dpi_stages.active_stage.map { $0 + 1 }
+        let nextStage = pendingActiveStage ?? liveMatchedStage ?? snapshotStage ?? stateStage ?? editorStore.editableActiveStage
+        editorStore.setEditableActiveStage(
+            max(1, min(maxStage, nextStage)),
+            source: "\(source) pending=\(pendingActiveStage.map(String.init) ?? "nil") " +
+                "liveMatched=\(liveMatchedStage.map(String.init) ?? "nil") " +
+                "snapshot=\(snapshotStage.map(String.init) ?? "nil") " +
+                "state=\(stateStage.map(String.init) ?? "nil")"
+        )
     }
 
     func hydrateLightingStateIfNeeded(device: MouseDevice) async {

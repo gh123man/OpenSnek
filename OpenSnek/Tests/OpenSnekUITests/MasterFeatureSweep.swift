@@ -541,13 +541,22 @@ final class MasterFeatureSweep {
                 }
                 return false
             }) {
+                if let monitoringFieldIdentifier,
+                   !assertDPIFieldStable(
+                    identifier: monitoringFieldIdentifier,
+                    target: target,
+                    observedValues: &observedValues,
+                    duration: 1.0
+                   ) {
+                    return nil
+                }
                 return event
             }
 
             RunLoop.current.run(until: Date().addingTimeInterval(0.05))
         } while Date() < deadline
 
-        return testCase.readEvents().first(where: { event in
+        guard let event = testCase.readEvents().first(where: { event in
             guard event.timestamp >= startedAt.timeIntervalSince1970 - 0.1,
                   testCase.expectedScope.matches(event.scope) else { return false }
             if event.name == "onboardProfileMutationEnd",
@@ -560,13 +569,59 @@ final class MasterFeatureSweep {
                 return true
             }
             return false
-        })
+        }) else {
+            return nil
+        }
+        if let monitoringFieldIdentifier,
+           !assertDPIFieldStable(
+            identifier: monitoringFieldIdentifier,
+            target: target,
+            observedValues: &observedValues,
+            duration: 1.0
+           ) {
+            return nil
+        }
+        return event
     }
 
     private func visibleDPIFieldValue(identifier: String) -> Int? {
         let element = testCase.app.descendants(matching: .any)[identifier]
         guard element.exists else { return nil }
         return integerValue(from: element)
+    }
+
+    private func assertDPIFieldStable(
+        identifier: String,
+        target: Int,
+        observedValues: inout [Int],
+        duration: TimeInterval
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(duration)
+        var sawTarget = observedValues.contains(target)
+        repeat {
+            if let visibleValue = visibleDPIFieldValue(identifier: identifier) {
+                if observedValues.last != visibleValue {
+                    observedValues.append(visibleValue)
+                }
+                if visibleValue == target {
+                    sawTarget = true
+                } else if sawTarget {
+                    XCTFail(
+                        "DPI field rolled back after showing \(target); observed visible values \(observedValues)"
+                    )
+                    return false
+                }
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        } while Date() < deadline
+
+        if !sawTarget {
+            XCTFail(
+                "DPI field never showed \(target) after the backend mutation completed; observed visible values \(observedValues)"
+            )
+            return false
+        }
+        return true
     }
 
     private func waitForLightingBrightnessEnd(
