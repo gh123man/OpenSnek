@@ -513,7 +513,11 @@ final class RemoteServiceSnapshotTests: XCTestCase {
 
     func testCurrentDeviceStatusUsesSelectedDeviceFreshnessFromSnapshotCache() async {
         let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: SnapshotTestRemoteBackend(), autoStart: false)
+            AppState(
+                launchRole: .app,
+                backend: SnapshotTestRemoteBackend(shouldUseFastDPIPolling: true),
+                autoStart: false
+            )
         }
 
         let alphaDevice = makeSnapshotDevice(
@@ -826,10 +830,16 @@ private func makeSnapshotState(
 private final class SnapshotTestRemoteBackend: DeviceBackend {
     var usesRemoteServiceTransport: Bool { true }
 
+    private let shouldUseFastDPIPollingValue: Bool
+
+    init(shouldUseFastDPIPolling: Bool = false) {
+        self.shouldUseFastDPIPollingValue = shouldUseFastDPIPolling
+    }
+
     func listDevices() async throws -> [MouseDevice] { [] }
     func readState(device _: MouseDevice) async throws -> MouseState { throw SnapshotBackendError.unimplemented }
     func readDpiStagesFast(device _: MouseDevice) async throws -> DpiFastSnapshot? { nil }
-    func shouldUseFastDPIPolling(device _: MouseDevice) async -> Bool { false }
+    func shouldUseFastDPIPolling(device _: MouseDevice) async -> Bool { shouldUseFastDPIPollingValue }
     func hidAccessStatus() async -> HIDAccessStatus {
         HIDAccessStatus(
             authorization: .granted,

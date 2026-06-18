@@ -154,6 +154,59 @@ final class AppStateMultiDeviceTests: XCTestCase {
         XCTAssertEqual(secondReadOrder, [bluetoothDevice.id, unavailableDongle.id, bluetoothDevice.id])
     }
 
+    func testSelectedUSBTelemetryUnavailableBacksOffAndKeepsPassiveHIDConnected() async {
+        let usbDevice = makeTestDevice(
+            id: "usb-selected-telemetry-unavailable",
+            productName: "Alpha Mouse",
+            transport: .usb,
+            serial: "USB-SELECTED-TELEMETRY",
+            locationID: 1,
+            profile: .basiliskV3Pro
+        )
+        let backend = DeviceListUpdatingStubBackend(
+            devices: [usbDevice],
+            stateByDeviceID: [
+                usbDevice.id: makeTestState(
+                    device: usbDevice,
+                    connection: "usb",
+                    batteryPercent: 81,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        let telemetryUnavailable = "USB device telemetry unavailable. Feature-report interface did not return usable responses."
+
+        await appState.deviceStore.refreshDevices()
+        let initialReadCount = await backend.readCount(for: usbDevice.id)
+        await backend.setTransientReadFailures([telemetryUnavailable], for: usbDevice.id)
+
+        let refreshed = await appState.deviceController.refreshState(for: usbDevice)
+        let failedReadCount = await backend.readCount(for: usbDevice.id)
+        let connectionState = await MainActor.run {
+            appState.deviceStore.connectionState(for: usbDevice)
+        }
+        let warningAfterFailure = await MainActor.run { appState.deviceStore.warningMessage }
+
+        XCTAssertFalse(refreshed)
+        XCTAssertEqual(failedReadCount, initialReadCount + 1)
+        XCTAssertEqual(connectionState, .connected)
+        XCTAssertEqual(warningAfterFailure, "Using the last known values while live telemetry settles.")
+
+        await appState.runtimeController.pollRuntimeOnce(now: Date(timeIntervalSince1970: 1_773_400_100))
+        await appState.deviceStore.pollDevicePresence()
+
+        let readCountAfterImmediatePolls = await backend.readCount(for: usbDevice.id)
+        let presentedDpi = await MainActor.run { appState.deviceStore.state?.dpi?.x }
+
+        XCTAssertEqual(readCountAfterImmediatePolls, failedReadCount)
+        XCTAssertEqual(presentedDpi, 800)
+    }
+
     func testSelectingVisibleDeviceWithoutCachedStateStartsImmediateRefresh() async throws {
         let alphaDevice = makeTestDevice(
             id: "alpha-device",
@@ -287,6 +340,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
         await backend.setUnavailable(false)
 
         await MainActor.run {
+            _ = appState.deviceController.applyDeviceList([], source: "test")
             _ = appState.deviceController.applyDeviceList([usbDevice], source: "test")
         }
 
@@ -1818,7 +1872,7 @@ private actor DisconnectingMultiDeviceStubBackend: DeviceBackend {
     }
 
     func shouldUseFastDPIPolling(device _: MouseDevice) async -> Bool {
-        false
+        true
     }
 
     func hidAccessStatus() async -> HIDAccessStatus {

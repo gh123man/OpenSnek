@@ -401,74 +401,68 @@ extension BridgeClient {
     }
 
     func btGetDpiStages(device: MouseDevice) async throws -> (active: Int, values: [Int], pairs: [DpiPair], marker: UInt8)? {
-        for attempt in 0..<2 {
-            let req = nextBTReq()
-            let header = BLEVendorProtocol.buildReadHeader(req: req, key: .dpiStagesGet)
-            let notifies = try await btExchange([header], timeout: 0.6, device: device)
-            guard let payload = BLEVendorProtocol.parsePayloadFrames(notifies: notifies, req: req) else {
-                AppLog.debug(
-                    "Bridge",
-                    "btGetDpiStages no-payload device=\(device.id) req=\(req) attempt=\(attempt + 1) notifies=\(btNotifySummary(notifies))"
-                )
-                if attempt == 0 { continue }
-                return nil
-            }
-            guard let parsed = BLEVendorProtocol.parseDpiStages(blob: payload) else {
-                AppLog.debug(
-                    "Bridge",
-                    "btGetDpiStages parse-failed device=\(device.id) req=\(req) attempt=\(attempt + 1) " +
-                    "payload=\(btHex(payload)) notifies=\(btNotifySummary(notifies))"
-                )
-                if attempt == 0 { continue }
-                return nil
-            }
-
-            let dpiRange = DeviceProfiles.dpiRange(for: device)
-            guard !parsed.values.isEmpty,
-                  parsed.active >= 0,
-                  parsed.active < parsed.values.count,
-                  parsed.values.allSatisfy({ dpiRange.contains($0) }) else {
-                AppLog.debug(
-                    "Bridge",
-                    "btGetDpiStages ignored invalid payload device=\(device.id) values=\(parsed.values) active=\(parsed.active) attempt=\(attempt + 1)"
-                )
-                if attempt == 0 { continue }
-                return nil
-            }
-
-            if var expected = btExpectedDpiByDeviceID[device.id] {
-                let parsedValues = Array(parsed.values.prefix(expected.values.count))
-                let parsedPairs = Array(parsed.pairs.prefix(expected.pairs.count))
-                if parsed.active == expected.active && parsedPairs == expected.pairs {
-                    btExpectedDpiByDeviceID[device.id] = nil
-                } else if Date() < expected.expiresAt,
-                          expected.remainingMasks > 0,
-                          Self.shouldMaskBluetoothExpectedRead(
-                            parsedActive: parsed.active,
-                            parsedValues: parsed.values,
-                            parsedPairs: parsed.pairs,
-                            expected: expected
-                          ) {
-                    expected.remainingMasks -= 1
-                    btExpectedDpiByDeviceID[device.id] = expected
-                    AppLog.debug(
-                        "Bridge",
-                        "btGetDpiStages stale-read masked device=\(device.id) expectedActive=\(expected.active) expectedValues=\(expected.values) " +
-                        "actualActive=\(parsed.active) actualValues=\(parsedValues) remainingMasks=\(expected.remainingMasks)"
-                    )
-                    return (active: expected.active, values: expected.values, pairs: expected.pairs, marker: parsed.marker)
-                } else {
-                    btExpectedDpiByDeviceID[device.id] = nil
-                }
-            }
-
-            if let snap = BLEVendorProtocol.parseDpiStageSnapshot(blob: payload) {
-                btDpiSnapshotByDeviceID[device.id] = snap
-            }
-            AppLog.debug("Bridge", "btGetDpiStages device=\(device.id) active=\(parsed.active) values=\(parsed.values)")
-            return (active: parsed.active, values: parsed.values, pairs: parsed.pairs, marker: parsed.marker)
+        let req = nextBTReq()
+        let header = BLEVendorProtocol.buildReadHeader(req: req, key: .dpiStagesGet)
+        let notifies = try await btExchange([header], timeout: 0.6, device: device)
+        guard let payload = BLEVendorProtocol.parsePayloadFrames(notifies: notifies, req: req) else {
+            AppLog.debug(
+                "Bridge",
+                "btGetDpiStages no-payload device=\(device.id) req=\(req) notifies=\(btNotifySummary(notifies))"
+            )
+            return nil
         }
-        return nil
+        guard let parsed = BLEVendorProtocol.parseDpiStages(blob: payload) else {
+            AppLog.debug(
+                "Bridge",
+                "btGetDpiStages parse-failed device=\(device.id) req=\(req) " +
+                "payload=\(btHex(payload)) notifies=\(btNotifySummary(notifies))"
+            )
+            return nil
+        }
+
+        let dpiRange = DeviceProfiles.dpiRange(for: device)
+        guard !parsed.values.isEmpty,
+              parsed.active >= 0,
+              parsed.active < parsed.values.count,
+              parsed.values.allSatisfy({ dpiRange.contains($0) }) else {
+            AppLog.debug(
+                "Bridge",
+                "btGetDpiStages ignored invalid payload device=\(device.id) values=\(parsed.values) active=\(parsed.active)"
+            )
+            return nil
+        }
+
+        if var expected = btExpectedDpiByDeviceID[device.id] {
+            let parsedValues = Array(parsed.values.prefix(expected.values.count))
+            let parsedPairs = Array(parsed.pairs.prefix(expected.pairs.count))
+            if parsed.active == expected.active && parsedPairs == expected.pairs {
+                btExpectedDpiByDeviceID[device.id] = nil
+            } else if Date() < expected.expiresAt,
+                      expected.remainingMasks > 0,
+                      Self.shouldMaskBluetoothExpectedRead(
+                        parsedActive: parsed.active,
+                        parsedValues: parsed.values,
+                        parsedPairs: parsed.pairs,
+                        expected: expected
+                      ) {
+                expected.remainingMasks -= 1
+                btExpectedDpiByDeviceID[device.id] = expected
+                AppLog.debug(
+                    "Bridge",
+                    "btGetDpiStages stale-read masked device=\(device.id) expectedActive=\(expected.active) expectedValues=\(expected.values) " +
+                    "actualActive=\(parsed.active) actualValues=\(parsedValues) remainingMasks=\(expected.remainingMasks)"
+                )
+                return (active: expected.active, values: expected.values, pairs: expected.pairs, marker: parsed.marker)
+            } else {
+                btExpectedDpiByDeviceID[device.id] = nil
+            }
+        }
+
+        if let snap = BLEVendorProtocol.parseDpiStageSnapshot(blob: payload) {
+            btDpiSnapshotByDeviceID[device.id] = snap
+        }
+        AppLog.debug("Bridge", "btGetDpiStages device=\(device.id) active=\(parsed.active) values=\(parsed.values)")
+        return (active: parsed.active, values: parsed.values, pairs: parsed.pairs, marker: parsed.marker)
     }
 
     func btGetDpiStageSnapshot(device: MouseDevice) async throws -> (active: Int, count: Int, slots: [Int], pairs: [DpiPair], stageIDs: [UInt8], marker: UInt8)? {

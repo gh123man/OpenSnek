@@ -87,17 +87,16 @@ extension BridgeClient {
         let clampedSlot = UInt8(max(0, min(255, slot)))
         let clampedProfile = UInt8(max(0, min(255, profile)))
         let clampedHypershift = UInt8(max(0, min(1, hypershift)))
-        for session in sessions {
-            if let block = try getButtonBindingUSBRaw(
-                session,
-                device,
-                profile: clampedProfile,
-                slot: clampedSlot,
-                hypershift: clampedHypershift
-            ) {
-                deviceSessions[device.id] = session
-                return block
-            }
+        let session = sessions[0]
+        if let block = try getButtonBindingUSBRaw(
+            session,
+            device,
+            profile: clampedProfile,
+            slot: clampedSlot,
+            hypershift: clampedHypershift
+        ) {
+            deviceSessions[device.id] = session
+            return block
         }
         return nil
     }
@@ -121,18 +120,17 @@ extension BridgeClient {
         let clampedSlot = UInt8(max(0, min(255, slot)))
         let clampedProfile = UInt8(max(0, min(255, profile)))
         let clampedHypershift = UInt8(max(0, min(1, hypershift)))
-        for session in sessions {
-            if try setButtonBindingUSBRaw(
-                session,
-                device,
-                profile: clampedProfile,
-                slot: clampedSlot,
-                hypershift: clampedHypershift,
-                functionBlock: functionBlock
-            ) {
-                deviceSessions[device.id] = session
-                return true
-            }
+        let session = sessions[0]
+        if try setButtonBindingUSBRaw(
+            session,
+            device,
+            profile: clampedProfile,
+            slot: clampedSlot,
+            hypershift: clampedHypershift,
+            functionBlock: functionBlock
+        ) {
+            deviceSessions[device.id] = session
+            return true
         }
         return false
     }
@@ -172,9 +170,24 @@ extension BridgeClient {
                 led: led
             )
 
-            let active = stages?.active ?? 0
+            let active = stages.map {
+                Self.resolvedUSBActiveStage(stages: $0, liveDpi: DpiPair(x: dpi.0, y: dpi.1))
+            } ?? 0
             let values = stages?.values ?? [dpi.0]
             let pairs = stages?.pairs
+            AppLog.debug(
+                "Bridge",
+                "readUSBState dpi-active-resolve device=\(device.id) " +
+                "tableActive=\(stages?.active.description ?? "nil") live=(\(dpi.0),\(dpi.1)) " +
+                "resolved=\(active) values=\(values.map(String.init).joined(separator: ","))"
+            )
+            AppLog.debug(
+                "Bridge",
+                "readUSBState scroll device=\(device.id) profile=\(scrollProfileID) " +
+                "mode=\(scrollMode.map(String.init) ?? "nil") " +
+                "accel=\(scrollAcceleration.map(String.init) ?? "nil") " +
+                "smart=\(scrollSmartReel.map(String.init) ?? "nil")"
+            )
 
             return MouseState(
                 device: DeviceSummary(
@@ -223,7 +236,6 @@ extension BridgeClient {
         cmdID: UInt8,
         size: UInt8,
         args: [UInt8] = [],
-        allowTxnRescan: Bool = false,
         responseAttempts: Int = 6,
         responseDelayUs: useconds_t = 30_000
     ) throws -> [UInt8]? {
@@ -234,7 +246,6 @@ extension BridgeClient {
                 size: size,
                 args: args,
                 transactionID: usbDeviceProfile(for: device)?.usbTransactionID,
-                allowTxnRescan: allowTxnRescan,
                 responseAttempts: responseAttempts,
                 responseDelayUs: responseDelayUs
             )
@@ -254,7 +265,7 @@ extension BridgeClient {
     }
 
     func getDPI(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> (Int, Int)? {
-        guard let r = try perform(session, device, classID: 0x04, cmdID: 0x85, size: 0x07, args: [0x00], allowTxnRescan: true), r[0] == 0x02 else { return nil }
+        guard let r = try perform(session, device, classID: 0x04, cmdID: 0x85, size: 0x07, args: [0x00]), r[0] == 0x02 else { return nil }
         return (Int(r[9]) << 8 | Int(r[10]), Int(r[11]) << 8 | Int(r[12]))
     }
 
@@ -269,7 +280,7 @@ extension BridgeClient {
             UInt8((y >> 8) & 0xFF),
             UInt8(y & 0xFF),
         ]
-        guard let r = try perform(session, device, classID: 0x04, cmdID: 0x05, size: 0x07, args: args, allowTxnRescan: true), r[0] == 0x02 else { return false }
+        guard let r = try perform(session, device, classID: 0x04, cmdID: 0x05, size: 0x07, args: args), r[0] == 0x02 else { return false }
         return true
     }
 
@@ -279,7 +290,7 @@ extension BridgeClient {
     }
 
     func getDPIStageSnapshot(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> USBDpiStageSnapshot? {
-        guard let r = try perform(session, device, classID: 0x04, cmdID: 0x86, size: 0x26, allowTxnRescan: true),
+        guard let r = try perform(session, device, classID: 0x04, cmdID: 0x86, size: 0x26),
               let snapshot = parseUSBDpiStageSnapshotResponse(r, device: device)
         else {
             return nil
@@ -714,7 +725,6 @@ extension BridgeClient {
             cmdID: 0x0C,
             size: UInt8(args.count),
             args: args,
-            allowTxnRescan: true,
             responseAttempts: 12,
             responseDelayUs: 40_000
         ) else { return false }
@@ -801,7 +811,6 @@ extension BridgeClient {
             cmdID: 0x8C,
             size: UInt8(args.count),
             args: args,
-            allowTxnRescan: true,
             responseAttempts: 12,
             responseDelayUs: 40_000
         ), response[0] == 0x02 else {

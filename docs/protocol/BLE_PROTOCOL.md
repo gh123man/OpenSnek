@@ -901,7 +901,7 @@ These behaviors are not pure wire-format rules, but they are part of what you ne
 ### 8.1 DPI Reliability Rules
 
 OpenSnek:
-- retries malformed DPI-stage reads once immediately
+- ignores malformed DPI-stage reads without retrying the command
 - rejects parsed DPI results if:
   - the value list is empty
   - active index is out of range

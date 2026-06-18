@@ -477,51 +477,32 @@ final class USBProbeClient {
 
     func writeActiveProfileID(_ profile: UInt8) throws -> Bool {
         let args = USBHIDProtocol.activeProfileSetArgs(profile: profile)
-        for _ in 0..<4 {
-            guard let response = try rawCommand(
-                classID: 0x05,
-                cmdID: 0x04,
-                size: 0x01,
-                args: args
-            ) else {
-                usleep(80_000)
-                continue
-            }
-            if USBHIDProtocol.activeProfileSetAccepted(from: response, profile: profile) {
-                return true
-            }
-            if response.count > 7, response[6] == 0x05, response[7] == 0x04, response[0] == 0x03 {
-                return false
-            }
-            usleep(80_000)
+        guard let response = try rawCommand(
+            classID: 0x05,
+            cmdID: 0x04,
+            size: 0x01,
+            args: args
+        ) else {
+            return false
         }
-        return false
+        return USBHIDProtocol.activeProfileSetAccepted(from: response, profile: profile)
     }
 
     func readProfileDPIScalar(profile: UInt8) throws -> (raw: [UInt8], pair: DpiPair?)? {
-        for _ in 0..<6 {
-            guard let response = try rawCommand(
-                classID: 0x04,
-                cmdID: 0x85,
-                size: 0x07,
-                args: [profile]
-            ), response[0] == 0x02, response.count > 12 else {
-                usleep(80_000)
-                continue
-            }
-            guard response[8] == profile else {
-                usleep(80_000)
-                continue
-            }
-
-            let raw = Array(response[8..<min(response.count, 15)])
-            let pair = DpiPair(
-                x: (Int(response[9]) << 8) | Int(response[10]),
-                y: (Int(response[11]) << 8) | Int(response[12])
-            )
-            return (raw, pair)
+        guard let response = try rawCommand(
+            classID: 0x04,
+            cmdID: 0x85,
+            size: 0x07,
+            args: [profile]
+        ), response[0] == 0x02, response.count > 12, response[8] == profile else {
+            return nil
         }
-        return nil
+        let raw = Array(response[8..<min(response.count, 15)])
+        let pair = DpiPair(
+            x: (Int(response[9]) << 8) | Int(response[10]),
+            y: (Int(response[11]) << 8) | Int(response[12])
+        )
+        return (raw, pair)
     }
 
     func writeProfileDPIScalar(profile: UInt8, pair: DpiPair) throws -> Bool {
@@ -536,120 +517,82 @@ final class USBProbeClient {
             0x00,
             0x00,
         ]
-        for _ in 0..<4 {
-            guard let response = try rawCommand(
-                classID: 0x04,
-                cmdID: 0x05,
-                size: 0x07,
-                args: args
-            ) else {
-                usleep(80_000)
-                continue
-            }
-            if writeEchoMatches(response: response, classID: 0x04, cmdID: 0x05, args: args) {
-                return true
-            }
-            usleep(80_000)
+        guard let response = try rawCommand(
+            classID: 0x04,
+            cmdID: 0x05,
+            size: 0x07,
+            args: args
+        ) else {
+            return false
         }
-        return false
+        return writeEchoMatches(response: response, classID: 0x04, cmdID: 0x05, args: args)
     }
 
     func readProfileDPIStages(profile: UInt8) throws -> (raw: [UInt8], activeToken: UInt8, pairs: [DpiPair], stageIDs: [UInt8])? {
-        for _ in 0..<6 {
-            guard let response = try rawCommand(
-                classID: 0x04,
-                cmdID: 0x86,
-                size: 0x26,
-                args: [profile]
-            ), response[0] == 0x02, response.count > 10 else {
-                usleep(80_000)
-                continue
-            }
-            guard response[8] == profile else {
-                usleep(80_000)
-                continue
-            }
-
-            let raw = Array(response[8..<min(response.count, 8 + 0x26)])
-            let activeToken = response[9]
-            let count = max(0, min(5, Int(response[10])))
-            var pairs: [DpiPair] = []
-            var stageIDs: [UInt8] = []
-            for index in 0..<count {
-                let offset = 11 + index * 7
-                guard offset + 4 < response.count else { break }
-                stageIDs.append(response[offset])
-                pairs.append(
-                    DpiPair(
-                        x: (Int(response[offset + 1]) << 8) | Int(response[offset + 2]),
-                        y: (Int(response[offset + 3]) << 8) | Int(response[offset + 4])
-                    )
-                )
-            }
-            return (raw, activeToken, pairs, stageIDs)
+        guard let response = try rawCommand(
+            classID: 0x04,
+            cmdID: 0x86,
+            size: 0x26,
+            args: [profile]
+        ), response[0] == 0x02, response.count > 10, response[8] == profile else {
+            return nil
         }
-        return nil
+        let raw = Array(response[8..<min(response.count, 8 + 0x26)])
+        let activeToken = response[9]
+        let count = max(0, min(5, Int(response[10])))
+        var pairs: [DpiPair] = []
+        var stageIDs: [UInt8] = []
+        for index in 0..<count {
+            let offset = 11 + index * 7
+            guard offset + 4 < response.count else { break }
+            stageIDs.append(response[offset])
+            pairs.append(
+                DpiPair(
+                    x: (Int(response[offset + 1]) << 8) | Int(response[offset + 2]),
+                    y: (Int(response[offset + 3]) << 8) | Int(response[offset + 4])
+                )
+            )
+        }
+        return (raw, activeToken, pairs, stageIDs)
     }
 
     func writeProfileDPIStagesRaw(_ raw: [UInt8]) throws -> Bool {
         guard !raw.isEmpty else { return false }
-        for _ in 0..<4 {
-            guard let response = try rawCommand(
-                classID: 0x04,
-                cmdID: 0x06,
-                size: 0x26,
-                args: raw
-            ) else {
-                usleep(80_000)
-                continue
-            }
-            if writeEchoMatches(response: response, classID: 0x04, cmdID: 0x06, args: raw) {
-                return true
-            }
-            usleep(80_000)
+        guard let response = try rawCommand(
+            classID: 0x04,
+            cmdID: 0x06,
+            size: 0x26,
+            args: raw
+        ) else {
+            return false
         }
-        return false
+        return writeEchoMatches(response: response, classID: 0x04, cmdID: 0x06, args: raw)
     }
 
     func readProfileLightingBrightness(profile: UInt8, ledID: UInt8) throws -> (raw: [UInt8], brightness: Int?)? {
-        for _ in 0..<6 {
-            guard let response = try rawCommand(
-                classID: 0x0F,
-                cmdID: 0x84,
-                size: 0x03,
-                args: [profile, ledID, 0x00]
-            ), response[0] == 0x02, response.count > 10 else {
-                usleep(80_000)
-                continue
-            }
-            guard response[8] == profile, response[9] == ledID else {
-                usleep(80_000)
-                continue
-            }
-            return (Array(response[8..<min(response.count, 11)]), Int(response[10]))
+        guard let response = try rawCommand(
+            classID: 0x0F,
+            cmdID: 0x84,
+            size: 0x03,
+            args: [profile, ledID, 0x00]
+        ), response[0] == 0x02, response.count > 10, response[8] == profile, response[9] == ledID else {
+            return nil
         }
-        return nil
+        return (Array(response[8..<min(response.count, 11)]), Int(response[10]))
     }
 
     func writeProfileLightingBrightness(profile: UInt8, ledID: UInt8, brightness: Int) throws -> Bool {
         let value = UInt8(max(0, min(255, brightness)))
         let args = [profile, ledID, value]
-        for _ in 0..<4 {
-            guard let response = try rawCommand(
-                classID: 0x0F,
-                cmdID: 0x04,
-                size: 0x03,
-                args: args
-            ) else {
-                usleep(80_000)
-                continue
-            }
-            if writeEchoMatches(response: response, classID: 0x0F, cmdID: 0x04, args: args) {
-                return true
-            }
-            usleep(80_000)
+        guard let response = try rawCommand(
+            classID: 0x0F,
+            cmdID: 0x04,
+            size: 0x03,
+            args: args
+        ) else {
+            return false
         }
-        return false
+        return writeEchoMatches(response: response, classID: 0x0F, cmdID: 0x04, args: args)
     }
 
     func readProfileMetadataBytes(profile: UInt8) throws -> (chunks: [USBHIDProtocol.OnboardProfileMetadataChunk], bytes: [UInt8], metadata: USBHIDProtocol.OnboardProfileMetadata)? {
@@ -722,22 +665,15 @@ final class USBProbeClient {
 
     func deleteProfile(profile: UInt8) throws -> Bool {
         let args = [profile]
-        for _ in 0..<4 {
-            guard let response = try rawCommand(
-                classID: 0x05,
-                cmdID: 0x03,
-                size: 0x01,
-                args: args
-            ) else {
-                usleep(80_000)
-                continue
-            }
-            if writeEchoMatches(response: response, classID: 0x05, cmdID: 0x03, args: args) {
-                return true
-            }
-            usleep(80_000)
+        guard let response = try rawCommand(
+            classID: 0x05,
+            cmdID: 0x03,
+            size: 0x01,
+            args: args
+        ) else {
+            return false
         }
-        return false
+        return writeEchoMatches(response: response, classID: 0x05, cmdID: 0x03, args: args)
     }
 
     func readButtonFunction(profile: UInt8, slot: UInt8, hypershift: UInt8 = 0x00) throws -> [UInt8]? {
@@ -748,7 +684,6 @@ final class USBProbeClient {
             cmdID: 0x8C,
             size: UInt8(args.count),
             args: args,
-            allowTxnRescan: true,
             responseAttempts: 12,
             responseDelayUs: 40_000
         ), response[0] == 0x02 else {
@@ -774,7 +709,6 @@ final class USBProbeClient {
             cmdID: 0x0C,
             size: UInt8(args.count),
             args: args,
-            allowTxnRescan: true,
             responseAttempts: 12,
             responseDelayUs: 40_000
         ) else {
@@ -819,7 +753,6 @@ final class USBProbeClient {
         cmdID: UInt8,
         size: UInt8,
         args: [UInt8],
-        allowTxnRescan: Bool = true,
         responseAttempts: Int = 12,
         responseDelayUs: useconds_t = 40_000
     ) throws -> [UInt8]? {
@@ -828,7 +761,6 @@ final class USBProbeClient {
             cmdID: cmdID,
             size: size,
             args: args,
-            allowTxnRescan: allowTxnRescan,
             responseAttempts: responseAttempts,
             responseDelayUs: responseDelayUs
         )
@@ -2022,28 +1954,23 @@ actor ProbeBridge {
     }
 
     func readDpi() async throws -> DpiSnapshot {
-        for attempt in 0..<3 {
-            let req = nextReq()
-            let header = BLEVendorProtocol.buildReadHeader(req: req, key: .dpiStagesGet)
-            let notifies = try await vendor.run(writes: [header], timeout: 1.2)
-            if let payload = BLEVendorProtocol.parsePayloadFrames(notifies: notifies, req: req),
-               let parsed = BLEVendorProtocol.parseDpiStageSnapshot(blob: payload) {
-                return DpiSnapshot(
-                    active: parsed.active,
-                    count: parsed.count,
-                    slots: parsed.slots,
-                    stageIDs: parsed.stageIDs,
-                    marker: parsed.marker
-                )
-            }
-            if attempt < 2 {
-                try await Task.sleep(nanoseconds: 60_000_000)
-            }
+        let req = nextReq()
+        let header = BLEVendorProtocol.buildReadHeader(req: req, key: .dpiStagesGet)
+        let notifies = try await vendor.run(writes: [header], timeout: 1.2)
+        if let payload = BLEVendorProtocol.parsePayloadFrames(notifies: notifies, req: req),
+           let parsed = BLEVendorProtocol.parseDpiStageSnapshot(blob: payload) {
+            return DpiSnapshot(
+                active: parsed.active,
+                count: parsed.count,
+                slots: parsed.slots,
+                stageIDs: parsed.stageIDs,
+                marker: parsed.marker
+            )
         }
         throw ProbeError.protocolError("Failed to parse DPI payload")
     }
 
-    func setDpi(active: Int, values: [Int], verifyRetries: Int, verifyDelayMs: Int) async throws -> DpiSnapshot {
+    func setDpi(active: Int, values: [Int]) async throws -> DpiSnapshot {
         let current = try await readDpi()
         let count = max(1, min(5, values.count))
         let mergedSlots = BLEVendorProtocol.mergedStageSlots(
@@ -2078,15 +2005,9 @@ actor ProbeBridge {
             throw ProbeError.protocolError("DPI set did not return success ACK")
         }
 
-        let retries = max(1, verifyRetries)
-        for attempt in 0..<retries {
-            let readback = try await readDpi()
-            if readback.active == expected.active && readback.values == expected.values {
-                return readback
-            }
-            if attempt < retries - 1 {
-                try await Task.sleep(nanoseconds: UInt64(max(0, verifyDelayMs)) * 1_000_000)
-            }
+        let readback = try await readDpi()
+        if readback.active == expected.active && readback.values == expected.values {
+            return readback
         }
         throw ProbeError.protocolError("Readback mismatch after DPI set")
     }

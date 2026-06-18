@@ -28,15 +28,43 @@ final class EditorStore {
         }
     }
     var editableStageCount = 3
-    var editableActiveStage = 1
+    var editableActiveStage = 1 {
+        didSet {
+            guard oldValue != editableActiveStage else { return }
+            logEditableActiveStageMutation(oldValue: oldValue, newValue: editableActiveStage)
+        }
+    }
     var expandedXYStageIndices: Set<Int> = []
     var editablePollRate = 1000
     var editableSleepTimeout = 300
     var editableDeviceMode = 0x00
     var editableLowBatteryThresholdRaw = 0x26
-    var editableScrollMode = 0
-    var editableScrollAcceleration = false
-    var editableScrollSmartReel = false
+    var editableScrollMode = 0 {
+        didSet {
+            guard oldValue != editableScrollMode else { return }
+            logEditableScrollMutation(field: "mode", oldValue: String(oldValue), newValue: String(editableScrollMode))
+        }
+    }
+    var editableScrollAcceleration = false {
+        didSet {
+            guard oldValue != editableScrollAcceleration else { return }
+            logEditableScrollMutation(
+                field: "accel",
+                oldValue: String(oldValue),
+                newValue: String(editableScrollAcceleration)
+            )
+        }
+    }
+    var editableScrollSmartReel = false {
+        didSet {
+            guard oldValue != editableScrollSmartReel else { return }
+            logEditableScrollMutation(
+                field: "smart",
+                oldValue: String(oldValue),
+                newValue: String(editableScrollSmartReel)
+            )
+        }
+    }
     var editableLedBrightness = 64
     var editableLightingEffect: LightingEffectKind = .staticColor
     var editableUSBLightingZoneID: String = "all"
@@ -67,6 +95,7 @@ final class EditorStore {
     @ObservationIgnored private var onboardProfileLoadOperationOrder: [UUID] = []
     @ObservationIgnored private var onboardProfileLoadOperationStatusByID: [UUID: String] = [:]
     @ObservationIgnored private var isSyncingEditableStageRepresentations = false
+    @ObservationIgnored private var editableActiveStageMutationSource: String?
 
     init(deviceStore: DeviceStore) {
         self.deviceStore = deviceStore
@@ -78,6 +107,60 @@ final class EditorStore {
         isSyncingEditableStageRepresentations = true
         editableStagePairs = editableStageValues.map { DpiPair(x: $0, y: $0) }
         isSyncingEditableStageRepresentations = false
+    }
+
+    func setEditableActiveStage(_ stage: Int, source: String) {
+        let previousSource = editableActiveStageMutationSource
+        editableActiveStageMutationSource = source
+        editableActiveStage = stage
+        editableActiveStageMutationSource = previousSource
+    }
+
+    private func logEditableActiveStageMutation(oldValue: Int, newValue: Int) {
+        let source = editableActiveStageMutationSource ?? "<direct>"
+        let selectedDeviceID = deviceStore.selectedDeviceID ?? "nil"
+        let stateActive = deviceStore.state?.dpi_stages.active_stage.map(String.init) ?? "nil"
+        let stateValues = deviceStore.state?.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil"
+        let stateDpi = deviceStore.state?.dpi.map { "(\($0.x),\($0.y))" } ?? "nil"
+        let pendingActive = applyControllerStorage?
+            .pendingActiveStageSelection(for: deviceStore.selectedDevice)
+            .map(String.init) ?? "nil"
+        let pendingLocal = applyControllerStorage?.hasPendingLocalEdits ?? false
+        let isHydrating = editorControllerStorage?.isHydrating ?? false
+
+        AppLog.debug(
+            "AppState",
+            "editableActiveStage \(oldValue)->\(newValue) source=\(source) " +
+            "selected=\(selectedDeviceID) hydrating=\(isHydrating) applying=\(deviceStore.isApplying) " +
+            "pendingLocal=\(pendingLocal) pendingActive=\(pendingActive) " +
+            "stateActive=\(stateActive) stateDpi=\(stateDpi) stateValues=\(stateValues) " +
+            "editCount=\(editableStageCount)"
+        )
+    }
+
+    private func logEditableScrollMutation(field: String, oldValue: String, newValue: String) {
+        let selectedDeviceID = deviceStore.selectedDeviceID ?? "nil"
+        let pendingActive = applyControllerStorage?
+            .pendingActiveStageSelection(for: deviceStore.selectedDevice)
+            .map(String.init) ?? "nil"
+        let pendingLocal = applyControllerStorage?.hasPendingLocalEdits ?? false
+        let isHydrating = editorControllerStorage?.isHydrating ?? false
+
+        AppLog.debug(
+            "AppState",
+            "editableScroll \(field) \(oldValue)->\(newValue) " +
+            "selected=\(selectedDeviceID) hydrating=\(isHydrating) applying=\(deviceStore.isApplying) " +
+            "pendingLocal=\(pendingLocal) pendingActive=\(pendingActive) " +
+            "stateScroll=\(Self.diagnosticScrollState(deviceStore.state)) " +
+            "editorScroll=mode=\(editableScrollMode),accel=\(editableScrollAcceleration),smart=\(editableScrollSmartReel)"
+        )
+    }
+
+    private static func diagnosticScrollState(_ state: MouseState?) -> String {
+        guard let state else { return "nil" }
+        return "mode=\(state.scroll_mode.map(String.init) ?? "nil")," +
+            "accel=\(state.scroll_acceleration.map(String.init) ?? "nil")," +
+            "smart=\(state.scroll_smart_reel.map(String.init) ?? "nil")"
     }
 
     func bind(

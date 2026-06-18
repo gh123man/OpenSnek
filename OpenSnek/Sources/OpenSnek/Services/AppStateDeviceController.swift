@@ -191,6 +191,16 @@ final class AppStateDeviceController {
         if let selectedDeviceID = deviceStore.selectedDeviceID,
            let selectedState = stateCacheByDeviceID[selectedDeviceID],
            let selectedDevice = deviceStore.selectedDevice {
+            AppLog.debug(
+                "AppState",
+                "remoteSnapshot selected device=\(selectedDeviceID) " +
+                "active=\(selectedState.dpi_stages.active_stage.map(String.init) ?? "nil") " +
+                "dpi=\(Self.diagnosticDpiPair(selectedState.dpi)) " +
+                "values=\(selectedState.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
+                "scroll=\(Self.diagnosticScrollState(selectedState)) " +
+                "pendingLocal=\(applyController.hasPendingLocalEdits) " +
+                "pendingActive=\(applyController.pendingActiveStageSelection(for: selectedDevice).map(String.init) ?? "nil")"
+            )
             deviceStore.state = selectedState
             deviceStore.lastUpdated = lastUpdatedByDeviceID[selectedDeviceID]
             let holdsPersistedConnectPresentation = primeSelectedConnectPresentationIfNeeded(
@@ -245,6 +255,20 @@ final class AppStateDeviceController {
         let previous = stateCacheByDeviceID[presentationDeviceID] ?? stateCacheByDeviceID[deviceID]
         let merged = updatedState.merged(with: previous)
         let shouldFocusOnActivity = shouldFocusServiceSelectionOnActivity(previous: previous, next: merged)
+        AppLog.debug(
+            "AppState",
+            "backendStateUpdate apply device=\(presentationDeviceID) source=\(deviceID) " +
+            "incomingActive=\(updatedState.dpi_stages.active_stage.map(String.init) ?? "nil") " +
+            "incomingDpi=\(Self.diagnosticDpiPair(updatedState.dpi)) " +
+            "incomingScroll=\(Self.diagnosticScrollState(updatedState)) " +
+            "mergedActive=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
+            "mergedDpi=\(Self.diagnosticDpiPair(merged.dpi)) " +
+            "mergedValues=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
+            "mergedScroll=\(Self.diagnosticScrollState(merged)) " +
+            "selected=\(deviceStore.selectedDeviceID ?? "nil") " +
+            "pendingLocal=\(applyController.hasPendingLocalEdits) " +
+            "pendingActive=\(applyController.pendingActiveStageSelection(for: presentationDevice).map(String.init) ?? "nil")"
+        )
 
         cacheState(merged, sourceDeviceID: deviceID, presentationDeviceID: presentationDeviceID, updatedAt: updatedAt)
         setDpiUpdateTransportStatus(.realTimeHID, for: deviceID)
@@ -395,6 +419,18 @@ final class AppStateDeviceController {
             previousDevices: previousDevices,
             removedIDs: removedIDs
         )
+        if source == "subscription" {
+            let suppressedDeviceIDs = newIDs.filter { stateRefreshSuppressedUntilByDeviceID[$0] != nil }
+            for id in suppressedDeviceIDs {
+                stateRefreshSuppressedUntilByDeviceID[id] = nil
+            }
+            if !suppressedDeviceIDs.isEmpty {
+                AppLog.debug(
+                    "AppState",
+                    "refreshState backoff cleared by device-list subscription devices=\(suppressedDeviceIDs.sorted().joined(separator: ","))"
+                )
+            }
+        }
         if !removedIDs.isEmpty {
             editorController.removeHydratedState(for: removedIDs)
             for id in removedIDs {
@@ -775,12 +811,15 @@ final class AppStateDeviceController {
             return Self.isDeviceAvailabilityMessage(lowered) ? .disconnected : .error
         }
 
+        let now = Date()
         let failures = refreshFailureCountByDeviceID[device.id] ?? 0
         if failures > 0 {
+            if shouldTreatActivePassiveHIDAsConnected(device: device, now: now) {
+                return .connected
+            }
             return .reconnecting
         }
 
-        let now = Date()
         guard let updatedAt = lastUpdatedTimestamp(for: device) else {
             return .reconnecting
         }
@@ -878,7 +917,11 @@ final class AppStateDeviceController {
             state.device.product_name == device.product_name
     }
 
-    func selectedDeviceNeedsRecovery(_ device: MouseDevice) -> Bool {
+    func selectedDeviceNeedsRecovery(_ device: MouseDevice, now: Date = Date()) -> Bool {
+        if let suppressedUntil = stateRefreshSuppressedUntilByDeviceID[device.id],
+           now < suppressedUntil {
+            return false
+        }
         if unavailableDeviceIDs.contains(device.id) {
             return true
         }
@@ -1115,6 +1158,17 @@ final class AppStateDeviceController {
         }
     }
 
+    private static func diagnosticDpiPair(_ pair: DpiPair?) -> String {
+        guard let pair else { return "nil" }
+        return "(\(pair.x),\(pair.y))"
+    }
+
+    private static func diagnosticScrollState(_ state: MouseState) -> String {
+        "mode=\(state.scroll_mode.map(String.init) ?? "nil")," +
+            "accel=\(state.scroll_acceleration.map(String.init) ?? "nil")," +
+            "smart=\(state.scroll_smart_reel.map(String.init) ?? "nil")"
+    }
+
     func latestCachedUpdateAt(sourceDeviceID: String, presentationDeviceID: String) -> Date? {
         [lastUpdatedByDeviceID[sourceDeviceID], lastUpdatedByDeviceID[presentationDeviceID]]
             .compactMap { $0 }
@@ -1279,6 +1333,14 @@ final class AppStateDeviceController {
         }
 
         let now = Date()
+        if let suppressedUntil = stateRefreshSuppressedUntilByDeviceID[device.id],
+           now < suppressedUntil {
+            AppLog.debug(
+                "AppState",
+                "refreshState skipped backoff device=\(device.id) remaining=\(String(format: "%.3f", suppressedUntil.timeIntervalSince(now)))s"
+            )
+            return false
+        }
         if Self.shouldDelayBluetoothRealtimeStateRefresh(
             transport: device.transport,
             transportStatus: dpiUpdateTransportStatusByDeviceID[device.id],
@@ -1436,7 +1498,8 @@ final class AppStateDeviceController {
                 AppLog.debug(
                     "AppState",
                     "refreshState merged recent-fast-dpi device=\(presentationDeviceID) active=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
-                    "values=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil")"
+                    "values=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
+                    "scroll=\(Self.diagnosticScrollState(merged))"
                 )
                 return true
             }
@@ -1489,6 +1552,7 @@ final class AppStateDeviceController {
                 "AppState",
                 "refreshState ok device=\(presentationDeviceID) active=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
                 "values=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
+                "scroll=\(Self.diagnosticScrollState(merged)) " +
                 "elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
             )
             return true
@@ -1498,15 +1562,24 @@ final class AppStateDeviceController {
             refreshFailureCountByDeviceID[refreshDeviceID] = failures
             refreshFailureCountByDeviceID[presentationDeviceID] = failures
             let isAvailabilityFailure = Self.isDeviceAvailabilityMessage(error.localizedDescription)
+            let isUSBTelemetryUnavailable =
+                device.transport == .usb && BridgeClient.isUSBTelemetryUnavailableError(error)
+            let hasActivePassiveHID = shouldTreatActivePassiveHIDAsConnected(
+                device: presentationDevice(for: device) ?? device,
+                now: Date()
+            )
+            let shouldTreatAsDegradedUSBTelemetry =
+                isUSBTelemetryUnavailable && hasActivePassiveHID
             let shouldTreatAsHardAvailabilityFailure =
                 isAvailabilityFailure &&
+                !shouldTreatAsDegradedUSBTelemetry &&
                 !(seededReconnectStateDeviceIDs.contains(presentationDeviceID) && BridgeClient.isUSBTelemetryUnavailableError(error))
             if shouldTreatAsHardAvailabilityFailure {
                 unavailableDeviceIDs.insert(refreshDeviceID)
                 unavailableDeviceIDs.insert(presentationDeviceID)
             }
 
-            if deviceStore.selectedDeviceID != presentationDeviceID {
+            if isAvailabilityFailure || isUSBTelemetryUnavailable || deviceStore.selectedDeviceID != presentationDeviceID {
                 let suppressedUntil = Date().addingTimeInterval(
                     stateRefreshBackoffInterval(for: device, failures: failures, error: error)
                 )
@@ -1514,7 +1587,7 @@ final class AppStateDeviceController {
                 stateRefreshSuppressedUntilByDeviceID[presentationDeviceID] = suppressedUntil
                 AppLog.debug(
                     "AppState",
-                    "refreshState backoff device=\(presentationDeviceID) failures=\(failures) " +
+                    "refreshState backoff device=\(presentationDeviceID) selected=\(deviceStore.selectedDeviceID == presentationDeviceID) failures=\(failures) " +
                     "until=\(suppressedUntil.timeIntervalSince1970): \(error.localizedDescription)"
                 )
             }
@@ -1740,13 +1813,18 @@ final class AppStateDeviceController {
     }
 
     private func shouldTreatActivePassiveHIDAsConnected(device: MouseDevice, now: Date) -> Bool {
-        guard device.transport == .bluetooth else { return false }
         guard resolvedProfile(for: device)?.passiveDPIInput != nil else { return false }
 
         let transportStatus = dpiUpdateTransportStatusByDeviceID[device.id]
         guard transportStatus == .streamActive || transportStatus == .realTimeHID else { return false }
 
-        return isPassiveBluetoothHeartbeatFresh(for: device, now: now)
+        if device.transport == .usb {
+            return true
+        }
+        if device.transport == .bluetooth {
+            return isPassiveBluetoothHeartbeatFresh(for: device, now: now)
+        }
+        return false
     }
 
     private static func shouldApplyBackendDpiTransportStatusUpdate(

@@ -1159,7 +1159,10 @@ struct DpiStagesCard: View {
                         let next = max(1, editorStore.editableStageCount - 1)
                         guard next != editorStore.editableStageCount else { return }
                         editorStore.editableStageCount = next
-                        editorStore.editableActiveStage = min(editorStore.editableActiveStage, editorStore.editableStageCount)
+                        editorStore.setEditableActiveStage(
+                            min(editorStore.editableActiveStage, editorStore.editableStageCount),
+                            source: "ui.detail.stageCount.decrease"
+                        )
                         editorStore.normalizeExpandedXYStages()
                         editorStore.scheduleAutoApplyDpi()
                     } label: {
@@ -1377,7 +1380,7 @@ struct DpiStagesCard: View {
             Button {
                 let selected = index + 1
                 if editorStore.editableActiveStage != selected {
-                    editorStore.editableActiveStage = selected
+                    editorStore.setEditableActiveStage(selected, source: "ui.detail.stageHeader")
                     editorStore.scheduleAutoApplyActiveStage()
                 }
             } label: {

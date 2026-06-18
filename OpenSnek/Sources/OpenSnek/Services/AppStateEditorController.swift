@@ -514,7 +514,7 @@ final class AppStateEditorController {
         if let snapshot = activeOnboardSnapshot,
            let dpi = snapshot.dpi,
            let device = deviceStore.selectedDevice {
-            hydrateEditableDPI(from: dpi, device: device, liveDPI: state.dpi)
+            hydrateEditableDPI(from: dpi, device: device, liveDPI: state.dpi, source: "hydrateEditable.snapshot")
         } else if let pairs = state.dpi_stages.pairs, !pairs.isEmpty {
             editorStore.editableStageCount = max(1, min(5, pairs.count))
             let profileID = deviceStore.selectedDevice?.profile_id
@@ -544,9 +544,12 @@ final class AppStateEditorController {
         if activeOnboardSnapshot?.dpi == nil {
             if let active = state.dpi_stages.active_stage {
                 let maxStage = max(1, editorStore.editableStageCount)
-                editorStore.editableActiveStage = max(1, min(maxStage, active + 1))
+                editorStore.setEditableActiveStage(
+                    max(1, min(maxStage, active + 1)),
+                    source: "hydrateEditable.state active=\(active)"
+                )
             } else {
-                editorStore.editableActiveStage = 1
+                editorStore.setEditableActiveStage(1, source: "hydrateEditable.state missing-active")
             }
         }
         editorStore.normalizeExpandedXYStages()
@@ -569,18 +572,21 @@ final class AppStateEditorController {
 
         if let snapshot = activeOnboardSnapshot,
            let device = deviceStore.selectedDevice {
+            AppLog.debug(
+                "AppState",
+                "hydrateEditable.scroll source=stateWithActiveOnboardSnapshotFallback device=\(device.id) " +
+                "profile=\(snapshot.profileID) state=\(Self.diagnosticScrollState(state)) " +
+                "snapshot=\(Self.diagnosticScrollSnapshot(snapshot))"
+            )
             hydrateEditableLighting(from: snapshot, device: device)
-            hydrateEditableScroll(from: snapshot)
+            hydrateEditableScroll(from: state, fallbackSnapshot: snapshot)
         } else {
-            if let scrollMode = state.scroll_mode {
-                editorStore.editableScrollMode = max(0, min(1, scrollMode))
-            }
-            if let scrollAcceleration = state.scroll_acceleration {
-                editorStore.editableScrollAcceleration = scrollAcceleration
-            }
-            if let scrollSmartReel = state.scroll_smart_reel {
-                editorStore.editableScrollSmartReel = scrollSmartReel
-            }
+            AppLog.debug(
+                "AppState",
+                "hydrateEditable.scroll source=state device=\(deviceStore.selectedDeviceID ?? "nil") " +
+                "state=\(Self.diagnosticScrollState(state))"
+            )
+            hydrateEditableScroll(from: state)
             if let led = state.led_value {
                 editorStore.editableLedBrightness = led
             }
@@ -592,19 +598,42 @@ final class AppStateEditorController {
     func hydrateLiveDpiPresentation(from state: MouseState) {
         guard !isTearingDown else { return }
         isHydrating = true
-        defer { isHydrating = false }
+        defer {
+            applyController.clearPendingActiveStageSelectionIfConfirmed(by: state, for: deviceStore.selectedDevice)
+            isHydrating = false
+        }
 
         handleActiveOnboardProfilePresentation(from: state)
 
+        let pendingActiveStage = applyController.pendingActiveStageSelection(for: deviceStore.selectedDevice)
         if let snapshot = currentActiveOnboardProfileSnapshot(for: state),
            let dpi = snapshot.dpi,
            let device = deviceStore.selectedDevice {
-            hydrateEditableDPI(from: dpi, device: device, liveDPI: state.dpi)
+            hydrateEditableDPI(
+                from: dpi,
+                device: device,
+                liveDPI: state.dpi,
+                activeStageOverride: pendingActiveStage,
+                source: "hydrateLiveDpi.snapshot pending=\(pendingActiveStage.map(String.init) ?? "nil")"
+            )
+            if let pendingActiveStage {
+                let maxStage = max(1, editorStore.editableStageCount)
+                editorStore.setEditableActiveStage(
+                    max(1, min(maxStage, pendingActiveStage)),
+                    source: "hydrateLiveDpi.pendingSnapshot pending=\(pendingActiveStage)"
+                )
+            }
         } else if let active = state.dpi_stages.active_stage {
             let maxStage = max(1, editorStore.editableStageCount)
-            editorStore.editableActiveStage = max(1, min(maxStage, active + 1))
+            editorStore.setEditableActiveStage(
+                max(1, min(maxStage, pendingActiveStage ?? active + 1)),
+                source: "hydrateLiveDpi.state active=\(active) pending=\(pendingActiveStage.map(String.init) ?? "nil")"
+            )
         } else {
-            editorStore.editableActiveStage = 1
+            editorStore.setEditableActiveStage(
+                pendingActiveStage ?? 1,
+                source: "hydrateLiveDpi.state missing-active pending=\(pendingActiveStage.map(String.init) ?? "nil")"
+            )
         }
 
         if editorStore.editableStageCount == 1, let dpi = state.dpi?.x {
@@ -697,7 +726,10 @@ final class AppStateEditorController {
                 editorStore.editableStagePairs[index] = DpiPair(x: value, y: value)
             }
         }
-        editorStore.editableActiveStage = max(1, min(count, snapshot.activeStage))
+        editorStore.setEditableActiveStage(
+            max(1, min(count, snapshot.activeStage)),
+            source: "hydrateConnectPresentation.snapshot active=\(snapshot.activeStage)"
+        )
         editorStore.normalizeExpandedXYStages()
 
         if let pollRate = snapshot.pollRate {
@@ -709,6 +741,11 @@ final class AppStateEditorController {
         if let lowBatteryThresholdRaw = snapshot.lowBatteryThresholdRaw {
             editorStore.editableLowBatteryThresholdRaw = max(0x0C, min(0x3F, lowBatteryThresholdRaw))
         }
+        AppLog.debug(
+            "AppState",
+            "hydrateConnectPresentation.scroll source=persistedSnapshot device=\(device.id) " +
+            "snapshot=\(Self.diagnosticScrollSnapshot(snapshot))"
+        )
         if let scrollMode = snapshot.scrollMode {
             editorStore.editableScrollMode = max(0, min(1, scrollMode))
         }
@@ -2221,7 +2258,9 @@ final class AppStateEditorController {
     private func hydrateEditableDPI(
         from dpi: OnboardDPIProfileSnapshot,
         device: MouseDevice,
-        liveDPI: DpiPair? = nil
+        liveDPI: DpiPair? = nil,
+        activeStageOverride: Int? = nil,
+        source: String = "hydrateEditableDPI"
     ) {
         let sourcePairs = !dpi.pairs.isEmpty
             ? dpi.pairs
@@ -2242,7 +2281,14 @@ final class AppStateEditorController {
         let matchedActiveStage = liveDPI.flatMap { liveDPI in
             Self.uniqueDPIStageIndex(matching: liveDPI, in: Array(sourcePairs.prefix(count)))
         }
-        editorStore.editableActiveStage = max(1, min(count, (matchedActiveStage ?? dpi.activeStage ?? 0) + 1))
+        let nextActiveStage = activeStageOverride.map { max(1, min(count, $0)) }
+            ?? max(1, min(count, (matchedActiveStage ?? dpi.activeStage ?? 0) + 1))
+        editorStore.setEditableActiveStage(
+            nextActiveStage,
+            source: "\(source) profileActive=\(dpi.activeStage.map(String.init) ?? "nil") " +
+                "matchedLive=\(matchedActiveStage.map(String.init) ?? "nil") " +
+                "override=\(activeStageOverride.map(String.init) ?? "nil")"
+        )
         editorStore.normalizeExpandedXYStages()
     }
 
@@ -2251,6 +2297,24 @@ final class AppStateEditorController {
             pair.x == liveDPI.x && pair.y == liveDPI.y ? index : nil
         }
         return matchingIndices.count == 1 ? matchingIndices[0] : nil
+    }
+
+    private nonisolated static func diagnosticScrollState(_ state: MouseState) -> String {
+        "mode=\(state.scroll_mode.map(String.init) ?? "nil")," +
+            "accel=\(state.scroll_acceleration.map(String.init) ?? "nil")," +
+            "smart=\(state.scroll_smart_reel.map(String.init) ?? "nil")"
+    }
+
+    private nonisolated static func diagnosticScrollSnapshot(_ snapshot: OnboardProfileSnapshot) -> String {
+        "mode=\(snapshot.scrollMode.map(String.init) ?? "nil")," +
+            "accel=\(snapshot.scrollAcceleration.map(String.init) ?? "nil")," +
+            "smart=\(snapshot.scrollSmartReel.map(String.init) ?? "nil")"
+    }
+
+    private nonisolated static func diagnosticScrollSnapshot(_ snapshot: PersistedDeviceSettingsSnapshot) -> String {
+        "mode=\(snapshot.scrollMode.map(String.init) ?? "nil")," +
+            "accel=\(snapshot.scrollAcceleration.map(String.init) ?? "nil")," +
+            "smart=\(snapshot.scrollSmartReel.map(String.init) ?? "nil")"
     }
 
     private func hydrateEditableLighting(from snapshot: OnboardProfileSnapshot, device: MouseDevice) {
@@ -2289,6 +2353,11 @@ final class AppStateEditorController {
     }
 
     private func hydrateEditableScroll(from snapshot: OnboardProfileSnapshot) {
+        AppLog.debug(
+            "AppState",
+            "hydrateEditableScroll snapshot profile=\(snapshot.profileID) " +
+            "scroll=\(Self.diagnosticScrollSnapshot(snapshot))"
+        )
         if let scrollMode = snapshot.scrollMode {
             editorStore.editableScrollMode = max(0, min(1, scrollMode))
         }
@@ -2300,12 +2369,24 @@ final class AppStateEditorController {
         }
     }
 
+    private func hydrateEditableScroll(from state: MouseState, fallbackSnapshot snapshot: OnboardProfileSnapshot? = nil) {
+        if let scrollMode = state.scroll_mode ?? snapshot?.scrollMode {
+            editorStore.editableScrollMode = max(0, min(1, scrollMode))
+        }
+        if let scrollAcceleration = state.scroll_acceleration ?? snapshot?.scrollAcceleration {
+            editorStore.editableScrollAcceleration = scrollAcceleration
+        }
+        if let scrollSmartReel = state.scroll_smart_reel ?? snapshot?.scrollSmartReel {
+            editorStore.editableScrollSmartReel = scrollSmartReel
+        }
+    }
+
     private func hydrateEditable(from snapshot: OnboardProfileSnapshot, device: MouseDevice) {
         isHydrating = true
         defer { isHydrating = false }
 
         if let dpi = snapshot.dpi {
-            hydrateEditableDPI(from: dpi, device: device)
+            hydrateEditableDPI(from: dpi, device: device, source: "hydrateEditable.onboardSnapshot")
         }
         hydrateEditableLighting(from: snapshot, device: device)
         hydrateEditableScroll(from: snapshot)

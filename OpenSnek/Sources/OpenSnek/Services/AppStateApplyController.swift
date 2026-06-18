@@ -36,6 +36,7 @@ final class AppStateApplyController {
     private var applyDrainTask: Task<Void, Never>?
     private var lastLocalEditAt: Date?
     private var localEditDeviceIdentityKey: String?
+    private var pendingActiveStageSelectionByDeviceIdentityKey: [String: Int] = [:]
 
     init(
         environment: AppEnvironment,
@@ -78,6 +79,7 @@ final class AppStateApplyController {
     func shouldHydrateEditable(for device: MouseDevice?) -> Bool {
         guard !deviceStore.isApplying, !editorStore.isEditingDpiControl else { return false }
         guard let device else { return !hasPendingLocalEdits }
+        guard pendingActiveStageSelection(for: device) == nil else { return false }
         guard !hasPendingLocalEditsAffecting(device) else { return false }
         guard let lastLocalEditAt else { return true }
         guard let localEditDeviceIdentityKey else { return true }
@@ -120,10 +122,45 @@ final class AppStateApplyController {
     }
 
     func applyActiveStageOnly() async {
-        await applyDpiStages()
+        let count = max(1, min(5, editorStore.editableStageCount))
+        let selectedDevice = deviceStore.selectedDevice
+        let active = max(0, min(count - 1, editorStore.editableActiveStage - 1))
+        AppLog.debug(
+            "AppState",
+            "applyActiveStageOnly device=\(selectedDevice?.id ?? "nil") editable=\(editorStore.editableActiveStage) " +
+            "active=\(active) count=\(count) pending=\(pendingActiveStageSelection(for: selectedDevice).map(String.init) ?? "nil")"
+        )
+        if let selectedDevice, supportsOnboardProfileEditorWrites(device: selectedDevice) {
+            let profileID = selectedDevice.profile_id
+            let pairs = Array(editorStore.editableStagePairs.prefix(count)).map { pair in
+                DpiPair(
+                    x: DeviceProfiles.clampDPI(pair.x, profileID: profileID),
+                    y: DeviceProfiles.clampDPI(pair.y, profileID: profileID)
+                )
+            }
+            let scalar = pairs.indices.contains(active) ? pairs[active] : pairs.first
+            _ = await applyOnboardProfileMutationForCurrentSelection(
+                OnboardProfileMutation(
+                    dpi: OnboardDPIProfileSnapshot(
+                        scalar: scalar,
+                        activeStage: active,
+                        pairs: pairs
+                    )
+                )
+            )
+            return
+        }
+        enqueueApply(DevicePatch(activeStage: active))
     }
 
     func scheduleAutoApplyActiveStage() {
+        guard !editorController.isHydrating else { return }
+        rememberPendingActiveStageSelection(editorStore.editableActiveStage, for: deviceStore.selectedDevice)
+        AppLog.debug(
+            "AppState",
+            "scheduleActiveStageApply device=\(deviceStore.selectedDevice?.id ?? "nil") " +
+            "editable=\(editorStore.editableActiveStage) pending=\(pendingActiveStageSelection(for: deviceStore.selectedDevice).map(String.init) ?? "nil")"
+        )
         scheduleAutoApply(key: .activeStage, delay: 80_000_000) { [weak self] in
             guard let self else { return }
             await self.applyActiveStageOnly()
@@ -483,6 +520,9 @@ final class AppStateApplyController {
     private func applyOnboardProfileMutationForCurrentSelection(_ mutation: OnboardProfileMutation) async -> Bool {
         let start = Date()
         let succeeded = await editorController.applyOnboardProfileMutationForCurrentSelection(mutation)
+        if !succeeded, let activeStage = mutation.dpi?.activeStage {
+            clearPendingActiveStageSelection(matching: activeStage + 1, for: deviceStore.selectedDevice)
+        }
         if succeeded {
             clearPendingLocalEditsIfUnchanged(since: start)
         }
@@ -495,6 +535,25 @@ final class AppStateApplyController {
         hasPendingLocalEdits = false
         lastLocalEditAt = nil
         localEditDeviceIdentityKey = nil
+    }
+
+    private func rememberPendingActiveStageSelection(_ stage: Int, for device: MouseDevice?) {
+        guard let device else { return }
+        let count = max(1, min(5, editorStore.editableStageCount))
+        pendingActiveStageSelectionByDeviceIdentityKey[deviceController.deviceIdentityKey(device)] = max(1, min(count, stage))
+        AppLog.debug(
+            "AppState",
+            "rememberPendingActiveStage device=\(device.id) requested=\(stage) " +
+            "stored=\(pendingActiveStageSelection(for: device).map(String.init) ?? "nil") count=\(count)"
+        )
+    }
+
+    private func clearPendingActiveStageSelection(matching stage: Int, for device: MouseDevice?) {
+        guard let device else { return }
+        let key = deviceController.deviceIdentityKey(device)
+        guard pendingActiveStageSelectionByDeviceIdentityKey[key] == stage else { return }
+        pendingActiveStageSelectionByDeviceIdentityKey.removeValue(forKey: key)
+        AppLog.debug("AppState", "clearPendingActiveStage device=\(device.id) stage=\(stage)")
     }
 
     private func shouldTreatCurrentSourceAsExactMouseSlot(device: MouseDevice) -> Int? {
@@ -776,6 +835,32 @@ final class AppStateApplyController {
         return localEditDeviceIdentityKey == deviceController.deviceIdentityKey(device)
     }
 
+    func pendingActiveStageSelection(for device: MouseDevice?) -> Int? {
+        guard let device else { return nil }
+        return pendingActiveStageSelectionByDeviceIdentityKey[deviceController.deviceIdentityKey(device)]
+    }
+
+    func clearPendingActiveStageSelectionIfConfirmed(by state: MouseState, for device: MouseDevice?) {
+        guard let pendingStage = pendingActiveStageSelection(for: device) else { return }
+        guard stateConfirmsPendingActiveStage(pendingStage, state: state) else { return }
+        clearPendingActiveStageSelection(matching: pendingStage, for: device)
+    }
+
+    private func stateConfirmsPendingActiveStage(_ stage: Int, state: MouseState) -> Bool {
+        if state.dpi_stages.active_stage == stage - 1 {
+            return true
+        }
+
+        guard let liveDPI = state.dpi else { return false }
+        let count = max(1, min(5, editorStore.editableStageCount))
+        guard stage >= 1, stage <= count else { return false }
+        let visiblePairs = Array(editorStore.editableStagePairs.prefix(count))
+        let matchingStages = visiblePairs.enumerated().compactMap { index, pair in
+            pair == liveDPI ? index + 1 : nil
+        }
+        return matchingStages == [stage]
+    }
+
     func cancelPendingLocalEditsForSelectionChange() {
         for task in applyTasks.values {
             task.cancel()
@@ -785,6 +870,7 @@ final class AppStateApplyController {
         hasPendingLocalEdits = false
         lastLocalEditAt = nil
         localEditDeviceIdentityKey = nil
+        pendingActiveStageSelectionByDeviceIdentityKey.removeAll()
     }
 
     func enqueueApply(_ patch: DevicePatch) {
@@ -956,6 +1042,9 @@ final class AppStateApplyController {
                 deviceController.setFastDpiSuppressed(until: suppressedUntil, for: presentationDeviceID)
                 runtimeController.setCompactInteraction(until: Date().addingTimeInterval(3.0))
             }
+            if let activeStage = patch.activeStage {
+                clearPendingActiveStageSelection(matching: activeStage + 1, for: presentationDevice)
+            }
 
             if shouldHydrateEditableState, deviceStore.selectedDeviceID == presentationDeviceID {
                 lastLocalEditAt = nil
@@ -1012,7 +1101,11 @@ final class AppStateApplyController {
             )
             return true
         } catch {
-            AppLog.error("AppState", "apply failed device=\(targetDevice.id): \(error.localizedDescription)")
+            AppLog.error(
+                "AppState",
+                "command apply failed device=\(targetDevice.id) patch=\(patch.describe) " +
+                "elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s: \(error.localizedDescription)"
+            )
             if shouldSurfaceApplyFailure {
                 let shouldShowApplyFailure: Bool
                 if let currentSelectedDevice = deviceStore.selectedDevice {
@@ -1022,9 +1115,12 @@ final class AppStateApplyController {
                     shouldShowApplyFailure = false
                 }
                 if shouldShowApplyFailure {
-                    deviceStore.errorMessage = error.localizedDescription
+                    deviceStore.errorMessage = Self.commandFailureMessage(error)
                     deviceStore.warningMessage = nil
                     if patch.dpiStages != nil || patch.dpiStagePairs != nil || patch.activeStage != nil {
+                        if let activeStage = patch.activeStage {
+                            clearPendingActiveStageSelection(matching: activeStage + 1, for: targetDevice)
+                        }
                         runtimeStore.serviceStatusMessage = "DPI update failed"
                         runtimeController.setTransientStatus(until: Date().addingTimeInterval(4.0))
                     }
@@ -1036,6 +1132,13 @@ final class AppStateApplyController {
             }
             return false
         }
+    }
+
+    private static func commandFailureMessage(_ error: any Error) -> String {
+        if AppLog.currentLevel == .debug {
+            return "Command failed: \(error.localizedDescription)"
+        }
+        return error.localizedDescription
     }
 
     private func verifyRestoreStateAfterDeferredButtonWrites(

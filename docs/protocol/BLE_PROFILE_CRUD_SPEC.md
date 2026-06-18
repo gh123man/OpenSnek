@@ -28,7 +28,7 @@ respond to setting reads.
 |---:|---|
 | `0x02` | Success. |
 | `0x03` | Rejected in current profile state, commonly unassigned/non-cycleable target. |
-| `0x01` | Non-success/transient write failure. Stop the transaction and read back before retrying. |
+| `0x01` | Non-success/transient write failure. Stop the transaction, read back once if needed to understand resulting state, and surface the command failure. |
 
 Every profile write transaction must check the status for each command. A
 non-`0x02` write can leave a target partially updated.

@@ -73,4 +73,51 @@ final class USBDpiStageParsingTests: XCTestCase {
         XCTAssertEqual(BridgeClient.resolvedUSBFastDpiActiveStage(stages: duplicateStages, liveDpi: 1600), 2)
         XCTAssertEqual(BridgeClient.resolvedUSBFastDpiActiveStage(stages: duplicateStages, liveDpi: nil), 2)
     }
+
+    func testUSBActiveResolutionUsesLiveDpiPairWhenStageTokenIsStale() {
+        let staleTokenStages: BridgeClient.USBDpiStageSnapshot = (
+            active: 0,
+            values: [800, 1600, 3200],
+            pairs: [800, 1600, 3200].map { DpiPair(x: $0, y: $0) },
+            stageIDs: [0x01, 0x02, 0x03]
+        )
+        let independentPairs: BridgeClient.USBDpiStageSnapshot = (
+            active: 0,
+            values: [1200, 1200, 2400],
+            pairs: [
+                DpiPair(x: 1200, y: 1200),
+                DpiPair(x: 1200, y: 1600),
+                DpiPair(x: 2400, y: 2400),
+            ],
+            stageIDs: [0x01, 0x02, 0x03]
+        )
+        let duplicatePairs: BridgeClient.USBDpiStageSnapshot = (
+            active: 0,
+            values: [800, 3200, 3200],
+            pairs: [800, 3200, 3200].map { DpiPair(x: $0, y: $0) },
+            stageIDs: [0x01, 0x02, 0x03]
+        )
+
+        XCTAssertEqual(
+            BridgeClient.resolvedUSBActiveStage(
+                stages: staleTokenStages,
+                liveDpi: DpiPair(x: 3200, y: 3200)
+            ),
+            2
+        )
+        XCTAssertEqual(
+            BridgeClient.resolvedUSBActiveStage(
+                stages: independentPairs,
+                liveDpi: DpiPair(x: 1200, y: 1600)
+            ),
+            1
+        )
+        XCTAssertEqual(
+            BridgeClient.resolvedUSBActiveStage(
+                stages: duplicatePairs,
+                liveDpi: DpiPair(x: 3200, y: 3200)
+            ),
+            0
+        )
+    }
 }
