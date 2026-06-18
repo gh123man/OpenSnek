@@ -14,6 +14,7 @@ All notable changes to this project are documented in this file.
 ### Fixed
 - DPI stage selection no longer briefly snaps back to the previous stage when stale telemetry arrives before the apply result, including mapped onboard-profile devices whose live DPI readback can lag behind the stored profile update.
 - Bluetooth onboard-profile DPI edits no longer let a stale profile refresh briefly roll the visible DPI field and slider back to the previous value while the write is still in flight.
+- Bluetooth DPI-stage selection now follows live DPI changes from the mouse even when passive telemetry reports a stale active-stage token.
 - USB scroll mode controls now follow live wheel-mode changes from the mouse even when the cached active onboard-profile snapshot still has the previous scroll mode.
 - USB state refresh now resolves the active DPI stage from the live DPI value when the stage-table active token is stale.
 - Selected USB devices with unavailable feature-report telemetry now enter a degraded cooldown instead of repeatedly reissuing full-state reads while passive HID updates show the mouse is still connected.

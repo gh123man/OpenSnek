@@ -544,15 +544,15 @@ final class AppStateEditorController {
         }
 
         if activeOnboardSnapshot?.dpi == nil {
-            if let active = state.dpi_stages.active_stage {
-                let maxStage = max(1, editorStore.editableStageCount)
-                editorStore.setEditableActiveStage(
-                    max(1, min(maxStage, active + 1)),
-                    source: "hydrateEditable.state active=\(active)"
-                )
-            } else {
-                editorStore.setEditableActiveStage(1, source: "hydrateEditable.state missing-active")
-            }
+            let maxStage = max(1, editorStore.editableStageCount)
+            let liveMatchedStage = liveMatchedEditableStage(from: state, maxStage: maxStage)
+            let stateStage = state.dpi_stages.active_stage.map { $0 + 1 }
+            let nextStage = liveMatchedStage ?? stateStage ?? 1
+            editorStore.setEditableActiveStage(
+                max(1, min(maxStage, nextStage)),
+                source: "hydrateEditable.state liveMatched=\(liveMatchedStage.map(String.init) ?? "nil") " +
+                    "state=\(stateStage.map(String.init) ?? "nil")"
+            )
         }
         editorStore.normalizeExpandedXYStages()
 
@@ -627,16 +627,24 @@ final class AppStateEditorController {
                     source: "hydrateLiveDpi.pendingLocalSnapshot"
                 )
             }
-        } else if let active = state.dpi_stages.active_stage {
+        } else if state.dpi_stages.active_stage != nil {
             let maxStage = max(1, editorStore.editableStageCount)
+            let liveMatchedStage = liveMatchedEditableStage(from: state, maxStage: maxStage)
+            let stateStage = state.dpi_stages.active_stage.map { $0 + 1 }
+            let nextStage = pendingActiveStage ?? liveMatchedStage ?? stateStage ?? editorStore.editableActiveStage
             editorStore.setEditableActiveStage(
-                max(1, min(maxStage, pendingActiveStage ?? active + 1)),
-                source: "hydrateLiveDpi.state active=\(active) pending=\(pendingActiveStage.map(String.init) ?? "nil")"
+                max(1, min(maxStage, nextStage)),
+                source: "hydrateLiveDpi.state pending=\(pendingActiveStage.map(String.init) ?? "nil") " +
+                    "liveMatched=\(liveMatchedStage.map(String.init) ?? "nil") " +
+                    "state=\(stateStage.map(String.init) ?? "nil")"
             )
         } else {
+            let maxStage = max(1, editorStore.editableStageCount)
+            let liveMatchedStage = liveMatchedEditableStage(from: state, maxStage: maxStage)
             editorStore.setEditableActiveStage(
-                pendingActiveStage ?? 1,
-                source: "hydrateLiveDpi.state missing-active pending=\(pendingActiveStage.map(String.init) ?? "nil")"
+                max(1, min(maxStage, pendingActiveStage ?? liveMatchedStage ?? 1)),
+                source: "hydrateLiveDpi.state missing-active pending=\(pendingActiveStage.map(String.init) ?? "nil") " +
+                    "liveMatched=\(liveMatchedStage.map(String.init) ?? "nil")"
             )
         }
 
@@ -671,6 +679,15 @@ final class AppStateEditorController {
                 "snapshot=\(snapshotStage.map(String.init) ?? "nil") " +
                 "state=\(stateStage.map(String.init) ?? "nil")"
         )
+    }
+
+    private func liveMatchedEditableStage(from state: MouseState, maxStage: Int) -> Int? {
+        guard maxStage > 0,
+              let liveDPI = state.dpi else {
+            return nil
+        }
+        let visiblePairs = Array(editorStore.editableStagePairs.prefix(maxStage))
+        return Self.uniqueDPIStageIndex(matching: liveDPI, in: visiblePairs).map { $0 + 1 }
     }
 
     func hydrateLightingStateIfNeeded(device: MouseDevice) async {

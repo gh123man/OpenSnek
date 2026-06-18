@@ -4231,6 +4231,81 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         }
     }
 
+    func testBluetoothBackendDPIUpdateSelectsStageFromLiveDPIWhenActiveStageIsStale() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-bt-live-dpi-stage-match-device",
+            transport: .bluetooth,
+            serial: "ONBOARD-BT-LIVE-DPI-STAGE-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let initialState = makeRefactorTestState(
+            device: device,
+            connection: "bluetooth",
+            batteryPercent: 74,
+            dpiValues: [800, 1600, 3200],
+            activeStage: 0,
+            dpiValue: 800,
+            pollRate: 1000,
+            sleepTimeout: 300,
+            activeOnboardProfile: 1,
+            onboardProfileCount: 5
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [device.id: initialState]
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+
+        try await waitForRefactorCondition {
+            await MainActor.run {
+                appState.deviceStore.state?.dpi?.x == 800 &&
+                    appState.editorStore.editableActiveStage == 1 &&
+                    appState.editorStore.stageValue(2) == 3200
+            }
+        }
+
+        await MainActor.run {
+            appState.deviceController.applyBackendDeviceStateUpdate(
+                deviceID: device.id,
+                state: makeRefactorTestState(
+                    device: device,
+                    connection: "bluetooth",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 3200,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                ),
+                updatedAt: Date().addingTimeInterval(1)
+            )
+        }
+
+        let visible = await MainActor.run {
+            (
+                appState.deviceStore.state?.dpi?.x,
+                appState.deviceStore.state?.dpi_stages.active_stage,
+                appState.editorStore.editableActiveStage,
+                appState.editorStore.stageValue(2)
+            )
+        }
+        XCTAssertEqual(visible.0, 3200)
+        XCTAssertEqual(visible.1, 0)
+        XCTAssertEqual(
+            visible.2,
+            3,
+            "The DPI stages card should follow the live DPI value even when the backend active-stage field is stale."
+        )
+        XCTAssertEqual(visible.3, 3200)
+    }
+
     func testOnboardProfileSummariesGetterDoesNotStartRefresh() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-pure-summary-device",
