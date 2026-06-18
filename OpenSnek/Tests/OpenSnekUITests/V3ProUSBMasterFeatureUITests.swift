@@ -10,11 +10,11 @@ final class V3ProUSBMasterFeatureUITests: OpenSnekHardwareUITestCase {
         case scrollMode
         case scrollAcceleration
         case scrollSmartReel
+        case buttonTurbo
     }
 
     private struct OriginalState {
         let dpiStageIndex: Int
-        let dpiStageValue: Int
         let ledValue: Int?
         let pollRate: Int?
         let sleepTimeout: Int?
@@ -28,6 +28,7 @@ final class V3ProUSBMasterFeatureUITests: OpenSnekHardwareUITestCase {
     private let appReadyDeadline: TimeInterval = 10
     private var originalState: OriginalState?
     private var changedFeatures: Set<Feature> = []
+    private var toggledButtonTurboSlot: Int?
 
     override var expectedScope: HardwareDeviceScope {
         .v3ProUSB
@@ -38,6 +39,9 @@ final class V3ProUSBMasterFeatureUITests: OpenSnekHardwareUITestCase {
 
         if changedFeatures.contains(.scrollSmartReel), let value = originalState.scrollSmartReel {
             restoreScrollSmartReel(value)
+        }
+        if changedFeatures.contains(.buttonTurbo), let slot = toggledButtonTurboSlot {
+            restoreButtonTurbo(slot: slot)
         }
         if changedFeatures.contains(.scrollAcceleration), let value = originalState.scrollAcceleration {
             restoreScrollAcceleration(value)
@@ -58,7 +62,7 @@ final class V3ProUSBMasterFeatureUITests: OpenSnekHardwareUITestCase {
             restoreBrightness(value)
         }
         if changedFeatures.contains(.dpiStage) {
-            restoreDPIStage(index: originalState.dpiStageIndex, value: originalState.dpiStageValue)
+            restoreDPIStageSelection(index: originalState.dpiStageIndex)
         }
     }
 
@@ -69,11 +73,9 @@ final class V3ProUSBMasterFeatureUITests: OpenSnekHardwareUITestCase {
         assertElementText(deviceName, equals: "Razer Basilisk V3 Pro", context: "selected device name")
 
         let state = try XCTUnwrap(latestExpectedDeviceState(), "Expected hydrated state for \(expectedScope.description)")
-        let originalDPIStageIndex = try editableDPIStageIndex(from: state)
-        let originalDPIStageValue = try scalarDPIValue(at: originalDPIStageIndex, in: state)
+        let originalDPIStageIndex = state.activeStage ?? 0
         originalState = OriginalState(
             dpiStageIndex: originalDPIStageIndex,
-            dpiStageValue: originalDPIStageValue,
             ledValue: state.ledValue,
             pollRate: state.pollRate,
             sleepTimeout: state.sleepTimeout,
@@ -85,7 +87,7 @@ final class V3ProUSBMasterFeatureUITests: OpenSnekHardwareUITestCase {
 
         try assertV3ProUSBFeatureSurface()
         try exerciseOnboardProfileSurface()
-        try exerciseDPIStageValue(from: state)
+        try exerciseDPIStageSelection(from: state)
         try exerciseLightingBrightness(from: state)
         try exercisePollRate(from: state)
         try exercisePowerManagement(from: state)
@@ -138,32 +140,27 @@ final class V3ProUSBMasterFeatureUITests: OpenSnekHardwareUITestCase {
         )
     }
 
-    private func exerciseDPIStageValue(from state: UITestState) throws {
-        let stageIndex = try editableDPIStageIndex(from: state)
-        let initial = try scalarDPIValue(at: stageIndex, in: state)
-        let target = initial >= 700 ? initial - 100 : initial + 100
-        let field = try requireElement("dpi-stage-\(stageIndex + 1)-value-field", timeout: 2)
-        scrollElementToVisible(field)
-        let changedAt = Date()
-        replaceText(in: field, with: String(target))
+    private func exerciseDPIStageSelection(from state: UITestState) throws {
+        let stages = state.dpiStages ?? state.dpiStagePairs?.map(\.x) ?? []
+        XCTAssertGreaterThanOrEqual(stages.count, 2, "V3 Pro USB should expose multiple DPI stages")
+        let current = state.activeStage ?? 0
+        let target = current == 0 ? 1 : 0
+        let button = try requireElement("dpi-stage-\(target + 1)-select-button", timeout: 2)
+        scrollElementToVisible(button)
+        let clickedAt = Date()
+        clickElement(button)
         changedFeatures.insert(.dpiStage)
 
         let event = try XCTUnwrap(
             waitForOnboardMutation(
-                since: changedAt,
+                since: clickedAt,
                 timeout: actionDeadline,
-                matching: { mutation in
-                    guard let pairs = mutation.dpiStagePairs,
-                          pairs.indices.contains(stageIndex) else {
-                        return false
-                    }
-                    return pairs[stageIndex] == UITestDpiPair(x: target, y: target)
-                }
+                matching: { $0.dpiActiveStage == target }
             ),
-            "DPI stage mutation did not complete within \(actionDeadline)s"
+            "DPI stage selection did not complete within \(actionDeadline)s"
         )
         XCTAssertLessThanOrEqual(event.elapsed ?? .greatestFiniteMagnitude, actionDeadline)
-        assertExpectedScope(event.scope, context: "DPI stage mutation")
+        assertExpectedScope(event.scope, context: "DPI stage selection")
     }
 
     private func exerciseLightingBrightness(from state: UITestState) throws {
@@ -334,16 +331,27 @@ final class V3ProUSBMasterFeatureUITests: OpenSnekHardwareUITestCase {
         let card = try requireElement("button-mapping-card", timeout: 2)
         scrollElementToVisible(card)
 
-        let row = try XCTUnwrap(
-            firstExistingElement(
-                in: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map {
-                    app.descendants(matching: .any)["button-binding-row-\($0)"]
-                },
-                timeout: 2
-            ),
-            "No button mapping rows appeared"
-        )
+        let row = try XCTUnwrap(firstButtonBindingRow(), "No button mapping rows appeared")
         XCTAssertTrue(row.exists, "Button mapping row was not present")
+
+        guard let (slot, toggle) = firstButtonTurboToggle() else {
+            return
+        }
+        scrollElementToVisible(toggle)
+        let changedAt = Date()
+        clickElement(toggle)
+        toggledButtonTurboSlot = slot
+        changedFeatures.insert(.buttonTurbo)
+
+        let event = try XCTUnwrap(
+            waitForOnboardMutation(
+                since: changedAt,
+                timeout: actionDeadline,
+                matching: { $0.buttonBindingSlots?.contains(slot) == true }
+            ),
+            "Button turbo mutation did not complete within \(actionDeadline)s"
+        )
+        XCTAssertLessThanOrEqual(event.elapsed ?? .greatestFiniteMagnitude, actionDeadline)
     }
 
     private func assertNoInterferenceFailures() {
@@ -360,8 +368,11 @@ final class V3ProUSBMasterFeatureUITests: OpenSnekHardwareUITestCase {
             "Feature writes exceeded \(actionDeadline)s: \(slowEvents.map { "\($0.name)=\($0.elapsed ?? -1)" }.joined(separator: ", "))"
         )
         XCTAssertTrue(events.contains { $0.name == "applyEnd" && $0.patch?.pollRate != nil })
-        XCTAssertTrue(events.contains { $0.name == "onboardProfileMutationEnd" && $0.onboardMutation?.dpiStagePairs != nil })
+        XCTAssertTrue(events.contains { $0.name == "onboardProfileMutationEnd" && $0.onboardMutation?.dpiActiveStage != nil })
         XCTAssertTrue(events.contains { $0.name == "onboardProfileMutationEnd" && $0.onboardMutation?.brightnessByLEDID != nil })
+        if changedFeatures.contains(.buttonTurbo) {
+            XCTAssertTrue(events.contains { $0.name == "onboardProfileMutationEnd" && $0.onboardMutation?.buttonBindingSlots != nil })
+        }
     }
 
     private func waitForApplyEnd(
@@ -402,21 +413,15 @@ final class V3ProUSBMasterFeatureUITests: OpenSnekHardwareUITestCase {
         return element
     }
 
-    private func restoreDPIStage(index: Int, value: Int) {
-        guard let field = firstExistingElement(
-            in: [app.descendants(matching: .any)["dpi-stage-\(index + 1)-value-field"]],
+    private func restoreDPIStageSelection(index: Int) {
+        guard let button = firstExistingElement(
+            in: [app.descendants(matching: .any)["dpi-stage-\(index + 1)-select-button"]],
             timeout: 0.5
         ) else { return }
-        scrollElementToVisible(field)
-        let changedAt = Date()
-        replaceText(in: field, with: String(value))
-        _ = waitForOnboardMutation(since: changedAt, timeout: actionDeadline) { mutation in
-            guard let pairs = mutation.dpiStagePairs,
-                  pairs.indices.contains(index) else {
-                return false
-            }
-            return pairs[index] == UITestDpiPair(x: value, y: value)
-        }
+        scrollElementToVisible(button)
+        let clickedAt = Date()
+        clickElement(button)
+        _ = waitForOnboardMutation(since: clickedAt, timeout: actionDeadline) { $0.dpiActiveStage == index }
     }
 
     private func restoreBrightness(_ brightness: Int) {
@@ -468,6 +473,10 @@ final class V3ProUSBMasterFeatureUITests: OpenSnekHardwareUITestCase {
         restoreToggle("scroll-smart-reel-toggle") { $0.scrollSmartReel == enabled }
     }
 
+    private func restoreButtonTurbo(slot: Int) {
+        restoreToggle("button-binding-turbo-toggle-\(slot)") { $0.buttonBindingSlots?.contains(slot) == true }
+    }
+
     private func restoreToggle(
         _ identifier: String,
         matching predicate: @escaping (UITestOnboardProfileMutation) -> Bool
@@ -487,32 +496,26 @@ final class V3ProUSBMasterFeatureUITests: OpenSnekHardwareUITestCase {
         CGFloat(max(0x0C, min(0x3F, value)) - 0x0C) / CGFloat(0x3F - 0x0C)
     }
 
-    private func editableDPIStageIndex(from state: UITestState) throws -> Int {
-        let stages = state.dpiStages ?? state.dpiStagePairs?.map(\.x) ?? []
-        XCTAssertGreaterThanOrEqual(stages.count, 2, "V3 Pro USB should expose multiple DPI stages")
-        let activeStage = state.activeStage ?? 0
-        return activeStage == 0 ? 1 : 0
+    private func firstButtonBindingRow() -> XCUIElement? {
+        firstExistingElement(
+            in: (1...64).map { app.descendants(matching: .any)["button-binding-row-\($0)"] },
+            timeout: 2
+        )
     }
 
-    private func scalarDPIValue(at index: Int, in state: UITestState) throws -> Int {
-        if let pair = state.dpiStagePairs?[safe: index] {
-            XCTAssertEqual(pair.x, pair.y, "Master test currently edits scalar DPI stages")
-            return pair.x
+    private func firstButtonTurboToggle() -> (slot: Int, toggle: XCUIElement)? {
+        let scrollView = detailScrollView()
+        for attempt in 0..<8 {
+            for slot in 1...64 {
+                let toggle = app.descendants(matching: .any)["button-binding-turbo-toggle-\(slot)"]
+                if toggle.exists {
+                    return (slot, toggle)
+                }
+            }
+            guard attempt < 7, scrollView.exists else { break }
+            scrollView.scroll(byDeltaX: 0, deltaY: -450)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
         }
-        let values = try XCTUnwrap(state.dpiStages, "V3 Pro USB state did not include DPI stages")
-        return try XCTUnwrap(values[safe: index], "V3 Pro USB state did not include DPI stage \(index + 1)")
-    }
-
-    private func replaceText(in field: XCUIElement, with text: String) {
-        clickElement(field)
-        field.typeKey("a", modifierFlags: .command)
-        field.typeText(text)
-        field.typeKey(.return, modifierFlags: [])
-    }
-}
-
-private extension Array {
-    subscript(safe index: Int) -> Element? {
-        indices.contains(index) ? self[index] : nil
+        return nil
     }
 }

@@ -2787,6 +2787,7 @@ private struct ButtonBindingRow: View {
                 Text(row.friendlyName)
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
+                    .accessibilityIdentifier("button-binding-row-\(row.slot)")
 
                 Spacer(minLength: 12)
 
@@ -2958,7 +2959,6 @@ private struct ButtonBindingRow: View {
                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                 )
         )
-        .accessibilityIdentifier("button-binding-row-\(row.slot)")
     }
 
     private var turboToggle: some View {
