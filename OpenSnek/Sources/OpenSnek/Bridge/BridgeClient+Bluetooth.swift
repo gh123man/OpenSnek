@@ -1,7 +1,45 @@
 import Foundation
+import Darwin
 import OpenSnekCore
 import OpenSnekHardware
 import OpenSnekProtocols
+
+private enum BluetoothVendorTransactionContext {
+    @TaskLocal static var isActive = false
+}
+
+private struct BluetoothVendorProcessLock {
+    let fd: Int32
+
+    func release() {
+        _ = flock(fd, LOCK_UN)
+        _ = Darwin.close(fd)
+    }
+
+    static func acquire() throws -> BluetoothVendorProcessLock {
+        let directory = FileManager.default
+            .homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Caches/OpenSnek/HIDLocks", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("bluetooth-vendor.lock")
+        let fd = Darwin.open(url.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+        guard fd >= 0 else {
+            throw BridgeError.commandFailed("Bluetooth vendor lock open failed: errno \(errno)")
+        }
+
+        while true {
+            if flock(fd, LOCK_EX) == 0 {
+                return BluetoothVendorProcessLock(fd: fd)
+            }
+            if errno == EINTR {
+                continue
+            }
+            let lockErrno = errno
+            _ = Darwin.close(fd)
+            throw BridgeError.commandFailed("Bluetooth vendor lock failed: errno \(lockErrno)")
+        }
+    }
+}
 
 extension BridgeClient {
     struct BluetoothBatteryState: Equatable {
@@ -322,6 +360,34 @@ extension BridgeClient {
         device: MouseDevice? = nil,
         preferredPeripheralName: String? = nil
     ) async throws -> [Data] {
+        if BluetoothVendorTransactionContext.isActive {
+            return try await btExchangeLocked(
+                writes,
+                timeout: timeout,
+                device: device,
+                preferredPeripheralName: preferredPeripheralName
+            )
+        }
+
+        return try await withBluetoothVendorTransaction(
+            operation: "btExchange",
+            logTransaction: false
+        ) {
+            try await self.btExchangeLocked(
+                writes,
+                timeout: timeout,
+                device: device,
+                preferredPeripheralName: preferredPeripheralName
+            )
+        }
+    }
+
+    func btExchangeLocked(
+        _ writes: [Data],
+        timeout: TimeInterval = 0.8,
+        device: MouseDevice? = nil,
+        preferredPeripheralName: String? = nil
+    ) async throws -> [Data] {
         let start = Date()
         await btAcquireExchangeLock()
         defer { btReleaseExchangeLock() }
@@ -337,6 +403,68 @@ extension BridgeClient {
             "notifies=\(result.count) elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
         )
         return result
+    }
+
+    func withBluetoothVendorTransaction<T>(
+        operation: String,
+        logTransaction: Bool = true,
+        _ body: () async throws -> T
+    ) async throws -> T {
+        if BluetoothVendorTransactionContext.isActive {
+            return try await body()
+        }
+
+        let waitStart = Date()
+        await btAcquireVendorTransactionLock()
+        let processLock: BluetoothVendorProcessLock
+        do {
+            processLock = try BluetoothVendorProcessLock.acquire()
+        } catch {
+            btReleaseVendorTransactionLock()
+            throw error
+        }
+
+        let start = Date()
+        if logTransaction {
+            AppLog.debug(
+                "Bridge",
+                "bt transaction start operation=\(operation) waited=\(String(format: "%.3f", start.timeIntervalSince(waitStart)))s"
+            )
+        }
+        defer {
+            let elapsed = Date().timeIntervalSince(start)
+            processLock.release()
+            btReleaseVendorTransactionLock()
+            if logTransaction {
+                AppLog.debug(
+                    "Bridge",
+                    "bt transaction end operation=\(operation) elapsed=\(String(format: "%.3f", elapsed))s"
+                )
+            }
+        }
+
+        return try await BluetoothVendorTransactionContext.$isActive.withValue(true) {
+            try await body()
+        }
+    }
+
+    func btAcquireVendorTransactionLock() async {
+        if !btVendorTransactionLocked {
+            btVendorTransactionLocked = true
+            return
+        }
+        await withCheckedContinuation { continuation in
+            btVendorTransactionWaiters.append(continuation)
+        }
+    }
+
+    func btReleaseVendorTransactionLock() {
+        if btVendorTransactionWaiters.isEmpty {
+            btVendorTransactionLocked = false
+            return
+        }
+        let next = btVendorTransactionWaiters.removeFirst()
+        next.resume()
     }
 
     func btAcquireExchangeLock() async {

@@ -54,6 +54,7 @@ All notable changes to this project are documented in this file.
 - Bluetooth onboard profile active-ID refreshes now preserve the loaded profile DPI snapshot, passive DPI matching uses the loaded onboard profile stage table, profile loads hydrate Bluetooth button bindings from profile readback instead of stale cached bindings, and generic Bluetooth state refreshes avoid profile-owned live-layer polling on mapped onboard devices.
 - Bluetooth onboard profile button readback now prefers the authoritative `08 84` even lane over stale/default odd lanes and normalizes shortened wheel-tilt default blocks, so stored profile keymaps reflect reversed scroll and tilt defaults correctly.
 - Bluetooth passive profile-cycle detection now requires the captured `04 04 ...` prelude plus exact zero-tail `05 05 39 ...` frame, preventing scroll-wheel mode status reports from triggering onboard profile reloads.
+- Bluetooth onboard profile CRUD now holds a shared vendor transaction lock across multi-command operations, preventing polling or service refresh reads from interleaving with rename/create/update/delete/activate sequences.
 
 ## [2026-06-15]
 

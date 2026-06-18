@@ -86,6 +86,8 @@ actor BridgeClient {
     let passiveDpiMonitor = PassiveDPIEventMonitor()
     var btExchangeLocked = false
     var btExchangeWaiters: [CheckedContinuation<Void, Never>] = []
+    var btVendorTransactionLocked = false
+    var btVendorTransactionWaiters: [CheckedContinuation<Void, Never>] = []
     var hidAccessDenied = false
     var managerAccessDenied = false
     var lastOpenDeniedLogAt: Date?

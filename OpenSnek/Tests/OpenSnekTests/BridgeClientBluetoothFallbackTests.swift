@@ -170,6 +170,54 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
         )
     }
 
+    func testBluetoothVendorTransactionSerializesConcurrentWork() async throws {
+        let client = BridgeClient(startHIDMonitoring: false)
+        let gate = AsyncTestGate()
+        let firstEntered = AsyncTestFlag()
+        let secondStarted = AsyncTestFlag()
+        let secondEntered = AsyncTestFlag()
+
+        let first = Task {
+            try await client.withBluetoothVendorTransaction(operation: "test first", logTransaction: false) {
+                await firstEntered.set()
+                await gate.wait()
+            }
+        }
+        try await waitUntil { await firstEntered.value }
+
+        let second = Task {
+            await secondStarted.set()
+            try await client.withBluetoothVendorTransaction(operation: "test second", logTransaction: false) {
+                await secondEntered.set()
+            }
+        }
+        try await waitUntil { await secondStarted.value }
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        let enteredBeforeRelease = await secondEntered.value
+        XCTAssertFalse(enteredBeforeRelease)
+
+        await gate.open()
+        try await first.value
+        try await second.value
+        let enteredAfterRelease = await secondEntered.value
+        XCTAssertTrue(enteredAfterRelease)
+    }
+
+    func testBluetoothVendorTransactionAllowsNestedWorkOnSameTask() async throws {
+        let client = BridgeClient(startHIDMonitoring: false)
+        let innerEntered = AsyncTestFlag()
+
+        try await client.withBluetoothVendorTransaction(operation: "test outer", logTransaction: false) {
+            try await client.withBluetoothVendorTransaction(operation: "test inner", logTransaction: false) {
+                await innerEntered.set()
+            }
+        }
+
+        let nestedEntered = await innerEntered.value
+        XCTAssertTrue(nestedEntered)
+    }
+
     func testCompleteBluetoothOnboardProfileMetadataRequiresAllIdentityFields() throws {
         let identifier = try XCTUnwrap(UUID(uuidString: "01234567-89ab-4cde-8f01-23456789abcd"))
         let complete = BridgeClient.completeBluetoothOnboardProfileMetadata(
@@ -331,4 +379,48 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
 
         XCTAssertNil(preferredName)
     }
+}
+
+private actor AsyncTestFlag {
+    private(set) var value = false
+
+    func set() {
+        value = true
+    }
+}
+
+private actor AsyncTestGate {
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        if isOpen { return }
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    func open() {
+        isOpen = true
+        let pending = waiters
+        waiters.removeAll()
+        for continuation in pending {
+            continuation.resume()
+        }
+    }
+}
+
+private func waitUntil(
+    timeout: TimeInterval = 1.0,
+    pollInterval: UInt64 = 10_000_000,
+    _ predicate: @escaping () async -> Bool
+) async throws {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if await predicate() {
+            return
+        }
+        try await Task.sleep(nanoseconds: pollInterval)
+    }
+    XCTFail("Timed out waiting for condition")
 }
