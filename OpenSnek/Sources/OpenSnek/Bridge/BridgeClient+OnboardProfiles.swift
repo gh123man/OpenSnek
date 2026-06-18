@@ -1230,19 +1230,24 @@ extension BridgeClient {
         let req = nextBTReq()
         let writes: [Data]
         if let requestPayload {
-            writes = [
-                BLEVendorProtocol.buildWriteHeader(
-                    req: req,
-                    payloadLength: UInt8(requestPayload.count),
-                    key: key
-                ),
-                requestPayload,
-            ]
+            writes = BLEVendorProtocol.buildWriteFrames(req: req, key: key, payload: requestPayload)
         } else {
             writes = [BLEVendorProtocol.buildReadHeader(req: req, key: key)]
         }
         let notifies = try await btExchange(writes, timeout: timeout, device: device)
-        return BLEVendorProtocol.parsePayloadFrames(notifies: notifies, req: req)
+        let payload = BLEVendorProtocol.parsePayloadFrames(notifies: notifies, req: req)
+        if payload == nil {
+            AppLog.debug(
+                "Bridge",
+                "btReadPayload no-payload device=\(device.id) key=\(btKeyLabel(key)) req=\(req) notifies=\(btNotifySummary(notifies))"
+            )
+        } else if let payload, payload.isEmpty {
+            AppLog.debug(
+                "Bridge",
+                "btReadPayload empty-payload device=\(device.id) key=\(btKeyLabel(key)) req=\(req) notifies=\(btNotifySummary(notifies))"
+            )
+        }
+        return payload
     }
 
     func btWriteAck(
@@ -1252,14 +1257,16 @@ extension BridgeClient {
         timeout: TimeInterval = 0.9
     ) async throws -> Bool {
         let req = nextBTReq()
-        let header = BLEVendorProtocol.buildWriteHeader(
-            req: req,
-            payloadLength: UInt8(payload.count),
-            key: key
-        )
-        let writes = payload.isEmpty ? [header] : [header, payload]
+        let writes = BLEVendorProtocol.buildWriteFrames(req: req, key: key, payload: payload)
         let notifies = try await btExchange(writes, timeout: timeout, device: device)
-        return btAckSuccess(notifies: notifies, req: req)
+        let ok = btAckSuccess(notifies: notifies, req: req)
+        if !ok {
+            AppLog.debug(
+                "Bridge",
+                "btWriteAck rejected device=\(device.id) key=\(btKeyLabel(key)) req=\(req) payloadBytes=\(payload.count) notifies=\(btNotifySummary(notifies))"
+            )
+        }
+        return ok
     }
 
     func btListOnboardProfiles(device: MouseDevice, profile: DeviceProfile) async throws -> OnboardProfileInventory {

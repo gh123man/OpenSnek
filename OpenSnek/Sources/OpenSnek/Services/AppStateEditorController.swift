@@ -1661,10 +1661,11 @@ final class AppStateEditorController {
                 "AppState",
                 "refresh onboard profiles ok device=\(device.id) active=\(visibleInventory.activeProfileID) assigned=\(visibleInventory.assignedProfileIDs.map(String.init).joined(separator: ",")) selected=\(selectedOnboardProfileIDByDeviceID[device.id].map(String.init) ?? "<nil>") changedNames=\(changedNames.isEmpty ? "<none>" : changedNames)"
             )
+            editorStore.onboardProfileRefreshErrorMessage = nil
             bumpOnboardProfilesRevision()
         } catch {
             AppLog.error("AppState", "refresh onboard profiles failed device=\(device.id): \(error.localizedDescription)")
-            deviceStore.errorMessage = "Failed to refresh onboard profiles: \(error.localizedDescription)"
+            editorStore.onboardProfileRefreshErrorMessage = "Failed to refresh onboard profiles: \(error.localizedDescription)"
         }
     }
 

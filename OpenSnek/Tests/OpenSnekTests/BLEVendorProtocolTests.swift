@@ -13,6 +13,19 @@ final class BLEVendorProtocolTests: XCTestCase {
         XCTAssertEqual(Array(data), [0x34, 0x26, 0x00, 0x00, 0x0B, 0x04, 0x01, 0x00])
     }
 
+    func testWriteFramesChunkLargePayloads() {
+        let payload = Data((0..<0x4C).map(UInt8.init))
+        let frames = BLEVendorProtocol.buildWriteFrames(
+            req: 0x44,
+            key: .profileMetadataSet(target: 0x02),
+            payload: payload
+        )
+
+        XCTAssertEqual(Array(frames[0]), [0x44, 0x4C, 0x00, 0x00, 0x03, 0x04, 0x02, 0x00])
+        XCTAssertEqual(frames.map(\.count), [8, 20, 20, 20, 16])
+        XCTAssertEqual(frames.dropFirst().reduce(into: Data()) { $0.append($1) }, payload)
+    }
+
     func testLightingBrightnessKeyBuildersSupportPerZoneIDs() {
         XCTAssertEqual(BLEVendorProtocol.Key.lightingBrightnessGet(ledID: 0x04).bytes, [0x10, 0x85, 0x01, 0x04])
         XCTAssertEqual(BLEVendorProtocol.Key.lightingBrightnessSet(ledID: 0x0A).bytes, [0x10, 0x05, 0x01, 0x0A])

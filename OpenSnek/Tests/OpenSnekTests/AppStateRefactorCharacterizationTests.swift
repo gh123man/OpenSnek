@@ -4001,13 +4001,15 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 appState.editorStore.isButtonProfileOperationInFlight,
                 appState.editorStore.isOnboardProfileRefreshInFlight,
                 appState.editorStore.onboardProfileRefreshErrorMessage,
-                appState.editorStore.onboardProfileSummaries.isEmpty
+                appState.editorStore.onboardProfileSummaries.isEmpty,
+                appState.deviceStore.errorMessage
             )
         }
         XCTAssertFalse(refreshState.0)
         XCTAssertFalse(refreshState.1)
         XCTAssertEqual(refreshState.2, "Failed to refresh onboard profiles: inventory unavailable")
         XCTAssertTrue(refreshState.3)
+        XCTAssertNil(refreshState.4)
     }
 
     func testConcurrentOnboardProfileRefreshesAreCoalesced() async throws {

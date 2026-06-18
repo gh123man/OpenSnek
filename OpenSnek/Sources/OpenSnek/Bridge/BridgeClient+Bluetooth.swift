@@ -40,15 +40,15 @@ extension BridgeClient {
             .joined(separator: ",")
     }
 
-    private func btHex(_ data: Data) -> String {
+    func btHex(_ data: Data) -> String {
         data.map { String(format: "%02x", $0) }.joined()
     }
 
-    private func btKeyLabel(_ key: BLEVendorProtocol.Key) -> String {
+    func btKeyLabel(_ key: BLEVendorProtocol.Key) -> String {
         btHex(Data(key.bytes))
     }
 
-    private func btNotifySummary(_ notifies: [Data]) -> String {
+    func btNotifySummary(_ notifies: [Data]) -> String {
         notifies
             .map(btHex)
             .joined(separator: " | ")

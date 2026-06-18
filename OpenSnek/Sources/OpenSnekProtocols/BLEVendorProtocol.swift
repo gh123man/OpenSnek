@@ -188,6 +188,26 @@ public enum BLEVendorProtocol {
         Data([req, payloadLength, 0x00, 0x00] + key.bytes)
     }
 
+    public static func buildWriteFrames(
+        req: UInt8,
+        key: Key,
+        payload: Data,
+        maxPayloadFrameLength: Int = 20
+    ) -> [Data] {
+        let payloadLength = UInt8(max(0, min(255, payload.count)))
+        var frames = [buildWriteHeader(req: req, payloadLength: payloadLength, key: key)]
+        guard !payload.isEmpty else { return frames }
+
+        let chunkSize = max(1, maxPayloadFrameLength)
+        var offset = 0
+        while offset < payload.count {
+            let nextOffset = min(offset + chunkSize, payload.count)
+            frames.append(payload.subdata(in: offset..<nextOffset))
+            offset = nextOffset
+        }
+        return frames
+    }
+
     public static func parsePayloadFrames(notifies: [Data], req: UInt8) -> Data? {
         guard let headerIndex = notifies.firstIndex(where: { frame in
             guard let hdr = NotifyHeader(data: frame) else { return false }
