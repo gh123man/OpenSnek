@@ -617,6 +617,12 @@ actor BridgeClient {
                     guard let stages = try getDPIStageSnapshot(session, device) else { return nil }
                     let liveDpi = try getDPI(session, device)?.0
                     let active = Self.resolvedUSBFastDpiActiveStage(stages: stages, liveDpi: liveDpi)
+                    AppLog.debug(
+                        "Bridge",
+                        "readDpiStagesFast usb device=\(device.id) tableActive=\(stages.active) " +
+                        "liveX=\(liveDpi.map(String.init) ?? "nil") resolved=\(active) " +
+                        "values=\(stages.values.map(String.init).joined(separator: ","))"
+                    )
                     return (active: active, values: stages.values)
                 }
                 guard let snapshot else { continue }
@@ -874,6 +880,15 @@ actor BridgeClient {
                 let resolvedStagePairs = stagePairs ?? stages.map { DpiPair(x: $0, y: $0) }
                 let activeClamped = max(0, min(stages.count - 1, active))
                 let livePair = resolvedStagePairs[activeClamped]
+                AppLog.debug(
+                    "Bridge",
+                    "apply usb dpi device=\(device.id) activeOnly=\(patch.isActiveStageOnly) " +
+                    "requestedActive=\(patch.activeStage.map(String.init) ?? "nil") " +
+                    "resolvedActive=\(activeClamped) livePair=(\(livePair.x),\(livePair.y)) " +
+                    "cachedActive=\(cachedDpiStages?.active_stage.map(String.init) ?? "nil") " +
+                    "currentActive=\(current?.active.description ?? "nil") " +
+                    "stages=\(stages.map(String.init).joined(separator: ","))"
+                )
                 if patch.isActiveStageOnly {
                     guard try runUSBWrite({ try setDPI($0, device, dpiX: livePair.x, dpiY: livePair.y, store: false) }) else {
                         throw BridgeError.commandFailed("Failed to apply active DPI stage")
@@ -888,6 +903,11 @@ actor BridgeClient {
                         )
                         throw BridgeError.commandFailed("Failed to verify active DPI stage")
                     }
+                    AppLog.debug(
+                        "Bridge",
+                        "apply usb active-stage verified device=\(device.id) " +
+                        "active=\(activeClamped) live=(\(livePair.x),\(livePair.y))"
+                    )
                     let baseState: MouseState
                     if let cached = cachedState {
                         baseState = cached

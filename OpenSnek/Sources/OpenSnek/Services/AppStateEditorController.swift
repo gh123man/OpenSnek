@@ -514,7 +514,7 @@ final class AppStateEditorController {
         if let snapshot = activeOnboardSnapshot,
            let dpi = snapshot.dpi,
            let device = deviceStore.selectedDevice {
-            hydrateEditableDPI(from: dpi, device: device, liveDPI: state.dpi)
+            hydrateEditableDPI(from: dpi, device: device, liveDPI: state.dpi, source: "hydrateEditable.snapshot")
         } else if let pairs = state.dpi_stages.pairs, !pairs.isEmpty {
             editorStore.editableStageCount = max(1, min(5, pairs.count))
             let profileID = deviceStore.selectedDevice?.profile_id
@@ -544,9 +544,12 @@ final class AppStateEditorController {
         if activeOnboardSnapshot?.dpi == nil {
             if let active = state.dpi_stages.active_stage {
                 let maxStage = max(1, editorStore.editableStageCount)
-                editorStore.editableActiveStage = max(1, min(maxStage, active + 1))
+                editorStore.setEditableActiveStage(
+                    max(1, min(maxStage, active + 1)),
+                    source: "hydrateEditable.state active=\(active)"
+                )
             } else {
-                editorStore.editableActiveStage = 1
+                editorStore.setEditableActiveStage(1, source: "hydrateEditable.state missing-active")
             }
         }
         editorStore.normalizeExpandedXYStages()
@@ -600,16 +603,30 @@ final class AppStateEditorController {
         if let snapshot = currentActiveOnboardProfileSnapshot(for: state),
            let dpi = snapshot.dpi,
            let device = deviceStore.selectedDevice {
-            hydrateEditableDPI(from: dpi, device: device, liveDPI: state.dpi)
+            hydrateEditableDPI(
+                from: dpi,
+                device: device,
+                liveDPI: state.dpi,
+                source: "hydrateLiveDpi.snapshot pending=\(pendingActiveStage.map(String.init) ?? "nil")"
+            )
             if let pendingActiveStage {
                 let maxStage = max(1, editorStore.editableStageCount)
-                editorStore.editableActiveStage = max(1, min(maxStage, pendingActiveStage))
+                editorStore.setEditableActiveStage(
+                    max(1, min(maxStage, pendingActiveStage)),
+                    source: "hydrateLiveDpi.pendingSnapshot pending=\(pendingActiveStage)"
+                )
             }
         } else if let active = state.dpi_stages.active_stage {
             let maxStage = max(1, editorStore.editableStageCount)
-            editorStore.editableActiveStage = max(1, min(maxStage, pendingActiveStage ?? active + 1))
+            editorStore.setEditableActiveStage(
+                max(1, min(maxStage, pendingActiveStage ?? active + 1)),
+                source: "hydrateLiveDpi.state active=\(active) pending=\(pendingActiveStage.map(String.init) ?? "nil")"
+            )
         } else {
-            editorStore.editableActiveStage = pendingActiveStage ?? 1
+            editorStore.setEditableActiveStage(
+                pendingActiveStage ?? 1,
+                source: "hydrateLiveDpi.state missing-active pending=\(pendingActiveStage.map(String.init) ?? "nil")"
+            )
         }
 
         if editorStore.editableStageCount == 1, let dpi = state.dpi?.x {
@@ -702,7 +719,10 @@ final class AppStateEditorController {
                 editorStore.editableStagePairs[index] = DpiPair(x: value, y: value)
             }
         }
-        editorStore.editableActiveStage = max(1, min(count, snapshot.activeStage))
+        editorStore.setEditableActiveStage(
+            max(1, min(count, snapshot.activeStage)),
+            source: "hydrateConnectPresentation.snapshot active=\(snapshot.activeStage)"
+        )
         editorStore.normalizeExpandedXYStages()
 
         if let pollRate = snapshot.pollRate {
@@ -2226,7 +2246,8 @@ final class AppStateEditorController {
     private func hydrateEditableDPI(
         from dpi: OnboardDPIProfileSnapshot,
         device: MouseDevice,
-        liveDPI: DpiPair? = nil
+        liveDPI: DpiPair? = nil,
+        source: String = "hydrateEditableDPI"
     ) {
         let sourcePairs = !dpi.pairs.isEmpty
             ? dpi.pairs
@@ -2247,7 +2268,11 @@ final class AppStateEditorController {
         let matchedActiveStage = liveDPI.flatMap { liveDPI in
             Self.uniqueDPIStageIndex(matching: liveDPI, in: Array(sourcePairs.prefix(count)))
         }
-        editorStore.editableActiveStage = max(1, min(count, (matchedActiveStage ?? dpi.activeStage ?? 0) + 1))
+        editorStore.setEditableActiveStage(
+            max(1, min(count, (matchedActiveStage ?? dpi.activeStage ?? 0) + 1)),
+            source: "\(source) profileActive=\(dpi.activeStage.map(String.init) ?? "nil") " +
+                "matchedLive=\(matchedActiveStage.map(String.init) ?? "nil")"
+        )
         editorStore.normalizeExpandedXYStages()
     }
 
@@ -2310,7 +2335,7 @@ final class AppStateEditorController {
         defer { isHydrating = false }
 
         if let dpi = snapshot.dpi {
-            hydrateEditableDPI(from: dpi, device: device)
+            hydrateEditableDPI(from: dpi, device: device, source: "hydrateEditable.onboardSnapshot")
         }
         hydrateEditableLighting(from: snapshot, device: device)
         hydrateEditableScroll(from: snapshot)

@@ -315,7 +315,7 @@ struct ServiceMenuBarView: View {
                 let isSelected = editorStore.editableActiveStage == stage
                 Button {
                     if !isSelected {
-                        editorStore.editableActiveStage = stage
+                        editorStore.setEditableActiveStage(stage, source: "ui.menu.stagePicker")
                         editorStore.scheduleAutoApplyActiveStage()
                     }
                 } label: {

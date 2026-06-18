@@ -175,6 +175,12 @@ extension BridgeClient {
             } ?? 0
             let values = stages?.values ?? [dpi.0]
             let pairs = stages?.pairs
+            AppLog.debug(
+                "Bridge",
+                "readUSBState dpi-active-resolve device=\(device.id) " +
+                "tableActive=\(stages?.active.description ?? "nil") live=(\(dpi.0),\(dpi.1)) " +
+                "resolved=\(active) values=\(values.map(String.init).joined(separator: ","))"
+            )
 
             return MouseState(
                 device: DeviceSummary(

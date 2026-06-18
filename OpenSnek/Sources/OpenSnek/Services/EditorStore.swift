@@ -28,7 +28,12 @@ final class EditorStore {
         }
     }
     var editableStageCount = 3
-    var editableActiveStage = 1
+    var editableActiveStage = 1 {
+        didSet {
+            guard oldValue != editableActiveStage else { return }
+            logEditableActiveStageMutation(oldValue: oldValue, newValue: editableActiveStage)
+        }
+    }
     var expandedXYStageIndices: Set<Int> = []
     var editablePollRate = 1000
     var editableSleepTimeout = 300
@@ -67,6 +72,7 @@ final class EditorStore {
     @ObservationIgnored private var onboardProfileLoadOperationOrder: [UUID] = []
     @ObservationIgnored private var onboardProfileLoadOperationStatusByID: [UUID: String] = [:]
     @ObservationIgnored private var isSyncingEditableStageRepresentations = false
+    @ObservationIgnored private var editableActiveStageMutationSource: String?
 
     init(deviceStore: DeviceStore) {
         self.deviceStore = deviceStore
@@ -78,6 +84,35 @@ final class EditorStore {
         isSyncingEditableStageRepresentations = true
         editableStagePairs = editableStageValues.map { DpiPair(x: $0, y: $0) }
         isSyncingEditableStageRepresentations = false
+    }
+
+    func setEditableActiveStage(_ stage: Int, source: String) {
+        let previousSource = editableActiveStageMutationSource
+        editableActiveStageMutationSource = source
+        editableActiveStage = stage
+        editableActiveStageMutationSource = previousSource
+    }
+
+    private func logEditableActiveStageMutation(oldValue: Int, newValue: Int) {
+        let source = editableActiveStageMutationSource ?? "<direct>"
+        let selectedDeviceID = deviceStore.selectedDeviceID ?? "nil"
+        let stateActive = deviceStore.state?.dpi_stages.active_stage.map(String.init) ?? "nil"
+        let stateValues = deviceStore.state?.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil"
+        let stateDpi = deviceStore.state?.dpi.map { "(\($0.x),\($0.y))" } ?? "nil"
+        let pendingActive = applyControllerStorage?
+            .pendingActiveStageSelection(for: deviceStore.selectedDevice)
+            .map(String.init) ?? "nil"
+        let pendingLocal = applyControllerStorage?.hasPendingLocalEdits ?? false
+        let isHydrating = editorControllerStorage?.isHydrating ?? false
+
+        AppLog.debug(
+            "AppState",
+            "editableActiveStage \(oldValue)->\(newValue) source=\(source) " +
+            "selected=\(selectedDeviceID) hydrating=\(isHydrating) applying=\(deviceStore.isApplying) " +
+            "pendingLocal=\(pendingLocal) pendingActive=\(pendingActive) " +
+            "stateActive=\(stateActive) stateDpi=\(stateDpi) stateValues=\(stateValues) " +
+            "editCount=\(editableStageCount)"
+        )
     }
 
     func bind(

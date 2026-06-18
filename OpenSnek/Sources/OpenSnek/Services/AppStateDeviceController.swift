@@ -191,6 +191,15 @@ final class AppStateDeviceController {
         if let selectedDeviceID = deviceStore.selectedDeviceID,
            let selectedState = stateCacheByDeviceID[selectedDeviceID],
            let selectedDevice = deviceStore.selectedDevice {
+            AppLog.debug(
+                "AppState",
+                "remoteSnapshot selected device=\(selectedDeviceID) " +
+                "active=\(selectedState.dpi_stages.active_stage.map(String.init) ?? "nil") " +
+                "dpi=\(Self.diagnosticDpiPair(selectedState.dpi)) " +
+                "values=\(selectedState.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
+                "pendingLocal=\(applyController.hasPendingLocalEdits) " +
+                "pendingActive=\(applyController.pendingActiveStageSelection(for: selectedDevice).map(String.init) ?? "nil")"
+            )
             deviceStore.state = selectedState
             deviceStore.lastUpdated = lastUpdatedByDeviceID[selectedDeviceID]
             let holdsPersistedConnectPresentation = primeSelectedConnectPresentationIfNeeded(
@@ -245,6 +254,18 @@ final class AppStateDeviceController {
         let previous = stateCacheByDeviceID[presentationDeviceID] ?? stateCacheByDeviceID[deviceID]
         let merged = updatedState.merged(with: previous)
         let shouldFocusOnActivity = shouldFocusServiceSelectionOnActivity(previous: previous, next: merged)
+        AppLog.debug(
+            "AppState",
+            "backendStateUpdate apply device=\(presentationDeviceID) source=\(deviceID) " +
+            "incomingActive=\(updatedState.dpi_stages.active_stage.map(String.init) ?? "nil") " +
+            "incomingDpi=\(Self.diagnosticDpiPair(updatedState.dpi)) " +
+            "mergedActive=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
+            "mergedDpi=\(Self.diagnosticDpiPair(merged.dpi)) " +
+            "mergedValues=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
+            "selected=\(deviceStore.selectedDeviceID ?? "nil") " +
+            "pendingLocal=\(applyController.hasPendingLocalEdits) " +
+            "pendingActive=\(applyController.pendingActiveStageSelection(for: presentationDevice).map(String.init) ?? "nil")"
+        )
 
         cacheState(merged, sourceDeviceID: deviceID, presentationDeviceID: presentationDeviceID, updatedAt: updatedAt)
         setDpiUpdateTransportStatus(.realTimeHID, for: deviceID)
@@ -1113,6 +1134,11 @@ final class AppStateDeviceController {
             deviceStore.lastUpdated = updatedAt
             deviceStore.invalidateConnectionDiagnostics()
         }
+    }
+
+    private static func diagnosticDpiPair(_ pair: DpiPair?) -> String {
+        guard let pair else { return "nil" }
+        return "(\(pair.x),\(pair.y))"
     }
 
     func latestCachedUpdateAt(sourceDeviceID: String, presentationDeviceID: String) -> Date? {

@@ -124,6 +124,11 @@ final class AppStateApplyController {
         let count = max(1, min(5, editorStore.editableStageCount))
         let selectedDevice = deviceStore.selectedDevice
         let active = max(0, min(count - 1, editorStore.editableActiveStage - 1))
+        AppLog.debug(
+            "AppState",
+            "applyActiveStageOnly device=\(selectedDevice?.id ?? "nil") editable=\(editorStore.editableActiveStage) " +
+            "active=\(active) count=\(count) pending=\(pendingActiveStageSelection(for: selectedDevice).map(String.init) ?? "nil")"
+        )
         if let selectedDevice, supportsOnboardProfileEditorWrites(device: selectedDevice) {
             let profileID = selectedDevice.profile_id
             let pairs = Array(editorStore.editableStagePairs.prefix(count)).map { pair in
@@ -150,6 +155,11 @@ final class AppStateApplyController {
     func scheduleAutoApplyActiveStage() {
         guard !editorController.isHydrating else { return }
         rememberPendingActiveStageSelection(editorStore.editableActiveStage, for: deviceStore.selectedDevice)
+        AppLog.debug(
+            "AppState",
+            "scheduleActiveStageApply device=\(deviceStore.selectedDevice?.id ?? "nil") " +
+            "editable=\(editorStore.editableActiveStage) pending=\(pendingActiveStageSelection(for: deviceStore.selectedDevice).map(String.init) ?? "nil")"
+        )
         scheduleAutoApply(key: .activeStage, delay: 80_000_000) { [weak self] in
             guard let self else { return }
             await self.applyActiveStageOnly()
@@ -530,6 +540,11 @@ final class AppStateApplyController {
         guard let device else { return }
         let count = max(1, min(5, editorStore.editableStageCount))
         pendingActiveStageSelectionByDeviceIdentityKey[deviceController.deviceIdentityKey(device)] = max(1, min(count, stage))
+        AppLog.debug(
+            "AppState",
+            "rememberPendingActiveStage device=\(device.id) requested=\(stage) " +
+            "stored=\(pendingActiveStageSelection(for: device).map(String.init) ?? "nil") count=\(count)"
+        )
     }
 
     private func clearPendingActiveStageSelection(matching stage: Int, for device: MouseDevice?) {
@@ -537,6 +552,7 @@ final class AppStateApplyController {
         let key = deviceController.deviceIdentityKey(device)
         guard pendingActiveStageSelectionByDeviceIdentityKey[key] == stage else { return }
         pendingActiveStageSelectionByDeviceIdentityKey.removeValue(forKey: key)
+        AppLog.debug("AppState", "clearPendingActiveStage device=\(device.id) stage=\(stage)")
     }
 
     private func shouldTreatCurrentSourceAsExactMouseSlot(device: MouseDevice) -> Int? {
