@@ -79,6 +79,7 @@ final class AppStateApplyController {
     func shouldHydrateEditable(for device: MouseDevice?) -> Bool {
         guard !deviceStore.isApplying, !editorStore.isEditingDpiControl else { return false }
         guard let device else { return !hasPendingLocalEdits }
+        guard pendingActiveStageSelection(for: device) == nil else { return false }
         guard !hasPendingLocalEditsAffecting(device) else { return false }
         guard let lastLocalEditAt else { return true }
         guard let localEditDeviceIdentityKey else { return true }
@@ -519,7 +520,7 @@ final class AppStateApplyController {
     private func applyOnboardProfileMutationForCurrentSelection(_ mutation: OnboardProfileMutation) async -> Bool {
         let start = Date()
         let succeeded = await editorController.applyOnboardProfileMutationForCurrentSelection(mutation)
-        if let activeStage = mutation.dpi?.activeStage {
+        if !succeeded, let activeStage = mutation.dpi?.activeStage {
             clearPendingActiveStageSelection(matching: activeStage + 1, for: deviceStore.selectedDevice)
         }
         if succeeded {
@@ -837,6 +838,27 @@ final class AppStateApplyController {
     func pendingActiveStageSelection(for device: MouseDevice?) -> Int? {
         guard let device else { return nil }
         return pendingActiveStageSelectionByDeviceIdentityKey[deviceController.deviceIdentityKey(device)]
+    }
+
+    func clearPendingActiveStageSelectionIfConfirmed(by state: MouseState, for device: MouseDevice?) {
+        guard let pendingStage = pendingActiveStageSelection(for: device) else { return }
+        guard stateConfirmsPendingActiveStage(pendingStage, state: state) else { return }
+        clearPendingActiveStageSelection(matching: pendingStage, for: device)
+    }
+
+    private func stateConfirmsPendingActiveStage(_ stage: Int, state: MouseState) -> Bool {
+        if state.dpi_stages.active_stage == stage - 1 {
+            return true
+        }
+
+        guard let liveDPI = state.dpi else { return false }
+        let count = max(1, min(5, editorStore.editableStageCount))
+        guard stage >= 1, stage <= count else { return false }
+        let visiblePairs = Array(editorStore.editableStagePairs.prefix(count))
+        let matchingStages = visiblePairs.enumerated().compactMap { index, pair in
+            pair == liveDPI ? index + 1 : nil
+        }
+        return matchingStages == [stage]
     }
 
     func cancelPendingLocalEditsForSelectionChange() {

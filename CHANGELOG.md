@@ -11,7 +11,7 @@ All notable changes to this project are documented in this file.
 - Debug logs now identify DPI active-stage UI mutations, hydrators, backend snapshots, USB read resolution, and active-stage apply requests so stale-state overwrites can be traced from a single repro.
 
 ### Fixed
-- DPI stage selection no longer briefly snaps back to the previous stage when stale telemetry arrives before the apply result.
+- DPI stage selection no longer briefly snaps back to the previous stage when stale telemetry arrives before the apply result, including mapped onboard-profile devices whose live DPI readback can lag behind the stored profile update.
 - USB state refresh now resolves the active DPI stage from the live DPI value when the stage-table active token is stale.
 
 ## [2026-06-16]

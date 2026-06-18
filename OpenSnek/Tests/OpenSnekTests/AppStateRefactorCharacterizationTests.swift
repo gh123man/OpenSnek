@@ -296,6 +296,116 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(activeAfterApply, 3)
     }
 
+    func testOnboardActiveStageSelectionWaitsForLiveConfirmationBeforeHydratingStaleState() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-active-stage-no-flap-device",
+            transport: .usb,
+            serial: "ONBOARD-ACTIVE-STAGE-NO-FLAP-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let dpiValues = [600, 800, 1000, 1200, 1400]
+        let staleState = makeRefactorTestState(
+            device: device,
+            connection: "usb",
+            batteryPercent: 74,
+            dpiValues: dpiValues,
+            activeStage: 4,
+            dpiValue: 1400,
+            pollRate: 1000,
+            sleepTimeout: 300,
+            activeOnboardProfile: 1,
+            onboardProfileCount: 5
+        )
+        let confirmedState = makeRefactorTestState(
+            device: device,
+            connection: "usb",
+            batteryPercent: 74,
+            dpiValues: dpiValues,
+            activeStage: 0,
+            dpiValue: 600,
+            pollRate: 1000,
+            sleepTimeout: 300,
+            activeOnboardProfile: 1,
+            onboardProfileCount: 5
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [device.id: staleState]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Main", isActive: true)
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(
+                profileID: 1,
+                name: "Main",
+                dpiValues: dpiValues,
+                activeStage: 4
+            ),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+
+        try await waitForRefactorCondition {
+            await MainActor.run {
+                appState.editorStore.selectedOnboardProfileID == 1 &&
+                    appState.editorStore.editableActiveStage == 5
+            }
+        }
+
+        await MainActor.run {
+            appState.editorStore.setEditableActiveStage(1, source: "test.onboardActiveStage")
+            appState.editorStore.scheduleAutoApplyActiveStage()
+        }
+
+        try await waitForRefactorCondition {
+            await backend.recordedOnboardUpdates().count == 1
+        }
+        await MainActor.run {
+            appState.deviceController.applyBackendDeviceStateUpdate(
+                deviceID: device.id,
+                state: staleState,
+                updatedAt: Date().addingTimeInterval(1)
+            )
+        }
+
+        let activeAfterStaleUpdate = await MainActor.run {
+            appState.editorStore.editableActiveStage
+        }
+        XCTAssertEqual(activeAfterStaleUpdate, 1)
+
+        await MainActor.run {
+            appState.deviceController.applyBackendDeviceStateUpdate(
+                deviceID: device.id,
+                state: confirmedState,
+                updatedAt: Date().addingTimeInterval(2)
+            )
+        }
+
+        let activeAfterConfirmation = await MainActor.run {
+            appState.editorStore.editableActiveStage
+        }
+        let canHydrateAfterConfirmation = await MainActor.run {
+            appState.applyController.shouldHydrateEditable(for: device)
+        }
+        XCTAssertEqual(activeAfterConfirmation, 1)
+        XCTAssertTrue(canHydrateAfterConfirmation)
+    }
+
     func testHydratedEditableDpiStagesClampToSelectedDeviceLimit() async throws {
         let device = makeRefactorTestDevice(
             id: "dpi-clamp-device",

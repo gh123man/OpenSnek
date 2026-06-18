@@ -595,7 +595,10 @@ final class AppStateEditorController {
     func hydrateLiveDpiPresentation(from state: MouseState) {
         guard !isTearingDown else { return }
         isHydrating = true
-        defer { isHydrating = false }
+        defer {
+            applyController.clearPendingActiveStageSelectionIfConfirmed(by: state, for: deviceStore.selectedDevice)
+            isHydrating = false
+        }
 
         handleActiveOnboardProfilePresentation(from: state)
 
@@ -607,6 +610,7 @@ final class AppStateEditorController {
                 from: dpi,
                 device: device,
                 liveDPI: state.dpi,
+                activeStageOverride: pendingActiveStage,
                 source: "hydrateLiveDpi.snapshot pending=\(pendingActiveStage.map(String.init) ?? "nil")"
             )
             if let pendingActiveStage {
@@ -2247,6 +2251,7 @@ final class AppStateEditorController {
         from dpi: OnboardDPIProfileSnapshot,
         device: MouseDevice,
         liveDPI: DpiPair? = nil,
+        activeStageOverride: Int? = nil,
         source: String = "hydrateEditableDPI"
     ) {
         let sourcePairs = !dpi.pairs.isEmpty
@@ -2268,10 +2273,13 @@ final class AppStateEditorController {
         let matchedActiveStage = liveDPI.flatMap { liveDPI in
             Self.uniqueDPIStageIndex(matching: liveDPI, in: Array(sourcePairs.prefix(count)))
         }
+        let nextActiveStage = activeStageOverride.map { max(1, min(count, $0)) }
+            ?? max(1, min(count, (matchedActiveStage ?? dpi.activeStage ?? 0) + 1))
         editorStore.setEditableActiveStage(
-            max(1, min(count, (matchedActiveStage ?? dpi.activeStage ?? 0) + 1)),
+            nextActiveStage,
             source: "\(source) profileActive=\(dpi.activeStage.map(String.init) ?? "nil") " +
-                "matchedLive=\(matchedActiveStage.map(String.init) ?? "nil")"
+                "matchedLive=\(matchedActiveStage.map(String.init) ?? "nil") " +
+                "override=\(activeStageOverride.map(String.init) ?? "nil")"
         )
         editorStore.normalizeExpandedXYStages()
     }
