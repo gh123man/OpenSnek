@@ -1832,6 +1832,7 @@ private struct OnboardProfilePillButton: View {
                         Circle()
                             .stroke(Color.white.opacity(0.38), lineWidth: 1)
                     )
+                    .shadow(color: onboardProfileSlotColor(activeProfileID).opacity(0.45), radius: 6, y: 0)
                     .accessibilityHidden(true)
 
                 Text(profileName)
