@@ -7,6 +7,7 @@ All notable changes to this project are documented in this file.
 ### Changed
 - Command execution no longer retries at the app or probe level: USB and Bluetooth command failures now surface instead of being hidden by repeated writes/readbacks, and Debug log level shows visible command failures as red command-failed notices with patch context in the log.
 - `OpenSnekProbe dpi-set` now performs one post-write verification read and removed the `--verify-retries` / `--verify-delay-ms` flags.
+- DPI stage selection from the UI now applies only the selected live stage instead of rewriting the full stage table when stage values were not edited.
 
 ## [2026-06-16]
 

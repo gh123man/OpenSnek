@@ -828,21 +828,31 @@ actor BridgeClient {
             }
 
             if patch.dpiStages != nil || patch.dpiStagePairs != nil || patch.activeStage != nil {
-                let current = try readUSBCurrentDpiStages()
-                let stages = (patch.dpiStagePairs?.map(\.x) ?? patch.dpiStages ?? current?.values)?.map {
+                let cachedState = lastStateByDeviceID[device.id]
+                let cachedDpiStages = patch.isActiveStageOnly ? cachedState?.dpi_stages : nil
+                let cachedStagePairs = cachedDpiStages?.pairs
+                let cachedStageValues = cachedStagePairs?.map(\.x) ?? cachedDpiStages?.values
+                let canResolveActiveOnlyFromCache = patch.isActiveStageOnly && !(cachedStageValues?.isEmpty ?? true)
+                let current: USBDpiStageSnapshot? = canResolveActiveOnlyFromCache ? nil : try readUSBCurrentDpiStages()
+                let stages = (
+                    patch.dpiStagePairs?.map(\.x) ??
+                        patch.dpiStages ??
+                        cachedStageValues ??
+                        current?.values
+                )?.map {
                     DeviceProfiles.clampDPI($0, device: device)
                 }
                 let stagePairs = Self.resolveDpiStagePairs(
                     values: patch.dpiStages,
                     pairs: patch.dpiStagePairs,
-                    fallbackPairs: current?.pairs
+                    fallbackPairs: cachedStagePairs ?? current?.pairs
                 )?.map { pair in
                     DpiPair(
                         x: DeviceProfiles.clampDPI(pair.x, device: device),
                         y: DeviceProfiles.clampDPI(pair.y, device: device)
                     )
                 }
-                let active = patch.activeStage ?? current?.active ?? 0
+                let active = patch.activeStage ?? cachedDpiStages?.active_stage ?? current?.active ?? 0
                 let stageIDs = current?.stageIDs
                 guard let stages, !stages.isEmpty else {
                     throw BridgeError.commandFailed("Failed to resolve current DPI stages")
@@ -850,6 +860,30 @@ actor BridgeClient {
                 let resolvedStagePairs = stagePairs ?? stages.map { DpiPair(x: $0, y: $0) }
                 let activeClamped = max(0, min(stages.count - 1, active))
                 let livePair = resolvedStagePairs[activeClamped]
+                if patch.isActiveStageOnly {
+                    guard try runUSBWrite({ try setDPI($0, device, dpiX: livePair.x, dpiY: livePair.y, store: false) }) else {
+                        throw BridgeError.commandFailed("Failed to apply active DPI stage")
+                    }
+                    let liveReadback = try readUSBCurrentDpi()
+                    guard liveReadback?.0 == livePair.x,
+                          liveReadback?.1 == livePair.y else {
+                        let actual = liveReadback.map { "(\($0.0),\($0.1))" } ?? "nil"
+                        AppLog.error(
+                            "Bridge",
+                            "active-stage dpi mismatch wanted=(\(livePair.x),\(livePair.y)) got=\(actual)"
+                        )
+                        throw BridgeError.commandFailed("Failed to verify active DPI stage")
+                    }
+                    let baseState: MouseState
+                    if let cached = cachedState {
+                        baseState = cached
+                    } else {
+                        baseState = try await readState(device: device)
+                    }
+                    let projected = projectedState(from: baseState, applying: patch, device: device)
+                    lastStateByDeviceID[device.id] = projected
+                    return projected
+                }
                 if stages.count == 1 {
                     // Persist single-stage intent via stage-table command when possible.
                     do {
@@ -1113,5 +1147,26 @@ actor BridgeClient {
             led_value: patch.ledBrightness ?? base.led_value,
             capabilities: base.capabilities
         )
+    }
+}
+
+private extension DevicePatch {
+    var isActiveStageOnly: Bool {
+        activeStage != nil &&
+            pollRate == nil &&
+            sleepTimeout == nil &&
+            deviceMode == nil &&
+            lowBatteryThresholdRaw == nil &&
+            scrollMode == nil &&
+            scrollAcceleration == nil &&
+            scrollSmartReel == nil &&
+            dpiStages == nil &&
+            dpiStagePairs == nil &&
+            ledBrightness == nil &&
+            ledRGB == nil &&
+            lightingEffect == nil &&
+            usbLightingZoneLEDIDs == nil &&
+            buttonBinding == nil &&
+            usbButtonProfileAction == nil
     }
 }

@@ -120,7 +120,30 @@ final class AppStateApplyController {
     }
 
     func applyActiveStageOnly() async {
-        await applyDpiStages()
+        let count = max(1, min(5, editorStore.editableStageCount))
+        let selectedDevice = deviceStore.selectedDevice
+        let active = max(0, min(count - 1, editorStore.editableActiveStage - 1))
+        if let selectedDevice, supportsOnboardProfileEditorWrites(device: selectedDevice) {
+            let profileID = selectedDevice.profile_id
+            let pairs = Array(editorStore.editableStagePairs.prefix(count)).map { pair in
+                DpiPair(
+                    x: DeviceProfiles.clampDPI(pair.x, profileID: profileID),
+                    y: DeviceProfiles.clampDPI(pair.y, profileID: profileID)
+                )
+            }
+            let scalar = pairs.indices.contains(active) ? pairs[active] : pairs.first
+            _ = await applyOnboardProfileMutationForCurrentSelection(
+                OnboardProfileMutation(
+                    dpi: OnboardDPIProfileSnapshot(
+                        scalar: scalar,
+                        activeStage: active,
+                        pairs: pairs
+                    )
+                )
+            )
+            return
+        }
+        enqueueApply(DevicePatch(activeStage: active))
     }
 
     func scheduleAutoApplyActiveStage() {
