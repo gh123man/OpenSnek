@@ -556,7 +556,6 @@ actor BridgeClient {
 
         deviceSessions[device.id]?.invalidateCachedTransaction()
         if let firstError {
-            clearPassiveDpiObservation(deviceID: device.id, reason: "read-state-failed")
             throw firstError
         }
         throw BridgeError.commandFailed("USB device telemetry unavailable")

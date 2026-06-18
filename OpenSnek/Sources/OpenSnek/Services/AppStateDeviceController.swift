@@ -419,6 +419,18 @@ final class AppStateDeviceController {
             previousDevices: previousDevices,
             removedIDs: removedIDs
         )
+        if source == "subscription" {
+            let suppressedDeviceIDs = newIDs.filter { stateRefreshSuppressedUntilByDeviceID[$0] != nil }
+            for id in suppressedDeviceIDs {
+                stateRefreshSuppressedUntilByDeviceID[id] = nil
+            }
+            if !suppressedDeviceIDs.isEmpty {
+                AppLog.debug(
+                    "AppState",
+                    "refreshState backoff cleared by device-list subscription devices=\(suppressedDeviceIDs.sorted().joined(separator: ","))"
+                )
+            }
+        }
         if !removedIDs.isEmpty {
             editorController.removeHydratedState(for: removedIDs)
             for id in removedIDs {
@@ -799,12 +811,15 @@ final class AppStateDeviceController {
             return Self.isDeviceAvailabilityMessage(lowered) ? .disconnected : .error
         }
 
+        let now = Date()
         let failures = refreshFailureCountByDeviceID[device.id] ?? 0
         if failures > 0 {
+            if shouldTreatActivePassiveHIDAsConnected(device: device, now: now) {
+                return .connected
+            }
             return .reconnecting
         }
 
-        let now = Date()
         guard let updatedAt = lastUpdatedTimestamp(for: device) else {
             return .reconnecting
         }
@@ -902,7 +917,11 @@ final class AppStateDeviceController {
             state.device.product_name == device.product_name
     }
 
-    func selectedDeviceNeedsRecovery(_ device: MouseDevice) -> Bool {
+    func selectedDeviceNeedsRecovery(_ device: MouseDevice, now: Date = Date()) -> Bool {
+        if let suppressedUntil = stateRefreshSuppressedUntilByDeviceID[device.id],
+           now < suppressedUntil {
+            return false
+        }
         if unavailableDeviceIDs.contains(device.id) {
             return true
         }
@@ -1314,6 +1333,14 @@ final class AppStateDeviceController {
         }
 
         let now = Date()
+        if let suppressedUntil = stateRefreshSuppressedUntilByDeviceID[device.id],
+           now < suppressedUntil {
+            AppLog.debug(
+                "AppState",
+                "refreshState skipped backoff device=\(device.id) remaining=\(String(format: "%.3f", suppressedUntil.timeIntervalSince(now)))s"
+            )
+            return false
+        }
         if Self.shouldDelayBluetoothRealtimeStateRefresh(
             transport: device.transport,
             transportStatus: dpiUpdateTransportStatusByDeviceID[device.id],
@@ -1535,15 +1562,24 @@ final class AppStateDeviceController {
             refreshFailureCountByDeviceID[refreshDeviceID] = failures
             refreshFailureCountByDeviceID[presentationDeviceID] = failures
             let isAvailabilityFailure = Self.isDeviceAvailabilityMessage(error.localizedDescription)
+            let isUSBTelemetryUnavailable =
+                device.transport == .usb && BridgeClient.isUSBTelemetryUnavailableError(error)
+            let hasActivePassiveHID = shouldTreatActivePassiveHIDAsConnected(
+                device: presentationDevice(for: device) ?? device,
+                now: Date()
+            )
+            let shouldTreatAsDegradedUSBTelemetry =
+                isUSBTelemetryUnavailable && hasActivePassiveHID
             let shouldTreatAsHardAvailabilityFailure =
                 isAvailabilityFailure &&
+                !shouldTreatAsDegradedUSBTelemetry &&
                 !(seededReconnectStateDeviceIDs.contains(presentationDeviceID) && BridgeClient.isUSBTelemetryUnavailableError(error))
             if shouldTreatAsHardAvailabilityFailure {
                 unavailableDeviceIDs.insert(refreshDeviceID)
                 unavailableDeviceIDs.insert(presentationDeviceID)
             }
 
-            if deviceStore.selectedDeviceID != presentationDeviceID {
+            if isAvailabilityFailure || isUSBTelemetryUnavailable || deviceStore.selectedDeviceID != presentationDeviceID {
                 let suppressedUntil = Date().addingTimeInterval(
                     stateRefreshBackoffInterval(for: device, failures: failures, error: error)
                 )
@@ -1551,7 +1587,7 @@ final class AppStateDeviceController {
                 stateRefreshSuppressedUntilByDeviceID[presentationDeviceID] = suppressedUntil
                 AppLog.debug(
                     "AppState",
-                    "refreshState backoff device=\(presentationDeviceID) failures=\(failures) " +
+                    "refreshState backoff device=\(presentationDeviceID) selected=\(deviceStore.selectedDeviceID == presentationDeviceID) failures=\(failures) " +
                     "until=\(suppressedUntil.timeIntervalSince1970): \(error.localizedDescription)"
                 )
             }
@@ -1777,13 +1813,18 @@ final class AppStateDeviceController {
     }
 
     private func shouldTreatActivePassiveHIDAsConnected(device: MouseDevice, now: Date) -> Bool {
-        guard device.transport == .bluetooth else { return false }
         guard resolvedProfile(for: device)?.passiveDPIInput != nil else { return false }
 
         let transportStatus = dpiUpdateTransportStatusByDeviceID[device.id]
         guard transportStatus == .streamActive || transportStatus == .realTimeHID else { return false }
 
-        return isPassiveBluetoothHeartbeatFresh(for: device, now: now)
+        if device.transport == .usb {
+            return true
+        }
+        if device.transport == .bluetooth {
+            return isPassiveBluetoothHeartbeatFresh(for: device, now: now)
+        }
+        return false
     }
 
     private static func shouldApplyBackendDpiTransportStatusUpdate(
