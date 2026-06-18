@@ -1827,7 +1827,7 @@ private struct OnboardProfilePillButton: View {
             HStack(spacing: 6) {
                 Circle()
                     .fill(onboardProfileSlotColor(activeProfileID))
-                    .frame(width: 24, height: 24)
+                    .frame(width: 18, height: 18)
                     .overlay(
                         Circle()
                             .stroke(Color.white.opacity(0.38), lineWidth: 1)
@@ -1846,9 +1846,9 @@ private struct OnboardProfilePillButton: View {
                     .foregroundStyle(.white.opacity(0.54))
                     .accessibilityHidden(true)
             }
-            .padding(.leading, 1)
+            .padding(.leading, 4)
             .padding(.trailing, 8)
-            .padding(.vertical, 1)
+            .padding(.vertical, 3)
             .background(
                 Capsule()
                     .fill(Color.white.opacity(0.08))
@@ -2114,6 +2114,7 @@ private struct OnboardProfileManagerPanel: View {
         .buttonStyle(.plain)
         .disabled(isBusy)
         .accessibilityIdentifier("onboard-profile-row-\(profile.profileID)")
+        .accessibilityLabel(profileAccessibilityLabel(profile))
         .onHover { isHovered in
             if isHovered {
                 hoveredProfileID = profile.profileID
@@ -2121,6 +2122,20 @@ private struct OnboardProfileManagerPanel: View {
                 hoveredProfileID = nil
             }
         }
+    }
+
+    private func profileAccessibilityLabel(_ profile: OnboardProfileSummary) -> String {
+        var parts = [
+            profile.isAssigned ? profile.displayName : "None",
+            profile.profileID == 1 ? "Base" : "Slot \(profile.profileID)",
+        ]
+        if profile.isActive {
+            parts.append("active")
+        }
+        if !profile.isAssigned {
+            parts.append("Create profile")
+        }
+        return parts.joined(separator: ", ")
     }
 
     private func profileTitleOpacity(profile: OnboardProfileSummary, isSelected: Bool, isHovered: Bool) -> Double {
