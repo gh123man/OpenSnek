@@ -28,7 +28,7 @@ struct DeviceDetailView: View {
 
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 18) {
-                    DeviceOverviewBar(deviceStore: deviceStore, selected: selected, state: state)
+                    DeviceOverviewBar(deviceStore: deviceStore, editorStore: editorStore, selected: selected, state: state)
                     DetailColumnsLayout(
                         minTwoColumnCardWidth: detailTwoColumnMinWidth,
                         twoColumnBreakpointPadding: twoColumnBreakpointPadding,
@@ -69,9 +69,6 @@ struct DeviceDetailView: View {
         if editorStore.showsConnectBehaviorCard {
             sections.append(.onConnect)
         }
-        if editorStore.supportsOnboardProfileCRUD {
-            sections.append(.onboardProfiles)
-        }
         if selected.showsLightingControls, state.capabilities.lighting {
             sections.append(.lighting)
         }
@@ -101,8 +98,6 @@ struct DeviceDetailView: View {
             DpiStagesCard(editorStore: editorStore)
         case .onConnect:
             OnConnectBehaviorCard(editorStore: editorStore)
-        case .onboardProfiles:
-            OnboardProfileManagerCard(editorStore: editorStore)
         case .lighting:
             LightingCard(editorStore: editorStore, selected: selected, swatches: swatches)
         case .pollRate:
@@ -124,7 +119,7 @@ struct DeviceDetailView: View {
 
     private func preferredColumn(for section: DetailSection) -> Int {
         switch section {
-        case .onboardProfiles, .lighting, .buttonRemap:
+        case .lighting, .buttonRemap:
             return 1
         default:
             return 0
@@ -135,7 +130,6 @@ struct DeviceDetailView: View {
 private enum DetailSection: Hashable {
     case dpiStages
     case onConnect
-    case onboardProfiles
     case lighting
     case pollRate
     case powerManagement
@@ -252,8 +246,10 @@ private struct DetailColumnsLayout: Layout {
 
 struct DeviceOverviewBar: View {
     let deviceStore: DeviceStore
+    let editorStore: EditorStore
     let selected: MouseDevice
     let state: MouseState
+    @State private var isOnboardProfileManagerPresented = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -311,11 +307,32 @@ struct DeviceOverviewBar: View {
                     indicator: deviceStore.currentDeviceStatusIndicator,
                     helpText: deviceStore.currentDeviceConnectionTooltip
                 )
+
+                if editorStore.supportsOnboardProfileCRUD {
+                    Spacer(minLength: 12)
+                    OnboardProfilePillButton(editorStore: editorStore) {
+                        isOnboardProfileManagerPresented.toggle()
+                    }
+                    .popover(
+                        isPresented: $isOnboardProfileManagerPresented,
+                        attachmentAnchor: .rect(.bounds),
+                        arrowEdge: .top
+                    ) {
+                        OnboardProfileManagerPopover(editorStore: editorStore)
+                    }
+                }
             }
 
             Rectangle()
                 .fill(Color.white.opacity(0.14))
                 .frame(height: 1)
+        }
+        .task(id: selected.id) {
+            guard editorStore.supportsOnboardProfileCRUD else { return }
+            await editorStore.refreshOnboardProfiles()
+        }
+        .onChange(of: selected.id) { _, _ in
+            isOnboardProfileManagerPresented = false
         }
         .zIndex(6)
     }
@@ -1780,7 +1797,109 @@ struct ButtonMappingTableCard: View {
     }
 }
 
-private struct OnboardProfileManagerCard: View {
+private struct OnboardProfilePillButton: View {
+    let editorStore: EditorStore
+    let action: () -> Void
+
+    private var activeProfileID: Int {
+        editorStore.activeOnboardProfile
+    }
+
+    private var activeSummary: OnboardProfileSummary? {
+        editorStore.onboardProfileSummaries.first { $0.profileID == activeProfileID }
+    }
+
+    private var profileName: String {
+        if let activeSummary {
+            return activeSummary.displayName
+        }
+        if activeProfileID == 1 {
+            return "Base Profile"
+        }
+        return "Profile \(activeProfileID)"
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(onboardProfileSlotColor(activeProfileID))
+                    .frame(width: 8, height: 8)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.38), lineWidth: 1)
+                    )
+                    .accessibilityHidden(true)
+
+                Text(profileName)
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.92))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: 190, alignment: .leading)
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .black))
+                    .foregroundStyle(.white.opacity(0.54))
+                    .accessibilityHidden(true)
+            }
+            .padding(.leading, 10)
+            .padding(.trailing, 9)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(Color.white.opacity(0.08))
+                    .overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1))
+            )
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("onboard-profile-pill-button")
+        .accessibilityLabel("Onboard profile \(profileName)")
+        .help("Manage onboard profiles")
+    }
+}
+
+private func onboardProfileSlotColor(_ profileID: Int) -> Color {
+    switch profileID {
+    case 1: Color.white
+    case 2: Color(hex: 0xFF3B30)
+    case 3: Color(hex: 0x30D158)
+    case 4: Color(hex: 0x0A84FF)
+    case 5: Color(hex: 0x64D2FF)
+    default: Color.white.opacity(0.65)
+    }
+}
+
+private struct OnboardProfileManagerPopover: View {
+    let editorStore: EditorStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Onboard Profiles")
+                .font(.system(size: 17, weight: .black, design: .rounded))
+                .foregroundStyle(.white)
+                .accessibilityIdentifier("onboard-profiles-card")
+
+            OnboardProfileManagerPanel(editorStore: editorStore)
+        }
+        .padding(14)
+        .frame(width: 560, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(hex: 0x111820))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                )
+        )
+        .task {
+            await editorStore.refreshOnboardProfiles()
+        }
+    }
+}
+
+private struct OnboardProfileManagerPanel: View {
     let editorStore: EditorStore
 
     @State private var renameName = ""
@@ -1851,20 +1970,15 @@ private struct OnboardProfileManagerCard: View {
     }
 
     var body: some View {
-        Card(title: "Onboard Profiles", accessibilityIdentifier: "onboard-profiles-card") {
-            VStack(alignment: .leading, spacing: 12) {
-                if editorStore.onboardProfileSummaries.isEmpty {
-                    if isRefreshing {
-                        loadingRow
-                    } else {
-                        emptyRefreshState
-                    }
+        VStack(alignment: .leading, spacing: 12) {
+            if editorStore.onboardProfileSummaries.isEmpty {
+                if isRefreshing {
+                    loadingRow
                 } else {
-                    profileLayout
+                    emptyRefreshState
                 }
-            }
-            .task {
-                await editorStore.refreshOnboardProfiles()
+            } else {
+                profileLayout
             }
         }
     }
@@ -1927,7 +2041,7 @@ private struct OnboardProfileManagerCard: View {
         let fillOpacity = profileFillOpacity(profile: profile, isSelected: isSelected, isHovered: isHovered)
         let strokeOpacity = profileStrokeOpacity(profile: profile, isSelected: isSelected, isHovered: isHovered)
         let plusOpacity = isEmptySlot && isHovered ? 0.82 : 0.0
-        let slotColor = profileSlotColor(profile.profileID)
+        let slotColor = onboardProfileSlotColor(profile.profileID)
 
         return Button {
             Task { await editorStore.selectOnboardProfile(profile.profileID) }
@@ -2028,17 +2142,6 @@ private struct OnboardProfileManagerCard: View {
         if isSelected { return 0.18 }
         if profile.isAssigned { return isHovered ? 0.14 : 0.085 }
         return isHovered ? 0.10 : 0.025
-    }
-
-    private func profileSlotColor(_ profileID: Int) -> Color {
-        switch profileID {
-        case 1: Color.white
-        case 2: Color(hex: 0xFF3B30)
-        case 3: Color(hex: 0x30D158)
-        case 4: Color(hex: 0x0A84FF)
-        case 5: Color(hex: 0x64D2FF)
-        default: Color.white.opacity(0.65)
-        }
     }
 
     @ViewBuilder

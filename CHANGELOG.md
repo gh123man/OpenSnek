@@ -10,6 +10,7 @@ All notable changes to this project are documented in this file.
 - DPI stage selection from the UI now applies only the selected live stage instead of rewriting the full stage table when stage values were not edited.
 - Debug logs now identify DPI active-stage UI mutations, hydrators, backend snapshots, USB read resolution, and active-stage apply requests so stale-state overwrites can be traced from a single repro.
 - Basilisk V3 Pro USB active onboard-profile writes now refresh the active selector before readback so back-to-back profile-backed UI edits keep profile hydration available.
+- Onboard profile management now opens from a right-aligned active-profile pill in the device overview instead of occupying a persistent detail card.
 
 ### Fixed
 - DPI stage selection no longer briefly snaps back to the previous stage when stale telemetry arrives before the apply result, including mapped onboard-profile devices whose live DPI readback can lag behind the stored profile update.
