@@ -69,6 +69,18 @@ swift test --package-path OpenSnek --filter AppStateRefactorCharacterizationTest
 swift test --package-path OpenSnek --filter BackgroundServiceTransportTests
 ```
 
+Manual XCUITest happy path. This is manual-only and runs the full macOS app against a connected real USB device. The default scope is Basilisk V3 Pro USB (`vendor 0x1532`, `product 0x00AB`, `protocol usb-hid`, profile `basilisk_v3_pro`); override it with the `OPEN_SNEK_UITEST_EXPECTED_*` environment variables when intentionally testing another supported device.
+
+```bash
+./OpenSnek/scripts/xcodebuild_generated.sh \
+  -scheme OpenSnekUITests \
+  -destination 'platform=macOS' \
+  -only-testing:OpenSnekUITests/PollRateHappyPathUITests/testChangingPollRateAppliesExpectedUSBCommandAndState \
+  test
+```
+
+The test requires Input Monitoring for the built `OpenSnek.app` and Accessibility permission for the app launching `xcodebuild` (`Terminal`, `Codex`, or `Xcode`). Permission or device-scope failures should be reported as clear XCUITest failures with the attached event log.
+
 Hardware gate for BLE DPI/stage changes when a supported device is connected:
 
 ```bash

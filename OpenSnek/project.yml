@@ -131,3 +131,21 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: io.opensnek.OpenSnekTests
+
+  OpenSnekUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Tests/OpenSnekUITests
+    dependencies:
+      - target: OpenSnek
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: io.opensnek.OpenSnekUITests
+        TEST_TARGET_NAME: OpenSnek
+    scheme:
+      gatherCoverageData: false
+      testTargets:
+        - OpenSnekUITests

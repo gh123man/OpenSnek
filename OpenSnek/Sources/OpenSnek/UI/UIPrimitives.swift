@@ -29,13 +29,25 @@ struct Pill: View {
 
 struct Card<Content: View>: View {
     let title: String
+    let accessibilityIdentifier: String?
     @ViewBuilder let content: () -> Content
+
+    init(
+        title: String,
+        accessibilityIdentifier: String? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.accessibilityIdentifier = accessibilityIdentifier
+        self.content = content
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
                 .font(.system(size: 17, weight: .black, design: .rounded))
                 .foregroundStyle(.white)
+                .optionalAccessibilityIdentifier(accessibilityIdentifier)
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -69,6 +81,15 @@ struct ColorSwatchButton: View {
 }
 
 extension View {
+    @ViewBuilder
+    func optionalAccessibilityIdentifier(_ identifier: String?) -> some View {
+        if let identifier {
+            accessibilityIdentifier(identifier)
+        } else {
+            self
+        }
+    }
+
     func hintTextStyle() -> some View {
         modifier(HintTextModifier())
     }

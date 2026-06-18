@@ -134,6 +134,18 @@ CLI Xcode validation:
 ./OpenSnek/scripts/xcodebuild_generated.sh -scheme OpenSnekProbe -destination 'platform=macOS' build
 ```
 
+Manual XCUITest happy path. This launches the full macOS app against a connected real USB device and is not part of the normal unit-test path. The default device scope is Basilisk V3 Pro USB (`vendor 0x1532`, `product 0x00AB`, `protocol usb-hid`, profile `basilisk_v3_pro`).
+
+```bash
+./OpenSnek/scripts/xcodebuild_generated.sh \
+  -scheme OpenSnekUITests \
+  -destination 'platform=macOS' \
+  -only-testing:OpenSnekUITests/PollRateHappyPathUITests/testChangingPollRateAppliesExpectedUSBCommandAndState \
+  test
+```
+
+To run the same test against another supported device, set `OPEN_SNEK_UITEST_EXPECTED_PROTOCOL`, `OPEN_SNEK_UITEST_EXPECTED_TRANSPORT`, `OPEN_SNEK_UITEST_EXPECTED_VENDOR_ID`, `OPEN_SNEK_UITEST_EXPECTED_PRODUCT_ID`, `OPEN_SNEK_UITEST_EXPECTED_PRODUCT_NAME`, and `OPEN_SNEK_UITEST_EXPECTED_PROFILE_ID` on the `xcodebuild` command.
+
 Bundle build only:
 
 ```bash
@@ -189,6 +201,8 @@ Service startup logs (when launch-at-startup is enabled from Settings):
 
 - If you see `IOHIDManagerOpen failed (-536870174)` in logs, macOS denied HID access (`kIOReturnNotPermitted`).
 - Grant access in `System Settings > Privacy & Security > Input Monitoring` for `OpenSnek`.
+- The manual XCUITest also needs Accessibility permission for the app that launches `xcodebuild` (`Terminal`, `Codex`, or `Xcode`) so XCTest can click the full UI.
+- If the UI test reports that no expected device is connected, first confirm the scoped USB device is attached, then confirm the built `OpenSnek.app` has Input Monitoring access. The test attaches its event log on failure.
 - Reset Bluetooth permission prompt if needed:
 
 ```bash

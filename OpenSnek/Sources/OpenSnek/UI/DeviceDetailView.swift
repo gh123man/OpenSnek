@@ -48,6 +48,7 @@ struct DeviceDetailView: View {
                 .padding(.vertical, verticalPadding)
                 .frame(maxWidth: .infinity, alignment: .top)
             }
+            .accessibilityIdentifier("device-detail-scroll-view")
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(WindowDragBlocker())
             .loadingScrim(
@@ -261,6 +262,8 @@ struct DeviceOverviewBar: View {
                     Text(selected.product_name)
                         .font(.system(size: 32, weight: .black, design: .rounded))
                         .foregroundStyle(.white)
+                        .accessibilityIdentifier("selected-device-name")
+                        .accessibilityLabel(selected.product_name)
                     if showsUnsupportedUSBMarker {
                         UnsupportedUSBInlineBanner()
                     }
@@ -612,6 +615,8 @@ struct DeviceStatusBadge: View {
             Text(indicator.label)
                 .font(.system(size: 11, weight: .black, design: .rounded))
                 .foregroundStyle(.white.opacity(0.82))
+                .accessibilityIdentifier("device-status-label")
+                .accessibilityLabel(indicator.label)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -625,6 +630,9 @@ struct DeviceStatusBadge: View {
         )
         .contentShape(Capsule())
         .hoverTooltip(helpText, xOffset: 6, yOffset: 34, maxWidth: 360)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(indicator.label)
+        .accessibilityIdentifier("device-status-badge")
     }
 }
 
@@ -1485,29 +1493,58 @@ private struct DpiValueField: View {
 
 struct PollRateCard: View {
     let editorStore: EditorStore
+    private let pollRates = [125, 500, 1000]
 
     var body: some View {
-        Card(title: "Polling Rate") {
+        Card(title: "Polling Rate", accessibilityIdentifier: "poll-rate-card") {
             LabeledControlRow(title: "Rate") {
-                Picker(
-                    "Rate",
-                    selection: Binding(
-                        get: { editorStore.editablePollRate },
-                        set: { editorStore.editablePollRate = $0 }
-                    )
-                ) {
-                    Text("125 Hz").tag(125)
-                    Text("500 Hz").tag(500)
-                    Text("1000 Hz").tag(1000)
+                HStack(spacing: 0) {
+                    ForEach(Array(pollRates.enumerated()), id: \.element) { index, rate in
+                        pollRateButton(rate)
+                        if index < pollRates.count - 1 {
+                            Rectangle()
+                                .fill(Color.white.opacity(0.14))
+                                .frame(width: 1, height: 18)
+                        }
+                    }
                 }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .frame(width: 220)
+                .frame(width: 220, height: 30)
+                .background(
+                    RoundedRectangle(cornerRadius: 7)
+                        .fill(Color.white.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7)
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 7))
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Polling Rate")
+                .accessibilityIdentifier("poll-rate-picker")
             }
         }
         .onChange(of: editorStore.editablePollRate) { _, _ in
             editorStore.scheduleAutoApplyPollRate()
         }
+    }
+
+    private func pollRateButton(_ rate: Int) -> some View {
+        let isSelected = editorStore.editablePollRate == rate
+        return Button {
+            editorStore.editablePollRate = rate
+        } label: {
+            Text("\(rate) Hz")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(isSelected ? .white : .white.opacity(0.72))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(isSelected ? Color.white.opacity(0.20) : Color.clear)
+        .accessibilityIdentifier("poll-rate-option-\(rate)")
+        .accessibilityLabel("\(rate) Hz")
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .accessibilityAddTraits(.isButton)
     }
 }
 

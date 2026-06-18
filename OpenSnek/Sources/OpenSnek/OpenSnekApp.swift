@@ -12,7 +12,30 @@ struct OpenSnekApp: App {
 
     init() {
         let launchRole = OpenSnekProcessRole.current
-        _appState = State(initialValue: AppState(launchRole: launchRole))
+        let isUITestRun: Bool
+        #if DEBUG
+        isUITestRun = OpenSnekUITestSupport.isEnabled
+        if isUITestRun {
+            OpenSnekUITestSupport.recordLaunch(role: launchRole)
+        }
+        #else
+        isUITestRun = false
+        #endif
+
+        let initialAppState = AppState(
+            launchRole: launchRole,
+            shouldCheckForReleaseUpdates: isUITestRun ? false : ReleaseUpdateChecker.shouldCheckForUpdates()
+        )
+        _appState = State(initialValue: initialAppState)
+
+        #if DEBUG
+        if isUITestRun, !launchRole.isService {
+            Task { @MainActor in
+                await initialAppState.runtimeController.start()
+                await initialAppState.runtimeController.refreshHIDAccessStatus(forceRefresh: false)
+            }
+        }
+        #endif
     }
 
     var body: some Scene {

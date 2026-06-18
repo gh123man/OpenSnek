@@ -417,10 +417,17 @@ final class AppStateRuntimeController {
         await ensureBackendStateUpdatesStarted()
         installPowerObservers()
 
-        do {
-            try environment.serviceCoordinator.synchronizeLaunchAgentIfNeeded()
-        } catch {
-            AppLog.warning("Service", "launch agent sync failed: \(error.localizedDescription)")
+        #if DEBUG
+        let shouldSynchronizeLaunchAgent = !OpenSnekUITestSupport.forcesLocalBackend
+        #else
+        let shouldSynchronizeLaunchAgent = true
+        #endif
+        if shouldSynchronizeLaunchAgent {
+            do {
+                try environment.serviceCoordinator.synchronizeLaunchAgentIfNeeded()
+            } catch {
+                AppLog.warning("Service", "launch agent sync failed: \(error.localizedDescription)")
+            }
         }
 
         if environment.launchRole.isService {
@@ -606,6 +613,15 @@ final class AppStateRuntimeController {
     }
 
     private func configureBackendForCurrentPreferences() async {
+#if DEBUG
+        if OpenSnekUITestSupport.forcesLocalBackend {
+            environment.backend = LocalBridgeBackend.shared
+            await restartBackendStateUpdates()
+            isBackendReady = true
+            await refreshHIDAccessStatus(forceRefresh: false)
+            return
+        }
+#endif
         do {
             environment.backend = try await environment.serviceCoordinator.makeBackendForCurrentMode()
             await restartBackendStateUpdates()
