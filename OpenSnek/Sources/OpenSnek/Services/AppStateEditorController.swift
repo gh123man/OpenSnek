@@ -1681,7 +1681,14 @@ final class AppStateEditorController {
                projectedInventory.assignedProfileIDs.contains(selectedAfterRefresh),
                currentOnboardProfileSnapshotByDeviceID[device.id]?.profileID != selectedAfterRefresh {
                 let snapshot = try await readLatestOnboardProfileSnapshot(device: device, profileID: selectedAfterRefresh)
-                hydrateEditable(from: snapshot, device: device)
+                if applyController.shouldHydrateEditable(for: device) {
+                    hydrateEditable(from: snapshot, device: device)
+                } else {
+                    AppLog.debug(
+                        "AppState",
+                        "refresh onboard profiles skipped selected snapshot hydration pending local edit device=\(device.id) profile=\(selectedAfterRefresh)"
+                    )
+                }
             }
 
             let visibleInventory = onboardProfileInventoryByDeviceID[device.id] ?? projectedInventory

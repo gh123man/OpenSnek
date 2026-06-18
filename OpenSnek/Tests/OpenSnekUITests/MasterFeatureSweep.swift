@@ -219,7 +219,12 @@ final class MasterFeatureSweep {
         changedFeatures.insert(.dpiValue)
 
         let event = try XCTUnwrap(
-            waitForDPIValueEnd(since: changedAt, timeout: configuration.actionDeadline, target: target),
+            waitForDPIValueEnd(
+                since: changedAt,
+                timeout: configuration.actionDeadline,
+                target: target,
+                monitoringFieldIdentifier: "dpi-stage-1-value-field"
+            ),
             "DPI value mutation did not complete within \(configuration.actionDeadline)s"
         )
         XCTAssertLessThanOrEqual(event.elapsed ?? .greatestFiniteMagnitude, configuration.actionDeadline)
@@ -496,9 +501,55 @@ final class MasterFeatureSweep {
         }
     }
 
-    private func waitForDPIValueEnd(since startedAt: Date, timeout: TimeInterval, target: Int) -> UITestEvent? {
-        waitForFeatureEvent(since: startedAt, timeout: timeout) { [testCase] event in
-            guard testCase.expectedScope.matches(event.scope) else { return false }
+    private func waitForDPIValueEnd(
+        since startedAt: Date,
+        timeout: TimeInterval,
+        target: Int,
+        monitoringFieldIdentifier: String? = nil
+    ) -> UITestEvent? {
+        let deadline = Date().addingTimeInterval(timeout)
+        var sawTargetInUI = false
+        var observedValues: [Int] = []
+
+        repeat {
+            if let monitoringFieldIdentifier,
+               let visibleValue = visibleDPIFieldValue(identifier: monitoringFieldIdentifier) {
+                if observedValues.last != visibleValue {
+                    observedValues.append(visibleValue)
+                }
+                if visibleValue == target {
+                    sawTargetInUI = true
+                } else if sawTargetInUI {
+                    XCTFail(
+                        "DPI field rolled back after showing \(target); observed visible values \(observedValues)"
+                    )
+                    return nil
+                }
+            }
+
+            if let event = testCase.readEvents().first(where: { event in
+                guard event.timestamp >= startedAt.timeIntervalSince1970 - 0.1,
+                      testCase.expectedScope.matches(event.scope) else { return false }
+                if event.name == "onboardProfileMutationEnd",
+                   self.onboardMutationContainsDPI(event.onboardMutation, target: target) {
+                    return true
+                }
+                if event.name == "applyEnd",
+                   self.patchContainsDPI(event.patch, target: target) ||
+                    self.stateContainsDPI(event.state, target: target) {
+                    return true
+                }
+                return false
+            }) {
+                return event
+            }
+
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        } while Date() < deadline
+
+        return testCase.readEvents().first(where: { event in
+            guard event.timestamp >= startedAt.timeIntervalSince1970 - 0.1,
+                  testCase.expectedScope.matches(event.scope) else { return false }
             if event.name == "onboardProfileMutationEnd",
                self.onboardMutationContainsDPI(event.onboardMutation, target: target) {
                 return true
@@ -509,7 +560,13 @@ final class MasterFeatureSweep {
                 return true
             }
             return false
-        }
+        })
+    }
+
+    private func visibleDPIFieldValue(identifier: String) -> Int? {
+        let element = testCase.app.descendants(matching: .any)[identifier]
+        guard element.exists else { return nil }
+        return integerValue(from: element)
     }
 
     private func waitForLightingBrightnessEnd(

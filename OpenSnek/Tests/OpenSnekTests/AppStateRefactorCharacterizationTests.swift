@@ -4080,6 +4080,91 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(activeReadCountAfterSecondRefresh, 1)
     }
 
+    func testBluetoothOnboardProfileRefreshDoesNotRollbackPendingDPIEdit() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-bt-refresh-dpi-race-device",
+            transport: .bluetooth,
+            serial: "ONBOARD-BT-REFRESH-DPI-RACE-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "bluetooth",
+                    batteryPercent: 74,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(
+                profileID: 1,
+                name: "Base",
+                dpiValues: [800, 1600, 3200],
+                brightnessByLEDID: [1: 128],
+                staticColorByLEDID: [1: RGBPatch(r: 0, g: 0, b: 255)]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.holdOnboardProfileRead(deviceID: device.id, profileID: 1)
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+
+        let refreshTask = Task {
+            await appState.editorStore.refreshOnboardProfiles()
+        }
+        await backend.waitForOnboardProfileReadToStart(deviceID: device.id, profileID: 1)
+
+        await MainActor.run {
+            appState.editorStore.updateStage(0, value: 1200)
+            appState.editorStore.scheduleAutoApplyDpi()
+        }
+        await backend.releaseOnboardProfileRead(deviceID: device.id, profileID: 1)
+        await refreshTask.value
+
+        let visibleDPIAfterStaleRefresh = await MainActor.run {
+            appState.editorStore.stageValue(0)
+        }
+        XCTAssertEqual(
+            visibleDPIAfterStaleRefresh,
+            1200,
+            "Stale onboard-profile refresh rolled the pending DPI edit back in the visible editor state"
+        )
+
+        try await waitForRefactorCondition {
+            await backend.recordedOnboardUpdates().count == 1
+        }
+        let updates = await backend.recordedOnboardUpdates()
+        let finalVisibleDPI = await MainActor.run {
+            appState.editorStore.stageValue(0)
+        }
+        XCTAssertEqual(updates.first?.mutation.dpi?.pairs.first?.x, 1200)
+        XCTAssertEqual(finalVisibleDPI, 1200)
+    }
+
     func testOnboardProfileSummariesGetterDoesNotStartRefresh() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-pure-summary-device",
