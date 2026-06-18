@@ -49,6 +49,66 @@ final class BLEVendorProtocolTests: XCTestCase {
         XCTAssertEqual(BLEVendorProtocol.Key.profileLightingZoneStateSet(target: 0x03, ledID: 0x0A).bytes, [0x10, 0x03, 0x03, 0x0A])
     }
 
+    func testBluetoothButtonReadPrefersAuthoritativeEvenLaneOverDefaultOddLane() {
+        let payload = Data([
+            0x09, 0x00,
+            0x01, 0x01,
+            0x01, 0x01,
+            0x0A, 0x09,
+            0x00, 0x00,
+            0x00, 0x00,
+            0x00, 0x00,
+            0x00, 0x00,
+        ])
+
+        let block = BLEVendorProtocol.extractBluetoothFunctionBlock(
+            payload: payload,
+            target: 0x02,
+            slot: 0x09,
+            profileID: .basiliskV3Pro
+        )
+        let draft = block.flatMap {
+            ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
+                slot: 9,
+                functionBlock: $0,
+                profileID: .basiliskV3Pro
+            )
+        }
+
+        XCTAssertEqual(block, [0x01, 0x01, 0x0A, 0x00, 0x00, 0x00, 0x00])
+        XCTAssertEqual(draft?.kind, .scrollDown)
+    }
+
+    func testBluetoothButtonReadTreatsShortWheelTiltBlockAsSlotDefault() {
+        let payload = Data([
+            0x34, 0x00,
+            0x0E, 0x0E,
+            0x01, 0x01,
+            0x68, 0x68,
+            0x00, 0x00,
+            0x14, 0x14,
+            0x00, 0x00,
+            0x00, 0x00,
+        ])
+
+        let block = BLEVendorProtocol.extractBluetoothFunctionBlock(
+            payload: payload,
+            target: 0x02,
+            slot: 0x34,
+            profileID: .basiliskV3Pro
+        )
+        let draft = block.flatMap {
+            ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
+                slot: 52,
+                functionBlock: $0,
+                profileID: .basiliskV3Pro
+            )
+        }
+
+        XCTAssertEqual(block, [0x0E, 0x01, 0x68, 0x00, 0x14, 0x00, 0x00])
+        XCTAssertEqual(draft?.kind, .default)
+    }
+
     func testParsePayloadFramesSuccess() {
         let header = Data([0x40, 0x03, 0, 0, 0, 0, 0, 0x02] + Array(repeating: 0, count: 12))
         let payloadFrame = Data([0xAA, 0xBB, 0xCC] + Array(repeating: 0, count: 17))

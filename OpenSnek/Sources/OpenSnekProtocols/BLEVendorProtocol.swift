@@ -298,39 +298,51 @@ public enum BLEVendorProtocol {
         profileID: DeviceProfileID? = nil
     ) -> [UInt8]? {
         let bytes = Array(payload)
-        var candidates: [[UInt8]] = []
         if bytes.count >= 10, bytes[0] == target, bytes[1] == slot {
-            candidates.append([bytes[3], bytes[4], bytes[5], bytes[6], bytes[7], bytes[8], bytes[9]])
+            let candidate = [bytes[3], bytes[4], bytes[5], bytes[6], bytes[7], bytes[8], bytes[9]]
+            if ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
+                slot: Int(slot),
+                functionBlock: candidate,
+                profileID: profileID
+            ) != nil {
+                return candidate
+            }
+            return candidate
         }
         if bytes.count >= 9, bytes[0] == slot {
             let tail = Array(bytes.dropFirst(2))
             if tail.count >= 14 {
-                candidates.append(Array(tail.enumerated().compactMap { index, byte in
+                let evenLane = Array(tail.enumerated().compactMap { index, byte in
                     index.isMultiple(of: 2) ? byte : nil
-                }.prefix(7)))
-                candidates.append(Array(tail.enumerated().compactMap { index, byte in
+                }.prefix(7))
+                let oddLane = Array(tail.enumerated().compactMap { index, byte in
                     index.isMultiple(of: 2) ? nil : byte
-                }.prefix(7)))
+                }.prefix(7))
+                let lanes = [evenLane, oddLane]
+                if let parsed = lanes.first(where: {
+                    ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
+                        slot: Int(slot),
+                        functionBlock: $0,
+                        profileID: profileID
+                    ) != nil
+                }) {
+                    return parsed
+                }
+                return evenLane
             }
             if tail.count >= 7 {
-                candidates.append(Array(tail.prefix(7)))
+                let candidate = Array(tail.prefix(7))
+                if ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
+                    slot: Int(slot),
+                    functionBlock: candidate,
+                    profileID: profileID
+                ) != nil {
+                    return candidate
+                }
+                return candidate
             }
         }
-
-        if let defaultBlock = ButtonBindingSupport.defaultUSBFunctionBlock(for: Int(slot), profileID: profileID),
-           let matchedDefault = candidates.first(where: { $0 == defaultBlock }) {
-            return matchedDefault
-        }
-        if let parsed = candidates.first(where: {
-            ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
-                slot: Int(slot),
-                functionBlock: $0,
-                profileID: profileID
-            ) != nil
-        }) {
-            return parsed
-        }
-        return candidates.first
+        return nil
     }
 
     public static func parseDpiStageSnapshot(blob: Data) -> (active: Int, count: Int, slots: [Int], pairs: [DpiPair], stageIDs: [UInt8], marker: UInt8)? {

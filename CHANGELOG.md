@@ -52,6 +52,7 @@ All notable changes to this project are documented in this file.
 - Bluetooth onboard profile reads now seed the service cache with the active profile's mapped DPI stages so DPI-cycle HID events resolve against the selected profile instead of the stale live five-stage table.
 - Bluetooth onboard profile DPI and button edits now write the selected stored profile instead of falling back to the live profile-1 apply path, and mapped onboard devices no longer rehydrate button bindings from the legacy profile cache.
 - Bluetooth onboard profile active-ID refreshes now preserve the loaded profile DPI snapshot, passive DPI matching uses the loaded onboard profile stage table, profile loads hydrate Bluetooth button bindings from profile readback instead of stale cached bindings, and generic Bluetooth state refreshes avoid profile-owned live-layer polling on mapped onboard devices.
+- Bluetooth onboard profile button readback now prefers the authoritative `08 84` even lane over stale/default odd lanes and normalizes shortened wheel-tilt default blocks, so stored profile keymaps reflect reversed scroll and tilt defaults correctly.
 
 ## [2026-06-15]
 

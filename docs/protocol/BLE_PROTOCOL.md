@@ -566,6 +566,7 @@ Observed Basilisk V3 Pro Bluetooth button-read format:
 Observed Basilisk V3 Pro Bluetooth exception:
 - wheel-tilt horizontal scroll does not use the older plain mouse-action form on the validated BT path
 - a working Synapse-written V3 Pro Bluetooth rebind on `0x34` / `0x35` reads back as the raw function blocks `0e036800140000` / `0e036900140000`
+- stored and active profile targets can report default wheel tilt as the shortened raw function blocks `0e016800140000` / `0e016900140000`; normalize these to the slot default instead of decoding the packed payload prefix as a mouse button action
 - OpenSnek writes that same raw `0x0E` block for Bluetooth `Scroll Left` / `Scroll Right` and for wheel-tilt default restore
 
 #### 6.5.2 Mouse Button IDs Used by Swift

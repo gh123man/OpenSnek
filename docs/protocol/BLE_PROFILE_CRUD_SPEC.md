@@ -250,8 +250,10 @@ Examples:
 Readback through `08 84` can return duplicated or interleaved lanes. For the
 observed 16-byte shape, after the leading `<slot> 00` prefix, the even lane forms
 the written 7-byte function block and the odd lane can contain the previous or
-default block. The client must use the existing button-block decoder rather than
-raw byte equality against the whole 16-byte payload.
+default block. The client must prefer the even lane when it decodes instead of
+preferring a default block from the odd lane. Wheel-tilt default readback can use
+the shortened horizontal-scroll block `0e 01 68 00 14 00 00` / `0e 01 69 00 14
+00 00`; treat that as the slot default for `0x34` / `0x35`.
 
 ## Profile-Scoped And Global Surfaces
 
