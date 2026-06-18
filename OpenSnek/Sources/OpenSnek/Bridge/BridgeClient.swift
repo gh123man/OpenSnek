@@ -484,10 +484,24 @@ actor BridgeClient {
         if device.transport == .bluetooth {
             do {
                 let session = sessionFor(device: device)
+                let previous = lastStateByDeviceID[device.id]
                 let state = try await readBluetoothState(device: device, session: session)
-                lastStateByDeviceID[device.id] = state
+                let resolved: MouseState
+                if passiveDpiObservedDeviceIDs.contains(device.id),
+                   let previous {
+                    resolved = previous.mergedWithStableReadTelemetry(from: state)
+                    AppLog.debug(
+                        "Bridge",
+                        "readState bt preserved passive DPI device=\(device.id) " +
+                        "previousActive=\(previous.dpi_stages.active_stage.map(String.init) ?? "nil") " +
+                        "readActive=\(state.dpi_stages.active_stage.map(String.init) ?? "nil")"
+                    )
+                } else {
+                    resolved = state
+                }
+                lastStateByDeviceID[device.id] = resolved
                 AppLog.debug("Bridge", "readState bt device=\(device.id) elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s")
-                return state
+                return resolved
             } catch {
                 clearPassiveDpiObservation(deviceID: device.id, reason: "read-state-failed")
                 throw error
@@ -556,6 +570,13 @@ actor BridgeClient {
 
     func readDpiStagesFast(device: MouseDevice) async throws -> (active: Int, values: [Int])? {
         if device.transport == .bluetooth {
+            if passiveDpiObservedDeviceIDs.contains(device.id),
+               let state = lastStateByDeviceID[device.id],
+               let active = state.dpi_stages.active_stage,
+               let values = state.dpi_stages.values,
+               !values.isEmpty {
+                return (active: max(0, min(values.count - 1, active)), values: values)
+            }
             guard let parsed = try await btGetDpiStages(device: device) else { return nil }
             let now = Date()
             if passiveDpiObservedDeviceIDs.contains(device.id),

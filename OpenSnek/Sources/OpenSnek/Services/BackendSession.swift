@@ -410,11 +410,11 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     func readState(device: MouseDevice) async throws -> MouseState {
         let readStartedAt = Date()
         let cachedStateBeforeRead = cachedStateByDeviceID[device.id]
+        let shouldUseFastPolling = device.transport == .bluetooth
+            ? await client.shouldUseFastDPIPolling(device: device)
+            : true
         if let cachedAt = cachedStateAtByDeviceID[device.id],
            let cached = cachedStateByDeviceID[device.id] {
-            let shouldUseFastPolling = device.transport == .bluetooth
-                ? await client.shouldUseFastDPIPolling(device: device)
-                : true
             if Self.shouldReuseCachedStateForRead(
                 device: device,
                 cachedAt: cachedAt,
@@ -443,6 +443,23 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
                 "cachedAt=\(cachedStateAtByDeviceID[device.id]?.timeIntervalSince1970 ?? 0)"
             )
             return cached
+        }
+        if device.transport == .bluetooth,
+           !shouldUseFastPolling,
+           let cached = cachedStateByDeviceID[device.id] {
+            let merged = cached.mergedWithStableReadTelemetry(from: state)
+            let now = Date()
+            cachedStateByDeviceID[device.id] = merged
+            cachedStateAtByDeviceID[device.id] = now
+            reconnectSeedStateByDeviceID[device.id] = merged
+            publishSnapshotIfService()
+            AppLog.debug(
+                "Backend",
+                "readState preserved passive BT DPI device=\(device.id) " +
+                "cachedActive=\(cached.dpi_stages.active_stage.map(String.init) ?? "nil") " +
+                "readActive=\(state.dpi_stages.active_stage.map(String.init) ?? "nil")"
+            )
+            return merged
         }
         cachedStateByDeviceID[device.id] = state
         cachedStateAtByDeviceID[device.id] = Date()
@@ -611,17 +628,11 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         now: Date,
         shouldUseFastDPIPolling: Bool
     ) -> Bool {
-        let maxAge: TimeInterval
         if device.transport == .bluetooth, !shouldUseFastDPIPolling {
-            // While passive BT DPI events are flowing, prefer the latest cached state
-            // and defer vendor reads until the stream has been quiet for roughly one
-            // correction interval.
-            maxAge = 0.9
-        } else {
-            maxAge = 0.2
+            return true
         }
 
-        return now.timeIntervalSince(cachedAt) < maxAge
+        return now.timeIntervalSince(cachedAt) < 0.2
     }
 
     nonisolated static func completedReadWasSuperseded(startedAt: Date, latestCachedAt: Date?) -> Bool {
