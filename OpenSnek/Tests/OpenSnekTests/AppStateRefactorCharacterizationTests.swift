@@ -3618,12 +3618,14 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             (
                 appState.editorStore.editableStageCount,
                 appState.editorStore.stageValue(0),
-                appState.editorStore.stageValue(1)
+                appState.editorStore.stageValue(1),
+                appState.editorStore.editableActiveStage
             )
         }
         XCTAssertEqual(hydrated.0, 2)
         XCTAssertEqual(hydrated.1, 1200)
         XCTAssertEqual(hydrated.2, 2400)
+        XCTAssertEqual(hydrated.3, 1)
     }
 
     func testServiceActiveOnboardProfileUpdatesDoNotHydrateProfileUI() async throws {

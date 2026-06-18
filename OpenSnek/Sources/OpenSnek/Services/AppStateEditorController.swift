@@ -529,11 +529,13 @@ final class AppStateEditorController {
             editorStore.editableStagePairs[0] = DpiPair(x: clampedX, y: clampedY)
         }
 
-        if let active = state.dpi_stages.active_stage {
-            let maxStage = max(1, editorStore.editableStageCount)
-            editorStore.editableActiveStage = max(1, min(maxStage, active + 1))
-        } else {
-            editorStore.editableActiveStage = 1
+        if activeOnboardSnapshot?.dpi == nil {
+            if let active = state.dpi_stages.active_stage {
+                let maxStage = max(1, editorStore.editableStageCount)
+                editorStore.editableActiveStage = max(1, min(maxStage, active + 1))
+            } else {
+                editorStore.editableActiveStage = 1
+            }
         }
         editorStore.normalizeExpandedXYStages()
 
