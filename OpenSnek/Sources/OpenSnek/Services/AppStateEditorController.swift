@@ -106,6 +106,18 @@ final class AppStateEditorController {
         return trimmed.isEmpty ? "Untitled Profile" : trimmed
     }
 
+    private func buttonBindingsDebugSummary(_ bindings: [Int: ButtonBindingDraft]) -> String {
+        guard !bindings.isEmpty else { return "<none>" }
+        return bindings.keys.sorted().map { slot in
+            guard let binding = bindings[slot] else { return "\(slot):<missing>" }
+            var suffix = ""
+            if binding.kind == .keyboardSimple {
+                suffix = ":key\(binding.hidKey):mods\(binding.hidModifiers)"
+            }
+            return "\(slot):\(binding.kind.rawValue)\(suffix)"
+        }.joined(separator: ",")
+    }
+
     private func forcesRestoreOpenSnekSettingsOnConnect(for device: MouseDevice) -> Bool {
         device.transport == .bluetooth && device.profile_id == .basiliskV3XHyperspeed
     }
@@ -1550,7 +1562,7 @@ final class AppStateEditorController {
     }
 
     private func shouldHydrateSelectedProfileDuringRefresh(device: MouseDevice) -> Bool {
-        device.transport == .usb
+        supportsOnboardProfileCRUD(device: device)
     }
 
     private func lightingLEDIDs(for device: MouseDevice) -> [UInt8] {
@@ -1658,6 +1670,7 @@ final class AppStateEditorController {
 
     func selectOnboardProfile(_ profileID: Int) async {
         guard !isTearingDown, let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return }
+        applyController.cancelPendingLocalEditsForSelectionChange()
         cancelSelectedMouseSlotHydration(deviceID: device.id)
         cancelOnboardProfileButtonHydration(deviceID: device.id)
         let start = Date()
@@ -1715,6 +1728,7 @@ final class AppStateEditorController {
 
     func activateOnboardProfile(_ profileID: Int) async {
         guard !isTearingDown, let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return }
+        applyController.cancelPendingLocalEditsForSelectionChange()
         cancelSelectedMouseSlotHydration(deviceID: device.id)
         cancelOnboardProfileButtonHydration(deviceID: device.id)
         let start = Date()
@@ -1922,6 +1936,14 @@ final class AppStateEditorController {
                 profileID: selected,
                 mutation: resolvedMutation
             )
+            guard deviceStore.selectedDeviceID == device.id,
+                  selectedOnboardProfileIDByDeviceID[device.id] == selected else {
+                AppLog.debug(
+                    "AppState",
+                    "update onboard profile stale-drop device=\(device.id) profile=\(selected)"
+                )
+                return true
+            }
             storeCurrentOnboardProfileSnapshot(
                 snapshot,
                 device: device,
@@ -2093,38 +2115,36 @@ final class AppStateEditorController {
         profileID: Int
     ) {
         let snapshot = currentOnboardProfileSnapshotByDeviceID[device.id]
-        let updatedSnapshot: OnboardProfileSnapshot
-        if let snapshot, snapshot.profileID == profileID {
-            updatedSnapshot = snapshot.replacingButtonBindings(bindings)
-        } else {
-            let metadata = onboardProfileInventoryByDeviceID[device.id]?
-                .summary(for: profileID)?
-                .metadata ?? OnboardProfileMetadata(name: profileID == 1 ? "Main" : "Profile \(profileID)")
-            updatedSnapshot = OnboardProfileSnapshot(
-                profileID: profileID,
-                metadata: metadata,
-                buttonBindings: bindings
+        let persistentProfileID = max(1, profileID)
+        let hydrationKey = buttonBindingsHydrationKey(device: device, profile: persistentProfileID)
+        buttonBindingsCacheByHydrationKey[hydrationKey] = bindings
+        buttonBindingsReadbackAttemptedKeys.insert(hydrationKey)
+
+        guard let snapshot, snapshot.profileID == profileID else {
+            AppLog.debug(
+                "AppState",
+                "onboard profile button hydration stale-drop device=\(device.id) profile=\(profileID) " +
+                "currentProfile=\(snapshot.map { String($0.profileID) } ?? "nil") bindings=\(buttonBindingsDebugSummary(bindings))"
             )
+            bumpUSBButtonProfilesRevision()
+            return
         }
+
+        let updatedSnapshot = snapshot.replacingButtonBindings(bindings)
         storeCurrentOnboardProfileSnapshot(
             updatedSnapshot,
             device: device,
             source: "readOnboardProfileButtonBindings"
         )
-        let persistentProfileID = max(1, profileID)
-        saveCachedButtonBindings(device: device, bindings: bindings, profile: persistentProfileID)
         if selectedOnboardProfileIDByDeviceID[device.id] == profileID,
            deviceStore.selectedDeviceID == device.id {
-            let hydrationKey = buttonBindingsHydrationKey(device: device, profile: persistentProfileID)
             hydratedButtonBindingsKey = hydrationKey
-            buttonBindingsCacheByHydrationKey[hydrationKey] = bindings
-            buttonBindingsReadbackAttemptedKeys.insert(hydrationKey)
             editorStore.editableButtonBindings = bindings
             bumpUSBButtonProfilesRevision()
         }
         AppLog.debug(
             "AppState",
-            "onboard profile button hydration ok device=\(device.id) profile=\(profileID) slots=\(bindings.keys.sorted())"
+            "onboard profile button hydration ok device=\(device.id) profile=\(profileID) bindings=\(buttonBindingsDebugSummary(bindings))"
         )
     }
 

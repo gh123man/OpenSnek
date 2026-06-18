@@ -1138,6 +1138,7 @@ struct DpiStagesCard: View {
     let editorStore: EditorStore
 
     var body: some View {
+        _ = editorStore.onboardProfilesRevision
         let profileID = editorStore.selectedDeviceProfileID
         let supportsIndependentXYDPI = editorStore.selectedDeviceSupportsIndependentXYDPI
         let supportsMultiStage = true
@@ -1660,7 +1661,8 @@ struct ButtonMappingTableCard: View {
     }
 
     private var rows: [ButtonBindingRowModel] {
-        deviceStore.visibleButtonSlots.map { slot in
+        _ = editorStore.usbButtonProfilesRevision
+        return deviceStore.visibleButtonSlots.map { slot in
             let kind = editorStore.buttonBindingKind(for: slot.slot)
             let turboEnabled = editorStore.buttonBindingTurboEnabled(for: slot.slot)
             let turboRate = editorStore.buttonBindingTurboRatePressesPerSecond(for: slot.slot)
@@ -2693,6 +2695,7 @@ private struct ButtonBindingRow: View {
     let row: ButtonBindingRowModel
 
     var body: some View {
+        _ = editorStore.usbButtonProfilesRevision
         let profileID = editorStore.selectedDeviceProfileID
         let dpiRange = DeviceProfiles.dpiRange(for: profileID)
         return VStack(alignment: .leading, spacing: 8) {
