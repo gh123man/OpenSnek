@@ -154,6 +154,16 @@ Manual V3 Pro USB master feature sweep. This changes and restores several hardwa
   test
 ```
 
+Manual V3 Pro Bluetooth master feature sweep. This runs the same composable feature harness against the real Bluetooth protocol scope (`vendor 0x068E`, `product 0x00AC`, `protocol ble-vendor`, profile `basilisk_v3_pro`).
+
+```bash
+./OpenSnek/scripts/xcodebuild_generated.sh \
+  -scheme OpenSnekUITests \
+  -destination 'platform=macOS' \
+  -only-testing:OpenSnekUITests/V3ProBluetoothMasterFeatureUITests/testV3ProBluetoothMasterFeatureSweepDoesNotCrossInterfere \
+  test
+```
+
 To run the same test against another supported device, set `OPEN_SNEK_UITEST_EXPECTED_PROTOCOL`, `OPEN_SNEK_UITEST_EXPECTED_TRANSPORT`, `OPEN_SNEK_UITEST_EXPECTED_VENDOR_ID`, `OPEN_SNEK_UITEST_EXPECTED_PRODUCT_ID`, `OPEN_SNEK_UITEST_EXPECTED_PRODUCT_NAME`, and `OPEN_SNEK_UITEST_EXPECTED_PROFILE_ID` on the `xcodebuild` command.
 
 Bundle build only:

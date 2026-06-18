@@ -95,13 +95,93 @@ class OpenSnekHardwareUITestCase: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) -> XCUIElement? {
-        if let deviceName = identifiedText("selected-device-name", timeout: timeout) {
+        let startedAt = Date()
+        if let expectedDevice = waitForExpectedDiscoveredDevice(timeout: timeout) {
             assertDiscoveredExpectedScopedDevice(readEvents(), file: file, line: line)
-            return deviceName
+            return selectExpectedScopedDevice(
+                expectedDevice,
+                timeout: max(0.5, timeout - Date().timeIntervalSince(startedAt)),
+                file: file,
+                line: line
+            )
         }
 
         failMissingScopedDevice(timeout: timeout, file: file, line: line)
         return nil
+    }
+
+    func waitForExpectedDiscoveredDevice(timeout: TimeInterval) -> UITestDevice? {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let events = readEvents()
+            if let device = events.reversed()
+                .compactMap(\.devices)
+                .flatMap({ $0 })
+                .first(where: expectedScope.matches) {
+                return device
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        } while Date() < deadline
+        return readEvents().reversed()
+            .compactMap(\.devices)
+            .flatMap({ $0 })
+            .first(where: expectedScope.matches)
+    }
+
+    func selectExpectedScopedDevice(
+        _ device: UITestDevice,
+        timeout: TimeInterval,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> XCUIElement? {
+        let row = app.descendants(matching: .any)["device-row-\(device.id)"]
+        XCTAssertTrue(
+            row.waitForExistence(timeout: timeout),
+            "Expected \(expectedScope.description) was discovered as \(device.id), but its sidebar row did not appear.",
+            file: file,
+            line: line
+        )
+        guard row.exists else { return nil }
+
+        clickElement(row)
+
+        guard let deviceName = identifiedText("selected-device-name", timeout: timeout) else {
+            XCTFail(
+                "Expected \(expectedScope.description) row was selected, but the device detail title did not appear within \(timeout)s.",
+                file: file,
+                line: line
+            )
+            return nil
+        }
+
+        XCTAssertTrue(
+            waitForSelectedDeviceDetail(deviceName: device.productName, timeout: timeout),
+            "Expected selected UI to show \(device.productName) over \(expectedScope.connectionLabel), but it did not match the scoped device.",
+            file: file,
+            line: line
+        )
+        return deviceName
+    }
+
+    func waitForSelectedDeviceDetail(deviceName: String, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if selectedDeviceDetailMatches(deviceName: deviceName) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        } while Date() < deadline
+        return selectedDeviceDetailMatches(deviceName: deviceName)
+    }
+
+    private func selectedDeviceDetailMatches(deviceName: String) -> Bool {
+        guard let selectedName = identifiedText("selected-device-name", timeout: 0.1),
+              elementText(selectedName) == deviceName,
+              let connection = identifiedText("selected-device-connection", timeout: 0.1),
+              elementText(connection) == expectedScope.connectionLabel else {
+            return false
+        }
+        return true
     }
 
     func failMissingScopedDevice(timeout: TimeInterval, file: StaticString, line: UInt) {
@@ -129,7 +209,7 @@ class OpenSnekHardwareUITestCase: XCTestCase {
 
         if let latestListedDevices, latestListedDevices.isEmpty {
             XCTFail(
-                "Expected connected \(expectedScope.description), but OpenSnek discovered no devices within \(timeout)s. Confirm the device is connected over USB and Input Monitoring is granted to OpenSnek.app.",
+                "Expected connected \(expectedScope.description), but OpenSnek discovered no devices within \(timeout)s. Confirm the device is connected over \(expectedScope.connectionLabel) and Input Monitoring is granted to OpenSnek.app.",
                 file: file,
                 line: line
             )
@@ -318,6 +398,13 @@ class OpenSnekHardwareUITestCase: XCTestCase {
     func describeElementText(_ element: XCUIElement) -> String {
         let value = (element.value as? String) ?? "nil"
         return "label \"\(element.label)\", value \"\(value)\""
+    }
+
+    func elementText(_ element: XCUIElement) -> String {
+        if !element.label.isEmpty {
+            return element.label
+        }
+        return (element.value as? String) ?? ""
     }
 
     func clickPollRateOption(_ rate: Int, picker: XCUIElement) -> Date? {
@@ -534,6 +621,15 @@ struct HardwareDeviceScope: Equatable {
         profileID: "basilisk_v3_pro"
     )
 
+    static let v3ProBluetooth = HardwareDeviceScope(
+        protocolName: "ble-vendor",
+        transport: "bluetooth",
+        vendorID: 0x068E,
+        productID: 0x00AC,
+        productName: nil,
+        profileID: "basilisk_v3_pro"
+    )
+
     static func fromEnvironment(_ environment: [String: String] = ProcessInfo.processInfo.environment) -> HardwareDeviceScope {
         HardwareDeviceScope(
             protocolName: environment["OPEN_SNEK_UITEST_EXPECTED_PROTOCOL"] ?? v3ProUSB.protocolName,
@@ -548,6 +644,10 @@ struct HardwareDeviceScope: Equatable {
     var description: String {
         let productName = productName.map { "\($0) " } ?? ""
         return "\(productName)(\(protocolName), transport \(transport), product 0x\(String(productID, radix: 16, uppercase: true)), profile \(profileID))"
+    }
+
+    var connectionLabel: String {
+        transport == "bluetooth" ? "Bluetooth" : "USB"
     }
 
     func matches(_ scope: UITestScope?) -> Bool {

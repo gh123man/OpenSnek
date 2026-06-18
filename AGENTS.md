@@ -89,6 +89,16 @@ Manual V3 Pro USB master feature sweep. This changes and restores several hardwa
   test
 ```
 
+Manual V3 Pro Bluetooth master feature sweep. This runs the same composable feature harness against the real Bluetooth protocol scope (`vendor 0x068E`, `product 0x00AC`, `protocol ble-vendor`, profile `basilisk_v3_pro`).
+
+```bash
+./OpenSnek/scripts/xcodebuild_generated.sh \
+  -scheme OpenSnekUITests \
+  -destination 'platform=macOS' \
+  -only-testing:OpenSnekUITests/V3ProBluetoothMasterFeatureUITests/testV3ProBluetoothMasterFeatureSweepDoesNotCrossInterfere \
+  test
+```
+
 The test requires Input Monitoring for the built `OpenSnek.app` and Accessibility permission for the app launching `xcodebuild` (`Terminal`, `Codex`, or `Xcode`). Permission or device-scope failures should be reported as clear XCUITest failures with the attached event log.
 
 Hardware gate for BLE DPI/stage changes when a supported device is connected:

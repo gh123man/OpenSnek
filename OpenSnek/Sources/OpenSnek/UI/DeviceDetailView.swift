@@ -306,6 +306,7 @@ struct DeviceOverviewBar: View {
                     text: state.connection,
                     color: selected.transport == .bluetooth ? Color(hex: 0x66D9FF) : Color(hex: 0xA8F46A)
                 )
+                .accessibilityIdentifier("selected-device-connection")
                 DeviceStatusBadge(
                     indicator: deviceStore.currentDeviceStatusIndicator,
                     helpText: deviceStore.currentDeviceConnectionTooltip
