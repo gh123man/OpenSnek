@@ -656,12 +656,9 @@ final class USBPassiveDPIEventTests: XCTestCase {
         XCTAssertEqual(other, .other)
     }
 
-    func testPassiveParserClassifiesUSBAndBluetoothProfileSwitchReports() {
+    func testPassiveParserClassifiesUSBProfileSwitchReportDirectly() {
         let usbDescriptor = try! XCTUnwrap(
             DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00AB, transport: .usb)?.passiveDPIInput
-        )
-        let bluetoothDescriptor = try! XCTUnwrap(
-            DeviceProfiles.resolve(vendorID: 0x068E, productID: 0x00AC, transport: .bluetooth)?.passiveDPIInput
         )
 
         XCTAssertEqual(
@@ -671,10 +668,39 @@ final class USBPassiveDPIEventTests: XCTestCase {
             ),
             .profileSwitch
         )
+    }
+
+    func testPassiveParserRequiresBluetoothProfileSwitchPrelude() {
+        let bluetoothDescriptor = try! XCTUnwrap(
+            DeviceProfiles.resolve(vendorID: 0x068E, productID: 0x00AC, transport: .bluetooth)?.passiveDPIInput
+        )
+
+        XCTAssertTrue(
+            PassiveDPIParser.matchesProfileSwitchPrelude(
+                report: [0x04, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+                descriptor: bluetoothDescriptor
+            )
+        )
         XCTAssertEqual(
             PassiveDPIParser.classify(
-                report: [0x05, 0x05, 0x39, 0x00, 0x00, 0x00, 0x00],
+                report: [0x05, 0x05, 0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
                 descriptor: bluetoothDescriptor
+            ),
+            .other
+        )
+        XCTAssertEqual(
+            PassiveDPIParser.classify(
+                report: [0x05, 0x05, 0x39, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00],
+                descriptor: bluetoothDescriptor,
+                profileSwitchPreludeSatisfied: true
+            ),
+            .other
+        )
+        XCTAssertEqual(
+            PassiveDPIParser.classify(
+                report: [0x05, 0x05, 0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+                descriptor: bluetoothDescriptor,
+                profileSwitchPreludeSatisfied: true
             ),
             .profileSwitch
         )

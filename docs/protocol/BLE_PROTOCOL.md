@@ -394,6 +394,8 @@ Heartbeat notes:
 
 Profile-cycle notes:
 - `04 04 ...` followed by `05 05 39 ...` is capture-backed on Basilisk V3 Pro Bluetooth in firmware/onboard cycling mode with Synapse closed
+- OpenSnek requires the captured two-frame sequence for Bluetooth profile-cycle handling; `05 05 39 ...` by itself is not enough to trigger a profile reload because other hardware controls can share that report prefix
+- the `05 05 39 ...` profile-cycle report is matched as the captured zero-tail status frame, not as an arbitrary three-byte prefix
 - no profile target ID has been decoded from these reports
 - use these reports to trigger an immediate one-shot active-target read, not to directly select a profile from the HID payload
 - this should be event-driven; do not continuously poll the current profile just to notice onboard profile-button changes
@@ -409,6 +411,7 @@ Current app policy for passive Bluetooth DPI:
 
 Profile-monitoring implementation guidance:
 - treat passive Bluetooth profile-cycle reports as refresh hints only
+- require the `04 04 ...` prelude before accepting the `05 05 39 ...` frame as a Bluetooth profile-cycle hint
 - after a profile-cycle hint, perform only bounded/event-scoped follow-up work; do not run a continuous current-profile polling loop
 - on the V3 Pro BT path, read `03 82 00 00` for the current active target
 - on the V3 Pro BT path, write `03 02 00 00` with a one-byte target payload to select an assigned/cycleable target, then confirm with `03 82 00 00`

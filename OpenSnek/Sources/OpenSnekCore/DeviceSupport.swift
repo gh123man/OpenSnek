@@ -140,6 +140,7 @@ public struct PassiveDPIInputDescriptor: Hashable, Codable, Sendable {
     public let subtype: UInt8
     public let heartbeatSubtype: UInt8?
     public let profileSwitchPrefixes: [[UInt8]]
+    public let profileSwitchPreludePrefixes: [[UInt8]]
     public let minInputReportSize: Int
     public let maxFeatureReportSize: Int?
     public let maximumDPI: Int
@@ -151,6 +152,7 @@ public struct PassiveDPIInputDescriptor: Hashable, Codable, Sendable {
         subtype: UInt8,
         heartbeatSubtype: UInt8? = nil,
         profileSwitchPrefixes: [[UInt8]] = [],
+        profileSwitchPreludePrefixes: [[UInt8]] = [],
         minInputReportSize: Int,
         maxFeatureReportSize: Int? = nil,
         maximumDPI: Int = 30_000
@@ -161,9 +163,53 @@ public struct PassiveDPIInputDescriptor: Hashable, Codable, Sendable {
         self.subtype = subtype
         self.heartbeatSubtype = heartbeatSubtype
         self.profileSwitchPrefixes = profileSwitchPrefixes
+        self.profileSwitchPreludePrefixes = profileSwitchPreludePrefixes
         self.minInputReportSize = max(1, minInputReportSize)
         self.maxFeatureReportSize = maxFeatureReportSize
         self.maximumDPI = max(100, maximumDPI)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case usagePage
+        case usage
+        case reportID
+        case subtype
+        case heartbeatSubtype
+        case profileSwitchPrefixes
+        case profileSwitchPreludePrefixes
+        case minInputReportSize
+        case maxFeatureReportSize
+        case maximumDPI
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            usagePage: try container.decode(Int.self, forKey: .usagePage),
+            usage: try container.decode(Int.self, forKey: .usage),
+            reportID: try container.decode(UInt8.self, forKey: .reportID),
+            subtype: try container.decode(UInt8.self, forKey: .subtype),
+            heartbeatSubtype: try container.decodeIfPresent(UInt8.self, forKey: .heartbeatSubtype),
+            profileSwitchPrefixes: try container.decodeIfPresent([[UInt8]].self, forKey: .profileSwitchPrefixes) ?? [],
+            profileSwitchPreludePrefixes: try container.decodeIfPresent([[UInt8]].self, forKey: .profileSwitchPreludePrefixes) ?? [],
+            minInputReportSize: try container.decodeIfPresent(Int.self, forKey: .minInputReportSize) ?? 6,
+            maxFeatureReportSize: try container.decodeIfPresent(Int.self, forKey: .maxFeatureReportSize),
+            maximumDPI: try container.decodeIfPresent(Int.self, forKey: .maximumDPI) ?? 30_000
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(usagePage, forKey: .usagePage)
+        try container.encode(usage, forKey: .usage)
+        try container.encode(reportID, forKey: .reportID)
+        try container.encode(subtype, forKey: .subtype)
+        try container.encodeIfPresent(heartbeatSubtype, forKey: .heartbeatSubtype)
+        try container.encode(profileSwitchPrefixes, forKey: .profileSwitchPrefixes)
+        try container.encode(profileSwitchPreludePrefixes, forKey: .profileSwitchPreludePrefixes)
+        try container.encode(minInputReportSize, forKey: .minInputReportSize)
+        try container.encodeIfPresent(maxFeatureReportSize, forKey: .maxFeatureReportSize)
+        try container.encode(maximumDPI, forKey: .maximumDPI)
     }
 }
 
@@ -618,7 +664,8 @@ public enum DeviceProfiles {
             reportID: 0x05,
             subtype: 0x02,
             heartbeatSubtype: 0x10,
-            profileSwitchPrefixes: [[0x05, 0x05, 0x39]],
+            profileSwitchPrefixes: [[0x05, 0x05, 0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]],
+            profileSwitchPreludePrefixes: [[0x04, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]],
             minInputReportSize: 7,
             maxFeatureReportSize: 1,
             maximumDPI: 30_000

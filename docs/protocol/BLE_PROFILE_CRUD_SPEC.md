@@ -90,8 +90,11 @@ the firmware actually changes onboard profiles:
 ```
 
 Use the second report (`05 05 39 ...`) as the debounced event. The reports do not
-carry a target ID. On each event, read `03 82 00 00`, then hydrate target `0` if
-the UI needs active settings.
+carry a target ID. The Bluetooth client must accept the second report only when
+it follows the captured `04 04 ...` prelude, and should match the captured
+zero-tail `05 05 39 00 00 00 00 00 00` frame rather than an arbitrary
+three-byte prefix. On each accepted event, read `03 82 00 00`, then hydrate
+target `0` if the UI needs active settings.
 
 If only one target is assigned, the profile button can be a firmware no-op and
 no hint may be emitted.
