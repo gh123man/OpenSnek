@@ -72,18 +72,20 @@ final class V3ProUSBMasterFeatureUITests: OpenSnekHardwareUITestCase {
         XCTAssertLessThanOrEqual(Date().timeIntervalSince(appReadyStartedAt), appReadyDeadline)
         assertElementText(deviceName, equals: "Razer Basilisk V3 Pro", context: "selected device name")
 
-        let state = try XCTUnwrap(latestExpectedDeviceState(), "Expected hydrated state for \(expectedScope.description)")
-        let originalDPIStageIndex = state.activeStage ?? 0
+        let originalDeviceState = try XCTUnwrap(latestExpectedDeviceState(), "Expected hydrated state for \(expectedScope.description)")
+        let originalDPIStageIndex = originalDeviceState.activeStage ?? 0
         originalState = OriginalState(
             dpiStageIndex: originalDPIStageIndex,
-            ledValue: state.ledValue,
-            pollRate: state.pollRate,
-            sleepTimeout: state.sleepTimeout,
-            lowBatteryThresholdRaw: state.lowBatteryThresholdRaw,
-            scrollMode: state.scrollMode,
-            scrollAcceleration: state.scrollAcceleration,
-            scrollSmartReel: state.scrollSmartReel
+            ledValue: originalDeviceState.ledValue,
+            pollRate: originalDeviceState.pollRate,
+            sleepTimeout: originalDeviceState.sleepTimeout,
+            lowBatteryThresholdRaw: originalDeviceState.lowBatteryThresholdRaw,
+            scrollMode: originalDeviceState.scrollMode,
+            scrollAcceleration: originalDeviceState.scrollAcceleration,
+            scrollSmartReel: originalDeviceState.scrollSmartReel
         )
+        try keepMouseAwakeForUITest(timeout: actionDeadline)
+        let state = try XCTUnwrap(latestExpectedScopedState(), "Expected scoped state after extending UI-test sleep timeout")
 
         try assertV3ProUSBFeatureSurface()
         try exerciseOnboardProfileSurface()
@@ -227,7 +229,7 @@ final class V3ProUSBMasterFeatureUITests: OpenSnekHardwareUITestCase {
         let slider = try requireElement("sleep-timeout-slider", timeout: 2)
         scrollElementToVisible(slider)
         let changedAt = Date()
-        slider.adjust(toNormalizedSliderPosition: normalizedSleepTimeout(target))
+        slider.adjust(toNormalizedSliderPosition: normalizedUITestSleepTimeout(target))
         changedFeatures.insert(.sleepTimeout)
 
         let event = try XCTUnwrap(
@@ -442,11 +444,7 @@ final class V3ProUSBMasterFeatureUITests: OpenSnekHardwareUITestCase {
     }
 
     private func restoreSleepTimeout(_ timeout: Int) {
-        guard let slider = firstExistingElement(in: [app.descendants(matching: .any)["sleep-timeout-slider"]], timeout: 0.5) else { return }
-        scrollElementToVisible(slider)
-        let changedAt = Date()
-        slider.adjust(toNormalizedSliderPosition: normalizedSleepTimeout(timeout))
-        _ = waitForApplyEnd(since: changedAt, timeout: actionDeadline) { $0.patch?.sleepTimeout == timeout }
+        _ = setSleepTimeoutFromUITestUI(timeout, timeout: actionDeadline)
     }
 
     private func restoreLowBatteryThreshold(_ raw: Int) {
@@ -486,10 +484,6 @@ final class V3ProUSBMasterFeatureUITests: OpenSnekHardwareUITestCase {
         let clickedAt = Date()
         clickElement(toggle)
         _ = waitForOnboardMutation(since: clickedAt, timeout: actionDeadline, matching: predicate)
-    }
-
-    private func normalizedSleepTimeout(_ value: Int) -> CGFloat {
-        CGFloat(max(60, min(900, value)) - 60) / CGFloat(900 - 60)
     }
 
     private func normalizedLowBatteryThreshold(_ value: Int) -> CGFloat {

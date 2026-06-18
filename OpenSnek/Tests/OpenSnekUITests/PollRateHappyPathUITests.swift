@@ -2,13 +2,9 @@ import XCTest
 
 final class PollRateHappyPathUITests: OpenSnekHardwareUITestCase {
     private var pollRateToRestore: Int?
-    private var appliedPollRate: Int?
 
     override func restoreHardwareStateIfNeeded() {
-        guard !didRecordIssue,
-              let restore = pollRateToRestore,
-              let appliedPollRate,
-              restore != appliedPollRate else {
+        guard let restore = pollRateToRestore else {
             return
         }
         _ = clickPollRateOption(restore, picker: app.descendants(matching: .any)["poll-rate-picker"])
@@ -26,6 +22,7 @@ final class PollRateHappyPathUITests: OpenSnekHardwareUITestCase {
         if let expectedProductName = expectedScope.productName {
             assertElementText(deviceName, equals: expectedProductName, context: "selected device name")
         }
+        try keepMouseAwakeForUITest()
 
         let statusBadge = app.descendants(matching: .any)["device-status-badge"]
         XCTAssertTrue(statusBadge.waitForExistence(timeout: 1), "Device status badge did not appear")
@@ -64,7 +61,6 @@ final class PollRateHappyPathUITests: OpenSnekHardwareUITestCase {
             ),
             "Poll-rate apply to \(targetPollRate) Hz did not complete within 2s"
         )
-        appliedPollRate = targetPollRate
         XCTAssertLessThanOrEqual(applyEnd.timestamp - clickStartedAt.timeIntervalSince1970, 2)
 
         let events = readEvents()

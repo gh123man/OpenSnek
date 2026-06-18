@@ -3,6 +3,7 @@ import XCTest
 
 class OpenSnekHardwareUITestCase: XCTestCase {
     private static let targetBundleIdentifier = "io.opensnek.OpenSnek"
+    private let uiTestSleepTimeout = 900
 
     var expectedScope: HardwareDeviceScope {
         HardwareDeviceScope.fromEnvironment()
@@ -11,6 +12,7 @@ class OpenSnekHardwareUITestCase: XCTestCase {
     var app: XCUIApplication!
     var eventsURL: URL!
     private(set) var didRecordIssue = false
+    private var originalUITestSleepTimeout: Int?
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -44,6 +46,7 @@ class OpenSnekHardwareUITestCase: XCTestCase {
         }
         if let app, app.state != .notRunning {
             restoreHardwareStateIfNeeded()
+            restoreUITestSleepTimeoutIfNeeded()
         }
         if let app, app.state != .notRunning {
             app.terminate()
@@ -217,6 +220,42 @@ class OpenSnekHardwareUITestCase: XCTestCase {
             .state
     }
 
+    func latestExpectedScopedState() -> UITestState? {
+        readEvents()
+            .last { expectedScope.matches($0.scope) && $0.state != nil }?
+            .state
+    }
+
+    func keepMouseAwakeForUITest(
+        timeout: TimeInterval = 3,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let state = try XCTUnwrap(
+            latestExpectedScopedState(),
+            "Expected hydrated state for \(expectedScope.description) before extending UI-test sleep timeout",
+            file: file,
+            line: line
+        )
+        guard let sleepTimeout = state.sleepTimeout else {
+            return
+        }
+        if originalUITestSleepTimeout == nil {
+            originalUITestSleepTimeout = sleepTimeout
+        }
+        guard sleepTimeout < uiTestSleepTimeout else {
+            return
+        }
+
+        let event = try XCTUnwrap(
+            setSleepTimeoutFromUITestUI(uiTestSleepTimeout, timeout: timeout),
+            "Could not set \(expectedScope.description) sleep timeout to \(uiTestSleepTimeout)s for UI test",
+            file: file,
+            line: line
+        )
+        XCTAssertLessThanOrEqual(event.elapsed ?? .greatestFiniteMagnitude, timeout, file: file, line: line)
+    }
+
     func targetPollRate(after current: Int) -> Int {
         current == 500 ? 1000 : 500
     }
@@ -326,17 +365,29 @@ class OpenSnekHardwareUITestCase: XCTestCase {
         }
     }
 
-    func scrollElementToVisible(_ element: XCUIElement, maxScrolls: Int = 8) {
+    func scrollElementToVisible(_ element: XCUIElement, maxScrolls: Int = 12) {
         guard element.exists else { return }
         let scrollView = detailScrollView()
         for _ in 0..<maxScrolls where !element.isHittable {
             if scrollView.exists {
-                scrollView.scroll(byDeltaX: 0, deltaY: -700)
+                scrollView.scroll(byDeltaX: 0, deltaY: scrollDeltaY(toward: element, in: scrollView))
             } else {
                 return
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
+    }
+
+    private func scrollDeltaY(toward element: XCUIElement, in scrollView: XCUIElement) -> CGFloat {
+        let elementFrame = element.frame
+        let scrollFrame = scrollView.frame
+        if elementFrame.midY < scrollFrame.minY {
+            return 700
+        }
+        if elementFrame.midY > scrollFrame.maxY {
+            return -700
+        }
+        return -700
     }
 
     func detailScrollView() -> XCUIElement {
@@ -370,6 +421,26 @@ class OpenSnekHardwareUITestCase: XCTestCase {
         return readEvents().first(where: { $0.name == name && predicate($0) })
     }
 
+    func setSleepTimeoutFromUITestUI(_ timeoutValue: Int, timeout: TimeInterval) -> UITestEvent? {
+        let slider = app.descendants(matching: .any)["sleep-timeout-slider"]
+        guard slider.waitForExistence(timeout: 1) else {
+            return nil
+        }
+        scrollElementToVisible(slider)
+        let changedAt = Date()
+        slider.adjust(toNormalizedSliderPosition: normalizedUITestSleepTimeout(timeoutValue))
+        return waitForEvent(named: "applyEnd", timeout: timeout) { event in
+            event.timestamp >= changedAt.timeIntervalSince1970 - 0.1 &&
+                expectedScope.matches(event.scope) &&
+                event.patch?.sleepTimeout == timeoutValue &&
+                event.state?.sleepTimeout == timeoutValue
+        }
+    }
+
+    func normalizedUITestSleepTimeout(_ value: Int) -> CGFloat {
+        CGFloat(max(60, min(900, value)) - 60) / CGFloat(900 - 60)
+    }
+
     func readEvents() -> [UITestEvent] {
         guard let eventsURL,
               let data = try? Data(contentsOf: eventsURL),
@@ -397,6 +468,28 @@ class OpenSnekHardwareUITestCase: XCTestCase {
         attachment.name = "Missing OpenSnek UI hardware events"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    private func restoreUITestSleepTimeoutIfNeeded() {
+        guard let originalUITestSleepTimeout else {
+            return
+        }
+        if latestRecordedSleepTimeout() == originalUITestSleepTimeout {
+            return
+        }
+        _ = setSleepTimeoutFromUITestUI(originalUITestSleepTimeout, timeout: 3)
+    }
+
+    private func latestRecordedSleepTimeout() -> Int? {
+        for event in readEvents().reversed() where expectedScope.matches(event.scope) {
+            if let sleepTimeout = event.state?.sleepTimeout {
+                return sleepTimeout
+            }
+            if let sleepTimeout = event.patch?.sleepTimeout {
+                return sleepTimeout
+            }
+        }
+        return originalUITestSleepTimeout
     }
 
     private func terminateRunningOpenSnek() {
