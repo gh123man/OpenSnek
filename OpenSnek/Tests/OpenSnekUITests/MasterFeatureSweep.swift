@@ -170,11 +170,12 @@ final class MasterFeatureSweep {
     }
 
     private func exerciseOnboardProfileSurface() throws {
-        let card = try requireElement("onboard-profiles-card", timeout: 2)
-        testCase.scrollElementToVisible(card)
+        let pill = try requireElement("onboard-profile-pill-button", timeout: 2)
+        testCase.clickElement(pill)
 
+        let card = try requireElement("onboard-profiles-card", timeout: 5)
+        XCTAssertTrue(card.exists, "Onboard profile manager popover did not appear")
         let baseProfile = try requireElement("onboard-profile-row-1", timeout: 5)
-        testCase.scrollElementToVisible(baseProfile)
         testCase.clickElement(baseProfile)
 
         let nameField = try requireElement("onboard-profile-name-field", timeout: 2)
@@ -873,7 +874,7 @@ extension MasterFeatureSweep.Configuration {
         expectedSelectedDeviceName: "Razer Basilisk V3 Pro",
         expectedCards: [
             "dpi-stages-card",
-            "onboard-profiles-card",
+            "onboard-profile-pill-button",
             "lighting-card",
             "power-management-card",
             "poll-rate-card",
@@ -902,7 +903,7 @@ extension MasterFeatureSweep.Configuration {
         expectedSelectedDeviceName: nil,
         expectedCards: [
             "dpi-stages-card",
-            "onboard-profiles-card",
+            "onboard-profile-pill-button",
             "lighting-card",
             "button-mapping-card",
         ],
