@@ -709,7 +709,7 @@ Unresolved:
 
 ### RGB Lighting (Class 0x0F)
 
-**Status**: Partially implemented. Scroll wheel LED brightness and the zone-effect families below are implemented and hardware-validated. The per-LED Custom Frame command (`Cmd 0x03`) is decoded and hardware-validated on the Basilisk V3 Pro (see [docs/research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md](../research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md)) but not yet exposed in OpenSnek.
+**Status**: Partially implemented. Scroll wheel LED brightness and the zone-effect families below are implemented and hardware-validated. The per-LED Custom Frame command (`Cmd 0x03`) is decoded and hardware-validated on the Basilisk V3 Pro (see [docs/research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md](../research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md)) but not exposed in the OpenSnek app because observed Custom Frame state is volatile across mouse restart. Treat it as a software-driven frame buffer, not a persistable onboard lighting setting.
 
 ```
 Set Zone Effect:
@@ -729,7 +729,7 @@ Effects:
 Set Custom Frame (per-LED RGB):
   Command: Class 0x0F, ID 0x03, Size = 0x04 + 3 × cells
   Args:
-    [0]   = VARSTORE (0x01) — NOSTORE not yet tested
+    [0]   = storage byte; 0x01 accepted on V3 Pro but the frame still does not survive mouse restart
     [1]   = ROW (ignored by V3 Pro firmware; use 0x00)
     [2]   = START_COL
     [3]   = END_COL (inclusive; valid 0x00..0x0B on V3 Pro = 12 cells max)
@@ -741,6 +741,11 @@ all addressed LEDs — no separate switch-effect step is required.
 Hardware-validated on Basilisk V3 Pro USB (PID 0x00AA, firmware 0x02120000):
 12 cells covering 1 logo + 1 scroll wheel + 10 underglow LEDs. Razer Synapse
 exposes only 9 of the 10 underglow LEDs.
+
+Persistence note: unlike the normal zone-effect path (`Cmd 0x02`) and profile
+setting banks, Custom Frame state has been observed to clear on mouse restart.
+OpenSnek should not present this as saved device state unless a separate
+commit/readback path is decoded later.
 ```
 
 Probe support:

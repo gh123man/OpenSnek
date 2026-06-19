@@ -7,7 +7,7 @@ All notable changes to this project are documented in this file.
 ### Changed
 - Command execution no longer retries at the app or probe level: USB and Bluetooth command failures now surface instead of being hidden by repeated writes/readbacks, and Debug log level shows visible command failures as red command-failed notices with patch context in the log.
 - `OpenSnekProbe dpi-set` now performs one post-write verification read and removed the `--verify-retries` / `--verify-delay-ms` flags.
-- `OpenSnekProbe usb-lighting-frame` now writes Basilisk V3 Pro USB custom-frame lighting cells via `Class 0x0F Cmd 0x03`, converting conventional RGB input into the device's `[B,R,G]` frame byte order.
+- `OpenSnekProbe usb-lighting-frame` now writes Basilisk V3 Pro USB custom-frame lighting cells via `Class 0x0F Cmd 0x03`, converting conventional RGB input into the device's `[B,R,G]` frame byte order. The custom-frame path is documented as volatile/software-driven because the mouse does not restore this state after restart.
 - DPI stage selection from the UI now applies only the selected live stage instead of rewriting the full stage table when stage values were not edited.
 - Debug logs now identify DPI active-stage UI mutations, hydrators, backend snapshots, USB read resolution, and active-stage apply requests so stale-state overwrites can be traced from a single repro.
 - Basilisk V3 Pro USB active onboard-profile writes now refresh the active selector before readback so back-to-back profile-backed UI edits keep profile hydration available.
