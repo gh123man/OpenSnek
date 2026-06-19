@@ -830,6 +830,7 @@ struct LightingCard: View {
 
     @State private var selectedTab: LightingCardTab = .onboard
     @State private var onboardZoneMode: LightingZoneEditMode = .allZones
+    @State private var isExpanded = false
 
     private var accentBase: Color {
         Color(rgb: editorStore.editableColor)
@@ -919,6 +920,85 @@ struct LightingCard: View {
         softwareLightingStatus?.state == .running
     }
 
+    private var summarizesSoftwareLighting: Bool {
+        selected.supportsSoftwareLightingEffects &&
+            (softwareLightingIsRunning || editorStore.editableSoftwareLightingApplyOnConnect || selectedTab == .advanced)
+    }
+
+    private var lightingSummaryTitle: String {
+        if summarizesSoftwareLighting {
+            return "Advanced \(editorStore.editableSoftwareLightingPreset.label)"
+        }
+
+        return "Onboard \(editorStore.editableLightingEffect.label)"
+    }
+
+    private var lightingSummaryDetail: String {
+        if summarizesSoftwareLighting {
+            return softwareLightingSummaryDetail
+        }
+
+        return onboardLightingSummaryDetail
+    }
+
+    private var onboardLightingSummaryDetail: String {
+        var parts = ["\(brightnessPercent)% brightness"]
+
+        if editorStore.editableLightingEffect == .staticColor || !selected.supports_advanced_lighting_effects {
+            if showsStaticLightingZoneControls {
+                parts.append(onboardZoneMode == .individualZones ? "Individual zones" : "All zones")
+            } else {
+                parts.append(hexString(editorStore.editableColor))
+            }
+        } else {
+            if editorStore.editableLightingEffect.usesWaveDirection {
+                parts.append(editorStore.editableLightingWaveDirection.label)
+            }
+            if editorStore.editableLightingEffect.usesReactiveSpeed {
+                parts.append("Speed \(editorStore.editableLightingReactiveSpeed)")
+            }
+        }
+
+        parts.append("Stored on device")
+        return parts.joined(separator: " | ")
+    }
+
+    private var softwareLightingSummaryDetail: String {
+        var parts: [String] = []
+        if softwareLightingIsRunning {
+            parts.append("Running")
+        } else {
+            parts.append("Ready")
+        }
+
+        parts.append(softwareLightingSpeedSummary)
+        parts.append("\(softwareLightingPaletteColorCount) colors")
+        parts.append(editorStore.editableSoftwareLightingApplyOnConnect ? "Apply on connect" : "Manual apply")
+        return parts.joined(separator: " | ")
+    }
+
+    private var softwareLightingPaletteColorCount: Int {
+        editorStore.editableSoftwareLightingPalette(for: editorStore.editableSoftwareLightingPreset).count
+    }
+
+    private var softwareLightingSpeedSummary: String {
+        editorStore.editableSoftwareLightingSpeed <= 0.001
+            ? "Static"
+            : "\(Int(round(editorStore.editableSoftwareLightingSpeed * 100)))% speed"
+    }
+
+    private var lightingSummarySwatches: [RGBColor] {
+        let source: [RGBColor]
+        if summarizesSoftwareLighting {
+            source = editorStore.editableSoftwareLightingPalette(for: editorStore.editableSoftwareLightingPreset)
+        } else {
+            let colors = editorStore.lightingGradientDisplayColors
+            source = colors.isEmpty ? [editorStore.editableColor] : colors
+        }
+
+        return condensedSwatches(from: source)
+    }
+
     private var advancedStatusText: String? {
         guard let status = softwareLightingStatus else { return nil }
         switch status.state {
@@ -929,6 +1009,23 @@ struct LightingCard: View {
         case .stopped:
             return nil
         }
+    }
+
+    private func condensedSwatches(from colors: [RGBColor]) -> [RGBColor] {
+        var uniqueColors: [RGBColor] = []
+        for color in colors {
+            if !uniqueColors.contains(color) {
+                uniqueColors.append(color)
+            }
+            if uniqueColors.count == 6 {
+                break
+            }
+        }
+        return uniqueColors.isEmpty ? [editorStore.editableColor] : uniqueColors
+    }
+
+    private func hexString(_ color: RGBColor) -> String {
+        String(format: "#%02X%02X%02X", color.r, color.g, color.b)
     }
 
     private var tabSelection: Binding<LightingCardTab> {
@@ -1212,12 +1309,21 @@ struct LightingCard: View {
 
     var body: some View {
         Card(title: "Lighting", accessibilityIdentifier: "lighting-card") {
-            tabPicker()
+            lightingSummaryRow()
 
-            if selectedTab == .onboard {
-                onboardControls()
-            } else {
-                advancedLightingControls()
+            if isExpanded {
+                Rectangle()
+                    .fill(Color.white.opacity(0.12))
+                    .frame(height: 1)
+                    .padding(.vertical, 2)
+
+                tabPicker()
+
+                if selectedTab == .onboard {
+                    onboardControls()
+                } else {
+                    advancedLightingControls()
+                }
             }
         }
         .background(
@@ -1235,12 +1341,56 @@ struct LightingCard: View {
         }
         .onChange(of: selected.id) {
             selectedTab = preferredLightingTab
+            isExpanded = false
         }
         .onChange(of: editorStore.editableSoftwareLightingApplyOnConnect) { _, enabled in
             if enabled && selected.supportsSoftwareLightingEffects {
                 selectedTab = .advanced
             }
         }
+    }
+
+    private func lightingSummaryRow() -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(lightingSummaryTitle)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.88))
+                    .lineLimit(1)
+
+                Text(lightingSummaryDetail)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("lighting-card-summary-text")
+            }
+
+            Spacer(minLength: 10)
+
+            HStack(spacing: -3) {
+                ForEach(Array(lightingSummarySwatches.enumerated()), id: \.offset) { _, color in
+                    Circle()
+                        .fill(Color(rgb: color))
+                        .frame(width: 15, height: 15)
+                        .overlay(Circle().stroke(Color.white.opacity(0.62), lineWidth: 1))
+                }
+            }
+            .padding(.horizontal, 3)
+            .accessibilityHidden(true)
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.16)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                Label(isExpanded ? "Collapse" : "Expand", systemImage: isExpanded ? "chevron.up" : "chevron.down")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .accessibilityIdentifier("lighting-card-expand-button")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder

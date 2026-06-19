@@ -6,6 +6,7 @@ final class V3ProUSBSoftwareLightingUITests: OpenSnekHardwareUITestCase {
     }
 
     override func restoreHardwareStateIfNeeded() {
+        expandLightingCardIfNeeded(timeout: 1)
         let stopButton = app.descendants(matching: .any)["software-lighting-stop-button"]
         if stopButton.exists {
             clickElement(stopButton)
@@ -26,6 +27,11 @@ final class V3ProUSBSoftwareLightingUITests: OpenSnekHardwareUITestCase {
         let lightingCard = app.descendants(matching: .any)["lighting-card"]
         XCTAssertTrue(lightingCard.waitForExistence(timeout: 2), "Lighting card did not appear")
         scrollElementToVisible(lightingCard)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["lighting-card-summary-text"].waitForExistence(timeout: 1),
+            "Collapsed lighting summary did not appear"
+        )
+        expandLightingCardIfNeeded()
 
         let tabPicker = app.descendants(matching: .any)["lighting-card-tab-picker"]
         XCTAssertTrue(tabPicker.waitForExistence(timeout: 1), "Lighting tab picker did not appear")
@@ -50,6 +56,24 @@ final class V3ProUSBSoftwareLightingUITests: OpenSnekHardwareUITestCase {
 
         assertNoDisconnectedEventsOverInterval(2.0)
         assertSelectedDeviceNeverDisconnected(context: "after repeated advanced Apply")
+    }
+
+    private func expandLightingCardIfNeeded(timeout: TimeInterval = 2) {
+        let tabPicker = app.descendants(matching: .any)["lighting-card-tab-picker"]
+        if tabPicker.exists {
+            return
+        }
+
+        let lightingCard = app.descendants(matching: .any)["lighting-card"]
+        if lightingCard.exists {
+            scrollElementToVisible(lightingCard)
+        }
+
+        let expandButton = app.descendants(matching: .any)["lighting-card-expand-button"]
+        if expandButton.waitForExistence(timeout: timeout) {
+            scrollElementToVisible(expandButton)
+            clickElement(expandButton)
+        }
     }
 
     private func assertOnboardLightingControlsExist() {
