@@ -1827,7 +1827,7 @@ private struct OnboardProfilePillButton: View {
             HStack(spacing: 6) {
                 Circle()
                     .fill(onboardProfileSlotColor(activeProfileID))
-                    .frame(width: 18, height: 18)
+                    .frame(width: 9, height: 9)
                     .overlay(
                         Circle()
                             .stroke(Color.white.opacity(0.38), lineWidth: 1)
