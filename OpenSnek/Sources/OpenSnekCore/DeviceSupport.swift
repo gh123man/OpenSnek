@@ -432,11 +432,6 @@ public enum DeviceProfiles {
 
     public static let basiliskV3ProBluetoothDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
         DocumentedButtonSlot(
-            descriptor: ButtonSlotDescriptor(slot: 15, friendlyName: "Sensitivity Clutch", defaultKind: .default),
-            access: .softwareReadOnly,
-            note: "The V3 Pro Bluetooth path needs a capture-backed clutch action block before OpenSnek can remap or restore this button safely."
-        ),
-        DocumentedButtonSlot(
             descriptor: ButtonSlotDescriptor(slot: 106, friendlyName: "Profile Button", defaultKind: .default),
             access: .softwareReadOnly,
             note: "The V3 Pro Bluetooth path still needs capture-backed profile-button defaults before OpenSnek can expose this control."
@@ -651,7 +646,7 @@ public enum DeviceProfiles {
         supportedProducts: [0x00AC],
         buttonLayout: ButtonSlotLayout(
             visibleSlots: basiliskV3ProBluetoothButtonSlots,
-            writableSlots: [1, 2, 3, 4, 5, 9, 10, 52, 53],
+            writableSlots: [1, 2, 3, 4, 5, 9, 10, 15, 52, 53],
             documentedSlots: basiliskV3ProBluetoothDocumentedReadOnlySlots
         ),
         supportsAdvancedLightingEffects: false,

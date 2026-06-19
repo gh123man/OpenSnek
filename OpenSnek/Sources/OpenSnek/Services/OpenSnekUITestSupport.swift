@@ -484,6 +484,8 @@ private struct OpenSnekUITestOnboardProfileMutationSnapshot: Encodable {
     let dpiStages: [Int]?
     let dpiStagePairs: [OpenSnekUITestDpiPairSnapshot]?
     let buttonBindingSlots: [Int]?
+    let buttonBindingKindsBySlot: [String: String]?
+    let buttonBindingClutchDPIBySlot: [String: Int]?
     let brightnessByLEDID: [String: Int]?
     let staticColorLEDIDs: [Int]?
     let scrollMode: Int?
@@ -496,6 +498,14 @@ private struct OpenSnekUITestOnboardProfileMutationSnapshot: Encodable {
         dpiStages = mutation.dpi?.values
         dpiStagePairs = mutation.dpi?.pairs.map(OpenSnekUITestDpiPairSnapshot.init)
         buttonBindingSlots = mutation.buttonBindings?.keys.sorted()
+        buttonBindingKindsBySlot = mutation.buttonBindings.map { bindings in
+            Dictionary(uniqueKeysWithValues: bindings.map { (String($0.key), $0.value.kind.rawValue) })
+        }
+        buttonBindingClutchDPIBySlot = mutation.buttonBindings.map { bindings in
+            Dictionary(uniqueKeysWithValues: bindings.compactMap { slot, draft in
+                draft.clutchDPI.map { (String(slot), $0) }
+            })
+        }
         brightnessByLEDID = mutation.brightnessByLEDID.map { values in
             Dictionary(uniqueKeysWithValues: values.map { (String($0.key), $0.value) })
         }

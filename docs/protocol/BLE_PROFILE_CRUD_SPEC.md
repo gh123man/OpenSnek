@@ -254,6 +254,9 @@ Examples:
 |---|---|---|
 | Stored target `2`, Button5, keyboard HID `0x09` | `08 04 02 05` | `02 05 00 02 02 00 09 00 00 00` |
 | Stored target `3`, Button5, mouse Button5 | `08 04 03 05` | `03 05 01 01 01 05 00 00 00 00` |
+| Stored target `4`, Sensitivity Clutch, right click / Synapse "Menu" | `08 04 04 0F` | `04 0F 00 01 01 02 00 00 00 00` |
+| Stored target `4`, Sensitivity Clutch, 800-DPI clutch | `08 04 04 0F` | `04 0F 00 06 05 05 03 20 03 20` |
+| Live target `1`, Sensitivity Clutch, 800-DPI clutch | `08 04 01 0F` | `01 0F 00 06 05 05 03 20 03 20` |
 
 Readback through `08 84` can return duplicated or interleaved lanes. For the
 observed 16-byte shape, after the leading `<slot> 00` prefix, the even lane forms
@@ -262,6 +265,11 @@ default block. The client must prefer the even lane when it decodes instead of
 preferring a default block from the odd lane. Wheel-tilt default readback can use
 the shortened horizontal-scroll block `0e 01 68 00 14 00 00` / `0e 01 69 00 14
 00 00`; treat that as the slot default for `0x34` / `0x35`.
+
+The Basilisk V3 Pro Bluetooth sensitivity-clutch block on slot `0x0F` uses
+function block `06 05 05 <x_be16> <y_be16>`. Synapse writes the stored profile
+target and then live target `1`; the captured 800-DPI pass wrote both target `4`
+and target `1` with `03 20 03 20`.
 
 ## Profile-Scoped And Global Surfaces
 

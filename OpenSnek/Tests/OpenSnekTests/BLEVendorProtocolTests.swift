@@ -409,6 +409,53 @@ final class BLEVendorProtocolTests: XCTestCase {
         XCTAssertEqual(Array(payload), [0x01, 0x04, 0x00, 0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00])
     }
 
+    func testButtonPayloadDPIClutchUsesV3ProCaptureBackedDefault() {
+        let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x0F, kind: .dpiClutch, hidKey: nil)
+        XCTAssertEqual(Array(payload), [0x01, 0x0F, 0x00, 0x06, 0x05, 0x05, 0x01, 0x90, 0x01, 0x90])
+    }
+
+    func testButtonPayloadDPIClutchUsesBigEndianConfiguredDPI() {
+        let payload = BLEVendorProtocol.buildButtonPayload(
+            slot: 0x0F,
+            kind: .dpiClutch,
+            hidKey: nil,
+            clutchDPI: 800
+        )
+        XCTAssertEqual(Array(payload), [0x01, 0x0F, 0x00, 0x06, 0x05, 0x05, 0x03, 0x20, 0x03, 0x20])
+    }
+
+    func testButtonPayloadDPIClutchRetargetsToStoredProfile() {
+        let livePayload = BLEVendorProtocol.buildButtonPayload(
+            slot: 0x0F,
+            kind: .dpiClutch,
+            hidKey: nil,
+            clutchDPI: 800
+        )
+        let storedPayload = BLEVendorProtocol.retargetButtonPayload(livePayload, target: 0x04, slot: 0x0F)
+        XCTAssertEqual(Array(storedPayload), [0x04, 0x0F, 0x00, 0x06, 0x05, 0x05, 0x03, 0x20, 0x03, 0x20])
+    }
+
+    func testBluetoothClutchReadbackPreservesConfiguredDPI() {
+        let payload = Data([0x0F, 0x00, 0x06, 0x06, 0x05, 0x05, 0x05, 0x05, 0x03, 0x03, 0x20, 0x20, 0x03, 0x03, 0x20, 0x20])
+        let block = BLEVendorProtocol.extractBluetoothFunctionBlock(
+            payload: payload,
+            target: 0x01,
+            slot: 0x0F,
+            profileID: .basiliskV3Pro
+        )
+        let draft = block.flatMap {
+            ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
+                slot: 15,
+                functionBlock: $0,
+                profileID: .basiliskV3Pro
+            )
+        }
+
+        XCTAssertEqual(block, [0x06, 0x05, 0x05, 0x03, 0x20, 0x03, 0x20])
+        XCTAssertEqual(draft?.kind, .dpiClutch)
+        XCTAssertEqual(draft?.clutchDPI, 800)
+    }
+
     func testScrollLEDEffectStaticArgs() {
         let args = BLEVendorProtocol.buildScrollLEDEffectArgs(
             effect: LightingEffectPatch(

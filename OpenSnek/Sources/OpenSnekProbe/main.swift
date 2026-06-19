@@ -715,7 +715,7 @@ enum OpenSnekProbe {
           OpenSnekProbe bt-profile-active-set --target 3 --yes [--name "BSK V3 PRO"]
           OpenSnekProbe bt-profile-create --stored-slot 1 --profile-name OPENSNEK_MAC_SLOT_1 --yes [--name "BSK V3 PRO"]
           OpenSnekProbe bt-profile-button-read --stored-slot 1 --button-slot 5 [--name "BSK V3 PRO"]
-          OpenSnekProbe bt-profile-button-set --stored-slot 1 --button-slot 5 [--kind keyboard_simple] [--hid-key 0x09] [--project-live on|off] --yes [--name "BSK V3 PRO"]
+          OpenSnekProbe bt-profile-button-set --stored-slot 1 --button-slot 5 [--kind keyboard_simple] [--hid-key 0x09] [--clutch-dpi 800] [--project-live on|off] --yes [--name "BSK V3 PRO"]
           OpenSnekProbe bt-profile-hid-watch [--pid 0x00ac] [--name "BSK V3 PRO"] [--duration 20] [--max-reports 0]
           OpenSnekProbe bt-profile-watch [--name "BSK V3 PRO"] [--slot 4] [--poll-ms 1000] [--samples 20] [--timeout-ms 900]
           OpenSnekProbe bt-lighting-info [--zone all|scroll_wheel|logo|underglow] [--name "BSK V3 PRO"]
@@ -1174,13 +1174,15 @@ enum OpenSnekProbe {
             let hidModifiers = parseUInt8(flags["--hid-modifiers"] ?? "") ?? 0x00
             let turboEnabled = parseBoolean(flags["--turbo"] ?? "off")
             let turboRate = UInt16(max(1, min(255, Int(flags["--turbo-rate"] ?? "142") ?? 142)))
+            let clutchDPI = Int(flags["--clutch-dpi"] ?? "").map { max(100, min(30_000, $0)) }
             let livePayload = BLEVendorProtocol.buildButtonPayload(
                 slot: buttonSlot,
                 kind: kind,
                 hidKey: hidKey,
                 hidModifiers: hidModifiers,
                 turboEnabled: turboEnabled && kind.supportsTurbo,
-                turboRate: turboRate
+                turboRate: turboRate,
+                clutchDPI: clutchDPI
             )
             payload = Array(BLEVendorProtocol.retargetButtonPayload(livePayload, target: target, slot: buttonSlot))
         }

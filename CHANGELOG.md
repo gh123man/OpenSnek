@@ -8,6 +8,7 @@ All notable changes to this project are documented in this file.
 - Command execution no longer retries at the app or probe level: USB and Bluetooth command failures now surface instead of being hidden by repeated writes/readbacks, and Debug log level shows visible command failures as red command-failed notices with patch context in the log.
 - `OpenSnekProbe dpi-set` now performs one post-write verification read and removed the `--verify-retries` / `--verify-delay-ms` flags.
 - `OpenSnekProbe usb-lighting-frame` now writes Basilisk V3 Pro USB custom-frame lighting cells via `Class 0x0F Cmd 0x03`, converting conventional RGB input into the device's `[B,R,G]` frame byte order. The custom-frame path is documented as volatile/software-driven because the mouse does not restore this state after restart.
+- Documented and enabled capture-backed Basilisk V3 Pro Bluetooth sensitivity-clutch writes on slot `0x0F`, including right-click assignment plus 400-DPI and 800-DPI clutch payloads across stored target `4` and live target `1`.
 - DPI stage selection from the UI now applies only the selected live stage instead of rewriting the full stage table when stage values were not edited.
 - Debug logs now identify DPI active-stage UI mutations, hydrators, backend snapshots, USB read resolution, and active-stage apply requests so stale-state overwrites can be traced from a single repro.
 - Basilisk V3 Pro USB active onboard-profile writes now refresh the active selector before readback so back-to-back profile-backed UI edits keep profile hydration available.
@@ -16,6 +17,7 @@ All notable changes to this project are documented in this file.
 ### Fixed
 - DPI stage selection no longer briefly snaps back to the previous stage when stale telemetry arrives before the apply result, including mapped onboard-profile devices whose live DPI readback can lag behind the stored profile update.
 - Bluetooth onboard-profile DPI edits no longer let a stale profile refresh briefly roll the visible DPI field and slider back to the previous value while the write is still in flight.
+- Bluetooth onboard-profile button binding edits no longer let a stale button readback overwrite the newer local UI edit while the write is still in flight.
 - Bluetooth DPI-stage selection now follows live DPI changes from the mouse even when passive telemetry reports a stale active-stage token.
 - USB scroll mode controls now follow live wheel-mode changes from the mouse even when the cached active onboard-profile snapshot still has the previous scroll mode.
 - USB state refresh now resolves the active DPI stage from the live DPI value when the stage-table active token is stale.

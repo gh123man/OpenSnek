@@ -1,0 +1,12 @@
+﻿{
+    "name":  "idle-baseline-before-dpi-clutch",
+    "captureStart":  "2026-06-18T22:42:23.6419669-04:00",
+    "captureEnd":  "2026-06-18T22:42:40.6369625-04:00",
+    "seconds":  15,
+    "port":  24400,
+    "requestedPort":  24400,
+    "pcap":  "captures\\ble\\windows\\2026-06-18-224213-idle-baseline-before-dpi-clutch\\capture.pcapng",
+    "attCsv":  "captures\\ble\\windows\\2026-06-18-224213-idle-baseline-before-dpi-clutch\\att.csv",
+    "vendorCsv":  "captures\\ble\\windows\\2026-06-18-224213-idle-baseline-before-dpi-clutch\\vendor-att.csv",
+    "synapseLogRoot":  "C:\\Users\\gh123\\AppData\\Local\\Razer\\RazerAppEngine\\User Data\\Logs"
+}

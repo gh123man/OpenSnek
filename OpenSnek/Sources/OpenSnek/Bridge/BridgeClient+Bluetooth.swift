@@ -648,7 +648,8 @@ extension BridgeClient {
         hidKey: UInt8,
         hidModifiers: UInt8,
         turboEnabled: Bool,
-        turboRate: UInt16
+        turboRate: UInt16,
+        clutchDPI: Int? = nil
     ) async throws -> Bool {
         let payload = BLEVendorProtocol.buildButtonPayload(
             slot: slot,
@@ -656,7 +657,8 @@ extension BridgeClient {
             hidKey: hidKey,
             hidModifiers: hidModifiers,
             turboEnabled: turboEnabled,
-            turboRate: turboRate
+            turboRate: turboRate,
+            clutchDPI: clutchDPI
         )
         let req = nextBTReq()
         let header = BLEVendorProtocol.buildWriteHeader(req: req, payloadLength: 0x0A, key: .buttonBind(slot: slot))

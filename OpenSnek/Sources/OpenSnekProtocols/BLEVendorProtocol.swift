@@ -557,9 +557,17 @@ public enum BLEVendorProtocol {
         hidKey: UInt8?,
         hidModifiers: UInt8 = 0,
         turboEnabled: Bool = false,
-        turboRate: UInt16? = nil
+        turboRate: UInt16? = nil,
+        clutchDPI: Int? = nil
     ) -> Data {
         let clampedTurboRate = max(UInt16(1), min(UInt16(0x00FF), turboRate ?? 0x008E))
+        func clutchBytes() -> (UInt8, UInt8) {
+            let clamped = UInt16(DeviceProfiles.clampDPI(
+                clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI,
+                profileID: .basiliskV3Pro
+            ))
+            return (UInt8((clamped >> 8) & 0xFF), UInt8(clamped & 0xFF))
+        }
         if turboEnabled {
             if kind == .keyboardSimple {
                 let key = hidKey ?? 0x04
@@ -612,8 +620,8 @@ public enum BLEVendorProtocol {
         case .dpiCycle:
             return Data([0x01, slot, 0x00, 0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00])
         case .dpiClutch:
-            // This action is only validated on the V3 Pro USB path.
-            return Data([0x01, slot, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+            let (hi, lo) = clutchBytes()
+            return Data([0x01, slot, 0x00, 0x06, 0x05, 0x05, hi, lo, hi, lo])
         case .leftClick:
             return Data([0x01, slot, 0x00, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00])
         case .rightClick:

@@ -546,7 +546,7 @@ Field meanings:
 | `0x00` | clear layer override | uses `layer=0x01`, params all zero |
 | `0x01` | mouse button action | `p0 = (button_id << 8) | 0x01` |
 | `0x02` | simple keyboard action | function data is `modifier byte, HID key` |
-| `0x06` | DPI-cycle default restore | used only for slot `0x60` default |
+| `0x06` | DPI action | `p0 = 0x0601` for slot `0x60` DPI-cycle default; `p0 = 0x0505`, `p1/p2 = dpi_be16` for Basilisk V3 Pro Bluetooth slot `0x0F` DPI clutch |
 | `0x0D` | keyboard turbo action | function data is `modifier byte, HID key, turbo rate` |
 | `0x0E` | mouse turbo action | `p0 = ((button_id - 1) << 8) | 0x0003`, `p1 = turbo rate` |
 
@@ -565,6 +565,22 @@ Observed Basilisk V3 Pro Bluetooth button-read format:
   - `08 84 01 34` -> payload `34 00 0e 0e 03 03 68 68 00 00 14 14 00 00 00 00` -> function block `0e 03 68 00 14 00 00`
   - `08 84 01 0f` -> payload `0f 00 06 06 05 05 05 05 01 01 90 90 01 01 90 90` -> function block `06 05 05 01 90 01 90`
   - `08 84 01 6a` -> payload `6a 00 12 12 01 01 01 01 00 00 00 00 00 00 00 00` -> function block `12 01 01 00 00 00 00`
+
+Observed Basilisk V3 Pro Bluetooth sensitivity-clutch writes on slot `0x0F`:
+- Synapse writes the selected stored target and then the live/projection target `1`.
+- In the captured pass, the selected stored target was `4`; the same 7-byte function block was retargeted by replacing the first payload byte.
+- Right click / Synapse "Menu":
+  - `08 04 04 0F` payload `04 0F 00 01 01 02 00 00 00 00`
+  - `08 04 01 0F` payload `01 0F 00 01 01 02 00 00 00 00`
+- DPI clutch at 400 DPI:
+  - `08 04 04 0F` payload `04 0F 00 06 05 05 01 90 01 90`
+  - `08 04 01 0F` payload `01 0F 00 06 05 05 01 90 01 90`
+- DPI clutch at 800 DPI:
+  - `08 04 04 0F` payload `04 0F 00 06 05 05 03 20 03 20`
+  - `08 04 01 0F` payload `01 0F 00 06 05 05 03 20 03 20`
+- The clutch DPI is encoded big-endian inside the 7-byte function block even
+  though the generic `p0/p1/p2` table names those fields as little-endian
+  action parameters.
 
 Observed Basilisk V3 Pro Bluetooth exception:
 - wheel-tilt horizontal scroll does not use the older plain mouse-action form on the validated BT path
@@ -617,6 +633,12 @@ Special case:
 - slot `0x60` default binding (top DPI button -> DPI cycle):
   - `01 60 00 06 01 06 00 00 00 00`
 
+- Basilisk V3 Pro Bluetooth slot `0x0F` default binding (sensitivity clutch, 400 DPI):
+  - `01 0F 00 06 05 05 01 90 01 90`
+
+- Basilisk V3 Pro Bluetooth slot `0x0F` 800-DPI clutch binding:
+  - `01 0F 00 06 05 05 03 20 03 20`
+
 #### 6.5.4 Slot Coverage
 
 Validated writable slots in current project:
@@ -628,6 +650,9 @@ Validated writable slots in current project:
 - `0x09`
 - `0x0A`
 - `0x60`
+
+Capture-validated but not enabled in the app UI yet:
+- `0x0F` on Basilisk V3 Pro Bluetooth for sensitivity-clutch remap/restore
 
 Known rejection:
 - slot `0x06` returns error status `0x03` on the validated BLE key family and is treated as software-read-only / unsupported for remapping on the current BLE vendor path
