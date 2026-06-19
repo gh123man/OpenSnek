@@ -37,6 +37,7 @@ actor SoftwareLightingEngine {
     private var deviceIDByDeviceKey: [String: String] = [:]
     private var statusByDeviceKey: [String: SoftwareLightingEngineStatus] = [:]
     private var statusByDeviceID: [String: SoftwareLightingEngineStatus] = [:]
+    private var generationByDeviceKey: [String: UInt64] = [:]
 
     init(
         frameWriter: any SoftwareLightingFrameWriting,
@@ -74,9 +75,13 @@ actor SoftwareLightingEngine {
         }
 
         let deviceKey = Self.lightingDeviceKey(for: device)
-        if let previousTask = tasksByDeviceKey.removeValue(forKey: deviceKey) {
+        let generation = nextGeneration(for: deviceKey)
+        if let previousTask = tasksByDeviceKey[deviceKey] {
             previousTask.cancel()
             await previousTask.value
+        }
+        guard generationByDeviceKey[deviceKey] == generation else {
+            return supersededStatus(deviceID: device.id, deviceKey: deviceKey)
         }
         if let previousDeviceID = deviceIDByDeviceKey[deviceKey],
            previousDeviceID != device.id {
@@ -108,6 +113,7 @@ actor SoftwareLightingEngine {
             await self?.run(
                 device: device,
                 deviceKey: deviceKey,
+                generation: generation,
                 layout: layout,
                 request: request,
                 frameInterval: frameInterval
@@ -119,15 +125,20 @@ actor SoftwareLightingEngine {
     @discardableResult
     func stop(deviceID: String) async -> SoftwareLightingEngineStatus? {
         let deviceKey = deviceKeyByDeviceID[deviceID] ?? deviceID
-        if let previousTask = tasksByDeviceKey.removeValue(forKey: deviceKey) {
+        let generation = nextGeneration(for: deviceKey)
+        if let previousTask = tasksByDeviceKey[deviceKey] {
             previousTask.cancel()
             await previousTask.value
+        }
+        guard generationByDeviceKey[deviceKey] == generation else {
+            return supersededStatus(deviceID: deviceID, deviceKey: deviceKey)
         }
         let statusDeviceID = deviceIDByDeviceKey[deviceKey] ?? deviceID
         desiredRequestByDeviceKey.removeValue(forKey: deviceKey)
         deviceByDeviceKey.removeValue(forKey: deviceKey)
         statusByDeviceKey.removeValue(forKey: deviceKey)
         deviceIDByDeviceKey.removeValue(forKey: deviceKey)
+        tasksByDeviceKey.removeValue(forKey: deviceKey)
         removeAliases(for: deviceKey)
 
         let status = SoftwareLightingEngineStatus(
@@ -148,11 +159,16 @@ actor SoftwareLightingEngine {
         guard let request = desiredRequestByDeviceKey[deviceKey] else {
             return nil
         }
-        if let previousTask = tasksByDeviceKey.removeValue(forKey: deviceKey) {
+        let generation = nextGeneration(for: deviceKey)
+        if let previousTask = tasksByDeviceKey[deviceKey] {
             previousTask.cancel()
             await previousTask.value
         }
+        guard generationByDeviceKey[deviceKey] == generation else {
+            return supersededStatus(deviceID: deviceID, deviceKey: deviceKey)
+        }
         deviceByDeviceKey.removeValue(forKey: deviceKey)
+        tasksByDeviceKey.removeValue(forKey: deviceKey)
         let statusDeviceID = deviceIDByDeviceKey[deviceKey] ?? deviceID
         let status = SoftwareLightingEngineStatus(
             deviceID: statusDeviceID,
@@ -175,6 +191,7 @@ actor SoftwareLightingEngine {
     private func run(
         device: MouseDevice,
         deviceKey: String,
+        generation: UInt64,
         layout: SoftwareLightingFrameLayout,
         request: SoftwareLightingEffectRequest,
         frameInterval: TimeInterval
@@ -183,6 +200,7 @@ actor SoftwareLightingEngine {
         var consecutiveFailures = 0
 
         while !Task.isCancelled {
+            guard isCurrent(deviceKey: deviceKey, generation: generation) else { return }
             let frameStartedAt = Date()
             let elapsed = frameStartedAt.timeIntervalSince(startedAt)
             let frame = SoftwareLightingRenderer.render(
@@ -193,14 +211,17 @@ actor SoftwareLightingEngine {
 
             do {
                 try await frameWriter.writeSoftwareLightingFrame(device: device, frame: frame)
+                guard isCurrent(deviceKey: deviceKey, generation: generation) else { return }
                 consecutiveFailures = 0
             } catch {
                 guard !Task.isCancelled else { return }
+                guard isCurrent(deviceKey: deviceKey, generation: generation) else { return }
                 consecutiveFailures += 1
                 if consecutiveFailures >= failureLimit {
                     fail(
                         deviceID: device.id,
                         deviceKey: deviceKey,
+                        generation: generation,
                         request: request,
                         message: error.localizedDescription
                     )
@@ -218,7 +239,14 @@ actor SoftwareLightingEngine {
         }
     }
 
-    private func fail(deviceID: String, deviceKey: String, request: SoftwareLightingEffectRequest, message: String) {
+    private func fail(
+        deviceID: String,
+        deviceKey: String,
+        generation: UInt64,
+        request: SoftwareLightingEffectRequest,
+        message: String
+    ) {
+        guard isCurrent(deviceKey: deviceKey, generation: generation) else { return }
         tasksByDeviceKey.removeValue(forKey: deviceKey)?.cancel()
         desiredRequestByDeviceKey.removeValue(forKey: deviceKey)
         deviceByDeviceKey.removeValue(forKey: deviceKey)
@@ -239,6 +267,31 @@ actor SoftwareLightingEngine {
         statusUpdates.yield(status)
     }
 
+    private func nextGeneration(for deviceKey: String) -> UInt64 {
+        let generation = generationByDeviceKey[deviceKey, default: 0] &+ 1
+        generationByDeviceKey[deviceKey] = generation
+        return generation
+    }
+
+    private func isCurrent(deviceKey: String, generation: UInt64) -> Bool {
+        generationByDeviceKey[deviceKey] == generation
+    }
+
+    private func supersededStatus(deviceID: String, deviceKey: String) -> SoftwareLightingEngineStatus {
+        if let status = statusByDeviceKey[deviceKey] {
+            return status
+        }
+        if let status = statusByDeviceID[deviceID] {
+            return status
+        }
+        return SoftwareLightingEngineStatus(
+            deviceID: deviceID,
+            state: .stopped,
+            request: nil,
+            message: nil
+        )
+    }
+
     private func removeAliases(for deviceKey: String) {
         for (deviceID, key) in deviceKeyByDeviceID where key == deviceKey {
             deviceKeyByDeviceID.removeValue(forKey: deviceID)
@@ -246,23 +299,6 @@ actor SoftwareLightingEngine {
     }
 
     private static func lightingDeviceKey(for device: MouseDevice) -> String {
-        if let serial = DevicePersistenceKeys.normalizedStableSerial(device.serial) {
-            return "serial:\(serial)"
-        }
-        if device.location_id != 0 {
-            return String(
-                format: "vplt:%04x:%04x:%@:%08x",
-                device.vendor_id,
-                device.product_id,
-                device.transport.rawValue,
-                device.location_id
-            )
-        }
-        return String(
-            format: "vp:%04x:%04x:%@",
-            device.vendor_id,
-            device.product_id,
-            device.transport.rawValue
-        )
+        DevicePersistenceKeys.key(for: device)
     }
 }

@@ -277,7 +277,8 @@ public enum SoftwareLightingRenderer {
         time: TimeInterval,
         intensity: Double
     ) -> RGBPatch {
-        let hue = normalizedPosition(index: index, count: count) - time * 0.18
+        let phase = positiveFraction(time * 0.18)
+        let hue = cyclicPosition(index: index, count: count) - phase
         return scaledColor(samplePalette(palette, position: hue, cyclic: true), scale: 0.95 * intensity)
     }
 
@@ -316,6 +317,11 @@ public enum SoftwareLightingRenderer {
     private static func normalizedPosition(index: Int, count: Int) -> Double {
         guard count > 1 else { return 0 }
         return Double(index) / Double(count - 1)
+    }
+
+    private static func cyclicPosition(index: Int, count: Int) -> Double {
+        guard count > 0 else { return 0 }
+        return Double(index) / Double(count)
     }
 
     private static func circularDistance(_ a: Double, _ b: Double, _ count: Double) -> Double {
@@ -395,6 +401,10 @@ public enum SoftwareLightingRenderer {
 
     private static func positiveFraction(_ value: Double) -> Double {
         let fraction = value - floor(value)
-        return fraction < 0 ? fraction + 1.0 : fraction
+        let positive = fraction < 0 ? fraction + 1.0 : fraction
+        if positive < 1e-12 || 1.0 - positive < 1e-12 {
+            return 0
+        }
+        return positive
     }
 }

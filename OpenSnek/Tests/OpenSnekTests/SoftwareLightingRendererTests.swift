@@ -108,6 +108,72 @@ final class SoftwareLightingRendererTests: XCTestCase {
         }
     }
 
+    func testScrollingRainbowLoopsCleanlyForCustomPalettes() {
+        let palettes = [
+            [
+                RGBPatch(r: 255, g: 0, b: 0),
+                RGBPatch(r: 0, g: 255, b: 0),
+            ],
+            [
+                RGBPatch(r: 255, g: 0, b: 0),
+                RGBPatch(r: 0, g: 255, b: 0),
+                RGBPatch(r: 0, g: 0, b: 255),
+                RGBPatch(r: 255, g: 255, b: 0),
+            ],
+        ]
+        let period = 1.0 / (0.18 * SoftwareLightingPresetID.scrollingRainbow.renderSpeedMultiplier)
+
+        for palette in palettes {
+            let request = SoftwareLightingEffectRequest(
+                presetID: .scrollingRainbow,
+                palette: palette
+            )
+            let first = SoftwareLightingRenderer.render(
+                request: request,
+                layout: .basiliskV3ProUSB,
+                elapsedTime: 0.0
+            )
+            let looped = SoftwareLightingRenderer.render(
+                request: request,
+                layout: .basiliskV3ProUSB,
+                elapsedTime: period
+            )
+
+            XCTAssertEqual(looped.colors, first.colors)
+        }
+    }
+
+    func testScrollingRainbowUsesCyclicCellSpacing() {
+        let request = SoftwareLightingEffectRequest(
+            presetID: .scrollingRainbow,
+            palette: [
+                RGBPatch(r: 255, g: 0, b: 0),
+                RGBPatch(r: 0, g: 255, b: 0),
+                RGBPatch(r: 0, g: 0, b: 255),
+            ]
+        )
+        let layout = SoftwareLightingFrameLayout.basiliskV3ProUSB
+        let oneCellShiftTime = 1.0 / (
+            Double(layout.cellCount) *
+                0.18 *
+                SoftwareLightingPresetID.scrollingRainbow.renderSpeedMultiplier
+        )
+        let first = SoftwareLightingRenderer.render(
+            request: request,
+            layout: layout,
+            elapsedTime: 0.0
+        )
+        let shifted = SoftwareLightingRenderer.render(
+            request: request,
+            layout: layout,
+            elapsedTime: oneCellShiftTime
+        )
+
+        XCTAssertNotEqual(first.colors.first, first.colors.last)
+        XCTAssertEqual(shifted.colors[1], first.colors[0])
+        XCTAssertEqual(shifted.colors[0], first.colors[layout.cellCount - 1])
+    }
+
     func testAnimatedPresetsMoveOverTime() {
         for preset in SoftwareLightingPresetID.allCases {
             let request = SoftwareLightingEffectRequest(presetID: preset)

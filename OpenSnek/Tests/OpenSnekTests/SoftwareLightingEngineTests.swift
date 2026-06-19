@@ -70,7 +70,7 @@ final class SoftwareLightingEngineTests: XCTestCase {
         let secondDevice = makeSoftwareLightingTestDevice(
             id: "software-lighting-v3-pro-second",
             serial: "ffffffffffff",
-            locationID: 0x0114_0000
+            locationID: 0x0215_0000
         )
 
         _ = try await engine.start(
@@ -135,6 +135,53 @@ final class SoftwareLightingEngineTests: XCTestCase {
         let status = await engine.status(deviceID: device.id)
         XCTAssertEqual(status?.state, .running)
         XCTAssertEqual(status?.request?.presetID, .scrollingRainbow)
+        await engine.stop(deviceID: device.id)
+    }
+
+    func testConcurrentReplacementStartsDoNotCreateUntrackedStreams() async throws {
+        let writer = RecordingSoftwareLightingFrameWriter(delayNanoseconds: 120_000_000)
+        let engine = SoftwareLightingEngine(
+            frameWriter: writer,
+            minimumFrameInterval: 0.001,
+            failureLimit: 3
+        )
+        let device = makeSoftwareLightingTestDevice()
+
+        _ = try await engine.start(
+            device: device,
+            request: SoftwareLightingEffectRequest(presetID: .flame, framesPerSecond: 30)
+        )
+        try await waitUntil(timeout: 1.0) {
+            await writer.activeWriteCount() == 1
+        }
+
+        let firstReplacement = Task {
+            try await engine.start(
+                device: device,
+                request: SoftwareLightingEffectRequest(presetID: .scrollingRainbow, framesPerSecond: 30)
+            )
+        }
+        try await Task.sleep(nanoseconds: 10_000_000)
+        let secondReplacement = Task {
+            try await engine.start(
+                device: device,
+                request: SoftwareLightingEffectRequest(presetID: .aurora, framesPerSecond: 30)
+            )
+        }
+
+        _ = try await firstReplacement.value
+        _ = try await secondReplacement.value
+        try await waitUntil(timeout: 1.0) {
+            let status = await engine.status(deviceID: device.id)
+            let frameCount = await writer.frameCount()
+            return status?.request?.presetID == .aurora && frameCount >= 2
+        }
+
+        let maxConcurrentWrites = await writer.maxConcurrentWrites()
+        let status = await engine.status(deviceID: device.id)
+        XCTAssertEqual(maxConcurrentWrites, 1)
+        XCTAssertEqual(status?.state, .running)
+        XCTAssertEqual(status?.request?.presetID, .aurora)
         await engine.stop(deviceID: device.id)
     }
 

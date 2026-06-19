@@ -907,6 +907,18 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         }
 
         do {
+            let snapshot = try await client.readOnboardProfileCore(device: device, profileID: activeProfileID)
+            let mutation = OnboardProfileMutation(
+                brightnessByLEDID: snapshot.brightnessByLEDID.isEmpty ? nil : snapshot.brightnessByLEDID,
+                staticColorByLEDID: snapshot.staticColorByLEDID.isEmpty ? nil : snapshot.staticColorByLEDID
+            )
+            if !mutation.isEmpty {
+                _ = try await client.updateOnboardProfile(
+                    device: device,
+                    profileID: activeProfileID,
+                    mutation: mutation
+                )
+            }
             let state = try await client.activateOnboardProfile(device: device, profileID: activeProfileID)
             cacheAndPublishState(state, for: device.id, updatedAt: Date())
         } catch {
