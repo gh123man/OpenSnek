@@ -711,6 +711,12 @@ Unresolved:
 
 **Status**: Partially implemented. Scroll wheel LED brightness and the zone-effect families below are implemented and hardware-validated. The per-LED Custom Frame command (`Cmd 0x03`) is decoded and hardware-validated on the Basilisk V3 Pro (see [docs/research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md](../research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md)) but not exposed in the OpenSnek app because observed Custom Frame state is volatile across mouse restart. Treat it as a software-driven frame buffer, not a persistable onboard lighting setting.
 
+Basilisk V3 USB family assumption: wired Basilisk V3, V3 Pro, and V3 35K
+lighting work should default to the shared three-zone `0x0F` model
+(`0x01` scroll wheel, `0x04` logo, `0x0A` underglow) and the same USB effect
+set unless hardware validation proves an exception. The V3 X HyperSpeed is a
+separate simpler profile and is not included in this assumption.
+
 ```
 Set Zone Effect:
   Command: Class 0x0F, ID 0x02, Size varies
