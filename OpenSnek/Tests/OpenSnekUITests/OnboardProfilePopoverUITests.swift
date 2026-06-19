@@ -34,6 +34,7 @@ final class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
         )
         originalActiveProfileID = initialActiveProfileID
 
+        try assertProfilePillMatchesStatusPillHeight()
         try openProfileManager()
 
         let profileIDs = visibleProfileIDs()
@@ -118,6 +119,17 @@ final class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
             "Failed to restore original active profile \(initialActiveProfileID)"
         )
         originalActiveProfileID = nil
+    }
+
+    private func assertProfilePillMatchesStatusPillHeight() throws {
+        let profilePill = try requireElement("onboard-profile-pill-button", timeout: 3)
+        let statusPill = try requireElement("device-status-badge", timeout: 3)
+        XCTAssertEqual(
+            profilePill.frame.height,
+            statusPill.frame.height,
+            accuracy: 1,
+            "Profile pill should use the same vertical sizing as the connected status pill"
+        )
     }
 
     private func openProfileManager(timeout: TimeInterval = 5) throws {

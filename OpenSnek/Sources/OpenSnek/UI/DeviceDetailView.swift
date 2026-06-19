@@ -1824,7 +1824,7 @@ private struct OnboardProfilePillButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 Circle()
                     .fill(onboardProfileSlotColor(activeProfileID))
                     .frame(width: 9, height: 9)
@@ -1836,7 +1836,7 @@ private struct OnboardProfilePillButton: View {
                     .accessibilityHidden(true)
 
                 Text(profileName)
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .font(.system(size: 11, weight: .black, design: .rounded))
                     .foregroundStyle(.white.opacity(0.92))
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -1847,9 +1847,8 @@ private struct OnboardProfilePillButton: View {
                     .foregroundStyle(.white.opacity(0.54))
                     .accessibilityHidden(true)
             }
-            .padding(.leading, 4)
-            .padding(.trailing, 8)
-            .padding(.vertical, 3)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
             .background(
                 Capsule()
                     .fill(Color.white.opacity(0.08))
