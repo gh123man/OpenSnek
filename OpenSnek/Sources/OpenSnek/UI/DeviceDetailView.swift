@@ -855,24 +855,54 @@ struct LightingCard: View {
             editorStore.visibleUSBLightingZones.count > 1
     }
 
-    private var defaultGradientColors: [Color] {
+    private var singleColorGradientColors: [Color] {
         [
             accentBase.opacity(accentOpacity),
             Color.white.opacity(0.05),
         ]
     }
 
-    private var zoneGradientColors: [Color] {
-        let displayColors = editorStore.lightingGradientDisplayColors
-        guard let firstColor = displayColors.first else {
-            return defaultGradientColors
+    private var lightingCardGradientColors: [Color] {
+        if selectedTab == .advanced, selected.supportsSoftwareLightingEffects {
+            return softwareLightingGradientColors
         }
-        guard displayColors.dropFirst().contains(where: { $0 != firstColor }) else {
-            return defaultGradientColors
+
+        return onboardLightingGradientColors
+    }
+
+    private var onboardLightingGradientColors: [Color] {
+        gradientColors(
+            from: editorStore.lightingGradientDisplayColors,
+            fallback: editorStore.editableColor
+        )
+    }
+
+    private var softwareLightingGradientColors: [Color] {
+        let defaultPalette = editorStore.editableSoftwareLightingPreset.defaultPalette
+        let fallbackColor = defaultPalette.first.map {
+            RGBColor(r: $0.r, g: $0.g, b: $0.b)
+        } ?? editorStore.editableColor
+
+        return gradientColors(
+            from: editorStore.editableSoftwareLightingPalette(for: editorStore.editableSoftwareLightingPreset),
+            fallback: fallbackColor
+        )
+    }
+
+    private func gradientColors(from displayColors: [RGBColor], fallback: RGBColor) -> [Color] {
+        let colors = displayColors.isEmpty ? [fallback] : displayColors
+        guard let firstColor = colors.first else {
+            return singleColorGradientColors
+        }
+        guard colors.dropFirst().contains(where: { $0 != firstColor }) else {
+            return [
+                Color(rgb: firstColor).opacity(accentOpacity),
+                Color.white.opacity(0.05),
+            ]
         }
 
         let overlayOpacity = max(0.10, accentOpacity * 0.9)
-        return displayColors.map {
+        return colors.map {
             Color(rgb: $0).opacity(overlayOpacity)
         }
     }
@@ -1194,7 +1224,7 @@ struct LightingCard: View {
             RoundedRectangle(cornerRadius: 14)
                 .fill(
                     LinearGradient(
-                        colors: zoneGradientColors,
+                        colors: lightingCardGradientColors,
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )

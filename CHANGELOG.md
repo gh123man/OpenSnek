@@ -46,6 +46,7 @@ All notable changes to this project are documented in this file.
 - Software lighting replacement is now generation-gated to prevent reentrant start/resume races from leaving untracked frame writers, Stop explicitly reapplies the active profile lighting surface before returning to onboard mode, and Scrolling Rainbow now uses cyclic cell spacing for seamless loops with any palette.
 - Flame software lighting now uses seeded irregular flicker timing per LED so color changes feel less uniform.
 - The Advanced lighting Apply on connect toggle now sits beside the Apply and Stop controls.
+- The Lighting card background now reflects the selected Advanced software-lighting palette instead of staying tied to the onboard static color.
 
 ## [2026-06-18]
 
