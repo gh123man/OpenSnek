@@ -864,11 +864,16 @@ struct LightingCard: View {
     }
 
     private var lightingCardGradientColors: [Color] {
-        if selectedTab == .advanced, selected.supportsSoftwareLightingEffects {
+        if usesSoftwareLightingPaletteForCard {
             return softwareLightingGradientColors
         }
 
         return onboardLightingGradientColors
+    }
+
+    private var usesSoftwareLightingPaletteForCard: Bool {
+        selected.supportsSoftwareLightingEffects &&
+            (softwareLightingIsRunning || (isExpanded && selectedTab == .advanced))
     }
 
     private var onboardLightingGradientColors: [Color] {
@@ -921,8 +926,7 @@ struct LightingCard: View {
     }
 
     private var summarizesSoftwareLighting: Bool {
-        selected.supportsSoftwareLightingEffects &&
-            (softwareLightingIsRunning || editorStore.editableSoftwareLightingApplyOnConnect || selectedTab == .advanced)
+        selected.supportsSoftwareLightingEffects && softwareLightingIsRunning
     }
 
     private var lightingSummaryTitle: String {
@@ -931,29 +935,6 @@ struct LightingCard: View {
         }
 
         return "Onboard \(editorStore.editableLightingEffect.label)"
-    }
-
-    private var lightingSummaryDetail: String {
-        if summarizesSoftwareLighting {
-            return softwareLightingSummaryDetail
-        }
-
-        return onboardLightingSummaryDetail
-    }
-
-    private var onboardLightingSummaryDetail: String {
-        "Stored on device"
-    }
-
-    private var softwareLightingSummaryDetail: String {
-        var parts = ["Runs while OpenSnek is open"]
-        if softwareLightingIsRunning {
-            parts.append("Running")
-        }
-        if editorStore.editableSoftwareLightingApplyOnConnect {
-            parts.append("Apply on connect")
-        }
-        return parts.joined(separator: " | ")
     }
 
     private var lightingSummarySwatches: [RGBColor] {
@@ -1322,12 +1303,6 @@ struct LightingCard: View {
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.88))
                     .lineLimit(1)
-
-                Text(lightingSummaryDetail)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.62))
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("lighting-card-summary-text")
             }
 
