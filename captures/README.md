@@ -282,6 +282,20 @@ This directory stores BLE protocol captures used to derive and validate `tools/p
   - Current interpretation: Synapse's software takeover is likely host event ownership or a side effect of the live apply/projection sequence, not a simple profile-button remap write.
   - This backs the firmware-first OpenSnek guidance: do not copy Synapse startup takeover behavior for profile monitoring.
 
+- `ble/windows/2026-06-18-224213-idle-baseline-before-dpi-clutch/`
+  - Windows BTVS/tshark idle baseline in the same Synapse/device session before the DPI-clutch assignment pass.
+  - No decoded vendor operations appeared in the 15-second baseline summary.
+  - Used as the same-session baseline for the focused `0x0F` sensitivity-clutch capture below.
+
+- `ble/windows/2026-06-18-224810-v3pro-bt-dpi-clutch-slot0f-rightclick-then-clutch800-pass3/`
+  - Windows BTVS/tshark capture of Basilisk V3 Pro Bluetooth Sensitivity Clutch slot `0x0F` assignment changes in Synapse.
+  - Synapse logged Button15 / `DKM_SB_02` assignments on stored profile target `4` and live target `1`.
+  - The wire trace confirms slot `0x0F` uses the standard `08 04 <target> <slot>` button-binding write family on Bluetooth:
+    - right click / Synapse "Menu": `08 04 04 0F` payload `04 0F 00 01 01 02 00 00 00 00`, then `08 04 01 0F` payload `01 0F 00 01 01 02 00 00 00 00`
+    - 400-DPI clutch restore: `08 04 04 0F` payload `04 0F 00 06 05 05 01 90 01 90`, then `08 04 01 0F` payload `01 0F 00 06 05 05 01 90 01 90`
+    - 800-DPI clutch: `08 04 04 0F` payload `04 0F 00 06 05 05 03 20 03 20`, then `08 04 01 0F` payload `01 0F 00 06 05 05 03 20 03 20`
+  - This closes the V3 Pro Bluetooth native sensitivity-clutch write-shape gap. A follow-up app-support change still needs Swift payload construction/readback tests before exposing the control in the UI.
+
 ## Notes
 
 - Captures are intentionally action-scoped for faster diffing.

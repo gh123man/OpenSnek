@@ -462,6 +462,35 @@ This is the strongest capture so far for the current V3 Pro Bluetooth profile-sw
 
 OpenSnek should still treat the `01 xx` and `08 05` / `08 06` / `08 07` keys as research-only until we can safely probe them outside Synapse.
 
+### Sensitivity Clutch Assignment Capture (2026-06-18)
+
+Capture:
+
+- `captures/ble/windows/2026-06-18-224810-v3pro-bt-dpi-clutch-slot0f-rightclick-then-clutch800-pass3/`
+
+This pass focused only the Basilisk V3 Pro Bluetooth sensitivity-clutch button
+assignment. Synapse identified the physical control as Button15 / `DKM_SB_02`.
+The active profile in the pass was stored target `4`, and Synapse mirrored each
+assignment into live target `1`.
+
+Observed sequence:
+
+| Synapse action | Key | Payload |
+|---|---|---|
+| Button15 -> right click / Synapse "Menu" | `08 04 04 0F` | `04 0F 00 01 01 02 00 00 00 00` |
+| Live projection of same | `08 04 01 0F` | `01 0F 00 01 01 02 00 00 00 00` |
+| Button15 -> DPI clutch 400 | `08 04 04 0F` | `04 0F 00 06 05 05 01 90 01 90` |
+| Live projection of same | `08 04 01 0F` | `01 0F 00 06 05 05 01 90 01 90` |
+| Button15 -> DPI clutch 800 | `08 04 04 0F` | `04 0F 00 06 05 05 03 20 03 20` |
+| Live projection of same | `08 04 01 0F` | `01 0F 00 06 05 05 03 20 03 20` |
+
+This confirms that V3 Pro Bluetooth slot `0x0F` uses the normal
+`08 04 <target> <slot>` button-binding write family for both remapping and
+DPI-clutch restore. The clutch function block matches the V3 Pro USB shape
+`06 05 05 <x_be16> <y_be16>`, including the default 400-DPI block and an
+800-DPI parameterized block. Product enablement should still add Swift payload
+construction and readback tests before exposing the control in the UI.
+
 Two later captures close part of the profile-button detection gap:
 
 - `captures/ble/windows/2026-06-15-222336-profile-cycle-event-driven-followup-read/`

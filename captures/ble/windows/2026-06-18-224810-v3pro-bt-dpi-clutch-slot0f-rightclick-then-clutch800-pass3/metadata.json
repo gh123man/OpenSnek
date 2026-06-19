@@ -1,0 +1,12 @@
+﻿{
+    "name":  "v3pro-bt-dpi-clutch-slot0f-rightclick-then-clutch800-pass3",
+    "captureStart":  "2026-06-18T22:48:20.4453918-04:00",
+    "captureEnd":  "2026-06-18T22:51:21.2558575-04:00",
+    "seconds":  180,
+    "port":  24400,
+    "requestedPort":  24400,
+    "pcap":  "captures\\ble\\windows\\2026-06-18-224810-v3pro-bt-dpi-clutch-slot0f-rightclick-then-clutch800-pass3\\capture.pcapng",
+    "attCsv":  "captures\\ble\\windows\\2026-06-18-224810-v3pro-bt-dpi-clutch-slot0f-rightclick-then-clutch800-pass3\\att.csv",
+    "vendorCsv":  "captures\\ble\\windows\\2026-06-18-224810-v3pro-bt-dpi-clutch-slot0f-rightclick-then-clutch800-pass3\\vendor-att.csv",
+    "synapseLogRoot":  "C:\\Users\\gh123\\AppData\\Local\\Razer\\RazerAppEngine\\User Data\\Logs"
+}
