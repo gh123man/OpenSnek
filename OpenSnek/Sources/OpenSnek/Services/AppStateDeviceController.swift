@@ -199,8 +199,7 @@ final class AppStateDeviceController {
             stateCacheByDeviceID[deviceID] = remoteState
             lastUpdatedByDeviceID[deviceID] = snapshotUpdatedAt
             lastStateMutationAtByDeviceID[deviceID] = snapshotUpdatedAt
-            refreshFailureCountByDeviceID[deviceID] = 0
-            unavailableDeviceIDs.remove(deviceID)
+            clearConnectionFailureState(sourceDeviceID: deviceID, presentationDeviceID: deviceID)
         }
 
         _ = applyDeviceList(snapshot.devices, source: "subscription")
@@ -1286,6 +1285,34 @@ final class AppStateDeviceController {
             deviceStore.lastUpdated = updatedAt
             deviceStore.invalidateConnectionDiagnostics()
         }
+    }
+
+    @discardableResult
+    private func clearConnectionFailureState(sourceDeviceID: String, presentationDeviceID: String) -> Bool {
+        var changed = false
+        for deviceID in Set([sourceDeviceID, presentationDeviceID]) {
+            if (refreshFailureCountByDeviceID[deviceID] ?? 0) != 0 {
+                changed = true
+            }
+            refreshFailureCountByDeviceID[deviceID] = 0
+            if stateRefreshSuppressedUntilByDeviceID.removeValue(forKey: deviceID) != nil {
+                changed = true
+            }
+            if usbTelemetryUnavailableBackoffDeviceIDs.remove(deviceID) != nil {
+                changed = true
+            }
+            if unavailableDeviceIDs.remove(deviceID) != nil {
+                changed = true
+            }
+            if usbLiveObservationExpiredDeviceIDs.remove(deviceID) != nil {
+                changed = true
+            }
+        }
+
+        if changed {
+            deviceStore.invalidateConnectionDiagnostics()
+        }
+        return changed
     }
 
     private static func diagnosticDpiPair(_ pair: DpiPair?) -> String {

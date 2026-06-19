@@ -16,6 +16,7 @@ All notable changes to this project are documented in this file.
 - Reconnect and disconnect recovery no longer shows yellow USB telemetry notices for expected temporary telemetry gaps while the device is settling.
 - USB telemetry-unavailable and availability backoff now survive newly visible dongle subscription updates, preventing the dongle-only state from falling back into an immediate reconnect retry loop.
 - Selected USB devices with cached state now keep their last known presentation during temporary feature-report telemetry backoff when the mouse is still enumerated, instead of being marked disconnected.
+- Remote service snapshots now clear latched transient USB unavailable presentation, preventing a connected mouse from staying marked Disconnected after fresh service telemetry arrives.
 
 ## [1.0.0]
 
