@@ -26,6 +26,18 @@ All notable changes to this project are documented in this file.
 - Added release packaging/CI, device support docs, Windows BTVS capture automation, and focused probe commands for USB and Bluetooth profile research.
 - Removed command-level retries from app and probe paths so command failures surface clearly while transport recovery remains responsible for real connection failures.
 
+## [2026-06-19]
+
+### Added
+- Added a service-owned Basilisk V3 Pro USB software lighting engine that streams volatile 12-cell Custom Frame data while OpenSnek is running, with Flame, Scrolling Rainbow, Comet Chase, and Aurora presets plus app UI controls to start and stop the active preset.
+- Added `OpenSnekProbe usb-lighting-concurrency`, a V3 Pro USB stress probe for comparing serialized Custom Frame streaming against unsafe overlapping feature-report reads/writes.
+
+### Changed
+- Normal lighting color/effect applies now stop active software lighting on the selected device, while unrelated DPI, button, poll-rate, scroll, and power setting applies leave the software effect running.
+- The Lighting card now separates persistent onboard controls from runtime-only software effects with Onboard and Advanced tabs, and software Custom Frame writes use shorter ACK polling while active effects cause background telemetry reads to reuse cached state.
+- Reworked the Lighting card to use compact color-orb popovers for onboard all-zone and per-zone static colors, renamed the onboard effect selector to Preset, and changed Advanced effects to use a bottom Apply action with speed control and editable/resettable per-preset palettes.
+- Added a visible stop control for active Advanced lighting animations, standardized the Advanced action tint, made the speed slider white, added an onboard-persistence notice, removed the lightest Flame default palette color, and made Scrolling Rainbow render 200% faster at the displayed 100% speed.
+
 ## [2026-06-18]
 
 ### Changed

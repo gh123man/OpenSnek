@@ -56,6 +56,20 @@ final class BackgroundServiceTransportTests: XCTestCase {
 
         let binding = try await serviceBackend.debugUSBReadButtonBinding(device: devices[0], slot: 5, profile: 2)
         XCTAssertEqual(binding, [0xAA, 0x55, 0x05, 0x02])
+
+        let softwareLighting = try await serviceBackend.startSoftwareLighting(
+            device: devices[0],
+            request: SoftwareLightingEffectRequest(presetID: .cometChase)
+        )
+        XCTAssertEqual(softwareLighting.state, .running)
+        XCTAssertEqual(softwareLighting.request?.presetID, .cometChase)
+
+        let softwareLightingStatus = await serviceBackend.softwareLightingStatus(deviceID: devices[0].id)
+        XCTAssertEqual(softwareLightingStatus?.state, .running)
+        XCTAssertEqual(softwareLightingStatus?.request?.presetID, .cometChase)
+
+        let stoppedSoftwareLighting = await serviceBackend.stopSoftwareLighting(deviceID: devices[0].id)
+        XCTAssertEqual(stoppedSoftwareLighting?.state, .stopped)
     }
 
     func testSubscriberReceivesPushedStateUpdatesOverTCP() async throws {
@@ -274,6 +288,7 @@ private actor StubServiceBackend: HIDAccessRefreshControllingBackend {
     private var stateUpdatesStream: AsyncStream<BackendStateUpdate>
     private var stateUpdatesContinuation: AsyncStream<BackendStateUpdate>.Continuation
     private var hidAccessForceRefreshes: [Bool] = []
+    private var softwareLightingStatusByDeviceID: [String: SoftwareLightingEngineStatus] = [:]
     private var state = MouseState(
         device: DeviceSummary(
             id: "test-mouse",
@@ -359,7 +374,8 @@ private actor StubServiceBackend: HIDAccessRefreshControllingBackend {
         SharedServiceSnapshot(
             devices: [device],
             stateByDeviceID: [device.id: state],
-            lastUpdatedByDeviceID: [device.id: updatedAt]
+            lastUpdatedByDeviceID: [device.id: updatedAt],
+            softwareLightingStatusByDeviceID: softwareLightingStatusByDeviceID
         )
     }
 
@@ -399,6 +415,34 @@ private actor StubServiceBackend: HIDAccessRefreshControllingBackend {
         [0xAA, 0x55, UInt8(slot & 0xFF), UInt8(profile & 0xFF)]
     }
 
+    func startSoftwareLighting(
+        device: MouseDevice,
+        request: SoftwareLightingEffectRequest
+    ) async throws -> SoftwareLightingEngineStatus {
+        let status = SoftwareLightingEngineStatus(
+            deviceID: device.id,
+            state: .running,
+            request: request,
+            updatedAt: Date(timeIntervalSince1970: 1_774_000_100)
+        )
+        softwareLightingStatusByDeviceID[device.id] = status
+        return status
+    }
+
+    func stopSoftwareLighting(deviceID: String) async -> SoftwareLightingEngineStatus? {
+        let status = SoftwareLightingEngineStatus(
+            deviceID: deviceID,
+            state: .stopped,
+            request: softwareLightingStatusByDeviceID[deviceID]?.request,
+            updatedAt: Date(timeIntervalSince1970: 1_774_000_101)
+        )
+        softwareLightingStatusByDeviceID[deviceID] = status
+        return status
+    }
+
+    func softwareLightingStatus(deviceID: String) async -> SoftwareLightingEngineStatus? {
+        softwareLightingStatusByDeviceID[deviceID]
+    }
 }
 
 private actor RemotePresenceRecorder {

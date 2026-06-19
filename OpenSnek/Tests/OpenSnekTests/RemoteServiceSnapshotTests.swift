@@ -81,7 +81,15 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let snapshot = SharedServiceSnapshot(
             devices: [device],
             stateByDeviceID: [device.id: state],
-            lastUpdatedByDeviceID: [device.id: Date(timeIntervalSince1970: 1_773_320_000)]
+            lastUpdatedByDeviceID: [device.id: Date(timeIntervalSince1970: 1_773_320_000)],
+            softwareLightingStatusByDeviceID: [
+                device.id: SoftwareLightingEngineStatus(
+                    deviceID: device.id,
+                    state: .running,
+                    request: SoftwareLightingEffectRequest(presetID: .aurora),
+                    updatedAt: Date(timeIntervalSince1970: 1_773_320_001)
+                )
+            ]
         )
 
         await MainActor.run {
@@ -92,11 +100,14 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let selectedDpi = await MainActor.run { appState.deviceStore.state?.dpi?.x }
         let activeStage = await MainActor.run { appState.editorStore.editableActiveStage }
         let pollRate = await MainActor.run { appState.editorStore.editablePollRate }
+        let softwareLightingStatus = await MainActor.run { appState.deviceStore.selectedSoftwareLightingStatus }
 
         XCTAssertEqual(selectedDeviceID, device.id)
         XCTAssertEqual(selectedDpi, 2400)
         XCTAssertEqual(activeStage, 2)
         XCTAssertEqual(pollRate, 1000)
+        XCTAssertEqual(softwareLightingStatus?.state, .running)
+        XCTAssertEqual(softwareLightingStatus?.request?.presetID, .aurora)
     }
 
     func testRemoteServiceSnapshotsKeepSelectedEditorHydratedFromLiveState() async {

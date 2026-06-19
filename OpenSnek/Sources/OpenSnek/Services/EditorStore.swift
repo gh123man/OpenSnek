@@ -67,6 +67,9 @@ final class EditorStore {
     }
     var editableLedBrightness = 64
     var editableLightingEffect: LightingEffectKind = .staticColor
+    var editableSoftwareLightingPreset: SoftwareLightingPresetID = .flame
+    var editableSoftwareLightingSpeed = SoftwareLightingPresetID.flame.defaultSpeed
+    var editableSoftwareLightingPalettes: [SoftwareLightingPresetID: [RGBColor]] = [:]
     var editableUSBLightingZoneID: String = "all"
     var editableUSBButtonProfile = 1
     var editableLightingWaveDirection: LightingWaveDirection = .left
@@ -99,7 +102,19 @@ final class EditorStore {
 
     init(deviceStore: DeviceStore) {
         self.deviceStore = deviceStore
+        editableSoftwareLightingPalettes = Self.defaultSoftwareLightingPalettes()
         syncEditableStagePairsFromValues()
+    }
+
+    private static func defaultSoftwareLightingPalettes() -> [SoftwareLightingPresetID: [RGBColor]] {
+        Dictionary(
+            uniqueKeysWithValues: SoftwareLightingPresetID.allCases.map { preset in
+                (
+                    preset,
+                    preset.defaultPalette.map { RGBColor(r: $0.r, g: $0.g, b: $0.b) }
+                )
+            }
+        )
     }
 
     private func syncEditableStagePairsFromValues() {
@@ -675,12 +690,69 @@ final class EditorStore {
         await applyController.applyCurrentStaticColorToAllZones()
     }
 
+    func scheduleAutoApplyCurrentStaticColorToAllZones() {
+        applyController.scheduleAutoApplyCurrentStaticColorToAllZones()
+    }
+
     func noteLightingGradientColorsChanged() {
         lightingGradientRevision &+= 1
     }
 
     func updateLightingEffect(_ kind: LightingEffectKind) {
         editorController.updateLightingEffect(kind)
+    }
+
+    func startSoftwareLighting() async {
+        await editorController.startSoftwareLighting()
+    }
+
+    func updateEditableSoftwareLightingPreset(_ preset: SoftwareLightingPresetID) {
+        guard editableSoftwareLightingPreset != preset else { return }
+        editableSoftwareLightingPreset = preset
+        editableSoftwareLightingSpeed = preset.defaultSpeed
+    }
+
+    func editableSoftwareLightingPalette(for preset: SoftwareLightingPresetID) -> [RGBColor] {
+        editableSoftwareLightingPalettes[preset] ?? Self.defaultSoftwareLightingPalettes()[preset] ?? []
+    }
+
+    func setEditableSoftwareLightingPalette(_ palette: [RGBColor], for preset: SoftwareLightingPresetID) {
+        let fallback = Self.defaultSoftwareLightingPalettes()[preset] ?? []
+        let source = palette.isEmpty ? fallback : palette
+        editableSoftwareLightingPalettes[preset] = Array(source.prefix(SoftwareLightingEffectRequest.maximumPaletteColorCount))
+    }
+
+    func addEditableSoftwareLightingPaletteColor(for preset: SoftwareLightingPresetID) {
+        var palette = editableSoftwareLightingPalette(for: preset)
+        guard palette.count < SoftwareLightingEffectRequest.maximumPaletteColorCount else { return }
+        palette.append(palette.last ?? RGBColor(r: 255, g: 255, b: 255))
+        setEditableSoftwareLightingPalette(palette, for: preset)
+    }
+
+    func removeEditableSoftwareLightingPaletteColor(at index: Int, for preset: SoftwareLightingPresetID) {
+        var palette = editableSoftwareLightingPalette(for: preset)
+        guard palette.count > 1, palette.indices.contains(index) else { return }
+        palette.remove(at: index)
+        setEditableSoftwareLightingPalette(palette, for: preset)
+    }
+
+    func resetEditableSoftwareLightingPalette(for preset: SoftwareLightingPresetID) {
+        editableSoftwareLightingPalettes[preset] = Self.defaultSoftwareLightingPalettes()[preset]
+    }
+
+    func softwareLightingEffectRequest() -> SoftwareLightingEffectRequest {
+        let palette = editableSoftwareLightingPalette(for: editableSoftwareLightingPreset).map {
+            RGBPatch(r: $0.r, g: $0.g, b: $0.b)
+        }
+        return SoftwareLightingEffectRequest(
+            presetID: editableSoftwareLightingPreset,
+            speed: editableSoftwareLightingSpeed,
+            palette: palette
+        )
+    }
+
+    func stopSoftwareLighting() async {
+        await editorController.stopSoftwareLighting()
     }
 
     func updateConnectBehavior(_ behavior: DeviceConnectBehavior) {

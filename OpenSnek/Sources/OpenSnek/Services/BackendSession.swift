@@ -47,6 +47,12 @@ protocol DeviceBackend: AnyObject, Sendable {
     func activateOnboardProfile(device: MouseDevice, profileID: Int) async throws -> MouseState
     func refreshActiveOnboardProfile(device: MouseDevice) async throws -> MouseState
     func readLightingColor(device: MouseDevice) async throws -> RGBPatch?
+    func startSoftwareLighting(
+        device: MouseDevice,
+        request: SoftwareLightingEffectRequest
+    ) async throws -> SoftwareLightingEngineStatus
+    func stopSoftwareLighting(deviceID: String) async -> SoftwareLightingEngineStatus?
+    func softwareLightingStatus(deviceID: String) async -> SoftwareLightingEngineStatus?
     func debugUSBReadButtonBinding(device: MouseDevice, slot: Int, profile: Int) async throws -> [UInt8]?
 }
 
@@ -142,6 +148,17 @@ final actor BootstrapPendingBackend: DeviceBackend {
 
     func readLightingColor(device _: MouseDevice) async throws -> RGBPatch? { nil }
 
+    func startSoftwareLighting(
+        device _: MouseDevice,
+        request _: SoftwareLightingEffectRequest
+    ) async throws -> SoftwareLightingEngineStatus {
+        throw BridgeError.commandFailed("Backend is still starting")
+    }
+
+    func stopSoftwareLighting(deviceID _: String) async -> SoftwareLightingEngineStatus? { nil }
+
+    func softwareLightingStatus(deviceID _: String) async -> SoftwareLightingEngineStatus? { nil }
+
     func debugUSBReadButtonBinding(device _: MouseDevice, slot _: Int, profile _: Int) async throws -> [UInt8]? { nil }
 }
 
@@ -201,6 +218,21 @@ extension DeviceBackend {
 
     func refreshActiveOnboardProfile(device _: MouseDevice) async throws -> MouseState {
         throw BridgeError.commandFailed("Onboard profile CRUD is not supported by this backend.")
+    }
+
+    func startSoftwareLighting(
+        device _: MouseDevice,
+        request _: SoftwareLightingEffectRequest
+    ) async throws -> SoftwareLightingEngineStatus {
+        throw BridgeError.commandFailed("Software lighting is not supported by this backend.")
+    }
+
+    func stopSoftwareLighting(deviceID _: String) async -> SoftwareLightingEngineStatus? {
+        nil
+    }
+
+    func softwareLightingStatus(deviceID _: String) async -> SoftwareLightingEngineStatus? {
+        nil
     }
 }
 
@@ -263,17 +295,20 @@ struct SharedServiceSnapshot: Codable, Sendable {
     let stateByDeviceID: [String: MouseState]
     let lastUpdatedByDeviceID: [String: Date]
     let observedAtByDeviceID: [String: Date]
+    let softwareLightingStatusByDeviceID: [String: SoftwareLightingEngineStatus]
 
     init(
         devices: [MouseDevice],
         stateByDeviceID: [String: MouseState],
         lastUpdatedByDeviceID: [String: Date],
-        observedAtByDeviceID: [String: Date] = [:]
+        observedAtByDeviceID: [String: Date] = [:],
+        softwareLightingStatusByDeviceID: [String: SoftwareLightingEngineStatus] = [:]
     ) {
         self.devices = devices
         self.stateByDeviceID = stateByDeviceID
         self.lastUpdatedByDeviceID = lastUpdatedByDeviceID
         self.observedAtByDeviceID = observedAtByDeviceID
+        self.softwareLightingStatusByDeviceID = softwareLightingStatusByDeviceID
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -281,6 +316,7 @@ struct SharedServiceSnapshot: Codable, Sendable {
         case stateByDeviceID
         case lastUpdatedByDeviceID
         case observedAtByDeviceID
+        case softwareLightingStatusByDeviceID
     }
 
     init(from decoder: Decoder) throws {
@@ -289,6 +325,11 @@ struct SharedServiceSnapshot: Codable, Sendable {
         stateByDeviceID = try container.decode([String: MouseState].self, forKey: .stateByDeviceID)
         lastUpdatedByDeviceID = try container.decode([String: Date].self, forKey: .lastUpdatedByDeviceID)
         observedAtByDeviceID = try container.decodeIfPresent([String: Date].self, forKey: .observedAtByDeviceID) ?? [:]
+        softwareLightingStatusByDeviceID = try container
+            .decodeIfPresent(
+                [String: SoftwareLightingEngineStatus].self,
+                forKey: .softwareLightingStatusByDeviceID
+            ) ?? [:]
     }
 }
 
@@ -301,6 +342,7 @@ enum BackendStateUpdate: Codable, Sendable {
     case deviceList([MouseDevice], updatedAt: Date)
     case deviceState(deviceID: String, state: MouseState, updatedAt: Date)
     case dpiTransportStatus(deviceID: String, status: DpiUpdateTransportStatus, updatedAt: Date)
+    case softwareLightingStatus(deviceID: String, status: SoftwareLightingEngineStatus?, updatedAt: Date)
     case snapshot(SharedServiceSnapshot)
     case openSettingsRequested
 }
@@ -373,10 +415,12 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     private static let usbDisconnectDebounceInterval: TimeInterval = 0.75
 
     private let client = BridgeClient()
+    private let softwareLightingEngine: SoftwareLightingEngine
     private var cachedDevices: [MouseDevice] = []
     private var cachedDevicesAt: Date?
     private var cachedStateByDeviceID: [String: MouseState] = [:]
     private var cachedStateAtByDeviceID: [String: Date] = [:]
+    private var softwareLightingStatusByDeviceID: [String: SoftwareLightingEngineStatus] = [:]
     private var cachedFastByDeviceID: [String: DpiFastSnapshot] = [:]
     private var cachedFastAtByDeviceID: [String: Date] = [:]
     private var reconnectSeedStateByDeviceID: [String: MouseState] = [:]
@@ -391,6 +435,9 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     nonisolated var usesRemoteServiceTransport: Bool { false }
 
     init() {
+        softwareLightingEngine = SoftwareLightingEngine(
+            frameWriter: BridgeSoftwareLightingFrameWriter(client: client)
+        )
         Task { [weak self] in
             guard let self else { return }
             let stream = await self.client.passiveDpiEventStream()
@@ -417,6 +464,13 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
             let stream = await self.client.devicePresenceEventStream()
             for await event in stream {
                 await self.handleDevicePresenceEvent(event)
+            }
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            let stream = await self.softwareLightingEngine.updates()
+            for await status in stream {
+                await self.handleSoftwareLightingStatus(status)
             }
         }
     }
@@ -466,6 +520,18 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     func readState(device: MouseDevice) async throws -> MouseState {
         let readStartedAt = Date()
         let cachedStateBeforeRead = cachedStateByDeviceID[device.id]
+        if shouldServeCachedTelemetryDuringSoftwareLighting(deviceID: device.id),
+           let cached = cachedStateBeforeRead {
+#if DEBUG
+            OpenSnekUITestSupport.recordReadState(
+                device: device,
+                state: cached,
+                elapsed: Date().timeIntervalSince(readStartedAt),
+                source: "local-software-lighting-cache"
+            )
+#endif
+            return cached
+        }
         let shouldUseFastPolling = device.transport == .bluetooth
             ? await client.shouldUseFastDPIPolling(device: device)
             : true
@@ -566,6 +632,16 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
 
     func readDpiStagesFast(device: MouseDevice) async throws -> DpiFastSnapshot? {
         let readStartedAt = Date()
+        if shouldServeCachedTelemetryDuringSoftwareLighting(deviceID: device.id) {
+            if let cached = cachedFastByDeviceID[device.id] {
+                return cached
+            }
+            if let cachedState = cachedStateByDeviceID[device.id],
+               let active = cachedState.dpi_stages.active_stage,
+               let values = cachedState.dpi_stages.values {
+                return DpiFastSnapshot(active: active, values: values)
+            }
+        }
         let shouldUseFastPolling = await client.shouldUseFastDPIPolling(device: device)
         if let cachedAt = cachedFastAtByDeviceID[device.id],
            let cached = cachedFastByDeviceID[device.id],
@@ -790,6 +866,27 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
 
     func readLightingColor(device: MouseDevice) async throws -> RGBPatch? {
         try await client.readLightingColor(device: device)
+    }
+
+    func startSoftwareLighting(
+        device: MouseDevice,
+        request: SoftwareLightingEffectRequest
+    ) async throws -> SoftwareLightingEngineStatus {
+        let status = try await softwareLightingEngine.start(device: device, request: request)
+        handleSoftwareLightingStatus(status)
+        return status
+    }
+
+    func stopSoftwareLighting(deviceID: String) async -> SoftwareLightingEngineStatus? {
+        let status = await softwareLightingEngine.stop(deviceID: deviceID)
+        if let status {
+            handleSoftwareLightingStatus(status)
+        }
+        return status
+    }
+
+    func softwareLightingStatus(deviceID: String) async -> SoftwareLightingEngineStatus? {
+        await softwareLightingEngine.status(deviceID: deviceID)
     }
 
     func debugUSBReadButtonBinding(device: MouseDevice, slot: Int, profile: Int) async throws -> [UInt8]? {
@@ -1155,6 +1252,22 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         }
     }
 
+    private func handleSoftwareLightingStatus(_ status: SoftwareLightingEngineStatus) {
+        softwareLightingStatusByDeviceID[status.deviceID] = status
+        publishStateUpdate(
+            .softwareLightingStatus(
+                deviceID: status.deviceID,
+                status: status,
+                updatedAt: status.updatedAt
+            )
+        )
+        publishSnapshotIfService()
+    }
+
+    private func shouldServeCachedTelemetryDuringSoftwareLighting(deviceID: String) -> Bool {
+        softwareLightingStatusByDeviceID[deviceID]?.state == .running
+    }
+
     private func cacheAndPublishState(_ state: MouseState, for deviceID: String, updatedAt: Date) {
         let merged = Self.mergedApplyState(
             state,
@@ -1221,6 +1334,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         if publishUpdate {
             publishStateUpdate(.deviceList(devices, updatedAt: updatedAt))
         }
+        resumeSuspendedSoftwareLighting(for: devices)
     }
 
     private func invalidateCachedTelemetry(for deviceID: String) {
@@ -1242,6 +1356,18 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
             cachedStateAtByDeviceID.removeValue(forKey: deviceID)
             cachedFastByDeviceID.removeValue(forKey: deviceID)
             cachedFastAtByDeviceID.removeValue(forKey: deviceID)
+            Task { [softwareLightingEngine] in
+                _ = await softwareLightingEngine.suspend(deviceID: deviceID, message: "Device disconnected")
+            }
+        }
+    }
+
+    private func resumeSuspendedSoftwareLighting(for devices: [MouseDevice]) {
+        guard !devices.isEmpty else { return }
+        Task { [softwareLightingEngine] in
+            for device in devices {
+                _ = try? await softwareLightingEngine.resumeIfNeeded(device: device)
+            }
         }
     }
 
@@ -1254,7 +1380,8 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
                     devices: cachedDevices,
                     stateByDeviceID: cachedStateByDeviceID.filter { liveIDs.contains($0.key) },
                     lastUpdatedByDeviceID: cachedStateAtByDeviceID.filter { liveIDs.contains($0.key) },
-                    observedAtByDeviceID: latestObservedAtByDeviceID(liveIDs: liveIDs)
+                    observedAtByDeviceID: latestObservedAtByDeviceID(liveIDs: liveIDs),
+                    softwareLightingStatusByDeviceID: softwareLightingStatusByDeviceID.filter { liveIDs.contains($0.key) }
                 )
             )
         )
@@ -1407,6 +1534,20 @@ private actor BackgroundServiceRequestHandler {
         case .readLightingColor:
             let device = try decodePayload(MouseDevice.self, from: request.payload)
             payload = try BackendCodec.encode(try await backend.readLightingColor(device: device))
+        case .startSoftwareLighting:
+            let lightingRequest = try decodePayload(SoftwareLightingStartRequest.self, from: request.payload)
+            payload = try BackendCodec.encode(
+                try await backend.startSoftwareLighting(
+                    device: lightingRequest.device,
+                    request: lightingRequest.request
+                )
+            )
+        case .stopSoftwareLighting:
+            let statusRequest = try decodePayload(SoftwareLightingStatusRequest.self, from: request.payload)
+            payload = try BackendCodec.encode(await backend.stopSoftwareLighting(deviceID: statusRequest.deviceID))
+        case .softwareLightingStatus:
+            let statusRequest = try decodePayload(SoftwareLightingStatusRequest.self, from: request.payload)
+            payload = try BackendCodec.encode(await backend.softwareLightingStatus(deviceID: statusRequest.deviceID))
         case .debugUSBReadButtonBinding:
             let bindingRequest = try decodePayload(ButtonBindingReadRequest.self, from: request.payload)
             payload = try BackendCodec.encode(
@@ -1635,6 +1776,35 @@ final actor IPCDeviceBackend: HIDAccessRefreshControllingBackend, ApplyOptionsSu
             method: .readLightingColor,
             payload: try BackendCodec.encode(device),
             responseType: RGBPatch?.self
+        )
+    }
+
+    func startSoftwareLighting(
+        device: MouseDevice,
+        request lightingRequest: SoftwareLightingEffectRequest
+    ) async throws -> SoftwareLightingEngineStatus {
+        try await request(
+            method: .startSoftwareLighting,
+            payload: try BackendCodec.encode(
+                SoftwareLightingStartRequest(device: device, request: lightingRequest)
+            ),
+            responseType: SoftwareLightingEngineStatus.self
+        )
+    }
+
+    func stopSoftwareLighting(deviceID: String) async -> SoftwareLightingEngineStatus? {
+        try? await request(
+            method: .stopSoftwareLighting,
+            payload: try BackendCodec.encode(SoftwareLightingStatusRequest(deviceID: deviceID)),
+            responseType: SoftwareLightingEngineStatus?.self
+        )
+    }
+
+    func softwareLightingStatus(deviceID: String) async -> SoftwareLightingEngineStatus? {
+        try? await request(
+            method: .softwareLightingStatus,
+            payload: try BackendCodec.encode(SoftwareLightingStatusRequest(deviceID: deviceID)),
+            responseType: SoftwareLightingEngineStatus?.self
         )
     }
 

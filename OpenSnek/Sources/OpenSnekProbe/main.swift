@@ -569,6 +569,23 @@ enum OpenSnekProbe {
             guard result.succeeded else {
                 throw ProbeError.protocolError("USB lighting custom-frame write failed")
             }
+        case "usb-lighting-concurrency":
+            let parsed = try parseUSBLightingConcurrencyArgs(Array(args.dropFirst()))
+            let usb = try USBProbeClient(productID: parsed.productID)
+            print(
+                "usb \(usb.describe()) concurrency frames=\(parsed.frames) commands=\(parsed.commands) " +
+                "intervalMs=\(parsed.intervalMs) responseDelayUs=\(parsed.responseDelayUs)"
+            )
+            for mode in parsed.modes {
+                let result = await usb.runLightingConcurrencyProbe(
+                    frames: parsed.frames,
+                    commandLoops: parsed.commands,
+                    intervalMs: parsed.intervalMs,
+                    responseDelayUs: parsed.responseDelayUs,
+                    unlocked: mode == .unlocked
+                )
+                print(describeUSBLightingConcurrencyResult(result))
+            }
         case "usb-input-listen":
             let parsed = try parseUSBInputListenArgs(Array(args.dropFirst()))
             let probe = try USBInputReportProbe(productID: parsed.productID)
@@ -729,6 +746,7 @@ enum OpenSnekProbe {
           OpenSnekProbe usb-lighting-brightness --value 128 [--zone all|scroll_wheel|logo|underglow] [--pid 0x00ab]
           OpenSnekProbe usb-lighting-effect --kind static [--color 00ff00] [--secondary ff00ff] [--direction left|right] [--speed 2] [--zone all|scroll_wheel|logo|underglow] [--pid 0x00ab]
           OpenSnekProbe usb-lighting-frame --colors ff0000,00ff00,0000ff [--start-col 0] [--row 0] [--storage 0x01] [--pid 0x00aa]
+          OpenSnekProbe usb-lighting-concurrency [--mode locked|unlocked|both] [--frames 90] [--commands 30] [--interval-ms 33] [--response-delay-us 1000] [--pid 0x00ab]
           OpenSnekProbe usb-profile-read [--profiles 2,3,4,5] [--button-slots 5,106] [--include-effective on|off] [--pid 0x00ab]
           OpenSnekProbe usb-profile-active-read [--pid 0x00ab]
           OpenSnekProbe usb-profile-active-set --profile 3 --yes [--pid 0x00ab]
@@ -1301,6 +1319,39 @@ enum OpenSnekProbe {
         }
         let row = parseUInt8(flags["--row"] ?? "0") ?? 0x00
         return (colors, storage, row, startColumn, UInt8(endColumnInt), try parseOptionalUSBPID(args))
+    }
+
+    private enum USBLightingConcurrencyMode {
+        case locked
+        case unlocked
+    }
+
+    private static func parseUSBLightingConcurrencyArgs(_ args: [String]) throws -> (
+        modes: [USBLightingConcurrencyMode],
+        frames: Int,
+        commands: Int,
+        intervalMs: Int,
+        responseDelayUs: useconds_t,
+        productID: Int?
+    ) {
+        let flags = parseFlags(args)
+        let modes: [USBLightingConcurrencyMode]
+        switch flags["--mode"] ?? "locked" {
+        case "locked":
+            modes = [.locked]
+        case "unlocked":
+            modes = [.unlocked]
+        case "both":
+            modes = [.locked, .unlocked]
+        default:
+            throw ProbeError.usage("--mode must be locked, unlocked, or both\n\(usageText)")
+        }
+
+        let frames = max(1, Int(flags["--frames"] ?? "90") ?? 90)
+        let commands = max(1, Int(flags["--commands"] ?? "30") ?? 30)
+        let intervalMs = max(0, Int(flags["--interval-ms"] ?? "33") ?? 33)
+        let responseDelayUs = useconds_t(max(500, Int(flags["--response-delay-us"] ?? "1000") ?? 1000))
+        return (modes, frames, commands, intervalMs, responseDelayUs, try parseOptionalUSBPID(args))
     }
 
     private static func parseUSBRawArgs(_ args: [String]) throws -> (classID: UInt8, cmdID: UInt8, size: UInt8, args: [UInt8], responseAttempts: Int, responseDelayUs: useconds_t, productID: Int?) {
@@ -2975,6 +3026,31 @@ enum OpenSnekProbe {
         let hex = result.args.map { String(format: "%02x", $0) }.joined(separator: " ")
         let status = result.succeeded ? "ok" : "error"
         return "write-\(operation) zone=\(result.target.zoneID) label=\"\(result.target.zoneLabel)\" led=0x\(String(format: "%02x", result.target.ledID)) args=\(hex) status=\(status)"
+    }
+
+    private static func describeUSBLightingConcurrencyResult(_ result: USBLightingConcurrencyProbeResult) -> String {
+        [
+            "mode=\(result.mode)",
+            String(format: "elapsed=%.1fms", result.elapsedMs),
+            describeUSBLightingConcurrencyStats("frames", result.frameStats),
+            describeUSBLightingConcurrencyStats("reads", result.commandReadStats),
+            describeUSBLightingConcurrencyStats("writes", result.commandWriteStats),
+        ].joined(separator: " ")
+    }
+
+    private static func describeUSBLightingConcurrencyStats(
+        _ label: String,
+        _ stats: USBLightingConcurrencyOperationStats
+    ) -> String {
+        String(
+            format: "%@=%d/%d fail=%d avg=%.2fms max=%.2fms",
+            label,
+            stats.successes,
+            stats.attempts,
+            stats.failures,
+            stats.averageMs,
+            stats.maxMs
+        )
     }
 
     private static func hexLEDIDList(_ ledIDs: [UInt8]) -> String {

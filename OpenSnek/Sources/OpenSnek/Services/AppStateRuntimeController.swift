@@ -370,6 +370,12 @@ final class AppStateRuntimeController {
                 status: status,
                 updatedAt: updatedAt
             )
+        case .softwareLightingStatus(let deviceID, let status, let updatedAt):
+            deviceController.applyBackendSoftwareLightingStatusUpdate(
+                deviceID: deviceID,
+                status: status,
+                updatedAt: updatedAt
+            )
         case .deviceState(let deviceID, let updatedState, let updatedAt):
             deviceController.applyBackendDeviceStateUpdate(
                 deviceID: deviceID,

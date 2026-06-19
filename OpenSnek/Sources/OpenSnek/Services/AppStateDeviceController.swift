@@ -173,6 +173,8 @@ final class AppStateDeviceController {
         stateCacheByDeviceID = stateCacheByDeviceID.filter { liveIDs.contains($0.key) }
         lastUpdatedByDeviceID = lastUpdatedByDeviceID.filter { liveIDs.contains($0.key) }
         lastStateMutationAtByDeviceID = lastStateMutationAtByDeviceID.filter { liveIDs.contains($0.key) }
+        deviceStore.softwareLightingStatusByDeviceID = snapshot.softwareLightingStatusByDeviceID
+            .filter { liveIDs.contains($0.key) }
 
         for (deviceID, remoteState) in snapshot.stateByDeviceID {
             let snapshotUpdatedAt = snapshot.lastUpdatedByDeviceID[deviceID] ?? Date()
@@ -246,6 +248,18 @@ final class AppStateDeviceController {
 
         Task { [weak self] in
             await self?.refreshDpiUpdateTransportStatuses(for: snapshot.devices)
+        }
+    }
+
+    func applyBackendSoftwareLightingStatusUpdate(
+        deviceID: String,
+        status: SoftwareLightingEngineStatus?,
+        updatedAt _: Date
+    ) {
+        if let status {
+            deviceStore.softwareLightingStatusByDeviceID[deviceID] = status
+        } else {
+            deviceStore.softwareLightingStatusByDeviceID.removeValue(forKey: deviceID)
         }
     }
 

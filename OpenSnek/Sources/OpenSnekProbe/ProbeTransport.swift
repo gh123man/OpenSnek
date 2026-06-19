@@ -44,6 +44,22 @@ struct USBLightingCustomFrameResult: Sendable {
     let succeeded: Bool
 }
 
+struct USBLightingConcurrencyOperationStats: Sendable {
+    let attempts: Int
+    let successes: Int
+    let failures: Int
+    let averageMs: Double
+    let maxMs: Double
+}
+
+struct USBLightingConcurrencyProbeResult: Sendable {
+    let mode: String
+    let elapsedMs: Double
+    let frameStats: USBLightingConcurrencyOperationStats
+    let commandReadStats: USBLightingConcurrencyOperationStats
+    let commandWriteStats: USBLightingConcurrencyOperationStats
+}
+
 struct USBBatteryReadResult: Sendable {
     let charging: Bool
     let rawLevel: UInt8
@@ -336,7 +352,7 @@ private func enumerateBTHIDProfileCandidates(
     return (manager, candidates)
 }
 
-final class USBProbeClient {
+final class USBProbeClient: @unchecked Sendable {
     private let manager: IOHIDManager
     private let session: USBHIDControlSession
     private let deviceID: String
@@ -428,7 +444,9 @@ final class USBProbeClient {
         storage: UInt8,
         row: UInt8,
         startColumn: UInt8,
-        colors: [RGBPatch]
+        colors: [RGBPatch],
+        responseAttempts: Int = 6,
+        responseDelayUs: useconds_t = 35_000
     ) throws -> USBLightingCustomFrameResult {
         let args = USBHIDProtocol.lightingCustomFrameArgs(
             storage: storage,
@@ -438,8 +456,292 @@ final class USBProbeClient {
         )
         return USBLightingCustomFrameResult(
             args: args,
-            succeeded: try writeLightingCommand(cmdID: 0x03, args: args)
+            succeeded: try writeLightingCommand(
+                cmdID: 0x03,
+                args: args,
+                responseAttempts: responseAttempts,
+                responseDelayUs: responseDelayUs
+            )
         )
+    }
+
+    func runLightingConcurrencyProbe(
+        frames: Int,
+        commandLoops: Int,
+        intervalMs: Int,
+        responseDelayUs: useconds_t,
+        unlocked: Bool
+    ) async -> USBLightingConcurrencyProbeResult {
+        let startedAt = Date()
+        async let frameStats = runFrameStream(
+            frames: frames,
+            intervalMs: intervalMs,
+            responseDelayUs: responseDelayUs,
+            unlocked: unlocked
+        )
+        async let commandStats = runConcurrentPollRateCommands(
+            loops: commandLoops,
+            responseDelayUs: responseDelayUs,
+            unlocked: unlocked
+        )
+        let (framesResult, commandsResult) = await (frameStats, commandStats)
+        return USBLightingConcurrencyProbeResult(
+            mode: unlocked ? "unlocked" : "locked",
+            elapsedMs: Date().timeIntervalSince(startedAt) * 1000.0,
+            frameStats: framesResult,
+            commandReadStats: commandsResult.reads,
+            commandWriteStats: commandsResult.writes
+        )
+    }
+
+    private func runFrameStream(
+        frames: Int,
+        intervalMs: Int,
+        responseDelayUs: useconds_t,
+        unlocked: Bool
+    ) async -> USBLightingConcurrencyOperationStats {
+        var durations: [Double] = []
+        var successes = 0
+        var failures = 0
+        let intervalNs = UInt64(max(0, intervalMs)) * 1_000_000
+
+        for index in 0..<max(0, frames) {
+            let startedAt = Date()
+            let colors = customFrameColors(frameIndex: index)
+            do {
+                let succeeded: Bool
+                if unlocked {
+                    let args = USBHIDProtocol.lightingCustomFrameArgs(
+                        storage: 0x01,
+                        row: 0x00,
+                        startColumn: 0x00,
+                        colors: colors
+                    )
+                    let response = try rawCommandUnlocked(
+                        classID: 0x0F,
+                        cmdID: 0x03,
+                        size: UInt8(args.count),
+                        args: args,
+                        transactionID: 0x1F,
+                        responseAttempts: 8,
+                        responseDelayUs: responseDelayUs
+                    )
+                    succeeded = response?[0] == 0x02
+                } else {
+                    succeeded = try writeLightingCustomFrame(
+                        storage: 0x01,
+                        row: 0x00,
+                        startColumn: 0x00,
+                        colors: colors,
+                        responseAttempts: 8,
+                        responseDelayUs: responseDelayUs
+                    ).succeeded
+                }
+                if succeeded {
+                    successes += 1
+                } else {
+                    failures += 1
+                }
+            } catch {
+                failures += 1
+            }
+            let elapsedMs = Date().timeIntervalSince(startedAt) * 1000.0
+            durations.append(elapsedMs)
+            let elapsedNs = UInt64(max(0.0, elapsedMs) * 1_000_000.0)
+            if intervalNs > elapsedNs {
+                try? await Task.sleep(nanoseconds: intervalNs - elapsedNs)
+            }
+        }
+
+        return operationStats(attempts: max(0, frames), successes: successes, failures: failures, durations: durations)
+    }
+
+    private func runConcurrentPollRateCommands(
+        loops: Int,
+        responseDelayUs: useconds_t,
+        unlocked: Bool
+    ) async -> (reads: USBLightingConcurrencyOperationStats, writes: USBLightingConcurrencyOperationStats) {
+        var readDurations: [Double] = []
+        var writeDurations: [Double] = []
+        var readSuccesses = 0
+        var readFailures = 0
+        var writeSuccesses = 0
+        var writeFailures = 0
+
+        for _ in 0..<max(0, loops) {
+            let readStartedAt = Date()
+            var pollRaw: UInt8?
+            do {
+                let response: [UInt8]?
+                if unlocked {
+                    response = try rawCommandUnlocked(
+                        classID: 0x00,
+                        cmdID: 0x85,
+                        size: 0x01,
+                        args: [],
+                        transactionID: 0x1E,
+                        responseAttempts: 8,
+                        responseDelayUs: responseDelayUs
+                    )
+                } else {
+                    response = try rawCommand(
+                        classID: 0x00,
+                        cmdID: 0x85,
+                        size: 0x01,
+                        args: [],
+                        responseAttempts: 8,
+                        responseDelayUs: responseDelayUs
+                    )
+                }
+                if let response, response[0] == 0x02, response.count > 8 {
+                    pollRaw = response[8]
+                    readSuccesses += 1
+                } else {
+                    readFailures += 1
+                }
+            } catch {
+                readFailures += 1
+            }
+            readDurations.append(Date().timeIntervalSince(readStartedAt) * 1000.0)
+
+            let writeStartedAt = Date()
+            do {
+                let args = [pollRaw ?? 0x01]
+                let response: [UInt8]?
+                if unlocked {
+                    response = try rawCommandUnlocked(
+                        classID: 0x00,
+                        cmdID: 0x05,
+                        size: 0x01,
+                        args: args,
+                        transactionID: 0x1D,
+                        responseAttempts: 8,
+                        responseDelayUs: responseDelayUs
+                    )
+                } else {
+                    response = try rawCommand(
+                        classID: 0x00,
+                        cmdID: 0x05,
+                        size: 0x01,
+                        args: args,
+                        responseAttempts: 8,
+                        responseDelayUs: responseDelayUs
+                    )
+                }
+                if response?[0] == 0x02 {
+                    writeSuccesses += 1
+                } else {
+                    writeFailures += 1
+                }
+            } catch {
+                writeFailures += 1
+            }
+            writeDurations.append(Date().timeIntervalSince(writeStartedAt) * 1000.0)
+
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+
+        return (
+            operationStats(
+                attempts: max(0, loops),
+                successes: readSuccesses,
+                failures: readFailures,
+                durations: readDurations
+            ),
+            operationStats(
+                attempts: max(0, loops),
+                successes: writeSuccesses,
+                failures: writeFailures,
+                durations: writeDurations
+            )
+        )
+    }
+
+    private func operationStats(
+        attempts: Int,
+        successes: Int,
+        failures: Int,
+        durations: [Double]
+    ) -> USBLightingConcurrencyOperationStats {
+        let average = durations.isEmpty ? 0.0 : durations.reduce(0.0, +) / Double(durations.count)
+        return USBLightingConcurrencyOperationStats(
+            attempts: attempts,
+            successes: successes,
+            failures: failures,
+            averageMs: average,
+            maxMs: durations.max() ?? 0.0
+        )
+    }
+
+    private func customFrameColors(frameIndex: Int) -> [RGBPatch] {
+        (0..<12).map { index in
+            let hue = (Double(index) / 12.0) + (Double(frameIndex) * 0.04)
+            let phase = hue - floor(hue)
+            let red = Int(round((0.5 + 0.5 * sin(phase * .pi * 2.0)) * 255.0))
+            let green = Int(round((0.5 + 0.5 * sin((phase + 0.333) * .pi * 2.0)) * 255.0))
+            let blue = Int(round((0.5 + 0.5 * sin((phase + 0.666) * .pi * 2.0)) * 255.0))
+            return RGBPatch(r: red, g: green, b: blue)
+        }
+    }
+
+    private func rawCommandUnlocked(
+        classID: UInt8,
+        cmdID: UInt8,
+        size: UInt8,
+        args: [UInt8],
+        transactionID: UInt8,
+        responseAttempts: Int,
+        responseDelayUs: useconds_t
+    ) throws -> [UInt8]? {
+        let report = USBHIDProtocol.createReport(txn: transactionID, classID: classID, cmdID: cmdID, size: size, args: args)
+        let openResult = IOHIDDeviceOpen(session.device, IOOptionBits(kIOHIDOptionsTypeNone))
+        guard openResult == kIOReturnSuccess else {
+            if openResult == kIOReturnNotPermitted {
+                throw BridgeError.commandFailed("USB HID access denied. Grant Input Monitoring and relaunch.")
+            }
+            return nil
+        }
+        defer { IOHIDDeviceClose(session.device, IOOptionBits(kIOHIDOptionsTypeNone)) }
+
+        let setResult = report.withUnsafeBufferPointer { ptr -> IOReturn in
+            guard let base = ptr.baseAddress else { return kIOReturnError }
+            return IOHIDDeviceSetReport(session.device, kIOHIDReportTypeFeature, CFIndex(0), base, ptr.count)
+        }
+        guard setResult == kIOReturnSuccess else {
+            if setResult == kIOReturnNotPermitted {
+                throw BridgeError.commandFailed("USB HID access denied. Grant Input Monitoring and relaunch.")
+            }
+            return nil
+        }
+
+        for _ in 0..<max(1, responseAttempts) {
+            usleep(responseDelayUs)
+            var out = [UInt8](repeating: 0, count: 90)
+            var length = out.count
+            let getResult = out.withUnsafeMutableBufferPointer { ptr -> IOReturn in
+                guard let base = ptr.baseAddress else { return kIOReturnError }
+                return IOHIDDeviceGetReport(session.device, kIOHIDReportTypeFeature, CFIndex(0), base, &length)
+            }
+            guard getResult == kIOReturnSuccess, length > 0 else { continue }
+
+            let raw = Array(out.prefix(length))
+            let candidate: [UInt8]
+            if raw.count == 91 {
+                candidate = Array(raw.dropFirst())
+            } else if raw.count == 90 {
+                candidate = raw
+            } else if raw.count > 90 {
+                candidate = Array(raw.suffix(90))
+            } else {
+                continue
+            }
+
+            if candidate[0] == 0x00 { continue }
+            if USBHIDProtocol.isValidResponse(candidate, txn: transactionID, classID: classID, cmdID: cmdID) {
+                return candidate
+            }
+        }
+        return nil
     }
 
     func readBattery() throws -> USBBatteryReadResult? {
@@ -802,12 +1104,19 @@ final class USBProbeClient {
         return Int(response[10])
     }
 
-    private func writeLightingCommand(cmdID: UInt8, args: [UInt8]) throws -> Bool {
+    private func writeLightingCommand(
+        cmdID: UInt8,
+        args: [UInt8],
+        responseAttempts: Int = 6,
+        responseDelayUs: useconds_t = 35_000
+    ) throws -> Bool {
         guard let response = try session.perform(
             classID: 0x0F,
             cmdID: cmdID,
             size: UInt8(max(0, min(255, args.count))),
-            args: args
+            args: args,
+            responseAttempts: responseAttempts,
+            responseDelayUs: responseDelayUs
         ) else {
             return false
         }

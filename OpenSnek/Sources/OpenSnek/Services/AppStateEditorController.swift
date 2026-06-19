@@ -2652,6 +2652,38 @@ final class AppStateEditorController {
         )
     }
 
+    func startSoftwareLighting() async {
+        guard let device = deviceStore.selectedDevice else {
+            deviceStore.errorMessage = "No device selected"
+            return
+        }
+        guard device.supportsSoftwareLightingEffects else {
+            deviceStore.errorMessage = "Software lighting is not supported for this device."
+            return
+        }
+
+        do {
+            let status = try await environment.backend.startSoftwareLighting(
+                device: device,
+                request: editorStore.softwareLightingEffectRequest()
+            )
+            deviceStore.softwareLightingStatusByDeviceID[device.id] = status
+            deviceStore.errorMessage = nil
+        } catch {
+            deviceStore.errorMessage = error.localizedDescription
+        }
+    }
+
+    func stopSoftwareLighting() async {
+        guard let deviceID = deviceStore.selectedDeviceID else { return }
+        let status = await environment.backend.stopSoftwareLighting(deviceID: deviceID)
+        if let status {
+            deviceStore.softwareLightingStatusByDeviceID[deviceID] = status
+        } else {
+            deviceStore.softwareLightingStatusByDeviceID.removeValue(forKey: deviceID)
+        }
+    }
+
     func persistedSettingsRestorePlan(device: MouseDevice) -> PersistedSettingsRestorePlan? {
         guard shouldRestorePersistedSettingsOnConnect(for: device),
               let snapshot = loadPersistedSettingsSnapshot(device: device) else {

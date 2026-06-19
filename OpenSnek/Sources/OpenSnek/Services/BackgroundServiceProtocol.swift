@@ -30,6 +30,15 @@ struct ButtonBindingReadRequest: Codable, Sendable {
     let profile: Int
 }
 
+struct SoftwareLightingStartRequest: Codable, Sendable {
+    let device: MouseDevice
+    let request: SoftwareLightingEffectRequest
+}
+
+struct SoftwareLightingStatusRequest: Codable, Sendable {
+    let deviceID: String
+}
+
 struct OnboardProfileIDRequest: Codable, Sendable {
     let device: MouseDevice
     let profileID: Int
@@ -111,6 +120,9 @@ enum BackgroundServiceMethod: String, Codable, Sendable {
     case activateOnboardProfile
     case refreshActiveOnboardProfile
     case readLightingColor
+    case startSoftwareLighting
+    case stopSoftwareLighting
+    case softwareLightingStatus
     case debugUSBReadButtonBinding
     case subscribeStateUpdates
 }

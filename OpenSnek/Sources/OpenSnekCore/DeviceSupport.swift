@@ -280,6 +280,7 @@ public struct DeviceProfile: Hashable, Sendable {
     public let supportedLightingEffects: [LightingEffectKind]
     public let usbLightingLEDIDs: [UInt8]
     public let usbLightingZones: [USBLightingZoneDescriptor]
+    public let softwareLightingFrameLayout: SoftwareLightingFrameLayout?
     public let passiveDPIInput: PassiveDPIInputDescriptor?
     public let supportsIndependentXYDPI: Bool
     public let onboardProfileSupport: OnboardProfileSupport
@@ -297,6 +298,7 @@ public struct DeviceProfile: Hashable, Sendable {
         supportedLightingEffects: [LightingEffectKind] = LightingEffectKind.allCases,
         usbLightingLEDIDs: [UInt8] = [],
         usbLightingZones: [USBLightingZoneDescriptor] = [],
+        softwareLightingFrameLayout: SoftwareLightingFrameLayout? = nil,
         passiveDPIInput: PassiveDPIInputDescriptor? = nil,
         supportsIndependentXYDPI: Bool = false,
         onboardProfileSupport: OnboardProfileSupport = .unavailable,
@@ -313,6 +315,7 @@ public struct DeviceProfile: Hashable, Sendable {
         self.supportedLightingEffects = supportedLightingEffects
         self.usbLightingLEDIDs = usbLightingLEDIDs
         self.usbLightingZones = usbLightingZones
+        self.softwareLightingFrameLayout = softwareLightingFrameLayout
         self.passiveDPIInput = passiveDPIInput
         self.supportsIndependentXYDPI = supportsIndependentXYDPI
         self.onboardProfileSupport = onboardProfileSupport
@@ -369,6 +372,20 @@ public struct DeviceProfile: Hashable, Sendable {
 
     public var supportsMappedOnboardProfileCRUD: Bool {
         onboardProfileSupport == .mappedCore
+    }
+}
+
+public extension MouseDevice {
+    var supportsSoftwareLightingEffects: Bool {
+        DeviceProfiles
+            .resolve(vendorID: vendor_id, productID: product_id, transport: transport)?
+            .softwareLightingFrameLayout != nil
+    }
+
+    var softwareLightingFrameLayout: SoftwareLightingFrameLayout? {
+        DeviceProfiles
+            .resolve(vendorID: vendor_id, productID: product_id, transport: transport)?
+            .softwareLightingFrameLayout
     }
 }
 
@@ -598,6 +615,7 @@ public enum DeviceProfiles {
         supportedLightingEffects: basiliskV335KUSBLightingEffects,
         usbLightingLEDIDs: [0x01, 0x04, 0x0A],
         usbLightingZones: basiliskV335KUSBLightingZones,
+        softwareLightingFrameLayout: .basiliskV3ProUSB,
         passiveDPIInput: PassiveDPIInputDescriptor(
             usagePage: 0x01,
             usage: 0x06,
