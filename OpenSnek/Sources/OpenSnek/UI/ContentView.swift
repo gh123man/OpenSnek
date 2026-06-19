@@ -156,6 +156,9 @@ struct ContentView: View {
         if isInputMonitoringError(deviceStore.errorMessage) {
             return shouldShowPermissionNotice
         }
+        if shouldSuppressTelemetryNoticeDuringConnectionRecovery {
+            return false
+        }
         if deviceStore.warningMessage != nil {
             return true
         }
@@ -290,26 +293,29 @@ struct ContentView: View {
     }
 
     private var selectedDetailHandlesConnectionRecovery: Bool {
+        guard shouldSuppressTelemetryNoticeDuringConnectionRecovery else { return false }
         guard let selected = deviceStore.selectedDevice else { return false }
-        guard !deviceStore.selectedDeviceIsStrictlyUnsupported,
-              !deviceStore.selectedDeviceIsUnsupportedUSB else {
-            return false
-        }
         if let state = deviceStore.state,
            state.device.id == nil || state.device.id == selected.id {
             return false
         }
+        return true
+    }
 
-        switch deviceStore.connectionState(for: selected) {
-        case .disconnected, .reconnecting:
-            return true
-        case .connected, .unsupported, .error:
-            return false
-        }
+    private var shouldSuppressTelemetryNoticeDuringConnectionRecovery: Bool {
+        guard let selected = deviceStore.selectedDevice else { return false }
+        return ContentNoticePresentation.shouldSuppressTelemetryNoticeDuringConnectionRecovery(
+            connectionState: deviceStore.connectionState(for: selected),
+            isStrictlyUnsupported: deviceStore.selectedDeviceIsStrictlyUnsupported,
+            isUnsupportedUSB: deviceStore.selectedDeviceIsUnsupportedUSB
+        )
     }
 
     private var shouldShowSeparateWarningNotice: Bool {
         guard deviceStore.warningMessage != nil else { return false }
+        if shouldSuppressTelemetryNoticeDuringConnectionRecovery {
+            return false
+        }
         return !showsUSBAccessCallout
     }
 
@@ -642,6 +648,22 @@ private struct NoticeItem {
     var detailLines: [String] = []
     let tone: StatusNoticeTone
     var actions: [NoticeAction] = []
+}
+
+enum ContentNoticePresentation {
+    static func shouldSuppressTelemetryNoticeDuringConnectionRecovery(
+        connectionState: DeviceConnectionState,
+        isStrictlyUnsupported: Bool,
+        isUnsupportedUSB: Bool
+    ) -> Bool {
+        guard !isStrictlyUnsupported, !isUnsupportedUSB else { return false }
+        switch connectionState {
+        case .disconnected, .reconnecting:
+            return true
+        case .connected, .unsupported, .error:
+            return false
+        }
+    }
 }
 
 private struct NoticeAction {
