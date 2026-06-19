@@ -32,6 +32,7 @@ All notable changes to this project are documented in this file.
 
 ### Added
 - Added a service-owned Basilisk V3 Pro USB software lighting engine that streams volatile 12-cell Custom Frame data while OpenSnek is running, with Flame, Scrolling Rainbow, Comet Chase, and Aurora presets plus app UI controls to start and stop the active preset.
+- Added a Jellybeans software lighting preset with a pastel palette and one-random-LED-per-tick color changes.
 - Extended the USB software lighting effects surface to the wired Basilisk V3 and Basilisk V3 35K underglow profiles using the shared V3-family 12-cell frame assumption.
 - Added `OpenSnekProbe usb-lighting-concurrency`, a V3 Pro USB stress probe for comparing serialized Custom Frame streaming against unsafe overlapping feature-report reads/writes.
 
@@ -43,6 +44,7 @@ All notable changes to this project are documented in this file.
 - Advanced software lighting can now be marked Apply on connect, remembering the last applied preset, speed, and palette per device and defaulting the Lighting card to the Advanced tab when enabled.
 - Software lighting streams are now owned by physical device identity so replacing an effect cannot leave an older stream running under a transient device ID, remote apply-on-connect starts once per connection, and stopping a software effect reloads the active onboard profile lighting.
 - Software lighting replacement is now generation-gated to prevent reentrant start/resume races from leaving untracked frame writers, Stop explicitly reapplies the active profile lighting surface before returning to onboard mode, and Scrolling Rainbow now uses cyclic cell spacing for seamless loops with any palette.
+- Flame software lighting now uses seeded irregular flicker timing per LED so color changes feel less uniform.
 
 ## [2026-06-18]
 

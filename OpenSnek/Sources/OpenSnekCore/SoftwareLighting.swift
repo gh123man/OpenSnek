@@ -5,6 +5,7 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
     case scrollingRainbow = "scrolling_rainbow"
     case cometChase = "comet_chase"
     case aurora
+    case jellybeans
 
     public var id: String { rawValue }
 
@@ -18,6 +19,8 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
             return "Comet Chase"
         case .aurora:
             return "Aurora"
+        case .jellybeans:
+            return "Jellybeans"
         }
     }
 
@@ -51,6 +54,16 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
                 RGBPatch(r: 96, g: 96, b: 255),
                 RGBPatch(r: 228, g: 94, b: 255),
             ]
+        case .jellybeans:
+            return [
+                RGBPatch(r: 255, g: 142, b: 170),
+                RGBPatch(r: 255, g: 194, b: 123),
+                RGBPatch(r: 255, g: 239, b: 139),
+                RGBPatch(r: 151, g: 231, b: 176),
+                RGBPatch(r: 128, g: 219, b: 236),
+                RGBPatch(r: 177, g: 161, b: 255),
+                RGBPatch(r: 239, g: 157, b: 244),
+            ]
         }
     }
 
@@ -62,7 +75,7 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
         switch self {
         case .scrollingRainbow:
             return 3.0
-        case .flame, .cometChase, .aurora:
+        case .flame, .cometChase, .aurora, .jellybeans:
             return 1.0
         }
     }
@@ -251,6 +264,8 @@ public enum SoftwareLightingRenderer {
             return cometChase(palette: palette, index: index, count: count, time: time, intensity: intensity)
         case .aurora:
             return aurora(palette: palette, index: index, count: count, time: time, intensity: intensity)
+        case .jellybeans:
+            return jellybeans(palette: palette, index: index, count: count, time: time, intensity: intensity)
         }
     }
 
@@ -262,10 +277,16 @@ public enum SoftwareLightingRenderer {
         intensity: Double
     ) -> RGBPatch {
         let position = normalizedPosition(index: index, count: count)
-        let flicker = 0.55 +
-            0.25 * sin(time * 9.0 + Double(index) * 1.7) +
-            0.20 * sin(time * 17.0 + Double(index) * 0.73)
-        let heat = max(0.0, min(1.0, flicker * (0.85 + 0.25 * position)))
+        let seed = UInt64(index + 1)
+        let slowRate = 1.9 + 1.8 * hashUnit(seed &* 0x9E37_79B9)
+        let midRate = 4.0 + 3.3 * hashUnit(seed &* 0x85EB_CA6B)
+        let fastRate = 8.0 + 7.5 * hashUnit(seed &* 0xC2B2_AE35)
+        let slow = smoothRandom(time: time, rate: slowRate, seed: seed &* 0x27D4_EB2D)
+        let mid = smoothRandom(time: time, rate: midRate, seed: seed &* 0x1656_67B1)
+        let fast = smoothRandom(time: time, rate: fastRate, seed: seed &* 0xD3A2_646C)
+        let pulse = 0.5 + 0.5 * sin(time * (5.0 + 3.0 * hashUnit(seed &* 0x94D0_49BB)) + hashUnit(seed) * .pi * 2.0)
+        let flicker = 0.18 + 0.34 * slow + 0.24 * mid + 0.18 * fast + 0.06 * pulse
+        let heat = max(0.0, min(1.0, flicker * (0.82 + 0.28 * position)))
         let ember = index <= 1 ? 0.65 : 1.0
         return scaledColor(samplePalette(palette, position: heat), scale: ember * intensity)
     }
@@ -314,6 +335,28 @@ public enum SoftwareLightingRenderer {
         return scaledColor(color, scale: value)
     }
 
+    private static func jellybeans(
+        palette: [RGBPatch],
+        index: Int,
+        count: Int,
+        time: TimeInterval,
+        intensity: Double
+    ) -> RGBPatch {
+        let tickRate = 7.0
+        let currentTick = max(0, Int(floor(time * tickRate)))
+        let lastChangeTick = latestJellybeanChangeTick(for: index, count: count, atOrBefore: currentTick)
+        let previousChangeTick = lastChangeTick.flatMap {
+            latestJellybeanChangeTick(for: index, count: count, atOrBefore: $0 - 1)
+        }
+        let previousSlot = previousChangeTick.map {
+            jellybeanPaletteSlot(index: index, tick: $0, paletteCount: palette.count, previousSlot: nil)
+        } ?? initialJellybeanPaletteSlot(index: index, paletteCount: palette.count)
+        let slot = lastChangeTick.map {
+            jellybeanPaletteSlot(index: index, tick: $0, paletteCount: palette.count, previousSlot: previousSlot)
+        } ?? previousSlot
+        return scaledColor(paletteColor(palette, slot: slot), scale: 0.95 * intensity)
+    }
+
     private static func normalizedPosition(index: Int, count: Int) -> Double {
         guard count > 1 else { return 0 }
         return Double(index) / Double(count - 1)
@@ -322,6 +365,40 @@ public enum SoftwareLightingRenderer {
     private static func cyclicPosition(index: Int, count: Int) -> Double {
         guard count > 0 else { return 0 }
         return Double(index) / Double(count)
+    }
+
+    private static func latestJellybeanChangeTick(for index: Int, count: Int, atOrBefore tick: Int) -> Int? {
+        guard count > 0, tick >= 1 else { return nil }
+        for candidate in stride(from: tick, through: 1, by: -1) {
+            if jellybeanLEDIndex(tick: candidate, count: count) == index {
+                return candidate
+            }
+        }
+        return nil
+    }
+
+    private static func jellybeanLEDIndex(tick: Int, count: Int) -> Int {
+        guard count > 0 else { return 0 }
+        return Int(hash(UInt64(max(0, tick)) &+ 0xA24B_AED4_963E_E407) % UInt64(count))
+    }
+
+    private static func initialJellybeanPaletteSlot(index: Int, paletteCount: Int) -> Int {
+        guard paletteCount > 0 else { return 0 }
+        return Int(hash(UInt64(index + 1) &* 0x9E37_79B9_7F4A_7C15) % UInt64(paletteCount))
+    }
+
+    private static func jellybeanPaletteSlot(
+        index: Int,
+        tick: Int,
+        paletteCount: Int,
+        previousSlot: Int?
+    ) -> Int {
+        guard paletteCount > 0 else { return 0 }
+        var slot = Int(hash(UInt64(max(0, tick)) &* 0xBF58_476D_1CE4_E5B9 &+ UInt64(index + 1)) % UInt64(paletteCount))
+        if paletteCount > 1, let previousSlot, slot == previousSlot {
+            slot = (slot + 1) % paletteCount
+        }
+        return slot
     }
 
     private static func circularDistance(_ a: Double, _ b: Double, _ count: Double) -> Double {
@@ -339,6 +416,11 @@ public enum SoftwareLightingRenderer {
             g: scaled(Double(color.g), intensity: scale),
             b: scaled(Double(color.b), intensity: scale)
         )
+    }
+
+    private static func paletteColor(_ palette: [RGBPatch], slot: Int) -> RGBPatch {
+        guard !palette.isEmpty else { return RGBPatch(r: 0, g: 0, b: 0) }
+        return palette[max(0, slot) % palette.count]
     }
 
     private static func samplePalette(
@@ -406,5 +488,30 @@ public enum SoftwareLightingRenderer {
             return 0
         }
         return positive
+    }
+
+    private static func smoothRandom(time: TimeInterval, rate: Double, seed: UInt64) -> Double {
+        let sample = max(0, time) * rate
+        let lower = floor(sample)
+        let mix = smoothstep(sample - lower)
+        let a = hashUnit(seed &+ UInt64(lower))
+        let b = hashUnit(seed &+ UInt64(lower + 1))
+        return a + (b - a) * mix
+    }
+
+    private static func smoothstep(_ value: Double) -> Double {
+        let x = max(0.0, min(1.0, value))
+        return x * x * (3.0 - 2.0 * x)
+    }
+
+    private static func hashUnit(_ seed: UInt64) -> Double {
+        Double(hash(seed) & 0x00FF_FFFF) / Double(0x00FF_FFFF)
+    }
+
+    private static func hash(_ seed: UInt64) -> UInt64 {
+        var value = seed &+ 0x9E37_79B9_7F4A_7C15
+        value = (value ^ (value >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        value = (value ^ (value >> 27)) &* 0x94D0_49BB_1331_11EB
+        return value ^ (value >> 31)
     }
 }

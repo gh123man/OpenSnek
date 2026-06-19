@@ -80,6 +80,7 @@ final class SoftwareLightingRendererTests: XCTestCase {
         XCTAssertEqual(SoftwareLightingEffectRequest(presetID: .flame).speed, 1.0)
         XCTAssertEqual(SoftwareLightingEffectRequest(presetID: .cometChase).speed, 1.0)
         XCTAssertEqual(SoftwareLightingEffectRequest(presetID: .aurora).speed, 1.0)
+        XCTAssertEqual(SoftwareLightingEffectRequest(presetID: .jellybeans).speed, 1.0)
         XCTAssertEqual(SoftwareLightingPresetID.scrollingRainbow.renderSpeedMultiplier, 3.0)
     }
 
@@ -89,6 +90,35 @@ final class SoftwareLightingRendererTests: XCTestCase {
             RGBPatch(r: 255, g: 48, b: 0),
             RGBPatch(r: 255, g: 176, b: 28),
         ])
+    }
+
+    func testJellybeansDefaultPaletteUsesPastels() {
+        XCTAssertEqual(SoftwareLightingPresetID.jellybeans.label, "Jellybeans")
+        XCTAssertEqual(SoftwareLightingPresetID.jellybeans.defaultPalette, [
+            RGBPatch(r: 255, g: 142, b: 170),
+            RGBPatch(r: 255, g: 194, b: 123),
+            RGBPatch(r: 255, g: 239, b: 139),
+            RGBPatch(r: 151, g: 231, b: 176),
+            RGBPatch(r: 128, g: 219, b: 236),
+            RGBPatch(r: 177, g: 161, b: 255),
+            RGBPatch(r: 239, g: 157, b: 244),
+        ])
+    }
+
+    func testFlameTimingVariesAcrossCells() {
+        let request = SoftwareLightingEffectRequest(presetID: .flame)
+        let samples = stride(from: 0.0, through: 2.0, by: 0.1).map { elapsed in
+            SoftwareLightingRenderer.render(
+                request: request,
+                layout: .basiliskV3ProUSB,
+                elapsedTime: elapsed
+            )
+        }
+        let framePairs = zip(samples, samples.dropFirst())
+        let firstCellChanges = framePairs.filter { $0.colors[2] != $1.colors[2] }.count
+        let secondCellChanges = zip(samples, samples.dropFirst()).filter { $0.colors[7] != $1.colors[7] }.count
+
+        XCTAssertNotEqual(firstCellChanges, secondCellChanges)
     }
 
     func testZeroSpeedRendersStaticFrame() {
@@ -172,6 +202,37 @@ final class SoftwareLightingRendererTests: XCTestCase {
         XCTAssertNotEqual(first.colors.first, first.colors.last)
         XCTAssertEqual(shifted.colors[1], first.colors[0])
         XCTAssertEqual(shifted.colors[0], first.colors[layout.cellCount - 1])
+    }
+
+    func testJellybeansChangesOneRandomLEDPerTick() {
+        let request = SoftwareLightingEffectRequest(presetID: .jellybeans)
+        let first = SoftwareLightingRenderer.render(
+            request: request,
+            layout: .basiliskV3ProUSB,
+            elapsedTime: 0.0
+        )
+        let second = SoftwareLightingRenderer.render(
+            request: request,
+            layout: .basiliskV3ProUSB,
+            elapsedTime: (1.0 / 7.0) + 0.001
+        )
+        let changedIndices = zip(first.colors, second.colors).enumerated().compactMap { index, pair in
+            pair.0 == pair.1 ? nil : index
+        }
+
+        let renderedDefaultPalette = Set(SoftwareLightingPresetID.jellybeans.defaultPalette.map { color in
+            RGBPatch(
+                r: Int(round(Double(color.r) * 0.95)),
+                g: Int(round(Double(color.g) * 0.95)),
+                b: Int(round(Double(color.b) * 0.95))
+            )
+        })
+
+        XCTAssertGreaterThan(Set(first.colors).count, 1)
+        XCTAssertEqual(changedIndices.count, 1)
+        if let changedIndex = changedIndices.first {
+            XCTAssertTrue(renderedDefaultPalette.contains(second.colors[changedIndex]))
+        }
     }
 
     func testAnimatedPresetsMoveOverTime() {
