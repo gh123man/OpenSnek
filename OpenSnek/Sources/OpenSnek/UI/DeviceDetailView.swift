@@ -931,7 +931,7 @@ struct LightingCard: View {
 
     private var lightingSummaryTitle: String {
         if summarizesSoftwareLighting {
-            return "Advanced \(editorStore.editableSoftwareLightingPreset.label)"
+            return editorStore.editableSoftwareLightingPreset.label
         }
 
         return "Onboard \(editorStore.editableLightingEffect.label)"
