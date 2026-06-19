@@ -22,6 +22,7 @@ protocol DeviceBackend: AnyObject, Sendable {
     func readState(device: MouseDevice) async throws -> MouseState
     func readDpiStagesFast(device: MouseDevice) async throws -> DpiFastSnapshot?
     func shouldUseFastDPIPolling(device: MouseDevice) async -> Bool
+    func usbControlAvailability(device: MouseDevice) async throws -> USBControlAvailability
     func dpiUpdateTransportStatus(device: MouseDevice) async -> DpiUpdateTransportStatus
     func hidAccessStatus() async -> HIDAccessStatus
     func stateUpdates() async -> AsyncStream<BackendStateUpdate>
@@ -81,6 +82,8 @@ final actor BootstrapPendingBackend: DeviceBackend {
     func readDpiStagesFast(device _: MouseDevice) async throws -> DpiFastSnapshot? { nil }
 
     func shouldUseFastDPIPolling(device _: MouseDevice) async -> Bool { true }
+
+    func usbControlAvailability(device _: MouseDevice) async throws -> USBControlAvailability { .unknown }
 
     func dpiUpdateTransportStatus(device _: MouseDevice) async -> DpiUpdateTransportStatus { .unknown }
 
@@ -164,6 +167,10 @@ final actor BootstrapPendingBackend: DeviceBackend {
 }
 
 extension DeviceBackend {
+    func usbControlAvailability(device _: MouseDevice) async throws -> USBControlAvailability {
+        .unknown
+    }
+
     func dpiUpdateTransportStatus(device: MouseDevice) async -> DpiUpdateTransportStatus {
         let usesFastPolling = await shouldUseFastDPIPolling(device: device)
         return usesFastPolling ? .pollingFallback : .realTimeHID
@@ -301,19 +308,22 @@ struct SharedServiceSnapshot: Codable, Sendable {
     let lastUpdatedByDeviceID: [String: Date]
     let observedAtByDeviceID: [String: Date]
     let softwareLightingStatusByDeviceID: [String: SoftwareLightingEngineStatus]
+    let usbControlAvailabilityByDeviceID: [String: USBControlAvailability]
 
     init(
         devices: [MouseDevice],
         stateByDeviceID: [String: MouseState],
         lastUpdatedByDeviceID: [String: Date],
         observedAtByDeviceID: [String: Date] = [:],
-        softwareLightingStatusByDeviceID: [String: SoftwareLightingEngineStatus] = [:]
+        softwareLightingStatusByDeviceID: [String: SoftwareLightingEngineStatus] = [:],
+        usbControlAvailabilityByDeviceID: [String: USBControlAvailability] = [:]
     ) {
         self.devices = devices
         self.stateByDeviceID = stateByDeviceID
         self.lastUpdatedByDeviceID = lastUpdatedByDeviceID
         self.observedAtByDeviceID = observedAtByDeviceID
         self.softwareLightingStatusByDeviceID = softwareLightingStatusByDeviceID
+        self.usbControlAvailabilityByDeviceID = usbControlAvailabilityByDeviceID
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -322,6 +332,7 @@ struct SharedServiceSnapshot: Codable, Sendable {
         case lastUpdatedByDeviceID
         case observedAtByDeviceID
         case softwareLightingStatusByDeviceID
+        case usbControlAvailabilityByDeviceID
     }
 
     init(from decoder: Decoder) throws {
@@ -335,6 +346,10 @@ struct SharedServiceSnapshot: Codable, Sendable {
                 [String: SoftwareLightingEngineStatus].self,
                 forKey: .softwareLightingStatusByDeviceID
             ) ?? [:]
+        usbControlAvailabilityByDeviceID = try container.decodeIfPresent(
+            [String: USBControlAvailability].self,
+            forKey: .usbControlAvailabilityByDeviceID
+        ) ?? [:]
     }
 }
 
@@ -348,6 +363,7 @@ enum BackendStateUpdate: Codable, Sendable {
     case deviceState(deviceID: String, state: MouseState, updatedAt: Date)
     case dpiTransportStatus(deviceID: String, status: DpiUpdateTransportStatus, updatedAt: Date)
     case softwareLightingStatus(deviceID: String, status: SoftwareLightingEngineStatus?, updatedAt: Date)
+    case usbControlAvailability(deviceID: String, availability: USBControlAvailability, updatedAt: Date)
     case snapshot(SharedServiceSnapshot)
     case openSettingsRequested
 }
@@ -418,6 +434,7 @@ func mergedStateFromPassiveDpiEvent(
 final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptionsSupportingBackend {
     static let shared = LocalBridgeBackend()
     private static let usbDisconnectDebounceInterval: TimeInterval = 0.75
+    private static let softwareLightingUSBReachabilityProbeInterval: TimeInterval = 1.0
 
     private let client = BridgeClient()
     private let softwareLightingEngine: SoftwareLightingEngine
@@ -426,8 +443,10 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     private var cachedStateByDeviceID: [String: MouseState] = [:]
     private var cachedStateAtByDeviceID: [String: Date] = [:]
     private var softwareLightingStatusByDeviceID: [String: SoftwareLightingEngineStatus] = [:]
+    private var usbControlAvailabilityByDeviceID: [String: USBControlAvailability] = [:]
     private var cachedFastByDeviceID: [String: DpiFastSnapshot] = [:]
     private var cachedFastAtByDeviceID: [String: Date] = [:]
+    private var softwareLightingUSBReachabilityProbeAtByDeviceID: [String: Date] = [:]
     private var reconnectSeedStateByDeviceID: [String: MouseState] = [:]
     private var bluetoothControlReadyDeviceIDs: Set<String> = []
     private let stateUpdatesStream = BroadcastStream<BackendStateUpdate>()
@@ -527,6 +546,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         let cachedStateBeforeRead = cachedStateByDeviceID[device.id]
         if shouldServeCachedTelemetryDuringSoftwareLighting(deviceID: device.id),
            let cached = cachedStateBeforeRead {
+            try await verifyUSBReachabilityDuringSoftwareLightingIfNeeded(device: device, now: readStartedAt)
 #if DEBUG
             OpenSnekUITestSupport.recordReadState(
                 device: device,
@@ -547,7 +567,8 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
                 cachedAt: cachedAt,
                 now: readStartedAt,
                 shouldUseFastDPIPolling: shouldUseFastPolling
-            ) {
+            ),
+               !(device.transport == .usb && usbControlAvailabilityByDeviceID[device.id]?.blocksUSBControlInteraction == true) {
 #if DEBUG
                 OpenSnekUITestSupport.recordReadState(
                     device: device,
@@ -560,7 +581,28 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
             }
         }
 
-        let state = try await client.readState(device: device)
+        let state: MouseState
+        do {
+            state = try await client.readState(device: device)
+        } catch {
+            if device.transport == .usb {
+                let availability: USBControlAvailability
+                if BridgeClient.isUSBTelemetryUnavailableError(error) {
+                    availability = .receiverPresentMouseUnavailable
+                } else if Self.isDeviceNotAvailableError(error) {
+                    availability = .receiverAbsent
+                } else {
+                    availability = usbControlAvailabilityByDeviceID[device.id] ?? .unknown
+                }
+                if availability != .unknown {
+                    recordUSBControlAvailability(availability, for: device.id, updatedAt: Date(), publishSnapshot: true)
+                }
+            }
+            throw error
+        }
+        if device.transport == .usb {
+            recordUSBControlAvailability(.receiverPresentMouseReachable, for: device.id, updatedAt: Date(), publishSnapshot: false)
+        }
         if Self.completedReadWasSuperseded(startedAt: readStartedAt, latestCachedAt: cachedStateAtByDeviceID[device.id]),
            let cached = cachedStateByDeviceID[device.id] {
             if cached.differsOnlyInDynamicDpiState(from: cachedStateBeforeRead) {
@@ -638,6 +680,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     func readDpiStagesFast(device: MouseDevice) async throws -> DpiFastSnapshot? {
         let readStartedAt = Date()
         if shouldServeCachedTelemetryDuringSoftwareLighting(deviceID: device.id) {
+            try await verifyUSBReachabilityDuringSoftwareLightingIfNeeded(device: device, now: readStartedAt)
             if let cached = cachedFastByDeviceID[device.id] {
                 return cached
             }
@@ -655,10 +698,23 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
             cachedAt: cachedAt,
             now: readStartedAt,
             shouldUseFastDPIPolling: shouldUseFastPolling
-           ) {
+           ),
+           !(device.transport == .usb && usbControlAvailabilityByDeviceID[device.id]?.blocksUSBControlInteraction == true) {
             return cached
         }
-        guard let snapshot = try await client.readDpiStagesFast(device: device) else { return nil }
+        let snapshot: (active: Int, values: [Int])?
+        do {
+            snapshot = try await client.readDpiStagesFast(device: device)
+        } catch {
+            if device.transport == .usb, BridgeClient.isUSBTelemetryUnavailableError(error) {
+                recordUSBControlAvailability(.receiverPresentMouseUnavailable, for: device.id, updatedAt: Date(), publishSnapshot: true)
+            }
+            throw error
+        }
+        guard let snapshot else { return nil }
+        if device.transport == .usb {
+            recordUSBControlAvailability(.receiverPresentMouseReachable, for: device.id, updatedAt: Date(), publishSnapshot: false)
+        }
         if Self.completedReadWasSuperseded(startedAt: readStartedAt, latestCachedAt: cachedFastAtByDeviceID[device.id]),
            let cached = cachedFastByDeviceID[device.id] {
             AppLog.debug(
@@ -678,6 +734,13 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
 
     func shouldUseFastDPIPolling(device: MouseDevice) async -> Bool {
         await client.shouldUseFastDPIPolling(device: device)
+    }
+
+    func usbControlAvailability(device: MouseDevice) async throws -> USBControlAvailability {
+        guard device.transport == .usb else { return .unknown }
+        let availability = try await client.usbControlAvailability(device: device)
+        recordUSBControlAvailability(availability, for: device.id, updatedAt: Date(), publishSnapshot: true)
+        return availability
     }
 
     func dpiUpdateTransportStatus(device: MouseDevice) async -> DpiUpdateTransportStatus {
@@ -1002,6 +1065,11 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         return latestCachedAt > startedAt
     }
 
+    nonisolated static func isDeviceNotAvailableError(_ error: any Error) -> Bool {
+        let lowered = error.localizedDescription.lowercased()
+        return lowered.contains("device not available") || lowered.contains("no device")
+    }
+
     nonisolated static func passiveDpiEventHasAmbiguousStageMatch(
         previous: MouseState?,
         event: PassiveDPIEvent
@@ -1265,6 +1333,14 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         cachedStateByDeviceID[event.deviceID] = updated
         cachedStateAtByDeviceID[event.deviceID] = event.observedAt
         reconnectSeedStateByDeviceID[event.deviceID] = updated
+        if cachedDevices.first(where: { $0.id == event.deviceID })?.transport == .usb {
+            recordUSBControlAvailability(
+                .receiverPresentMouseReachable,
+                for: event.deviceID,
+                updatedAt: event.observedAt,
+                publishSnapshot: false
+            )
+        }
         let needsDirectActiveRead = Self.passiveDpiEventHasAmbiguousStageMatch(previous: previousState, event: event)
         let fastActive = updated.dpi_stages.active_stage ?? cachedFastByDeviceID[event.deviceID]?.active ?? 0
         if let values = updated.dpi_stages.values {
@@ -1285,6 +1361,14 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
                     let readAt = Date()
                     cachedFastByDeviceID[event.deviceID] = fast
                     cachedFastAtByDeviceID[event.deviceID] = readAt
+                    if device.transport == .usb {
+                        recordUSBControlAvailability(
+                            .receiverPresentMouseReachable,
+                            for: event.deviceID,
+                            updatedAt: readAt,
+                            publishSnapshot: false
+                        )
+                    }
                     if let precise = updateCachedStateFromFastSnapshot(fast, for: event.deviceID) {
                         publishStateUpdate(.deviceState(deviceID: event.deviceID, state: precise, updatedAt: readAt))
                         publishSnapshotIfService()
@@ -1304,6 +1388,14 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     }
 
     private func handlePassiveDpiHeartbeat(_ event: PassiveDPIHeartbeatEvent) {
+        if cachedDevices.first(where: { $0.id == event.deviceID })?.transport == .usb {
+            recordUSBControlAvailability(
+                .receiverPresentMouseReachable,
+                for: event.deviceID,
+                updatedAt: event.observedAt,
+                publishSnapshot: false
+            )
+        }
         publishStateUpdate(
             .dpiTransportStatus(
                 deviceID: event.deviceID,
@@ -1342,6 +1434,28 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         softwareLightingStatusByDeviceID[deviceID]?.state == .running
     }
 
+    private func verifyUSBReachabilityDuringSoftwareLightingIfNeeded(device: MouseDevice, now: Date) async throws {
+        guard device.transport == .usb else { return }
+        if let lastProbeAt = softwareLightingUSBReachabilityProbeAtByDeviceID[device.id],
+           now.timeIntervalSince(lastProbeAt) < Self.softwareLightingUSBReachabilityProbeInterval,
+           usbControlAvailabilityByDeviceID[device.id] == .receiverPresentMouseReachable {
+            return
+        }
+
+        let availability = try await client.usbControlAvailability(device: device)
+        softwareLightingUSBReachabilityProbeAtByDeviceID[device.id] = now
+        recordUSBControlAvailability(availability, for: device.id, updatedAt: now, publishSnapshot: true)
+
+        switch availability {
+        case .receiverPresentMouseReachable, .unknown:
+            return
+        case .receiverPresentMouseUnavailable:
+            throw BridgeError.usbMouseUnavailable
+        case .receiverAbsent:
+            throw BridgeError.commandFailed("Device not available")
+        }
+    }
+
     private func cacheAndPublishState(_ state: MouseState, for deviceID: String, updatedAt: Date) {
         let merged = Self.mergedApplyState(
             state,
@@ -1350,6 +1464,9 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         cachedStateByDeviceID[deviceID] = merged
         cachedStateAtByDeviceID[deviceID] = updatedAt
         reconnectSeedStateByDeviceID[deviceID] = merged
+        if merged.device.transport == .usb {
+            recordUSBControlAvailability(.receiverPresentMouseReachable, for: deviceID, updatedAt: updatedAt, publishSnapshot: false)
+        }
         if let values = merged.dpi_stages.values,
            let active = merged.dpi_stages.active_stage {
             cachedFastByDeviceID[deviceID] = DpiFastSnapshot(active: active, values: values)
@@ -1357,6 +1474,29 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         }
         publishStateUpdate(.deviceState(deviceID: deviceID, state: merged, updatedAt: updatedAt))
         publishSnapshotIfService()
+    }
+
+    private func recordUSBControlAvailability(
+        _ availability: USBControlAvailability,
+        for deviceID: String,
+        updatedAt: Date,
+        publishSnapshot: Bool
+    ) {
+        guard usbControlAvailabilityByDeviceID[deviceID] != availability else {
+            if publishSnapshot {
+                publishSnapshotIfService()
+            }
+            return
+        }
+        usbControlAvailabilityByDeviceID[deviceID] = availability
+        AppLog.debug(
+            "Backend",
+            "usbControlAvailability device=\(deviceID) availability=\(availability.rawValue)"
+        )
+        publishStateUpdate(.usbControlAvailability(deviceID: deviceID, availability: availability, updatedAt: updatedAt))
+        if publishSnapshot {
+            publishSnapshotIfService()
+        }
     }
 
     private func publishStateUpdate(_ update: BackendStateUpdate) {
@@ -1420,6 +1560,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         cachedStateAtByDeviceID.removeValue(forKey: deviceID)
         cachedFastByDeviceID.removeValue(forKey: deviceID)
         cachedFastAtByDeviceID.removeValue(forKey: deviceID)
+        softwareLightingUSBReachabilityProbeAtByDeviceID.removeValue(forKey: deviceID)
         bluetoothControlReadyDeviceIDs.remove(deviceID)
     }
 
@@ -1430,6 +1571,8 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
             cachedStateAtByDeviceID.removeValue(forKey: deviceID)
             cachedFastByDeviceID.removeValue(forKey: deviceID)
             cachedFastAtByDeviceID.removeValue(forKey: deviceID)
+            softwareLightingUSBReachabilityProbeAtByDeviceID.removeValue(forKey: deviceID)
+            usbControlAvailabilityByDeviceID.removeValue(forKey: deviceID)
             Task { [softwareLightingEngine] in
                 _ = await softwareLightingEngine.suspend(deviceID: deviceID, message: "Device disconnected")
             }
@@ -1455,7 +1598,8 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
                     stateByDeviceID: cachedStateByDeviceID.filter { liveIDs.contains($0.key) },
                     lastUpdatedByDeviceID: cachedStateAtByDeviceID.filter { liveIDs.contains($0.key) },
                     observedAtByDeviceID: latestObservedAtByDeviceID(liveIDs: liveIDs),
-                    softwareLightingStatusByDeviceID: softwareLightingStatusByDeviceID.filter { liveIDs.contains($0.key) }
+                    softwareLightingStatusByDeviceID: softwareLightingStatusByDeviceID.filter { liveIDs.contains($0.key) },
+                    usbControlAvailabilityByDeviceID: usbControlAvailabilityByDeviceID.filter { liveIDs.contains($0.key) }
                 )
             )
         )
@@ -1506,6 +1650,9 @@ private actor BackgroundServiceRequestHandler {
         case .shouldUseFastDPIPolling:
             let device = try decodePayload(MouseDevice.self, from: request.payload)
             payload = try BackendCodec.encode(await backend.shouldUseFastDPIPolling(device: device))
+        case .usbControlAvailability:
+            let device = try decodePayload(MouseDevice.self, from: request.payload)
+            payload = try BackendCodec.encode(try await backend.usbControlAvailability(device: device))
         case .dpiUpdateTransportStatus:
             let device = try decodePayload(MouseDevice.self, from: request.payload)
             payload = try BackendCodec.encode(await backend.dpiUpdateTransportStatus(device: device))
@@ -1696,6 +1843,14 @@ final actor IPCDeviceBackend: HIDAccessRefreshControllingBackend, ApplyOptionsSu
             payload: try BackendCodec.encode(device),
             responseType: Bool.self
         )) ?? false
+    }
+
+    func usbControlAvailability(device: MouseDevice) async throws -> USBControlAvailability {
+        try await request(
+            method: .usbControlAvailability,
+            payload: try BackendCodec.encode(device),
+            responseType: USBControlAvailability.self
+        )
     }
 
     func dpiUpdateTransportStatus(device: MouseDevice) async -> DpiUpdateTransportStatus {

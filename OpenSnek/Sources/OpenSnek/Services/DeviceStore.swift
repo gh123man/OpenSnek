@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import OpenSnekCore
+import OpenSnekHardware
 import SwiftUI
 
 @MainActor
@@ -135,6 +136,9 @@ final class DeviceStore {
             return "Reconnecting to live telemetry. Controls will unlock automatically."
         case .disconnected:
             if selectedDevice.transport == .usb {
+                if deviceController.usbControlAvailability(for: selectedDevice) == .receiverAbsent {
+                    return "The USB receiver is not detected. Reconnect the dongle to continue."
+                }
                 return "The USB dongle is connected, but the mouse is not responding. Wake or power on the mouse to reconnect."
             }
             return "This device is disconnected. Controls will unlock after it reconnects."
@@ -174,9 +178,12 @@ final class DeviceStore {
         return [
             "Control transport: \(controlTransport)",
             "Telemetry: \(telemetryStatus.diagnosticsLabel)",
+            selectedDevice.transport == .usb
+                ? "USB control: \(deviceController.usbControlAvailability(for: selectedDevice).diagnosticsLabel)"
+                : nil,
             "Real-time HID: \(realtimeLabel)",
             "Input Monitoring: \(runtimeStore.hidAccessStatus.diagnosticsLabel)"
-        ].joined(separator: "\n")
+        ].compactMap { $0 }.joined(separator: "\n")
     }
 
     var currentDeviceConnectionTooltip: String? {
@@ -191,6 +198,10 @@ final class DeviceStore {
             "Connection state: \(telemetryStatus.diagnosticsLabel)",
             "Control transport: \(controlTransport)"
         ]
+
+        if selectedDevice.transport == .usb {
+            lines.append("USB control: \(deviceController.usbControlAvailability(for: selectedDevice).diagnosticsLabel)")
+        }
 
         if selectedDeviceSupportsPassiveDPIInput {
             lines.append("Real-time HID: \(realtimeStatus.diagnosticsLabel)")

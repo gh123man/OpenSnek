@@ -2,6 +2,7 @@ import Foundation
 import XCTest
 import OpenSnekAppSupport
 import OpenSnekCore
+import OpenSnekHardware
 @testable import OpenSnek
 
 final class RemoteServiceSnapshotTests: XCTestCase {
@@ -802,6 +803,128 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         XCTAssertNil(message)
     }
 
+    func testRemoteSnapshotUSBUnavailableOverridesFreshCachedState() async {
+        let appState = await MainActor.run {
+            AppState(
+                launchRole: .app,
+                backend: SnapshotTestRemoteBackend(shouldUseFastDPIPolling: true),
+                autoStart: false
+            )
+        }
+
+        let device = makeSnapshotDevice(
+            id: "usb-explicit-unavailable",
+            productName: "Snapshot USB Mouse",
+            transport: .usb,
+            serial: "USB-EXPLICIT-UNAVAILABLE",
+            locationID: 4,
+            profile: .basiliskV3Pro
+        )
+        let now = Date()
+        let connectedSnapshot = SharedServiceSnapshot(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeSnapshotState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 80,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 1,
+                    dpiValue: 1600
+                )
+            ],
+            lastUpdatedByDeviceID: [
+                device.id: now.addingTimeInterval(-1)
+            ],
+            observedAtByDeviceID: [
+                device.id: now.addingTimeInterval(-1)
+            ]
+        )
+        let snapshot = SharedServiceSnapshot(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeSnapshotState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 80,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 1,
+                    dpiValue: 1600
+                )
+            ],
+            lastUpdatedByDeviceID: [
+                device.id: now
+            ],
+            observedAtByDeviceID: [
+                device.id: now
+            ],
+            usbControlAvailabilityByDeviceID: [
+                device.id: .receiverPresentMouseUnavailable
+            ]
+        )
+
+        await MainActor.run {
+            appState.deviceStore.applyRemoteServiceSnapshot(connectedSnapshot)
+            appState.deviceStore.applyRemoteServiceSnapshot(snapshot)
+        }
+
+        let status = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
+        let controlsEnabled = await MainActor.run { appState.deviceStore.selectedDeviceControlsEnabled }
+        let message = await MainActor.run { appState.deviceStore.selectedDeviceInteractionMessage }
+        let presentedDpi = await MainActor.run { appState.deviceStore.state?.dpi?.x }
+
+        XCTAssertEqual(status, "Disconnected")
+        XCTAssertFalse(controlsEnabled)
+        XCTAssertEqual(presentedDpi, 1600)
+        XCTAssertEqual(
+            message,
+            "The USB dongle is connected, but the mouse is not responding. Wake or power on the mouse to reconnect."
+        )
+    }
+
+    func testRemoteSnapshotNewUSBInsertUnavailableStaysReconnectingDuringConnectGrace() async {
+        let appState = await MainActor.run {
+            AppState(
+                launchRole: .app,
+                backend: SnapshotTestRemoteBackend(shouldUseFastDPIPolling: true),
+                autoStart: false
+            )
+        }
+
+        let device = makeSnapshotDevice(
+            id: "usb-explicit-unavailable-new-insert",
+            productName: "Snapshot USB Mouse",
+            transport: .usb,
+            serial: "USB-EXPLICIT-UNAVAILABLE-NEW",
+            locationID: 4,
+            profile: .basiliskV3Pro
+        )
+        let now = Date()
+        let snapshot = SharedServiceSnapshot(
+            devices: [device],
+            stateByDeviceID: [:],
+            lastUpdatedByDeviceID: [:],
+            observedAtByDeviceID: [
+                device.id: now
+            ],
+            usbControlAvailabilityByDeviceID: [
+                device.id: .receiverPresentMouseUnavailable
+            ]
+        )
+
+        await MainActor.run {
+            appState.deviceStore.applyRemoteServiceSnapshot(snapshot)
+        }
+
+        let status = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
+        let controlsEnabled = await MainActor.run { appState.deviceStore.selectedDeviceControlsEnabled }
+        let message = await MainActor.run { appState.deviceStore.selectedDeviceInteractionMessage }
+
+        XCTAssertEqual(status, "Reconnecting")
+        XCTAssertFalse(controlsEnabled)
+        XCTAssertEqual(message, "Reconnecting to live telemetry. Controls will unlock automatically.")
+    }
+
     func testRemoteSnapshotNormalUSBServiceCadenceDoesNotDisconnectHealthyMouse() async {
         let appState = await MainActor.run {
             AppState(
@@ -892,7 +1015,12 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         }
 
         let status = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
+        let controlsEnabled = await MainActor.run { appState.deviceStore.selectedDeviceControlsEnabled }
+        let message = await MainActor.run { appState.deviceStore.selectedDeviceInteractionMessage }
+
         XCTAssertEqual(status, "Connected")
+        XCTAssertTrue(controlsEnabled)
+        XCTAssertNil(message)
     }
 
     func testOlderRemoteSnapshotDoesNotOverwriteNewerPerDeviceState() async {

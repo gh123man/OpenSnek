@@ -386,6 +386,10 @@ actor BridgeClient {
     }
 
     nonisolated static func isUSBTelemetryUnavailableError(_ error: any Error) -> Bool {
+        if let bridgeError = error as? BridgeError,
+           case .usbMouseUnavailable = bridgeError {
+            return true
+        }
         let lowered = error.localizedDescription.lowercased()
         return lowered.contains("telemetry unavailable") || lowered.contains("usable responses")
     }
@@ -449,16 +453,6 @@ actor BridgeClient {
                 error.localizedDescription
             )
         }
-    }
-
-    private func invalidateUSBDiscoveryAfterTelemetryUnavailable(deviceID: String, operation: String) {
-        deviceSessions.removeValue(forKey: deviceID)
-        deviceSessionCandidates.removeValue(forKey: deviceID)
-        clearManagedHIDManager()
-        AppLog.debug(
-            "Bridge",
-            "usb discovery invalidated after telemetry unavailable device=\(deviceID) operation=\(operation)"
-        )
     }
 
     nonisolated static func makeBluetoothFallbackDevice(
@@ -596,9 +590,6 @@ actor BridgeClient {
 
         deviceSessions[device.id]?.invalidateCachedTransaction()
         if let firstError {
-            if Self.isUSBTelemetryUnavailableError(firstError) {
-                invalidateUSBDiscoveryAfterTelemetryUnavailable(deviceID: device.id, operation: "read-state")
-            }
             throw firstError
         }
         throw BridgeError.commandFailed("USB device telemetry unavailable")
@@ -680,9 +671,6 @@ actor BridgeClient {
         }
 
         if let firstError {
-            if Self.isUSBTelemetryUnavailableError(firstError) {
-                invalidateUSBDiscoveryAfterTelemetryUnavailable(deviceID: device.id, operation: "fast-dpi-read")
-            }
             throw firstError
         }
         return nil
