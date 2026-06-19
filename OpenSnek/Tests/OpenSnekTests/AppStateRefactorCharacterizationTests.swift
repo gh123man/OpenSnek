@@ -1540,7 +1540,8 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         try await waitForRefactorCondition {
             let applyCount = await backend.applyCount()
             let stopCount = await backend.softwareLightingStopCount(for: device.id)
-            return applyCount == 1 && stopCount == 1
+            let deviceStopCount = await backend.softwareLightingDeviceStopCount(for: device.id)
+            return applyCount == 1 && stopCount == 1 && deviceStopCount == 1
         }
 
         let storedStatus = await MainActor.run { appState.deviceStore.softwareLightingStatusByDeviceID[device.id] }
@@ -6759,6 +6760,7 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
     private var softwareLightingStatusByDeviceID: [String: SoftwareLightingEngineStatus] = [:]
     private var softwareLightingStartsByDeviceID: [String: Int] = [:]
     private var softwareLightingStopsByDeviceID: [String: Int] = [:]
+    private var softwareLightingDeviceStopsByDeviceID: [String: Int] = [:]
 
     init(
         devices: [MouseDevice],
@@ -6891,6 +6893,11 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
         )
         softwareLightingStatusByDeviceID[deviceID] = status
         return status
+    }
+
+    func stopSoftwareLighting(device: MouseDevice) async -> SoftwareLightingEngineStatus? {
+        softwareLightingDeviceStopsByDeviceID[device.id, default: 0] += 1
+        return await stopSoftwareLighting(deviceID: device.id)
     }
 
     func softwareLightingStatus(deviceID: String) async -> SoftwareLightingEngineStatus? {
@@ -7291,6 +7298,10 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
 
     func softwareLightingStopCount(for deviceID: String) -> Int {
         softwareLightingStopsByDeviceID[deviceID, default: 0]
+    }
+
+    func softwareLightingDeviceStopCount(for deviceID: String) -> Int {
+        softwareLightingDeviceStopsByDeviceID[deviceID, default: 0]
     }
 
     func setRenameReturnsMetadataOnly(_ value: Bool) {

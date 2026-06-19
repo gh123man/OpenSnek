@@ -55,6 +55,54 @@ final class SoftwareLightingEngineTests: XCTestCase {
         await engine.stop(deviceID: device.id)
     }
 
+    func testStartingSamePhysicalDeviceWithDifferentIDReplacesExistingRun() async throws {
+        let writer = RecordingSoftwareLightingFrameWriter()
+        let engine = SoftwareLightingEngine(
+            frameWriter: writer,
+            minimumFrameInterval: 0.005,
+            failureLimit: 3
+        )
+        let firstDevice = makeSoftwareLightingTestDevice(
+            id: "software-lighting-v3-pro-first",
+            serial: "000000000000",
+            locationID: 0x0114_0000
+        )
+        let secondDevice = makeSoftwareLightingTestDevice(
+            id: "software-lighting-v3-pro-second",
+            serial: "ffffffffffff",
+            locationID: 0x0114_0000
+        )
+
+        _ = try await engine.start(
+            device: firstDevice,
+            request: SoftwareLightingEffectRequest(presetID: .flame, framesPerSecond: 30)
+        )
+        try await waitUntil {
+            await writer.deviceIDs().contains(firstDevice.id)
+        }
+
+        let firstFrameCountAtReplacement = await writer.deviceIDs().filter { $0 == firstDevice.id }.count
+        _ = try await engine.start(
+            device: secondDevice,
+            request: SoftwareLightingEffectRequest(presetID: .scrollingRainbow, framesPerSecond: 30)
+        )
+        try await waitUntil {
+            await writer.deviceIDs().contains(secondDevice.id)
+        }
+
+        try await Task.sleep(nanoseconds: 60_000_000)
+
+        let deviceIDs = await writer.deviceIDs()
+        XCTAssertEqual(deviceIDs.filter { $0 == firstDevice.id }.count, firstFrameCountAtReplacement)
+        XCTAssertGreaterThan(deviceIDs.filter { $0 == secondDevice.id }.count, 0)
+        let firstStatus = await engine.status(deviceID: firstDevice.id)
+        XCTAssertEqual(firstStatus?.state, .stopped)
+        let secondStatus = await engine.status(deviceID: secondDevice.id)
+        XCTAssertEqual(secondStatus?.state, .running)
+        XCTAssertEqual(secondStatus?.request?.presetID, .scrollingRainbow)
+        await engine.stop(deviceID: secondDevice.id)
+    }
+
     func testStartingNewPresetWaitsForInFlightWriteBeforeReplacement() async throws {
         let writer = RecordingSoftwareLightingFrameWriter(delayNanoseconds: 120_000_000)
         let engine = SoftwareLightingEngine(
@@ -187,6 +235,7 @@ private actor RecordingSoftwareLightingFrameWriter: SoftwareLightingFrameWriting
     private let delayNanoseconds: UInt64
     private let failAllWrites: Bool
     private var frames: [USBLightingFramePatch] = []
+    private var frameDeviceIDs: [String] = []
     private var activeWrites = 0
     private var maxActiveWrites = 0
 
@@ -195,7 +244,7 @@ private actor RecordingSoftwareLightingFrameWriter: SoftwareLightingFrameWriting
         self.failAllWrites = failAllWrites
     }
 
-    func writeSoftwareLightingFrame(device _: MouseDevice, frame: USBLightingFramePatch) async throws {
+    func writeSoftwareLightingFrame(device: MouseDevice, frame: USBLightingFramePatch) async throws {
         activeWrites += 1
         maxActiveWrites = max(maxActiveWrites, activeWrites)
         defer { activeWrites -= 1 }
@@ -209,10 +258,15 @@ private actor RecordingSoftwareLightingFrameWriter: SoftwareLightingFrameWriting
             ])
         }
         frames.append(frame)
+        frameDeviceIDs.append(device.id)
     }
 
     func frameCount() -> Int {
         frames.count
+    }
+
+    func deviceIDs() -> [String] {
+        frameDeviceIDs
     }
 
     func maxConcurrentWrites() -> Int {
@@ -224,17 +278,21 @@ private actor RecordingSoftwareLightingFrameWriter: SoftwareLightingFrameWriting
     }
 }
 
-private func makeSoftwareLightingTestDevice() -> MouseDevice {
+private func makeSoftwareLightingTestDevice(
+    id: String = "software-lighting-v3-pro",
+    serial: String = "SOFTWARE-LIGHTING",
+    locationID: Int = 1
+) -> MouseDevice {
     MouseDevice(
-        id: "software-lighting-v3-pro",
+        id: id,
         vendor_id: 0x1532,
         product_id: 0x00AB,
         product_name: "Basilisk V3 Pro",
         transport: .usb,
         path_b64: "",
-        serial: "SOFTWARE-LIGHTING",
+        serial: serial,
         firmware: "1.0.0",
-        location_id: 1,
+        location_id: locationID,
         profile_id: .basiliskV3Pro,
         supports_advanced_lighting_effects: true,
         onboard_profile_count: 5

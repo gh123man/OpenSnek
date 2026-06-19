@@ -1159,7 +1159,7 @@ final class AppStateApplyController {
         guard patch.ledRGB != nil || patch.lightingEffect != nil else { return }
         guard device.supportsSoftwareLightingEffects else { return }
 
-        let status = await environment.backend.stopSoftwareLighting(deviceID: device.id)
+        let status = await environment.backend.stopSoftwareLighting(device: device)
         if let status {
             deviceStore.softwareLightingStatusByDeviceID[device.id] = status
         } else {

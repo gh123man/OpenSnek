@@ -39,6 +39,10 @@ struct SoftwareLightingStatusRequest: Codable, Sendable {
     let deviceID: String
 }
 
+struct SoftwareLightingStopRequest: Codable, Sendable {
+    let device: MouseDevice
+}
+
 struct OnboardProfileIDRequest: Codable, Sendable {
     let device: MouseDevice
     let profileID: Int

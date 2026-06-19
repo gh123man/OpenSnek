@@ -52,6 +52,7 @@ protocol DeviceBackend: AnyObject, Sendable {
         request: SoftwareLightingEffectRequest
     ) async throws -> SoftwareLightingEngineStatus
     func stopSoftwareLighting(deviceID: String) async -> SoftwareLightingEngineStatus?
+    func stopSoftwareLighting(device: MouseDevice) async -> SoftwareLightingEngineStatus?
     func softwareLightingStatus(deviceID: String) async -> SoftwareLightingEngineStatus?
     func debugUSBReadButtonBinding(device: MouseDevice, slot: Int, profile: Int) async throws -> [UInt8]?
 }
@@ -229,6 +230,10 @@ extension DeviceBackend {
 
     func stopSoftwareLighting(deviceID _: String) async -> SoftwareLightingEngineStatus? {
         nil
+    }
+
+    func stopSoftwareLighting(device: MouseDevice) async -> SoftwareLightingEngineStatus? {
+        await stopSoftwareLighting(deviceID: device.id)
     }
 
     func softwareLightingStatus(deviceID _: String) async -> SoftwareLightingEngineStatus? {
@@ -864,6 +869,54 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         }
     }
 
+    private func restoreOnDeviceLightingAfterSoftwareLightingStop(device: MouseDevice) async {
+        let cachedState = cachedStateByDeviceID[device.id] ?? reconnectSeedStateByDeviceID[device.id]
+        let cachedProfileID = cachedState?.active_onboard_profile
+        let onboardProfileCount = max(1, cachedState?.onboard_profile_count ?? device.onboard_profile_count)
+        let activeProfileID: Int
+
+        if let cachedProfileID {
+            activeProfileID = cachedProfileID
+        } else {
+            do {
+                let state = try await client.refreshActiveOnboardProfile(device: device)
+                cacheAndPublishState(state, for: device.id, updatedAt: Date())
+                guard let refreshedProfileID = state.active_onboard_profile else {
+                    AppLog.debug(
+                        "Backend",
+                        "software lighting stop skipped onboard restore: no active profile for device=\(device.id)"
+                    )
+                    return
+                }
+                activeProfileID = refreshedProfileID
+            } catch {
+                AppLog.warning(
+                    "Backend",
+                    "software lighting stop active-profile refresh failed device=\(device.id): \(error.localizedDescription)"
+                )
+                return
+            }
+        }
+
+        guard activeProfileID >= 1, activeProfileID <= onboardProfileCount else {
+            AppLog.debug(
+                "Backend",
+                "software lighting stop skipped onboard restore: active profile \(activeProfileID) outside 1...\(onboardProfileCount) for device=\(device.id)"
+            )
+            return
+        }
+
+        do {
+            let state = try await client.activateOnboardProfile(device: device, profileID: activeProfileID)
+            cacheAndPublishState(state, for: device.id, updatedAt: Date())
+        } catch {
+            AppLog.warning(
+                "Backend",
+                "software lighting stop onboard restore failed device=\(device.id) profile=\(activeProfileID): \(error.localizedDescription)"
+            )
+        }
+    }
+
     func readLightingColor(device: MouseDevice) async throws -> RGBPatch? {
         try await client.readLightingColor(device: device)
     }
@@ -882,6 +935,15 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         if let status {
             handleSoftwareLightingStatus(status)
         }
+        return status
+    }
+
+    func stopSoftwareLighting(device: MouseDevice) async -> SoftwareLightingEngineStatus? {
+        let status = await softwareLightingEngine.stop(deviceID: device.id)
+        if let status {
+            handleSoftwareLightingStatus(status)
+        }
+        await restoreOnDeviceLightingAfterSoftwareLightingStop(device: device)
         return status
     }
 
@@ -1543,8 +1605,12 @@ private actor BackgroundServiceRequestHandler {
                 )
             )
         case .stopSoftwareLighting:
-            let statusRequest = try decodePayload(SoftwareLightingStatusRequest.self, from: request.payload)
-            payload = try BackendCodec.encode(await backend.stopSoftwareLighting(deviceID: statusRequest.deviceID))
+            if let stopRequest = try? decodePayload(SoftwareLightingStopRequest.self, from: request.payload) {
+                payload = try BackendCodec.encode(await backend.stopSoftwareLighting(device: stopRequest.device))
+            } else {
+                let statusRequest = try decodePayload(SoftwareLightingStatusRequest.self, from: request.payload)
+                payload = try BackendCodec.encode(await backend.stopSoftwareLighting(deviceID: statusRequest.deviceID))
+            }
         case .softwareLightingStatus:
             let statusRequest = try decodePayload(SoftwareLightingStatusRequest.self, from: request.payload)
             payload = try BackendCodec.encode(await backend.softwareLightingStatus(deviceID: statusRequest.deviceID))
@@ -1796,6 +1862,14 @@ final actor IPCDeviceBackend: HIDAccessRefreshControllingBackend, ApplyOptionsSu
         try? await request(
             method: .stopSoftwareLighting,
             payload: try BackendCodec.encode(SoftwareLightingStatusRequest(deviceID: deviceID)),
+            responseType: SoftwareLightingEngineStatus?.self
+        )
+    }
+
+    func stopSoftwareLighting(device: MouseDevice) async -> SoftwareLightingEngineStatus? {
+        try? await request(
+            method: .stopSoftwareLighting,
+            payload: try BackendCodec.encode(SoftwareLightingStopRequest(device: device)),
             responseType: SoftwareLightingEngineStatus?.self
         )
     }

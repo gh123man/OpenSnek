@@ -68,7 +68,7 @@ final class BackgroundServiceTransportTests: XCTestCase {
         XCTAssertEqual(softwareLightingStatus?.state, .running)
         XCTAssertEqual(softwareLightingStatus?.request?.presetID, .cometChase)
 
-        let stoppedSoftwareLighting = await serviceBackend.stopSoftwareLighting(deviceID: devices[0].id)
+        let stoppedSoftwareLighting = await serviceBackend.stopSoftwareLighting(device: devices[0])
         XCTAssertEqual(stoppedSoftwareLighting?.state, .stopped)
     }
 

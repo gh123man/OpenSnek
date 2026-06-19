@@ -24,6 +24,7 @@ final class AppStateEditorController {
     private var buttonProfileLiveSourceByDeviceID: [String: ButtonProfileSource] = [:]
     private var buttonProfileLiveBindingsByDeviceID: [String: [Int: ButtonBindingDraft]] = [:]
     private var softwareActiveUSBButtonProfileOverrideByDeviceID: [String: Int] = [:]
+    private var softwareLightingAutoStartInFlightKeys: Set<String> = []
     private var onboardProfileInventoryByDeviceID: [String: OnboardProfileInventory] = [:]
     private var projectedOnboardProfileMetadataByDeviceID: [String: [Int: OnboardProfileMetadata]] = [:]
     private var currentOnboardProfileSnapshotByDeviceID: [String: OnboardProfileSnapshot] = [:]
@@ -2721,11 +2722,19 @@ final class AppStateEditorController {
         guard device.supportsSoftwareLightingEffects else { return false }
         guard preferenceStore.loadSoftwareLightingApplyOnConnect(device: device) else { return false }
 
+        let autoStartKey = DevicePersistenceKeys.key(for: device)
+        guard !softwareLightingAutoStartInFlightKeys.contains(autoStartKey) else { return false }
+
         let request = preferenceStore.loadPersistedSoftwareLightingRequest(device: device)
             ?? SoftwareLightingEffectRequest(presetID: .flame)
         if deviceStore.softwareLightingStatusByDeviceID[device.id]?.state == .running,
            deviceStore.softwareLightingStatusByDeviceID[device.id]?.request == request {
             return false
+        }
+
+        softwareLightingAutoStartInFlightKeys.insert(autoStartKey)
+        defer {
+            softwareLightingAutoStartInFlightKeys.remove(autoStartKey)
         }
 
         do {
@@ -2757,12 +2766,12 @@ final class AppStateEditorController {
     }
 
     func stopSoftwareLighting() async {
-        guard let deviceID = deviceStore.selectedDeviceID else { return }
-        let status = await environment.backend.stopSoftwareLighting(deviceID: deviceID)
+        guard let device = deviceStore.selectedDevice else { return }
+        let status = await environment.backend.stopSoftwareLighting(device: device)
         if let status {
-            deviceStore.softwareLightingStatusByDeviceID[deviceID] = status
+            deviceStore.softwareLightingStatusByDeviceID[device.id] = status
         } else {
-            deviceStore.softwareLightingStatusByDeviceID.removeValue(forKey: deviceID)
+            deviceStore.softwareLightingStatusByDeviceID.removeValue(forKey: device.id)
         }
     }
 

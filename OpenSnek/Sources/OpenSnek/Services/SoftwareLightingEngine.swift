@@ -30,9 +30,12 @@ actor SoftwareLightingEngine {
     private let failureLimit: Int
     private let statusUpdates = BroadcastStream<SoftwareLightingEngineStatus>()
 
-    private var tasksByDeviceID: [String: Task<Void, Never>] = [:]
-    private var desiredRequestByDeviceID: [String: SoftwareLightingEffectRequest] = [:]
-    private var deviceByDeviceID: [String: MouseDevice] = [:]
+    private var tasksByDeviceKey: [String: Task<Void, Never>] = [:]
+    private var desiredRequestByDeviceKey: [String: SoftwareLightingEffectRequest] = [:]
+    private var deviceByDeviceKey: [String: MouseDevice] = [:]
+    private var deviceKeyByDeviceID: [String: String] = [:]
+    private var deviceIDByDeviceKey: [String: String] = [:]
+    private var statusByDeviceKey: [String: SoftwareLightingEngineStatus] = [:]
     private var statusByDeviceID: [String: SoftwareLightingEngineStatus] = [:]
 
     init(
@@ -50,7 +53,11 @@ actor SoftwareLightingEngine {
     }
 
     func status(deviceID: String) -> SoftwareLightingEngineStatus? {
-        statusByDeviceID[deviceID]
+        if let key = deviceKeyByDeviceID[deviceID],
+           let status = statusByDeviceKey[key] {
+            return status
+        }
+        return statusByDeviceID[deviceID]
     }
 
     func statuses() -> [String: SoftwareLightingEngineStatus] {
@@ -66,12 +73,27 @@ actor SoftwareLightingEngine {
             throw SoftwareLightingEngineError.unsupportedDevice
         }
 
-        if let previousTask = tasksByDeviceID.removeValue(forKey: device.id) {
+        let deviceKey = Self.lightingDeviceKey(for: device)
+        if let previousTask = tasksByDeviceKey.removeValue(forKey: deviceKey) {
             previousTask.cancel()
             await previousTask.value
         }
-        desiredRequestByDeviceID[device.id] = request
-        deviceByDeviceID[device.id] = device
+        if let previousDeviceID = deviceIDByDeviceKey[deviceKey],
+           previousDeviceID != device.id {
+            deviceKeyByDeviceID.removeValue(forKey: previousDeviceID)
+            let stopped = SoftwareLightingEngineStatus(
+                deviceID: previousDeviceID,
+                state: .stopped,
+                request: nil,
+                message: nil
+            )
+            statusByDeviceID[previousDeviceID] = stopped
+            statusUpdates.yield(stopped)
+        }
+        desiredRequestByDeviceKey[deviceKey] = request
+        deviceByDeviceKey[deviceKey] = device
+        deviceKeyByDeviceID[device.id] = deviceKey
+        deviceIDByDeviceKey[deviceKey] = device.id
 
         let status = SoftwareLightingEngineStatus(
             deviceID: device.id,
@@ -79,12 +101,13 @@ actor SoftwareLightingEngine {
             request: request,
             message: nil
         )
-        publish(status)
+        publish(status, deviceKey: deviceKey)
 
         let frameInterval = max(minimumFrameInterval, 1.0 / Double(request.framesPerSecond))
-        tasksByDeviceID[device.id] = Task { [weak self] in
+        tasksByDeviceKey[deviceKey] = Task { [weak self] in
             await self?.run(
                 device: device,
+                deviceKey: deviceKey,
                 layout: layout,
                 request: request,
                 frameInterval: frameInterval
@@ -95,52 +118,63 @@ actor SoftwareLightingEngine {
 
     @discardableResult
     func stop(deviceID: String) async -> SoftwareLightingEngineStatus? {
-        if let previousTask = tasksByDeviceID.removeValue(forKey: deviceID) {
+        let deviceKey = deviceKeyByDeviceID[deviceID] ?? deviceID
+        if let previousTask = tasksByDeviceKey.removeValue(forKey: deviceKey) {
             previousTask.cancel()
             await previousTask.value
         }
-        desiredRequestByDeviceID.removeValue(forKey: deviceID)
-        deviceByDeviceID.removeValue(forKey: deviceID)
+        let statusDeviceID = deviceIDByDeviceKey[deviceKey] ?? deviceID
+        desiredRequestByDeviceKey.removeValue(forKey: deviceKey)
+        deviceByDeviceKey.removeValue(forKey: deviceKey)
+        statusByDeviceKey.removeValue(forKey: deviceKey)
+        deviceIDByDeviceKey.removeValue(forKey: deviceKey)
+        removeAliases(for: deviceKey)
 
         let status = SoftwareLightingEngineStatus(
-            deviceID: deviceID,
+            deviceID: statusDeviceID,
             state: .stopped,
             request: nil,
             message: nil
         )
-        publish(status)
+        statusByDeviceID[deviceID] = status
+        statusByDeviceID[statusDeviceID] = status
+        statusUpdates.yield(status)
         return status
     }
 
     @discardableResult
     func suspend(deviceID: String, message: String) async -> SoftwareLightingEngineStatus? {
-        guard let request = desiredRequestByDeviceID[deviceID] else {
+        let deviceKey = deviceKeyByDeviceID[deviceID] ?? deviceID
+        guard let request = desiredRequestByDeviceKey[deviceKey] else {
             return nil
         }
-        if let previousTask = tasksByDeviceID.removeValue(forKey: deviceID) {
+        if let previousTask = tasksByDeviceKey.removeValue(forKey: deviceKey) {
             previousTask.cancel()
             await previousTask.value
         }
-        deviceByDeviceID.removeValue(forKey: deviceID)
+        deviceByDeviceKey.removeValue(forKey: deviceKey)
+        let statusDeviceID = deviceIDByDeviceKey[deviceKey] ?? deviceID
         let status = SoftwareLightingEngineStatus(
-            deviceID: deviceID,
+            deviceID: statusDeviceID,
             state: .suspended,
             request: request,
             message: message
         )
-        publish(status)
+        publish(status, deviceKey: deviceKey)
         return status
     }
 
     @discardableResult
     func resumeIfNeeded(device: MouseDevice) async throws -> SoftwareLightingEngineStatus? {
-        guard let request = desiredRequestByDeviceID[device.id] else { return nil }
-        guard statusByDeviceID[device.id]?.state == .suspended else { return nil }
+        let deviceKey = Self.lightingDeviceKey(for: device)
+        guard let request = desiredRequestByDeviceKey[deviceKey] else { return nil }
+        guard statusByDeviceKey[deviceKey]?.state == .suspended else { return nil }
         return try await start(device: device, request: request)
     }
 
     private func run(
         device: MouseDevice,
+        deviceKey: String,
         layout: SoftwareLightingFrameLayout,
         request: SoftwareLightingEffectRequest,
         frameInterval: TimeInterval
@@ -166,6 +200,7 @@ actor SoftwareLightingEngine {
                 if consecutiveFailures >= failureLimit {
                     fail(
                         deviceID: device.id,
+                        deviceKey: deviceKey,
                         request: request,
                         message: error.localizedDescription
                     )
@@ -183,21 +218,51 @@ actor SoftwareLightingEngine {
         }
     }
 
-    private func fail(deviceID: String, request: SoftwareLightingEffectRequest, message: String) {
-        tasksByDeviceID.removeValue(forKey: deviceID)?.cancel()
-        desiredRequestByDeviceID.removeValue(forKey: deviceID)
-        deviceByDeviceID.removeValue(forKey: deviceID)
+    private func fail(deviceID: String, deviceKey: String, request: SoftwareLightingEffectRequest, message: String) {
+        tasksByDeviceKey.removeValue(forKey: deviceKey)?.cancel()
+        desiredRequestByDeviceKey.removeValue(forKey: deviceKey)
+        deviceByDeviceKey.removeValue(forKey: deviceKey)
+        deviceIDByDeviceKey.removeValue(forKey: deviceKey)
+        removeAliases(for: deviceKey)
         let status = SoftwareLightingEngineStatus(
             deviceID: deviceID,
             state: .failed,
             request: request,
             message: message
         )
-        publish(status)
+        publish(status, deviceKey: deviceKey)
     }
 
-    private func publish(_ status: SoftwareLightingEngineStatus) {
+    private func publish(_ status: SoftwareLightingEngineStatus, deviceKey: String) {
+        statusByDeviceKey[deviceKey] = status
         statusByDeviceID[status.deviceID] = status
         statusUpdates.yield(status)
+    }
+
+    private func removeAliases(for deviceKey: String) {
+        for (deviceID, key) in deviceKeyByDeviceID where key == deviceKey {
+            deviceKeyByDeviceID.removeValue(forKey: deviceID)
+        }
+    }
+
+    private static func lightingDeviceKey(for device: MouseDevice) -> String {
+        if let serial = DevicePersistenceKeys.normalizedStableSerial(device.serial) {
+            return "serial:\(serial)"
+        }
+        if device.location_id != 0 {
+            return String(
+                format: "vplt:%04x:%04x:%@:%08x",
+                device.vendor_id,
+                device.product_id,
+                device.transport.rawValue,
+                device.location_id
+            )
+        }
+        return String(
+            format: "vp:%04x:%04x:%@",
+            device.vendor_id,
+            device.product_id,
+            device.transport.rawValue
+        )
     }
 }

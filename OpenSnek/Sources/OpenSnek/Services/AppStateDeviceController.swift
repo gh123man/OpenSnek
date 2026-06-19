@@ -44,6 +44,7 @@ final class AppStateDeviceController {
     private var selectedRecoveryRefreshDeviceID: String?
     private var selectedEditorHydrationTasksByDeviceID: [String: Task<Void, Never>] = [:]
     private var selectedEditorHydrationTokensByDeviceID: [String: UUID] = [:]
+    private var remoteSnapshotSoftwareLightingAutoStartKeys: Set<String> = []
     private var isTearingDown = false
 
     init(environment: AppEnvironment, deviceStore: DeviceStore) {
@@ -59,6 +60,7 @@ final class AppStateDeviceController {
         selectedEditorHydrationTasksByDeviceID.values.forEach { $0.cancel() }
         selectedEditorHydrationTasksByDeviceID.removeAll()
         selectedEditorHydrationTokensByDeviceID.removeAll()
+        remoteSnapshotSoftwareLightingAutoStartKeys.removeAll()
     }
 
     func bind(
@@ -168,11 +170,25 @@ final class AppStateDeviceController {
         guard environment.usesRemoteServiceTransport else { return }
 
         let liveIDs = Set(snapshot.devices.map(\.id))
+        let liveSoftwareLightingAutoStartKeys = Set(snapshot.devices.map { DevicePersistenceKeys.key(for: $0) })
+        remoteSnapshotSoftwareLightingAutoStartKeys.formIntersection(liveSoftwareLightingAutoStartKeys)
         stateCacheByDeviceID = stateCacheByDeviceID.filter { liveIDs.contains($0.key) }
         lastUpdatedByDeviceID = lastUpdatedByDeviceID.filter { liveIDs.contains($0.key) }
         lastStateMutationAtByDeviceID = lastStateMutationAtByDeviceID.filter { liveIDs.contains($0.key) }
-        deviceStore.softwareLightingStatusByDeviceID = snapshot.softwareLightingStatusByDeviceID
+        let previousSoftwareLightingStatuses = deviceStore.softwareLightingStatusByDeviceID
+        var softwareLightingStatuses = snapshot.softwareLightingStatusByDeviceID
             .filter { liveIDs.contains($0.key) }
+        for (deviceID, previousStatus) in previousSoftwareLightingStatuses where liveIDs.contains(deviceID) {
+            guard previousStatus.state == .running else { continue }
+            if let snapshotStatus = softwareLightingStatuses[deviceID] {
+                if previousStatus.updatedAt > snapshotStatus.updatedAt {
+                    softwareLightingStatuses[deviceID] = previousStatus
+                }
+            } else {
+                softwareLightingStatuses[deviceID] = previousStatus
+            }
+        }
+        deviceStore.softwareLightingStatusByDeviceID = softwareLightingStatuses
 
         for (deviceID, remoteState) in snapshot.stateByDeviceID {
             let snapshotUpdatedAt = snapshot.lastUpdatedByDeviceID[deviceID] ?? Date()
@@ -201,6 +217,7 @@ final class AppStateDeviceController {
         }
 
         _ = applyDeviceList(snapshot.devices, source: "subscription")
+        scheduleRemoteSnapshotSoftwareLightingAutoStart(for: snapshot.devices)
 
         if let selectedDeviceID = deviceStore.selectedDeviceID,
            let selectedState = stateCacheByDeviceID[selectedDeviceID],
@@ -245,6 +262,27 @@ final class AppStateDeviceController {
 
         Task { [weak self] in
             await self?.refreshDpiUpdateTransportStatuses(for: snapshot.devices)
+        }
+    }
+
+    private func scheduleRemoteSnapshotSoftwareLightingAutoStart(for devices: [MouseDevice]) {
+        let supportedDevices = devices.filter { device in
+            guard device.supportsSoftwareLightingEffects else { return false }
+            return !remoteSnapshotSoftwareLightingAutoStartKeys.contains(DevicePersistenceKeys.key(for: device))
+        }
+        guard !supportedDevices.isEmpty else { return }
+        for device in supportedDevices {
+            remoteSnapshotSoftwareLightingAutoStartKeys.insert(DevicePersistenceKeys.key(for: device))
+        }
+        Task { [weak self] in
+            guard let self,
+                  !self.isTearingDown,
+                  let editorController = self._editorController.optionalValue else {
+                return
+            }
+            for device in supportedDevices {
+                await editorController.startPersistedSoftwareLightingOnConnectIfNeeded(for: device)
+            }
         }
     }
 

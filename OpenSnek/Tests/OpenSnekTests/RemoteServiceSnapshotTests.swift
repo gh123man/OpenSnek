@@ -110,6 +110,74 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         XCTAssertEqual(softwareLightingStatus?.request?.presetID, .aurora)
     }
 
+    func testRemoteServiceSnapshotStartsPersistedSoftwareLightingApplyOnConnectOnce() async throws {
+        let device = makeSnapshotDevice(
+            id: "snapshot-software-lighting-auto",
+            productName: "Basilisk V3 Pro",
+            transport: .usb,
+            serial: "SNAPSHOT-SOFTWARE-LIGHTING-\(UUID().uuidString)",
+            locationID: 0x0114_0000,
+            profile: .basiliskV3Pro
+        )
+        clearSnapshotPreferences(for: device)
+        defer { clearSnapshotPreferences(for: device) }
+
+        let request = SoftwareLightingEffectRequest(
+            presetID: .cometChase,
+            framesPerSecond: 24,
+            speed: 1.25,
+            palette: [
+                RGBPatch(r: 12, g: 34, b: 56),
+                RGBPatch(r: 90, g: 120, b: 240),
+            ]
+        )
+        let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistSoftwareLightingApplyOnConnect(true, device: device)
+        preferenceStore.persistSoftwareLightingRequest(request, device: device)
+
+        let backend = SnapshotSoftwareLightingRemoteBackend()
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        let state = makeSnapshotState(
+            device: device,
+            connection: "usb",
+            batteryPercent: 81,
+            dpiValues: [800, 2400, 6400],
+            activeStage: 1,
+            dpiValue: 2400
+        )
+        let snapshot = SharedServiceSnapshot(
+            devices: [device],
+            stateByDeviceID: [device.id: state],
+            lastUpdatedByDeviceID: [device.id: Date(timeIntervalSince1970: 1_773_320_000)]
+        )
+
+        await MainActor.run {
+            appState.deviceStore.applyRemoteServiceSnapshot(snapshot)
+        }
+
+        try await waitUntil {
+            await backend.softwareLightingStartCount(for: device.id) == 1
+        }
+
+        await MainActor.run {
+            appState.deviceStore.applyRemoteServiceSnapshot(snapshot)
+        }
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let startCount = await backend.softwareLightingStartCount(for: device.id)
+        let startedRequest = await backend.softwareLightingRequest(for: device.id)
+        let storedStatus = await MainActor.run {
+            appState.deviceStore.softwareLightingStatusByDeviceID[device.id]
+        }
+
+        XCTAssertEqual(startCount, 1)
+        XCTAssertEqual(startedRequest, request)
+        XCTAssertEqual(storedStatus?.state, .running)
+        XCTAssertEqual(storedStatus?.request, request)
+    }
+
     func testRemoteServiceSnapshotClearsLatchedUSBUnavailablePresentation() async {
         let appState = await MainActor.run {
             AppState(launchRole: .app, backend: SnapshotUnavailableRemoteBackend(), autoStart: false)
@@ -1001,6 +1069,8 @@ private func clearSnapshotPreferences(for device: MouseDevice) {
         "lightingZone.\(legacyKey)",
         "lightingEffect.\(key)",
         "lightingEffect.\(legacyKey)",
+        "softwareLightingApplyOnConnect.\(key)",
+        "softwareLightingRequest.\(key)",
         "connectBehavior.\(key)",
         "connectBehavior.\(legacyKey)",
         "settingsSnapshot.\(key)",
@@ -1075,6 +1145,65 @@ private func makeSnapshotState(
             lighting: true
         )
     )
+}
+
+private actor SnapshotSoftwareLightingRemoteBackend: DeviceBackend {
+    nonisolated var usesRemoteServiceTransport: Bool { true }
+
+    private var softwareLightingStartsByDeviceID: [String: Int] = [:]
+    private var softwareLightingStatusByDeviceID: [String: SoftwareLightingEngineStatus] = [:]
+
+    func listDevices() async throws -> [MouseDevice] { [] }
+    func readState(device _: MouseDevice) async throws -> MouseState { throw SnapshotBackendError.unimplemented }
+    func readDpiStagesFast(device _: MouseDevice) async throws -> DpiFastSnapshot? { nil }
+    func shouldUseFastDPIPolling(device _: MouseDevice) async -> Bool { false }
+    func hidAccessStatus() async -> HIDAccessStatus {
+        HIDAccessStatus(
+            authorization: .granted,
+            hostLabel: "Test Host (io.opensnek.OpenSnek)",
+            bundleIdentifier: "io.opensnek.OpenSnek",
+            detail: nil
+        )
+    }
+    func stateUpdates() async -> AsyncStream<BackendStateUpdate> {
+        AsyncStream { continuation in
+            continuation.finish()
+        }
+    }
+    func apply(device _: MouseDevice, patch _: DevicePatch) async throws -> MouseState {
+        throw SnapshotBackendError.unimplemented
+    }
+    func readLightingColor(device _: MouseDevice) async throws -> RGBPatch? { nil }
+    func startSoftwareLighting(
+        device: MouseDevice,
+        request: SoftwareLightingEffectRequest
+    ) async throws -> SoftwareLightingEngineStatus {
+        softwareLightingStartsByDeviceID[device.id, default: 0] += 1
+        let status = SoftwareLightingEngineStatus(deviceID: device.id, state: .running, request: request)
+        softwareLightingStatusByDeviceID[device.id] = status
+        return status
+    }
+    func stopSoftwareLighting(deviceID: String) async -> SoftwareLightingEngineStatus? {
+        let status = SoftwareLightingEngineStatus(
+            deviceID: deviceID,
+            state: .stopped,
+            request: softwareLightingStatusByDeviceID[deviceID]?.request
+        )
+        softwareLightingStatusByDeviceID[deviceID] = status
+        return status
+    }
+    func softwareLightingStatus(deviceID: String) async -> SoftwareLightingEngineStatus? {
+        softwareLightingStatusByDeviceID[deviceID]
+    }
+    func debugUSBReadButtonBinding(device _: MouseDevice, slot _: Int, profile _: Int) async throws -> [UInt8]? { nil }
+
+    func softwareLightingStartCount(for deviceID: String) -> Int {
+        softwareLightingStartsByDeviceID[deviceID, default: 0]
+    }
+
+    func softwareLightingRequest(for deviceID: String) -> SoftwareLightingEffectRequest? {
+        softwareLightingStatusByDeviceID[deviceID]?.request
+    }
 }
 
 private final class SnapshotTestRemoteBackend: DeviceBackend {

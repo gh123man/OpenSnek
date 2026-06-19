@@ -41,6 +41,7 @@ All notable changes to this project are documented in this file.
 - Reworked the Lighting card to use compact color-orb popovers for onboard all-zone and per-zone static colors, renamed the onboard effect selector to Preset, and changed Advanced effects to use a bottom Apply action that replaces any previous software stream, plus speed control and editable/resettable per-preset palettes.
 - Added a visible stop control for active Advanced lighting animations, standardized the Advanced action tint, made the speed slider white, further tightened Advanced palette color spacing, added an onboard-persistence notice, removed the lightest Flame default palette color, and made Scrolling Rainbow render 200% faster at the displayed 100% speed.
 - Advanced software lighting can now be marked Apply on connect, remembering the last applied preset, speed, and palette per device and defaulting the Lighting card to the Advanced tab when enabled.
+- Software lighting streams are now owned by physical device identity so replacing an effect cannot leave an older stream running under a transient device ID, remote apply-on-connect starts once per connection, and stopping a software effect reloads the active onboard profile lighting.
 
 ## [2026-06-18]
 
