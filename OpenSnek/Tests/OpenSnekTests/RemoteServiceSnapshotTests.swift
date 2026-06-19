@@ -111,6 +111,63 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         XCTAssertEqual(softwareLightingStatus?.request?.presetID, .aurora)
     }
 
+    func testDuplicateRemoteServiceSnapshotDoesNotRefreshDiagnostics() async throws {
+        let backend = SnapshotTestRemoteBackend(shouldUseFastDPIPolling: true)
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        let device = makeSnapshotDevice(
+            id: "snapshot-duplicate-device",
+            productName: "Snapshot Duplicate Mouse",
+            transport: .usb,
+            serial: "SNAPSHOT-DUPLICATE",
+            locationID: 2,
+            profile: .basiliskV3Pro
+        )
+        let state = makeSnapshotState(
+            device: device,
+            connection: "usb",
+            batteryPercent: 81,
+            dpiValues: [800, 2400, 6400],
+            activeStage: 1,
+            dpiValue: 2400
+        )
+        let updatedAt = Date(timeIntervalSince1970: 1_773_320_010)
+        let snapshot = SharedServiceSnapshot(
+            devices: [device],
+            stateByDeviceID: [device.id: state],
+            lastUpdatedByDeviceID: [device.id: updatedAt],
+            observedAtByDeviceID: [device.id: updatedAt]
+        )
+
+        await MainActor.run {
+            appState.deviceStore.applyRemoteServiceSnapshot(snapshot)
+        }
+
+        try await waitUntil {
+            await backend.dpiUpdateTransportStatusRequestCount() >= 1
+        }
+
+        let requestsAfterFirstSnapshot = await backend.dpiUpdateTransportStatusRequestCount()
+        let revisionAfterFirstSnapshot = await MainActor.run {
+            appState.deviceStore.connectionDiagnosticsRevision
+        }
+
+        await MainActor.run {
+            appState.deviceStore.applyRemoteServiceSnapshot(snapshot)
+        }
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let requestsAfterDuplicateSnapshot = await backend.dpiUpdateTransportStatusRequestCount()
+        let revisionAfterDuplicateSnapshot = await MainActor.run {
+            appState.deviceStore.connectionDiagnosticsRevision
+        }
+
+        XCTAssertEqual(requestsAfterDuplicateSnapshot, requestsAfterFirstSnapshot)
+        XCTAssertEqual(revisionAfterDuplicateSnapshot, revisionAfterFirstSnapshot)
+    }
+
     func testRemoteServiceSnapshotStartsPersistedSoftwareLightingApplyOnConnectOnce() async throws {
         let device = makeSnapshotDevice(
             id: "snapshot-software-lighting-auto",
@@ -1338,6 +1395,7 @@ private final class SnapshotTestRemoteBackend: DeviceBackend {
     var usesRemoteServiceTransport: Bool { true }
 
     private let shouldUseFastDPIPollingValue: Bool
+    private let diagnosticCounter = SnapshotDiagnosticCounter()
 
     init(shouldUseFastDPIPolling: Bool = false) {
         self.shouldUseFastDPIPollingValue = shouldUseFastDPIPolling
@@ -1347,6 +1405,13 @@ private final class SnapshotTestRemoteBackend: DeviceBackend {
     func readState(device _: MouseDevice) async throws -> MouseState { throw SnapshotBackendError.unimplemented }
     func readDpiStagesFast(device _: MouseDevice) async throws -> DpiFastSnapshot? { nil }
     func shouldUseFastDPIPolling(device _: MouseDevice) async -> Bool { shouldUseFastDPIPollingValue }
+    func dpiUpdateTransportStatus(device _: MouseDevice) async -> DpiUpdateTransportStatus {
+        await diagnosticCounter.increment()
+        return shouldUseFastDPIPollingValue ? .pollingFallback : .realTimeHID
+    }
+    func dpiUpdateTransportStatusRequestCount() async -> Int {
+        await diagnosticCounter.count()
+    }
     func hidAccessStatus() async -> HIDAccessStatus {
         HIDAccessStatus(
             authorization: .granted,
@@ -1363,6 +1428,18 @@ private final class SnapshotTestRemoteBackend: DeviceBackend {
     func apply(device _: MouseDevice, patch _: DevicePatch) async throws -> MouseState { throw SnapshotBackendError.unimplemented }
     func readLightingColor(device _: MouseDevice) async throws -> RGBPatch? { nil }
     func debugUSBReadButtonBinding(device _: MouseDevice, slot _: Int, profile _: Int) async throws -> [UInt8]? { nil }
+}
+
+private actor SnapshotDiagnosticCounter {
+    private var value = 0
+
+    func increment() {
+        value += 1
+    }
+
+    func count() -> Int {
+        value
+    }
 }
 
 private final class SnapshotUnavailableRemoteBackend: DeviceBackend {

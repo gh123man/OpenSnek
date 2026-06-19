@@ -727,8 +727,9 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         let fast = DpiFastSnapshot(active: snapshot.active, values: snapshot.values)
         cachedFastByDeviceID[device.id] = fast
         cachedFastAtByDeviceID[device.id] = Date()
-        updateCachedStateFromFastSnapshot(fast, for: device.id)
-        publishSnapshotIfService()
+        if updateCachedStateFromFastSnapshot(fast, for: device.id) != nil {
+            publishSnapshotIfService()
+        }
         return fast
     }
 
@@ -1302,6 +1303,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
             led_value: previous.led_value,
             capabilities: previous.capabilities
         )
+        guard updated != previous else { return nil }
         cachedStateByDeviceID[deviceID] = updated
         reconnectSeedStateByDeviceID[deviceID] = updated
         return updated
