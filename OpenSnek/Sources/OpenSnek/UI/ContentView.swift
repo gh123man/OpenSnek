@@ -311,7 +311,6 @@ struct ContentView: View {
                     name: profile.productName,
                     transport: profile.transport,
                     productIDs: Self.productIDText(for: profile),
-                    status: supportedDeviceSupportBadge(for: [profile]) ?? "Supported",
                     capabilities: Self.capabilityText(for: profile)
                 )
             }
@@ -369,14 +368,6 @@ struct ContentView: View {
     }
 }
 
-func supportedDeviceSupportBadge(for profiles: [DeviceProfile]) -> String? {
-    guard let first = profiles.first else { return nil }
-    if first.id == .basiliskV3 {
-        return nil
-    }
-    return profiles.allSatisfy(\.isLocallyValidated) ? nil : "Mapped"
-}
-
 private struct EmptyDeviceState: View {
     let rows: [SupportedDeviceRow]
     @State private var showsWaitingState = true
@@ -398,10 +389,13 @@ private struct EmptyDeviceState: View {
                             .font(.system(size: 28, weight: .black, design: .rounded))
                             .foregroundStyle(.white)
                     }
+                    .frame(maxWidth: .infinity, alignment: .center)
                 } else {
                     Text("Connect a device")
                         .font(.system(size: 28, weight: .black, design: .rounded))
                         .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity, alignment: .center)
                 }
                 HStack(spacing: 6) {
                     Button {
@@ -419,9 +413,11 @@ private struct EmptyDeviceState: View {
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.58))
                 }
+                .frame(maxWidth: .infinity, alignment: .center)
             }
+            .frame(maxWidth: .infinity, alignment: .center)
         }
-        .frame(maxWidth: 440, alignment: .center)
+        .frame(width: 440, alignment: .center)
         .padding(24)
         .background(
             RoundedRectangle(cornerRadius: 22)
@@ -503,7 +499,6 @@ private struct SupportedDeviceRow: Identifiable {
     let name: String
     let transport: DeviceTransportKind
     let productIDs: String
-    let status: String
     let capabilities: String
 
     var searchText: String {
@@ -512,7 +507,6 @@ private struct SupportedDeviceRow: Identifiable {
             transport.connectionLabel,
             transport.shortLabel,
             productIDs,
-            status,
             capabilities,
         ]
         .joined(separator: " ")
@@ -563,12 +557,10 @@ private struct SupportedDevicesTableHeader: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             tableHeader("Transport")
                 .frame(width: 108, alignment: .leading)
-            tableHeader("Status")
-                .frame(width: 96, alignment: .leading)
             tableHeader("Product ID")
                 .frame(width: 132, alignment: .leading)
             tableHeader("Capabilities")
-                .frame(width: 270, alignment: .leading)
+                .frame(width: 320, alignment: .leading)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
@@ -604,15 +596,6 @@ private struct SupportedDevicesTableRow: View {
             )
             .frame(width: 108, alignment: .leading)
 
-            Pill(
-                text: row.status,
-                color: row.status == "Mapped" ? Color(hex: 0xF2B95C) : Color(hex: 0xA8F46A),
-                fontSize: 10,
-                horizontalPadding: 8,
-                verticalPadding: 4
-            )
-            .frame(width: 96, alignment: .leading)
-
             Text(row.productIDs)
                 .font(.system(size: 12, weight: .semibold, design: .monospaced))
                 .foregroundStyle(.white.opacity(0.78))
@@ -623,7 +606,7 @@ private struct SupportedDevicesTableRow: View {
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.74))
                 .lineLimit(1)
-                .frame(width: 270, alignment: .leading)
+                .frame(width: 320, alignment: .leading)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)

@@ -29,6 +29,7 @@ final class AppStateDeviceController {
     private var isRefreshingDevices = false
     private var refreshFailureCountByDeviceID: [String: Int] = [:]
     private var stateRefreshSuppressedUntilByDeviceID: [String: Date] = [:]
+    private var usbTelemetryUnavailableBackoffDeviceIDs: Set<String> = []
     private var unavailableDeviceIDs: Set<String> = []
     private var dpiUpdateTransportStatusByDeviceID: [String: DpiUpdateTransportStatus] = [:]
     private var pendingSettingsRestoreDeviceIDs: Set<String> = []
@@ -420,9 +421,11 @@ final class AppStateDeviceController {
             removedIDs: removedIDs
         )
         if source == "subscription" {
-            let suppressedDeviceIDs = newIDs.filter { stateRefreshSuppressedUntilByDeviceID[$0] != nil }
+            let newlyVisibleIDs = newIDs.subtracting(previousIDs)
+            let suppressedDeviceIDs = newlyVisibleIDs.filter { stateRefreshSuppressedUntilByDeviceID[$0] != nil }
             for id in suppressedDeviceIDs {
                 stateRefreshSuppressedUntilByDeviceID[id] = nil
+                usbTelemetryUnavailableBackoffDeviceIDs.remove(id)
             }
             if !suppressedDeviceIDs.isEmpty {
                 AppLog.debug(
@@ -437,6 +440,7 @@ final class AppStateDeviceController {
                 stateCacheByDeviceID[id] = nil
                 refreshFailureCountByDeviceID[id] = nil
                 stateRefreshSuppressedUntilByDeviceID[id] = nil
+                usbTelemetryUnavailableBackoffDeviceIDs.remove(id)
                 unavailableDeviceIDs.remove(id)
                 setDpiUpdateTransportStatus(nil, for: id)
                 lastUpdatedByDeviceID[id] = nil
@@ -814,7 +818,7 @@ final class AppStateDeviceController {
         let now = Date()
         let failures = refreshFailureCountByDeviceID[device.id] ?? 0
         if failures > 0 {
-            if shouldTreatActivePassiveHIDAsConnected(device: device, now: now) {
+            if failures < 3, shouldTreatActivePassiveHIDAsConnected(device: device, now: now) {
                 return .connected
             }
             return .reconnecting
@@ -1094,11 +1098,22 @@ final class AppStateDeviceController {
             }
 
             let failures = max(1, self.refreshFailureCountByDeviceID[device.id] ?? 0)
-            let retryDelay = min(3.0, 0.8 * pow(1.8, Double(failures - 1)))
+            let retryDelay = self.selectedRecoveryRetryDelay(for: device, failures: failures)
             self.selectedRecoveryRefreshTask = nil
             self.selectedRecoveryRefreshDeviceID = nil
             self.scheduleSelectedRecoveryRefresh(for: device, delay: retryDelay)
         }
+    }
+
+    private func selectedRecoveryRetryDelay(for device: MouseDevice, failures: Int, now: Date = Date()) -> TimeInterval {
+        let exponentialDelay = min(3.0, 0.8 * pow(1.8, Double(max(0, failures - 1))))
+        guard let suppressedUntil = stateRefreshSuppressedUntilByDeviceID[device.id] else {
+            return exponentialDelay
+        }
+
+        let remainingBackoff = suppressedUntil.timeIntervalSince(now)
+        guard remainingBackoff > 0 else { return exponentialDelay }
+        return max(exponentialDelay, min(remainingBackoff, 30.0))
     }
 
     func refreshableDevicesInPriorityOrder(prioritizing prioritizedDeviceIDs: [String] = []) -> [MouseDevice] {
@@ -1415,6 +1430,8 @@ final class AppStateDeviceController {
                     refreshFailureCountByDeviceID[presentationDeviceID] = 0
                     stateRefreshSuppressedUntilByDeviceID[refreshDeviceID] = nil
                     stateRefreshSuppressedUntilByDeviceID[presentationDeviceID] = nil
+                    usbTelemetryUnavailableBackoffDeviceIDs.remove(refreshDeviceID)
+                    usbTelemetryUnavailableBackoffDeviceIDs.remove(presentationDeviceID)
                     unavailableDeviceIDs.remove(refreshDeviceID)
                     unavailableDeviceIDs.remove(presentationDeviceID)
 
@@ -1467,6 +1484,8 @@ final class AppStateDeviceController {
                 refreshFailureCountByDeviceID[presentationDeviceID] = 0
                 stateRefreshSuppressedUntilByDeviceID[refreshDeviceID] = nil
                 stateRefreshSuppressedUntilByDeviceID[presentationDeviceID] = nil
+                usbTelemetryUnavailableBackoffDeviceIDs.remove(refreshDeviceID)
+                usbTelemetryUnavailableBackoffDeviceIDs.remove(presentationDeviceID)
                 unavailableDeviceIDs.remove(refreshDeviceID)
                 unavailableDeviceIDs.remove(presentationDeviceID)
 
@@ -1516,6 +1535,8 @@ final class AppStateDeviceController {
             refreshFailureCountByDeviceID[presentationDeviceID] = 0
             stateRefreshSuppressedUntilByDeviceID[refreshDeviceID] = nil
             stateRefreshSuppressedUntilByDeviceID[presentationDeviceID] = nil
+            usbTelemetryUnavailableBackoffDeviceIDs.remove(refreshDeviceID)
+            usbTelemetryUnavailableBackoffDeviceIDs.remove(presentationDeviceID)
             unavailableDeviceIDs.remove(refreshDeviceID)
             unavailableDeviceIDs.remove(presentationDeviceID)
             if shouldFocusOnActivity {
@@ -1564,16 +1585,35 @@ final class AppStateDeviceController {
             let isAvailabilityFailure = Self.isDeviceAvailabilityMessage(error.localizedDescription)
             let isUSBTelemetryUnavailable =
                 device.transport == .usb && BridgeClient.isUSBTelemetryUnavailableError(error)
+            if isUSBTelemetryUnavailable {
+                usbTelemetryUnavailableBackoffDeviceIDs.insert(refreshDeviceID)
+                usbTelemetryUnavailableBackoffDeviceIDs.insert(presentationDeviceID)
+            }
+            let hasCachedPresentationState =
+                stateCacheByDeviceID[presentationDeviceID] != nil ||
+                stateCacheByDeviceID[refreshDeviceID] != nil ||
+                (deviceStore.selectedDeviceID == presentationDeviceID && deviceStore.state != nil)
+            let hasSeededReconnectState = seededReconnectStateDeviceIDs.contains(presentationDeviceID)
+            let isRecoveringUSBAvailability =
+                device.transport == .usb &&
+                isAvailabilityFailure &&
+                !isUSBTelemetryUnavailable &&
+                (hasCachedPresentationState || hasSeededReconnectState)
             let hasActivePassiveHID = shouldTreatActivePassiveHIDAsConnected(
                 device: presentationDevice(for: device) ?? device,
                 now: Date()
             )
             let shouldTreatAsDegradedUSBTelemetry =
                 isUSBTelemetryUnavailable && hasActivePassiveHID
+            let shouldMaskSelectedUSBTelemetryUnavailable =
+                isUSBTelemetryUnavailable &&
+                deviceStore.selectedDeviceID == presentationDeviceID &&
+                (!hasCachedPresentationState || hasSeededReconnectState)
             let shouldTreatAsHardAvailabilityFailure =
                 isAvailabilityFailure &&
+                !(isUSBTelemetryUnavailable && (hasActivePassiveHID || shouldMaskSelectedUSBTelemetryUnavailable)) &&
                 !shouldTreatAsDegradedUSBTelemetry &&
-                !(seededReconnectStateDeviceIDs.contains(presentationDeviceID) && BridgeClient.isUSBTelemetryUnavailableError(error))
+                !isRecoveringUSBAvailability
             if shouldTreatAsHardAvailabilityFailure {
                 unavailableDeviceIDs.insert(refreshDeviceID)
                 unavailableDeviceIDs.insert(presentationDeviceID)
@@ -1610,11 +1650,15 @@ final class AppStateDeviceController {
                     "AppState",
                     "refreshState failed device=\(presentationDeviceID) transport=\(device.transport.rawValue) no-cache: \(error.localizedDescription)"
                 )
-                deviceStore.errorMessage = error.localizedDescription
+                deviceStore.errorMessage = isUSBTelemetryUnavailable || isRecoveringUSBAvailability
+                    ? nil
+                    : error.localizedDescription
                 deviceStore.warningMessage = nil
             } else {
                 AppLog.debug("AppState", "refreshState transient-failure masked: \(error.localizedDescription)")
-                if failures >= 3 {
+                if isUSBTelemetryUnavailable || isRecoveringUSBAvailability {
+                    deviceStore.errorMessage = nil
+                } else if failures >= 3 {
                     if failures == 3 {
                         AppLog.warning(
                             "AppState",
@@ -1819,7 +1863,8 @@ final class AppStateDeviceController {
         guard transportStatus == .streamActive || transportStatus == .realTimeHID else { return false }
 
         if device.transport == .usb {
-            return true
+            return stateCacheByDeviceID[device.id] != nil ||
+                (deviceStore.selectedDeviceID == device.id && deviceStore.state != nil)
         }
         if device.transport == .bluetooth {
             return isPassiveBluetoothHeartbeatFresh(for: device, now: now)

@@ -4,8 +4,12 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- The Connect a Device screen now opens supported devices in a centered, searchable profile-backed table instead of showing the growing list inline.
+
 ### Fixed
 - USB reconnect handling now refreshes HID discovery after the post-connect settle window, preventing early partial HID enumeration from leaving a replugged mouse unusable until OpenSnek restarts.
+- V3 Pro USB dongle-only states now back off gracefully when the mouse is powered off or telemetry is temporarily unavailable, avoiding repeated full-state reads and transient error banners while waiting for live telemetry to return.
 
 ## [1.0.0]
 
