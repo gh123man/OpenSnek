@@ -11,12 +11,12 @@ All notable changes to this project are documented in this file.
 - USB reconnect handling now refreshes HID discovery after the post-connect settle window, preventing early partial HID enumeration from leaving a replugged mouse unusable until OpenSnek restarts.
 - V3 Pro USB dongle-only states now back off gracefully when the mouse is powered off or telemetry is temporarily unavailable, avoiding repeated full-state reads and transient error banners while waiting for live telemetry to return.
 - USB dongle-only and sleeping-mouse states now switch to the disconnected presentation instead of staying on the loading/reconnecting screen when the dongle is visible but the mouse does not answer telemetry.
-- USB sleeping-mouse detection now expires stale USB liveness observations quickly, so a powered-off mouse no longer stays marked connected just because the dongle and cached state are still present.
+- USB sleeping-mouse detection now depends on concrete unavailable/no-state telemetry results instead of aging out passive USB liveness observations.
 - Disconnect and reconnect detail screens no longer show a duplicate red global error notice over the same connection-state UI.
 - Reconnect and disconnect recovery no longer shows yellow USB telemetry notices for expected temporary telemetry gaps while the device is settling.
 - USB telemetry-unavailable and availability backoff now survive newly visible dongle subscription updates, preventing the dongle-only state from falling back into an immediate reconnect retry loop.
 - Selected USB devices with cached state now keep their last known presentation during temporary feature-report telemetry backoff when the mouse is still enumerated, instead of being marked disconnected.
-- Remote service snapshots now clear latched transient USB unavailable presentation, preventing a connected mouse from staying marked Disconnected after fresh service telemetry arrives.
+- Remote service snapshots now clear latched transient USB unavailable presentation, and cached USB devices no longer age into Disconnected solely because passive telemetry has been idle.
 
 ## [1.0.0]
 

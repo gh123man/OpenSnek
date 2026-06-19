@@ -257,15 +257,10 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let connectionAfterDeviceListUpdate = await MainActor.run {
             appState.deviceStore.connectionState(for: usbDevice)
         }
-        await MainActor.run {
-            appState.deviceController.updateUSBLiveObservationExpiryDiagnostics(
-                now: Date().addingTimeInterval(5)
-            )
-        }
-        let connectionAfterObservationExpiry = await MainActor.run {
+        let connectionAfterIdle = await MainActor.run {
             appState.deviceStore.connectionState(for: usbDevice)
         }
-        let stateAfterObservationExpiry = await MainActor.run { appState.deviceStore.state }
+        let stateAfterIdle = await MainActor.run { appState.deviceStore.state }
 
         XCTAssertFalse(refreshed)
         XCTAssertEqual(failedReadCount, initialReadCount + 1)
@@ -274,8 +269,8 @@ final class AppStateMultiDeviceTests: XCTestCase {
         XCTAssertEqual(readCountAfterDeviceListUpdate, failedReadCount)
         XCTAssertEqual(stateAfterDeviceListUpdate?.dpi?.x, 800)
         XCTAssertNotEqual(connectionAfterDeviceListUpdate, .disconnected)
-        XCTAssertEqual(stateAfterObservationExpiry?.dpi?.x, 800)
-        XCTAssertNotEqual(connectionAfterObservationExpiry, .disconnected)
+        XCTAssertEqual(stateAfterIdle?.dpi?.x, 800)
+        XCTAssertEqual(connectionAfterIdle, .connected)
     }
 
     func testSelectedUSBTelemetryUnavailableWithoutCacheShowsDisconnectedWithoutError() async {
@@ -430,19 +425,14 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let refreshed = await appState.deviceController.refreshState(for: usbDevice)
         let failedReadCount = await backend.readCount(for: usbDevice.id)
         let statusAfterFailure = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
-        await MainActor.run {
-            appState.deviceController.updateUSBLiveObservationExpiryDiagnostics(
-                now: Date().addingTimeInterval(5)
-            )
-        }
-        let statusAfterObservationExpiry = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
+        let statusAfterIdle = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
         await appState.deviceController.handleBackendDeviceListUpdate([usbDevice])
         let readCountAfterStableSubscription = await backend.readCount(for: usbDevice.id)
 
         XCTAssertFalse(refreshed)
         XCTAssertEqual(failedReadCount, initialReadCount + 1)
         XCTAssertEqual(statusAfterFailure, "Connected")
-        XCTAssertNotEqual(statusAfterObservationExpiry, "Disconnected")
+        XCTAssertEqual(statusAfterIdle, "Connected")
         XCTAssertEqual(readCountAfterStableSubscription, failedReadCount)
     }
 
@@ -598,7 +588,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
         XCTAssertEqual(selectedDpi, 4800)
     }
 
-    func testSelectedUnavailableDeviceShowsDisconnectedAfterUSBLiveObservationExpires() async {
+    func testSelectedUnavailableDeviceWithCachedStateStaysConnectedUntilConcreteRemoval() async {
         let usbDevice = makeTestDevice(
             id: "usb-dongle",
             productName: "Zeta Mouse",
@@ -628,17 +618,17 @@ final class AppStateMultiDeviceTests: XCTestCase {
         await appState.deviceStore.refreshState()
         await appState.deviceStore.pollDevicePresence()
         let immediateStatus = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
+        let immediateControlsEnabled = await MainActor.run { appState.deviceStore.selectedDeviceControlsEnabled }
 
         await MainActor.run {
-            appState.deviceController.updateUSBLiveObservationExpiryDiagnostics(
-                now: Date().addingTimeInterval(5)
-            )
+            _ = appState.deviceController.applyDeviceList([], source: "test")
         }
 
         let status = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
         let controlsEnabled = await MainActor.run { appState.deviceStore.selectedDeviceControlsEnabled }
 
         XCTAssertEqual(immediateStatus, "Connected")
+        XCTAssertTrue(immediateControlsEnabled)
         XCTAssertEqual(status, "Disconnected")
         XCTAssertFalse(controlsEnabled)
     }

@@ -714,7 +714,6 @@ final class AppStateRuntimeController {
         let effectiveDevicePresenceInterval = effectiveDevicePresenceInterval(at: now, profile: profile)
         let effectiveRefreshStateInterval = effectiveRefreshStateInterval(at: now, profile: profile)
         pruneExpiredRemoteClientPresence(now: now)
-        deviceController.updateUSBLiveObservationExpiryDiagnostics(now: now)
         if !environment.launchRole.isService {
             await checkForUpdates(now: now)
         }

@@ -574,7 +574,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         XCTAssertEqual(activeStage, 1)
     }
 
-    func testCurrentDeviceStatusUsesSelectedDeviceFreshnessFromSnapshotCache() async {
+    func testCurrentDeviceStatusUsesSelectedDevicePresenceFromSnapshotCache() async {
         let appState = await MainActor.run {
             AppState(
                 launchRole: .app,
@@ -636,7 +636,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         }
         let freshLabel = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
 
-        XCTAssertEqual(staleLabel, "Reconnecting")
+        XCTAssertEqual(staleLabel, "Connected")
         XCTAssertEqual(freshLabel, "Connected")
     }
 
@@ -680,14 +680,13 @@ final class RemoteServiceSnapshotTests: XCTestCase {
 
         await MainActor.run {
             appState.deviceStore.applyRemoteServiceSnapshot(snapshot)
-            appState.deviceController.updateUSBLiveObservationExpiryDiagnostics(now: now)
         }
 
         let status = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
         XCTAssertEqual(status, "Connected")
     }
 
-    func testRemoteSnapshotStaleUSBObservationMarksFreshCachedStateDisconnected() async {
+    func testRemoteSnapshotFreshFullStateOverridesStaleUSBObservation() async {
         let appState = await MainActor.run {
             AppState(
                 launchRole: .app,
@@ -727,16 +726,12 @@ final class RemoteServiceSnapshotTests: XCTestCase {
 
         await MainActor.run {
             appState.deviceStore.applyRemoteServiceSnapshot(snapshot)
-            appState.deviceController.updateUSBLiveObservationExpiryDiagnostics(now: now)
         }
 
         let status = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
         let message = await MainActor.run { appState.deviceStore.selectedDeviceInteractionMessage }
-        XCTAssertEqual(status, "Disconnected")
-        XCTAssertEqual(
-            message,
-            "The USB dongle is connected, but the mouse is not responding. Wake or power on the mouse to reconnect."
-        )
+        XCTAssertEqual(status, "Connected")
+        XCTAssertNil(message)
     }
 
     func testRemoteSnapshotNormalUSBServiceCadenceDoesNotDisconnectHealthyMouse() async {
@@ -779,7 +774,53 @@ final class RemoteServiceSnapshotTests: XCTestCase {
 
         await MainActor.run {
             appState.deviceStore.applyRemoteServiceSnapshot(snapshot)
-            appState.deviceController.updateUSBLiveObservationExpiryDiagnostics(now: now)
+        }
+
+        let status = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
+        XCTAssertEqual(status, "Connected")
+    }
+
+    func testRemoteSnapshotIdleUSBObservationDoesNotDisconnectHealthyMouse() async {
+        let appState = await MainActor.run {
+            AppState(
+                launchRole: .app,
+                backend: SnapshotTestRemoteBackend(shouldUseFastDPIPolling: true),
+                autoStart: false
+            )
+        }
+
+        let device = makeSnapshotDevice(
+            id: "usb-service-idle-cadence",
+            productName: "Snapshot USB Mouse",
+            transport: .usb,
+            serial: "USB-SERVICE-IDLE",
+            locationID: 7,
+            profile: .basiliskV3Pro
+        )
+        let now = Date()
+        let observedAt = now.addingTimeInterval(-7)
+        let snapshot = SharedServiceSnapshot(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeSnapshotState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 80,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 1,
+                    dpiValue: 1600
+                )
+            ],
+            lastUpdatedByDeviceID: [
+                device.id: observedAt
+            ],
+            observedAtByDeviceID: [
+                device.id: observedAt
+            ]
+        )
+
+        await MainActor.run {
+            appState.deviceStore.applyRemoteServiceSnapshot(snapshot)
         }
 
         let status = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
