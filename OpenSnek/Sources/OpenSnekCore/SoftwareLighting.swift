@@ -56,13 +56,14 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
             ]
         case .jellybeans:
             return [
-                RGBPatch(r: 255, g: 142, b: 170),
-                RGBPatch(r: 255, g: 194, b: 123),
-                RGBPatch(r: 255, g: 239, b: 139),
-                RGBPatch(r: 151, g: 231, b: 176),
-                RGBPatch(r: 128, g: 219, b: 236),
-                RGBPatch(r: 177, g: 161, b: 255),
-                RGBPatch(r: 239, g: 157, b: 244),
+                RGBPatch(r: 255, g: 20, b: 96),
+                RGBPatch(r: 255, g: 112, b: 0),
+                RGBPatch(r: 255, g: 232, b: 0),
+                RGBPatch(r: 46, g: 230, b: 54),
+                RGBPatch(r: 0, g: 220, b: 255),
+                RGBPatch(r: 0, g: 92, b: 255),
+                RGBPatch(r: 144, g: 48, b: 255),
+                RGBPatch(r: 255, g: 56, b: 228),
             ]
         }
     }

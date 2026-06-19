@@ -47,6 +47,7 @@ All notable changes to this project are documented in this file.
 - Flame software lighting now uses seeded irregular flicker timing per LED so color changes feel less uniform.
 - The Advanced lighting Apply on connect toggle now sits beside the Apply and Stop controls.
 - The Lighting card background now reflects the selected Advanced software-lighting palette instead of staying tied to the onboard static color.
+- Jellybeans now uses a more saturated default palette so randomly assigned LED colors are easier to distinguish.
 
 ## [2026-06-18]
 
