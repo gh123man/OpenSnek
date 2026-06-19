@@ -549,6 +549,26 @@ enum OpenSnekProbe {
             guard writes.allSatisfy(\.succeeded) else {
                 throw ProbeError.protocolError("One or more USB lighting effect writes failed")
             }
+        case "usb-lighting-frame":
+            let parsed = try parseUSBLightingFrameArgs(Array(args.dropFirst()))
+            let usb = try USBProbeClient(productID: parsed.productID)
+            print("usb \(usb.describe())")
+            let result = try usb.writeLightingCustomFrame(
+                storage: parsed.storage,
+                row: parsed.row,
+                startColumn: parsed.startColumn,
+                colors: parsed.colors
+            )
+            print(
+                "custom-frame storage=0x\(String(format: "%02x", parsed.storage)) " +
+                "row=0x\(String(format: "%02x", parsed.row)) " +
+                "cols=0x\(String(format: "%02x", parsed.startColumn))..0x\(String(format: "%02x", parsed.endColumn)) " +
+                "cells=\(parsed.colors.count) args=[\(hexString(result.args))] " +
+                "status=\(result.succeeded ? "ok" : "failed")"
+            )
+            guard result.succeeded else {
+                throw ProbeError.protocolError("USB lighting custom-frame write failed")
+            }
         case "usb-input-listen":
             let parsed = try parseUSBInputListenArgs(Array(args.dropFirst()))
             let probe = try USBInputReportProbe(productID: parsed.productID)
@@ -708,6 +728,7 @@ enum OpenSnekProbe {
           OpenSnekProbe usb-lighting-read [--zone all|scroll_wheel|logo|underglow] [--pid 0x00ab]
           OpenSnekProbe usb-lighting-brightness --value 128 [--zone all|scroll_wheel|logo|underglow] [--pid 0x00ab]
           OpenSnekProbe usb-lighting-effect --kind static [--color 00ff00] [--secondary ff00ff] [--direction left|right] [--speed 2] [--zone all|scroll_wheel|logo|underglow] [--pid 0x00ab]
+          OpenSnekProbe usb-lighting-frame --colors ff0000,00ff00,0000ff [--start-col 0] [--row 0] [--storage 0x01] [--pid 0x00aa]
           OpenSnekProbe usb-profile-read [--profiles 2,3,4,5] [--button-slots 5,106] [--include-effective on|off] [--pid 0x00ab]
           OpenSnekProbe usb-profile-active-read [--pid 0x00ab]
           OpenSnekProbe usb-profile-active-set --profile 3 --yes [--pid 0x00ab]
@@ -1252,6 +1273,34 @@ enum OpenSnekProbe {
         return (effect, parseLightingZoneID(flags["--zone"]), try parseOptionalUSBPID(args))
     }
 
+    private static func parseUSBLightingFrameArgs(_ args: [String]) throws -> (colors: [RGBPatch], storage: UInt8, row: UInt8, startColumn: UInt8, endColumn: UInt8, productID: Int?) {
+        let flags = parseFlags(args)
+        guard let colorsRaw = flags["--colors"] else {
+            throw ProbeError.usage("Missing --colors\n\(usageText)")
+        }
+        let colors = try parseRGBPatchList(colorsRaw)
+        guard !colors.isEmpty else {
+            throw ProbeError.usage("--colors must include at least one RGB value")
+        }
+        guard colors.count <= 12 else {
+            throw ProbeError.usage("--colors supports at most 12 V3 Pro custom-frame cells")
+        }
+        let startColumn = parseUInt8(flags["--start-col"] ?? "0") ?? 0x00
+        guard startColumn <= 0x0B else {
+            throw ProbeError.usage("--start-col must be in the V3 Pro custom-frame range 0..11")
+        }
+        let endColumnInt = Int(startColumn) + colors.count - 1
+        guard endColumnInt <= 0x0B else {
+            throw ProbeError.usage("--colors extends past V3 Pro custom-frame column 11")
+        }
+        let storage = parseUInt8(flags["--storage"] ?? "0x01") ?? 0x01
+        guard storage == 0x00 || storage == 0x01 else {
+            throw ProbeError.usage("--storage must be 0x00 or 0x01")
+        }
+        let row = parseUInt8(flags["--row"] ?? "0") ?? 0x00
+        return (colors, storage, row, startColumn, UInt8(endColumnInt), try parseOptionalUSBPID(args))
+    }
+
     private static func parseUSBRawArgs(_ args: [String]) throws -> (classID: UInt8, cmdID: UInt8, size: UInt8, args: [UInt8], responseAttempts: Int, responseDelayUs: useconds_t, productID: Int?) {
         let flags = parseFlags(args)
         guard let classRaw = flags["--class"], let classID = parseUInt8(classRaw) else {
@@ -1424,6 +1473,18 @@ enum OpenSnekProbe {
             throw ProbeError.usage("Invalid RGB hex '\(raw)' (expected 6 hex chars)")
         }
         return RGBPatch(r: Int(bytes[0]), g: Int(bytes[1]), b: Int(bytes[2]))
+    }
+
+    private static func parseRGBPatchList(_ raw: String) throws -> [RGBPatch] {
+        try raw
+            .split(separator: ",")
+            .map { token -> RGBPatch in
+                let value = token.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard let color = try parseRGBPatch(value) else {
+                    throw ProbeError.usage("Invalid RGB hex '\(value)' (expected 6 hex chars)")
+                }
+                return color
+            }
     }
 
     private static func parseHexBytes(_ raw: String) throws -> [UInt8] {

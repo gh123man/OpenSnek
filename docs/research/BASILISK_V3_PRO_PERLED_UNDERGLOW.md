@@ -67,8 +67,8 @@ This was confirmed by a sequential single-LED sweep where each cell was lit red 
 ## How this relates to existing OpenSnek code
 
 - `OpenSnek/Sources/OpenSnekCore/DeviceSupport.swift:440-444` defines the three USB lighting zones (`scroll_wheel`, `logo`, `underglow`) with LED IDs `[0x01, 0x04, 0x0A]`. These continue to work via Cmd 0x02 and are unaffected by anything in this document.
-- `OpenSnek/Sources/OpenSnekProbe/main.swift:645` already exposes `usb-raw --class 0x0F --cmd 0x03 --args ...` — the probe channel used throughout this investigation. No new transport plumbing is required to ship per-LED control; only profile + UI changes.
-- `docs/protocol/USB_PROTOCOL.md:646-663` documents Cmd 0x02 and lists the effect-id table — that table is currently wrong (see below) and Cmd 0x03 is not mentioned at all.
+- `OpenSnekProbe usb-lighting-frame --colors ff0000,00ff00,0000ff --start-col 0 --pid 0x00aa` writes the decoded `Cmd 0x03` Custom Frame path with conventional RGB input converted to the device's `[B,R,G]` triplet order. `usb-raw --class 0x0F --cmd 0x03 --args ...` remains available for lower-level experiments.
+- `docs/protocol/USB_PROTOCOL.md` now documents both Cmd 0x02's corrected effect-ID table and Cmd 0x03's Custom Frame shape.
 
 ## Effect-ID correction (separate fix, same source)
 

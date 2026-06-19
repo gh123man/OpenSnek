@@ -743,6 +743,18 @@ Hardware-validated on Basilisk V3 Pro USB (PID 0x00AA, firmware 0x02120000):
 exposes only 9 of the 10 underglow LEDs.
 ```
 
+Probe support:
+
+```bash
+OpenSnekProbe usb-lighting-frame \
+  --colors ff0000,00ff00,0000ff \
+  --start-col 0 \
+  --pid 0x00aa
+```
+
+The probe accepts conventional RGB hex values and emits the `Cmd 0x03` payload
+in the device's `[B,R,G]` triplet order.
+
 ---
 
 ## USB/BLE Parity Matrix

@@ -131,6 +131,33 @@ final class USBHIDProtocolTests: XCTestCase {
         )
     }
 
+    func testLightingCustomFrameArgsUseBRGTriplets() {
+        XCTAssertEqual(
+            USBHIDProtocol.lightingCustomFrameArgs(
+                storage: 0x01,
+                row: 0x00,
+                startColumn: 0x00,
+                colors: [
+                    RGBPatch(r: 0x11, g: 0x22, b: 0x33),
+                    RGBPatch(r: 0x44, g: 0x55, b: 0x66),
+                ]
+            ),
+            [0x01, 0x00, 0x00, 0x01, 0x33, 0x11, 0x22, 0x66, 0x44, 0x55]
+        )
+    }
+
+    func testLightingCustomFrameArgsCanAddressSingleOffsetCell() {
+        XCTAssertEqual(
+            USBHIDProtocol.lightingCustomFrameArgs(
+                storage: 0x00,
+                row: 0x01,
+                startColumn: 0x0B,
+                colors: [RGBPatch(r: 0xFF, g: 0x00, b: 0x00)]
+            ),
+            [0x00, 0x01, 0x0B, 0x0B, 0x00, 0xFF, 0x00]
+        )
+    }
+
     func testProfileLightingEffectStateParsesStaticColorReadback() throws {
         var response = USBHIDProtocol.createReport(
             txn: 0x1F,

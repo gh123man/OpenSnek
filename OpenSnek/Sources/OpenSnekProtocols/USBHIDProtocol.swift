@@ -173,6 +173,22 @@ public enum USBHIDProtocol {
         ]
     }
 
+    public static func lightingCustomFrameArgs(
+        storage: UInt8 = 0x01,
+        row: UInt8 = 0x00,
+        startColumn: UInt8 = 0x00,
+        colors: [RGBPatch]
+    ) -> [UInt8] {
+        let endColumn = UInt8(max(0, min(255, Int(startColumn) + max(0, colors.count - 1))))
+        var args = [storage, row, startColumn, endColumn]
+        for color in colors {
+            args.append(UInt8(max(0, min(255, color.b))))
+            args.append(UInt8(max(0, min(255, color.r))))
+            args.append(UInt8(max(0, min(255, color.g))))
+        }
+        return args
+    }
+
     public static func profileLightingEffectState(
         from response: [UInt8],
         expectedLEDID: UInt8? = nil
