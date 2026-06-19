@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.0.0]
+
+### Highlights
+- Added stored onboard profile management for validated Basilisk V3 Pro USB and Bluetooth devices, including list/read/create/rename/update/delete/activate flows, copy-from-slot creation, Synapse-compatible metadata, and profile-backed DPI, button, brightness, and static-color edits.
+- Expanded Basilisk V3-family USB support across Basilisk V3 Pro, Basilisk V3 35K, and the mapped wired Basilisk V3 profile with higher-DPI ranges, independent X/Y DPI where supported, wheel-tilt defaults, DPI clutch handling, multi-zone lighting, scroll controls, and more reliable state hydration.
+- Added contributor-validated Bluetooth support for the Razer Orochi V2, including DPI stages, battery reporting, and no-RGB capability handling.
+- Reworked reconnect, background-service, and passive-HID behavior so selected devices get priority, live DPI/profile changes are followed more reliably, and stale telemetry is less likely to overwrite fresh UI edits.
+- Added release packaging/CI, device support docs, Windows BTVS capture automation, and focused probe commands for USB and Bluetooth profile research.
+- Removed command-level retries from app and probe paths so command failures surface clearly while transport recovery remains responsible for real connection failures.
+
 ## [2026-06-18]
 
 ### Changed
