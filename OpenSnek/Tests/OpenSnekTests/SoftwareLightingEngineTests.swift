@@ -55,6 +55,41 @@ final class SoftwareLightingEngineTests: XCTestCase {
         await engine.stop(deviceID: device.id)
     }
 
+    func testStartingNewPresetWaitsForInFlightWriteBeforeReplacement() async throws {
+        let writer = RecordingSoftwareLightingFrameWriter(delayNanoseconds: 120_000_000)
+        let engine = SoftwareLightingEngine(
+            frameWriter: writer,
+            minimumFrameInterval: 0.001,
+            failureLimit: 3
+        )
+        let device = makeSoftwareLightingTestDevice()
+
+        _ = try await engine.start(
+            device: device,
+            request: SoftwareLightingEffectRequest(presetID: .flame, framesPerSecond: 30)
+        )
+
+        try await waitUntil(timeout: 1.0) {
+            await writer.activeWriteCount() == 1
+        }
+
+        _ = try await engine.start(
+            device: device,
+            request: SoftwareLightingEffectRequest(presetID: .scrollingRainbow, framesPerSecond: 30)
+        )
+
+        try await waitUntil(timeout: 1.0) {
+            await writer.frameCount() >= 2
+        }
+        let maxConcurrentWrites = await writer.maxConcurrentWrites()
+        XCTAssertEqual(maxConcurrentWrites, 1)
+
+        let status = await engine.status(deviceID: device.id)
+        XCTAssertEqual(status?.state, .running)
+        XCTAssertEqual(status?.request?.presetID, .scrollingRainbow)
+        await engine.stop(deviceID: device.id)
+    }
+
     func testSlowFrameWritesDoNotOverlap() async throws {
         let writer = RecordingSoftwareLightingFrameWriter(delayNanoseconds: 40_000_000)
         let engine = SoftwareLightingEngine(
@@ -182,6 +217,10 @@ private actor RecordingSoftwareLightingFrameWriter: SoftwareLightingFrameWriting
 
     func maxConcurrentWrites() -> Int {
         maxActiveWrites
+    }
+
+    func activeWriteCount() -> Int {
+        activeWrites
     }
 }
 

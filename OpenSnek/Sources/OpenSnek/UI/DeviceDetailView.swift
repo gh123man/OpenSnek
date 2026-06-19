@@ -1291,6 +1291,7 @@ struct LightingCard: View {
                         .foregroundStyle(.white.opacity(0.58))
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("software-lighting-status-text")
                 }
 
                 HStack(spacing: 10) {
@@ -1621,7 +1622,7 @@ struct SoftwareLightingPaletteEditor: View {
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: 4) {
+                HStack(alignment: .top, spacing: 0) {
                     ForEach(Array(palette.indices), id: \.self) { index in
                         VStack(spacing: 5) {
                             LightingColorOrbPicker(
@@ -1644,7 +1645,7 @@ struct SoftwareLightingPaletteEditor: View {
                             .accessibilityLabel("Remove palette color \(index + 1)")
                             .accessibilityIdentifier("software-lighting-palette-\(index)-remove-button")
                         }
-                        .frame(width: 48)
+                        .frame(width: 44)
                     }
 
                     Button(action: onAdd) {
@@ -1662,7 +1663,7 @@ struct SoftwareLightingPaletteEditor: View {
                     .help("Add color")
                     .accessibilityLabel("Add palette color")
                     .accessibilityIdentifier("software-lighting-palette-add-button")
-                    .frame(width: 48)
+                    .frame(width: 44)
                     .padding(.top, 0)
                     .padding(.bottom, 18)
                     .opacity(palette.count < SoftwareLightingEffectRequest.maximumPaletteColorCount ? 1 : 0.55)

@@ -871,6 +871,9 @@ final class AppStateDeviceController {
 
         let now = Date()
         if usbLiveObservationExpiredDeviceIDs.contains(device.id) {
+            if shouldPreserveUSBTelemetryBackoffPresentation(for: device) {
+                return .reconnecting
+            }
             return .disconnected
         }
 
@@ -954,6 +957,12 @@ final class AppStateDeviceController {
         }
 
         for device in deviceStore.devices where shouldTrackUSBLiveObservationExpiry(for: device) {
+            if shouldPreserveUSBTelemetryBackoffPresentation(for: device) {
+                if usbLiveObservationExpiredDeviceIDs.remove(device.id) != nil {
+                    shouldInvalidate = true
+                }
+                continue
+            }
             let expired = shouldTreatStaleUSBLiveObservationAsDisconnected(device: device, now: now)
             if expired {
                 shouldInvalidate = usbLiveObservationExpiredDeviceIDs.insert(device.id).inserted || shouldInvalidate
@@ -2098,6 +2107,7 @@ final class AppStateDeviceController {
 
     private func shouldTreatStaleUSBLiveObservationAsDisconnected(device: MouseDevice, now: Date) -> Bool {
         guard shouldTrackUSBLiveObservationExpiry(for: device) else { return false }
+        guard !shouldPreserveUSBTelemetryBackoffPresentation(for: device) else { return false }
         guard latestUSBLiveObservationAt(for: device) != nil else { return false }
         return !isPassiveUSBObservationFresh(for: device, now: now)
     }

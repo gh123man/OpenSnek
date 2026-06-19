@@ -257,6 +257,15 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let connectionAfterDeviceListUpdate = await MainActor.run {
             appState.deviceStore.connectionState(for: usbDevice)
         }
+        await MainActor.run {
+            appState.deviceController.updateUSBLiveObservationExpiryDiagnostics(
+                now: Date().addingTimeInterval(5)
+            )
+        }
+        let connectionAfterObservationExpiry = await MainActor.run {
+            appState.deviceStore.connectionState(for: usbDevice)
+        }
+        let stateAfterObservationExpiry = await MainActor.run { appState.deviceStore.state }
 
         XCTAssertFalse(refreshed)
         XCTAssertEqual(failedReadCount, initialReadCount + 1)
@@ -265,6 +274,8 @@ final class AppStateMultiDeviceTests: XCTestCase {
         XCTAssertEqual(readCountAfterDeviceListUpdate, failedReadCount)
         XCTAssertEqual(stateAfterDeviceListUpdate?.dpi?.x, 800)
         XCTAssertNotEqual(connectionAfterDeviceListUpdate, .disconnected)
+        XCTAssertEqual(stateAfterObservationExpiry?.dpi?.x, 800)
+        XCTAssertNotEqual(connectionAfterObservationExpiry, .disconnected)
     }
 
     func testSelectedUSBTelemetryUnavailableWithoutCacheShowsDisconnectedWithoutError() async {
@@ -431,7 +442,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
         XCTAssertFalse(refreshed)
         XCTAssertEqual(failedReadCount, initialReadCount + 1)
         XCTAssertEqual(statusAfterFailure, "Connected")
-        XCTAssertEqual(statusAfterObservationExpiry, "Disconnected")
+        XCTAssertNotEqual(statusAfterObservationExpiry, "Disconnected")
         XCTAssertEqual(readCountAfterStableSubscription, failedReadCount)
     }
 
@@ -2179,7 +2190,7 @@ private actor DisconnectingMultiDeviceStubBackend: DeviceBackend {
     func readState(device: MouseDevice) async throws -> MouseState {
         if unavailable {
             throw NSError(domain: "AppStateMultiDeviceTests", code: 6, userInfo: [
-                NSLocalizedDescriptionKey: "USB device telemetry unavailable. Feature-report interface did not return usable responses."
+                NSLocalizedDescriptionKey: "Device not available"
             ])
         }
         guard let state = stateByDeviceID[device.id] else {

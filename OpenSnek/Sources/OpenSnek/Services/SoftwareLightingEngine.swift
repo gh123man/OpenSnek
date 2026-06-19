@@ -61,12 +61,15 @@ actor SoftwareLightingEngine {
     func start(
         device: MouseDevice,
         request: SoftwareLightingEffectRequest
-    ) throws -> SoftwareLightingEngineStatus {
+    ) async throws -> SoftwareLightingEngineStatus {
         guard let layout = device.softwareLightingFrameLayout else {
             throw SoftwareLightingEngineError.unsupportedDevice
         }
 
-        tasksByDeviceID[device.id]?.cancel()
+        if let previousTask = tasksByDeviceID.removeValue(forKey: device.id) {
+            previousTask.cancel()
+            await previousTask.value
+        }
         desiredRequestByDeviceID[device.id] = request
         deviceByDeviceID[device.id] = device
 
@@ -91,8 +94,11 @@ actor SoftwareLightingEngine {
     }
 
     @discardableResult
-    func stop(deviceID: String) -> SoftwareLightingEngineStatus? {
-        tasksByDeviceID.removeValue(forKey: deviceID)?.cancel()
+    func stop(deviceID: String) async -> SoftwareLightingEngineStatus? {
+        if let previousTask = tasksByDeviceID.removeValue(forKey: deviceID) {
+            previousTask.cancel()
+            await previousTask.value
+        }
         desiredRequestByDeviceID.removeValue(forKey: deviceID)
         deviceByDeviceID.removeValue(forKey: deviceID)
 
@@ -107,11 +113,14 @@ actor SoftwareLightingEngine {
     }
 
     @discardableResult
-    func suspend(deviceID: String, message: String) -> SoftwareLightingEngineStatus? {
+    func suspend(deviceID: String, message: String) async -> SoftwareLightingEngineStatus? {
         guard let request = desiredRequestByDeviceID[deviceID] else {
             return nil
         }
-        tasksByDeviceID.removeValue(forKey: deviceID)?.cancel()
+        if let previousTask = tasksByDeviceID.removeValue(forKey: deviceID) {
+            previousTask.cancel()
+            await previousTask.value
+        }
         deviceByDeviceID.removeValue(forKey: deviceID)
         let status = SoftwareLightingEngineStatus(
             deviceID: deviceID,
@@ -124,10 +133,10 @@ actor SoftwareLightingEngine {
     }
 
     @discardableResult
-    func resumeIfNeeded(device: MouseDevice) throws -> SoftwareLightingEngineStatus? {
+    func resumeIfNeeded(device: MouseDevice) async throws -> SoftwareLightingEngineStatus? {
         guard let request = desiredRequestByDeviceID[device.id] else { return nil }
         guard statusByDeviceID[device.id]?.state == .suspended else { return nil }
-        return try start(device: device, request: request)
+        return try await start(device: device, request: request)
     }
 
     private func run(
