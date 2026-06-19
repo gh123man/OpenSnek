@@ -314,6 +314,12 @@ actor BridgeClient {
                 preferredSessionsByID[id] = first
             }
         }
+        if !candidatesByID.isEmpty {
+            let candidateSummary = candidatesByID.keys.sorted().map { id in
+                "\(id)=\(candidatesByID[id]?.count ?? 0)"
+            }.joined(separator: ",")
+            AppLog.debug("Bridge", "listDevices hid candidates \(candidateSummary)")
+        }
         deviceSessionCandidates = candidatesByID
         deviceSessions = preferredSessionsByID
         await updatePassiveDpiTracking(with: passiveDpiTargets)
@@ -404,21 +410,55 @@ actor BridgeClient {
     }
 
     func deferUSBReconnectReadIfNeeded(deviceID: String, operation: String) async throws {
-        let now = Date()
-        guard let settleDeadline = usbReconnectSettleUntilByDeviceID[deviceID] else { return }
-        guard Self.shouldDeferUSBReconnectRead(until: settleDeadline, now: now) else {
+        while let settleDeadline = usbReconnectSettleUntilByDeviceID[deviceID] {
+            let now = Date()
+            if Self.shouldDeferUSBReconnectRead(until: settleDeadline, now: now) {
+                let remaining = settleDeadline.timeIntervalSince(now)
+                AppLog.debug(
+                    "Bridge",
+                    "usb reconnect settle device=\(deviceID) operation=\(operation) " +
+                    "remaining=\(String(format: "%.3f", remaining))s"
+                )
+                try await Task.sleep(nanoseconds: UInt64(max(0, remaining) * 1_000_000_000))
+                continue
+            }
+
+            guard usbReconnectSettleUntilByDeviceID[deviceID] == settleDeadline else { continue }
             usbReconnectSettleUntilByDeviceID.removeValue(forKey: deviceID)
+            await refreshUSBDiscoveryAfterReconnectSettle(deviceID: deviceID, operation: operation)
             return
         }
+    }
 
-        let remaining = settleDeadline.timeIntervalSince(now)
+    private func refreshUSBDiscoveryAfterReconnectSettle(deviceID: String, operation: String) async {
+        deviceSessions.removeValue(forKey: deviceID)
+        deviceSessionCandidates.removeValue(forKey: deviceID)
+        clearManagedHIDManager()
+
+        do {
+            _ = try await listDevices()
+            AppLog.debug(
+                "Bridge",
+                "usb reconnect discovery refreshed device=\(deviceID) operation=\(operation) " +
+                "candidates=\(deviceSessionCandidates[deviceID]?.count ?? 0)"
+            )
+        } catch {
+            AppLog.debug(
+                "Bridge",
+                "usb reconnect discovery refresh failed device=\(deviceID) operation=\(operation): " +
+                error.localizedDescription
+            )
+        }
+    }
+
+    private func invalidateUSBDiscoveryAfterTelemetryUnavailable(deviceID: String, operation: String) {
+        deviceSessions.removeValue(forKey: deviceID)
+        deviceSessionCandidates.removeValue(forKey: deviceID)
+        clearManagedHIDManager()
         AppLog.debug(
             "Bridge",
-            "usb reconnect settle device=\(deviceID) operation=\(operation) " +
-            "remaining=\(String(format: "%.3f", remaining))s"
+            "usb discovery invalidated after telemetry unavailable device=\(deviceID) operation=\(operation)"
         )
-        try await Task.sleep(nanoseconds: UInt64(max(0, remaining) * 1_000_000_000))
-        usbReconnectSettleUntilByDeviceID.removeValue(forKey: deviceID)
     }
 
     nonisolated static func makeBluetoothFallbackDevice(
@@ -556,6 +596,9 @@ actor BridgeClient {
 
         deviceSessions[device.id]?.invalidateCachedTransaction()
         if let firstError {
+            if Self.isUSBTelemetryUnavailableError(firstError) {
+                invalidateUSBDiscoveryAfterTelemetryUnavailable(deviceID: device.id, operation: "read-state")
+            }
             throw firstError
         }
         throw BridgeError.commandFailed("USB device telemetry unavailable")
@@ -606,6 +649,7 @@ actor BridgeClient {
         }
 
         guard device.transport == .usb else { return nil }
+        try await deferUSBReconnectReadIfNeeded(deviceID: device.id, operation: "fast-dpi-read")
         let orderedSessions = sessionsFor(device: device)
         guard !orderedSessions.isEmpty else { return nil }
 
@@ -636,6 +680,9 @@ actor BridgeClient {
         }
 
         if let firstError {
+            if Self.isUSBTelemetryUnavailableError(firstError) {
+                invalidateUSBDiscoveryAfterTelemetryUnavailable(deviceID: device.id, operation: "fast-dpi-read")
+            }
             throw firstError
         }
         return nil
@@ -770,6 +817,7 @@ actor BridgeClient {
                 includePower: changedPower
             )
         } else {
+            try await deferUSBReconnectReadIfNeeded(deviceID: device.id, operation: "apply")
             let orderedSessions = sessionsFor(device: device)
             guard !orderedSessions.isEmpty else {
                 if managerAccessDenied {

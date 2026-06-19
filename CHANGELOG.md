@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- USB reconnect handling now refreshes HID discovery after the post-connect settle window, preventing early partial HID enumeration from leaving a replugged mouse unusable until OpenSnek restarts.
+
 ## [1.0.0]
 
 ### Highlights
