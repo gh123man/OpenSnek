@@ -2182,6 +2182,7 @@ final class AppStateDeviceController {
             if pendingSettingsRestoreGenerationByDeviceID[device.id, default: 0] == pendingGeneration {
                 pendingSettingsRestoreDeviceIDs.remove(device.id)
             }
+            await editorController.startPersistedSoftwareLightingOnConnectIfNeeded(for: device)
             return
         }
 
@@ -2200,6 +2201,7 @@ final class AppStateDeviceController {
             let currentGeneration = pendingSettingsRestoreGenerationByDeviceID[device.id, default: 0]
             if currentGeneration == pendingGeneration {
                 pendingSettingsRestoreDeviceIDs.remove(device.id)
+                await editorController.startPersistedSoftwareLightingOnConnectIfNeeded(for: device)
             } else {
                 Task { @MainActor [weak self] in
                     await self?.restorePersistedSettingsIfNeeded(for: device)

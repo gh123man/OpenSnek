@@ -839,6 +839,12 @@ struct LightingCard: View {
         Color(hex: 0x0A84FF)
     }
 
+    private var preferredLightingTab: LightingCardTab {
+        editorStore.editableSoftwareLightingApplyOnConnect && selected.supportsSoftwareLightingEffects
+            ? .advanced
+            : .onboard
+    }
+
     private var accentOpacity: Double {
         let brightness = Double(max(0, min(255, editorStore.editableLedBrightness))) / 255.0
         return 0.10 + (brightness * 0.22)
@@ -1194,6 +1200,17 @@ struct LightingCard: View {
                     )
                 )
         )
+        .onAppear {
+            selectedTab = preferredLightingTab
+        }
+        .onChange(of: selected.id) {
+            selectedTab = preferredLightingTab
+        }
+        .onChange(of: editorStore.editableSoftwareLightingApplyOnConnect) { _, enabled in
+            if enabled && selected.supportsSoftwareLightingEffects {
+                selectedTab = .advanced
+            }
+        }
     }
 
     @ViewBuilder
@@ -1206,6 +1223,8 @@ struct LightingCard: View {
             )
 
             if selected.supportsSoftwareLightingEffects {
+                softwareLightingApplyOnConnectToggle()
+
                 HStack(spacing: 12) {
                     Text("Preset")
                         .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -1310,6 +1329,21 @@ struct LightingCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    private func softwareLightingApplyOnConnectToggle() -> some View {
+        Toggle(
+            isOn: Binding(
+                get: { editorStore.editableSoftwareLightingApplyOnConnect },
+                set: { editorStore.updateSoftwareLightingApplyOnConnect($0) }
+            )
+        ) {
+            Text("Apply on connect")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.82))
+        }
+        .toggleStyle(.checkbox)
+        .accessibilityIdentifier("software-lighting-apply-on-connect-checkbox")
     }
 
     private func lightingNotice(systemImage: String, iconColor: Color, text: String) -> some View {

@@ -137,6 +137,44 @@ final class DevicePreferenceStoreTests: XCTestCase {
         XCTAssertEqual(store.loadConnectBehavior(device: device), .restoreOpenSnekSettings)
     }
 
+    func testSoftwareLightingPreferencesPersistPerDevice() {
+        let suiteName = "DevicePreferenceStoreTests.SoftwareLighting.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = DevicePreferenceStore(defaults: defaults)
+        let device = MouseDevice(
+            id: "usb-software-lighting-preferences",
+            vendor_id: 0x1532,
+            product_id: 0x00AB,
+            product_name: "Basilisk V3 Pro",
+            transport: .usb,
+            path_b64: "",
+            serial: "SOFTWARE-LIGHTING-PREFS",
+            firmware: nil,
+            profile_id: .basiliskV3Pro
+        )
+        let request = SoftwareLightingEffectRequest(
+            presetID: .aurora,
+            framesPerSecond: 24,
+            intensity: 0.75,
+            speed: 1.35,
+            palette: [
+                RGBPatch(r: 11, g: 22, b: 33),
+                RGBPatch(r: 44, g: 55, b: 66),
+            ]
+        )
+
+        XCTAssertFalse(store.loadSoftwareLightingApplyOnConnect(device: device))
+
+        store.persistSoftwareLightingApplyOnConnect(true, device: device)
+        store.persistSoftwareLightingRequest(request, device: device)
+
+        XCTAssertTrue(store.loadSoftwareLightingApplyOnConnect(device: device))
+        XCTAssertEqual(store.loadPersistedSoftwareLightingRequest(device: device), request)
+    }
+
     func testDeviceSettingsSnapshotRoundTrips() {
         let suiteName = "DevicePreferenceStoreTests.SettingsSnapshot.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -225,6 +263,13 @@ final class DevicePreferenceStoreTests: XCTestCase {
         )
         store.persistDeviceSettingsSnapshot(storedSnapshot, device: device)
         store.persistLightingColor(RGBColor(r: 12, g: 34, b: 56), device: device, zoneID: "logo")
+        let storedSoftwareLightingRequest = SoftwareLightingEffectRequest(
+            presetID: .cometChase,
+            speed: 1.2,
+            palette: [RGBPatch(r: 1, g: 2, b: 3), RGBPatch(r: 4, g: 5, b: 6)]
+        )
+        store.persistSoftwareLightingApplyOnConnect(true, device: device)
+        store.persistSoftwareLightingRequest(storedSoftwareLightingRequest, device: device)
         store.savePersistedButtonBindings(
             device: device,
             bindings: [
@@ -260,6 +305,11 @@ final class DevicePreferenceStoreTests: XCTestCase {
         )
         store.persistDeviceSettingsSnapshot(newSnapshot, device: device)
         store.persistLightingColor(RGBColor(r: 99, g: 88, b: 77), device: device, zoneID: "logo")
+        store.persistSoftwareLightingApplyOnConnect(false, device: device)
+        store.persistSoftwareLightingRequest(
+            SoftwareLightingEffectRequest(presetID: .aurora, speed: 0.4),
+            device: device
+        )
         store.savePersistedButtonBindings(
             device: device,
             bindings: [
@@ -270,6 +320,8 @@ final class DevicePreferenceStoreTests: XCTestCase {
 
         XCTAssertEqual(store.loadPersistedDeviceSettingsSnapshot(device: device), storedSnapshot)
         XCTAssertEqual(store.loadPersistedLightingColor(device: device, zoneID: "logo"), RGBColor(r: 12, g: 34, b: 56))
+        XCTAssertTrue(store.loadSoftwareLightingApplyOnConnect(device: device))
+        XCTAssertEqual(store.loadPersistedSoftwareLightingRequest(device: device), storedSoftwareLightingRequest)
         XCTAssertEqual(store.loadPersistedButtonBindings(device: device, profile: 1)[5]?.kind, .keyboardSimple)
     }
 }

@@ -70,6 +70,7 @@ final class EditorStore {
     var editableSoftwareLightingPreset: SoftwareLightingPresetID = .flame
     var editableSoftwareLightingSpeed = SoftwareLightingPresetID.flame.defaultSpeed
     var editableSoftwareLightingPalettes: [SoftwareLightingPresetID: [RGBColor]] = [:]
+    var editableSoftwareLightingApplyOnConnect = false
     var editableUSBLightingZoneID: String = "all"
     var editableUSBButtonProfile = 1
     var editableLightingWaveDirection: LightingWaveDirection = .left
@@ -712,6 +713,10 @@ final class EditorStore {
         editableSoftwareLightingSpeed = preset.defaultSpeed
     }
 
+    func updateSoftwareLightingApplyOnConnect(_ enabled: Bool) {
+        editorController.updateSoftwareLightingApplyOnConnect(enabled)
+    }
+
     func editableSoftwareLightingPalette(for preset: SoftwareLightingPresetID) -> [RGBColor] {
         editableSoftwareLightingPalettes[preset] ?? Self.defaultSoftwareLightingPalettes()[preset] ?? []
     }
@@ -738,6 +743,14 @@ final class EditorStore {
 
     func resetEditableSoftwareLightingPalette(for preset: SoftwareLightingPresetID) {
         editableSoftwareLightingPalettes[preset] = Self.defaultSoftwareLightingPalettes()[preset]
+    }
+
+    func applySoftwareLightingEffectRequest(_ request: SoftwareLightingEffectRequest) {
+        editableSoftwareLightingPreset = request.presetID
+        editableSoftwareLightingSpeed = request.speed
+        editableSoftwareLightingPalettes[request.presetID] = request.palette.map {
+            RGBColor(r: $0.r, g: $0.g, b: $0.b)
+        }
     }
 
     func softwareLightingEffectRequest() -> SoftwareLightingEffectRequest {
