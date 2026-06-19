@@ -387,8 +387,8 @@ private struct EmptyDeviceState: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .center, spacing: 18) {
+            VStack(alignment: .center, spacing: 8) {
                 if showsWaitingState {
                     HStack(spacing: 10) {
                         ProgressView()
@@ -412,7 +412,7 @@ private struct EmptyDeviceState: View {
                             .underline()
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(Color(hex: 0x66D9FF))
+                    .foregroundStyle(.white)
                     .help("Open supported device table")
 
                     Text("· \(supportedFamilyCount) models · \(rows.count) connection paths")
@@ -421,7 +421,7 @@ private struct EmptyDeviceState: View {
                 }
             }
         }
-        .frame(maxWidth: 440, alignment: .leading)
+        .frame(maxWidth: 440, alignment: .center)
         .padding(24)
         .background(
             RoundedRectangle(cornerRadius: 22)
