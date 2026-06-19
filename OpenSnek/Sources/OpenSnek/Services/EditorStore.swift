@@ -69,6 +69,7 @@ final class EditorStore {
     var editableLightingEffect: LightingEffectKind = .staticColor
     var editableSoftwareLightingPreset: SoftwareLightingPresetID = .flame
     var editableSoftwareLightingSpeed = SoftwareLightingPresetID.flame.defaultSpeed
+    var editableSoftwareLightingBrightness = 1.0
     var editableSoftwareLightingPalettes: [SoftwareLightingPresetID: [RGBColor]] = [:]
     var editableSoftwareLightingApplyOnConnect = false
     var editableUSBLightingZoneID: String = "all"
@@ -748,6 +749,7 @@ final class EditorStore {
     func applySoftwareLightingEffectRequest(_ request: SoftwareLightingEffectRequest) {
         editableSoftwareLightingPreset = request.presetID
         editableSoftwareLightingSpeed = request.speed
+        editableSoftwareLightingBrightness = request.intensity
         editableSoftwareLightingPalettes[request.presetID] = request.palette.map {
             RGBColor(r: $0.r, g: $0.g, b: $0.b)
         }
@@ -759,6 +761,7 @@ final class EditorStore {
         }
         return SoftwareLightingEffectRequest(
             presetID: editableSoftwareLightingPreset,
+            intensity: editableSoftwareLightingBrightness,
             speed: editableSoftwareLightingSpeed,
             palette: palette
         )

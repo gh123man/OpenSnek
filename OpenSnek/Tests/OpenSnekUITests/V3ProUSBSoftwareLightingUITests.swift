@@ -100,6 +100,7 @@ final class V3ProUSBSoftwareLightingUITests: OpenSnekHardwareUITestCase {
             "software-lighting-apply-on-connect-checkbox",
             "software-lighting-preset-picker",
             "software-lighting-speed-slider",
+            "software-lighting-brightness-slider",
             "software-lighting-palette-list",
             "software-lighting-palette-reset-button",
             "software-lighting-palette-add-button",

@@ -75,6 +75,30 @@ final class SoftwareLightingRendererTests: XCTestCase {
         XCTAssertTrue(blueFrame.colors.allSatisfy { $0.r == 0 && $0.g == 0 && $0.b > 0 })
     }
 
+    func testIntensityScalesRenderedBrightness() {
+        let fullFrame = SoftwareLightingRenderer.render(
+            request: SoftwareLightingEffectRequest(
+                presetID: .scrollingRainbow,
+                intensity: 1.0,
+                palette: [RGBPatch(r: 200, g: 100, b: 50)]
+            ),
+            layout: .basiliskV3ProUSB,
+            elapsedTime: 0.0
+        )
+        let dimFrame = SoftwareLightingRenderer.render(
+            request: SoftwareLightingEffectRequest(
+                presetID: .scrollingRainbow,
+                intensity: 0.25,
+                palette: [RGBPatch(r: 200, g: 100, b: 50)]
+            ),
+            layout: .basiliskV3ProUSB,
+            elapsedTime: 0.0
+        )
+
+        XCTAssertEqual(fullFrame.colors.first, RGBPatch(r: 190, g: 95, b: 48))
+        XCTAssertEqual(dimFrame.colors.first, RGBPatch(r: 48, g: 24, b: 12))
+    }
+
     func testPresetDefaultSpeeds() {
         XCTAssertEqual(SoftwareLightingEffectRequest(presetID: .scrollingRainbow).speed, 1.0)
         XCTAssertEqual(SoftwareLightingEffectRequest(presetID: .flame).speed, 1.0)

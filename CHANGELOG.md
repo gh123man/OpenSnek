@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 - The Connect a Device screen now opens supported devices in a centered, searchable profile-backed table instead of showing the growing list inline.
+- Advanced lighting animations now expose a persisted brightness slider alongside speed and palette controls.
 
 ### Fixed
 - USB reconnect handling now refreshes HID discovery after the post-connect settle window, preventing early partial HID enumeration from leaving a replugged mouse unusable until OpenSnek restarts.
