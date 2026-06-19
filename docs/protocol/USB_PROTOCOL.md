@@ -746,6 +746,10 @@ Persistence note: unlike the normal zone-effect path (`Cmd 0x02`) and profile
 setting banks, Custom Frame state has been observed to clear on mouse restart.
 OpenSnek should not present this as saved device state unless a separate
 commit/readback path is decoded later.
+
+Near-term app work should treat this as a software-driven effects surface:
+OpenSnek can stream or reapply Custom Frame data while running, but should not
+model the result as persistent hardware state.
 ```
 
 Probe support:

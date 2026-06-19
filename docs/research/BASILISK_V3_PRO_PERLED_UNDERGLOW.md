@@ -93,6 +93,7 @@ The doc currently says `0x05` = Custom Frame, which led to a false start during 
 
 ## Open questions / follow-up work
 
+- **Near-term software-driven LED effects.** Build the next app-facing pass around live, software-owned effects that stream or reapply Custom Frame data while OpenSnek is running. Treat this as an effects engine/preset surface rather than a persistent hardware lighting editor.
 - **Storage byte variants.** `args[0] = 0x01` is accepted but does not make the frame persistent across mouse restart. Test whether `0x00` behaves identically for live software-driven animations.
 - **BLE parity.** The BLE vendor protocol probably supports the same operation via key `100F0300` or similar. Worth probing on the BT transport.
 - **Other Basilisk variants.** Cmd 0x03 may or may not work on the V3 (`0x0099`), V3 X HyperSpeed (`0x00B9`), and V3 35K (`0x00CB`). All three use the same scroll/logo/underglow zone shape, so a single probe per device should clarify.
