@@ -30,6 +30,7 @@ All notable changes to this project are documented in this file.
 
 ### Added
 - Added a service-owned Basilisk V3 Pro USB software lighting engine that streams volatile 12-cell Custom Frame data while OpenSnek is running, with Flame, Scrolling Rainbow, Comet Chase, and Aurora presets plus app UI controls to start and stop the active preset.
+- Extended the USB software lighting effects surface to the wired Basilisk V3 and Basilisk V3 35K underglow profiles using the shared V3-family 12-cell frame assumption.
 - Added `OpenSnekProbe usb-lighting-concurrency`, a V3 Pro USB stress probe for comparing serialized Custom Frame streaming against unsafe overlapping feature-report reads/writes.
 
 ### Changed

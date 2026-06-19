@@ -1304,7 +1304,7 @@ struct LightingCard: View {
                     .accessibilityIdentifier("software-lighting-apply-button")
                 }
             } else {
-                Text("Advanced software effects are available on Basilisk V3 Pro USB.")
+                Text("Advanced software effects are available on Basilisk V3 USB devices with underglow.")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.58))
                     .fixedSize(horizontal: false, vertical: true)

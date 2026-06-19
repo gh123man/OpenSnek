@@ -562,6 +562,7 @@ public enum DeviceProfiles {
         supportedLightingEffects: basiliskV335KUSBLightingEffects,
         usbLightingLEDIDs: [0x01, 0x04, 0x0A],
         usbLightingZones: basiliskV335KUSBLightingZones,
+        softwareLightingFrameLayout: .basiliskV3ProUSB,
         passiveDPIInput: PassiveDPIInputDescriptor(
             usagePage: 0x01,
             usage: 0x06,
@@ -588,6 +589,7 @@ public enum DeviceProfiles {
         supportedLightingEffects: basiliskV335KUSBLightingEffects,
         usbLightingLEDIDs: [0x01, 0x04, 0x0A],
         usbLightingZones: basiliskV335KUSBLightingZones,
+        softwareLightingFrameLayout: .basiliskV3ProUSB,
         passiveDPIInput: PassiveDPIInputDescriptor(
             usagePage: 0x01,
             usage: 0x06,

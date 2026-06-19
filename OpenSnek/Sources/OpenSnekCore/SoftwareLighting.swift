@@ -169,7 +169,7 @@ public struct SoftwareLightingFrameLayout: Codable, Hashable, Sendable {
 
     public static let basiliskV3ProUSB = SoftwareLightingFrameLayout(
         id: "basilisk_v3_pro_usb_12_cell",
-        label: "Basilisk V3 Pro USB 12-cell frame",
+        label: "Basilisk V3-family USB 12-cell frame",
         cells: [
             SoftwareLightingFrameCell(index: 0, id: "logo", label: "Logo"),
             SoftwareLightingFrameCell(index: 1, id: "scroll_wheel", label: "Scroll Wheel"),
