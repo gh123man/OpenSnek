@@ -8,10 +8,31 @@ final class UnsupportedDeviceHandlingTests: XCTestCase {
         let unavailable = BridgeError.commandFailed(
             "USB device telemetry unavailable. Feature-report interface did not return usable responses."
         )
+        let typedUnavailable = BridgeError.usbMouseUnavailable
         let transient = BridgeError.commandFailed("USB transaction timed out")
 
         XCTAssertTrue(BridgeClient.isUSBTelemetryUnavailableError(unavailable))
+        XCTAssertTrue(BridgeClient.isUSBTelemetryUnavailableError(typedUnavailable))
         XCTAssertFalse(BridgeClient.isUSBTelemetryUnavailableError(transient))
+    }
+
+    func testUSBControlAvailabilityWithoutSessionsReportsReceiverAbsent() async throws {
+        let client = BridgeClient(startHIDMonitoring: false)
+        await client.testConfigureUSBAccessFlags(hidAccessDenied: false, managerAccessDenied: false)
+
+        let device = MouseDevice(
+            id: "usb-no-session",
+            vendor_id: 0x1532,
+            product_id: 0x00AB,
+            product_name: "Razer Basilisk V3 Pro",
+            transport: .usb,
+            path_b64: "",
+            serial: nil,
+            firmware: nil
+        )
+
+        let availability = try await client.usbControlAvailability(device: device)
+        XCTAssertEqual(availability, .receiverAbsent)
     }
 
     func testUSBReconnectSettleDeadlineOnlyAppliesToUSBConnectEvents() {

@@ -141,9 +141,7 @@ extension BridgeClient {
             // Always attempt a fresh HID exchange here instead of trapping the process in a
             // self-sustaining permission loop until restart.
             guard let dpi = try getDPI(session, device) else {
-                throw BridgeError.commandFailed(
-                    "USB device telemetry unavailable. Feature-report interface did not return usable responses."
-                )
+                throw BridgeError.usbMouseUnavailable
             }
 
             let serial = try getSerial(session, device)
@@ -215,6 +213,66 @@ extension BridgeClient {
                 capabilities: capabilities
             )
         }
+    }
+
+    func usbControlAvailability(device: MouseDevice) async throws -> USBControlAvailability {
+        guard device.transport == .usb else { return .unknown }
+
+        try await deferUSBReconnectReadIfNeeded(deviceID: device.id, operation: "usb-control-availability")
+
+        let orderedSessions = sessionsFor(device: device)
+        guard !orderedSessions.isEmpty else {
+            if managerAccessDenied {
+                throw BridgeError.commandFailed(
+                    "USB HID access denied by macOS. Enable Input Monitoring for OpenSnek " +
+                    "(or Terminal/Xcode when running via swift run/Xcode), then relaunch."
+                )
+            }
+            return .receiverAbsent
+        }
+
+        var firstError: Error?
+        for (index, session) in orderedSessions.enumerated() {
+            do {
+                let isReachable = try session.withExclusiveDeviceAccess {
+                    try getDPI(session, device) != nil
+                }
+                if isReachable {
+                    if index > 0 {
+                        deviceSessions[device.id] = session
+                        AppLog.debug(
+                            "Bridge",
+                            "usbControlAvailability switched to alternate session index=\(index) device=\(device.id)"
+                        )
+                    }
+                    return .receiverPresentMouseReachable
+                }
+            } catch {
+                if firstError == nil {
+                    firstError = error
+                }
+                if let bridgeError = error as? BridgeError,
+                   case .commandFailed(let message) = bridgeError,
+                   message.contains("USB HID access denied") {
+                    throw error
+                }
+                AppLog.debug(
+                    "Bridge",
+                    "usbControlAvailability candidate index=\(index) failed device=\(device.id): \(error.localizedDescription)"
+                )
+            }
+        }
+
+        deviceSessions[device.id]?.invalidateCachedTransaction()
+        if let firstError,
+           !Self.isUSBTelemetryUnavailableError(firstError) {
+            AppLog.debug(
+                "Bridge",
+                "usbControlAvailability treating feature-report failure as mouse unavailable " +
+                "device=\(device.id): \(firstError.localizedDescription)"
+            )
+        }
+        return .receiverPresentMouseUnavailable
     }
 
     func sessionFor(device: MouseDevice) -> USBHIDControlSession? {
