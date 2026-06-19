@@ -133,18 +133,6 @@ public struct USBLightingTargetDescriptor: Identifiable, Hashable, Codable, Send
     }
 }
 
-public struct USBLightingCustomFrameCellDescriptor: Identifiable, Hashable, Codable, Sendable {
-    public let id: String
-    public let label: String
-    public let column: UInt8
-
-    public init(id: String, label: String, column: UInt8) {
-        self.id = id
-        self.label = label
-        self.column = column
-    }
-}
-
 public struct PassiveDPIInputDescriptor: Hashable, Codable, Sendable {
     public let usagePage: Int
     public let usage: Int
@@ -292,7 +280,6 @@ public struct DeviceProfile: Hashable, Sendable {
     public let supportedLightingEffects: [LightingEffectKind]
     public let usbLightingLEDIDs: [UInt8]
     public let usbLightingZones: [USBLightingZoneDescriptor]
-    public let usbLightingCustomFrameCells: [USBLightingCustomFrameCellDescriptor]
     public let passiveDPIInput: PassiveDPIInputDescriptor?
     public let supportsIndependentXYDPI: Bool
     public let onboardProfileSupport: OnboardProfileSupport
@@ -310,7 +297,6 @@ public struct DeviceProfile: Hashable, Sendable {
         supportedLightingEffects: [LightingEffectKind] = LightingEffectKind.allCases,
         usbLightingLEDIDs: [UInt8] = [],
         usbLightingZones: [USBLightingZoneDescriptor] = [],
-        usbLightingCustomFrameCells: [USBLightingCustomFrameCellDescriptor] = [],
         passiveDPIInput: PassiveDPIInputDescriptor? = nil,
         supportsIndependentXYDPI: Bool = false,
         onboardProfileSupport: OnboardProfileSupport = .unavailable,
@@ -327,7 +313,6 @@ public struct DeviceProfile: Hashable, Sendable {
         self.supportedLightingEffects = supportedLightingEffects
         self.usbLightingLEDIDs = usbLightingLEDIDs
         self.usbLightingZones = usbLightingZones
-        self.usbLightingCustomFrameCells = usbLightingCustomFrameCells
         self.passiveDPIInput = passiveDPIInput
         self.supportsIndependentXYDPI = supportsIndependentXYDPI
         self.onboardProfileSupport = onboardProfileSupport
@@ -380,10 +365,6 @@ public struct DeviceProfile: Hashable, Sendable {
 
     public func lightingLEDIDs(for zoneID: String? = nil) -> [UInt8]? {
         lightingTargets(for: zoneID)?.map(\.ledID)
-    }
-
-    public var supportsUSBLightingCustomFrame: Bool {
-        !usbLightingCustomFrameCells.isEmpty
     }
 
     public var supportsMappedOnboardProfileCRUD: Bool {
@@ -521,21 +502,6 @@ public enum DeviceProfiles {
         USBLightingZoneDescriptor(id: "underglow", label: "Underglow", ledIDs: [0x0A]),
     ]
 
-    public static let basiliskV3ProUSBCustomFrameCells: [USBLightingCustomFrameCellDescriptor] = [
-        USBLightingCustomFrameCellDescriptor(id: "logo", label: "Logo", column: 0x00),
-        USBLightingCustomFrameCellDescriptor(id: "scroll_wheel", label: "Wheel", column: 0x01),
-        USBLightingCustomFrameCellDescriptor(id: "underglow_left_front", label: "Left Front", column: 0x02),
-        USBLightingCustomFrameCellDescriptor(id: "underglow_left_2", label: "Left 2", column: 0x03),
-        USBLightingCustomFrameCellDescriptor(id: "underglow_left_3", label: "Left 3", column: 0x04),
-        USBLightingCustomFrameCellDescriptor(id: "underglow_left_4", label: "Left 4", column: 0x05),
-        USBLightingCustomFrameCellDescriptor(id: "underglow_left_rear", label: "Left Rear", column: 0x06),
-        USBLightingCustomFrameCellDescriptor(id: "underglow_right_rear", label: "Right Rear", column: 0x07),
-        USBLightingCustomFrameCellDescriptor(id: "underglow_right_4", label: "Right 4", column: 0x08),
-        USBLightingCustomFrameCellDescriptor(id: "underglow_right_3", label: "Right 3", column: 0x09),
-        USBLightingCustomFrameCellDescriptor(id: "underglow_right_2", label: "Right 2", column: 0x0A),
-        USBLightingCustomFrameCellDescriptor(id: "underglow_right_front", label: "Right Front", column: 0x0B),
-    ]
-
     public static let basiliskV3ProUSBDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
         DocumentedButtonSlot(
             descriptor: ButtonSlotDescriptor(slot: 106, friendlyName: "Profile Button", defaultKind: .default),
@@ -637,7 +603,6 @@ public enum DeviceProfiles {
         supportedLightingEffects: basiliskV335KUSBLightingEffects,
         usbLightingLEDIDs: [0x01, 0x04, 0x0A],
         usbLightingZones: basiliskV335KUSBLightingZones,
-        usbLightingCustomFrameCells: basiliskV3ProUSBCustomFrameCells,
         passiveDPIInput: PassiveDPIInputDescriptor(
             usagePage: 0x01,
             usage: 0x06,

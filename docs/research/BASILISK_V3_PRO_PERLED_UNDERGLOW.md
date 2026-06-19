@@ -6,7 +6,7 @@
 
 ## Summary
 
-OpenSnek still keeps the V3 Pro three-zone lighting model (`scroll_wheel`, `logo`, `underglow`) for zone effects driven by `Class 0x0F Cmd 0x02` (Set Effect). For static lighting on V3 Pro USB, the app now exposes the full 12-cell custom-frame path described here.
+OpenSnek currently ships the V3 Pro with three lighting zones (`scroll_wheel`, `logo`, `underglow`) driven by `Class 0x0F Cmd 0x02` (Set Effect). This is the OpenRazer-compatible zone-effect path, and it treats the entire underglow strip as a single LED.
 
 The V3 Pro firmware also supports a **second lighting command — `Class 0x0F Cmd 0x03` (Custom Frame)** — that writes per-LED RGB values into a flat 12-cell frame buffer covering all 12 LEDs on the mouse: 1 logo + 1 scroll wheel + **10 underglow**. This command is not documented in the public OpenSnek protocol notes and is not exposed by Razer Synapse either (Synapse exposes 9 underglow zones, so one underglow LED is hidden from official software).
 
@@ -66,10 +66,9 @@ This was confirmed by a sequential single-LED sweep where each cell was lit red 
 
 ## How this relates to existing OpenSnek code
 
-- `OpenSnek/Sources/OpenSnekCore/DeviceSupport.swift` defines both the three USB lighting zones (`scroll_wheel`, `logo`, `underglow`) with LED IDs `[0x01, 0x04, 0x0A]` and the V3 Pro USB 12-cell custom-frame descriptors. The zone path continues to work via Cmd 0x02; static addressable editing uses Cmd 0x03.
+- `OpenSnek/Sources/OpenSnekCore/DeviceSupport.swift:440-444` defines the three USB lighting zones (`scroll_wheel`, `logo`, `underglow`) with LED IDs `[0x01, 0x04, 0x0A]`. These continue to work via Cmd 0x02 and are unaffected by anything in this document.
 - `OpenSnekProbe usb-lighting-frame --colors ff0000,00ff00,0000ff --start-col 0 --pid 0x00aa` writes the decoded `Cmd 0x03` Custom Frame path with conventional RGB input converted to the device's `[B,R,G]` triplet order. `usb-raw --class 0x0F --cmd 0x03 --args ...` remains available for lower-level experiments.
-- The OpenSnek app uses the same `Cmd 0x03` path for V3 Pro USB static addressable LED edits, persists the 12-cell frame, and restores it through the normal OpenSnek-owned settings snapshot when enabled.
-- `docs/protocol/USB_PROTOCOL.md` documents both Cmd 0x02's corrected effect-ID table and Cmd 0x03's Custom Frame shape.
+- `docs/protocol/USB_PROTOCOL.md` now documents both Cmd 0x02's corrected effect-ID table and Cmd 0x03's Custom Frame shape.
 
 ## Effect-ID correction (separate fix, same source)
 
@@ -92,4 +91,4 @@ The doc currently says `0x05` = Custom Frame, which led to a false start during 
 - **BLE parity.** The BLE vendor protocol probably supports the same operation via key `100F0300` or similar. Worth probing on the BT transport.
 - **Other Basilisk variants.** Cmd 0x03 may or may not work on the V3 (`0x0099`), V3 X HyperSpeed (`0x00B9`), and V3 35K (`0x00CB`). All three use the same scroll/logo/underglow zone shape, so a single probe per device should clarify.
 - **Logo-side accent lights.** Some Razer mice have additional LEDs on the side of the chassis (e.g., Mamba HyperFlux). The V3 Pro doesn't appear to, but Cmd 0x03's 12-cell limit and the row=0/row=1 alias are worth checking on a device that does.
-- **Richer UX.** The current app exposes static per-cell colors. Animation authoring, presets, and strip-oriented editing remain future work.
+- **Implementation in OpenSnek.** A separate plan should propose how to expose 10 underglow zones in the UI. Options range from a "Custom underglow strip" mode to a full per-LED color picker. The hardware path is now well understood; the open question is the UX shape.

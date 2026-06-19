@@ -202,7 +202,6 @@ extension DevicePatch {
             ledRGB == nil &&
             lightingEffect == nil &&
             usbLightingZoneLEDIDs == nil &&
-            usbLightingCustomFrame == nil &&
             buttonBinding == nil &&
             usbButtonProfileAction == nil
     }
@@ -236,9 +235,6 @@ extension DevicePatch {
                 detail += ",s=(\(lightingEffect.secondary.r),\(lightingEffect.secondary.g),\(lightingEffect.secondary.b))"
             }
             parts.append(detail)
-        }
-        if let usbLightingCustomFrame {
-            parts.append("customFrame(cells=\(usbLightingCustomFrame.colors.count))")
         }
         if let buttonBinding {
             var detail = "button(slot=\(buttonBinding.slot),kind=\(buttonBinding.kind.rawValue)"

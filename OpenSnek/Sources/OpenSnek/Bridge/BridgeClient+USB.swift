@@ -614,33 +614,6 @@ extension BridgeClient {
         return wroteAny
     }
 
-    func setLightingCustomFrame(
-        _ session: USBHIDControlSession,
-        _ device: MouseDevice,
-        frame: USBLightingCustomFramePatch
-    ) throws -> Bool {
-        guard !frame.colors.isEmpty else { return false }
-        let args = USBHIDProtocol.lightingCustomFrameArgs(
-            storage: frame.storage,
-            row: frame.row,
-            startColumn: frame.startColumn,
-            colors: frame.colors
-        )
-        guard let response = try perform(
-            session,
-            device,
-            classID: 0x0F,
-            cmdID: 0x03,
-            size: UInt8(max(0, min(255, args.count))),
-            args: args,
-            responseAttempts: 12,
-            responseDelayUs: 40_000
-        ) else {
-            return false
-        }
-        return response[0] == 0x02
-    }
-
     func writableUSBButtonSlots(for device: MouseDevice) -> [UInt8] {
         let layout = device.button_layout
         let slots = layout?.writableSlots ?? ButtonSlotDescriptor.defaults.map(\.slot)

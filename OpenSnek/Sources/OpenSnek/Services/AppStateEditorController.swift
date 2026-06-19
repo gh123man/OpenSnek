@@ -262,7 +262,6 @@ final class AppStateEditorController {
         let primaryColor: RGBColor?
         let lightingEffect: LightingEffectPatch?
         let usbLightingZoneID: String
-        let customFrameColors: [RGBColor]?
     }
 
     struct PersistedSettingsRestorePlan {
@@ -417,22 +416,15 @@ final class AppStateEditorController {
         let primaryLightingColor: RGBColor
         let lightingEffect: LightingEffectPatch?
         let lightingZoneID: String
-        let customFrameColors: [RGBColor]?
         if let storedSnapshot {
             primaryLightingColor = storedSnapshot.primaryLightingColor ?? editorStore.editableColor
             lightingEffect = storedSnapshot.lightingEffect
             lightingZoneID = lightingZoneOverride ?? storedSnapshot.usbLightingZoneID
-            customFrameColors = storedSnapshot.lightingEffect?.kind == .staticColor
-                ? storedSnapshot.usbLightingCustomFrameColors
-                : nil
         } else {
             primaryLightingColor = editorStore.editableColor
             lightingEffect = device.supports_advanced_lighting_effects ? currentLightingEffectPatch() : nil
             lightingZoneID = lightingZoneOverride ??
                 (lightingEffect?.kind == .staticColor ? editorStore.editableUSBLightingZoneID : "all")
-            customFrameColors = supportsUSBLightingCustomFrame(device: device) && lightingEffect?.kind == .staticColor
-                ? normalizedUSBLightingCustomFrameColors(for: device, colors: editorStore.editableUSBLightingCustomFrameColors)
-                : nil
         }
         return PersistedDeviceSettingsSnapshot(
             stageCount: count,
@@ -449,7 +441,6 @@ final class AppStateEditorController {
             primaryLightingColor: primaryLightingColor,
             lightingEffect: lightingEffect,
             usbLightingZoneID: lightingZoneID,
-            usbLightingCustomFrameColors: customFrameColors,
             buttonBindings: editorStore.editableButtonBindings
         )
     }
@@ -480,10 +471,7 @@ final class AppStateEditorController {
         device: MouseDevice,
         lightingZoneID: String
     ) {
-        guard patch.ledBrightness != nil ||
-            patch.ledRGB != nil ||
-            patch.lightingEffect != nil ||
-            patch.usbLightingCustomFrame != nil else { return }
+        guard patch.ledBrightness != nil || patch.ledRGB != nil || patch.lightingEffect != nil else { return }
 
         var snapshot = loadPersistedSettingsSnapshot(device: device)
         if snapshot == nil, deviceStore.selectedDevice?.id == device.id {
@@ -496,19 +484,7 @@ final class AppStateEditorController {
             snapshot.ledBrightness = ledBrightness
         }
 
-        if let customFrame = patch.usbLightingCustomFrame {
-            let colors = customFrame.colors.map { RGBColor(r: $0.r, g: $0.g, b: $0.b) }
-            snapshot.usbLightingCustomFrameColors = colors
-            if let primary = colors.first {
-                snapshot.primaryLightingColor = primary
-                snapshot.lightingEffect = LightingEffectPatch(
-                    kind: .staticColor,
-                    primary: RGBPatch(r: primary.r, g: primary.g, b: primary.b)
-                )
-            }
-            snapshot.usbLightingZoneID = "all"
-        } else if let lightingEffect = patch.lightingEffect {
-            snapshot.usbLightingCustomFrameColors = nil
+        if let lightingEffect = patch.lightingEffect {
             snapshot.primaryLightingColor = RGBColor(
                 r: lightingEffect.primary.r,
                 g: lightingEffect.primary.g,
@@ -519,7 +495,6 @@ final class AppStateEditorController {
                 ? normalizedLightingZoneID(for: device, preferredZoneID: lightingZoneID)
                 : "all"
         } else if let ledRGB = patch.ledRGB {
-            snapshot.usbLightingCustomFrameColors = nil
             snapshot.primaryLightingColor = RGBColor(r: ledRGB.r, g: ledRGB.g, b: ledRGB.b)
             snapshot.lightingEffect = device.supports_advanced_lighting_effects
                 ? LightingEffectPatch(kind: .staticColor, primary: ledRGB)
@@ -749,12 +724,6 @@ final class AppStateEditorController {
             AppLog.debug("AppState", "lighting color read unavailable for device id=\(device.id)")
         }
 
-        if supportsUSBLightingCustomFrame(device: device) {
-            editorStore.editableUSBLightingCustomFrameColors = normalizedUSBLightingCustomFrameColors(
-                for: device,
-                colors: loadPersistedLightingCustomFrameColors(device: device)
-            )
-        }
         hydratedLightingStateByDeviceID.insert(device.id)
     }
 
@@ -837,10 +806,6 @@ final class AppStateEditorController {
         if let primaryColor = snapshot.primaryLightingColor {
             editorStore.editableColor = primaryColor
         }
-        editorStore.editableUSBLightingCustomFrameColors = normalizedUSBLightingCustomFrameColors(
-            for: device,
-            colors: snapshot.usbLightingCustomFrameColors
-        )
         editorStore.editableUSBLightingZoneID = snapshot.usbLightingZoneID
         if let lightingEffect = snapshot.lightingEffect {
             editorStore.editableLightingEffect = lightingEffect.kind
@@ -879,14 +844,6 @@ final class AppStateEditorController {
 
     func persistLightingEffect(_ effect: LightingEffectPatch, device: MouseDevice) {
         preferenceStore.persistLightingEffect(effect, device: device)
-    }
-
-    func persistLightingCustomFrameColors(_ colors: [RGBColor], device: MouseDevice) {
-        preferenceStore.persistLightingCustomFrameColors(colors, device: device)
-    }
-
-    func loadPersistedLightingCustomFrameColors(device: MouseDevice) -> [RGBColor]? {
-        preferenceStore.loadPersistedLightingCustomFrameColors(device: device)
     }
 
     func loadPersistedLightingEffect(device: MouseDevice) -> (
@@ -2645,19 +2602,8 @@ final class AppStateEditorController {
             for: device,
             preferredZoneID: snapshot.usbLightingZoneID
         )
-        let customFrameColors = snapshot.lightingEffect?.kind == .staticColor
-            ? snapshot.usbLightingCustomFrameColors.flatMap { colors -> [RGBColor]? in
-                let normalized = normalizedUSBLightingCustomFrameColors(for: device, colors: colors)
-                return normalized.isEmpty ? nil : normalized
-            }
-            : nil
-        let customFramePatch = customFrameColors.map { colors in
-            USBLightingCustomFramePatch(colors: colors.map { RGBPatch(r: $0.r, g: $0.g, b: $0.b) })
-        }
         let lightingEffect: LightingEffectPatch?
-        if customFramePatch != nil {
-            lightingEffect = nil
-        } else if let persistedLightingEffect = snapshot.lightingEffect {
+        if let persistedLightingEffect = snapshot.lightingEffect {
             let supportedEffects = DeviceProfiles
                 .resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?
                 .supportedLightingEffects ?? LightingEffectKind.allCases
@@ -2677,14 +2623,11 @@ final class AppStateEditorController {
             dpiStagePairs: Array(snapshot.stagePairs.prefix(snapshot.stageCount)),
             activeStage: max(0, min(snapshot.stageCount - 1, snapshot.activeStage - 1)),
             ledBrightness: snapshot.ledBrightness,
-            ledRGB: lightingEffect == nil && customFramePatch == nil
+            ledRGB: lightingEffect == nil
                 ? snapshot.primaryLightingColor.map { RGBPatch(r: $0.r, g: $0.g, b: $0.b) }
                 : nil,
             lightingEffect: lightingEffect,
             usbLightingZoneLEDIDs: {
-                if customFramePatch != nil {
-                    return nil
-                }
                 if let lightingEffect, lightingEffect.kind == .staticColor {
                     return usbLightingZoneLEDIDs(for: device, zoneID: normalizedZoneID)
                 }
@@ -2692,8 +2635,7 @@ final class AppStateEditorController {
                     return usbLightingZoneLEDIDs(for: device, zoneID: normalizedZoneID)
                 }
                 return nil
-            }(),
-            usbLightingCustomFrame: customFramePatch
+            }()
         )
         return PersistedSettingsRestorePlan(
             snapshot: snapshot,
@@ -2710,40 +2652,9 @@ final class AppStateEditorController {
             preferredZoneID: loadPersistedLightingZoneID(device: device)
         )
         let persistedColor = loadPersistedLightingColor(device: device, zoneID: normalizedZoneID)
-        let persistedEffect = loadPersistedLightingEffect(device: device)
-        let storedSnapshot = loadPersistedSettingsSnapshot(device: device)
-        let persistedCustomFrameSource = storedSnapshot?.lightingEffect?.kind == .staticColor
-            ? storedSnapshot?.usbLightingCustomFrameColors
-            : (storedSnapshot == nil && persistedEffect?.kind == .staticColor
-                ? loadPersistedLightingCustomFrameColors(device: device)
-                : nil)
-        let persistedCustomFrameColors = normalizedUSBLightingCustomFrameColors(
-            for: device,
-            colors: persistedCustomFrameSource
-        )
-
-        if supportsUSBLightingCustomFrame(device: device),
-           !persistedCustomFrameColors.isEmpty {
-            let primary = persistedCustomFrameColors.first
-            let effect = LightingEffectPatch(
-                kind: .staticColor,
-                primary: primary.map { RGBPatch(r: $0.r, g: $0.g, b: $0.b) } ?? RGBPatch(r: 0, g: 255, b: 0)
-            )
-            return PersistedLightingRestorePlan(
-                patch: DevicePatch(
-                    usbLightingCustomFrame: USBLightingCustomFramePatch(
-                        colors: persistedCustomFrameColors.map { RGBPatch(r: $0.r, g: $0.g, b: $0.b) }
-                    )
-                ),
-                primaryColor: primary,
-                lightingEffect: effect,
-                usbLightingZoneID: "all",
-                customFrameColors: persistedCustomFrameColors
-            )
-        }
 
         if device.supports_advanced_lighting_effects,
-           let persistedEffect {
+           let persistedEffect = loadPersistedLightingEffect(device: device) {
             let supportedEffects = DeviceProfiles
                 .resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?
                 .supportedLightingEffects ?? LightingEffectKind.allCases
@@ -2787,8 +2698,7 @@ final class AppStateEditorController {
                 ),
                 primaryColor: persistedColor,
                 lightingEffect: effect,
-                usbLightingZoneID: resolvedKind == .staticColor ? normalizedZoneID : "all",
-                customFrameColors: nil
+                usbLightingZoneID: resolvedKind == .staticColor ? normalizedZoneID : "all"
             )
         }
 
@@ -2800,20 +2710,13 @@ final class AppStateEditorController {
             ),
             primaryColor: persistedColor,
             lightingEffect: nil,
-            usbLightingZoneID: normalizedZoneID,
-            customFrameColors: nil
+            usbLightingZoneID: normalizedZoneID
         )
     }
 
     func applyPersistedLightingRestorePlanToEditor(_ plan: PersistedLightingRestorePlan) {
         if let primaryColor = plan.primaryColor {
             editorStore.editableColor = primaryColor
-        }
-        if let selectedDevice = deviceStore.selectedDevice {
-            editorStore.editableUSBLightingCustomFrameColors = normalizedUSBLightingCustomFrameColors(
-                for: selectedDevice,
-                colors: plan.customFrameColors
-            )
         }
         editorStore.editableUSBLightingZoneID = plan.usbLightingZoneID
         if let lightingEffect = plan.lightingEffect {
@@ -2837,88 +2740,9 @@ final class AppStateEditorController {
         return editorStore.visibleUSBLightingZones.first(where: { $0.id == editorStore.editableUSBLightingZoneID })?.ledIDs
     }
 
-    func supportsUSBLightingCustomFrame(device: MouseDevice) -> Bool {
-        DeviceProfiles.resolve(
-            vendorID: device.vendor_id,
-            productID: device.product_id,
-            transport: device.transport
-        )?.supportsUSBLightingCustomFrame == true
-    }
-
-    func currentUSBLightingCustomFramePatch() -> USBLightingCustomFramePatch {
-        guard let selectedDevice = deviceStore.selectedDevice else {
-            return USBLightingCustomFramePatch(colors: [])
-        }
-        let colors = normalizedUSBLightingCustomFrameColors(
-            for: selectedDevice,
-            colors: editorStore.editableUSBLightingCustomFrameColors
-        )
-        return USBLightingCustomFramePatch(colors: colors.map { RGBPatch(r: $0.r, g: $0.g, b: $0.b) })
-    }
-
-    func usbLightingCustomFrameColor(cellID: String) -> RGBColor {
-        let cells = editorStore.visibleUSBLightingCustomFrameCells
-        guard let index = cells.firstIndex(where: { $0.id == cellID }),
-              index < editorStore.editableUSBLightingCustomFrameColors.count else {
-            return editorStore.editableColor
-        }
-        return editorStore.editableUSBLightingCustomFrameColors[index]
-    }
-
-    func updateUSBLightingCustomFrameCellID(_ cellID: String) {
-        let cells = editorStore.visibleUSBLightingCustomFrameCells
-        guard cells.contains(where: { $0.id == cellID }) else { return }
-        editorStore.editableUSBLightingCustomFrameCellID = cellID
-        editorStore.editableColor = usbLightingCustomFrameColor(cellID: cellID)
-    }
-
-    func updateUSBLightingCustomFrameColor(_ color: RGBColor, cellID: String) {
-        var colors = normalizedUSBLightingCustomFrameColors(
-            for: deviceStore.selectedDevice,
-            colors: editorStore.editableUSBLightingCustomFrameColors
-        )
-        let cells = editorStore.visibleUSBLightingCustomFrameCells
-        guard let index = cells.firstIndex(where: { $0.id == cellID }),
-              index < colors.count else { return }
-        let clamped = RGBColor(
-            r: max(0, min(255, color.r)),
-            g: max(0, min(255, color.g)),
-            b: max(0, min(255, color.b))
-        )
-        colors[index] = clamped
-        editorStore.editableUSBLightingCustomFrameColors = colors
-        editorStore.editableColor = clamped
-        editorStore.editableLightingEffect = .staticColor
-        editorStore.noteLightingGradientColorsChanged()
-    }
-
-    func applyCurrentColorToAllCustomFrameCells() {
-        guard deviceStore.selectedDevice != nil else { return }
-        let cells = editorStore.visibleUSBLightingCustomFrameCells
-        guard !cells.isEmpty else { return }
-        let color = RGBColor(
-            r: max(0, min(255, editorStore.editableColor.r)),
-            g: max(0, min(255, editorStore.editableColor.g)),
-            b: max(0, min(255, editorStore.editableColor.b))
-        )
-        editorStore.editableUSBLightingCustomFrameColors = Array(repeating: color, count: cells.count)
-        editorStore.editableLightingEffect = .staticColor
-        editorStore.noteLightingGradientColorsChanged()
-    }
-
     func lightingGradientDisplayColors() -> [RGBColor] {
         guard let selectedDevice = deviceStore.selectedDevice else {
             return [editorStore.editableColor]
-        }
-        if editorStore.editableLightingEffect == .staticColor,
-           supportsUSBLightingCustomFrame(device: selectedDevice) {
-            let colors = normalizedUSBLightingCustomFrameColors(
-                for: selectedDevice,
-                colors: editorStore.editableUSBLightingCustomFrameColors
-            )
-            if !colors.isEmpty {
-                return colors
-            }
         }
         guard editorStore.editableLightingEffect == .staticColor,
               editorStore.visibleUSBLightingZones.count > 1 else {
@@ -2973,51 +2797,6 @@ final class AppStateEditorController {
         return DeviceProfiles
             .resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?
             .lightingLEDIDs(for: zoneID)
-    }
-
-    func normalizedUSBLightingCustomFrameColors(
-        for device: MouseDevice?,
-        colors: [RGBColor]?
-    ) -> [RGBColor] {
-        guard let device,
-              let profile = DeviceProfiles.resolve(
-                  vendorID: device.vendor_id,
-                  productID: device.product_id,
-                  transport: device.transport
-              ) else {
-            return colors ?? []
-        }
-        let cells = profile.usbLightingCustomFrameCells
-        guard !cells.isEmpty else { return [] }
-        let fallback = fallbackUSBLightingCustomFrameColors(for: device, cells: cells)
-        let source = colors ?? fallback
-        return cells.indices.map { index in
-            let color = index < source.count ? source[index] : fallback[index]
-            return RGBColor(
-                r: max(0, min(255, color.r)),
-                g: max(0, min(255, color.g)),
-                b: max(0, min(255, color.b))
-            )
-        }
-    }
-
-    private func fallbackUSBLightingCustomFrameColors(
-        for device: MouseDevice,
-        cells: [USBLightingCustomFrameCellDescriptor]
-    ) -> [RGBColor] {
-        let global = loadPersistedLightingColor(device: device) ?? editorStore.editableColor
-        return cells.map { cell in
-            let zoneID: String
-            switch cell.column {
-            case 0x00:
-                zoneID = "logo"
-            case 0x01:
-                zoneID = "scroll_wheel"
-            default:
-                zoneID = "underglow"
-            }
-            return loadPersistedLightingColor(device: device, zoneID: zoneID) ?? global
-        }
     }
 
     func syncUSBButtonProfileSelection(from state: MouseState) {

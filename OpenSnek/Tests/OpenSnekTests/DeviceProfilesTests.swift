@@ -35,7 +35,6 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .spectrum, .wave])
         XCTAssertEqual(profile?.usbLightingLEDIDs, [0x01, 0x04, 0x0A])
         XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel", "logo", "underglow"])
-        XCTAssertEqual(profile?.usbLightingCustomFrameCells, [])
         XCTAssertEqual(profile?.usbTransactionID, 0x1F)
         XCTAssertEqual(profile?.passiveDPIInput?.usagePage, 0x01)
         XCTAssertEqual(profile?.passiveDPIInput?.usage, 0x06)
@@ -95,24 +94,6 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .spectrum, .wave])
         XCTAssertEqual(profile?.usbLightingLEDIDs, [0x01, 0x04, 0x0A])
         XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel", "logo", "underglow"])
-        XCTAssertEqual(
-            profile?.usbLightingCustomFrameCells.map(\.id),
-            [
-                "logo",
-                "scroll_wheel",
-                "underglow_left_front",
-                "underglow_left_2",
-                "underglow_left_3",
-                "underglow_left_4",
-                "underglow_left_rear",
-                "underglow_right_rear",
-                "underglow_right_4",
-                "underglow_right_3",
-                "underglow_right_2",
-                "underglow_right_front",
-            ]
-        )
-        XCTAssertEqual(profile?.usbLightingCustomFrameCells.map(\.column), Array(UInt8(0)...UInt8(11)))
         XCTAssertEqual(profile?.usbTransactionID, 0x1F)
         XCTAssertEqual(profile?.passiveDPIInput?.usagePage, 0x01)
         XCTAssertEqual(profile?.passiveDPIInput?.usage, 0x06)

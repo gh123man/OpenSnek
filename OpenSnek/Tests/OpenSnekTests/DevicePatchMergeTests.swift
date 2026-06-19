@@ -16,7 +16,6 @@ final class DevicePatchMergeTests: XCTestCase {
             ledBrightness: 120,
             ledRGB: RGBPatch(r: 10, g: 20, b: 30),
             lightingEffect: LightingEffectPatch(kind: .spectrum),
-            usbLightingCustomFrame: USBLightingCustomFramePatch(colors: [RGBPatch(r: 4, g: 5, b: 6)]),
             buttonBinding: ButtonBindingPatch(slot: 2, kind: .rightClick, hidKey: nil, turboEnabled: true, turboRate: 142),
             usbButtonProfileAction: USBButtonProfileActionPatch(kind: .resetPersistentSlot, targetProfile: 2)
         )
@@ -33,7 +32,6 @@ final class DevicePatchMergeTests: XCTestCase {
             ledBrightness: 200,
             ledRGB: RGBPatch(r: 1, g: 2, b: 3),
             lightingEffect: LightingEffectPatch(kind: .reactive, primary: RGBPatch(r: 9, g: 8, b: 7), reactiveSpeed: 4),
-            usbLightingCustomFrame: USBLightingCustomFramePatch(colors: [RGBPatch(r: 7, g: 8, b: 9)]),
             buttonBinding: ButtonBindingPatch(slot: 3, kind: .keyboardSimple, hidKey: 40, turboEnabled: false, turboRate: nil),
             usbButtonProfileAction: USBButtonProfileActionPatch(kind: .projectToDirectLayer, targetProfile: 3)
         )
@@ -52,7 +50,6 @@ final class DevicePatchMergeTests: XCTestCase {
         XCTAssertEqual(merged.ledRGB?.r, 1)
         XCTAssertEqual(merged.lightingEffect?.kind, .reactive)
         XCTAssertEqual(merged.lightingEffect?.reactiveSpeed, 4)
-        XCTAssertEqual(merged.usbLightingCustomFrame?.colors, [RGBPatch(r: 7, g: 8, b: 9)])
         XCTAssertEqual(merged.buttonBinding?.slot, 3)
         XCTAssertEqual(merged.buttonBinding?.kind, .keyboardSimple)
         XCTAssertEqual(merged.buttonBinding?.turboEnabled, false)
@@ -74,7 +71,6 @@ final class DevicePatchMergeTests: XCTestCase {
             ledBrightness: 150,
             ledRGB: RGBPatch(r: 100, g: 120, b: 140),
             lightingEffect: LightingEffectPatch(kind: .pulseDual, primary: RGBPatch(r: 1, g: 2, b: 3), secondary: RGBPatch(r: 4, g: 5, b: 6)),
-            usbLightingCustomFrame: USBLightingCustomFramePatch(colors: [RGBPatch(r: 30, g: 40, b: 50)]),
             buttonBinding: ButtonBindingPatch(slot: 4, kind: .mouseBack, hidKey: nil, turboEnabled: true, turboRate: 62),
             usbButtonProfileAction: USBButtonProfileActionPatch(kind: .duplicateToPersistentSlot, sourceProfile: 1, targetProfile: 2)
         )
@@ -94,7 +90,6 @@ final class DevicePatchMergeTests: XCTestCase {
         XCTAssertEqual(merged.ledRGB?.g, 120)
         XCTAssertEqual(merged.lightingEffect?.kind, .pulseDual)
         XCTAssertEqual(merged.lightingEffect?.secondary.b, 6)
-        XCTAssertEqual(merged.usbLightingCustomFrame?.colors, [RGBPatch(r: 30, g: 40, b: 50)])
         XCTAssertEqual(merged.buttonBinding?.kind, .mouseBack)
         XCTAssertEqual(merged.buttonBinding?.turboEnabled, true)
         XCTAssertEqual(merged.buttonBinding?.turboRate, 62)

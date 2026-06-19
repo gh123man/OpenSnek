@@ -99,8 +99,7 @@ public struct MouseDevice: Codable, Identifiable, Hashable, Sendable {
         guard let profile else { return true }
         return !profile.supportedLightingEffects.isEmpty ||
             !profile.usbLightingZones.isEmpty ||
-            !profile.usbLightingLEDIDs.isEmpty ||
-            !profile.usbLightingCustomFrameCells.isEmpty
+            !profile.usbLightingLEDIDs.isEmpty
     }
 
     public var identity: DeviceIdentity {
@@ -501,25 +500,6 @@ public struct LightingEffectPatch: Sendable, Hashable, Codable {
     }
 }
 
-public struct USBLightingCustomFramePatch: Sendable, Hashable, Codable {
-    public let storage: UInt8
-    public let row: UInt8
-    public let startColumn: UInt8
-    public let colors: [RGBPatch]
-
-    public init(
-        storage: UInt8 = 0x01,
-        row: UInt8 = 0x00,
-        startColumn: UInt8 = 0x00,
-        colors: [RGBPatch]
-    ) {
-        self.storage = storage
-        self.row = row
-        self.startColumn = startColumn
-        self.colors = colors
-    }
-}
-
 public struct ButtonBindingPatch: Sendable, Hashable, Codable {
     public let slot: Int
     public let kind: ButtonBindingKind
@@ -594,7 +574,6 @@ public struct DevicePatch: Sendable, Hashable, Codable {
     public var ledRGB: RGBPatch? = nil
     public var lightingEffect: LightingEffectPatch? = nil
     public var usbLightingZoneLEDIDs: [UInt8]? = nil
-    public var usbLightingCustomFrame: USBLightingCustomFramePatch? = nil
     public var buttonBinding: ButtonBindingPatch? = nil
     public var usbButtonProfileAction: USBButtonProfileActionPatch? = nil
 
@@ -613,7 +592,6 @@ public struct DevicePatch: Sendable, Hashable, Codable {
         ledRGB: RGBPatch? = nil,
         lightingEffect: LightingEffectPatch? = nil,
         usbLightingZoneLEDIDs: [UInt8]? = nil,
-        usbLightingCustomFrame: USBLightingCustomFramePatch? = nil,
         buttonBinding: ButtonBindingPatch? = nil,
         usbButtonProfileAction: USBButtonProfileActionPatch? = nil
     ) {
@@ -631,7 +609,6 @@ public struct DevicePatch: Sendable, Hashable, Codable {
         self.ledRGB = ledRGB
         self.lightingEffect = lightingEffect
         self.usbLightingZoneLEDIDs = usbLightingZoneLEDIDs
-        self.usbLightingCustomFrame = usbLightingCustomFrame
         self.buttonBinding = buttonBinding
         self.usbButtonProfileAction = usbButtonProfileAction
     }
@@ -654,7 +631,6 @@ public extension DevicePatch {
             ledRGB: newer.ledRGB ?? ledRGB,
             lightingEffect: newer.lightingEffect ?? lightingEffect,
             usbLightingZoneLEDIDs: newer.usbLightingZoneLEDIDs ?? usbLightingZoneLEDIDs,
-            usbLightingCustomFrame: newer.usbLightingCustomFrame ?? usbLightingCustomFrame,
             buttonBinding: newer.buttonBinding ?? buttonBinding,
             usbButtonProfileAction: newer.usbButtonProfileAction ?? usbButtonProfileAction
         )

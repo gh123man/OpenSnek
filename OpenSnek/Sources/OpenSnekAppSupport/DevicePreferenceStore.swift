@@ -35,7 +35,6 @@ public struct PersistedDeviceSettingsSnapshot: Codable, Hashable, Sendable {
     public var primaryLightingColor: RGBColor?
     public var lightingEffect: LightingEffectPatch?
     public var usbLightingZoneID: String
-    public var usbLightingCustomFrameColors: [RGBColor]?
     public var buttonBindings: [Int: ButtonBindingDraft]
 
     public init(
@@ -53,7 +52,6 @@ public struct PersistedDeviceSettingsSnapshot: Codable, Hashable, Sendable {
         primaryLightingColor: RGBColor?,
         lightingEffect: LightingEffectPatch?,
         usbLightingZoneID: String,
-        usbLightingCustomFrameColors: [RGBColor]? = nil,
         buttonBindings: [Int: ButtonBindingDraft]
     ) {
         let normalizedPairs = Array(stagePairs.prefix(5))
@@ -82,16 +80,7 @@ public struct PersistedDeviceSettingsSnapshot: Codable, Hashable, Sendable {
         self.usbLightingZoneID = usbLightingZoneID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? "all"
             : usbLightingZoneID
-        self.usbLightingCustomFrameColors = usbLightingCustomFrameColors?.map(Self.clampedColor)
         self.buttonBindings = buttonBindings
-    }
-
-    private static func clampedColor(_ color: RGBColor) -> RGBColor {
-        RGBColor(
-            r: max(0, min(255, color.r)),
-            g: max(0, min(255, color.g)),
-            b: max(0, min(255, color.b))
-        )
     }
 }
 
@@ -196,39 +185,6 @@ public final class DevicePreferenceStore: @unchecked Sendable {
             g: max(0, min(255, values[1])),
             b: max(0, min(255, values[2]))
         )
-    }
-
-    public func persistLightingCustomFrameColors(_ colors: [RGBColor], device: MouseDevice) {
-        guard settingStorageEnabled else { return }
-        let persisted = colors.map { color in
-            [
-                max(0, min(255, color.r)),
-                max(0, min(255, color.g)),
-                max(0, min(255, color.b)),
-            ]
-        }
-        guard let data = try? JSONEncoder().encode(persisted) else { return }
-        defaults.set(data, forKey: lightingCustomFrameKey(device: device))
-    }
-
-    public func loadPersistedLightingCustomFrameColors(device: MouseDevice) -> [RGBColor]? {
-        let data = defaults.data(forKey: lightingCustomFrameKey(device: device))
-            ?? defaults.data(forKey: lightingCustomFrameKey(device: device, useLegacyKey: true))
-        guard
-            let data,
-            let decoded = try? JSONDecoder().decode([[Int]].self, from: data)
-        else {
-            return nil
-        }
-        let colors = decoded.compactMap { values -> RGBColor? in
-            guard values.count == 3 else { return nil }
-            return RGBColor(
-                r: max(0, min(255, values[0])),
-                g: max(0, min(255, values[1])),
-                b: max(0, min(255, values[2]))
-            )
-        }
-        return colors.isEmpty ? nil : colors
     }
 
     public func persistLightingZoneID(_ zoneID: String, device: MouseDevice) {
@@ -418,11 +374,6 @@ public final class DevicePreferenceStore: @unchecked Sendable {
             return "lightingColor.\(deviceKey)"
         }
         return "lightingColor.\(deviceKey).zone.\(normalizedZoneID)"
-    }
-
-    private func lightingCustomFrameKey(device: MouseDevice, useLegacyKey: Bool = false) -> String {
-        let deviceKey = useLegacyKey ? DevicePersistenceKeys.legacyKey(for: device) : DevicePersistenceKeys.key(for: device)
-        return "lightingCustomFrame.\(deviceKey)"
     }
 
     private func normalizedLightingZoneID(_ zoneID: String?) -> String? {

@@ -709,7 +709,7 @@ Unresolved:
 
 ### RGB Lighting (Class 0x0F)
 
-**Status**: Implemented for the shipped V3-family USB lighting surfaces. Scroll wheel LED brightness and the zone-effect families below are implemented and hardware-validated. The per-LED Custom Frame command (`Cmd 0x03`) is decoded, probe-supported, and exposed by the app for Basilisk V3 Pro USB static lighting (see [docs/research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md](../research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md)).
+**Status**: Partially implemented. Scroll wheel LED brightness and the zone-effect families below are implemented and hardware-validated. The per-LED Custom Frame command (`Cmd 0x03`) is decoded and hardware-validated on the Basilisk V3 Pro (see [docs/research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md](../research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md)) but not yet exposed in OpenSnek.
 
 ```
 Set Zone Effect:
@@ -754,10 +754,6 @@ OpenSnekProbe usb-lighting-frame \
 
 The probe accepts conventional RGB hex values and emits the `Cmd 0x03` payload
 in the device's `[B,R,G]` triplet order.
-
-App support:
-- Basilisk V3 Pro USB static lighting uses the same custom-frame command to edit
-  all 12 cells. Non-static USB effects still use the zone-effect path above.
 
 ---
 

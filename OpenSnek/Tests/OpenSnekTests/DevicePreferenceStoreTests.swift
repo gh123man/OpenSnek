@@ -137,42 +137,6 @@ final class DevicePreferenceStoreTests: XCTestCase {
         XCTAssertEqual(store.loadConnectBehavior(device: device), .restoreOpenSnekSettings)
     }
 
-    func testLightingCustomFrameColorsPersistPerDeviceAndClampChannels() {
-        let suiteName = "DevicePreferenceStoreTests.CustomFrame.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        let store = DevicePreferenceStore(defaults: defaults)
-        let device = MouseDevice(
-            id: "usb-custom-frame",
-            vendor_id: 0x1532,
-            product_id: 0x00AB,
-            product_name: "Basilisk V3 Pro",
-            transport: .usb,
-            path_b64: "",
-            serial: "CUSTOM-FRAME",
-            firmware: nil,
-            profile_id: .basiliskV3Pro
-        )
-
-        store.persistLightingCustomFrameColors(
-            [
-                RGBColor(r: -1, g: 20, b: 300),
-                RGBColor(r: 12, g: 34, b: 56),
-            ],
-            device: device
-        )
-
-        XCTAssertEqual(
-            store.loadPersistedLightingCustomFrameColors(device: device),
-            [
-                RGBColor(r: 0, g: 20, b: 255),
-                RGBColor(r: 12, g: 34, b: 56),
-            ]
-        )
-    }
-
     func testDeviceSettingsSnapshotRoundTrips() {
         let suiteName = "DevicePreferenceStoreTests.SettingsSnapshot.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -206,7 +170,6 @@ final class DevicePreferenceStoreTests: XCTestCase {
             primaryLightingColor: RGBColor(r: 10, g: 20, b: 30),
             lightingEffect: LightingEffectPatch(kind: .wave, primary: RGBPatch(r: 10, g: 20, b: 30), waveDirection: .right),
             usbLightingZoneID: "logo",
-            usbLightingCustomFrameColors: [RGBColor(r: 1, g: 2, b: 3), RGBColor(r: 4, g: 5, b: 6)],
             buttonBindings: [
                 5: ButtonBindingDraft(kind: .keyboardSimple, hidKey: 80, turboEnabled: false, turboRate: 0x8E, clutchDPI: nil)
             ]

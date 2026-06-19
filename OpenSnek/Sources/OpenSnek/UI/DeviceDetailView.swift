@@ -842,18 +842,6 @@ struct LightingCard: View {
             editorStore.visibleUSBLightingZones.count > 1
     }
 
-    private var supportsCustomFrameLighting: Bool {
-        selected.transport == .usb && !editorStore.visibleUSBLightingCustomFrameCells.isEmpty
-    }
-
-    private var showsCustomFrameLightingEditor: Bool {
-        supportsCustomFrameLighting && editorStore.editableLightingEffect == .staticColor
-    }
-
-    private var customFrameColumns: [GridItem] {
-        Array(repeating: GridItem(.flexible(minimum: 64), spacing: 8), count: 4)
-    }
-
     private var defaultGradientColors: [Color] {
         [
             accentBase.opacity(accentOpacity),
@@ -929,86 +917,6 @@ struct LightingCard: View {
         }
     }
 
-    @ViewBuilder
-    private func customFrameLightingEditor() -> some View {
-        if showsCustomFrameLightingEditor {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 12) {
-                    Text("Addressable LEDs")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.82))
-                    Spacer(minLength: 8)
-                    Button("Fill All") {
-                        editorStore.applyCurrentColorToAllCustomFrameCells()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .tint(accentBase)
-                    .accessibilityIdentifier("lighting-custom-frame-fill-all-button")
-                }
-
-                LazyVGrid(columns: customFrameColumns, alignment: .leading, spacing: 8) {
-                    ForEach(editorStore.visibleUSBLightingCustomFrameCells) { cell in
-                        let color = editorStore.usbLightingCustomFrameColor(cellID: cell.id)
-                        Button {
-                            editorStore.updateUSBLightingCustomFrameCellID(cell.id)
-                        } label: {
-                            HStack(spacing: 6) {
-                                Circle()
-                                    .fill(Color(rgb: color))
-                                    .frame(width: 12, height: 12)
-                                Text(cell.label)
-                                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.72)
-                                    .foregroundStyle(.white.opacity(0.86))
-                            }
-                            .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
-                            .padding(.horizontal, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.white.opacity(editorStore.editableUSBLightingCustomFrameCellID == cell.id ? 0.14 : 0.07))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(
-                                        editorStore.editableUSBLightingCustomFrameCellID == cell.id
-                                            ? Color(rgb: color).opacity(0.8)
-                                            : Color.white.opacity(0.10),
-                                        lineWidth: 1
-                                    )
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("lighting-custom-frame-cell-\(cell.id)")
-                    }
-                }
-
-                LightingColorEditor(
-                    title: editorStore.visibleUSBLightingCustomFrameCells
-                        .first(where: { $0.id == editorStore.editableUSBLightingCustomFrameCellID })?
-                        .label ?? "LED Color",
-                    identifierPrefix: "lighting-custom-frame-color",
-                    color: Binding(
-                        get: {
-                            editorStore.usbLightingCustomFrameColor(
-                                cellID: editorStore.editableUSBLightingCustomFrameCellID
-                            )
-                        },
-                        set: {
-                            editorStore.updateUSBLightingCustomFrameColor(
-                                $0,
-                                cellID: editorStore.editableUSBLightingCustomFrameCellID
-                            )
-                            editorStore.scheduleAutoApplyLightingCustomFrame()
-                        }
-                    ),
-                    swatches: swatches
-                )
-            }
-        }
-    }
-
     var body: some View {
         Card(title: "Lighting", accessibilityIdentifier: "lighting-card") {
             HStack {
@@ -1063,11 +971,7 @@ struct LightingCard: View {
                             get: { editorStore.editableLightingEffect },
                             set: {
                                 editorStore.updateLightingEffect($0)
-                                if $0 == .staticColor, supportsCustomFrameLighting {
-                                    editorStore.scheduleAutoApplyLightingCustomFrame()
-                                } else {
-                                    editorStore.scheduleAutoApplyLightingEffect()
-                                }
+                                editorStore.scheduleAutoApplyLightingEffect()
                             }
                         )
                     ) {
@@ -1134,24 +1038,20 @@ struct LightingCard: View {
                 }
 
                 if editorStore.editableLightingEffect.usesPrimaryColor {
-                    if showsCustomFrameLightingEditor {
-                        customFrameLightingEditor()
-                    } else {
-                        staticLightingZoneEditor()
+                    staticLightingZoneEditor()
 
-                        LightingColorEditor(
-                            title: "Primary Color",
-                            identifierPrefix: "lighting-primary-color",
-                            color: Binding(
-                                get: { editorStore.editableColor },
-                                set: {
-                                    editorStore.editableColor = $0
-                                    editorStore.scheduleAutoApplyLightingEffect()
-                                }
-                            ),
-                            swatches: swatches
-                        )
-                    }
+                    LightingColorEditor(
+                        title: "Primary Color",
+                        identifierPrefix: "lighting-primary-color",
+                        color: Binding(
+                            get: { editorStore.editableColor },
+                            set: {
+                                editorStore.editableColor = $0
+                                editorStore.scheduleAutoApplyLightingEffect()
+                            }
+                        ),
+                        swatches: swatches
+                    )
                 }
 
                 if editorStore.editableLightingEffect.usesSecondaryColor {

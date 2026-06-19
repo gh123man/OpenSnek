@@ -27,7 +27,6 @@ final class AppStateApplyController {
         case ledBrightness
         case ledColor
         case lightingEffect
-        case lightingCustomFrame
         case button(Int)
         case activeStage
     }
@@ -332,28 +331,10 @@ final class AppStateApplyController {
         )
     }
 
-    func applyLightingCustomFrame() async {
-        guard let selectedDevice = deviceStore.selectedDevice else { return }
-        guard editorController.supportsUSBLightingCustomFrame(device: selectedDevice) else { return }
-        editorStore.editableLightingEffect = .staticColor
-        enqueueApply(
-            DevicePatch(
-                usbLightingCustomFrame: editorController.currentUSBLightingCustomFramePatch()
-            )
-        )
-    }
-
     func scheduleAutoApplyLightingEffect() {
         scheduleAutoApply(key: .lightingEffect, delay: 200_000_000) { [weak self] in
             guard let self else { return }
             await self.applyLightingEffect()
-        }
-    }
-
-    func scheduleAutoApplyLightingCustomFrame() {
-        scheduleAutoApply(key: .lightingCustomFrame, delay: 200_000_000) { [weak self] in
-            guard let self else { return }
-            await self.applyLightingCustomFrame()
         }
     }
 
@@ -911,9 +892,7 @@ final class AppStateApplyController {
         let selectedIdentity = deviceStore.selectedDevice.map(deviceController.deviceIdentityKey)
         let targetIdentity = deviceController.deviceIdentityKey(device)
         let targetsSelectedDevice = selectedIdentity == targetIdentity
-        let restoresStaticLighting = plan.patch.ledRGB != nil ||
-            plan.patch.usbLightingCustomFrame != nil ||
-            plan.snapshot.lightingEffect?.kind == .staticColor
+        let restoresStaticLighting = plan.patch.ledRGB != nil || plan.snapshot.lightingEffect?.kind == .staticColor
         let persistLightingZoneID = restoresStaticLighting
             ? plan.snapshot.usbLightingZoneID
             : "all"
@@ -1087,7 +1066,7 @@ final class AppStateApplyController {
                 editorController.persistButtonBinding(buttonBinding, device: presentationDevice, profile: buttonBinding.persistentProfile)
                 editorController.cachePersistedButtonBinding(buttonBinding, device: presentationDevice, profile: buttonBinding.persistentProfile)
             }
-            let preserveStoredLighting = patch.ledRGB == nil && patch.lightingEffect == nil && patch.usbLightingCustomFrame == nil
+            let preserveStoredLighting = patch.ledRGB == nil && patch.lightingEffect == nil
             let snapshotLightingZoneOverride = snapshotLightingZoneOverride(
                 for: patch,
                 device: presentationDevice,
@@ -1225,16 +1204,6 @@ final class AppStateApplyController {
             editorController.persistLightingZoneID(usbLightingZoneID, device: device)
             editorStore.noteLightingGradientColorsChanged()
         }
-        if let customFrame = patch.usbLightingCustomFrame {
-            let colors = customFrame.colors.map { RGBColor(r: $0.r, g: $0.g, b: $0.b) }
-            editorController.persistLightingCustomFrameColors(colors, device: device)
-            editorController.persistLightingEffect(
-                LightingEffectPatch(kind: .staticColor, primary: customFrame.colors.first ?? RGBPatch(r: 0, g: 255, b: 0)),
-                device: device
-            )
-            editorController.persistLightingZoneID("all", device: device)
-            editorStore.noteLightingGradientColorsChanged()
-        }
         if let lightingEffect = patch.lightingEffect {
             editorController.persistLightingEffect(lightingEffect, device: device)
             let color = RGBColor(r: lightingEffect.primary.r, g: lightingEffect.primary.g, b: lightingEffect.primary.b)
@@ -1271,11 +1240,7 @@ final class AppStateApplyController {
         defaultZoneID: String
     ) -> String? {
         guard device.showsLightingControls else { return nil }
-        guard patch.ledRGB != nil || patch.lightingEffect != nil || patch.usbLightingCustomFrame != nil else { return nil }
-
-        if patch.usbLightingCustomFrame != nil {
-            return "all"
-        }
+        guard patch.ledRGB != nil || patch.lightingEffect != nil else { return nil }
 
         let writesStaticColor = patch.ledRGB != nil || patch.lightingEffect?.kind == .staticColor
         guard writesStaticColor else { return "all" }
