@@ -1,0 +1,39 @@
+# Basilisk V3 Pro baseline snapshot - 2026-06-17T16:34:14Z
+# device: usb 1532:00aa:02120000:usb pid=0x00aa
+
+=== scroll_wheel ===
+-- usb-lighting-info --
+usb 1532:00aa:02120000:usb pid=0x00aa
+supported-effects=off,static,spectrum,wave
+zone id=scroll_wheel label="Scroll Wheel" ledIDs=[0x01]
+zone id=logo label="Logo" ledIDs=[0x04]
+zone id=underglow label="Underglow" ledIDs=[0x0a]
+brightness zone=scroll_wheel label="Scroll Wheel" led=0x01 value=102
+-- usb-lighting-read --
+usb 1532:00aa:02120000:usb pid=0x00aa
+brightness zone=scroll_wheel label="Scroll Wheel" led=0x01 value=102
+
+=== logo ===
+-- usb-lighting-info --
+usb 1532:00aa:02120000:usb pid=0x00aa
+supported-effects=off,static,spectrum,wave
+zone id=scroll_wheel label="Scroll Wheel" ledIDs=[0x01]
+zone id=logo label="Logo" ledIDs=[0x04]
+zone id=underglow label="Underglow" ledIDs=[0x0a]
+brightness zone=logo label="Logo" led=0x04 value=102
+-- usb-lighting-read --
+usb 1532:00aa:02120000:usb pid=0x00aa
+brightness zone=logo label="Logo" led=0x04 value=102
+
+=== underglow ===
+-- usb-lighting-info --
+usb 1532:00aa:02120000:usb pid=0x00aa
+supported-effects=off,static,spectrum,wave
+zone id=scroll_wheel label="Scroll Wheel" ledIDs=[0x01]
+zone id=logo label="Logo" ledIDs=[0x04]
+zone id=underglow label="Underglow" ledIDs=[0x0a]
+brightness zone=underglow label="Underglow" led=0x0a value=102
+-- usb-lighting-read --
+usb 1532:00aa:02120000:usb pid=0x00aa
+brightness zone=underglow label="Underglow" led=0x0a value=102
+
