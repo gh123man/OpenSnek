@@ -577,6 +577,152 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         XCTAssertEqual(freshLabel, "Connected")
     }
 
+    func testRemoteSnapshotFreshUSBObservationKeepsStaleFullStateConnected() async {
+        let appState = await MainActor.run {
+            AppState(
+                launchRole: .app,
+                backend: SnapshotTestRemoteBackend(shouldUseFastDPIPolling: true),
+                autoStart: false
+            )
+        }
+
+        let device = makeSnapshotDevice(
+            id: "usb-fresh-observation",
+            productName: "Snapshot USB Mouse",
+            transport: .usb,
+            serial: "USB-FRESH",
+            locationID: 4,
+            profile: .basiliskV3Pro
+        )
+        let now = Date()
+        let snapshot = SharedServiceSnapshot(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeSnapshotState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 80,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 1,
+                    dpiValue: 1600
+                )
+            ],
+            lastUpdatedByDeviceID: [
+                device.id: now.addingTimeInterval(-30)
+            ],
+            observedAtByDeviceID: [
+                device.id: now
+            ]
+        )
+
+        await MainActor.run {
+            appState.deviceStore.applyRemoteServiceSnapshot(snapshot)
+            appState.deviceController.updateUSBLiveObservationExpiryDiagnostics(now: now)
+        }
+
+        let status = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
+        XCTAssertEqual(status, "Connected")
+    }
+
+    func testRemoteSnapshotStaleUSBObservationMarksFreshCachedStateDisconnected() async {
+        let appState = await MainActor.run {
+            AppState(
+                launchRole: .app,
+                backend: SnapshotTestRemoteBackend(shouldUseFastDPIPolling: true),
+                autoStart: false
+            )
+        }
+
+        let device = makeSnapshotDevice(
+            id: "usb-stale-observation",
+            productName: "Snapshot USB Mouse",
+            transport: .usb,
+            serial: "USB-STALE",
+            locationID: 5,
+            profile: .basiliskV3Pro
+        )
+        let now = Date()
+        let snapshot = SharedServiceSnapshot(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeSnapshotState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 80,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 1,
+                    dpiValue: 1600
+                )
+            ],
+            lastUpdatedByDeviceID: [
+                device.id: now
+            ],
+            observedAtByDeviceID: [
+                device.id: now.addingTimeInterval(-5)
+            ]
+        )
+
+        await MainActor.run {
+            appState.deviceStore.applyRemoteServiceSnapshot(snapshot)
+            appState.deviceController.updateUSBLiveObservationExpiryDiagnostics(now: now)
+        }
+
+        let status = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
+        let message = await MainActor.run { appState.deviceStore.selectedDeviceInteractionMessage }
+        XCTAssertEqual(status, "Disconnected")
+        XCTAssertEqual(
+            message,
+            "The USB dongle is connected, but the mouse is not responding. Wake or power on the mouse to reconnect."
+        )
+    }
+
+    func testRemoteSnapshotNormalUSBServiceCadenceDoesNotDisconnectHealthyMouse() async {
+        let appState = await MainActor.run {
+            AppState(
+                launchRole: .app,
+                backend: SnapshotTestRemoteBackend(shouldUseFastDPIPolling: true),
+                autoStart: false
+            )
+        }
+
+        let device = makeSnapshotDevice(
+            id: "usb-healthy-cadence",
+            productName: "Snapshot USB Mouse",
+            transport: .usb,
+            serial: "USB-HEALTHY",
+            locationID: 6,
+            profile: .basiliskV3Pro
+        )
+        let now = Date()
+        let snapshot = SharedServiceSnapshot(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeSnapshotState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 80,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 1,
+                    dpiValue: 1600
+                )
+            ],
+            lastUpdatedByDeviceID: [
+                device.id: now
+            ],
+            observedAtByDeviceID: [
+                device.id: now.addingTimeInterval(-3)
+            ]
+        )
+
+        await MainActor.run {
+            appState.deviceStore.applyRemoteServiceSnapshot(snapshot)
+            appState.deviceController.updateUSBLiveObservationExpiryDiagnostics(now: now)
+        }
+
+        let status = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
+        XCTAssertEqual(status, "Connected")
+    }
+
     func testOlderRemoteSnapshotDoesNotOverwriteNewerPerDeviceState() async {
         let appState = await MainActor.run {
             AppState(launchRole: .app, backend: SnapshotTestRemoteBackend(), autoStart: false)

@@ -1,4 +1,5 @@
 import XCTest
+import OpenSnekCore
 @testable import OpenSnek
 
 final class ContentNoticePresentationTests: XCTestCase {
@@ -42,6 +43,30 @@ final class ContentNoticePresentationTests: XCTestCase {
                 connectionState: .reconnecting,
                 isStrictlyUnsupported: false,
                 isUnsupportedUSB: true
+            )
+        )
+    }
+
+    func testUSBTelemetryLimitedNoticeIsSuppressedForUSBSelection() {
+        XCTAssertTrue(
+            ContentNoticePresentation.shouldSuppressUSBTelemetryLimitedNotice(
+                warningMessage: "USB telemetry is incomplete (missing poll rate). Controls stay visible, but values may be stale until readback succeeds.",
+                selectedTransport: .usb
+            )
+        )
+    }
+
+    func testUSBTelemetryLimitedNoticeDoesNotSuppressOtherWarnings() {
+        XCTAssertFalse(
+            ContentNoticePresentation.shouldSuppressUSBTelemetryLimitedNotice(
+                warningMessage: "Using the last known values while live telemetry settles.",
+                selectedTransport: .usb
+            )
+        )
+        XCTAssertFalse(
+            ContentNoticePresentation.shouldSuppressUSBTelemetryLimitedNotice(
+                warningMessage: "USB telemetry is incomplete (missing poll rate). Controls stay visible, but values may be stale until readback succeeds.",
+                selectedTransport: .bluetooth
             )
         )
     }

@@ -56,6 +56,10 @@ struct ContentView: View {
             if let selected = deviceStore.selectedDevice {
                 if deviceStore.selectedDeviceIsStrictlyUnsupported || deviceStore.selectedDeviceIsUnsupportedUSB {
                     GenericDeviceDetailView(deviceStore: deviceStore, selected: selected)
+                } else if deviceStore.connectionState(for: selected) == .reconnecting {
+                    DeviceConnectingDetailView(deviceStore: deviceStore, selected: selected)
+                } else if deviceStore.connectionState(for: selected) == .disconnected {
+                    DeviceUnavailableDetailView(deviceStore: deviceStore, selected: selected)
                 } else if let state = deviceStore.state,
                           state.device.id == nil || state.device.id == selected.id {
                     DeviceDetailView(
@@ -157,6 +161,9 @@ struct ContentView: View {
             return shouldShowPermissionNotice
         }
         if shouldSuppressTelemetryNoticeDuringConnectionRecovery {
+            return false
+        }
+        if shouldSuppressUSBTelemetryLimitedNotice {
             return false
         }
         if deviceStore.warningMessage != nil {
@@ -293,13 +300,7 @@ struct ContentView: View {
     }
 
     private var selectedDetailHandlesConnectionRecovery: Bool {
-        guard shouldSuppressTelemetryNoticeDuringConnectionRecovery else { return false }
-        guard let selected = deviceStore.selectedDevice else { return false }
-        if let state = deviceStore.state,
-           state.device.id == nil || state.device.id == selected.id {
-            return false
-        }
-        return true
+        shouldSuppressTelemetryNoticeDuringConnectionRecovery
     }
 
     private var shouldSuppressTelemetryNoticeDuringConnectionRecovery: Bool {
@@ -311,9 +312,20 @@ struct ContentView: View {
         )
     }
 
+    private var shouldSuppressUSBTelemetryLimitedNotice: Bool {
+        guard let selected = deviceStore.selectedDevice else { return false }
+        return ContentNoticePresentation.shouldSuppressUSBTelemetryLimitedNotice(
+            warningMessage: deviceStore.warningMessage,
+            selectedTransport: selected.transport
+        )
+    }
+
     private var shouldShowSeparateWarningNotice: Bool {
         guard deviceStore.warningMessage != nil else { return false }
         if shouldSuppressTelemetryNoticeDuringConnectionRecovery {
+            return false
+        }
+        if shouldSuppressUSBTelemetryLimitedNotice {
             return false
         }
         return !showsUSBAccessCallout
@@ -409,15 +421,16 @@ private struct EmptyDeviceState: View {
         VStack(alignment: .center, spacing: 18) {
             VStack(alignment: .center, spacing: 8) {
                 if showsWaitingState {
-                    HStack(spacing: 10) {
-                        ProgressView()
-                            .controlSize(.regular)
-                            .tint(.white.opacity(0.9))
-                        Text("Waiting for devices")
-                            .font(.system(size: 28, weight: .black, design: .rounded))
-                            .foregroundStyle(.white)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .center)
+                    ProgressView()
+                        .controlSize(.regular)
+                        .tint(.white.opacity(0.9))
+                        .frame(maxWidth: .infinity, alignment: .center)
+
+                    Text("Waiting for devices")
+                        .font(.system(size: 28, weight: .black, design: .rounded))
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity, alignment: .center)
                 } else {
                     Text("Connect a device")
                         .font(.system(size: 28, weight: .black, design: .rounded))
@@ -425,7 +438,7 @@ private struct EmptyDeviceState: View {
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity, alignment: .center)
                 }
-                HStack(spacing: 6) {
+                VStack(spacing: 4) {
                     Button {
                         showsSupportedDevices = true
                     } label: {
@@ -437,15 +450,17 @@ private struct EmptyDeviceState: View {
                     .foregroundStyle(.white)
                     .help("Open supported device table")
 
-                    Text("· \(supportedFamilyCount) models · \(rows.count) connection paths")
+                    Text("\(supportedFamilyCount) models · \(rows.count) connection paths")
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.58))
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity, alignment: .center)
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .frame(width: 440, alignment: .center)
+        .frame(maxWidth: 440, alignment: .center)
         .padding(24)
         .background(
             RoundedRectangle(cornerRadius: 22)
@@ -455,6 +470,7 @@ private struct EmptyDeviceState: View {
                         .stroke(Color.white.opacity(0.10), lineWidth: 1)
                 )
         )
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .task {
             guard showsWaitingState else { return }
             do {
@@ -663,6 +679,14 @@ enum ContentNoticePresentation {
         case .connected, .unsupported, .error:
             return false
         }
+    }
+
+    static func shouldSuppressUSBTelemetryLimitedNotice(
+        warningMessage: String?,
+        selectedTransport: DeviceTransportKind?
+    ) -> Bool {
+        guard selectedTransport == .usb, let warningMessage else { return false }
+        return warningMessage.hasPrefix("USB telemetry is incomplete")
     }
 }
 

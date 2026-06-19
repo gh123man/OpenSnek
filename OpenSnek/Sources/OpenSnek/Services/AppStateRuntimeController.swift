@@ -708,6 +708,7 @@ final class AppStateRuntimeController {
         let effectiveDevicePresenceInterval = effectiveDevicePresenceInterval(at: now, profile: profile)
         let effectiveRefreshStateInterval = effectiveRefreshStateInterval(at: now, profile: profile)
         pruneExpiredRemoteClientPresence(now: now)
+        deviceController.updateUSBLiveObservationExpiryDiagnostics(now: now)
         if !environment.launchRole.isService {
             await checkForUpdates(now: now)
         }
@@ -864,6 +865,7 @@ final class AppStateRuntimeController {
             }
 
             return orderedDevices.compactMap { device in
+                guard deviceController.allowsFastDpiPolling(for: device) else { return nil }
                 switch deviceController.dpiUpdateTransportStatus(for: device) {
                 case .pollingFallback:
                     return device.id
@@ -876,13 +878,16 @@ final class AppStateRuntimeController {
         }
         guard !environment.usesRemoteServiceTransport else { return [] }
         if let selectedDeviceID = deviceStore.selectedDeviceID,
-           orderedDevices.contains(where: { $0.id == selectedDeviceID }) {
-            return [selectedDeviceID]
+           let selectedDevice = orderedDevices.first(where: { $0.id == selectedDeviceID }) {
+            return shouldFastPollSelectedDevice(selectedDevice) ? [selectedDeviceID] : []
         }
-        return Array(orderedDevices.prefix(1)).map(\.id)
+        return Array(orderedDevices.prefix(1))
+            .filter { shouldFastPollSelectedDevice($0) }
+            .map(\.id)
     }
 
     private func shouldFastPollSelectedDevice(_ device: MouseDevice) -> Bool {
+        guard deviceController.allowsFastDpiPolling(for: device) else { return false }
         switch deviceController.dpiUpdateTransportStatus(for: device) {
         case .unknown:
             return true

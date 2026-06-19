@@ -4,7 +4,10 @@ import OpenSnekCore
 @MainActor
 final class AppStateDeviceController {
     private static let bluetoothPassiveHeartbeatConnectedInterval: TimeInterval = 1.5
+    private static let minimumUSBDisconnectedObservationInterval: TimeInterval = 3.5
     private static let recentDynamicDpiMutationMergeWindow: TimeInterval = 1.0
+    private static let usbTelemetryUnavailableMessage =
+        "USB device telemetry unavailable. Feature-report interface did not return usable responses."
 
     private let environment: AppEnvironment
     private let deviceStore: DeviceStore
@@ -31,6 +34,7 @@ final class AppStateDeviceController {
     private var stateRefreshSuppressedUntilByDeviceID: [String: Date] = [:]
     private var usbTelemetryUnavailableBackoffDeviceIDs: Set<String> = []
     private var unavailableDeviceIDs: Set<String> = []
+    private var usbLiveObservationExpiredDeviceIDs: Set<String> = []
     private var dpiUpdateTransportStatusByDeviceID: [String: DpiUpdateTransportStatus] = [:]
     private var pendingSettingsRestoreDeviceIDs: Set<String> = []
     private var pendingSettingsRestoreGenerationByDeviceID: [String: Int] = [:]
@@ -56,6 +60,7 @@ final class AppStateDeviceController {
         selectedEditorHydrationTasksByDeviceID.values.forEach { $0.cancel() }
         selectedEditorHydrationTasksByDeviceID.removeAll()
         selectedEditorHydrationTokensByDeviceID.removeAll()
+        usbLiveObservationExpiredDeviceIDs.removeAll()
     }
 
     func bind(
@@ -171,6 +176,15 @@ final class AppStateDeviceController {
 
         for (deviceID, remoteState) in snapshot.stateByDeviceID {
             let snapshotUpdatedAt = snapshot.lastUpdatedByDeviceID[deviceID] ?? Date()
+            if remoteState.device.transport == .usb,
+               let observedAt = snapshot.observedAtByDeviceID[deviceID] {
+                recordUSBLiveObservation(
+                    sourceDeviceID: deviceID,
+                    presentationDeviceID: deviceID,
+                    observedAt: observedAt,
+                    transportStatus: .pollingFallback
+                )
+            }
             if let latestCachedAt = lastUpdatedByDeviceID[deviceID],
                latestCachedAt > snapshotUpdatedAt {
                 AppLog.debug(
@@ -274,6 +288,14 @@ final class AppStateDeviceController {
         cacheState(merged, sourceDeviceID: deviceID, presentationDeviceID: presentationDeviceID, updatedAt: updatedAt)
         setDpiUpdateTransportStatus(.realTimeHID, for: deviceID)
         setDpiUpdateTransportStatus(.realTimeHID, for: presentationDeviceID)
+        if sourceDevice.transport == .usb {
+            recordUSBLiveObservation(
+                sourceDeviceID: deviceID,
+                presentationDeviceID: presentationDeviceID,
+                observedAt: updatedAt,
+                transportStatus: .realTimeHID
+            )
+        }
         refreshFailureCountByDeviceID[deviceID] = 0
         refreshFailureCountByDeviceID[presentationDeviceID] = 0
         unavailableDeviceIDs.remove(deviceID)
@@ -422,15 +444,28 @@ final class AppStateDeviceController {
         )
         if source == "subscription" {
             let newlyVisibleIDs = newIDs.subtracting(previousIDs)
-            let suppressedDeviceIDs = newlyVisibleIDs.filter { stateRefreshSuppressedUntilByDeviceID[$0] != nil }
+            let suppressedDeviceIDs = newlyVisibleIDs.filter { id in
+                stateRefreshSuppressedUntilByDeviceID[id] != nil &&
+                    !isUSBDeviceID(id, in: sorted) &&
+                    !usbTelemetryUnavailableBackoffDeviceIDs.contains(id)
+            }
+            let preservedUSBBackoffIDs = newlyVisibleIDs.filter { id in
+                stateRefreshSuppressedUntilByDeviceID[id] != nil &&
+                    (isUSBDeviceID(id, in: sorted) || usbTelemetryUnavailableBackoffDeviceIDs.contains(id))
+            }
             for id in suppressedDeviceIDs {
                 stateRefreshSuppressedUntilByDeviceID[id] = nil
-                usbTelemetryUnavailableBackoffDeviceIDs.remove(id)
             }
             if !suppressedDeviceIDs.isEmpty {
                 AppLog.debug(
                     "AppState",
                     "refreshState backoff cleared by device-list subscription devices=\(suppressedDeviceIDs.sorted().joined(separator: ","))"
+                )
+            }
+            if !preservedUSBBackoffIDs.isEmpty {
+                AppLog.debug(
+                    "AppState",
+                    "refreshState usb backoff preserved by device-list subscription devices=\(preservedUSBBackoffIDs.sorted().joined(separator: ","))"
                 )
             }
         }
@@ -448,6 +483,8 @@ final class AppStateDeviceController {
                 lastFullStateRefreshStartedAtByDeviceID[id] = nil
                 suppressFastDpiUntilByDeviceID[id] = nil
                 lastUSBFastDpiAtByDeviceID[id] = nil
+                lastPassiveHeartbeatAtByDeviceID[id] = nil
+                usbLiveObservationExpiredDeviceIDs.remove(id)
                 refreshingStateDeviceIDs.remove(id)
                 refreshingFastDpiDeviceIDs.remove(id)
                 pendingSettingsRestoreDeviceIDs.remove(id)
@@ -542,6 +579,10 @@ final class AppStateDeviceController {
             requestSelectedDeviceRefreshIfNeeded(for: selectedDevice)
         }
         return changed
+    }
+
+    private func isUSBDeviceID(_ deviceID: String, in devices: [MouseDevice]) -> Bool {
+        devices.first(where: { $0.id == deviceID })?.transport == .usb
     }
 
     func preferredBluetoothRecoverySelection(
@@ -783,9 +824,16 @@ final class AppStateDeviceController {
         let needsRecoveryRefresh = hasNoCachedState || lacksPresentedState || unavailableDeviceIDs.contains(device.id)
         guard needsRecoveryRefresh else { return }
 
+        let failures = max(1, refreshFailureCountByDeviceID[device.id] ?? 0)
+        let recoveryDelay: TimeInterval
+        if stateRefreshSuppressedUntilByDeviceID[device.id] != nil {
+            recoveryDelay = selectedRecoveryRetryDelay(for: device, failures: failures)
+        } else {
+            recoveryDelay = refreshingStateDeviceIDs.contains(device.id) ? 0.8 : 0
+        }
         scheduleSelectedRecoveryRefresh(
             for: device,
-            delay: refreshingStateDeviceIDs.contains(device.id) ? 0.8 : 0
+            delay: recoveryDelay
         )
     }
 
@@ -810,12 +858,20 @@ final class AppStateDeviceController {
             return .disconnected
         }
 
+        if usbLiveObservationExpiredDeviceIDs.contains(device.id) {
+            return .disconnected
+        }
+
         if device.id == deviceStore.selectedDeviceID, let errorMessage = deviceStore.errorMessage, !errorMessage.isEmpty {
             let lowered = errorMessage.lowercased()
             return Self.isDeviceAvailabilityMessage(lowered) ? .disconnected : .error
         }
 
         let now = Date()
+        if shouldTreatStaleUSBLiveObservationAsDisconnected(device: device, now: now) {
+            return .disconnected
+        }
+
         let failures = refreshFailureCountByDeviceID[device.id] ?? 0
         if failures > 0 {
             if failures < 3, shouldTreatActivePassiveHIDAsConnected(device: device, now: now) {
@@ -855,10 +911,38 @@ final class AppStateDeviceController {
         return dpiUpdateTransportStatusByDeviceID[device.id] ?? .unknown
     }
 
+    func allowsFastDpiPolling(for device: MouseDevice) -> Bool {
+        !unavailableDeviceIDs.contains(device.id)
+    }
+
     func isPassiveBluetoothHeartbeatFresh(for device: MouseDevice, now: Date) -> Bool {
         guard device.transport == .bluetooth else { return false }
         guard let lastHeartbeatAt = lastPassiveHeartbeatAtByDeviceID[device.id] else { return false }
         return now.timeIntervalSince(lastHeartbeatAt) <= Self.bluetoothPassiveHeartbeatConnectedInterval
+    }
+
+    func updateUSBLiveObservationExpiryDiagnostics(now: Date = Date()) {
+        guard !isTearingDown else { return }
+        let liveIDs = Set(deviceStore.devices.map(\.id))
+        var shouldInvalidate = false
+
+        for id in usbLiveObservationExpiredDeviceIDs.subtracting(liveIDs) {
+            usbLiveObservationExpiredDeviceIDs.remove(id)
+            shouldInvalidate = true
+        }
+
+        for device in deviceStore.devices where shouldTrackUSBLiveObservationExpiry(for: device) {
+            let expired = shouldTreatStaleUSBLiveObservationAsDisconnected(device: device, now: now)
+            if expired {
+                shouldInvalidate = usbLiveObservationExpiredDeviceIDs.insert(device.id).inserted || shouldInvalidate
+            } else if usbLiveObservationExpiredDeviceIDs.remove(device.id) != nil {
+                shouldInvalidate = true
+            }
+        }
+
+        if shouldInvalidate {
+            deviceStore.invalidateConnectionDiagnostics()
+        }
     }
 
     func refreshDpiUpdateTransportStatuses(for devices: [MouseDevice]) async {
@@ -1391,6 +1475,12 @@ final class AppStateDeviceController {
         let refreshDeviceID = device.id
         let cachedStateBeforeRefresh = stateCacheByDeviceID[device.id]
         let start = Date()
+        let wasRecoveringUSBBackoff = device.transport == .usb &&
+            (
+                stateRefreshSuppressedUntilByDeviceID[refreshDeviceID] != nil ||
+                    usbTelemetryUnavailableBackoffDeviceIDs.contains(refreshDeviceID) ||
+                    (refreshFailureCountByDeviceID[refreshDeviceID] ?? 0) > 0
+            )
 
         do {
             let fetched = try await environment.backend.readState(device: device)
@@ -1413,6 +1503,18 @@ final class AppStateDeviceController {
 
             let presentationDeviceID = presentationDevice.id
             let latestCachedState = stateCacheByDeviceID[presentationDeviceID] ?? stateCacheByDeviceID[refreshDeviceID]
+            if shouldTreatPartialUSBTelemetryAsUnavailable(
+                fetched,
+                device: presentationDevice,
+                wasRecoveringUSBBackoff: wasRecoveringUSBBackoff,
+                hasCachedState: latestCachedState != nil
+            ) {
+                AppLog.debug(
+                    "AppState",
+                    "refreshState partial usb telemetry treated unavailable device=\(presentationDeviceID)"
+                )
+                throw Self.usbTelemetryUnavailableError()
+            }
             let latestCachedStableUpdateAt = latestCachedUpdateAt(sourceDeviceID: refreshDeviceID, presentationDeviceID: presentationDeviceID)
             if let latestCachedMutationAt = latestCachedMutationAt(sourceDeviceID: refreshDeviceID, presentationDeviceID: presentationDeviceID),
                latestCachedMutationAt > start,
@@ -1426,6 +1528,13 @@ final class AppStateDeviceController {
                     // vendor-read latency to every interval.
                     lastFullStateRefreshStartedAtByDeviceID[refreshDeviceID] = start
                     lastFullStateRefreshStartedAtByDeviceID[presentationDeviceID] = start
+                    if device.transport == .usb {
+                        recordUSBLiveObservation(
+                            sourceDeviceID: refreshDeviceID,
+                            presentationDeviceID: presentationDeviceID,
+                            observedAt: updatedAt
+                        )
+                    }
                     refreshFailureCountByDeviceID[refreshDeviceID] = 0
                     refreshFailureCountByDeviceID[presentationDeviceID] = 0
                     stateRefreshSuppressedUntilByDeviceID[refreshDeviceID] = nil
@@ -1480,6 +1589,13 @@ final class AppStateDeviceController {
                 cacheState(merged, sourceDeviceID: refreshDeviceID, presentationDeviceID: presentationDeviceID, updatedAt: updatedAt)
                 lastFullStateRefreshStartedAtByDeviceID[refreshDeviceID] = start
                 lastFullStateRefreshStartedAtByDeviceID[presentationDeviceID] = start
+                if device.transport == .usb {
+                    recordUSBLiveObservation(
+                        sourceDeviceID: refreshDeviceID,
+                        presentationDeviceID: presentationDeviceID,
+                        observedAt: updatedAt
+                    )
+                }
                 refreshFailureCountByDeviceID[refreshDeviceID] = 0
                 refreshFailureCountByDeviceID[presentationDeviceID] = 0
                 stateRefreshSuppressedUntilByDeviceID[refreshDeviceID] = nil
@@ -1527,6 +1643,13 @@ final class AppStateDeviceController {
             let shouldFocusOnActivity = shouldFocusServiceSelectionOnActivity(previous: previous, next: merged)
             let updatedAt = Date()
             cacheState(merged, sourceDeviceID: refreshDeviceID, presentationDeviceID: presentationDeviceID, updatedAt: updatedAt)
+            if device.transport == .usb {
+                recordUSBLiveObservation(
+                    sourceDeviceID: refreshDeviceID,
+                    presentationDeviceID: presentationDeviceID,
+                    observedAt: updatedAt
+                )
+            }
             seededReconnectStateDeviceIDs.remove(refreshDeviceID)
             seededReconnectStateDeviceIDs.remove(presentationDeviceID)
             lastFullStateRefreshStartedAtByDeviceID[refreshDeviceID] = start
@@ -1603,15 +1726,22 @@ final class AppStateDeviceController {
                 device: presentationDevice(for: device) ?? device,
                 now: Date()
             )
+            let shouldTreatSelectedUSBDongleOnly =
+                isUSBTelemetryUnavailable &&
+                deviceStore.selectedDeviceID == presentationDeviceID &&
+                !hasSeededReconnectState &&
+                !hasActivePassiveHID
             let shouldTreatAsDegradedUSBTelemetry =
                 isUSBTelemetryUnavailable && hasActivePassiveHID
             let shouldMaskSelectedUSBTelemetryUnavailable =
                 isUSBTelemetryUnavailable &&
+                !shouldTreatSelectedUSBDongleOnly &&
                 deviceStore.selectedDeviceID == presentationDeviceID &&
                 (!hasCachedPresentationState || hasSeededReconnectState)
             let shouldTreatAsHardAvailabilityFailure =
                 isAvailabilityFailure &&
-                !(isUSBTelemetryUnavailable && (hasActivePassiveHID || shouldMaskSelectedUSBTelemetryUnavailable)) &&
+                (shouldTreatSelectedUSBDongleOnly ||
+                    !(isUSBTelemetryUnavailable && (hasActivePassiveHID || shouldMaskSelectedUSBTelemetryUnavailable))) &&
                 !shouldTreatAsDegradedUSBTelemetry &&
                 !isRecoveringUSBAvailability
             if shouldTreatAsHardAvailabilityFailure {
@@ -1641,7 +1771,7 @@ final class AppStateDeviceController {
                 deviceStore.state = nil
                 deviceStore.lastUpdated = nil
                 deviceStore.warningMessage = nil
-                deviceStore.errorMessage = error.localizedDescription
+                deviceStore.errorMessage = shouldTreatSelectedUSBDongleOnly ? nil : error.localizedDescription
                 return false
             }
 
@@ -1673,6 +1803,24 @@ final class AppStateDeviceController {
             }
             return false
         }
+    }
+
+    private func shouldTreatPartialUSBTelemetryAsUnavailable(
+        _ state: MouseState,
+        device: MouseDevice,
+        wasRecoveringUSBBackoff: Bool,
+        hasCachedState: Bool
+    ) -> Bool {
+        guard device.transport == .usb else { return false }
+        guard resolvedProfile(for: device) != nil else { return false }
+        guard wasRecoveringUSBBackoff || !hasCachedState else { return false }
+        return state.dpi_stages.values == nil || state.poll_rate == nil || state.led_value == nil
+    }
+
+    private static func usbTelemetryUnavailableError() -> NSError {
+        NSError(domain: "OpenSnek.AppStateDeviceController", code: 1, userInfo: [
+            NSLocalizedDescriptionKey: usbTelemetryUnavailableMessage
+        ])
     }
 
     func refreshDpiFast() async {
@@ -1736,8 +1884,13 @@ final class AppStateDeviceController {
             guard let presentationDevice = presentationDevice(for: device) else { return }
             let readAt = Date()
             if device.transport == .usb {
-                lastUSBFastDpiAtByDeviceID[device.id] = readAt
-                lastUSBFastDpiAtByDeviceID[presentationDevice.id] = readAt
+                recordUSBLiveObservation(
+                    sourceDeviceID: device.id,
+                    presentationDeviceID: presentationDevice.id,
+                    observedAt: readAt,
+                    transportStatus: .pollingFallback,
+                    recordsFastDpi: true
+                )
             }
             guard fastRevision == applyController.stateRevision else {
                 AppLog.debug("AppState", "refreshDpiFast stale-drop rev=\(fastRevision) current=\(applyController.stateRevision)")
@@ -1856,20 +2009,91 @@ final class AppStateDeviceController {
         deviceStore.invalidateConnectionDiagnostics()
     }
 
+    private func recordUSBLiveObservation(
+        sourceDeviceID: String,
+        presentationDeviceID: String,
+        observedAt: Date,
+        transportStatus: DpiUpdateTransportStatus? = nil,
+        recordsFastDpi: Bool = false
+    ) {
+        lastPassiveHeartbeatAtByDeviceID[sourceDeviceID] = observedAt
+        lastPassiveHeartbeatAtByDeviceID[presentationDeviceID] = observedAt
+        if recordsFastDpi {
+            lastUSBFastDpiAtByDeviceID[sourceDeviceID] = observedAt
+            lastUSBFastDpiAtByDeviceID[presentationDeviceID] = observedAt
+        }
+        markUSBLiveObservationFresh(for: sourceDeviceID, transportStatus: transportStatus)
+        markUSBLiveObservationFresh(for: presentationDeviceID, transportStatus: transportStatus)
+    }
+
+    private func markUSBLiveObservationFresh(for deviceID: String, transportStatus: DpiUpdateTransportStatus?) {
+        if usbLiveObservationExpiredDeviceIDs.remove(deviceID) != nil {
+            deviceStore.invalidateConnectionDiagnostics()
+        }
+        guard let transportStatus else { return }
+        let existingTransportStatus = dpiUpdateTransportStatusByDeviceID[deviceID]
+        if existingTransportStatus != .listening,
+           existingTransportStatus != .streamActive,
+           existingTransportStatus != .realTimeHID {
+            setDpiUpdateTransportStatus(transportStatus, for: deviceID)
+        }
+    }
+
     private func shouldTreatActivePassiveHIDAsConnected(device: MouseDevice, now: Date) -> Bool {
         guard resolvedProfile(for: device)?.passiveDPIInput != nil else { return false }
 
         let transportStatus = dpiUpdateTransportStatusByDeviceID[device.id]
-        guard transportStatus == .streamActive || transportStatus == .realTimeHID else { return false }
 
         if device.transport == .usb {
-            return stateCacheByDeviceID[device.id] != nil ||
-                (deviceStore.selectedDeviceID == device.id && deviceStore.state != nil)
+            guard transportStatus == .streamActive ||
+                transportStatus == .realTimeHID ||
+                transportStatus == .pollingFallback else {
+                return false
+            }
+            guard stateCacheByDeviceID[device.id] != nil ||
+                (deviceStore.selectedDeviceID == device.id && deviceStore.state != nil) else {
+                return false
+            }
+            return isPassiveUSBObservationFresh(for: device, now: now)
         }
         if device.transport == .bluetooth {
+            guard transportStatus == .streamActive || transportStatus == .realTimeHID else { return false }
             return isPassiveBluetoothHeartbeatFresh(for: device, now: now)
         }
         return false
+    }
+
+    private func shouldTreatStaleUSBLiveObservationAsDisconnected(device: MouseDevice, now: Date) -> Bool {
+        guard shouldTrackUSBLiveObservationExpiry(for: device) else { return false }
+        guard latestUSBLiveObservationAt(for: device) != nil else { return false }
+        return !isPassiveUSBObservationFresh(for: device, now: now)
+    }
+
+    private func shouldTrackUSBLiveObservationExpiry(for device: MouseDevice) -> Bool {
+        guard device.transport == .usb else { return false }
+        guard resolvedProfile(for: device)?.passiveDPIInput != nil else { return false }
+        return stateCacheByDeviceID[device.id] != nil ||
+            (deviceStore.selectedDeviceID == device.id && deviceStore.state != nil)
+    }
+
+    private func latestUSBLiveObservationAt(for device: MouseDevice) -> Date? {
+        [
+            lastPassiveHeartbeatAtByDeviceID[device.id],
+            lastUSBFastDpiAtByDeviceID[device.id],
+        ].compactMap { $0 }.max()
+    }
+
+    private func isPassiveUSBObservationFresh(for device: MouseDevice, now: Date) -> Bool {
+        guard device.transport == .usb else { return false }
+        guard let lastObservedAt = latestUSBLiveObservationAt(for: device) else {
+            return false
+        }
+        return now.timeIntervalSince(lastObservedAt) <= usbDisconnectedObservationInterval()
+    }
+
+    private func usbDisconnectedObservationInterval() -> TimeInterval {
+        let refreshInterval = _runtimeController.optionalValue?.currentPollingProfile.refreshStateInterval ?? 2.0
+        return max(Self.minimumUSBDisconnectedObservationInterval, refreshInterval * 1.75)
     }
 
     private static func shouldApplyBackendDpiTransportStatusUpdate(

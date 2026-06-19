@@ -10,8 +10,11 @@ All notable changes to this project are documented in this file.
 ### Fixed
 - USB reconnect handling now refreshes HID discovery after the post-connect settle window, preventing early partial HID enumeration from leaving a replugged mouse unusable until OpenSnek restarts.
 - V3 Pro USB dongle-only states now back off gracefully when the mouse is powered off or telemetry is temporarily unavailable, avoiding repeated full-state reads and transient error banners while waiting for live telemetry to return.
+- USB dongle-only and sleeping-mouse states now switch to the disconnected presentation instead of staying on the loading/reconnecting screen when the dongle is visible but the mouse does not answer telemetry.
+- USB sleeping-mouse detection now expires stale USB liveness observations quickly, so a powered-off mouse no longer stays marked connected just because the dongle and cached state are still present.
 - Disconnect and reconnect detail screens no longer show a duplicate red global error notice over the same connection-state UI.
 - Reconnect and disconnect recovery no longer shows yellow USB telemetry notices for expected temporary telemetry gaps while the device is settling.
+- USB telemetry-unavailable and availability backoff now survive newly visible dongle subscription updates, preventing the dongle-only state from falling back into an immediate reconnect retry loop.
 
 ## [1.0.0]
 

@@ -124,6 +124,9 @@ final class DeviceStore {
         case .reconnecting:
             return "Reconnecting to live telemetry. Controls will unlock automatically."
         case .disconnected:
+            if selectedDevice.transport == .usb {
+                return "The USB dongle is connected, but the mouse is not responding. Wake or power on the mouse to reconnect."
+            }
             return "This device is disconnected. Controls will unlock after it reconnects."
         case .error:
             return errorMessage ?? "Live telemetry is unavailable right now."
