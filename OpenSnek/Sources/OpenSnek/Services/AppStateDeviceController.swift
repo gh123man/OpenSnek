@@ -185,6 +185,7 @@ final class AppStateDeviceController {
         guard environment.usesRemoteServiceTransport else { return }
 
         let liveIDs = Set(snapshot.devices.map(\.id))
+        var didApplySnapshotChange = false
         let liveSoftwareLightingAutoStartKeys = Set(snapshot.devices.map { DevicePersistenceKeys.key(for: $0) })
         remoteSnapshotSoftwareLightingAutoStartKeys.formIntersection(liveSoftwareLightingAutoStartKeys)
         stateCacheByDeviceID = stateCacheByDeviceID.filter { liveIDs.contains($0.key) }
@@ -205,7 +206,10 @@ final class AppStateDeviceController {
                 softwareLightingStatuses[deviceID] = previousStatus
             }
         }
-        deviceStore.softwareLightingStatusByDeviceID = softwareLightingStatuses
+        if previousSoftwareLightingStatuses != softwareLightingStatuses {
+            deviceStore.softwareLightingStatusByDeviceID = softwareLightingStatuses
+            didApplySnapshotChange = true
+        }
 
         for (deviceID, availability) in snapshot.usbControlAvailabilityByDeviceID where liveIDs.contains(deviceID) {
             setUSBControlAvailability(
@@ -244,13 +248,26 @@ final class AppStateDeviceController {
                 )
                 continue
             }
-            stateCacheByDeviceID[deviceID] = remoteState
-            lastUpdatedByDeviceID[deviceID] = snapshotUpdatedAt
+            if stateCacheByDeviceID[deviceID] != remoteState ||
+                lastUpdatedByDeviceID[deviceID] != snapshotUpdatedAt {
+                didApplySnapshotChange = true
+                stateCacheByDeviceID[deviceID] = remoteState
+                lastUpdatedByDeviceID[deviceID] = snapshotUpdatedAt
+            }
             lastStateMutationAtByDeviceID[deviceID] = snapshotUpdatedAt
-            clearConnectionFailureState(sourceDeviceID: deviceID, presentationDeviceID: deviceID)
+            if clearConnectionFailureState(sourceDeviceID: deviceID, presentationDeviceID: deviceID) {
+                didApplySnapshotChange = true
+            }
         }
 
-        _ = applyDeviceList(snapshot.devices, source: "subscription")
+        let sortedSnapshotDevices = snapshot.devices.sorted { $0.product_name < $1.product_name }
+        let selectedDeviceMissing = deviceStore.selectedDeviceID.map { !liveIDs.contains($0) } ?? !sortedSnapshotDevices.isEmpty
+        let shouldApplyDeviceList = deviceStore.devices != sortedSnapshotDevices || selectedDeviceMissing
+        let deviceListChanged = shouldApplyDeviceList
+            ? applyDeviceList(snapshot.devices, source: "subscription")
+            : false
+        didApplySnapshotChange = didApplySnapshotChange || deviceListChanged
+
         for (deviceID, remoteState) in snapshot.stateByDeviceID
             where remoteState.device.transport == .usb &&
             snapshot.usbControlAvailabilityByDeviceID[deviceID]?.blocksUSBControlInteraction != true {
@@ -271,40 +288,76 @@ final class AppStateDeviceController {
                 "pendingLocal=\(applyController.hasPendingLocalEdits) " +
                 "pendingActive=\(applyController.pendingActiveStageSelection(for: selectedDevice).map(String.init) ?? "nil")"
             )
-            deviceStore.state = selectedState
-            deviceStore.lastUpdated = lastUpdatedByDeviceID[selectedDeviceID]
-            let holdsPersistedConnectPresentation = primeSelectedConnectPresentationIfNeeded(
-                device: selectedDevice,
-                applyController: applyController,
-                editorController: editorController
-            )
-            hydrateSelectedEditorPresentation(
-                from: selectedState,
-                device: selectedDevice,
-                holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
-                applyController: applyController,
-                editorController: editorController,
-                scheduleButtonHydration: true
-            )
-            scheduleSelectedDeviceLightingHydration(device: selectedDevice)
-            deviceStore.errorMessage = nil
+            let selectedLastUpdated = lastUpdatedByDeviceID[selectedDeviceID]
+            let selectedStateChanged = deviceStore.state != selectedState
+            let selectedLastUpdatedChanged = deviceStore.lastUpdated != selectedLastUpdated
+            if selectedStateChanged {
+                deviceStore.state = selectedState
+                didApplySnapshotChange = true
+            }
+            if selectedLastUpdatedChanged {
+                deviceStore.lastUpdated = selectedLastUpdated
+                didApplySnapshotChange = true
+            }
+            if selectedStateChanged || selectedLastUpdatedChanged || deviceListChanged {
+                let holdsPersistedConnectPresentation = primeSelectedConnectPresentationIfNeeded(
+                    device: selectedDevice,
+                    applyController: applyController,
+                    editorController: editorController
+                )
+                hydrateSelectedEditorPresentation(
+                    from: selectedState,
+                    device: selectedDevice,
+                    holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
+                    applyController: applyController,
+                    editorController: editorController,
+                    scheduleButtonHydration: true
+                )
+                scheduleSelectedDeviceLightingHydration(device: selectedDevice)
+            }
+            if deviceStore.errorMessage != nil {
+                deviceStore.errorMessage = nil
+                didApplySnapshotChange = true
+            }
             if selectedDevice.transport == .usb, usbControlAvailability(for: selectedDevice).blocksUSBControlInteraction {
-                deviceStore.warningMessage = nil
+                if deviceStore.warningMessage != nil {
+                    deviceStore.warningMessage = nil
+                    didApplySnapshotChange = true
+                }
             } else {
                 setTelemetryWarning(editorController.telemetryWarning(for: selectedState, device: selectedDevice), device: selectedDevice)
             }
         } else if let selectedDeviceID = deviceStore.selectedDeviceID {
-            syncSelectedDevicePresentation(deviceID: selectedDeviceID)
-            deviceStore.errorMessage = nil
+            if deviceListChanged {
+                syncSelectedDevicePresentation(deviceID: selectedDeviceID)
+            }
+            if deviceStore.errorMessage != nil {
+                deviceStore.errorMessage = nil
+                didApplySnapshotChange = true
+            }
         } else {
-            deviceStore.state = nil
-            deviceStore.lastUpdated = nil
-            deviceStore.warningMessage = nil
-            deviceStore.errorMessage = nil
+            if deviceStore.state != nil {
+                deviceStore.state = nil
+                didApplySnapshotChange = true
+            }
+            if deviceStore.lastUpdated != nil {
+                deviceStore.lastUpdated = nil
+                didApplySnapshotChange = true
+            }
+            if deviceStore.warningMessage != nil {
+                deviceStore.warningMessage = nil
+                didApplySnapshotChange = true
+            }
+            if deviceStore.errorMessage != nil {
+                deviceStore.errorMessage = nil
+                didApplySnapshotChange = true
+            }
         }
 
-        Task { [weak self] in
-            await self?.refreshDpiUpdateTransportStatuses(for: snapshot.devices)
+        if didApplySnapshotChange {
+            Task { [weak self] in
+                await self?.refreshDpiUpdateTransportStatuses(for: snapshot.devices)
+            }
         }
     }
 
@@ -1001,7 +1054,8 @@ final class AppStateDeviceController {
     }
 
     func setTelemetryWarning(_ newValue: String?, device: MouseDevice) {
-        if deviceStore.warningMessage != newValue, let newValue {
+        guard deviceStore.warningMessage != newValue else { return }
+        if let newValue {
             AppLog.warning("AppState", "telemetry degraded device=\(device.id) transport=\(device.transport.rawValue): \(newValue)")
         }
         deviceStore.warningMessage = newValue
