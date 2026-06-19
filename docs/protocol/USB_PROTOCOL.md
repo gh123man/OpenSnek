@@ -709,7 +709,7 @@ Unresolved:
 
 ### RGB Lighting (Class 0x0F)
 
-**Status**: Partially implemented. Scroll wheel LED brightness and the zone-effect families below are implemented and hardware-validated. The per-LED Custom Frame command (`Cmd 0x03`) is decoded and hardware-validated on the Basilisk V3 Pro (see [docs/research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md](../research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md)) but not exposed in the OpenSnek app because observed Custom Frame state is volatile across mouse restart. Treat it as a software-driven frame buffer, not a persistable onboard lighting setting.
+**Status**: Partially implemented. Scroll wheel LED brightness and the zone-effect families below are implemented and hardware-validated. The per-LED Custom Frame command (`Cmd 0x03`) is decoded and hardware-validated on the Basilisk V3 Pro (see [docs/research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md](../research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md)) and is exposed in the OpenSnek app as a software-driven V3-family USB underglow effects surface. Observed Custom Frame state is volatile across mouse restart, so treat it as a software-owned frame buffer, not a persistable onboard lighting setting.
 
 Basilisk V3 USB family assumption: wired Basilisk V3, V3 Pro, and V3 35K
 lighting work should default to the shared three-zone `0x0F` model
@@ -753,9 +753,16 @@ setting banks, Custom Frame state has been observed to clear on mouse restart.
 OpenSnek should not present this as saved device state unless a separate
 commit/readback path is decoded later.
 
-Near-term app work should treat this as a software-driven effects surface:
-OpenSnek can stream or reapply Custom Frame data while running, but should not
-model the result as persistent hardware state.
+OpenSnek app behavior: the background service can stream Custom Frame data for
+the 12-cell Basilisk V3 USB underglow-family layout while OpenSnek is running.
+This path is hardware-validated on V3 Pro USB and assumed to match the wired
+Basilisk V3 and Basilisk V3 35K because they share the same three-zone
+scroll/logo/underglow USB lighting model. The shipped presets are `flame`,
+`scrollingRainbow`, `cometChase`, and `aurora`. Normal zone-effect/static-color
+writes stop the active software stream; unrelated DPI, button, poll-rate,
+scroll, and power-setting writes do not. Preset palettes and animation speed are
+app/service renderer inputs only; they do not change the underlying `Cmd 0x03`
+frame payload shape.
 ```
 
 Probe support:
@@ -765,10 +772,22 @@ OpenSnekProbe usb-lighting-frame \
   --colors ff0000,00ff00,0000ff \
   --start-col 0 \
   --pid 0x00aa
+
+OpenSnekProbe usb-lighting-concurrency \
+  --mode both \
+  --frames 90 \
+  --commands 30 \
+  --interval-ms 33 \
+  --response-delay-us 1000 \
+  --pid 0x00ab
 ```
 
 The probe accepts conventional RGB hex values and emits the `Cmd 0x03` payload
-in the device's `[B,R,G]` triplet order.
+in the device's `[B,R,G]` triplet order. The concurrency probe stress-tests
+software frame writes against same-value poll-rate reads/writes; `--mode locked`
+uses OpenSnek's serialized HID path, while `--mode unlocked` intentionally
+bypasses that lock to test whether overlapping feature-report exchanges are
+reliable on the local USB stack.
 
 ---
 

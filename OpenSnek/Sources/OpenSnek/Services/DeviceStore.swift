@@ -18,6 +18,7 @@ final class DeviceStore {
     var warningMessage: String?
     var lastUpdated: Date?
     var connectionDiagnosticsRevision = 0
+    var softwareLightingStatusByDeviceID: [String: SoftwareLightingEngineStatus] = [:]
 
     @ObservationIgnored private weak var deviceControllerStorage: AppStateDeviceController?
     @ObservationIgnored private weak var applyControllerStorage: AppStateApplyController?
@@ -111,6 +112,15 @@ final class DeviceStore {
     var selectedDeviceSupportsPassiveDPIInput: Bool {
         guard let selectedDevice else { return false }
         return resolvedProfile(for: selectedDevice)?.passiveDPIInput != nil
+    }
+
+    var selectedSoftwareLightingStatus: SoftwareLightingEngineStatus? {
+        guard let selectedDeviceID else { return nil }
+        return softwareLightingStatusByDeviceID[selectedDeviceID]
+    }
+
+    var selectedDeviceSupportsSoftwareLightingEffects: Bool {
+        selectedDevice?.supportsSoftwareLightingEffects ?? false
     }
 
     var currentBuildChannel: AppBuildChannel {

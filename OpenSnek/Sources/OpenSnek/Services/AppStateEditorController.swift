@@ -14,6 +14,7 @@ final class AppStateEditorController {
     private let preferenceStore = DevicePreferenceStore()
     private(set) var isHydrating = false
     private var hydratedLightingStateByDeviceID: Set<String> = []
+    private var hydratedSoftwareLightingPreferencesByDeviceID: Set<String> = []
     private var hydratedButtonBindingsKey: String?
     private var buttonBindingsCacheByHydrationKey: [String: [Int: ButtonBindingDraft]] = [:]
     private var buttonBindingsReadbackAttemptedKeys: Set<String> = []
@@ -23,6 +24,7 @@ final class AppStateEditorController {
     private var buttonProfileLiveSourceByDeviceID: [String: ButtonProfileSource] = [:]
     private var buttonProfileLiveBindingsByDeviceID: [String: [Int: ButtonBindingDraft]] = [:]
     private var softwareActiveUSBButtonProfileOverrideByDeviceID: [String: Int] = [:]
+    private var softwareLightingAutoStartInFlightKeys: Set<String> = []
     private var onboardProfileInventoryByDeviceID: [String: OnboardProfileInventory] = [:]
     private var projectedOnboardProfileMetadataByDeviceID: [String: [Int: OnboardProfileMetadata]] = [:]
     private var currentOnboardProfileSnapshotByDeviceID: [String: OnboardProfileSnapshot] = [:]
@@ -281,6 +283,7 @@ final class AppStateEditorController {
     func removeHydratedState(for removedDeviceIDs: Set<String>) {
         guard !removedDeviceIDs.isEmpty else { return }
         hydratedLightingStateByDeviceID.subtract(removedDeviceIDs)
+        hydratedSoftwareLightingPreferencesByDeviceID.subtract(removedDeviceIDs)
         softwareActiveUSBButtonProfileOverrideByDeviceID = softwareActiveUSBButtonProfileOverrideByDeviceID.filter { key, _ in
             !removedDeviceIDs.contains(key)
         }
@@ -704,6 +707,7 @@ final class AppStateEditorController {
 
     func hydrateLightingStateIfNeeded(device: MouseDevice) async {
         guard !isTearingDown else { return }
+        hydrateSoftwareLightingPreferenceStateIfNeeded(device: device)
         guard device.showsLightingControls else {
             editorStore.editableUSBLightingZoneID = "all"
             editorStore.editableLightingEffect = .staticColor
@@ -742,6 +746,7 @@ final class AppStateEditorController {
     @discardableResult
     func hydratePersistedLightingStateIfNeeded(device: MouseDevice) -> Bool {
         guard !isTearingDown else { return false }
+        hydrateSoftwareLightingPreferenceStateIfNeeded(device: device)
         guard !hydratedLightingStateByDeviceID.contains(device.id) else { return false }
         let plan = persistedLightingPresentationPlan(device: device)
         guard let plan else { return false }
@@ -759,6 +764,7 @@ final class AppStateEditorController {
     @discardableResult
     func hydrateConnectPresentationIfNeeded(device: MouseDevice) -> Bool {
         guard !isTearingDown else { return false }
+        hydrateSoftwareLightingPreferenceStateIfNeeded(device: device)
         guard shouldRestorePersistedSettingsOnConnect(for: device),
               let snapshot = loadPersistedSettingsSnapshot(device: device) else {
             _ = hydratePersistedLightingStateIfNeeded(device: device)
@@ -865,6 +871,39 @@ final class AppStateEditorController {
         secondaryColor: RGBColor
     )? {
         preferenceStore.loadPersistedLightingEffect(device: device)
+    }
+
+    private func hydrateSoftwareLightingPreferenceStateIfNeeded(device: MouseDevice) {
+        guard !hydratedSoftwareLightingPreferencesByDeviceID.contains(device.id) else { return }
+        defer { hydratedSoftwareLightingPreferencesByDeviceID.insert(device.id) }
+
+        guard device.supportsSoftwareLightingEffects else {
+            editorStore.editableSoftwareLightingApplyOnConnect = false
+            return
+        }
+
+        editorStore.editableSoftwareLightingApplyOnConnect = preferenceStore
+            .loadSoftwareLightingApplyOnConnect(device: device)
+        if let request = preferenceStore.loadPersistedSoftwareLightingRequest(device: device) {
+            editorStore.applySoftwareLightingEffectRequest(request)
+        }
+    }
+
+    func updateSoftwareLightingApplyOnConnect(_ enabled: Bool) {
+        guard let selectedDevice = deviceStore.selectedDevice else { return }
+        guard selectedDevice.supportsSoftwareLightingEffects else {
+            editorStore.editableSoftwareLightingApplyOnConnect = false
+            return
+        }
+
+        editorStore.editableSoftwareLightingApplyOnConnect = enabled
+        preferenceStore.persistSoftwareLightingApplyOnConnect(enabled, device: selectedDevice)
+        if enabled {
+            preferenceStore.persistSoftwareLightingRequest(
+                editorStore.softwareLightingEffectRequest(),
+                device: selectedDevice
+            )
+        }
     }
 
     func hydrateButtonBindingsIfNeeded(device: MouseDevice) async {
@@ -2650,6 +2689,90 @@ final class AppStateEditorController {
             waveDirection: editorStore.editableLightingWaveDirection,
             reactiveSpeed: editorStore.editableLightingReactiveSpeed
         )
+    }
+
+    func startSoftwareLighting() async {
+        guard let device = deviceStore.selectedDevice else {
+            deviceStore.errorMessage = "No device selected"
+            return
+        }
+        guard device.supportsSoftwareLightingEffects else {
+            deviceStore.errorMessage = "Software lighting is not supported for this device."
+            return
+        }
+
+        let request = editorStore.softwareLightingEffectRequest()
+        preferenceStore.persistSoftwareLightingRequest(request, device: device)
+
+        do {
+            let status = try await environment.backend.startSoftwareLighting(
+                device: device,
+                request: request
+            )
+            deviceStore.softwareLightingStatusByDeviceID[device.id] = status
+            deviceStore.errorMessage = nil
+        } catch {
+            deviceStore.errorMessage = error.localizedDescription
+        }
+    }
+
+    @discardableResult
+    func startPersistedSoftwareLightingOnConnectIfNeeded(for device: MouseDevice) async -> Bool {
+        guard !isTearingDown else { return false }
+        guard device.supportsSoftwareLightingEffects else { return false }
+        guard preferenceStore.loadSoftwareLightingApplyOnConnect(device: device) else { return false }
+
+        let autoStartKey = DevicePersistenceKeys.key(for: device)
+        guard !softwareLightingAutoStartInFlightKeys.contains(autoStartKey) else { return false }
+
+        let request = preferenceStore.loadPersistedSoftwareLightingRequest(device: device)
+            ?? SoftwareLightingEffectRequest(presetID: .flame)
+        if deviceStore.softwareLightingStatusByDeviceID[device.id]?.state == .running,
+           deviceStore.softwareLightingStatusByDeviceID[device.id]?.request == request {
+            return false
+        }
+
+        softwareLightingAutoStartInFlightKeys.insert(autoStartKey)
+        defer {
+            softwareLightingAutoStartInFlightKeys.remove(autoStartKey)
+        }
+
+        do {
+            let status = try await environment.backend.startSoftwareLighting(
+                device: device,
+                request: request
+            )
+            deviceStore.softwareLightingStatusByDeviceID[device.id] = status
+            if deviceStore.selectedDeviceID == device.id {
+                editorStore.editableSoftwareLightingApplyOnConnect = true
+                editorStore.applySoftwareLightingEffectRequest(request)
+                deviceStore.errorMessage = nil
+            }
+            AppLog.event(
+                "AppState",
+                "software lighting auto-started on connect id=\(device.id) preset=\(request.presetID.rawValue)"
+            )
+            return true
+        } catch {
+            AppLog.warning(
+                "AppState",
+                "software lighting auto-start failed id=\(device.id): \(error.localizedDescription)"
+            )
+            if deviceStore.selectedDeviceID == device.id {
+                deviceStore.errorMessage = error.localizedDescription
+            }
+            return false
+        }
+    }
+
+    func stopSoftwareLighting() async {
+        guard let device = deviceStore.selectedDevice else { return }
+        let status = await environment.backend.stopSoftwareLighting(device: device)
+        if let status {
+            deviceStore.softwareLightingStatusByDeviceID[device.id] = status
+        } else {
+            deviceStore.softwareLightingStatusByDeviceID.removeValue(forKey: device.id)
+        }
     }
 
     func persistedSettingsRestorePlan(device: MouseDevice) -> PersistedSettingsRestorePlan? {

@@ -250,6 +250,31 @@ public final class DevicePreferenceStore: @unchecked Sendable {
         return (kind: kind, waveDirection: direction, reactiveSpeed: speed, secondaryColor: color)
     }
 
+    public func persistSoftwareLightingApplyOnConnect(_ enabled: Bool, device: MouseDevice) {
+        guard settingStorageEnabled else { return }
+        defaults.set(enabled, forKey: softwareLightingApplyOnConnectKey(device: device))
+    }
+
+    public func loadSoftwareLightingApplyOnConnect(device: MouseDevice) -> Bool {
+        defaults.bool(forKey: softwareLightingApplyOnConnectKey(device: device))
+    }
+
+    public func persistSoftwareLightingRequest(_ request: SoftwareLightingEffectRequest, device: MouseDevice) {
+        guard settingStorageEnabled else { return }
+        guard let data = try? JSONEncoder().encode(request) else { return }
+        defaults.set(data, forKey: softwareLightingRequestKey(device: device))
+    }
+
+    public func loadPersistedSoftwareLightingRequest(device: MouseDevice) -> SoftwareLightingEffectRequest? {
+        guard
+            let data = defaults.data(forKey: softwareLightingRequestKey(device: device)),
+            let decoded = try? JSONDecoder().decode(SoftwareLightingEffectRequest.self, from: data)
+        else {
+            return nil
+        }
+        return decoded
+    }
+
     public func persistButtonBinding(_ binding: ButtonBindingPatch, device: MouseDevice, profile: Int? = nil) {
         guard settingStorageEnabled else { return }
         var persisted = loadPersistedButtonBindings(device: device, profile: profile)
@@ -374,6 +399,14 @@ public final class DevicePreferenceStore: @unchecked Sendable {
             return "lightingColor.\(deviceKey)"
         }
         return "lightingColor.\(deviceKey).zone.\(normalizedZoneID)"
+    }
+
+    private func softwareLightingApplyOnConnectKey(device: MouseDevice) -> String {
+        "softwareLightingApplyOnConnect.\(DevicePersistenceKeys.key(for: device))"
+    }
+
+    private func softwareLightingRequestKey(device: MouseDevice) -> String {
+        "softwareLightingRequest.\(DevicePersistenceKeys.key(for: device))"
     }
 
     private func normalizedLightingZoneID(_ zoneID: String?) -> String? {

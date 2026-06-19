@@ -614,6 +614,63 @@ extension BridgeClient {
         return wroteAny
     }
 
+    func setUSBLightingCustomFrame(
+        _ session: USBHIDControlSession,
+        _ device: MouseDevice,
+        frame: USBLightingFramePatch
+    ) throws -> Bool {
+        let args = USBHIDProtocol.lightingCustomFrameArgs(
+            storage: frame.storage,
+            row: frame.row,
+            startColumn: frame.startColumn,
+            colors: frame.colors
+        )
+        guard let r = try perform(
+            session,
+            device,
+            classID: 0x0F,
+            cmdID: 0x03,
+            size: UInt8(max(0, min(255, args.count))),
+            args: args,
+            responseAttempts: 8,
+            responseDelayUs: 1_000
+        ) else {
+            return false
+        }
+        return r[0] == 0x02
+    }
+
+    func writeSoftwareLightingFrame(device: MouseDevice, frame: USBLightingFramePatch) async throws {
+        guard device.transport == .usb,
+              let layout = device.softwareLightingFrameLayout else {
+            throw BridgeError.commandFailed("Software lighting frames are not supported for this device")
+        }
+        guard !frame.colors.isEmpty,
+              frame.colors.count <= layout.cellCount else {
+            throw BridgeError.commandFailed("Software lighting frame must contain 1...\(layout.cellCount) cells")
+        }
+
+        let orderedSessions = sessionsFor(device: device)
+        guard !orderedSessions.isEmpty else {
+            if managerAccessDenied {
+                throw BridgeError.commandFailed(
+                    "USB HID access denied by macOS. Enable Input Monitoring for OpenSnek " +
+                    "(or Terminal/Xcode when running via swift run/Xcode), then relaunch."
+                )
+            }
+            throw BridgeError.commandFailed("Device not available")
+        }
+
+        let session = orderedSessions[0]
+        let succeeded = try session.withExclusiveDeviceAccess {
+            try setUSBLightingCustomFrame(session, device, frame: frame)
+        }
+        guard succeeded else {
+            throw BridgeError.commandFailed("Failed to write software lighting frame")
+        }
+        deviceSessions[device.id] = session
+    }
+
     func writableUSBButtonSlots(for device: MouseDevice) -> [UInt8] {
         let layout = device.button_layout
         let slots = layout?.writableSlots ?? ButtonSlotDescriptor.defaults.map(\.slot)

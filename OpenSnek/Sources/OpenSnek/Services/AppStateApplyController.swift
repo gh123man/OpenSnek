@@ -338,6 +338,13 @@ final class AppStateApplyController {
         }
     }
 
+    func scheduleAutoApplyCurrentStaticColorToAllZones() {
+        scheduleAutoApply(key: .lightingEffect, delay: 200_000_000) { [weak self] in
+            guard let self else { return }
+            await self.applyCurrentStaticColorToAllZones()
+        }
+    }
+
     func applyCurrentStaticColorToAllZones() async {
         guard editorStore.editableLightingEffect == .staticColor else { return }
         guard deviceStore.selectedDevice != nil else {
@@ -349,7 +356,7 @@ final class AppStateApplyController {
         cancelScheduledApply(for: .lightingEffect)
 
         if let selectedDevice = deviceStore.selectedDevice,
-           await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice) {
+           await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice, allZones: true) {
             return
         }
 
@@ -492,9 +499,18 @@ final class AppStateApplyController {
         return ids.isEmpty ? [0x01] : ids
     }
 
-    private func currentStaticOnboardProfileColors(for device: MouseDevice) -> [Int: RGBPatch] {
-        Dictionary(
-            uniqueKeysWithValues: onboardProfileLEDIDs(for: device).map { ledID in
+    private func currentStaticOnboardProfileColors(for device: MouseDevice, allZones: Bool = false) -> [Int: RGBPatch] {
+        let targetLEDIDs: [UInt8]
+        if allZones {
+            targetLEDIDs = onboardProfileLEDIDs(for: device)
+        } else if let zoneLEDIDs = editorController.currentUSBLightingZoneLEDIDs(), !zoneLEDIDs.isEmpty {
+            targetLEDIDs = zoneLEDIDs
+        } else {
+            targetLEDIDs = onboardProfileLEDIDs(for: device)
+        }
+
+        return Dictionary(
+            uniqueKeysWithValues: targetLEDIDs.map { ledID in
                 (
                     Int(ledID),
                     RGBPatch(
@@ -507,13 +523,16 @@ final class AppStateApplyController {
         )
     }
 
-    private func applyCurrentStaticOnboardProfileColorsIfSupported(for device: MouseDevice) async -> Bool {
+    private func applyCurrentStaticOnboardProfileColorsIfSupported(
+        for device: MouseDevice,
+        allZones: Bool = false
+    ) async -> Bool {
         guard supportsOnboardProfileLightingEditorWrites(device: device),
               (editorStore.editableLightingEffect == .staticColor || !device.supports_advanced_lighting_effects) else {
             return false
         }
         return await applyOnboardProfileMutationForCurrentSelection(
-            OnboardProfileMutation(staticColorByLEDID: currentStaticOnboardProfileColors(for: device))
+            OnboardProfileMutation(staticColorByLEDID: currentStaticOnboardProfileColors(for: device, allZones: allZones))
         )
     }
 
@@ -1003,6 +1022,8 @@ final class AppStateApplyController {
         let start = Date()
         let applyDeviceID = targetDevice.id
 
+        await stopSoftwareLightingIfNormalLightingPatch(patch, device: targetDevice)
+
         do {
             let next: MouseState
             if let configurableBackend = environment.backend as? any ApplyOptionsSupportingBackend {
@@ -1131,6 +1152,18 @@ final class AppStateApplyController {
                 AppLog.debug("AppState", "apply failure masked for non-selected restore device=\(targetDevice.id)")
             }
             return false
+        }
+    }
+
+    private func stopSoftwareLightingIfNormalLightingPatch(_ patch: DevicePatch, device: MouseDevice) async {
+        guard patch.ledRGB != nil || patch.lightingEffect != nil else { return }
+        guard device.supportsSoftwareLightingEffects else { return }
+
+        let status = await environment.backend.stopSoftwareLighting(device: device)
+        if let status {
+            deviceStore.softwareLightingStatusByDeviceID[device.id] = status
+        } else {
+            deviceStore.softwareLightingStatusByDeviceID.removeValue(forKey: device.id)
         }
     }
 

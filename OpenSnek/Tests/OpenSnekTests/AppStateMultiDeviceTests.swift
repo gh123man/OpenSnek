@@ -214,6 +214,65 @@ final class AppStateMultiDeviceTests: XCTestCase {
         XCTAssertEqual(presentedDpi, 800)
     }
 
+    func testSelectedUSBTelemetryUnavailableWithCacheSurvivesDeviceListSync() async {
+        let usbDevice = makeTestDevice(
+            id: "usb-selected-telemetry-cached-sync",
+            productName: "Alpha Mouse",
+            transport: .usb,
+            serial: "USB-SELECTED-TELEMETRY-CACHED",
+            locationID: 1,
+            profile: .basiliskV3Pro
+        )
+        let backend = DeviceListUpdatingStubBackend(
+            devices: [usbDevice],
+            stateByDeviceID: [
+                usbDevice.id: makeTestState(
+                    device: usbDevice,
+                    connection: "usb",
+                    batteryPercent: 81,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0,
+                    dpiValue: 800
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        let telemetryUnavailable = "USB device telemetry unavailable. Feature-report interface did not return usable responses."
+
+        await appState.deviceStore.refreshDevices()
+        let initialReadCount = await backend.readCount(for: usbDevice.id)
+        await backend.setTransientReadFailures([telemetryUnavailable], for: usbDevice.id)
+
+        let refreshed = await appState.deviceController.refreshState(for: usbDevice)
+        let failedReadCount = await backend.readCount(for: usbDevice.id)
+        let stateAfterFailure = await MainActor.run { appState.deviceStore.state }
+        let connectionAfterFailure = await MainActor.run {
+            appState.deviceStore.connectionState(for: usbDevice)
+        }
+        await appState.deviceController.handleBackendDeviceListUpdate([usbDevice])
+        let readCountAfterDeviceListUpdate = await backend.readCount(for: usbDevice.id)
+        let stateAfterDeviceListUpdate = await MainActor.run { appState.deviceStore.state }
+        let connectionAfterDeviceListUpdate = await MainActor.run {
+            appState.deviceStore.connectionState(for: usbDevice)
+        }
+        let connectionAfterIdle = await MainActor.run {
+            appState.deviceStore.connectionState(for: usbDevice)
+        }
+        let stateAfterIdle = await MainActor.run { appState.deviceStore.state }
+
+        XCTAssertFalse(refreshed)
+        XCTAssertEqual(failedReadCount, initialReadCount + 1)
+        XCTAssertEqual(stateAfterFailure?.dpi?.x, 800)
+        XCTAssertNotEqual(connectionAfterFailure, .disconnected)
+        XCTAssertEqual(readCountAfterDeviceListUpdate, failedReadCount)
+        XCTAssertEqual(stateAfterDeviceListUpdate?.dpi?.x, 800)
+        XCTAssertNotEqual(connectionAfterDeviceListUpdate, .disconnected)
+        XCTAssertEqual(stateAfterIdle?.dpi?.x, 800)
+        XCTAssertEqual(connectionAfterIdle, .connected)
+    }
+
     func testSelectedUSBTelemetryUnavailableWithoutCacheShowsDisconnectedWithoutError() async {
         let usbDevice = makeTestDevice(
             id: "usb-selected-telemetry-no-cache",
@@ -366,19 +425,14 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let refreshed = await appState.deviceController.refreshState(for: usbDevice)
         let failedReadCount = await backend.readCount(for: usbDevice.id)
         let statusAfterFailure = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
-        await MainActor.run {
-            appState.deviceController.updateUSBLiveObservationExpiryDiagnostics(
-                now: Date().addingTimeInterval(5)
-            )
-        }
-        let statusAfterObservationExpiry = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
+        let statusAfterIdle = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
         await appState.deviceController.handleBackendDeviceListUpdate([usbDevice])
         let readCountAfterStableSubscription = await backend.readCount(for: usbDevice.id)
 
         XCTAssertFalse(refreshed)
         XCTAssertEqual(failedReadCount, initialReadCount + 1)
         XCTAssertEqual(statusAfterFailure, "Connected")
-        XCTAssertEqual(statusAfterObservationExpiry, "Disconnected")
+        XCTAssertEqual(statusAfterIdle, "Connected")
         XCTAssertEqual(readCountAfterStableSubscription, failedReadCount)
     }
 
@@ -534,7 +588,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
         XCTAssertEqual(selectedDpi, 4800)
     }
 
-    func testSelectedUnavailableDeviceShowsDisconnectedAfterUSBLiveObservationExpires() async {
+    func testSelectedUnavailableDeviceWithCachedStateStaysConnectedUntilConcreteRemoval() async {
         let usbDevice = makeTestDevice(
             id: "usb-dongle",
             productName: "Zeta Mouse",
@@ -564,17 +618,17 @@ final class AppStateMultiDeviceTests: XCTestCase {
         await appState.deviceStore.refreshState()
         await appState.deviceStore.pollDevicePresence()
         let immediateStatus = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
+        let immediateControlsEnabled = await MainActor.run { appState.deviceStore.selectedDeviceControlsEnabled }
 
         await MainActor.run {
-            appState.deviceController.updateUSBLiveObservationExpiryDiagnostics(
-                now: Date().addingTimeInterval(5)
-            )
+            _ = appState.deviceController.applyDeviceList([], source: "test")
         }
 
         let status = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
         let controlsEnabled = await MainActor.run { appState.deviceStore.selectedDeviceControlsEnabled }
 
         XCTAssertEqual(immediateStatus, "Connected")
+        XCTAssertTrue(immediateControlsEnabled)
         XCTAssertEqual(status, "Disconnected")
         XCTAssertFalse(controlsEnabled)
     }
@@ -2126,7 +2180,7 @@ private actor DisconnectingMultiDeviceStubBackend: DeviceBackend {
     func readState(device: MouseDevice) async throws -> MouseState {
         if unavailable {
             throw NSError(domain: "AppStateMultiDeviceTests", code: 6, userInfo: [
-                NSLocalizedDescriptionKey: "USB device telemetry unavailable. Feature-report interface did not return usable responses."
+                NSLocalizedDescriptionKey: "Device not available"
             ])
         }
         guard let state = stateByDeviceID[device.id] else {

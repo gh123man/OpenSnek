@@ -828,8 +828,22 @@ struct LightingCard: View {
     let selected: MouseDevice
     let swatches: [LightingSwatch]
 
+    @State private var selectedTab: LightingCardTab = .onboard
+    @State private var onboardZoneMode: LightingZoneEditMode = .allZones
+    @State private var isExpanded = false
+
     private var accentBase: Color {
         Color(rgb: editorStore.editableColor)
+    }
+
+    private var actionAccent: Color {
+        Color(hex: 0x0A84FF)
+    }
+
+    private var preferredLightingTab: LightingCardTab {
+        editorStore.editableSoftwareLightingApplyOnConnect && selected.supportsSoftwareLightingEffects
+            ? .advanced
+            : .onboard
     }
 
     private var accentOpacity: Double {
@@ -837,29 +851,64 @@ struct LightingCard: View {
         return 0.10 + (brightness * 0.22)
     }
 
-    private var showsStaticLightingZonePicker: Bool {
+    private var showsStaticLightingZoneControls: Bool {
         editorStore.editableLightingEffect == .staticColor &&
             editorStore.visibleUSBLightingZones.count > 1
     }
 
-    private var defaultGradientColors: [Color] {
+    private var singleColorGradientColors: [Color] {
         [
             accentBase.opacity(accentOpacity),
             Color.white.opacity(0.05),
         ]
     }
 
-    private var zoneGradientColors: [Color] {
-        let displayColors = editorStore.lightingGradientDisplayColors
-        guard let firstColor = displayColors.first else {
-            return defaultGradientColors
+    private var lightingCardGradientColors: [Color] {
+        if usesSoftwareLightingPaletteForCard {
+            return softwareLightingGradientColors
         }
-        guard displayColors.dropFirst().contains(where: { $0 != firstColor }) else {
-            return defaultGradientColors
+
+        return onboardLightingGradientColors
+    }
+
+    private var usesSoftwareLightingPaletteForCard: Bool {
+        selected.supportsSoftwareLightingEffects &&
+            (softwareLightingIsRunning || (isExpanded && selectedTab == .advanced))
+    }
+
+    private var onboardLightingGradientColors: [Color] {
+        gradientColors(
+            from: editorStore.lightingGradientDisplayColors,
+            fallback: editorStore.editableColor
+        )
+    }
+
+    private var softwareLightingGradientColors: [Color] {
+        let defaultPalette = editorStore.editableSoftwareLightingPreset.defaultPalette
+        let fallbackColor = defaultPalette.first.map {
+            RGBColor(r: $0.r, g: $0.g, b: $0.b)
+        } ?? editorStore.editableColor
+
+        return gradientColors(
+            from: editorStore.editableSoftwareLightingPalette(for: editorStore.editableSoftwareLightingPreset),
+            fallback: fallbackColor
+        )
+    }
+
+    private func gradientColors(from displayColors: [RGBColor], fallback: RGBColor) -> [Color] {
+        let colors = displayColors.isEmpty ? [fallback] : displayColors
+        guard let firstColor = colors.first else {
+            return singleColorGradientColors
+        }
+        guard colors.dropFirst().contains(where: { $0 != firstColor }) else {
+            return [
+                Color(rgb: firstColor).opacity(accentOpacity),
+                Color.white.opacity(0.05),
+            ]
         }
 
         let overlayOpacity = max(0.10, accentOpacity * 0.9)
-        return displayColors.map {
+        return colors.map {
             Color(rgb: $0).opacity(overlayOpacity)
         }
     }
@@ -868,57 +917,85 @@ struct LightingCard: View {
         Int(round((Double(max(0, min(255, editorStore.editableLedBrightness))) / 255.0) * 100.0))
     }
 
-    @ViewBuilder
-    private func staticLightingZoneEditor() -> some View {
-        if showsStaticLightingZonePicker {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 12) {
-                    Text("Editing Zone")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.82))
-                    Spacer(minLength: 8)
-                    Picker(
-                        "",
-                        selection: Binding(
-                            get: { editorStore.editableUSBLightingZoneID },
-                            set: {
-                                editorStore.updateUSBLightingZoneID($0)
-                            }
-                        )
-                    ) {
-                        ForEach(editorStore.visibleUSBLightingZones) { zone in
-                            Text(zone.label).tag(zone.id)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 340, alignment: .trailing)
-                    .accessibilityIdentifier("lighting-zone-picker")
-                }
+    private var softwareLightingStatus: SoftwareLightingEngineStatus? {
+        editorStore.deviceStore.softwareLightingStatusByDeviceID[selected.id]
+    }
 
-                HStack(alignment: .center, spacing: 12) {
-                    Text("Color edits affect only the selected zone.")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.58))
+    private var softwareLightingIsRunning: Bool {
+        softwareLightingStatus?.state == .running
+    }
 
-                    Spacer()
+    private var summarizesSoftwareLighting: Bool {
+        selected.supportsSoftwareLightingEffects && softwareLightingIsRunning
+    }
 
-                    Button("Apply Color to All Zones") {
-                        Task {
-                            await editorStore.applyCurrentStaticColorToAllZones()
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .tint(accentBase)
-                    .accessibilityIdentifier("lighting-apply-all-zones-button")
-                }
-            }
+    private var lightingSummaryTitle: String {
+        if summarizesSoftwareLighting {
+            return editorStore.editableSoftwareLightingPreset.label
+        }
+
+        return "Onboard \(editorStore.editableLightingEffect.label)"
+    }
+
+    private var lightingSummarySwatches: [RGBColor] {
+        let source: [RGBColor]
+        if summarizesSoftwareLighting {
+            source = editorStore.editableSoftwareLightingPalette(for: editorStore.editableSoftwareLightingPreset)
+        } else {
+            let colors = editorStore.lightingGradientDisplayColors
+            source = colors.isEmpty ? [editorStore.editableColor] : colors
+        }
+
+        return condensedSwatches(from: source)
+    }
+
+    private var advancedStatusText: String? {
+        guard let status = softwareLightingStatus else { return nil }
+        switch status.state {
+        case .running:
+            return "Running \(status.request?.presetID.label ?? "effect")"
+        case .suspended, .failed:
+            return status.message
+        case .stopped:
+            return nil
         }
     }
 
-    var body: some View {
-        Card(title: "Lighting", accessibilityIdentifier: "lighting-card") {
+    private func condensedSwatches(from colors: [RGBColor]) -> [RGBColor] {
+        var uniqueColors: [RGBColor] = []
+        for color in colors {
+            if !uniqueColors.contains(color) {
+                uniqueColors.append(color)
+            }
+            if uniqueColors.count == 6 {
+                break
+            }
+        }
+        return uniqueColors.isEmpty ? [editorStore.editableColor] : uniqueColors
+    }
+
+    private var tabSelection: Binding<LightingCardTab> {
+        Binding(
+            get: { selectedTab },
+            set: { selectedTab = $0 }
+        )
+    }
+
+    @ViewBuilder
+    private func tabPicker() -> some View {
+        Picker("", selection: tabSelection) {
+            ForEach(LightingCardTab.allCases) { tab in
+                Text(tab.label).tag(tab)
+            }
+        }
+        .labelsHidden()
+        .pickerStyle(.segmented)
+        .accessibilityIdentifier("lighting-card-tab-picker")
+    }
+
+    @ViewBuilder
+    private func brightnessControls() -> some View {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Brightness")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -941,132 +1018,257 @@ struct LightingCard: View {
                 in: 0...100
             )
             .tint(accentBase)
-            .padding(.vertical, 8)
             .accessibilityIdentifier("lighting-brightness-slider")
+        }
+    }
 
-            if !selected.supports_advanced_lighting_effects {
-                staticLightingZoneEditor()
-
-                LightingColorEditor(
-                    title: "Color",
-                    identifierPrefix: "lighting-color",
-                    color: Binding(
-                        get: { editorStore.editableColor },
+    @ViewBuilder
+    private func onboardPresetPicker() -> some View {
+        if selected.supports_advanced_lighting_effects {
+            HStack {
+                Text("Preset")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.82))
+                Spacer()
+                Picker(
+                    "",
+                    selection: Binding(
+                        get: { editorStore.editableLightingEffect },
                         set: {
-                            editorStore.editableColor = $0
-                            editorStore.scheduleAutoApplyLedColor()
+                            editorStore.updateLightingEffect($0)
+                            editorStore.scheduleAutoApplyLightingEffect()
                         }
-                    ),
+                    )
+                ) {
+                    ForEach(editorStore.visibleLightingEffects) { kind in
+                        Text(kind.label).tag(kind)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 220, alignment: .trailing)
+                .accessibilityIdentifier("lighting-effect-picker")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func onboardEffectOptions() -> some View {
+        if editorStore.editableLightingEffect.usesWaveDirection {
+            HStack {
+                Text("Direction")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.82))
+                Spacer()
+                Picker(
+                    "Direction",
+                    selection: Binding(
+                        get: { editorStore.editableLightingWaveDirection },
+                        set: {
+                            editorStore.updateLightingWaveDirection($0)
+                            editorStore.scheduleAutoApplyLightingEffect()
+                        }
+                    )
+                ) {
+                    Text("Left").tag(LightingWaveDirection.left)
+                    Text("Right").tag(LightingWaveDirection.right)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 220)
+                .accessibilityIdentifier("lighting-direction-picker")
+            }
+        }
+
+        if editorStore.editableLightingEffect.usesReactiveSpeed {
+            HStack {
+                Text("Speed")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.82))
+                Spacer()
+                Picker(
+                    "Speed",
+                    selection: Binding(
+                        get: { editorStore.editableLightingReactiveSpeed },
+                        set: {
+                            editorStore.updateLightingReactiveSpeed($0)
+                            editorStore.scheduleAutoApplyLightingEffect()
+                        }
+                    )
+                ) {
+                    Text("1").tag(1)
+                    Text("2").tag(2)
+                    Text("3").tag(3)
+                    Text("4").tag(4)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 220)
+                .accessibilityIdentifier("lighting-speed-picker")
+            }
+        }
+    }
+
+    private func colorForZone(_ zone: USBLightingZoneDescriptor) -> RGBColor {
+        let colors = editorStore.lightingGradientDisplayColors
+        guard let index = editorStore.visibleUSBLightingZones.firstIndex(where: { $0.id == zone.id }),
+              colors.indices.contains(index) else {
+            return editorStore.editableColor
+        }
+        return colors[index]
+    }
+
+    private func scheduleStaticColorApply(allZones: Bool) {
+        if allZones {
+            editorStore.scheduleAutoApplyCurrentStaticColorToAllZones()
+        } else if selected.supports_advanced_lighting_effects {
+            editorStore.scheduleAutoApplyLightingEffect()
+        } else {
+            editorStore.scheduleAutoApplyLedColor()
+        }
+    }
+
+    private func allZonesColorBinding() -> Binding<RGBColor> {
+        Binding(
+            get: { editorStore.editableColor },
+            set: { color in
+                editorStore.editableUSBLightingZoneID = "all"
+                editorStore.editableColor = color
+                scheduleStaticColorApply(allZones: true)
+            }
+        )
+    }
+
+    private func zoneColorBinding(_ zone: USBLightingZoneDescriptor) -> Binding<RGBColor> {
+        Binding(
+            get: { colorForZone(zone) },
+            set: { color in
+                editorStore.editableUSBLightingZoneID = zone.id
+                editorStore.editableColor = color
+                scheduleStaticColorApply(allZones: false)
+            }
+        )
+    }
+
+    private func primaryColorBinding(title _: String = "Primary Color") -> Binding<RGBColor> {
+        Binding(
+            get: { editorStore.editableColor },
+            set: { color in
+                editorStore.editableColor = color
+                editorStore.scheduleAutoApplyLightingEffect()
+            }
+        )
+    }
+
+    private func secondaryColorBinding() -> Binding<RGBColor> {
+        Binding(
+            get: { editorStore.editableSecondaryColor },
+            set: { color in
+                editorStore.editableSecondaryColor = color
+                editorStore.scheduleAutoApplyLightingEffect()
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func onboardColorControls() -> some View {
+        if editorStore.editableLightingEffect == .staticColor || !selected.supports_advanced_lighting_effects {
+            VStack(alignment: .leading, spacing: 10) {
+                if showsStaticLightingZoneControls {
+                    HStack(spacing: 12) {
+                        Text("Zones")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.82))
+                        Spacer(minLength: 8)
+                        Picker(
+                            "",
+                            selection: Binding(
+                                get: { onboardZoneMode },
+                                set: { onboardZoneMode = $0 }
+                            )
+                        ) {
+                            ForEach(LightingZoneEditMode.allCases) { mode in
+                                Text(mode.label).tag(mode)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .frame(width: 220)
+                        .accessibilityIdentifier("lighting-zone-mode-picker")
+                    }
+                }
+
+                if showsStaticLightingZoneControls && onboardZoneMode == .individualZones {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(editorStore.visibleUSBLightingZones) { zone in
+                            LightingColorOrbRow(
+                                title: zone.label,
+                                identifierPrefix: "lighting-zone-\(zone.id)",
+                                color: zoneColorBinding(zone),
+                                swatches: swatches
+                            )
+                        }
+                    }
+                } else {
+                    LightingColorOrbRow(
+                        title: showsStaticLightingZoneControls ? "All Zones" : "Color",
+                        identifierPrefix: "lighting-all-zones",
+                        color: allZonesColorBinding(),
+                        swatches: swatches
+                    )
+                }
+            }
+        } else {
+            if editorStore.editableLightingEffect.usesPrimaryColor {
+                LightingColorOrbRow(
+                    title: "Primary Color",
+                    identifierPrefix: "lighting-primary-color",
+                    color: primaryColorBinding(),
                     swatches: swatches
                 )
-            } else {
-                HStack {
-                    Text("Profile")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.82))
-                    Spacer()
-                    Picker(
-                        "",
-                        selection: Binding(
-                            get: { editorStore.editableLightingEffect },
-                            set: {
-                                editorStore.updateLightingEffect($0)
-                                editorStore.scheduleAutoApplyLightingEffect()
-                            }
-                        )
-                    ) {
-                        ForEach(editorStore.visibleLightingEffects) { kind in
-                            Text(kind.label).tag(kind)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(width: 220, alignment: .trailing)
-                    .accessibilityIdentifier("lighting-effect-picker")
-                }
+            }
 
-                if editorStore.editableLightingEffect.usesWaveDirection {
-                    HStack {
-                        Text("Direction")
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.82))
-                        Spacer()
-                        Picker(
-                            "Direction",
-                            selection: Binding(
-                                get: { editorStore.editableLightingWaveDirection },
-                                set: {
-                                    editorStore.updateLightingWaveDirection($0)
-                                    editorStore.scheduleAutoApplyLightingEffect()
-                                }
-                            )
-                        ) {
-                            Text("Left").tag(LightingWaveDirection.left)
-                            Text("Right").tag(LightingWaveDirection.right)
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(width: 220)
-                        .accessibilityIdentifier("lighting-direction-picker")
-                    }
-                }
+            if editorStore.editableLightingEffect.usesSecondaryColor {
+                LightingColorOrbRow(
+                    title: "Secondary Color",
+                    identifierPrefix: "lighting-secondary-color",
+                    color: secondaryColorBinding(),
+                    swatches: swatches
+                )
+            }
+        }
+    }
 
-                if editorStore.editableLightingEffect.usesReactiveSpeed {
-                    HStack {
-                        Text("Speed")
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.82))
-                        Spacer()
-                        Picker(
-                            "Speed",
-                            selection: Binding(
-                                get: { editorStore.editableLightingReactiveSpeed },
-                                set: {
-                                    editorStore.updateLightingReactiveSpeed($0)
-                                    editorStore.scheduleAutoApplyLightingEffect()
-                                }
-                            )
-                        ) {
-                            Text("1").tag(1)
-                            Text("2").tag(2)
-                            Text("3").tag(3)
-                            Text("4").tag(4)
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(width: 220)
-                        .accessibilityIdentifier("lighting-speed-picker")
-                    }
-                }
+    @ViewBuilder
+    private func onboardControls() -> some View {
+        lightingNotice(
+            systemImage: "memorychip.fill",
+            iconColor: actionAccent,
+            text: "Onboard lighting is stored on the device and survives restart and reconnect."
+        )
 
-                if editorStore.editableLightingEffect.usesPrimaryColor {
-                    staticLightingZoneEditor()
+        brightnessControls()
+            .padding(.vertical, 2)
 
-                    LightingColorEditor(
-                        title: "Primary Color",
-                        identifierPrefix: "lighting-primary-color",
-                        color: Binding(
-                            get: { editorStore.editableColor },
-                            set: {
-                                editorStore.editableColor = $0
-                                editorStore.scheduleAutoApplyLightingEffect()
-                            }
-                        ),
-                        swatches: swatches
-                    )
-                }
+        onboardPresetPicker()
+        onboardEffectOptions()
+        onboardColorControls()
+    }
 
-                if editorStore.editableLightingEffect.usesSecondaryColor {
-                    LightingColorEditor(
-                        title: "Secondary Color",
-                        identifierPrefix: "lighting-secondary-color",
-                        color: Binding(
-                            get: { editorStore.editableSecondaryColor },
-                            set: {
-                                editorStore.editableSecondaryColor = $0
-                                editorStore.scheduleAutoApplyLightingEffect()
-                            }
-                        ),
-                        swatches: swatches
-                    )
+    var body: some View {
+        Card(title: "Lighting", accessibilityIdentifier: "lighting-card") {
+            lightingSummaryRow()
+
+            if isExpanded {
+                Rectangle()
+                    .fill(Color.white.opacity(0.12))
+                    .frame(height: 1)
+                    .padding(.vertical, 2)
+
+                tabPicker()
+
+                if selectedTab == .onboard {
+                    onboardControls()
+                } else {
+                    advancedLightingControls()
                 }
             }
         }
@@ -1074,11 +1276,546 @@ struct LightingCard: View {
             RoundedRectangle(cornerRadius: 14)
                 .fill(
                     LinearGradient(
-                        colors: zoneGradientColors,
+                        colors: lightingCardGradientColors,
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
+        )
+        .onAppear {
+            selectedTab = preferredLightingTab
+        }
+        .onChange(of: selected.id) {
+            selectedTab = preferredLightingTab
+            isExpanded = false
+        }
+        .onChange(of: editorStore.editableSoftwareLightingApplyOnConnect) { _, enabled in
+            if enabled && selected.supportsSoftwareLightingEffects {
+                selectedTab = .advanced
+            }
+        }
+    }
+
+    private func lightingSummaryRow() -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(lightingSummaryTitle)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.88))
+                    .lineLimit(1)
+                    .accessibilityIdentifier("lighting-card-summary-text")
+            }
+
+            Spacer(minLength: 10)
+
+            HStack(spacing: -3) {
+                ForEach(Array(lightingSummarySwatches.enumerated()), id: \.offset) { _, color in
+                    Circle()
+                        .fill(Color(rgb: color))
+                        .frame(width: 15, height: 15)
+                        .overlay(Circle().stroke(Color.white.opacity(0.62), lineWidth: 1))
+                }
+            }
+            .padding(.horizontal, 3)
+            .accessibilityHidden(true)
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.16)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                Label(isExpanded ? "Collapse" : "Expand", systemImage: isExpanded ? "chevron.up" : "chevron.down")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .accessibilityIdentifier("lighting-card-expand-button")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func advancedLightingControls() -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            lightingNotice(
+                systemImage: "bolt.horizontal.circle.fill",
+                iconColor: actionAccent,
+                text: "Advanced effects run only while OpenSnek is running."
+            )
+
+            if selected.supportsSoftwareLightingEffects {
+                HStack(spacing: 12) {
+                    Text("Preset")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.82))
+
+                    Spacer(minLength: 12)
+
+                    Picker(
+                        "",
+                        selection: Binding(
+                            get: { editorStore.editableSoftwareLightingPreset },
+                            set: { editorStore.updateEditableSoftwareLightingPreset($0) }
+                        )
+                    ) {
+                        ForEach(SoftwareLightingPresetID.allCases) { preset in
+                            Text(preset.label).tag(preset)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(width: 190, alignment: .trailing)
+                    .accessibilityIdentifier("software-lighting-preset-picker")
+                }
+
+                softwareLightingSpeedControl()
+
+                SoftwareLightingPaletteEditor(
+                    preset: editorStore.editableSoftwareLightingPreset,
+                    palette: Binding(
+                        get: {
+                            editorStore.editableSoftwareLightingPalette(
+                                for: editorStore.editableSoftwareLightingPreset
+                            )
+                        },
+                        set: {
+                            editorStore.setEditableSoftwareLightingPalette(
+                                $0,
+                                for: editorStore.editableSoftwareLightingPreset
+                            )
+                        }
+                    ),
+                    swatches: swatches,
+                    onAdd: {
+                        editorStore.addEditableSoftwareLightingPaletteColor(
+                            for: editorStore.editableSoftwareLightingPreset
+                        )
+                    },
+                    onRemove: { index in
+                        editorStore.removeEditableSoftwareLightingPaletteColor(
+                            at: index,
+                            for: editorStore.editableSoftwareLightingPreset
+                        )
+                    },
+                    onReset: {
+                        editorStore.resetEditableSoftwareLightingPalette(
+                            for: editorStore.editableSoftwareLightingPreset
+                        )
+                    }
+                )
+
+                if let advancedStatusText {
+                    Text(advancedStatusText)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.58))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("software-lighting-status-text")
+                }
+
+                softwareLightingActionRow()
+            } else {
+                Text("Advanced software effects are available on Basilisk V3 USB devices with underglow.")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func softwareLightingActionRow() -> some View {
+        HStack(spacing: 12) {
+            softwareLightingApplyOnConnectToggle()
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 10) {
+                if softwareLightingIsRunning {
+                    Button {
+                        Task {
+                            await editorStore.stopSoftwareLighting()
+                        }
+                    } label: {
+                        Label("Stop", systemImage: "stop.fill")
+                            .frame(minWidth: 106)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .tint(Color(hex: 0xFF453A))
+                    .accessibilityIdentifier("software-lighting-stop-button")
+                }
+
+                Button {
+                    Task {
+                        await editorStore.startSoftwareLighting()
+                    }
+                } label: {
+                    Label("Apply", systemImage: "checkmark.circle.fill")
+                        .frame(minWidth: softwareLightingIsRunning ? 106 : 148)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(actionAccent)
+                .accessibilityIdentifier("software-lighting-apply-button")
+            }
+        }
+    }
+
+    private func softwareLightingApplyOnConnectToggle() -> some View {
+        Toggle(
+            isOn: Binding(
+                get: { editorStore.editableSoftwareLightingApplyOnConnect },
+                set: { editorStore.updateSoftwareLightingApplyOnConnect($0) }
+            )
+        ) {
+            Text("Apply on connect")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.82))
+        }
+        .toggleStyle(.checkbox)
+        .accessibilityIdentifier("software-lighting-apply-on-connect-checkbox")
+    }
+
+    private func lightingNotice(systemImage: String, iconColor: Color, text: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(iconColor)
+
+            Text(text)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.68))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func softwareLightingSpeedControl() -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Speed")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.82))
+                Spacer()
+                Text(editorStore.editableSoftwareLightingSpeed <= 0.001
+                    ? "Static"
+                    : "\(Int(round(editorStore.editableSoftwareLightingSpeed * 100)))%")
+                    .font(.system(size: 13, weight: .black, design: .monospaced))
+                    .foregroundStyle(.white)
+            }
+
+            Slider(
+                value: Binding(
+                    get: { editorStore.editableSoftwareLightingSpeed * 100.0 },
+                    set: { editorStore.editableSoftwareLightingSpeed = max(0.0, min(2.0, $0 / 100.0)) }
+                ),
+                in: 0...200
+            )
+            .tint(.white)
+            .accessibilityIdentifier("software-lighting-speed-slider")
+        }
+    }
+}
+
+private enum LightingCardTab: String, CaseIterable, Identifiable {
+    case onboard
+    case advanced
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .onboard:
+            return "Onboard"
+        case .advanced:
+            return "Advanced"
+        }
+    }
+}
+
+private enum LightingZoneEditMode: String, CaseIterable, Identifiable {
+    case allZones
+    case individualZones
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .allZones:
+            return "All Zones"
+        case .individualZones:
+            return "Individual Zones"
+        }
+    }
+}
+
+struct LightingColorOrbRow: View {
+    let title: String
+    let identifierPrefix: String
+    @Binding var color: RGBColor
+    let swatches: [LightingSwatch]
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.82))
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            Spacer(minLength: 12)
+
+            LightingColorOrbPicker(
+                title: title,
+                identifierPrefix: identifierPrefix,
+                color: $color,
+                swatches: swatches
+            )
+        }
+        .frame(minHeight: 44)
+    }
+}
+
+struct LightingColorOrbPicker: View {
+    let title: String
+    let identifierPrefix: String
+    @Binding var color: RGBColor
+    let swatches: [LightingSwatch]
+
+    @State private var showsEditor = false
+    @State private var colorAtEditorOpen: RGBColor?
+    @State private var recentColors: [RGBColor] = []
+
+    var body: some View {
+        Button {
+            colorAtEditorOpen = color
+            showsEditor = true
+        } label: {
+            Circle()
+                .fill(Color(rgb: color))
+                .frame(width: 28, height: 28)
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.82), lineWidth: 1.5)
+                )
+                .shadow(color: Color(rgb: color).opacity(0.38), radius: 6, y: 0)
+                .padding(8)
+        }
+        .frame(width: 44, height: 44)
+        .buttonStyle(.plain)
+        .help(title)
+        .accessibilityLabel(title)
+        .accessibilityIdentifier("\(identifierPrefix)-orb-button")
+        .onChange(of: showsEditor) { _, isPresented in
+            guard !isPresented else { return }
+            if colorAtEditorOpen != color {
+                remember(color)
+            }
+            colorAtEditorOpen = nil
+        }
+        .popover(isPresented: $showsEditor, arrowEdge: .trailing) {
+            LightingColorPopoverEditor(
+                title: title,
+                identifierPrefix: identifierPrefix,
+                color: $color,
+                swatches: swatches,
+                recentColors: $recentColors
+            )
+            .frame(width: 300)
+            .padding(12)
+        }
+    }
+
+    private func remember(_ next: RGBColor) {
+        recentColors.removeAll { $0 == next }
+        recentColors.insert(next, at: 0)
+        if recentColors.count > 8 {
+            recentColors = Array(recentColors.prefix(8))
+        }
+    }
+}
+
+struct LightingColorPopoverEditor: View {
+    let title: String
+    let identifierPrefix: String
+    @Binding var color: RGBColor
+    let swatches: [LightingSwatch]
+    @Binding var recentColors: [RGBColor]
+
+    private var colorPickerBinding: Binding<Color> {
+        Binding(
+            get: { Color(rgb: color) },
+            set: {
+                color = RGBColor.fromColor($0)
+            }
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.88))
+
+            colorRow(title: "Presets", colors: swatches.map(\.rgb), identifier: "preset")
+
+            if !recentColors.isEmpty {
+                colorRow(title: "Recent", colors: recentColors, identifier: "recent")
+            }
+
+            ColorPicker("Picker", selection: colorPickerBinding, supportsOpacity: false)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.76))
+                .accessibilityIdentifier("\(identifierPrefix)-system-color-picker")
+
+            RGBSliderRow(
+                label: "R",
+                accessibilityIdentifier: "\(identifierPrefix)-red-slider",
+                tint: Color.red,
+                value: Binding(
+                    get: { color.r },
+                    set: { color.r = max(0, min(255, $0)) }
+                )
+            )
+
+            RGBSliderRow(
+                label: "G",
+                accessibilityIdentifier: "\(identifierPrefix)-green-slider",
+                tint: Color.green,
+                value: Binding(
+                    get: { color.g },
+                    set: { color.g = max(0, min(255, $0)) }
+                )
+            )
+
+            RGBSliderRow(
+                label: "B",
+                accessibilityIdentifier: "\(identifierPrefix)-blue-slider",
+                tint: Color.blue,
+                value: Binding(
+                    get: { color.b },
+                    set: { color.b = max(0, min(255, $0)) }
+                )
+            )
+
+            Text(String(format: "#%02X%02X%02X", color.r, color.g, color.b))
+                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.82))
+        }
+    }
+
+    @ViewBuilder
+    private func colorRow(title: String, colors: [RGBColor], identifier: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.58))
+
+            HStack(spacing: 8) {
+                ForEach(Array(colors.enumerated()), id: \.offset) { index, rgb in
+                    ColorSwatchButton(
+                        color: Color(rgb: rgb),
+                        isSelected: rgb == color,
+                        action: { color = rgb }
+                    )
+                    .accessibilityIdentifier("\(identifierPrefix)-\(identifier)-swatch-\(index)")
+                }
+            }
+        }
+    }
+
+}
+
+struct SoftwareLightingPaletteEditor: View {
+    let preset: SoftwareLightingPresetID
+    @Binding var palette: [RGBColor]
+    let swatches: [LightingSwatch]
+    let onAdd: () -> Void
+    let onRemove: (Int) -> Void
+    let onReset: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                Text("Palette")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.82))
+
+                Spacer(minLength: 12)
+
+                Button(action: onReset) {
+                    Label("Reset", systemImage: "arrow.counterclockwise")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityIdentifier("software-lighting-palette-reset-button")
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 0) {
+                    ForEach(Array(palette.indices), id: \.self) { index in
+                        VStack(spacing: 5) {
+                            LightingColorOrbPicker(
+                                title: "\(preset.label) palette color \(index + 1)",
+                                identifierPrefix: "software-lighting-palette-\(index)",
+                                color: paletteBinding(index),
+                                swatches: swatches
+                            )
+
+                            Button {
+                                onRemove(index)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 13, weight: .semibold))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(palette.count > 1 ? Color.white.opacity(0.62) : Color.white.opacity(0.24))
+                            .disabled(palette.count <= 1)
+                            .help("Remove color")
+                            .accessibilityLabel("Remove palette color \(index + 1)")
+                            .accessibilityIdentifier("software-lighting-palette-\(index)-remove-button")
+                        }
+                        .frame(width: 44)
+                    }
+
+                    Button(action: onAdd) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 22, weight: .semibold))
+                            .frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(
+                        palette.count < SoftwareLightingEffectRequest.maximumPaletteColorCount
+                            ? Color.white.opacity(0.86)
+                            : Color.white.opacity(0.34)
+                    )
+                    .disabled(palette.count >= SoftwareLightingEffectRequest.maximumPaletteColorCount)
+                    .help("Add color")
+                    .accessibilityLabel("Add palette color")
+                    .accessibilityIdentifier("software-lighting-palette-add-button")
+                    .frame(width: 44)
+                    .padding(.top, 0)
+                    .padding(.bottom, 18)
+                    .opacity(palette.count < SoftwareLightingEffectRequest.maximumPaletteColorCount ? 1 : 0.55)
+                }
+                .padding(.vertical, 8)
+                .padding(.horizontal, 4)
+            }
+            .accessibilityIdentifier("software-lighting-palette-list")
+        }
+    }
+
+    private func paletteBinding(_ index: Int) -> Binding<RGBColor> {
+        Binding(
+            get: {
+                guard palette.indices.contains(index) else {
+                    return RGBColor(r: 255, g: 255, b: 255)
+                }
+                return palette[index]
+            },
+            set: { color in
+                guard palette.indices.contains(index) else { return }
+                var next = palette
+                next[index] = color
+                palette = next
+            }
         )
     }
 }

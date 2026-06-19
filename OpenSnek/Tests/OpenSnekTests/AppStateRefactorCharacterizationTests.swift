@@ -1495,6 +1495,239 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(settingsSnapshot.usbLightingZoneID, "all")
     }
 
+    func testNormalLightingApplyStopsSoftwareLighting() async throws {
+        let device = makeRefactorMultiZoneUSBLightingDevice(
+            id: "usb-software-lighting-static-conflict-device",
+            serial: "USB-SOFTWARE-LIGHTING-STATIC-\(UUID().uuidString)"
+        )
+        defer { clearRefactorPreferences(for: device) }
+
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 79,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 1,
+                    dpiValue: 1600,
+                    pollRate: 1000,
+                    sleepTimeout: 300
+                )
+            ]
+        )
+        let runningStatus = SoftwareLightingEngineStatus(
+            deviceID: device.id,
+            state: .running,
+            request: SoftwareLightingEffectRequest(presetID: .flame)
+        )
+        await backend.setSoftwareLightingStatus(runningStatus)
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+        await MainActor.run {
+            appState.deviceStore.softwareLightingStatusByDeviceID[device.id] = runningStatus
+            appState.editorStore.updateUSBLightingZoneID("logo")
+            appState.editorStore.editableColor = RGBColor(r: 111, g: 122, b: 133)
+        }
+
+        await appState.editorStore.applyCurrentStaticColorToAllZones()
+
+        try await waitForRefactorCondition {
+            let applyCount = await backend.applyCount()
+            let stopCount = await backend.softwareLightingStopCount(for: device.id)
+            let deviceStopCount = await backend.softwareLightingDeviceStopCount(for: device.id)
+            return applyCount == 1 && stopCount == 1 && deviceStopCount == 1
+        }
+
+        let storedStatus = await MainActor.run { appState.deviceStore.softwareLightingStatusByDeviceID[device.id] }
+        XCTAssertEqual(storedStatus?.state, .stopped)
+    }
+
+    func testNonLightingApplyDoesNotStopSoftwareLighting() async throws {
+        let device = makeRefactorMultiZoneUSBLightingDevice(
+            id: "usb-software-lighting-dpi-no-conflict-device",
+            serial: "USB-SOFTWARE-LIGHTING-DPI-\(UUID().uuidString)"
+        )
+        defer { clearRefactorPreferences(for: device) }
+
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 79,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 1,
+                    dpiValue: 1600,
+                    pollRate: 1000,
+                    sleepTimeout: 300
+                )
+            ]
+        )
+        let runningStatus = SoftwareLightingEngineStatus(
+            deviceID: device.id,
+            state: .running,
+            request: SoftwareLightingEffectRequest(presetID: .scrollingRainbow)
+        )
+        await backend.setSoftwareLightingStatus(runningStatus)
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+        await MainActor.run {
+            appState.deviceStore.softwareLightingStatusByDeviceID[device.id] = runningStatus
+            appState.editorStore.editablePollRate = 500
+        }
+
+        await appState.editorStore.applyPollRate()
+
+        try await waitForRefactorCondition {
+            await backend.applyCount() == 1
+        }
+
+        let stopCount = await backend.softwareLightingStopCount(for: device.id)
+        let storedStatus = await MainActor.run { appState.deviceStore.softwareLightingStatusByDeviceID[device.id] }
+        XCTAssertEqual(stopCount, 0)
+        XCTAssertEqual(storedStatus?.state, .running)
+    }
+
+    func testSoftwareLightingApplyOnConnectStartsPersistedRequest() async throws {
+        let device = makeRefactorMultiZoneUSBLightingDevice(
+            id: "usb-software-lighting-auto-connect-device",
+            serial: "USB-SOFTWARE-LIGHTING-AUTO-\(UUID().uuidString)"
+        )
+        clearRefactorPreferences(for: device)
+        defer { clearRefactorPreferences(for: device) }
+
+        let persistedRequest = SoftwareLightingEffectRequest(
+            presetID: .aurora,
+            framesPerSecond: 24,
+            intensity: 0.8,
+            speed: 1.4,
+            palette: [
+                RGBPatch(r: 12, g: 34, b: 56),
+                RGBPatch(r: 78, g: 90, b: 123),
+                RGBPatch(r: 145, g: 167, b: 189),
+            ]
+        )
+        let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistSoftwareLightingApplyOnConnect(true, device: device)
+        preferenceStore.persistSoftwareLightingRequest(persistedRequest, device: device)
+
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 79,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 1,
+                    dpiValue: 1600,
+                    pollRate: 1000,
+                    sleepTimeout: 300
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+
+        try await waitForRefactorCondition {
+            await backend.softwareLightingStartCount(for: device.id) == 1
+        }
+
+        let status = await backend.softwareLightingStatus(deviceID: device.id)
+        let editorState = await MainActor.run {
+            (
+                applyOnConnect: appState.editorStore.editableSoftwareLightingApplyOnConnect,
+                preset: appState.editorStore.editableSoftwareLightingPreset,
+                speed: appState.editorStore.editableSoftwareLightingSpeed,
+                palette: appState.editorStore.editableSoftwareLightingPalette(for: .aurora)
+            )
+        }
+
+        XCTAssertEqual(status?.state, .running)
+        XCTAssertEqual(status?.request, persistedRequest)
+        XCTAssertTrue(editorState.applyOnConnect)
+        XCTAssertEqual(editorState.preset, .aurora)
+        XCTAssertEqual(editorState.speed, persistedRequest.speed)
+        XCTAssertEqual(
+            editorState.palette,
+            persistedRequest.palette.map { RGBColor(r: $0.r, g: $0.g, b: $0.b) }
+        )
+    }
+
+    func testSoftwareLightingApplyPersistsRequestDetails() async throws {
+        let device = makeRefactorMultiZoneUSBLightingDevice(
+            id: "usb-software-lighting-persist-request-device",
+            serial: "USB-SOFTWARE-LIGHTING-PERSIST-\(UUID().uuidString)"
+        )
+        clearRefactorPreferences(for: device)
+        defer { clearRefactorPreferences(for: device) }
+
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 79,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 1,
+                    dpiValue: 1600,
+                    pollRate: 1000,
+                    sleepTimeout: 300
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+        await MainActor.run {
+            appState.editorStore.updateEditableSoftwareLightingPreset(.cometChase)
+            appState.editorStore.editableSoftwareLightingSpeed = 0.65
+            appState.editorStore.setEditableSoftwareLightingPalette(
+                [
+                    RGBColor(r: 101, g: 102, b: 103),
+                    RGBColor(r: 201, g: 202, b: 203),
+                ],
+                for: .cometChase
+            )
+        }
+
+        await appState.editorStore.startSoftwareLighting()
+
+        try await waitForRefactorCondition {
+            await backend.softwareLightingStartCount(for: device.id) == 1
+        }
+
+        let persistedRequest = DevicePreferenceStore().loadPersistedSoftwareLightingRequest(device: device)
+        XCTAssertEqual(
+            persistedRequest,
+            SoftwareLightingEffectRequest(
+                presetID: .cometChase,
+                speed: 0.65,
+                palette: [
+                    RGBPatch(r: 101, g: 102, b: 103),
+                    RGBPatch(r: 201, g: 202, b: 203),
+                ]
+            )
+        )
+    }
+
     func testUSBPersistedSettingsSnapshotRestoresStaticLightingAcrossAllZones() async throws {
         let device = makeRefactorMultiZoneUSBLightingDevice(
             id: "usb-restore-all-zones-device",
@@ -6074,6 +6307,80 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(updates.last?.mutation.brightnessByLEDID?[1], 220)
     }
 
+    func testIndividualUSBLightingZoneEditUpdatesOnlySelectedOnboardLED() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-usb-individual-lighting-device",
+            transport: .usb,
+            serial: "ONBOARD-USB-INDIVIDUAL-LIGHTING-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb-hid",
+                    batteryPercent: 88,
+                    dpiValues: [400, 800, 1300, 1600, 6400],
+                    activeStage: 2,
+                    dpiValue: 1300,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(
+                profileID: 1,
+                name: "Base",
+                brightnessByLEDID: [1: 80, 4: 80, 10: 80],
+                staticColorByLEDID: [
+                    1: RGBPatch(r: 0, g: 0, b: 255),
+                    4: RGBPatch(r: 0, g: 0, b: 255),
+                    10: RGBPatch(r: 0, g: 0, b: 255),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+
+        await MainActor.run {
+            appState.editorStore.editableLightingEffect = .staticColor
+            appState.editorStore.editableUSBLightingZoneID = "logo"
+            appState.editorStore.editableColor = RGBColor(r: 255, g: 0, b: 64)
+            appState.editorStore.scheduleAutoApplyLightingEffect()
+        }
+
+        try await waitForRefactorCondition {
+            let updates = await backend.recordedOnboardUpdates()
+            return updates.contains { update in
+                update.profileID == 1 &&
+                    update.mutation.staticColorByLEDID == [
+                        4: RGBPatch(r: 255, g: 0, b: 64)
+                    ]
+            }
+        }
+    }
+
     func testScheduledOnboardProfileLightingApplyClearsPendingLocalEdits() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-scheduled-lighting-clears-pending-device",
@@ -6450,6 +6757,10 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
     private var startedHeldOnboardUpdates: Set<String> = []
     private var onboardUpdateStartedContinuations: [String: CheckedContinuation<Void, Never>] = [:]
     private var onboardUpdateReleaseContinuations: [String: CheckedContinuation<Void, Never>] = [:]
+    private var softwareLightingStatusByDeviceID: [String: SoftwareLightingEngineStatus] = [:]
+    private var softwareLightingStartsByDeviceID: [String: Int] = [:]
+    private var softwareLightingStopsByDeviceID: [String: Int] = [:]
+    private var softwareLightingDeviceStopsByDeviceID: [String: Int] = [:]
 
     init(
         devices: [MouseDevice],
@@ -6561,6 +6872,36 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
             buttonReadReleaseContinuations[key] = nil
         }
         return buttonBindingBlocks[key]
+    }
+
+    func startSoftwareLighting(
+        device: MouseDevice,
+        request: SoftwareLightingEffectRequest
+    ) async throws -> SoftwareLightingEngineStatus {
+        softwareLightingStartsByDeviceID[device.id, default: 0] += 1
+        let status = SoftwareLightingEngineStatus(deviceID: device.id, state: .running, request: request)
+        softwareLightingStatusByDeviceID[device.id] = status
+        return status
+    }
+
+    func stopSoftwareLighting(deviceID: String) async -> SoftwareLightingEngineStatus? {
+        softwareLightingStopsByDeviceID[deviceID, default: 0] += 1
+        let status = SoftwareLightingEngineStatus(
+            deviceID: deviceID,
+            state: .stopped,
+            request: softwareLightingStatusByDeviceID[deviceID]?.request
+        )
+        softwareLightingStatusByDeviceID[deviceID] = status
+        return status
+    }
+
+    func stopSoftwareLighting(device: MouseDevice) async -> SoftwareLightingEngineStatus? {
+        softwareLightingDeviceStopsByDeviceID[device.id, default: 0] += 1
+        return await stopSoftwareLighting(deviceID: device.id)
+    }
+
+    func softwareLightingStatus(deviceID: String) async -> SoftwareLightingEngineStatus? {
+        softwareLightingStatusByDeviceID[deviceID]
     }
 
     func listOnboardProfiles(device: MouseDevice) async throws -> OnboardProfileInventory {
@@ -6945,6 +7286,22 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
            let values = state.dpi_stages.values {
             fastByDeviceID[deviceID] = DpiFastSnapshot(active: active, values: values)
         }
+    }
+
+    func setSoftwareLightingStatus(_ status: SoftwareLightingEngineStatus) {
+        softwareLightingStatusByDeviceID[status.deviceID] = status
+    }
+
+    func softwareLightingStartCount(for deviceID: String) -> Int {
+        softwareLightingStartsByDeviceID[deviceID, default: 0]
+    }
+
+    func softwareLightingStopCount(for deviceID: String) -> Int {
+        softwareLightingStopsByDeviceID[deviceID, default: 0]
+    }
+
+    func softwareLightingDeviceStopCount(for deviceID: String) -> Int {
+        softwareLightingDeviceStopsByDeviceID[deviceID, default: 0]
     }
 
     func setRenameReturnsMetadataOnly(_ value: Bool) {
@@ -7355,6 +7712,8 @@ private func clearRefactorPreferences(for device: MouseDevice) {
         "lightingZone.\(legacyKey)",
         "lightingEffect.\(key)",
         "lightingEffect.\(legacyKey)",
+        "softwareLightingApplyOnConnect.\(key)",
+        "softwareLightingRequest.\(key)",
         "connectBehavior.\(key)",
         "connectBehavior.\(legacyKey)",
         "settingsSnapshot.\(key)",

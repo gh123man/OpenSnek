@@ -11,10 +11,12 @@ All notable changes to this project are documented in this file.
 - USB reconnect handling now refreshes HID discovery after the post-connect settle window, preventing early partial HID enumeration from leaving a replugged mouse unusable until OpenSnek restarts.
 - V3 Pro USB dongle-only states now back off gracefully when the mouse is powered off or telemetry is temporarily unavailable, avoiding repeated full-state reads and transient error banners while waiting for live telemetry to return.
 - USB dongle-only and sleeping-mouse states now switch to the disconnected presentation instead of staying on the loading/reconnecting screen when the dongle is visible but the mouse does not answer telemetry.
-- USB sleeping-mouse detection now expires stale USB liveness observations quickly, so a powered-off mouse no longer stays marked connected just because the dongle and cached state are still present.
+- USB sleeping-mouse detection now depends on concrete unavailable/no-state telemetry results instead of aging out passive USB liveness observations.
 - Disconnect and reconnect detail screens no longer show a duplicate red global error notice over the same connection-state UI.
 - Reconnect and disconnect recovery no longer shows yellow USB telemetry notices for expected temporary telemetry gaps while the device is settling.
 - USB telemetry-unavailable and availability backoff now survive newly visible dongle subscription updates, preventing the dongle-only state from falling back into an immediate reconnect retry loop.
+- Selected USB devices with cached state now keep their last known presentation during temporary feature-report telemetry backoff when the mouse is still enumerated, instead of being marked disconnected.
+- Remote service snapshots now clear latched transient USB unavailable presentation, and cached USB devices no longer age into Disconnected solely because passive telemetry has been idle.
 
 ## [1.0.0]
 
@@ -25,6 +27,28 @@ All notable changes to this project are documented in this file.
 - Reworked reconnect, background-service, and passive-HID behavior so selected devices get priority, live DPI/profile changes are followed more reliably, and stale telemetry is less likely to overwrite fresh UI edits.
 - Added release packaging/CI, device support docs, Windows BTVS capture automation, and focused probe commands for USB and Bluetooth profile research.
 - Removed command-level retries from app and probe paths so command failures surface clearly while transport recovery remains responsible for real connection failures.
+
+## [2026-06-19]
+
+### Added
+- Added a service-owned Basilisk V3 Pro USB software lighting engine that streams volatile 12-cell Custom Frame data while OpenSnek is running, with Flame, Scrolling Rainbow, Comet Chase, and Aurora presets plus app UI controls to start and stop the active preset.
+- Added a Jellybeans software lighting preset with a pastel palette and one-random-LED-per-tick color changes.
+- Extended the USB software lighting effects surface to the wired Basilisk V3 and Basilisk V3 35K underglow profiles using the shared V3-family 12-cell frame assumption.
+- Added `OpenSnekProbe usb-lighting-concurrency`, a V3 Pro USB stress probe for comparing serialized Custom Frame streaming against unsafe overlapping feature-report reads/writes.
+
+### Changed
+- Normal lighting color/effect applies now stop active software lighting on the selected device, while unrelated DPI, button, poll-rate, scroll, and power setting applies leave the software effect running.
+- The Lighting card now separates persistent onboard controls from runtime-only software effects with Onboard and Advanced tabs, and software Custom Frame writes use shorter ACK polling while active effects cause background telemetry reads to reuse cached state.
+- Reworked the Lighting card to use compact color-orb popovers for onboard all-zone and per-zone static colors, renamed the onboard effect selector to Preset, and changed Advanced effects to use a bottom Apply action that replaces any previous software stream, plus speed control and editable/resettable per-preset palettes.
+- Added a visible stop control for active Advanced lighting animations, standardized the Advanced action tint, made the speed slider white, further tightened Advanced palette color spacing, added an onboard-persistence notice, removed the lightest Flame default palette color, and made Scrolling Rainbow render 200% faster at the displayed 100% speed.
+- Advanced software lighting can now be marked Apply on connect, remembering the last applied preset, speed, and palette per device and defaulting the Lighting card to the Advanced tab when enabled.
+- Software lighting streams are now owned by physical device identity so replacing an effect cannot leave an older stream running under a transient device ID, remote apply-on-connect starts once per connection, and stopping a software effect reloads the active onboard profile lighting.
+- Software lighting replacement is now generation-gated to prevent reentrant start/resume races from leaving untracked frame writers, Stop explicitly reapplies the active profile lighting surface before returning to onboard mode, and Scrolling Rainbow now uses cyclic cell spacing for seamless loops with any palette.
+- Flame software lighting now uses seeded irregular flicker timing per LED so color changes feel less uniform.
+- The Advanced lighting Apply on connect toggle now sits beside the Apply and Stop controls.
+- The Lighting card background now reflects the selected Advanced software-lighting palette instead of staying tied to the onboard static color.
+- Jellybeans now uses a more saturated default palette so randomly assigned LED colors are easier to distinguish.
+- The Lighting card now opens collapsed with a mode-only summary that shows the active animation name without an Advanced prefix, uses onboard colors again after Advanced effects stop, and can be expanded to edit onboard or Advanced controls.
 
 ## [2026-06-18]
 

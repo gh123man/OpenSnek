@@ -288,6 +288,8 @@ enum OpenSnekUITestSupport {
         switch (classID, cmdID) {
         case (0x00, 0x05):
             return "usbSetPollRate"
+        case (0x0F, 0x03):
+            return "usbLightingCustomFrame"
         default:
             return "usbCommand"
         }
