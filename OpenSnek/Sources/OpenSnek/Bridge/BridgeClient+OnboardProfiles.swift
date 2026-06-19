@@ -1637,7 +1637,13 @@ extension BridgeClient {
                         hidKey: UInt8(max(0, min(255, draft.hidKey))),
                         hidModifiers: UInt8(max(0, min(255, draft.hidModifiers))),
                         turboEnabled: draft.turboEnabled && draft.kind.supportsTurbo,
-                        turboRate: UInt16(max(1, min(255, draft.turboRate)))
+                        turboRate: UInt16(max(1, min(255, draft.turboRate))),
+                        clutchDPI: draft.kind == .dpiClutch
+                            ? DeviceProfiles.clampDPI(
+                                draft.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI,
+                                device: device
+                            )
+                            : nil
                     ),
                     target: UInt8(target),
                     slot: UInt8(slot)

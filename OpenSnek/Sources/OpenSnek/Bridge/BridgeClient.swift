@@ -730,6 +730,12 @@ actor BridgeClient {
                 let hidModifiers = UInt8(max(0, min(255, binding.hidModifiers ?? 0)))
                 let turboEnabled = kind.supportsTurbo && binding.turboEnabled
                 let turboRate = UInt16(max(1, min(255, binding.turboRate ?? 0x8E)))
+                let clutchDPI = kind == .dpiClutch
+                    ? DeviceProfiles.clampDPI(
+                        binding.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI,
+                        device: device
+                    )
+                    : nil
                 guard try await btSetButtonBinding(
                     device: device,
                     slot: slot,
@@ -737,7 +743,8 @@ actor BridgeClient {
                     hidKey: hidKey,
                     hidModifiers: hidModifiers,
                     turboEnabled: turboEnabled,
-                    turboRate: turboRate
+                    turboRate: turboRate,
+                    clutchDPI: clutchDPI
                 ) else {
                     throw BridgeError.commandFailed("Failed to set Bluetooth button binding")
                 }
