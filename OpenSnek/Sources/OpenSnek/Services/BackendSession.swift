@@ -262,6 +262,34 @@ struct SharedServiceSnapshot: Codable, Sendable {
     let devices: [MouseDevice]
     let stateByDeviceID: [String: MouseState]
     let lastUpdatedByDeviceID: [String: Date]
+    let observedAtByDeviceID: [String: Date]
+
+    init(
+        devices: [MouseDevice],
+        stateByDeviceID: [String: MouseState],
+        lastUpdatedByDeviceID: [String: Date],
+        observedAtByDeviceID: [String: Date] = [:]
+    ) {
+        self.devices = devices
+        self.stateByDeviceID = stateByDeviceID
+        self.lastUpdatedByDeviceID = lastUpdatedByDeviceID
+        self.observedAtByDeviceID = observedAtByDeviceID
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case devices
+        case stateByDeviceID
+        case lastUpdatedByDeviceID
+        case observedAtByDeviceID
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        devices = try container.decode([MouseDevice].self, forKey: .devices)
+        stateByDeviceID = try container.decode([String: MouseState].self, forKey: .stateByDeviceID)
+        lastUpdatedByDeviceID = try container.decode([String: Date].self, forKey: .lastUpdatedByDeviceID)
+        observedAtByDeviceID = try container.decodeIfPresent([String: Date].self, forKey: .observedAtByDeviceID) ?? [:]
+    }
 }
 
 struct CrossProcessClientPresence: Codable, Sendable {
@@ -1225,10 +1253,23 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
                 SharedServiceSnapshot(
                     devices: cachedDevices,
                     stateByDeviceID: cachedStateByDeviceID.filter { liveIDs.contains($0.key) },
-                    lastUpdatedByDeviceID: cachedStateAtByDeviceID.filter { liveIDs.contains($0.key) }
+                    lastUpdatedByDeviceID: cachedStateAtByDeviceID.filter { liveIDs.contains($0.key) },
+                    observedAtByDeviceID: latestObservedAtByDeviceID(liveIDs: liveIDs)
                 )
             )
         )
+    }
+
+    private func latestObservedAtByDeviceID(liveIDs: Set<String>) -> [String: Date] {
+        var observedAtByDeviceID = cachedStateAtByDeviceID.filter { liveIDs.contains($0.key) }
+        for (deviceID, fastAt) in cachedFastAtByDeviceID where liveIDs.contains(deviceID) {
+            if let existing = observedAtByDeviceID[deviceID] {
+                observedAtByDeviceID[deviceID] = max(existing, fastAt)
+            } else {
+                observedAtByDeviceID[deviceID] = fastAt
+            }
+        }
+        return observedAtByDeviceID
     }
 }
 
