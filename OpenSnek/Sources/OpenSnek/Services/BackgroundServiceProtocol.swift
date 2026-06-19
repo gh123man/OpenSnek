@@ -109,6 +109,7 @@ enum BackgroundServiceMethod: String, Codable, Sendable {
     case listDevices
     case readState
     case readDpiStagesFast
+    case usbControlAvailability
     case shouldUseFastDPIPolling
     case dpiUpdateTransportStatus
     case hidAccessStatus

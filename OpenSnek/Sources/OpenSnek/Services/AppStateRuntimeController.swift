@@ -359,8 +359,8 @@ final class AppStateRuntimeController {
     private func handleBackendStateUpdate(_ update: BackendStateUpdate) async {
         guard !isTearingDown, isBackendReady else { return }
         switch update {
-        case .deviceList(let devices, _):
-            await deviceController.handleBackendDeviceListUpdate(devices)
+        case .deviceList(let devices, let updatedAt):
+            await deviceController.handleBackendDeviceListUpdate(devices, updatedAt: updatedAt)
         case .snapshot(let snapshot):
             guard environment.usesRemoteServiceTransport else { return }
             deviceController.applyRemoteServiceSnapshot(snapshot)
@@ -374,6 +374,12 @@ final class AppStateRuntimeController {
             deviceController.applyBackendSoftwareLightingStatusUpdate(
                 deviceID: deviceID,
                 status: status,
+                updatedAt: updatedAt
+            )
+        case .usbControlAvailability(let deviceID, let availability, let updatedAt):
+            deviceController.applyBackendUSBControlAvailabilityUpdate(
+                deviceID: deviceID,
+                availability: availability,
                 updatedAt: updatedAt
             )
         case .deviceState(let deviceID, let updatedState, let updatedAt):
