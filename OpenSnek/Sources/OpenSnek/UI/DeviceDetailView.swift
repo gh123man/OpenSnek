@@ -1223,8 +1223,6 @@ struct LightingCard: View {
             )
 
             if selected.supportsSoftwareLightingEffects {
-                softwareLightingApplyOnConnectToggle()
-
                 HStack(spacing: 12) {
                     Text("Preset")
                         .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -1294,40 +1292,49 @@ struct LightingCard: View {
                         .accessibilityIdentifier("software-lighting-status-text")
                 }
 
-                HStack(spacing: 10) {
-                    if softwareLightingIsRunning {
-                        Button {
-                            Task {
-                                await editorStore.stopSoftwareLighting()
-                            }
-                        } label: {
-                            Label("Stop", systemImage: "stop.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .tint(Color(hex: 0xFF453A))
-                        .accessibilityIdentifier("software-lighting-stop-button")
-                    }
-
-                    Button {
-                        Task {
-                            await editorStore.startSoftwareLighting()
-                        }
-                    } label: {
-                        Label("Apply", systemImage: "checkmark.circle.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .tint(actionAccent)
-                    .accessibilityIdentifier("software-lighting-apply-button")
-                }
+                softwareLightingActionRow()
             } else {
                 Text("Advanced software effects are available on Basilisk V3 USB devices with underglow.")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.58))
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func softwareLightingActionRow() -> some View {
+        HStack(spacing: 12) {
+            softwareLightingApplyOnConnectToggle()
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 10) {
+                if softwareLightingIsRunning {
+                    Button {
+                        Task {
+                            await editorStore.stopSoftwareLighting()
+                        }
+                    } label: {
+                        Label("Stop", systemImage: "stop.fill")
+                            .frame(minWidth: 106)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .tint(Color(hex: 0xFF453A))
+                    .accessibilityIdentifier("software-lighting-stop-button")
+                }
+
+                Button {
+                    Task {
+                        await editorStore.startSoftwareLighting()
+                    }
+                } label: {
+                    Label("Apply", systemImage: "checkmark.circle.fill")
+                        .frame(minWidth: softwareLightingIsRunning ? 106 : 148)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(actionAccent)
+                .accessibilityIdentifier("software-lighting-apply-button")
             }
         }
     }

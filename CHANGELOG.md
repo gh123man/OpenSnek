@@ -45,6 +45,7 @@ All notable changes to this project are documented in this file.
 - Software lighting streams are now owned by physical device identity so replacing an effect cannot leave an older stream running under a transient device ID, remote apply-on-connect starts once per connection, and stopping a software effect reloads the active onboard profile lighting.
 - Software lighting replacement is now generation-gated to prevent reentrant start/resume races from leaving untracked frame writers, Stop explicitly reapplies the active profile lighting surface before returning to onboard mode, and Scrolling Rainbow now uses cyclic cell spacing for seamless loops with any palette.
 - Flame software lighting now uses seeded irregular flicker timing per LED so color changes feel less uniform.
+- The Advanced lighting Apply on connect toggle now sits beside the Apply and Stop controls.
 
 ## [2026-06-18]
 
