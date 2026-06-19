@@ -696,7 +696,8 @@ final class AppStateDeviceController {
             applyController: applyController,
             editorController: editorController
         )
-        if unavailableDeviceIDs.contains(deviceID) {
+        let preservesTelemetryBackoffPresentation = shouldPreserveUSBTelemetryBackoffPresentation(for: device)
+        if unavailableDeviceIDs.contains(deviceID), !preservesTelemetryBackoffPresentation {
             deviceStore.state = nil
             deviceStore.lastUpdated = nil
             deviceStore.warningMessage = nil
@@ -739,7 +740,7 @@ final class AppStateDeviceController {
             deviceStore.lastUpdated = nil
             deviceStore.warningMessage = nil
         }
-        if !unavailableDeviceIDs.contains(deviceID) {
+        if !unavailableDeviceIDs.contains(deviceID) || preservesTelemetryBackoffPresentation {
             deviceStore.errorMessage = nil
         }
     }
@@ -868,11 +869,18 @@ final class AppStateDeviceController {
             return .disconnected
         }
 
-        if unavailableDeviceIDs.contains(device.id) {
+        let now = Date()
+        if usbLiveObservationExpiredDeviceIDs.contains(device.id) {
             return .disconnected
         }
 
-        if usbLiveObservationExpiredDeviceIDs.contains(device.id) {
+        if unavailableDeviceIDs.contains(device.id) {
+            if shouldPreserveUSBTelemetryBackoffPresentation(for: device) {
+                if shouldTreatActivePassiveHIDAsConnected(device: device, now: now) {
+                    return .connected
+                }
+                return .reconnecting
+            }
             return .disconnected
         }
 
@@ -881,7 +889,6 @@ final class AppStateDeviceController {
             return Self.isDeviceAvailabilityMessage(lowered) ? .disconnected : .error
         }
 
-        let now = Date()
         if shouldTreatStaleUSBLiveObservationAsDisconnected(device: device, now: now) {
             return .disconnected
         }
@@ -926,7 +933,8 @@ final class AppStateDeviceController {
     }
 
     func allowsFastDpiPolling(for device: MouseDevice) -> Bool {
-        !unavailableDeviceIDs.contains(device.id)
+        !unavailableDeviceIDs.contains(device.id) ||
+            shouldPreserveUSBTelemetryBackoffPresentation(for: device)
     }
 
     func isPassiveBluetoothHeartbeatFresh(for device: MouseDevice, now: Date) -> Bool {
@@ -1743,10 +1751,12 @@ final class AppStateDeviceController {
             let shouldTreatSelectedUSBDongleOnly =
                 isUSBTelemetryUnavailable &&
                 deviceStore.selectedDeviceID == presentationDeviceID &&
+                !hasCachedPresentationState &&
                 !hasSeededReconnectState &&
                 !hasActivePassiveHID
             let shouldTreatAsDegradedUSBTelemetry =
-                isUSBTelemetryUnavailable && hasActivePassiveHID
+                isUSBTelemetryUnavailable &&
+                (hasCachedPresentationState || hasSeededReconnectState || hasActivePassiveHID)
             let shouldMaskSelectedUSBTelemetryUnavailable =
                 isUSBTelemetryUnavailable &&
                 !shouldTreatSelectedUSBDongleOnly &&
@@ -2075,6 +2085,15 @@ final class AppStateDeviceController {
             return isPassiveBluetoothHeartbeatFresh(for: device, now: now)
         }
         return false
+    }
+
+    private func shouldPreserveUSBTelemetryBackoffPresentation(for device: MouseDevice) -> Bool {
+        guard device.transport == .usb else { return false }
+        guard usbTelemetryUnavailableBackoffDeviceIDs.contains(device.id) else { return false }
+        guard deviceStore.devices.contains(where: { $0.id == device.id }) else { return false }
+        return stateCacheByDeviceID[device.id] != nil ||
+            lastUpdatedByDeviceID[device.id] != nil ||
+            (deviceStore.selectedDeviceID == device.id && deviceStore.state != nil)
     }
 
     private func shouldTreatStaleUSBLiveObservationAsDisconnected(device: MouseDevice, now: Date) -> Bool {

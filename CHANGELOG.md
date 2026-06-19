@@ -15,6 +15,7 @@ All notable changes to this project are documented in this file.
 - Disconnect and reconnect detail screens no longer show a duplicate red global error notice over the same connection-state UI.
 - Reconnect and disconnect recovery no longer shows yellow USB telemetry notices for expected temporary telemetry gaps while the device is settling.
 - USB telemetry-unavailable and availability backoff now survive newly visible dongle subscription updates, preventing the dongle-only state from falling back into an immediate reconnect retry loop.
+- Selected USB devices with cached state now keep their last known presentation during temporary feature-report telemetry backoff when the mouse is still enumerated, instead of being marked disconnected.
 
 ## [1.0.0]
 
@@ -37,7 +38,7 @@ All notable changes to this project are documented in this file.
 - Normal lighting color/effect applies now stop active software lighting on the selected device, while unrelated DPI, button, poll-rate, scroll, and power setting applies leave the software effect running.
 - The Lighting card now separates persistent onboard controls from runtime-only software effects with Onboard and Advanced tabs, and software Custom Frame writes use shorter ACK polling while active effects cause background telemetry reads to reuse cached state.
 - Reworked the Lighting card to use compact color-orb popovers for onboard all-zone and per-zone static colors, renamed the onboard effect selector to Preset, and changed Advanced effects to use a bottom Apply action with speed control and editable/resettable per-preset palettes.
-- Added a visible stop control for active Advanced lighting animations, standardized the Advanced action tint, made the speed slider white, added an onboard-persistence notice, removed the lightest Flame default palette color, and made Scrolling Rainbow render 200% faster at the displayed 100% speed.
+- Added a visible stop control for active Advanced lighting animations, standardized the Advanced action tint, made the speed slider white, tightened Advanced palette color spacing, added an onboard-persistence notice, removed the lightest Flame default palette color, and made Scrolling Rainbow render 200% faster at the displayed 100% speed.
 - Advanced software lighting can now be marked Apply on connect, remembering the last applied preset, speed, and palette per device and defaulting the Lighting card to the Advanced tab when enabled.
 
 ## [2026-06-18]

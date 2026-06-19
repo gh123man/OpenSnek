@@ -1621,7 +1621,7 @@ struct SoftwareLightingPaletteEditor: View {
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: 10) {
+                HStack(alignment: .top, spacing: 4) {
                     ForEach(Array(palette.indices), id: \.self) { index in
                         VStack(spacing: 5) {
                             LightingColorOrbPicker(
