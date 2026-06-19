@@ -39,6 +39,11 @@ struct USBLightingWriteResult: Sendable {
     let succeeded: Bool
 }
 
+struct USBLightingCustomFrameResult: Sendable {
+    let args: [UInt8]
+    let succeeded: Bool
+}
+
 struct USBBatteryReadResult: Sendable {
     let charging: Bool
     let rawLevel: UInt8
@@ -417,6 +422,24 @@ final class USBProbeClient {
                 succeeded: try writeLightingCommand(cmdID: 0x02, args: args)
             )
         }
+    }
+
+    func writeLightingCustomFrame(
+        storage: UInt8,
+        row: UInt8,
+        startColumn: UInt8,
+        colors: [RGBPatch]
+    ) throws -> USBLightingCustomFrameResult {
+        let args = USBHIDProtocol.lightingCustomFrameArgs(
+            storage: storage,
+            row: row,
+            startColumn: startColumn,
+            colors: colors
+        )
+        return USBLightingCustomFrameResult(
+            args: args,
+            succeeded: try writeLightingCommand(cmdID: 0x03, args: args)
+        )
     }
 
     func readBattery() throws -> USBBatteryReadResult? {

@@ -1,10 +1,17 @@
-# Basilisk V3 Pro USB Profile CRUD Spec
+# Basilisk V3 Family USB Profile CRUD Spec
 
 This spec defines the Basilisk V3-family USB onboard-profile API for the mapped
 core profile surface. It intentionally excludes macros, advanced button
 families, and advanced lighting effects.
 
 Validated device: Basilisk V3 Pro USB PID `0x00AB`/`0x00AA`.
+
+Family working assumption: the wired Basilisk V3 (`0x0099`), Basilisk V3 Pro
+(`0x00AA`/`0x00AB`), and Basilisk V3 35K (`0x00CB`) should be treated as one
+shared USB onboard-profile API family unless hardware validation proves a
+device-specific exception. Feature work built on this spec should be designed
+to apply across that family, with shipped status still gated per device by
+validation and UI exposure.
 
 ## Storage Model
 

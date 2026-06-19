@@ -43,6 +43,14 @@ Button remap keyboard actions support modifier chords on shipped USB and Bluetoo
 | Basilisk V3 35K | `Validated` | `No transport` | Onboard hardware profiles are still not shipped, and a few buttons remain unsupported footnotes instead of editable controls |
 | Orochi V2 | `Not shipped` | `Contributor validated` | Contributor validated Bluetooth DPI stages, battery, and no-RGB behavior; button remap is profile-mapped pending hardware readback validation |
 
+## Basilisk V3 USB Family Assumptions
+
+For future USB feature work, treat the wired Basilisk V3 (`0x0099`), Basilisk V3 Pro (`0x00AA`/`0x00AB`), and Basilisk V3 35K (`0x00CB`) as one shared Basilisk V3 USB family unless hardware validation proves a device-specific exception.
+
+- USB lighting effect work should start from the assumption that all three share the same `0x0F` zone-effect set and the same three public zones: scroll wheel `0x01`, logo `0x04`, and underglow `0x0A`.
+- USB onboard-profile work should start from the assumption that all three expose the same mapped core profile API shape documented in [USB_PROFILE_CRUD_SPEC.md](./protocol/USB_PROFILE_CRUD_SPEC.md), even when OpenSnek has not yet shipped the UI for a specific family member.
+- The Basilisk V3 X HyperSpeed is not part of this family assumption; it has its own simpler USB/Bluetooth profile shape.
+
 ## Basilisk V3 X HyperSpeed
 
 USB PID `0x00B9`, Bluetooth PID `0x00BA`
@@ -76,12 +84,12 @@ USB PID `0x0099`, no Bluetooth transport
 | Sleep timeout | `Mapped` | `No transport` | Uses the shared USB idle-time path through the mapped profile |
 | Low battery threshold | `Mapped` | `No transport` | Uses the shared USB threshold path through the mapped profile |
 | Battery telemetry | `Mapped` | `No transport` | Uses the shared USB battery path through the mapped profile |
-| Lighting: brightness + static color | `Mapped` | `No transport` | The mapped profile ships the same three zones as the 35K (`0x01`, `0x04`, `0x0A`) |
-| Lighting: extra effects | `Mapped` | `No transport` | The mapped USB profile advertises `off`, `static`, `spectrum`, and `wave` |
+| Lighting: brightness + static color | `Mapped` | `No transport` | The mapped profile ships the shared Basilisk V3 USB family zones: `0x01`, `0x04`, and `0x0A` |
+| Lighting: extra effects | `Mapped` | `No transport` | The mapped USB profile advertises the shared Basilisk V3 USB family set: `off`, `static`, `spectrum`, and `wave` |
 | Button remap: shipped editable slots | `Mapped` | `No transport` | The mapped USB profile exposes writable slots `1-5`, `9`, `10`, `15`, `52`, `53`, and `96` |
 | Button remap: unsupported slots | `Hidden` | `No transport` | The mapped profile documents slot `14` and slot `106` as unsupported footnote entries rather than editable controls |
 | Scroll controls | `Mapped` | `No transport` | The mapped profile rides the same shared USB scroll-control implementation as the other USB Basilisk profiles |
-| Onboard hardware profiles | `Not shipped` | `No transport` | OpenSnek does not currently claim shipped onboard hardware-profile support for the wired V3 |
+| Onboard hardware profiles | `Not shipped` | `No transport` | OpenSnek does not currently claim shipped onboard hardware-profile support for the wired V3, but future work should assume the shared Basilisk V3 USB profile API applies until hardware proves otherwise |
 
 ## Basilisk V3 Pro
 
@@ -96,8 +104,8 @@ USB PIDs `0x00AA` / `0x00AB`, Bluetooth PID `0x00AC`
 | Sleep timeout | `Shipped` | `Shipped` | USB reads idle time; BT reads `powerTimeoutGet` and exposes the same power-management card |
 | Low battery threshold | `Shipped` | `Hidden` | USB reads and writes threshold values; BT does not populate `low_battery_threshold_raw`, so the current app never shows the threshold card there |
 | Battery telemetry | `Shipped` | `Shipped` | BT state publishes battery percent; BT charging is only surfaced when a USB fallback session can verify it |
-| Lighting: brightness + static color | `Shipped` | `Shipped` | USB ships three zones with advanced effects; BT ships per-zone brightness and per-zone static color on `0x01`, `0x04`, and `0x0A`. Hardware actually has 12 individually addressable LEDs (1 logo + 1 scroll wheel + 10 underglow) reachable via `Class 0x0F Cmd 0x03` Custom Frame — see [docs/research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md](./research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md). OpenSnek's three-zone model is the shipped subset. |
-| Lighting: extra effects | `Shipped` | `Limited` | USB advertises `off`, `static`, `spectrum`, and `wave`; BT is static-only because the BT profile advertises only `.staticColor` |
+| Lighting: brightness + static color | `Shipped` | `Shipped` | USB ships three zones with advanced effects; BT ships per-zone brightness and per-zone static color on `0x01`, `0x04`, and `0x0A`. Hardware actually has 12 individually addressable LEDs (1 logo + 1 scroll wheel + 10 underglow) reachable via `Class 0x0F Cmd 0x03` Custom Frame, but that frame is volatile across mouse restart and is treated as a probe-only/software-driven path for now; see [docs/research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md](./research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md). OpenSnek's three-zone model is the shipped app subset. |
+| Lighting: extra effects | `Shipped` | `Limited` | USB advertises the shared Basilisk V3 USB family set: `off`, `static`, `spectrum`, and `wave`; BT is static-only because the BT profile advertises only `.staticColor` |
 | Button remap: shipped editable slots | `Shipped` | `Shipped` | USB writable slots are `1-5`, `9`, `10`, `15`, `52`, `53`; BT writable slots are `1-5`, `9`, `10`, `52`, `53` |
 | Button remap: unsupported slots | `Hidden` | `Hidden` | USB profile button `106` is kept out of the editable layout; BT clutch `15` and profile button `106` are also kept out of the editable layout and only appear as unsupported footnotes |
 | Scroll controls | `Shipped` | `Hidden` | V3 Pro USB uses profile-scoped `get/setScrollMode`, `get/setScrollAcceleration`, and `get/setScrollSmartReel`; BT never publishes those fields and the UI excludes BT scroll controls |
@@ -117,11 +125,11 @@ USB PID `0x00CB`, no Bluetooth transport
 | Low battery threshold | `Shipped` | `No transport` | Uses the shared USB threshold path |
 | Battery telemetry | `Shipped` | `No transport` | Uses the shared USB battery path |
 | Lighting: brightness + static color | `Shipped` | `No transport` | The USB profile ships three zones: `scroll_wheel`, `logo`, and `underglow` |
-| Lighting: extra effects | `Shipped` | `No transport` | The 35K USB profile advertises `off`, `static`, `spectrum`, and `wave` |
+| Lighting: extra effects | `Shipped` | `No transport` | The 35K USB profile advertises the shared Basilisk V3 USB family set: `off`, `static`, `spectrum`, and `wave` |
 | Button remap: shipped editable slots | `Shipped` | `No transport` | Writable slots are `1-5`, `9`, `10`, `15`, `52`, `53`, and `96` |
 | Button remap: unsupported slots | `Hidden` | `No transport` | Slot `14` and slot `106` are documented as unsupported footnote entries rather than editable controls |
 | Scroll controls | `Shipped` | `No transport` | The 35K USB profile uses the shared `get/setScrollMode`, `get/setScrollAcceleration`, and `get/setScrollSmartReel` implementation |
-| Onboard hardware profiles | `Not shipped` | `No transport` | OpenSnek does not currently claim shipped onboard hardware-profile support for the 35K |
+| Onboard hardware profiles | `Not shipped` | `No transport` | OpenSnek does not currently claim shipped onboard hardware-profile support for the 35K, but future work should assume the shared Basilisk V3 USB profile API applies until hardware proves otherwise |
 
 ## Orochi V2
 
