@@ -1118,7 +1118,7 @@ struct LightingCard: View {
                         }
                         .labelsHidden()
                         .pickerStyle(.segmented)
-                        .frame(width: 260)
+                        .frame(width: 220)
                         .accessibilityIdentifier("lighting-zone-mode-picker")
                     }
                 }
