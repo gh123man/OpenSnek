@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 - The Connect a Device screen now opens supported devices in a centered, searchable profile-backed table instead of showing the growing list inline.
+- Advanced lighting animations now expose a persisted brightness slider alongside speed and palette controls.
 
 ### Fixed
 - USB receiver presence is now tracked separately from mouse control reachability, so a connected dongle with a sleeping/off mouse stays listed but shows disconnected controls until feature-report telemetry responds again.

@@ -1653,6 +1653,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 applyOnConnect: appState.editorStore.editableSoftwareLightingApplyOnConnect,
                 preset: appState.editorStore.editableSoftwareLightingPreset,
                 speed: appState.editorStore.editableSoftwareLightingSpeed,
+                brightness: appState.editorStore.editableSoftwareLightingBrightness,
                 palette: appState.editorStore.editableSoftwareLightingPalette(for: .aurora)
             )
         }
@@ -1662,6 +1663,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertTrue(editorState.applyOnConnect)
         XCTAssertEqual(editorState.preset, .aurora)
         XCTAssertEqual(editorState.speed, persistedRequest.speed)
+        XCTAssertEqual(editorState.brightness, persistedRequest.intensity)
         XCTAssertEqual(
             editorState.palette,
             persistedRequest.palette.map { RGBColor(r: $0.r, g: $0.g, b: $0.b) }
@@ -1699,6 +1701,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         await MainActor.run {
             appState.editorStore.updateEditableSoftwareLightingPreset(.cometChase)
             appState.editorStore.editableSoftwareLightingSpeed = 0.65
+            appState.editorStore.editableSoftwareLightingBrightness = 0.42
             appState.editorStore.setEditableSoftwareLightingPalette(
                 [
                     RGBColor(r: 101, g: 102, b: 103),
@@ -1719,6 +1722,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             persistedRequest,
             SoftwareLightingEffectRequest(
                 presetID: .cometChase,
+                intensity: 0.42,
                 speed: 0.65,
                 palette: [
                     RGBPatch(r: 101, g: 102, b: 103),

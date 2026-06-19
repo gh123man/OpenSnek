@@ -1368,6 +1368,7 @@ struct LightingCard: View {
                 }
 
                 softwareLightingSpeedControl()
+                softwareLightingBrightnessControl()
 
                 SoftwareLightingPaletteEditor(
                     preset: editorStore.editableSoftwareLightingPreset,
@@ -1510,6 +1511,32 @@ struct LightingCard: View {
             )
             .tint(.white)
             .accessibilityIdentifier("software-lighting-speed-slider")
+        }
+    }
+
+    private func softwareLightingBrightnessControl() -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Brightness")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.82))
+                Spacer()
+                Text("\(Int(round(editorStore.editableSoftwareLightingBrightness * 100)))%")
+                    .font(.system(size: 13, weight: .black, design: .monospaced))
+                    .foregroundStyle(.white)
+            }
+
+            Slider(
+                value: Binding(
+                    get: { editorStore.editableSoftwareLightingBrightness * 100.0 },
+                    set: {
+                        editorStore.editableSoftwareLightingBrightness = max(0.0, min(1.0, $0 / 100.0))
+                    }
+                ),
+                in: 0...100
+            )
+            .tint(.white)
+            .accessibilityIdentifier("software-lighting-brightness-slider")
         }
     }
 }
