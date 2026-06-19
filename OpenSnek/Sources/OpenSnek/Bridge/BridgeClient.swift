@@ -1015,6 +1015,12 @@ actor BridgeClient {
                 }
             }
 
+            if let customFrame = patch.usbLightingCustomFrame {
+                guard try runUSBWrite({ try setLightingCustomFrame($0, device, frame: customFrame) }) else {
+                    throw BridgeError.commandFailed("Failed to set lighting custom frame")
+                }
+            }
+
             if let usbButtonProfileAction = patch.usbButtonProfileAction {
                 switch usbButtonProfileAction.kind {
                 case .projectToDirectLayer:
@@ -1199,6 +1205,7 @@ private extension DevicePatch {
             ledRGB == nil &&
             lightingEffect == nil &&
             usbLightingZoneLEDIDs == nil &&
+            usbLightingCustomFrame == nil &&
             buttonBinding == nil &&
             usbButtonProfileAction == nil
     }

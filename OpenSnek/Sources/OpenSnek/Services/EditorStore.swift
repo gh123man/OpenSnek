@@ -73,6 +73,11 @@ final class EditorStore {
     var editableLightingReactiveSpeed = 2
     var editableColor = RGBColor(r: 0, g: 255, b: 0)
     var editableSecondaryColor = RGBColor(r: 0, g: 170, b: 255)
+    var editableUSBLightingCustomFrameCellID: String = "logo"
+    var editableUSBLightingCustomFrameColors: [RGBColor] = Array(
+        repeating: RGBColor(r: 0, g: 255, b: 0),
+        count: 12
+    )
     var editableButtonBindings: [Int: ButtonBindingDraft] = [:]
     var lightingGradientRevision: UInt64 = 0
     var isEditingDpiControl = false
@@ -278,6 +283,17 @@ final class EditorStore {
                 transport: selectedDevice.transport
             )?
             .usbLightingZones ?? []
+    }
+
+    var visibleUSBLightingCustomFrameCells: [USBLightingCustomFrameCellDescriptor] {
+        guard let selectedDevice = deviceStore.selectedDevice else { return [] }
+        return DeviceProfiles
+            .resolve(
+                vendorID: selectedDevice.vendor_id,
+                productID: selectedDevice.product_id,
+                transport: selectedDevice.transport
+            )?
+            .usbLightingCustomFrameCells ?? []
     }
 
     var lightingGradientDisplayColors: [RGBColor] {
@@ -671,6 +687,10 @@ final class EditorStore {
         applyController.scheduleAutoApplyLightingEffect()
     }
 
+    func scheduleAutoApplyLightingCustomFrame() {
+        applyController.scheduleAutoApplyLightingCustomFrame()
+    }
+
     func applyCurrentStaticColorToAllZones() async {
         await applyController.applyCurrentStaticColorToAllZones()
     }
@@ -689,6 +709,23 @@ final class EditorStore {
 
     func updateUSBLightingZoneID(_ zoneID: String) {
         editorController.updateUSBLightingZoneID(zoneID)
+    }
+
+    func updateUSBLightingCustomFrameCellID(_ cellID: String) {
+        editorController.updateUSBLightingCustomFrameCellID(cellID)
+    }
+
+    func usbLightingCustomFrameColor(cellID: String) -> RGBColor {
+        editorController.usbLightingCustomFrameColor(cellID: cellID)
+    }
+
+    func updateUSBLightingCustomFrameColor(_ color: RGBColor, cellID: String) {
+        editorController.updateUSBLightingCustomFrameColor(color, cellID: cellID)
+    }
+
+    func applyCurrentColorToAllCustomFrameCells() {
+        editorController.applyCurrentColorToAllCustomFrameCells()
+        scheduleAutoApplyLightingCustomFrame()
     }
 
     func updateUSBButtonProfile(_ profile: Int) {

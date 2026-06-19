@@ -2173,6 +2173,8 @@ private func clearMultiDeviceLightingPreferences(for device: MouseDevice) {
         "lightingZone.\(legacyKey)",
         "lightingEffect.\(key)",
         "lightingEffect.\(legacyKey)",
+        "lightingCustomFrame.\(key)",
+        "lightingCustomFrame.\(legacyKey)",
         "connectBehavior.\(key)",
         "connectBehavior.\(legacyKey)",
         "settingsSnapshot.\(key)",

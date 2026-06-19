@@ -1346,9 +1346,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
     }
 
     func testLightingGradientUsesActualZoneColorsInVisibleOrder() async throws {
-        let device = makeRefactorMultiZoneUSBLightingDevice(
+        let device = makeRefactorTestDevice(
             id: "usb-lighting-gradient-zones-device",
-            serial: "USB-GRADIENT-ZONES-\(UUID().uuidString)"
+            transport: .usb,
+            serial: "USB-GRADIENT-ZONES-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV335K
         )
         let wheelColor = RGBColor(r: 255, g: 0, b: 0)
         let logoColor = RGBColor(r: 0, g: 255, b: 0)
@@ -1377,9 +1380,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
     }
 
     func testLightingGradientUsesPersistedZoneColorsWhenEditingAllZones() async throws {
-        let device = makeRefactorMultiZoneUSBLightingDevice(
+        let device = makeRefactorTestDevice(
             id: "usb-lighting-gradient-all-zones-device",
-            serial: "USB-GRADIENT-ALL-\(UUID().uuidString)"
+            transport: .usb,
+            serial: "USB-GRADIENT-ALL-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV335K
         )
         let globalColor = RGBColor(r: 80, g: 90, b: 100)
         let wheelColor = RGBColor(r: 255, g: 0, b: 0)
@@ -1495,6 +1501,80 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(settingsSnapshot.usbLightingZoneID, "all")
     }
 
+    func testUSBCustomFrameCellEditWritesFullFrameAndPersistsColors() async throws {
+        let device = makeRefactorMultiZoneUSBLightingDevice(
+            id: "usb-custom-frame-device",
+            serial: "USB-CUSTOM-FRAME-\(UUID().uuidString)"
+        )
+        clearRefactorPreferences(for: device)
+        defer { clearRefactorPreferences(for: device) }
+
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 79,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 1,
+                    dpiValue: 1600,
+                    pollRate: 1000,
+                    sleepTimeout: 300
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await MainActor.run {
+            appState.deviceStore.devices = [device]
+            appState.deviceStore.selectedDeviceID = device.id
+        }
+        let selectedDeviceID = await MainActor.run { appState.deviceStore.selectedDeviceID }
+        XCTAssertEqual(selectedDeviceID, device.id)
+        let resolvedProfile = try XCTUnwrap(DeviceProfiles.resolve(
+            vendorID: device.vendor_id,
+            productID: device.product_id,
+            transport: device.transport
+        ))
+        XCTAssertEqual(resolvedProfile.usbLightingCustomFrameCells.count, 12)
+        let visibleCells = await MainActor.run { appState.editorStore.visibleUSBLightingCustomFrameCells }
+        XCTAssertEqual(visibleCells.count, 12)
+
+        let editedColor = RGBColor(r: 12, g: 34, b: 56)
+        await MainActor.run {
+            appState.editorStore.updateUSBLightingCustomFrameCellID("underglow_right_front")
+            appState.editorStore.updateUSBLightingCustomFrameColor(editedColor, cellID: "underglow_right_front")
+        }
+        await appState.applyController.applyLightingCustomFrame()
+
+        try await waitForRefactorCondition(timeout: 2.0) {
+            await backend.recordedPatches().contains { $0.usbLightingCustomFrame != nil }
+        }
+
+        let patches = await backend.recordedPatches()
+        let patch = try XCTUnwrap(patches.first(where: { $0.usbLightingCustomFrame != nil }))
+        let frame = try XCTUnwrap(patch.usbLightingCustomFrame)
+        let preferenceStore = DevicePreferenceStore()
+        let persistedColors = try XCTUnwrap(preferenceStore.loadPersistedLightingCustomFrameColors(device: device))
+        let settingsSnapshot = try XCTUnwrap(preferenceStore.loadPersistedDeviceSettingsSnapshot(device: device))
+
+        XCTAssertEqual(frame.storage, 0x01)
+        XCTAssertEqual(frame.row, 0x00)
+        XCTAssertEqual(frame.startColumn, 0x00)
+        XCTAssertEqual(frame.colors.count, 12)
+        XCTAssertEqual(frame.colors[11], RGBPatch(r: editedColor.r, g: editedColor.g, b: editedColor.b))
+        XCTAssertNil(patch.lightingEffect)
+        XCTAssertNil(patch.usbLightingZoneLEDIDs)
+        XCTAssertEqual(persistedColors.count, 12)
+        XCTAssertEqual(persistedColors[11], editedColor)
+        XCTAssertEqual(settingsSnapshot.usbLightingCustomFrameColors?.count, 12)
+        XCTAssertEqual(settingsSnapshot.usbLightingCustomFrameColors?[11], editedColor)
+        XCTAssertEqual(settingsSnapshot.usbLightingZoneID, "all")
+    }
+
     func testUSBPersistedSettingsSnapshotRestoresStaticLightingAcrossAllZones() async throws {
         let device = makeRefactorMultiZoneUSBLightingDevice(
             id: "usb-restore-all-zones-device",
@@ -1549,6 +1629,136 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(patch.lightingEffect?.primary.g, persistedColor.g)
         XCTAssertEqual(patch.lightingEffect?.primary.b, persistedColor.b)
         XCTAssertNil(patch.usbLightingZoneLEDIDs)
+    }
+
+    func testUSBPersistedSettingsSnapshotRestoresCustomFrameLighting() async throws {
+        let device = makeRefactorMultiZoneUSBLightingDevice(
+            id: "usb-restore-custom-frame-device",
+            serial: "USB-RESTORE-CUSTOM-FRAME-\(UUID().uuidString)"
+        )
+        let customFrameColors = (0..<12).map { index in
+            RGBColor(r: index * 11, g: 255 - index * 7, b: 20 + index * 3)
+        }
+        let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
+        preferenceStore.persistDeviceSettingsSnapshot(
+            makeRefactorSettingsSnapshot(
+                color: customFrameColors[0],
+                zoneID: "all",
+                lightingEffect: LightingEffectPatch(
+                    kind: .staticColor,
+                    primary: RGBPatch(
+                        r: customFrameColors[0].r,
+                        g: customFrameColors[0].g,
+                        b: customFrameColors[0].b
+                    )
+                ),
+                customFrameColors: customFrameColors
+            ),
+            device: device
+        )
+        defer { clearRefactorPreferences(for: device) }
+
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 73,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 1,
+                    dpiValue: 1600,
+                    pollRate: 1000,
+                    sleepTimeout: 300
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await MainActor.run {
+            appState.deviceStore.devices = [device]
+            appState.deviceStore.selectedDeviceID = device.id
+        }
+        let persistedRestorePlan = await MainActor.run {
+            appState.editorController.persistedSettingsRestorePlan(device: device)
+        }
+        let restorePlan = try XCTUnwrap(persistedRestorePlan)
+        let restored = await appState.applyController.applyPersistedSettingsRestore(restorePlan, to: device)
+        XCTAssertTrue(restored)
+
+        try await waitForRefactorCondition {
+            await backend.recordedPatches().contains { $0.usbLightingCustomFrame != nil }
+        }
+
+        let patches = await backend.recordedPatches()
+        let patch = try XCTUnwrap(patches.first(where: { $0.usbLightingCustomFrame != nil }))
+        let frame = try XCTUnwrap(patch.usbLightingCustomFrame)
+        let expectedFrame = customFrameColors.map { RGBPatch(r: $0.r, g: $0.g, b: $0.b) }
+
+        XCTAssertEqual(frame.colors, expectedFrame)
+        XCTAssertNil(patch.lightingEffect)
+        XCTAssertNil(patch.ledRGB)
+        XCTAssertNil(patch.usbLightingZoneLEDIDs)
+    }
+
+    func testUSBPersistedSettingsSnapshotIgnoresCustomFrameColorsForNonStaticEffect() async throws {
+        let device = makeRefactorMultiZoneUSBLightingDevice(
+            id: "usb-restore-wave-with-stale-custom-frame-device",
+            serial: "USB-RESTORE-WAVE-STALE-CUSTOM-FRAME-\(UUID().uuidString)"
+        )
+        let waveColor = RGBColor(r: 70, g: 80, b: 90)
+        let staleCustomFrameColors = Array(repeating: RGBColor(r: 1, g: 2, b: 3), count: 12)
+        let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
+        preferenceStore.persistDeviceSettingsSnapshot(
+            makeRefactorSettingsSnapshot(
+                color: waveColor,
+                zoneID: "all",
+                lightingEffect: LightingEffectPatch(
+                    kind: .wave,
+                    primary: RGBPatch(r: waveColor.r, g: waveColor.g, b: waveColor.b),
+                    waveDirection: .right
+                ),
+                customFrameColors: staleCustomFrameColors
+            ),
+            device: device
+        )
+        defer { clearRefactorPreferences(for: device) }
+
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "usb",
+                    batteryPercent: 73,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 1,
+                    dpiValue: 1600,
+                    pollRate: 1000,
+                    sleepTimeout: 300
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await MainActor.run {
+            appState.deviceStore.devices = [device]
+            appState.deviceStore.selectedDeviceID = device.id
+        }
+        let persistedRestorePlan = await MainActor.run {
+            appState.editorController.persistedSettingsRestorePlan(device: device)
+        }
+        let restorePlan = try XCTUnwrap(persistedRestorePlan)
+
+        XCTAssertEqual(restorePlan.patch.lightingEffect?.kind, .wave)
+        XCTAssertEqual(restorePlan.patch.lightingEffect?.waveDirection, .right)
+        XCTAssertNil(restorePlan.patch.usbLightingCustomFrame)
     }
 
     func testUSBPersistedSettingsEffectReappliesOnFirstHydration() async throws {
@@ -7200,6 +7410,7 @@ private func makeRefactorSettingsSnapshot(
     color: OpenSnekCore.RGBColor,
     zoneID: String = "all",
     lightingEffect: LightingEffectPatch? = nil,
+    customFrameColors: [OpenSnekCore.RGBColor]? = nil,
     buttonBindings: [Int: ButtonBindingDraft] = [:]
 ) -> PersistedDeviceSettingsSnapshot {
     PersistedDeviceSettingsSnapshot(
@@ -7221,6 +7432,7 @@ private func makeRefactorSettingsSnapshot(
         primaryLightingColor: color,
         lightingEffect: lightingEffect,
         usbLightingZoneID: zoneID,
+        usbLightingCustomFrameColors: customFrameColors,
         buttonBindings: buttonBindings
     )
 }
@@ -7236,6 +7448,8 @@ private func clearRefactorPreferences(for device: MouseDevice) {
         "lightingZone.\(legacyKey)",
         "lightingEffect.\(key)",
         "lightingEffect.\(legacyKey)",
+        "lightingCustomFrame.\(key)",
+        "lightingCustomFrame.\(legacyKey)",
         "connectBehavior.\(key)",
         "connectBehavior.\(legacyKey)",
         "settingsSnapshot.\(key)",
