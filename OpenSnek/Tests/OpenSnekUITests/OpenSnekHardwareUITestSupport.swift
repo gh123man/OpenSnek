@@ -758,6 +758,8 @@ struct UITestOnboardProfileMutation: Decodable {
     let dpiStages: [Int]?
     let dpiStagePairs: [UITestDpiPair]?
     let buttonBindingSlots: [Int]?
+    let buttonBindingKindsBySlot: [String: String]?
+    let buttonBindingClutchDPIBySlot: [String: Int]?
     let brightnessByLEDID: [String: Int]?
     let staticColorLEDIDs: [Int]?
     let scrollMode: Int?

@@ -39,6 +39,7 @@ final class AppStateEditorController {
     private var onboardProfileButtonHydrationTasksByDeviceID: [String: Task<Void, Never>] = [:]
     private var onboardProfileButtonHydrationTokensByDeviceID: [String: UUID] = [:]
     private var manualOnboardProfileActivationTargetByDeviceID: [String: Int] = [:]
+    private var buttonWorkspaceEditRevisionByHydrationKey: [String: UInt64] = [:]
     private var activeOnboardProfileMutationCount = 0
     private var maxConcurrentOnboardProfileMutationCount = 0
     private var buttonWorkspaceEditRevision: UInt64 = 0
@@ -97,6 +98,13 @@ final class AppStateEditorController {
     private func cancelOnboardProfileButtonHydration(deviceID: String) {
         onboardProfileButtonHydrationTasksByDeviceID.removeValue(forKey: deviceID)?.cancel()
         onboardProfileButtonHydrationTokensByDeviceID.removeValue(forKey: deviceID)
+    }
+
+    private func clearButtonWorkspaceEditMarkers(deviceID: String) {
+        buttonWorkspaceEditRevisionByHydrationKey = buttonWorkspaceEditRevisionByHydrationKey.filter { key, _ in
+            guard let hydratedDeviceID = key.split(separator: "#").first else { return true }
+            return String(hydratedDeviceID) != deviceID
+        }
     }
 
     private func bumpConnectBehaviorRevision() {
@@ -313,6 +321,10 @@ final class AppStateEditorController {
             return !removedDeviceIDs.contains(String(hydratedDeviceID))
         }
         buttonBindingsReadbackInFlightKeys = buttonBindingsReadbackInFlightKeys.filter { key in
+            guard let hydratedDeviceID = key.split(separator: "#").first else { return true }
+            return !removedDeviceIDs.contains(String(hydratedDeviceID))
+        }
+        buttonWorkspaceEditRevisionByHydrationKey = buttonWorkspaceEditRevisionByHydrationKey.filter { key, _ in
             guard let hydratedDeviceID = key.split(separator: "#").first else { return true }
             return !removedDeviceIDs.contains(String(hydratedDeviceID))
         }
@@ -1761,6 +1773,7 @@ final class AppStateEditorController {
     func selectOnboardProfile(_ profileID: Int) async {
         guard !isTearingDown, let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return }
         applyController.cancelPendingLocalEditsForSelectionChange()
+        clearButtonWorkspaceEditMarkers(deviceID: device.id)
         cancelSelectedMouseSlotHydration(deviceID: device.id)
         cancelOnboardProfileButtonHydration(deviceID: device.id)
         let start = Date()
@@ -1819,6 +1832,7 @@ final class AppStateEditorController {
     func activateOnboardProfile(_ profileID: Int) async {
         guard !isTearingDown, let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return }
         applyController.cancelPendingLocalEditsForSelectionChange()
+        clearButtonWorkspaceEditMarkers(deviceID: device.id)
         cancelSelectedMouseSlotHydration(deviceID: device.id)
         cancelOnboardProfileButtonHydration(deviceID: device.id)
         let start = Date()
@@ -2018,6 +2032,7 @@ final class AppStateEditorController {
               !mutation.isEmpty else { return false }
         cancelSelectedMouseSlotHydration(deviceID: device.id)
         let startedAt = Date()
+        let mutationStartedEditRevision = buttonWorkspaceEditRevision
         activeOnboardProfileMutationCount += 1
         maxConcurrentOnboardProfileMutationCount = max(
             maxConcurrentOnboardProfileMutationCount,
@@ -2082,7 +2097,8 @@ final class AppStateEditorController {
                     cacheSelectedOnboardProfileButtonBindings(
                         snapshot.buttonBindings.merging(bindings) { _, updated in updated },
                         device: device,
-                        profileID: selected
+                        profileID: selected,
+                        appliedEditRevision: mutationStartedEditRevision
                     )
                 }
                 hydrateEditableLighting(from: snapshot, device: device)
@@ -2206,6 +2222,8 @@ final class AppStateEditorController {
     }
 
     private func readOnboardProfileButtonBindingsForSelection(device: MouseDevice, profileID: Int) async {
+        let workspaceEditRevisionAtStart = buttonWorkspaceEditRevision
+        let hadPendingLocalEditAtStart = hasPendingButtonWorkspaceEdit(device: device, profileID: profileID)
         do {
             let bindings = try await environment.backend.readOnboardProfileButtonBindings(
                 device: device,
@@ -2215,7 +2233,13 @@ final class AppStateEditorController {
                   selectedOnboardProfileIDByDeviceID[device.id] == profileID else {
                 return
             }
-            storeOnboardProfileButtonBindings(bindings, device: device, profileID: profileID)
+            storeOnboardProfileButtonBindings(
+                bindings,
+                device: device,
+                profileID: profileID,
+                workspaceEditRevisionAtStart: workspaceEditRevisionAtStart,
+                hadPendingLocalEditAtStart: hadPendingLocalEditAtStart
+            )
         } catch {
             AppLog.debug(
                 "AppState",
@@ -2237,6 +2261,8 @@ final class AppStateEditorController {
                 }
             }
             guard let self, !Task.isCancelled else { return }
+            let workspaceEditRevisionAtStart = self.buttonWorkspaceEditRevision
+            let hadPendingLocalEditAtStart = self.hasPendingButtonWorkspaceEdit(device: device, profileID: profileID)
             do {
                 let bindings = try await self.environment.backend.readOnboardProfileButtonBindings(
                     device: device,
@@ -2247,7 +2273,13 @@ final class AppStateEditorController {
                       self.selectedOnboardProfileIDByDeviceID[device.id] == profileID else {
                     return
                 }
-                self.storeOnboardProfileButtonBindings(bindings, device: device, profileID: profileID)
+                self.storeOnboardProfileButtonBindings(
+                    bindings,
+                    device: device,
+                    profileID: profileID,
+                    workspaceEditRevisionAtStart: workspaceEditRevisionAtStart,
+                    hadPendingLocalEditAtStart: hadPendingLocalEditAtStart
+                )
             } catch {
                 AppLog.debug(
                     "AppState",
@@ -2260,13 +2292,13 @@ final class AppStateEditorController {
     private func storeOnboardProfileButtonBindings(
         _ bindings: [Int: ButtonBindingDraft],
         device: MouseDevice,
-        profileID: Int
+        profileID: Int,
+        workspaceEditRevisionAtStart: UInt64? = nil,
+        hadPendingLocalEditAtStart: Bool = false
     ) {
         let snapshot = currentOnboardProfileSnapshotByDeviceID[device.id]
         let persistentProfileID = max(1, profileID)
         let hydrationKey = buttonBindingsHydrationKey(device: device, profile: persistentProfileID)
-        buttonBindingsCacheByHydrationKey[hydrationKey] = bindings
-        buttonBindingsReadbackAttemptedKeys.insert(hydrationKey)
 
         guard let snapshot, snapshot.profileID == profileID else {
             AppLog.debug(
@@ -2277,6 +2309,28 @@ final class AppStateEditorController {
             bumpUSBButtonProfilesRevision()
             return
         }
+
+        let isSelectedEditableProfile = selectedOnboardProfileIDByDeviceID[device.id] == profileID &&
+            deviceStore.selectedDeviceID == device.id &&
+            hydratedButtonBindingsKey == hydrationKey
+        let workspaceChangedDuringReadback = workspaceEditRevisionAtStart.map {
+            buttonWorkspaceEditRevision != $0
+        } ?? false
+        if isSelectedEditableProfile,
+           workspaceChangedDuringReadback ||
+           hadPendingLocalEditAtStart ||
+           buttonWorkspaceEditRevisionByHydrationKey[hydrationKey] != nil {
+            AppLog.debug(
+                "AppState",
+                "onboard profile button hydration stale-drop device=\(device.id) profile=\(profileID) " +
+                "dueToLocalEdits=true bindings=\(buttonBindingsDebugSummary(bindings))"
+            )
+            bumpUSBButtonProfilesRevision()
+            return
+        }
+
+        buttonBindingsCacheByHydrationKey[hydrationKey] = bindings
+        buttonBindingsReadbackAttemptedKeys.insert(hydrationKey)
 
         let updatedSnapshot = snapshot.replacingButtonBindings(bindings)
         storeCurrentOnboardProfileSnapshot(
@@ -2299,13 +2353,19 @@ final class AppStateEditorController {
     private func cacheSelectedOnboardProfileButtonBindings(
         _ bindings: [Int: ButtonBindingDraft],
         device: MouseDevice,
-        profileID: Int
+        profileID: Int,
+        appliedEditRevision: UInt64? = nil
     ) {
         let persistentProfileID = max(1, profileID)
         let hydrationKey = buttonBindingsHydrationKey(device: device, profile: persistentProfileID)
         buttonBindingsCacheByHydrationKey[hydrationKey] = bindings
         savePersistedButtonBindings(device: device, bindings: bindings, profile: persistentProfileID)
         buttonBindingsReadbackAttemptedKeys.insert(hydrationKey)
+        if let appliedEditRevision,
+           let pendingEditRevision = buttonWorkspaceEditRevisionByHydrationKey[hydrationKey],
+           pendingEditRevision <= appliedEditRevision {
+            buttonWorkspaceEditRevisionByHydrationKey.removeValue(forKey: hydrationKey)
+        }
         if selectedOnboardProfileIDByDeviceID[device.id] == profileID,
            deviceStore.selectedDeviceID == device.id {
             hydratedButtonBindingsKey = hydrationKey
@@ -2842,6 +2902,19 @@ final class AppStateEditorController {
         "\(device.id)#\(max(1, profile))"
     }
 
+    private func editableButtonBindingsHydrationKey(device: MouseDevice) -> String {
+        let profile = supportsOnboardProfileCRUD(device: device)
+            ? selectedOnboardProfileIDByDeviceID[device.id] ?? editorStore.editableUSBButtonProfile
+            : editorStore.editableUSBButtonProfile
+        return buttonBindingsHydrationKey(device: device, profile: profile)
+    }
+
+    private func hasPendingButtonWorkspaceEdit(device: MouseDevice, profileID: Int) -> Bool {
+        buttonWorkspaceEditRevisionByHydrationKey[
+            buttonBindingsHydrationKey(device: device, profile: profileID)
+        ] != nil
+    }
+
     func updateLightingEffect(_ kind: LightingEffectKind) {
         guard deviceStore.selectedDevice?.supports_advanced_lighting_effects == true else {
             editorStore.editableLightingEffect = .staticColor
@@ -3145,6 +3218,10 @@ final class AppStateEditorController {
 
     private func handleButtonWorkspaceDidChange(slot: Int) {
         buttonWorkspaceEditRevision &+= 1
+        if let device = deviceStore.selectedDevice {
+            let hydrationKey = editableButtonBindingsHydrationKey(device: device)
+            buttonWorkspaceEditRevisionByHydrationKey[hydrationKey] = buttonWorkspaceEditRevision
+        }
         bumpUSBButtonProfilesRevision()
         guard shouldAutoApplyCurrentButtonWorkspaceAfterEdit() else { return }
         applyController.scheduleAutoApplyButton(slot: slot)

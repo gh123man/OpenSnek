@@ -40,10 +40,14 @@ final class V3ProBluetoothMasterFeatureUITests: OpenSnekHardwareUITestCase {
         let targetDPI = originalDPI == 800 ? 400 : 800
         let event = try setSensitivityClutchDPI(targetDPI, timeout: 5)
         XCTAssertEqual(event.onboardMutation?.buttonBindingSlots, [15])
+        XCTAssertEqual(event.onboardMutation?.buttonBindingKindsBySlot?["15"], "dpi_clutch")
+        XCTAssertEqual(event.onboardMutation?.buttonBindingClutchDPIBySlot?["15"], targetDPI)
         XCTAssertLessThanOrEqual(event.elapsed ?? .greatestFiniteMagnitude, 5)
+        try assertSensitivityClutchDPIFieldStays(targetDPI, duration: 2)
 
         if targetDPI != originalDPI {
             _ = try setSensitivityClutchDPI(originalDPI, timeout: 5)
+            try assertSensitivityClutchDPIFieldStays(originalDPI, duration: 1)
         }
         pendingClutchRestoreDPI = nil
     }
@@ -90,10 +94,38 @@ final class V3ProBluetoothMasterFeatureUITests: OpenSnekHardwareUITestCase {
             waitForEvent(named: "onboardProfileMutationEnd", timeout: timeout) { event in
                 event.timestamp >= changedAt.timeIntervalSince1970 - 0.1 &&
                     expectedScope.matches(event.scope) &&
-                    event.onboardMutation?.buttonBindingSlots?.contains(15) == true
+                    event.onboardMutation?.buttonBindingSlots?.contains(15) == true &&
+                    event.onboardMutation?.buttonBindingKindsBySlot?["15"] == "dpi_clutch" &&
+                    event.onboardMutation?.buttonBindingClutchDPIBySlot?["15"] == dpi
             },
             "Sensitivity clutch mutation did not complete within \(timeout)s"
         )
+    }
+
+    private func assertSensitivityClutchDPIFieldStays(
+        _ dpi: Int,
+        duration: TimeInterval,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let deadline = Date().addingTimeInterval(duration)
+        var observedValues: [Int] = []
+        repeat {
+            let field = try requireElement("button-binding-clutch-dpi-field-15", timeout: 1, file: file, line: line)
+            scrollElementToVisible(field)
+            let observed = integerValue(from: field)
+            if let observed {
+                observedValues.append(observed)
+            }
+            XCTAssertEqual(
+                observed,
+                Optional(dpi),
+                "Sensitivity clutch field changed while waiting for post-write stability; observed \(observedValues)",
+                file: file,
+                line: line
+            )
+            RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+        } while Date() < deadline
     }
 
     private func requireElement(

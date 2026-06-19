@@ -5915,6 +5915,90 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         }
     }
 
+    func testBluetoothOnboardStaleButtonReadbackDoesNotOverwriteLocalEdit() async throws {
+        let device = makeRefactorTestDevice(
+            id: "onboard-bt-stale-button-readback-device",
+            transport: .bluetooth,
+            serial: "ONBOARD-BT-STALE-READBACK-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    connection: "bluetooth",
+                    batteryPercent: 74,
+                    dpiValues: [400, 800, 1300, 1600, 6400],
+                    activeStage: 0,
+                    dpiValue: 400,
+                    pollRate: 1000,
+                    sleepTimeout: 300,
+                    activeOnboardProfile: 1,
+                    onboardProfileCount: 5
+                )
+            ]
+        )
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 1,
+                maxProfileID: 5,
+                assignedProfileIDs: [1, 2],
+                profiles: [
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                ]
+            ),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(
+            makeRefactorOnboardProfileSnapshot(
+                profileID: 2,
+                name: "Stored 2",
+                dpiValues: [400, 1200, 1300],
+                buttonBindings: [4: ButtonBindingDraft(kind: .rightClick, hidKey: 4, turboEnabled: false, turboRate: 0x8E)]
+            ),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+
+        await backend.holdOnboardProfileButtonRead(deviceID: device.id, profileID: 2)
+        let selectionTask = Task {
+            await appState.editorStore.selectOnboardProfile(2)
+        }
+        await backend.waitForOnboardProfileButtonReadToStart(deviceID: device.id, profileID: 2)
+
+        await MainActor.run {
+            appState.editorStore.updateButtonBindingKind(slot: 4, kind: .mouseForward)
+        }
+        await backend.releaseOnboardProfileButtonRead(deviceID: device.id, profileID: 2)
+        await selectionTask.value
+
+        try await waitForRefactorCondition {
+            await backend.recordedOnboardUpdates().contains { update in
+                update.profileID == 2 &&
+                    update.mutation.buttonBindings?[4]?.kind == .mouseForward
+            }
+        }
+
+        let visibleKind = await MainActor.run {
+            appState.editorStore.buttonBindingKind(for: 4)
+        }
+        let updates = await backend.recordedOnboardUpdates()
+        let buttonReadCount = await backend.onboardButtonReadCount(deviceID: device.id, profileID: 2)
+
+        XCTAssertEqual(visibleKind, .mouseForward)
+        XCTAssertEqual(updates.last?.profileID, 2)
+        XCTAssertEqual(updates.last?.mutation.buttonBindings?[4]?.kind, .mouseForward)
+        XCTAssertEqual(buttonReadCount, 1)
+    }
+
     func testBluetoothOnboardProfileLightingEditUpdatesSelectedStoredProfile() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-bt-stored-lighting-device",
@@ -6358,6 +6442,10 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
     private var startedHeldOnboardProfileReads: Set<String> = []
     private var onboardProfileReadStartedContinuations: [String: CheckedContinuation<Void, Never>] = [:]
     private var onboardProfileReadReleaseContinuations: [String: CheckedContinuation<Void, Never>] = [:]
+    private var heldOnboardProfileButtonReads: Set<String> = []
+    private var startedHeldOnboardProfileButtonReads: Set<String> = []
+    private var onboardProfileButtonReadStartedContinuations: [String: CheckedContinuation<Void, Never>] = [:]
+    private var onboardProfileButtonReadReleaseContinuations: [String: CheckedContinuation<Void, Never>] = [:]
     private var heldOnboardUpdates: Set<String> = []
     private var startedHeldOnboardUpdates: Set<String> = []
     private var onboardUpdateStartedContinuations: [String: CheckedContinuation<Void, Never>] = [:]
@@ -6565,6 +6653,16 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
         let key = onboardSnapshotKey(deviceID: device.id, profileID: profileID)
         onboardButtonReadCountByKey[key, default: 0] += 1
         onboardEvents.append("read-buttons:\(profileID)")
+        if heldOnboardProfileButtonReads.contains(key) {
+            startedHeldOnboardProfileButtonReads.insert(key)
+            onboardProfileButtonReadStartedContinuations[key]?.resume()
+            onboardProfileButtonReadStartedContinuations[key] = nil
+            await withCheckedContinuation { continuation in
+                onboardProfileButtonReadReleaseContinuations[key] = continuation
+            }
+            heldOnboardProfileButtonReads.remove(key)
+            onboardProfileButtonReadReleaseContinuations[key] = nil
+        }
         return onboardSnapshotsByKey[key]?.buttonBindings ?? [:]
     }
 
@@ -6911,6 +7009,27 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
         heldOnboardProfileReads.remove(key)
         onboardProfileReadReleaseContinuations[key]?.resume()
         onboardProfileReadReleaseContinuations[key] = nil
+    }
+
+    func holdOnboardProfileButtonRead(deviceID: String, profileID: Int) {
+        heldOnboardProfileButtonReads.insert(onboardSnapshotKey(deviceID: deviceID, profileID: profileID))
+    }
+
+    func waitForOnboardProfileButtonReadToStart(deviceID: String, profileID: Int) async {
+        let key = onboardSnapshotKey(deviceID: deviceID, profileID: profileID)
+        if startedHeldOnboardProfileButtonReads.contains(key) {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            onboardProfileButtonReadStartedContinuations[key] = continuation
+        }
+    }
+
+    func releaseOnboardProfileButtonRead(deviceID: String, profileID: Int) {
+        let key = onboardSnapshotKey(deviceID: deviceID, profileID: profileID)
+        heldOnboardProfileButtonReads.remove(key)
+        onboardProfileButtonReadReleaseContinuations[key]?.resume()
+        onboardProfileButtonReadReleaseContinuations[key] = nil
     }
 
     func holdOnboardUpdate(deviceID: String, profileID: Int) {
