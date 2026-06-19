@@ -303,23 +303,25 @@ struct ContentView: View {
     }
 
     private var supportedDeviceRows: [SupportedDeviceRow] {
-        let grouped = Dictionary(grouping: DeviceProfiles.all, by: \.id)
-        return grouped.values
-            .compactMap { profiles in
-                guard let first = profiles.first else { return nil }
-                let transports = profiles
-                    .map(\.transport)
-                    .sorted { lhs, rhs in
-                        transportSortKey(lhs) < transportSortKey(rhs)
-                    }
-                return SupportedDeviceRow(
-                    id: first.id.rawValue,
-                    name: first.productName,
-                    transports: transports,
-                    supportBadge: supportedDeviceSupportBadge(for: profiles)
+        DeviceProfiles.all
+            .map { profile in
+                SupportedDeviceRow(
+                    id: "\(profile.id.rawValue):\(profile.transport.rawValue)",
+                    familyID: profile.id.rawValue,
+                    name: profile.productName,
+                    transport: profile.transport,
+                    productIDs: Self.productIDText(for: profile),
+                    status: supportedDeviceSupportBadge(for: [profile]) ?? "Supported",
+                    capabilities: Self.capabilityText(for: profile)
                 )
             }
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            .sorted { lhs, rhs in
+                let nameOrder = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
+                if nameOrder != .orderedSame {
+                    return nameOrder == .orderedAscending
+                }
+                return transportSortKey(lhs.transport) < transportSortKey(rhs.transport)
+            }
     }
 
     private func transportSortKey(_ transport: DeviceTransportKind) -> Int {
@@ -329,6 +331,37 @@ struct ContentView: View {
         case .bluetooth:
             1
         }
+    }
+
+    private static func productIDText(for profile: DeviceProfile) -> String {
+        profile.supportedProducts
+            .sorted()
+            .map { String(format: "0x%04X", $0) }
+            .joined(separator: ", ")
+    }
+
+    private static func capabilityText(for profile: DeviceProfile) -> String {
+        var items: [String] = []
+        if let maxDPI = profile.passiveDPIInput?.maximumDPI {
+            items.append("DPI \(maxDPI / 1000)K")
+        } else {
+            items.append("DPI")
+        }
+        if profile.supportsIndependentXYDPI {
+            items.append("X/Y")
+        }
+        if !profile.buttonLayout.writableSlots.isEmpty {
+            items.append("Buttons")
+        }
+        if !profile.supportedLightingEffects.isEmpty ||
+            !profile.usbLightingLEDIDs.isEmpty ||
+            !profile.usbLightingZones.isEmpty {
+            items.append("Lighting")
+        }
+        if profile.onboardProfileCount > 1 {
+            items.append("\(profile.onboardProfileCount) profiles")
+        }
+        return items.joined(separator: " · ")
     }
 
     private var emptyState: some View {
@@ -347,6 +380,11 @@ func supportedDeviceSupportBadge(for profiles: [DeviceProfile]) -> String? {
 private struct EmptyDeviceState: View {
     let rows: [SupportedDeviceRow]
     @State private var showsWaitingState = true
+    @State private var showsSupportedDevices = false
+
+    private var supportedFamilyCount: Int {
+        Set(rows.map(\.familyID)).count
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -365,14 +403,21 @@ private struct EmptyDeviceState: View {
                         .font(.system(size: 28, weight: .black, design: .rounded))
                         .foregroundStyle(.white)
                 }
-                Text("Supported devices")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.72))
-            }
+                HStack(spacing: 6) {
+                    Button {
+                        showsSupportedDevices = true
+                    } label: {
+                        Text("Supported devices")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .underline()
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color(hex: 0x66D9FF))
+                    .help("Open supported device table")
 
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(rows) { row in
-                    SupportedDeviceRowView(row: row)
+                    Text("· \(supportedFamilyCount) models · \(rows.count) connection paths")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.58))
                 }
             }
         }
@@ -397,50 +442,193 @@ private struct EmptyDeviceState: View {
                 showsWaitingState = false
             }
         }
+        .sheet(isPresented: $showsSupportedDevices) {
+            SupportedDevicesTableSheet(rows: rows)
+        }
     }
 }
 
-private struct SupportedDeviceRowView: View {
-    let row: SupportedDeviceRow
+private struct SupportedDevicesTableSheet: View {
+    let rows: [SupportedDeviceRow]
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText = ""
+
+    private var filteredRows: [SupportedDeviceRow] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return rows }
+        let terms = query
+            .lowercased()
+            .split(separator: " ")
+            .map(String.init)
+        return rows.filter { row in
+            terms.allSatisfy { row.searchText.contains($0) }
+        }
+    }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(row.name)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white)
-                .lineLimit(1)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Supported Devices")
+                        .font(.system(size: 24, weight: .black, design: .rounded))
+                        .foregroundStyle(.white)
+                    Text("\(rows.count) connection paths across \(Set(rows.map(\.familyID)).count) device models")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.62))
+                }
 
-            ForEach(row.transports, id: \.self) { transport in
-                Pill(
-                    text: transport.shortLabel,
-                    color: transport == .bluetooth ? Color(hex: 0x66D9FF) : Color(hex: 0xA8F46A),
-                    fontSize: 10,
-                    horizontalPadding: 8,
-                    verticalPadding: 4
-                )
+                Spacer()
+
+                Button("Done") {
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
             }
 
-            if let supportBadge = row.supportBadge {
-                Pill(
-                    text: supportBadge,
-                    color: Color(hex: 0xF2B95C),
-                    fontSize: 10,
-                    horizontalPadding: 8,
-                    verticalPadding: 4
-                )
-            }
+            TextField("Search by model, transport, product ID, or capability", text: $searchText)
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 460)
 
-            Spacer(minLength: 0)
+            SupportedDevicesTable(rows: filteredRows)
         }
-        .padding(.vertical, 2)
+        .padding(22)
+        .frame(minWidth: 960, minHeight: 520)
+        .background(Color(hex: 0x10161D))
     }
 }
 
 private struct SupportedDeviceRow: Identifiable {
     let id: String
+    let familyID: String
     let name: String
-    let transports: [DeviceTransportKind]
-    let supportBadge: String?
+    let transport: DeviceTransportKind
+    let productIDs: String
+    let status: String
+    let capabilities: String
+
+    var searchText: String {
+        [
+            name,
+            transport.connectionLabel,
+            transport.shortLabel,
+            productIDs,
+            status,
+            capabilities,
+        ]
+        .joined(separator: " ")
+        .lowercased()
+    }
+}
+
+private struct SupportedDevicesTable: View {
+    let rows: [SupportedDeviceRow]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            SupportedDevicesTableHeader()
+            Divider().overlay(Color.white.opacity(0.12))
+
+            if rows.isEmpty {
+                Text("No supported devices match the current search.")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .frame(maxWidth: .infinity, minHeight: 260)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(rows) { row in
+                            SupportedDevicesTableRow(row: row)
+                            Divider().overlay(Color.white.opacity(0.07))
+                        }
+                    }
+                }
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white.opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+private struct SupportedDevicesTableHeader: View {
+    var body: some View {
+        HStack(alignment: .center, spacing: 16) {
+            tableHeader("Device")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            tableHeader("Transport")
+                .frame(width: 108, alignment: .leading)
+            tableHeader("Status")
+                .frame(width: 96, alignment: .leading)
+            tableHeader("Product ID")
+                .frame(width: 132, alignment: .leading)
+            tableHeader("Capabilities")
+                .frame(width: 270, alignment: .leading)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.06))
+    }
+
+    private func tableHeader(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .black, design: .rounded))
+            .foregroundStyle(.white.opacity(0.58))
+            .textCase(.uppercase)
+    }
+}
+
+private struct SupportedDevicesTableRow: View {
+    let row: SupportedDeviceRow
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 16) {
+            Text(row.name)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Pill(
+                text: row.transport.connectionLabel,
+                color: row.transport == .bluetooth ? Color(hex: 0x66D9FF) : Color(hex: 0xA8F46A),
+                fontSize: 10,
+                horizontalPadding: 8,
+                verticalPadding: 4
+            )
+            .frame(width: 108, alignment: .leading)
+
+            Pill(
+                text: row.status,
+                color: row.status == "Mapped" ? Color(hex: 0xF2B95C) : Color(hex: 0xA8F46A),
+                fontSize: 10,
+                horizontalPadding: 8,
+                verticalPadding: 4
+            )
+            .frame(width: 96, alignment: .leading)
+
+            Text(row.productIDs)
+                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.78))
+                .lineLimit(1)
+                .frame(width: 132, alignment: .leading)
+
+            Text(row.capabilities)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.74))
+                .lineLimit(1)
+                .frame(width: 270, alignment: .leading)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 }
 
 private struct NoticeItem {
