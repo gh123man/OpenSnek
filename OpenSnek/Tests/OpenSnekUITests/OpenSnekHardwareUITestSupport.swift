@@ -621,6 +621,24 @@ struct HardwareDeviceScope: Equatable {
         profileID: "basilisk_v3_pro"
     )
 
+    static let v3XUSB = HardwareDeviceScope(
+        protocolName: "usb-hid",
+        transport: "usb",
+        vendorID: 0x1532,
+        productID: 0x00B9,
+        productName: "Razer Basilisk V3 X HyperSpeed",
+        profileID: "basilisk_v3_x_hyperspeed"
+    )
+
+    static let v3XBluetooth = HardwareDeviceScope(
+        protocolName: "ble-vendor",
+        transport: "bluetooth",
+        vendorID: 0x068E,
+        productID: 0x00BA,
+        productName: nil,
+        profileID: "basilisk_v3_x_hyperspeed"
+    )
+
     static let v3ProBluetooth = HardwareDeviceScope(
         protocolName: "ble-vendor",
         transport: "bluetooth",
