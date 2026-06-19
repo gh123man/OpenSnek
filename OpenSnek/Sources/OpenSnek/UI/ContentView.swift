@@ -283,7 +283,29 @@ struct ContentView: View {
         if isInputMonitoringError(deviceStore.errorMessage), showsUSBAccessCallout {
             return false
         }
+        if selectedDetailHandlesConnectionRecovery {
+            return false
+        }
         return true
+    }
+
+    private var selectedDetailHandlesConnectionRecovery: Bool {
+        guard let selected = deviceStore.selectedDevice else { return false }
+        guard !deviceStore.selectedDeviceIsStrictlyUnsupported,
+              !deviceStore.selectedDeviceIsUnsupportedUSB else {
+            return false
+        }
+        if let state = deviceStore.state,
+           state.device.id == nil || state.device.id == selected.id {
+            return false
+        }
+
+        switch deviceStore.connectionState(for: selected) {
+        case .disconnected, .reconnecting:
+            return true
+        case .connected, .unsupported, .error:
+            return false
+        }
     }
 
     private var shouldShowSeparateWarningNotice: Bool {
