@@ -48,7 +48,7 @@ All notable changes to this project are documented in this file.
 - The Advanced lighting Apply on connect toggle now sits beside the Apply and Stop controls.
 - The Lighting card background now reflects the selected Advanced software-lighting palette instead of staying tied to the onboard static color.
 - Jellybeans now uses a more saturated default palette so randomly assigned LED colors are easier to distinguish.
-- The Lighting card now opens collapsed with a compact settings summary and can be expanded to edit onboard or Advanced controls.
+- The Lighting card now opens collapsed with a minimal mode summary and can be expanded to edit onboard or Advanced controls.
 
 ## [2026-06-18]
 

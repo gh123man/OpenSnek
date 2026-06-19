@@ -81,11 +81,11 @@ final class SoftwareLightingEngineTests: XCTestCase {
             await writer.deviceIDs().contains(firstDevice.id)
         }
 
-        let firstFrameCountAtReplacement = await writer.deviceIDs().filter { $0 == firstDevice.id }.count
         _ = try await engine.start(
             device: secondDevice,
             request: SoftwareLightingEffectRequest(presetID: .scrollingRainbow, framesPerSecond: 30)
         )
+        let firstFrameCountAtReplacement = await writer.deviceIDs().filter { $0 == firstDevice.id }.count
         try await waitUntil {
             await writer.deviceIDs().contains(secondDevice.id)
         }

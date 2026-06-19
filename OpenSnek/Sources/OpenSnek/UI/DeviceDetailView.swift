@@ -942,49 +942,18 @@ struct LightingCard: View {
     }
 
     private var onboardLightingSummaryDetail: String {
-        var parts = ["\(brightnessPercent)% brightness"]
-
-        if editorStore.editableLightingEffect == .staticColor || !selected.supports_advanced_lighting_effects {
-            if showsStaticLightingZoneControls {
-                parts.append(onboardZoneMode == .individualZones ? "Individual zones" : "All zones")
-            } else {
-                parts.append(hexString(editorStore.editableColor))
-            }
-        } else {
-            if editorStore.editableLightingEffect.usesWaveDirection {
-                parts.append(editorStore.editableLightingWaveDirection.label)
-            }
-            if editorStore.editableLightingEffect.usesReactiveSpeed {
-                parts.append("Speed \(editorStore.editableLightingReactiveSpeed)")
-            }
-        }
-
-        parts.append("Stored on device")
-        return parts.joined(separator: " | ")
+        "Stored on device"
     }
 
     private var softwareLightingSummaryDetail: String {
-        var parts: [String] = []
+        var parts = ["Runs while OpenSnek is open"]
         if softwareLightingIsRunning {
             parts.append("Running")
-        } else {
-            parts.append("Ready")
         }
-
-        parts.append(softwareLightingSpeedSummary)
-        parts.append("\(softwareLightingPaletteColorCount) colors")
-        parts.append(editorStore.editableSoftwareLightingApplyOnConnect ? "Apply on connect" : "Manual apply")
+        if editorStore.editableSoftwareLightingApplyOnConnect {
+            parts.append("Apply on connect")
+        }
         return parts.joined(separator: " | ")
-    }
-
-    private var softwareLightingPaletteColorCount: Int {
-        editorStore.editableSoftwareLightingPalette(for: editorStore.editableSoftwareLightingPreset).count
-    }
-
-    private var softwareLightingSpeedSummary: String {
-        editorStore.editableSoftwareLightingSpeed <= 0.001
-            ? "Static"
-            : "\(Int(round(editorStore.editableSoftwareLightingSpeed * 100)))% speed"
     }
 
     private var lightingSummarySwatches: [RGBColor] {
@@ -1022,10 +991,6 @@ struct LightingCard: View {
             }
         }
         return uniqueColors.isEmpty ? [editorStore.editableColor] : uniqueColors
-    }
-
-    private func hexString(_ color: RGBColor) -> String {
-        String(format: "#%02X%02X%02X", color.r, color.g, color.b)
     }
 
     private var tabSelection: Binding<LightingCardTab> {
