@@ -2,9 +2,9 @@ import XCTest
 import OpenSnekCore
 
 final class SoftwareLightingRendererTests: XCTestCase {
-    func testBasiliskV3ProLayoutMatchesValidatedCellMap() {
+    func testBasiliskV3FamilyLayoutMatchesValidatedCellMap() {
         let layout = SoftwareLightingFrameLayout.basiliskV3ProUSB
-        XCTAssertEqual(layout.cellCount, 12)
+        XCTAssertEqual(layout.cellCount, 14)
         XCTAssertEqual(layout.cells.map(\.id), [
             "logo",
             "scroll_wheel",
@@ -18,6 +18,8 @@ final class SoftwareLightingRendererTests: XCTestCase {
             "underglow_right_3",
             "underglow_right_middle",
             "underglow_right_front",
+            "underglow_tail_1",
+            "underglow_tail_2",
         ])
     }
 
@@ -28,12 +30,37 @@ final class SoftwareLightingRendererTests: XCTestCase {
                 layout: .basiliskV3ProUSB,
                 elapsedTime: 1.25
             )
-            XCTAssertEqual(frame.colors.count, 12)
+            XCTAssertEqual(frame.colors.count, 14)
             XCTAssertTrue(frame.colors.allSatisfy { color in
                 (0...255).contains(color.r) &&
                     (0...255).contains(color.g) &&
                     (0...255).contains(color.b)
             })
+        }
+    }
+
+    func testAnimatedPresetsRenderTailCellsInFourteenCellLayout() {
+        for preset in SoftwareLightingPresetID.animatedPresets {
+            let request = SoftwareLightingEffectRequest(presetID: preset)
+            let frames = [
+                SoftwareLightingRenderer.render(
+                    request: request,
+                    layout: .basiliskV3ProUSB,
+                    elapsedTime: 0.0
+                ),
+                SoftwareLightingRenderer.render(
+                    request: request,
+                    layout: .basiliskV3ProUSB,
+                    elapsedTime: 0.5
+                ),
+            ]
+            let tailSamples = frames.flatMap { [$0.colors[12], $0.colors[13]] }
+
+            XCTAssertEqual(frames[0].colors.count, 14)
+            XCTAssertTrue(
+                tailSamples.contains { $0 != RGBPatch(r: 0, g: 0, b: 0) },
+                "\(preset.rawValue) should render the newly addressed tail LEDs"
+            )
         }
     }
 
@@ -105,6 +132,7 @@ final class SoftwareLightingRendererTests: XCTestCase {
         XCTAssertEqual(SoftwareLightingEffectRequest(presetID: .cometChase).speed, 1.0)
         XCTAssertEqual(SoftwareLightingEffectRequest(presetID: .aurora).speed, 1.0)
         XCTAssertEqual(SoftwareLightingEffectRequest(presetID: .jellybeans).speed, 1.0)
+        XCTAssertEqual(SoftwareLightingEffectRequest(presetID: .batteryMeter).speed, 0.0)
         XCTAssertEqual(SoftwareLightingPresetID.scrollingRainbow.renderSpeedMultiplier, 3.0)
     }
 
@@ -130,7 +158,19 @@ final class SoftwareLightingRendererTests: XCTestCase {
         ])
     }
 
-    func testFlameTimingVariesAcrossCells() {
+    func testBatteryMeterDefaultPaletteUsesThresholdColors() {
+        XCTAssertEqual(SoftwareLightingPresetID.batteryMeter.label, "Battery Meter")
+        XCTAssertEqual(SoftwareLightingPresetID.batteryMeter.defaultPalette, [
+            RGBPatch(r: 255, g: 0, b: 0),
+            RGBPatch(r: 255, g: 255, b: 0),
+            RGBPatch(r: 255, g: 255, b: 255),
+        ])
+        XCTAssertFalse(SoftwareLightingPresetID.batteryMeter.isAnimated)
+        XCTAssertFalse(SoftwareLightingPresetID.batteryMeter.usesPaletteControls)
+        XCTAssertFalse(SoftwareLightingPresetID.batteryMeter.usesSpeedControl)
+    }
+
+    func testFlameRendersNonUniformFlickerAcrossCells() {
         let request = SoftwareLightingEffectRequest(presetID: .flame)
         let samples = stride(from: 0.0, through: 2.0, by: 0.1).map { elapsed in
             SoftwareLightingRenderer.render(
@@ -139,11 +179,9 @@ final class SoftwareLightingRendererTests: XCTestCase {
                 elapsedTime: elapsed
             )
         }
-        let framePairs = zip(samples, samples.dropFirst())
-        let firstCellChanges = framePairs.filter { $0.colors[2] != $1.colors[2] }.count
-        let secondCellChanges = zip(samples, samples.dropFirst()).filter { $0.colors[7] != $1.colors[7] }.count
 
-        XCTAssertNotEqual(firstCellChanges, secondCellChanges)
+        XCTAssertGreaterThan(Set(samples[0].colors.dropFirst(2)).count, 1)
+        XCTAssertNotEqual(samples[0].colors, samples[5].colors)
     }
 
     func testZeroSpeedRendersStaticFrame() {
@@ -260,8 +298,121 @@ final class SoftwareLightingRendererTests: XCTestCase {
         }
     }
 
+    func testBatteryMeterRendersUnknownBatteryWithWhiteLogoAndScrollWheel() {
+        let frame = SoftwareLightingRenderer.render(
+            request: SoftwareLightingEffectRequest(presetID: .batteryMeter),
+            layout: .basiliskV3ProUSB,
+            elapsedTime: 0.0
+        )
+
+        XCTAssertEqual(frame.colors[0], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(frame.colors[1], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(Array(frame.colors.dropFirst(2)), Array(repeating: RGBPatch(r: 0, g: 0, b: 0), count: 12))
+    }
+
+    func testBatteryMeterUsesUnderglowProgressBarAndThresholdColors() {
+        let request = SoftwareLightingEffectRequest(presetID: .batteryMeter)
+        let emptyFrame = SoftwareLightingRenderer.render(
+            request: request,
+            layout: .basiliskV3ProUSB,
+            elapsedTime: 0.0,
+            batteryPercent: 0
+        )
+        let redFrame = SoftwareLightingRenderer.render(
+            request: request,
+            layout: .basiliskV3ProUSB,
+            elapsedTime: 0.0,
+            batteryPercent: 14
+        )
+        let yellowFrame = SoftwareLightingRenderer.render(
+            request: request,
+            layout: .basiliskV3ProUSB,
+            elapsedTime: 0.0,
+            batteryPercent: 15
+        )
+        let whiteFrame = SoftwareLightingRenderer.render(
+            request: request,
+            layout: .basiliskV3ProUSB,
+            elapsedTime: 0.0,
+            batteryPercent: 74
+        )
+        let halfFrame = SoftwareLightingRenderer.render(
+            request: request,
+            layout: .basiliskV3ProUSB,
+            elapsedTime: 0.0,
+            batteryPercent: 50
+        )
+
+        XCTAssertEqual(emptyFrame.colors[0], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(emptyFrame.colors[1], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(
+            Array(emptyFrame.colors.dropFirst(2)),
+            Array(repeating: RGBPatch(r: 0, g: 0, b: 0), count: 12)
+        )
+
+        XCTAssertEqual(redFrame.colors[0], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(redFrame.colors[1], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(redFrame.colors[2], RGBPatch(r: 255, g: 0, b: 0))
+        XCTAssertEqual(redFrame.colors[3], RGBPatch(r: 255, g: 0, b: 0))
+        XCTAssertEqual(
+            Array(redFrame.colors.dropFirst(4)),
+            Array(repeating: RGBPatch(r: 0, g: 0, b: 0), count: 10)
+        )
+
+        XCTAssertEqual(yellowFrame.colors[0], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(yellowFrame.colors[1], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(yellowFrame.colors[2], RGBPatch(r: 255, g: 255, b: 0))
+        XCTAssertEqual(yellowFrame.colors[3], RGBPatch(r: 255, g: 255, b: 0))
+        XCTAssertEqual(
+            Array(yellowFrame.colors.dropFirst(4)),
+            Array(repeating: RGBPatch(r: 0, g: 0, b: 0), count: 10)
+        )
+
+        XCTAssertEqual(whiteFrame.colors[0], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(whiteFrame.colors[1], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(
+            Array(whiteFrame.colors[2...10]),
+            Array(repeating: RGBPatch(r: 255, g: 255, b: 255), count: 9)
+        )
+        XCTAssertEqual(
+            Array(whiteFrame.colors[11...13]),
+            Array(repeating: RGBPatch(r: 0, g: 0, b: 0), count: 3)
+        )
+        XCTAssertFalse(whiteFrame.colors.contains(RGBPatch(r: 255, g: 255, b: 0)))
+
+        XCTAssertEqual(halfFrame.colors[0], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(halfFrame.colors[1], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(
+            Array(halfFrame.colors[2...7]),
+            Array(repeating: RGBPatch(r: 255, g: 255, b: 255), count: 6)
+        )
+        XCTAssertEqual(
+            Array(halfFrame.colors[8...13]),
+            Array(repeating: RGBPatch(r: 0, g: 0, b: 0), count: 6)
+        )
+        XCTAssertFalse(halfFrame.colors.contains(RGBPatch(r: 255, g: 255, b: 0)))
+    }
+
+    func testBatteryMeterIsStableOverTime() {
+        let request = SoftwareLightingEffectRequest(presetID: .batteryMeter)
+        let first = SoftwareLightingRenderer.render(
+            request: request,
+            layout: .basiliskV3ProUSB,
+            elapsedTime: 0.0,
+            batteryPercent: 74
+        )
+        let second = SoftwareLightingRenderer.render(
+            request: request,
+            layout: .basiliskV3ProUSB,
+            elapsedTime: 4.0,
+            batteryPercent: 74
+        )
+
+        XCTAssertEqual(first.colors, second.colors)
+    }
+
     func testAnimatedPresetsMoveOverTime() {
-        for preset in SoftwareLightingPresetID.allCases {
+        for preset in SoftwareLightingPresetID.allCases where preset.isAnimated {
             let request = SoftwareLightingEffectRequest(presetID: preset)
             let first = SoftwareLightingRenderer.render(
                 request: request,

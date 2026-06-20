@@ -884,15 +884,48 @@ struct LightingCard: View {
     }
 
     private var softwareLightingGradientColors: [Color] {
-        let defaultPalette = editorStore.editableSoftwareLightingPreset.defaultPalette
+        if activeSoftwareLightingPreset == .batteryMeter {
+            let color = batteryMeterSummaryColor
+            return gradientColors(from: [color], fallback: color)
+        }
+
+        let defaultPalette = activeSoftwareLightingPreset.defaultPalette
         let fallbackColor = defaultPalette.first.map {
             RGBColor(r: $0.r, g: $0.g, b: $0.b)
         } ?? editorStore.editableColor
 
         return gradientColors(
-            from: editorStore.editableSoftwareLightingPalette(for: editorStore.editableSoftwareLightingPreset),
+            from: activeSoftwareLightingPalette,
             fallback: fallbackColor
         )
+    }
+
+    private var activeSoftwareLightingRequest: SoftwareLightingEffectRequest? {
+        softwareLightingIsRunning ? softwareLightingStatus?.request : nil
+    }
+
+    private var activeSoftwareLightingPreset: SoftwareLightingPresetID {
+        activeSoftwareLightingRequest?.presetID ?? editorStore.editableSoftwareLightingPreset
+    }
+
+    private var activeSoftwareLightingPalette: [RGBColor] {
+        if let request = activeSoftwareLightingRequest {
+            return request.palette.map { RGBColor(r: $0.r, g: $0.g, b: $0.b) }
+        }
+        return editorStore.editableSoftwareLightingPalette(for: editorStore.editableSoftwareLightingPreset)
+    }
+
+    private var batteryMeterSummaryColor: RGBColor {
+        guard let percent = editorStore.deviceStore.state?.battery_percent else {
+            return RGBColor(r: 255, g: 255, b: 255)
+        }
+        if percent < 15 {
+            return RGBColor(r: 255, g: 0, b: 0)
+        }
+        if percent < 30 {
+            return RGBColor(r: 255, g: 255, b: 0)
+        }
+        return RGBColor(r: 255, g: 255, b: 255)
     }
 
     private func gradientColors(from displayColors: [RGBColor], fallback: RGBColor) -> [Color] {
@@ -930,23 +963,30 @@ struct LightingCard: View {
     }
 
     private var lightingSummaryTitle: String {
-        if summarizesSoftwareLighting {
-            return editorStore.editableSoftwareLightingPreset.label
-        }
-
-        return "Onboard \(editorStore.editableLightingEffect.label)"
+        lightingSummaryPresentation.title
     }
 
     private var lightingSummarySwatches: [RGBColor] {
-        let source: [RGBColor]
-        if summarizesSoftwareLighting {
-            source = editorStore.editableSoftwareLightingPalette(for: editorStore.editableSoftwareLightingPreset)
-        } else {
-            let colors = editorStore.lightingGradientDisplayColors
-            source = colors.isEmpty ? [editorStore.editableColor] : colors
-        }
+        lightingSummaryPresentation.swatches
+    }
 
-        return condensedSwatches(from: source)
+    private var lightingSummaryBatteryIcon: BatteryIconPresentation? {
+        lightingSummaryPresentation.batteryIcon
+    }
+
+    private var lightingSummaryPresentation: LightingSummaryPresentation {
+        LightingSummaryPresentation.make(
+            supportsSoftwareLightingEffects: selected.supportsSoftwareLightingEffects,
+            softwareLightingStatus: softwareLightingStatus,
+            editableSoftwareLightingPreset: editorStore.editableSoftwareLightingPreset,
+            editableSoftwareLightingPalette: editorStore.editableSoftwareLightingPalette(
+                for: editorStore.editableSoftwareLightingPreset
+            ),
+            onboardEffectLabel: editorStore.editableLightingEffect.label,
+            onboardColors: editorStore.lightingGradientDisplayColors,
+            fallbackColor: editorStore.editableColor,
+            batteryState: editorStore.deviceStore.state
+        )
     }
 
     private var advancedStatusText: String? {
@@ -959,19 +999,6 @@ struct LightingCard: View {
         case .stopped:
             return nil
         }
-    }
-
-    private func condensedSwatches(from colors: [RGBColor]) -> [RGBColor] {
-        var uniqueColors: [RGBColor] = []
-        for color in colors {
-            if !uniqueColors.contains(color) {
-                uniqueColors.append(color)
-            }
-            if uniqueColors.count == 6 {
-                break
-            }
-        }
-        return uniqueColors.isEmpty ? [editorStore.editableColor] : uniqueColors
     }
 
     private var tabSelection: Binding<LightingCardTab> {
@@ -1308,16 +1335,28 @@ struct LightingCard: View {
 
             Spacer(minLength: 10)
 
-            HStack(spacing: -3) {
-                ForEach(Array(lightingSummarySwatches.enumerated()), id: \.offset) { _, color in
-                    Circle()
-                        .fill(Color(rgb: color))
-                        .frame(width: 15, height: 15)
-                        .overlay(Circle().stroke(Color.white.opacity(0.62), lineWidth: 1))
+            if let batteryIcon = lightingSummaryBatteryIcon {
+                Image(
+                    systemName: batteryIcon.symbolName,
+                    variableValue: batteryIcon.variableValue
+                )
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(batteryIcon.accent == .low ? BatteryPresentation.lowBatteryColor : .white.opacity(0.82))
+                .frame(width: 28, height: 18)
+                .accessibilityLabel("Battery Meter")
+                .accessibilityIdentifier("lighting-card-summary-battery-icon")
+            } else {
+                HStack(spacing: -3) {
+                    ForEach(Array(lightingSummarySwatches.enumerated()), id: \.offset) { _, color in
+                        Circle()
+                            .fill(Color(rgb: color))
+                            .frame(width: 15, height: 15)
+                            .overlay(Circle().stroke(Color.white.opacity(0.62), lineWidth: 1))
+                    }
                 }
+                .padding(.horizontal, 3)
+                .accessibilityHidden(true)
             }
-            .padding(.horizontal, 3)
-            .accessibilityHidden(true)
 
             Button {
                 withAnimation(.easeInOut(duration: 0.16)) {
@@ -1357,7 +1396,7 @@ struct LightingCard: View {
                             set: { editorStore.updateEditableSoftwareLightingPreset($0) }
                         )
                     ) {
-                        ForEach(SoftwareLightingPresetID.allCases) { preset in
+                        ForEach(editorStore.visibleSoftwareLightingPresets) { preset in
                             Text(preset.label).tag(preset)
                         }
                     }
@@ -1367,42 +1406,46 @@ struct LightingCard: View {
                     .accessibilityIdentifier("software-lighting-preset-picker")
                 }
 
-                softwareLightingSpeedControl()
+                if editorStore.editableSoftwareLightingPreset.usesSpeedControl {
+                    softwareLightingSpeedControl()
+                }
                 softwareLightingBrightnessControl()
 
-                SoftwareLightingPaletteEditor(
-                    preset: editorStore.editableSoftwareLightingPreset,
-                    palette: Binding(
-                        get: {
-                            editorStore.editableSoftwareLightingPalette(
+                if editorStore.editableSoftwareLightingPreset.usesPaletteControls {
+                    SoftwareLightingPaletteEditor(
+                        preset: editorStore.editableSoftwareLightingPreset,
+                        palette: Binding(
+                            get: {
+                                editorStore.editableSoftwareLightingPalette(
+                                    for: editorStore.editableSoftwareLightingPreset
+                                )
+                            },
+                            set: {
+                                editorStore.setEditableSoftwareLightingPalette(
+                                    $0,
+                                    for: editorStore.editableSoftwareLightingPreset
+                                )
+                            }
+                        ),
+                        swatches: swatches,
+                        onAdd: {
+                            editorStore.addEditableSoftwareLightingPaletteColor(
                                 for: editorStore.editableSoftwareLightingPreset
                             )
                         },
-                        set: {
-                            editorStore.setEditableSoftwareLightingPalette(
-                                $0,
+                        onRemove: { index in
+                            editorStore.removeEditableSoftwareLightingPaletteColor(
+                                at: index,
+                                for: editorStore.editableSoftwareLightingPreset
+                            )
+                        },
+                        onReset: {
+                            editorStore.resetEditableSoftwareLightingPalette(
                                 for: editorStore.editableSoftwareLightingPreset
                             )
                         }
-                    ),
-                    swatches: swatches,
-                    onAdd: {
-                        editorStore.addEditableSoftwareLightingPaletteColor(
-                            for: editorStore.editableSoftwareLightingPreset
-                        )
-                    },
-                    onRemove: { index in
-                        editorStore.removeEditableSoftwareLightingPaletteColor(
-                            at: index,
-                            for: editorStore.editableSoftwareLightingPreset
-                        )
-                    },
-                    onReset: {
-                        editorStore.resetEditableSoftwareLightingPalette(
-                            for: editorStore.editableSoftwareLightingPreset
-                        )
-                    }
-                )
+                    )
+                }
 
                 if let advancedStatusText {
                     Text(advancedStatusText)
@@ -1554,6 +1597,80 @@ private enum LightingCardTab: String, CaseIterable, Identifiable {
         case .advanced:
             return "Advanced"
         }
+    }
+}
+
+struct LightingSummaryPresentation: Equatable {
+    let title: String
+    let swatches: [RGBColor]
+    let batteryIcon: BatteryIconPresentation?
+
+    static func make(
+        supportsSoftwareLightingEffects: Bool,
+        softwareLightingStatus: SoftwareLightingEngineStatus?,
+        editableSoftwareLightingPreset: SoftwareLightingPresetID,
+        editableSoftwareLightingPalette: [RGBColor],
+        onboardEffectLabel: String,
+        onboardColors: [RGBColor],
+        fallbackColor: RGBColor,
+        batteryState: MouseState?
+    ) -> LightingSummaryPresentation {
+        if supportsSoftwareLightingEffects,
+           softwareLightingStatus?.state == .running {
+            let preset = softwareLightingStatus?.request?.presetID ?? editableSoftwareLightingPreset
+            if preset == .batteryMeter {
+                return LightingSummaryPresentation(
+                    title: preset.label,
+                    swatches: [],
+                    batteryIcon: batteryIcon(for: batteryState)
+                )
+            }
+
+            let palette = softwareLightingStatus?.request?.palette.map { color in
+                RGBColor(r: color.r, g: color.g, b: color.b)
+            } ?? editableSoftwareLightingPalette
+            return LightingSummaryPresentation(
+                title: preset.label,
+                swatches: condensedSwatches(from: palette, fallback: fallbackColor),
+                batteryIcon: nil
+            )
+        }
+
+        return LightingSummaryPresentation(
+            title: "Onboard \(onboardEffectLabel)",
+            swatches: condensedSwatches(from: onboardColors, fallback: fallbackColor),
+            batteryIcon: nil
+        )
+    }
+
+    private static func batteryIcon(for state: MouseState?) -> BatteryIconPresentation {
+        guard let state,
+              let percent = state.battery_percent else {
+            return BatteryIconPresentation(
+                symbolName: "battery.100percent",
+                variableValue: 1.0,
+                accent: .normal
+            )
+        }
+        return ServiceMenuBarPresentation.batteryIcon(
+            percent: percent,
+            charging: state.charging,
+            thresholdRaw: state.low_battery_threshold_raw
+        )
+    }
+
+    private static func condensedSwatches(from colors: [RGBColor], fallback: RGBColor) -> [RGBColor] {
+        let source = colors.isEmpty ? [fallback] : colors
+        var uniqueColors: [RGBColor] = []
+        for color in source {
+            if !uniqueColors.contains(color) {
+                uniqueColors.append(color)
+            }
+            if uniqueColors.count == 6 {
+                break
+            }
+        }
+        return uniqueColors.isEmpty ? [fallback] : uniqueColors
     }
 }
 

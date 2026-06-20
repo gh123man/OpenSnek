@@ -36,6 +36,8 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.usbLightingLEDIDs, [0x01, 0x04, 0x0A])
         XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel", "logo", "underglow"])
         XCTAssertEqual(profile?.softwareLightingFrameLayout, .basiliskV3ProUSB)
+        XCTAssertEqual(profile?.softwareLightingFrameLayout?.cellCount, 14)
+        XCTAssertEqual(profile?.supportedSoftwareLightingPresets, SoftwareLightingPresetID.animatedPresets)
         XCTAssertEqual(profile?.usbTransactionID, 0x1F)
         XCTAssertEqual(profile?.passiveDPIInput?.usagePage, 0x01)
         XCTAssertEqual(profile?.passiveDPIInput?.usage, 0x06)
@@ -65,6 +67,8 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.usbLightingLEDIDs, [0x01, 0x04, 0x0A])
         XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel", "logo", "underglow"])
         XCTAssertEqual(profile?.softwareLightingFrameLayout, .basiliskV3ProUSB)
+        XCTAssertEqual(profile?.softwareLightingFrameLayout?.cellCount, 14)
+        XCTAssertEqual(profile?.supportedSoftwareLightingPresets, SoftwareLightingPresetID.animatedPresets)
         XCTAssertNil(profile?.usbTransactionID)
         XCTAssertEqual(profile?.passiveDPIInput?.usagePage, 0x01)
         XCTAssertEqual(profile?.passiveDPIInput?.usage, 0x06)
@@ -97,6 +101,8 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.usbLightingLEDIDs, [0x01, 0x04, 0x0A])
         XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel", "logo", "underglow"])
         XCTAssertEqual(profile?.softwareLightingFrameLayout, .basiliskV3ProUSB)
+        XCTAssertEqual(profile?.softwareLightingFrameLayout?.cellCount, 14)
+        XCTAssertEqual(profile?.supportedSoftwareLightingPresets, SoftwareLightingPresetID.basiliskV3ProPresets)
         XCTAssertEqual(profile?.usbTransactionID, 0x1F)
         XCTAssertEqual(profile?.passiveDPIInput?.usagePage, 0x01)
         XCTAssertEqual(profile?.passiveDPIInput?.usage, 0x06)
@@ -114,7 +120,8 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.id, .basiliskV3Pro)
         XCTAssertEqual(profile?.productName, "Basilisk V3 Pro")
         XCTAssertEqual(profile?.supportedProducts, [0x00AA, 0x00AB])
-        XCTAssertEqual(profile?.softwareLightingFrameLayout?.cellCount, 12)
+        XCTAssertEqual(profile?.softwareLightingFrameLayout?.cellCount, 14)
+        XCTAssertTrue(profile?.supportedSoftwareLightingPresets.contains(.batteryMeter) == true)
     }
 
     func testBasiliskV3ProUSBLightingTargetsResolveAllZones() throws {

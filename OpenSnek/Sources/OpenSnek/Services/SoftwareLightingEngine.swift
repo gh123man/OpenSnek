@@ -3,11 +3,14 @@ import OpenSnekCore
 
 enum SoftwareLightingEngineError: LocalizedError, Sendable {
     case unsupportedDevice
+    case unsupportedPreset(SoftwareLightingPresetID)
 
     var errorDescription: String? {
         switch self {
         case .unsupportedDevice:
             return "Software lighting is not supported for this device"
+        case .unsupportedPreset(let preset):
+            return "\(preset.label) is not supported for this device"
         }
     }
 }
@@ -38,6 +41,7 @@ actor SoftwareLightingEngine {
     private var statusByDeviceKey: [String: SoftwareLightingEngineStatus] = [:]
     private var statusByDeviceID: [String: SoftwareLightingEngineStatus] = [:]
     private var generationByDeviceKey: [String: UInt64] = [:]
+    private var batteryPercentByDeviceKey: [String: Int] = [:]
 
     init(
         frameWriter: any SoftwareLightingFrameWriting,
@@ -68,13 +72,20 @@ actor SoftwareLightingEngine {
     @discardableResult
     func start(
         device: MouseDevice,
-        request: SoftwareLightingEffectRequest
+        request: SoftwareLightingEffectRequest,
+        batteryPercent: Int? = nil
     ) async throws -> SoftwareLightingEngineStatus {
         guard let layout = device.softwareLightingFrameLayout else {
             throw SoftwareLightingEngineError.unsupportedDevice
         }
+        guard device.supportsSoftwareLightingPreset(request.presetID) else {
+            throw SoftwareLightingEngineError.unsupportedPreset(request.presetID)
+        }
 
         let deviceKey = Self.lightingDeviceKey(for: device)
+        if let batteryPercent {
+            batteryPercentByDeviceKey[deviceKey] = Self.clampedBatteryPercent(batteryPercent)
+        }
         let generation = nextGeneration(for: deviceKey)
         if let previousTask = tasksByDeviceKey[deviceKey] {
             previousTask.cancel()
@@ -138,6 +149,7 @@ actor SoftwareLightingEngine {
         deviceByDeviceKey.removeValue(forKey: deviceKey)
         statusByDeviceKey.removeValue(forKey: deviceKey)
         deviceIDByDeviceKey.removeValue(forKey: deviceKey)
+        batteryPercentByDeviceKey.removeValue(forKey: deviceKey)
         tasksByDeviceKey.removeValue(forKey: deviceKey)
         removeAliases(for: deviceKey)
 
@@ -188,6 +200,15 @@ actor SoftwareLightingEngine {
         return try await start(device: device, request: request)
     }
 
+    func updateBatteryPercent(deviceID: String, batteryPercent: Int?) {
+        let deviceKey = deviceKeyByDeviceID[deviceID] ?? deviceID
+        guard let batteryPercent else {
+            batteryPercentByDeviceKey.removeValue(forKey: deviceKey)
+            return
+        }
+        batteryPercentByDeviceKey[deviceKey] = Self.clampedBatteryPercent(batteryPercent)
+    }
+
     private func run(
         device: MouseDevice,
         deviceKey: String,
@@ -198,6 +219,33 @@ actor SoftwareLightingEngine {
     ) async {
         let startedAt = Date()
         var consecutiveFailures = 0
+        var lastWrittenFrame: USBLightingFramePatch?
+
+        if request.presetID == .batteryMeter {
+            let clearFrame = USBLightingFramePatch(colors: Array(
+                repeating: RGBPatch(r: 0, g: 0, b: 0),
+                count: layout.cellCount
+            ))
+            do {
+                try await frameWriter.writeSoftwareLightingFrame(device: device, frame: clearFrame)
+                guard isCurrent(deviceKey: deviceKey, generation: generation) else { return }
+                lastWrittenFrame = clearFrame
+            } catch {
+                guard !Task.isCancelled else { return }
+                guard isCurrent(deviceKey: deviceKey, generation: generation) else { return }
+                consecutiveFailures += 1
+                if consecutiveFailures >= failureLimit {
+                    fail(
+                        deviceID: device.id,
+                        deviceKey: deviceKey,
+                        generation: generation,
+                        request: request,
+                        message: error.localizedDescription
+                    )
+                    return
+                }
+            }
+        }
 
         while !Task.isCancelled {
             guard isCurrent(deviceKey: deviceKey, generation: generation) else { return }
@@ -206,12 +254,24 @@ actor SoftwareLightingEngine {
             let frame = SoftwareLightingRenderer.render(
                 request: request,
                 layout: layout,
-                elapsedTime: elapsed
+                elapsedTime: elapsed,
+                batteryPercent: batteryPercentByDeviceKey[deviceKey]
             )
+            guard frame != lastWrittenFrame else {
+                let elapsedThisFrame = Date().timeIntervalSince(frameStartedAt)
+                let sleepInterval = max(0.0, frameInterval - elapsedThisFrame)
+                do {
+                    try await Task.sleep(nanoseconds: UInt64(sleepInterval * 1_000_000_000))
+                } catch {
+                    return
+                }
+                continue
+            }
 
             do {
                 try await frameWriter.writeSoftwareLightingFrame(device: device, frame: frame)
                 guard isCurrent(deviceKey: deviceKey, generation: generation) else { return }
+                lastWrittenFrame = frame
                 consecutiveFailures = 0
             } catch {
                 guard !Task.isCancelled else { return }
@@ -251,6 +311,7 @@ actor SoftwareLightingEngine {
         desiredRequestByDeviceKey.removeValue(forKey: deviceKey)
         deviceByDeviceKey.removeValue(forKey: deviceKey)
         deviceIDByDeviceKey.removeValue(forKey: deviceKey)
+        batteryPercentByDeviceKey.removeValue(forKey: deviceKey)
         removeAliases(for: deviceKey)
         let status = SoftwareLightingEngineStatus(
             deviceID: deviceID,
@@ -300,5 +361,9 @@ actor SoftwareLightingEngine {
 
     private static func lightingDeviceKey(for device: MouseDevice) -> String {
         DevicePersistenceKeys.key(for: device)
+    }
+
+    private static func clampedBatteryPercent(_ value: Int) -> Int {
+        max(0, min(100, value))
     }
 }

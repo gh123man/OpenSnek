@@ -382,6 +382,10 @@ final class USBProbeClient: @unchecked Sendable {
         profile?.supportedLightingEffects ?? LightingEffectKind.allCases
     }
 
+    private var customFrameCellCount: Int {
+        profile?.softwareLightingFrameLayout?.cellCount ?? SoftwareLightingFrameLayout.basiliskV3ProUSB.cellCount
+    }
+
     func availableLightingZones() -> [USBLightingZoneDescriptor] {
         profile?.usbLightingZones ?? []
     }
@@ -674,8 +678,9 @@ final class USBProbeClient: @unchecked Sendable {
     }
 
     private func customFrameColors(frameIndex: Int) -> [RGBPatch] {
-        (0..<12).map { index in
-            let hue = (Double(index) / 12.0) + (Double(frameIndex) * 0.04)
+        let cellCount = customFrameCellCount
+        return (0..<cellCount).map { index in
+            let hue = (Double(index) / Double(cellCount)) + (Double(frameIndex) * 0.04)
             let phase = hue - floor(hue)
             let red = Int(round((0.5 + 0.5 * sin(phase * .pi * 2.0)) * 255.0))
             let green = Int(round((0.5 + 0.5 * sin((phase + 0.333) * .pi * 2.0)) * 255.0))

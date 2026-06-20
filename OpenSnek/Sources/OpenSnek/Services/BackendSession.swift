@@ -611,6 +611,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
                 cachedStateByDeviceID[device.id] = merged
                 cachedStateAtByDeviceID[device.id] = now
                 reconnectSeedStateByDeviceID[device.id] = merged
+                updateSoftwareLightingBatteryPercent(deviceID: device.id, from: merged)
                 publishSnapshotIfService()
 #if DEBUG
                 OpenSnekUITestSupport.recordReadState(
@@ -645,6 +646,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
             cachedStateByDeviceID[device.id] = merged
             cachedStateAtByDeviceID[device.id] = now
             reconnectSeedStateByDeviceID[device.id] = merged
+            updateSoftwareLightingBatteryPercent(deviceID: device.id, from: merged)
             publishSnapshotIfService()
             AppLog.debug(
                 "Backend",
@@ -665,6 +667,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         cachedStateByDeviceID[device.id] = state
         cachedStateAtByDeviceID[device.id] = Date()
         reconnectSeedStateByDeviceID[device.id] = state
+        updateSoftwareLightingBatteryPercent(deviceID: device.id, from: state)
         publishSnapshotIfService()
 #if DEBUG
         OpenSnekUITestSupport.recordReadState(
@@ -814,6 +817,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         cachedStateByDeviceID[device.id] = merged
         cachedStateAtByDeviceID[device.id] = now
         reconnectSeedStateByDeviceID[device.id] = merged
+        updateSoftwareLightingBatteryPercent(deviceID: device.id, from: merged)
         if let values = merged.dpi_stages.values,
            let active = merged.dpi_stages.active_stage {
             let fast = DpiFastSnapshot(active: active, values: values)
@@ -1001,7 +1005,13 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         device: MouseDevice,
         request: SoftwareLightingEffectRequest
     ) async throws -> SoftwareLightingEngineStatus {
-        let status = try await softwareLightingEngine.start(device: device, request: request)
+        let batteryPercent = cachedStateByDeviceID[device.id]?.battery_percent
+            ?? reconnectSeedStateByDeviceID[device.id]?.battery_percent
+        let status = try await softwareLightingEngine.start(
+            device: device,
+            request: request,
+            batteryPercent: batteryPercent
+        )
         handleSoftwareLightingStatus(status)
         return status
     }
@@ -1466,6 +1476,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         cachedStateByDeviceID[deviceID] = merged
         cachedStateAtByDeviceID[deviceID] = updatedAt
         reconnectSeedStateByDeviceID[deviceID] = merged
+        updateSoftwareLightingBatteryPercent(deviceID: deviceID, from: merged)
         if merged.device.transport == .usb {
             recordUSBControlAvailability(.receiverPresentMouseReachable, for: deviceID, updatedAt: updatedAt, publishSnapshot: false)
         }
@@ -1476,6 +1487,12 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         }
         publishStateUpdate(.deviceState(deviceID: deviceID, state: merged, updatedAt: updatedAt))
         publishSnapshotIfService()
+    }
+
+    private func updateSoftwareLightingBatteryPercent(deviceID: String, from state: MouseState) {
+        Task { [softwareLightingEngine, batteryPercent = state.battery_percent] in
+            await softwareLightingEngine.updateBatteryPercent(deviceID: deviceID, batteryPercent: batteryPercent)
+        }
     }
 
     private func recordUSBControlAvailability(

@@ -709,7 +709,7 @@ Unresolved:
 
 ### RGB Lighting (Class 0x0F)
 
-**Status**: Partially implemented. Scroll wheel LED brightness and the zone-effect families below are implemented and hardware-validated. The per-LED Custom Frame command (`Cmd 0x03`) is decoded and hardware-validated on the Basilisk V3 Pro (see [docs/research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md](../research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md)) and is exposed in the OpenSnek app as a software-driven V3-family USB underglow effects surface. Observed Custom Frame state is volatile across mouse restart, so treat it as a software-owned frame buffer, not a persistable onboard lighting setting.
+**Status**: Partially implemented. Scroll wheel LED brightness and the zone-effect families below are implemented and hardware-validated. The per-LED Custom Frame command (`Cmd 0x03`) is decoded and hardware-validated as a 14-cell frame on the Basilisk V3 Pro (see [docs/research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md](../research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md)); OpenSnek applies that same 14-cell layout to the V3 USB family software-effects surface. Observed Custom Frame state is volatile across mouse restart, so treat it as a software-owned frame buffer, not a persistable onboard lighting setting.
 
 Basilisk V3 USB family assumption: wired Basilisk V3, V3 Pro, and V3 35K
 lighting work should default to the shared three-zone `0x0F` model
@@ -738,15 +738,18 @@ Set Custom Frame (per-LED RGB):
     [0]   = storage byte; 0x01 accepted on V3 Pro but the frame still does not survive mouse restart
     [1]   = ROW (ignored by V3 Pro firmware; use 0x00)
     [2]   = START_COL
-    [3]   = END_COL (inclusive; valid 0x00..0x0B on V3 Pro = 12 cells max)
+    [3]   = END_COL (inclusive; valid 0x00..0x0D on V3 USB family = 14 cells max)
     [4..] = cells; **byte order per cell is [B, R, G]**, not [R, G, B]
 
 Writing a Custom Frame implicitly activates "custom" as the current effect on
 all addressed LEDs — no separate switch-effect step is required.
 
-Hardware-validated on Basilisk V3 Pro USB (PID 0x00AA, firmware 0x02120000):
-12 cells covering 1 logo + 1 scroll wheel + 10 underglow LEDs. Razer Synapse
-exposes only 9 of the 10 underglow LEDs.
+Hardware-validated on Basilisk V3 Pro USB (PID 0x00AB, firmware 0x01140000)
+and used as the shared V3-family USB software-lighting layout:
+14 cells covering 1 logo + 1 scroll wheel + 12 underglow/tail cells. Razer
+Synapse exposes fewer underglow zones than the Custom Frame path. Earlier
+PID `0x00AA` firmware `0x02120000` probing only confirmed visible response
+through `0x0B`; sending `0x0C..0x0D` remains accepted by the command echo.
 
 Persistence note: unlike the normal zone-effect path (`Cmd 0x02`) and profile
 setting banks, Custom Frame state has been observed to clear on mouse restart.
@@ -754,15 +757,14 @@ OpenSnek should not present this as saved device state unless a separate
 commit/readback path is decoded later.
 
 OpenSnek app behavior: the background service can stream Custom Frame data for
-the 12-cell Basilisk V3 USB underglow-family layout while OpenSnek is running.
-This path is hardware-validated on V3 Pro USB and assumed to match the wired
-Basilisk V3 and Basilisk V3 35K because they share the same three-zone
-scroll/logo/underglow USB lighting model. The shipped presets are `flame`,
-`scrollingRainbow`, `cometChase`, and `aurora`. Normal zone-effect/static-color
-writes stop the active software stream; unrelated DPI, button, poll-rate,
-scroll, and power-setting writes do not. Preset palettes and animation speed are
-app/service renderer inputs only; they do not change the underlying `Cmd 0x03`
-frame payload shape.
+the 14-cell Basilisk V3-family USB layout while OpenSnek is running. The wired
+Basilisk V3 and Basilisk V3 35K use the same 14-cell shared-layout assumption
+as V3 Pro until separately validated. The shipped presets are `flame`,
+`scrollingRainbow`, `cometChase`, `aurora`, and the V3 Pro-only `batteryMeter`.
+Normal zone-effect/static-color writes stop the active software stream;
+unrelated DPI, button, poll-rate, scroll, and power-setting writes do not.
+Preset palettes and animation speed are app/service renderer inputs only; they
+do not change the underlying `Cmd 0x03` frame payload shape.
 ```
 
 Probe support:
