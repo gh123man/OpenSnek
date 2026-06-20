@@ -1,7 +1,7 @@
 # Basilisk V3 Pro — per-LED lighting protocol
 
 **Date:** 2026-06-17
-**Hardware:** Razer Basilisk V3 Pro, USB cabled, PID `0x00AA`, firmware `0x02120000`; updated tail-cell validation on PID `0x00AB`, firmware `0x01140000`
+**Hardware:** Razer Basilisk V3 Pro, USB cabled, PID `0x00AA`, firmware `0x02120000`; updated tail-cell and header-pad validation on PID `0x00AB`, firmware `0x01140000`
 **Companion log:** [`captures/usb/2026-06-17-basilisk-v3-pro-perled/B-probe-log.md`](../../captures/usb/2026-06-17-basilisk-v3-pro-perled/B-probe-log.md)
 
 ## Summary
@@ -18,12 +18,13 @@ Activating Cmd 0x03 implicitly switches the active effect on the affected LEDs t
 |-------|-------|-------|
 | Class | `0x0F` | Same class as the zone-effect path |
 | Command ID | `0x03` | Set Custom Frame |
-| Data size | `0x04 + 3 × cells` | `0x2E` for the 14-cell V3-family frame |
+| Data size | `0x05 + 3 × cells` | `0x2F` for the 14-cell V3-family frame |
 | `args[0]` | Storage byte | `0x01` is accepted, but the resulting Custom Frame state still does not survive mouse restart. |
 | `args[1]` | Row | **Ignored by firmware.** `0x00` and `0x01` produced identical LED state — `0x01` aliases to row 0. |
 | `args[2]` | START_COL | `0x00` valid |
 | `args[3]` | END_COL | inclusive; validated responsive through `0x0D` (14 cells) on PID `0x00AB` firmware `0x01140000` |
-| `args[4..]` | RGB cells | **`[B, R, G]` triplet order** — Blue byte first, then Red, then Green |
+| `args[4]` | Reserved/pad byte | Write `0x00`. Omitting this byte shifts the cell stream by one byte. |
+| `args[5..]` | RGB cells | **`[B, R, G]` triplet order** — Blue byte first, then Red, then Green |
 
 Status byte conventions match the rest of the Razer USB report layout (`0x02` = success, `0x05` = not_supported, `0x03` = failure).
 
@@ -38,6 +39,8 @@ The triplet order is **`[B, R, G]`**, not the conventional `[R, G, B]`. This was
 | `ff, 00, 00` | Blue |
 
 So to light an LED red, send `00, ff, 00`. To light it blue, send `ff, 00, 00`. This differs from the Static effect path (`Cmd 0x02`), which uses standard `[R, G, B]`. Watch out when bridging values between the two paths.
+
+Triplets begin after the reserved pad byte at `args[4]`. The pad was validated on 2026-06-20 after an unpadded single-cell 50% white probe split into a yellow light-bar LED and a blue scroll-wheel LED; the same probe with the pad lit only the intended light-bar LED in white.
 
 ### Storage semantics for `0x00, 0x00, 0x00`
 

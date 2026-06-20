@@ -735,13 +735,14 @@ Effects:
 
 ```
 Set Custom Frame (per-LED RGB):
-  Command: Class 0x0F, ID 0x03, Size = 0x04 + 3 × cells
+  Command: Class 0x0F, ID 0x03, Size = 0x05 + 3 × cells
   Args:
     [0]   = storage byte; 0x01 accepted on V3 Pro but the frame still does not survive mouse restart
     [1]   = ROW (ignored by V3 Pro firmware; use 0x00)
     [2]   = START_COL
     [3]   = END_COL (inclusive; valid 0x00..0x0D on V3 USB family = 14 cells max)
-    [4..] = cells; **byte order per cell is [B, R, G]**, not [R, G, B]
+    [4]   = reserved/pad byte; write 0x00
+    [5..] = cells; **byte order per cell is [B, R, G]**, not [R, G, B]
 
 Writing a Custom Frame implicitly activates "custom" as the current effect on
 all addressed LEDs — no separate switch-effect step is required.
@@ -752,6 +753,9 @@ and used as the shared V3-family USB software-lighting layout:
 Synapse exposes fewer underglow zones than the Custom Frame path. Earlier
 PID `0x00AA` firmware `0x02120000` probing only confirmed visible response
 through `0x0B`; sending `0x0C..0x0D` remains accepted by the command echo.
+The reserved byte after `END_COL` is required: omitting it shifts the color
+stream by one byte, causing dim white cells to split into adjacent yellow/blue
+LEDs.
 
 Persistence note: unlike the normal zone-effect path (`Cmd 0x02`) and profile
 setting banks, Custom Frame state has been observed to clear on mouse restart.

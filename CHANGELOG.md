@@ -14,6 +14,7 @@ All notable changes to this project are documented in this file.
 - V3-family USB software lighting now streams the full 14-cell Custom Frame range so the tail LEDs are addressed directly on every shared scroll/logo/underglow profile.
 
 ### Fixed
+- USB Custom Frame lighting now includes the required reserved byte after `END_COL`, preventing mixed/dim software-effect cells from spilling color channels into adjacent LEDs.
 - Basilisk V3 Pro USB and Bluetooth button maps now include the shared V3-family DPI button slot and use the same editable slot list as Basilisk V3 and Basilisk V3 35K.
 - The main UI window no longer rehydrates selected-device state and diagnostics for unchanged remote service snapshots, reducing idle CPU while the background service is active.
 - USB receiver presence is now tracked separately from mouse control reachability, so a connected dongle with a sleeping/off mouse stays listed but shows disconnected controls until feature-report telemetry responds again.
