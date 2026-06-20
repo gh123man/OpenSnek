@@ -170,7 +170,7 @@ final class SoftwareLightingRendererTests: XCTestCase {
             RGBPatch(r: 255, g: 0, b: 0),
         ])
         XCTAssertTrue(SoftwareLightingPresetID.nightRider.isAnimated)
-        XCTAssertFalse(SoftwareLightingPresetID.nightRider.usesPaletteControls)
+        XCTAssertTrue(SoftwareLightingPresetID.nightRider.usesPaletteControls)
         XCTAssertTrue(SoftwareLightingPresetID.animatedPresets.contains(.nightRider))
     }
 
@@ -348,6 +348,25 @@ final class SoftwareLightingRendererTests: XCTestCase {
         XCTAssertEqual(start.colors[0].b, 0)
         XCTAssertEqual(start.colors[1].g, 0)
         XCTAssertEqual(start.colors[1].b, 0)
+    }
+
+    func testNightRiderUsesCustomPaletteColor() {
+        let customColor = RGBPatch(r: 0, g: 128, b: 255)
+        let frame = SoftwareLightingRenderer.render(
+            request: SoftwareLightingEffectRequest(
+                presetID: .nightRider,
+                palette: [customColor]
+            ),
+            layout: .basiliskV3ProUSB,
+            elapsedTime: 0.0
+        )
+
+        XCTAssertEqual(frame.colors[2], customColor)
+        XCTAssertEqual(frame.colors[0].r, 0)
+        XCTAssertEqual(frame.colors[1].r, 0)
+        XCTAssertGreaterThan(frame.colors[0].g, 0)
+        XCTAssertGreaterThan(frame.colors[0].b, 0)
+        XCTAssertEqual(frame.colors[0], frame.colors[1])
     }
 
     func testBatteryMeterRendersUnknownBatteryWithWhiteLogoAndScrollWheel() {

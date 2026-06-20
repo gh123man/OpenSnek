@@ -763,8 +763,9 @@ the 14-cell Basilisk V3-family USB layout while OpenSnek is running. The wired
 Basilisk V3 and Basilisk V3 35K use the same 14-cell shared-layout assumption
 as V3 Pro until separately validated. The shipped presets are `flame`,
 `scrollingRainbow`, `cometChase`, `nightRider`, `aurora`, `jellybeans`, and the
-V3 Pro-only `batteryMeter`. `nightRider` sweeps a red scanner across the
-underglow light bar while slowly pulsing the logo and scroll wheel red.
+V3 Pro-only `batteryMeter`. `nightRider` sweeps the selected scanner color
+across the underglow light bar while slowly pulsing the logo and scroll wheel
+with the same color; its default palette is red.
 `batteryMeter` keeps logo and scroll wheel white, colors the underglow strip by
 charge threshold, and brightness-scales the boundary LED by fractional progress
 within the current cell step.

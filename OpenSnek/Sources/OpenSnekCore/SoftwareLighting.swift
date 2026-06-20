@@ -124,9 +124,9 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
 
     public var usesPaletteControls: Bool {
         switch self {
-        case .batteryMeter, .nightRider:
+        case .batteryMeter:
             return false
-        case .flame, .scrollingRainbow, .cometChase, .aurora, .jellybeans:
+        case .flame, .scrollingRainbow, .cometChase, .nightRider, .aurora, .jellybeans:
             return true
         }
     }
@@ -439,13 +439,13 @@ public enum SoftwareLightingRenderer {
     }
 
     private static func nightRider(
-        palette _: [RGBPatch],
+        palette: [RGBPatch],
         index: Int,
         count: Int,
         time: TimeInterval,
         intensity: Double
     ) -> RGBPatch {
-        let color = RGBPatch(r: 255, g: 0, b: 0)
+        let color = paletteColor(palette, slot: 0)
         let stripStartIndex = count > 2 ? 2 : 0
         if index < stripStartIndex {
             let pulse = 0.18 + 0.46 * (0.5 + 0.5 * sin(time * 1.1 - .pi / 2.0))

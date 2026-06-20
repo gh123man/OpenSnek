@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
-- Added a Night Rider advanced lighting preset for V3-family USB devices that sweeps a red scanner across the underglow light bar while the logo and scroll wheel slowly pulse red.
+- Added a Night Rider advanced lighting preset for V3-family USB devices that sweeps a customizable scanner color across the underglow light bar while the logo and scroll wheel slowly pulse the same color. The preset defaults to red.
 - Added a Basilisk V3 Pro USB Battery Meter advanced lighting preset that keeps the logo and scroll wheel white while using the underglow strip as a battery progress bar. Lit strip cells are white at 30% and up, yellow from 15-29%, red below 15%, the boundary LED fades by fractional charge within each cell step, and cells turn off from the tail as charge drops. Battery Meter clears the prior software frame before rendering and uses a battery icon instead of palette swatches in the collapsed Lighting summary.
 
 ### Changed
