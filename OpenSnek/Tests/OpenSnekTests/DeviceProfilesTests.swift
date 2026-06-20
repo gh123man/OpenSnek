@@ -84,12 +84,13 @@ final class DeviceProfilesTests: XCTestCase {
         let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00AB, transport: .usb)
         XCTAssertEqual(profile?.id, .basiliskV3Pro)
         XCTAssertEqual(profile?.supportedProducts, [0x00AA, 0x00AB])
-        XCTAssertEqual(profile?.buttonLayout.writableSlots, [1, 2, 3, 4, 5, 9, 10, 15, 52, 53])
-        XCTAssertEqual(profile?.buttonLayout.visibleSlots.map(\.slot), [1, 2, 3, 4, 5, 9, 10, 15, 52, 53])
+        XCTAssertEqual(profile?.buttonLayout.writableSlots, [1, 2, 3, 4, 5, 9, 10, 15, 52, 53, 96])
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots.map(\.slot), [1, 2, 3, 4, 5, 9, 10, 15, 52, 53, 96])
         XCTAssertEqual(profile?.buttonLayout.visibleSlots.first(where: { $0.slot == 52 })?.defaultKind, .scrollLeft)
         XCTAssertEqual(profile?.buttonLayout.visibleSlots.first(where: { $0.slot == 53 })?.defaultKind, .scrollRight)
-        XCTAssertEqual(profile?.buttonLayout.documentedSlots.map(\.slot), [1, 2, 3, 4, 5, 9, 10, 15, 52, 53, 106])
+        XCTAssertEqual(profile?.buttonLayout.documentedSlots.map(\.slot), [1, 2, 3, 4, 5, 9, 10, 15, 52, 53, 96, 106])
         XCTAssertEqual(profile?.buttonLayout.access(for: 15), .editable)
+        XCTAssertEqual(profile?.buttonLayout.access(for: 96), .editable)
         XCTAssertEqual(profile?.buttonLayout.access(for: 106), .protocolReadOnly)
         XCTAssertEqual(profile?.buttonLayout.softwareReadOnlySlots.map(\.slot), [])
         XCTAssertEqual(profile?.supportsAdvancedLightingEffects, true)
@@ -154,13 +155,14 @@ final class DeviceProfilesTests: XCTestCase {
     func testResolveBluetoothProfileForBasiliskV3Pro() {
         let profile = DeviceProfiles.resolve(vendorID: 0x068E, productID: 0x00AC, transport: .bluetooth)
         XCTAssertEqual(profile?.id, .basiliskV3Pro)
-        XCTAssertEqual(profile?.buttonLayout.writableSlots, [1, 2, 3, 4, 5, 9, 10, 15, 52, 53])
-        XCTAssertEqual(profile?.buttonLayout.visibleSlots.map(\.slot), [1, 2, 3, 4, 5, 9, 10, 15, 52, 53])
+        XCTAssertEqual(profile?.buttonLayout.writableSlots, [1, 2, 3, 4, 5, 9, 10, 15, 52, 53, 96])
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots.map(\.slot), [1, 2, 3, 4, 5, 9, 10, 15, 52, 53, 96])
         XCTAssertEqual(profile?.buttonLayout.visibleSlots.first(where: { $0.slot == 52 })?.defaultKind, .scrollLeft)
         XCTAssertEqual(profile?.buttonLayout.visibleSlots.first(where: { $0.slot == 53 })?.defaultKind, .scrollRight)
-        XCTAssertEqual(profile?.buttonLayout.documentedSlots.map(\.slot), [1, 2, 3, 4, 5, 9, 10, 15, 52, 53, 106])
+        XCTAssertEqual(profile?.buttonLayout.documentedSlots.map(\.slot), [1, 2, 3, 4, 5, 9, 10, 15, 52, 53, 96, 106])
         XCTAssertEqual(profile?.buttonLayout.access(for: 15), .editable)
         XCTAssertEqual(profile?.buttonLayout.access(for: 52), .editable)
+        XCTAssertEqual(profile?.buttonLayout.access(for: 96), .editable)
         XCTAssertEqual(profile?.buttonLayout.access(for: 106), .softwareReadOnly)
         XCTAssertEqual(profile?.buttonLayout.softwareReadOnlySlots.map(\.slot), [106])
         XCTAssertEqual(profile?.supportsAdvancedLightingEffects, false)
@@ -176,6 +178,23 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.onboardProfileCount, 5)
         XCTAssertEqual(profile?.usbLightingLEDIDs, [0x01, 0x04, 0x0A])
         XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel", "logo", "underglow"])
+    }
+
+    func testNonHyperspeedBasiliskV3ProfilesShareButtonMapSlots() throws {
+        let expectedSlots = DeviceProfiles.basiliskV3FamilyButtonSlots
+        let expectedSlotIDs = expectedSlots.map(\.slot)
+        let profiles = [
+            ("Basilisk V3 USB", DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x0099, transport: .usb)),
+            ("Basilisk V3 Pro USB", DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00AB, transport: .usb)),
+            ("Basilisk V3 Pro Bluetooth", DeviceProfiles.resolve(vendorID: 0x068E, productID: 0x00AC, transport: .bluetooth)),
+            ("Basilisk V3 35K USB", DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00CB, transport: .usb)),
+        ]
+
+        for (label, maybeProfile) in profiles {
+            let profile = try XCTUnwrap(maybeProfile, label)
+            XCTAssertEqual(profile.buttonLayout.visibleSlots, expectedSlots, label)
+            XCTAssertEqual(profile.buttonLayout.writableSlots, expectedSlotIDs, label)
+        }
     }
 
     func testResolveBluetoothProfileForOrochiV2() {

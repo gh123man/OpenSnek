@@ -111,9 +111,10 @@ Validated in-session over USB:
 - observed V3 Pro clutch remap portability: the same block was written/read back successfully on slot `0x04`, so OpenSnek treats `DPI Clutch` as a V3 Pro USB remap action and not only as the native clutch button's default
 - observed V3 Pro wheel-tilt scroll blocks on 2026-04-03 after a working Synapse rebind: slot `0x34` read back `0e036800140000` and slot `0x35` read back `0e036900140000` on both persistent and direct layers
 - inferred client behavior: OpenSnek now uses that same wheel-tilt block for the shared Basilisk V3 / V3 Pro / 35K USB family because those profiles already share the same tilt slots and action taxonomy; only the V3 Pro form is directly hardware-validated so far
+- shipped client behavior: OpenSnek exposes slot `0x60` as the V3 Pro top DPI button so non-HyperSpeed Basilisk V3 profiles share the same editable button map; V3 Pro USB default restore uses the standard DPI-cycle block `06 01 06 00 00 00 00`
 - observed profile-button default block on `0x6A`: `12 01 01 00 00 00 00`
 - observed profile-button remap behavior on `0x6A`: right-click writes/readback can succeed, but repeated write/readback cycles later returned timeout/no-response frames; OpenSnek keeps this slot hidden until the USB ACK/readback path is reliable
-- observed non-match on `0x60`: it does not read back like the 35K top DPI-button block and is not exposed as a validated V3 Pro slot
+- observed non-match on `0x60`: it does not read back like the 35K top DPI-button block, so OpenSnek does not use the 35K-specific native restore payload for V3 Pro
 - client note: `0x02:0x8C` response layout on the observed extended slots matches the 35K-style offset (`response[11..<18]`) rather than the Basilisk V3 X shape
 - observed V3 Pro profile summary reads from `0x00:0x87` have not been trustworthy enough to ship as UI state: on March 25, 2026 the bottom profile LED changed while the register continued to report `02 00 03`
 - observed V3 Pro USB profile-bank reads on June 16, 2026: DPI scalar/stage commands accepted storage IDs `0..5`, storage `2` and `3` matched the Bluetooth-created stored profiles, and lighting brightness storage `3` matched the Bluetooth-recreated target's `0x60` brightness

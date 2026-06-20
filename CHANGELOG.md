@@ -9,6 +9,7 @@ All notable changes to this project are documented in this file.
 - Advanced lighting animations now expose a persisted brightness slider alongside speed and palette controls.
 
 ### Fixed
+- Basilisk V3 Pro USB and Bluetooth button maps now include the shared V3-family DPI button slot and use the same editable slot list as Basilisk V3 and Basilisk V3 35K.
 - The main UI window no longer rehydrates selected-device state and diagnostics for unchanged remote service snapshots, reducing idle CPU while the background service is active.
 - USB receiver presence is now tracked separately from mouse control reachability, so a connected dongle with a sleeping/off mouse stays listed but shows disconnected controls until feature-report telemetry responds again.
 - USB reconnect handling now refreshes HID discovery after the post-connect settle window, preventing early partial HID enumeration from leaving a replugged mouse unusable until OpenSnek restarts.

@@ -434,28 +434,7 @@ public enum DeviceProfiles {
         ),
     ]
 
-    public static let basiliskV3ProBluetoothButtonSlots: [ButtonSlotDescriptor] = [
-        ButtonSlotDescriptor(slot: 1, friendlyName: "Left Click", defaultKind: .leftClick),
-        ButtonSlotDescriptor(slot: 2, friendlyName: "Right Click", defaultKind: .rightClick),
-        ButtonSlotDescriptor(slot: 3, friendlyName: "Middle Click", defaultKind: .middleClick),
-        ButtonSlotDescriptor(slot: 4, friendlyName: "Back Button", defaultKind: .mouseBack),
-        ButtonSlotDescriptor(slot: 5, friendlyName: "Forward Button", defaultKind: .mouseForward),
-        ButtonSlotDescriptor(slot: 9, friendlyName: "Scroll Up", defaultKind: .scrollUp),
-        ButtonSlotDescriptor(slot: 10, friendlyName: "Scroll Down", defaultKind: .scrollDown),
-        ButtonSlotDescriptor(slot: 15, friendlyName: "Sensitivity Clutch", defaultKind: .default),
-        ButtonSlotDescriptor(slot: 52, friendlyName: "Wheel Tilt Left", defaultKind: .scrollLeft),
-        ButtonSlotDescriptor(slot: 53, friendlyName: "Wheel Tilt Right", defaultKind: .scrollRight),
-    ]
-
-    public static let basiliskV3ProBluetoothDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
-        DocumentedButtonSlot(
-            descriptor: ButtonSlotDescriptor(slot: 106, friendlyName: "Profile Button", defaultKind: .default),
-            access: .softwareReadOnly,
-            note: "The V3 Pro Bluetooth path still needs capture-backed profile-button defaults before OpenSnek can expose this control."
-        ),
-    ]
-
-    public static let basiliskV335KUSBButtonSlots: [ButtonSlotDescriptor] = [
+    public static let basiliskV3FamilyButtonSlots: [ButtonSlotDescriptor] = [
         ButtonSlotDescriptor(slot: 1, friendlyName: "Left Click", defaultKind: .leftClick),
         ButtonSlotDescriptor(slot: 2, friendlyName: "Right Click", defaultKind: .rightClick),
         ButtonSlotDescriptor(slot: 3, friendlyName: "Middle Click", defaultKind: .middleClick),
@@ -469,17 +448,16 @@ public enum DeviceProfiles {
         ButtonSlotDescriptor(slot: 96, friendlyName: "DPI Button", defaultKind: .default),
     ]
 
-    public static let basiliskV3ProUSBButtonSlots: [ButtonSlotDescriptor] = [
-        ButtonSlotDescriptor(slot: 1, friendlyName: "Left Click", defaultKind: .leftClick),
-        ButtonSlotDescriptor(slot: 2, friendlyName: "Right Click", defaultKind: .rightClick),
-        ButtonSlotDescriptor(slot: 3, friendlyName: "Middle Click", defaultKind: .middleClick),
-        ButtonSlotDescriptor(slot: 4, friendlyName: "Back Button", defaultKind: .mouseBack),
-        ButtonSlotDescriptor(slot: 5, friendlyName: "Forward Button", defaultKind: .mouseForward),
-        ButtonSlotDescriptor(slot: 9, friendlyName: "Scroll Up", defaultKind: .scrollUp),
-        ButtonSlotDescriptor(slot: 10, friendlyName: "Scroll Down", defaultKind: .scrollDown),
-        ButtonSlotDescriptor(slot: 15, friendlyName: "Sensitivity Clutch", defaultKind: .default),
-        ButtonSlotDescriptor(slot: 52, friendlyName: "Wheel Tilt Left", defaultKind: .scrollLeft),
-        ButtonSlotDescriptor(slot: 53, friendlyName: "Wheel Tilt Right", defaultKind: .scrollRight),
+    public static let basiliskV3ProBluetoothButtonSlots = basiliskV3FamilyButtonSlots
+    public static let basiliskV335KUSBButtonSlots = basiliskV3FamilyButtonSlots
+    public static let basiliskV3ProUSBButtonSlots = basiliskV3FamilyButtonSlots
+
+    public static let basiliskV3ProBluetoothDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
+        DocumentedButtonSlot(
+            descriptor: ButtonSlotDescriptor(slot: 106, friendlyName: "Profile Button", defaultKind: .default),
+            access: .softwareReadOnly,
+            note: "The V3 Pro Bluetooth path still needs capture-backed profile-button defaults before OpenSnek can expose this control."
+        ),
     ]
 
     public static let basiliskV335KUSBDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
@@ -554,8 +532,8 @@ public enum DeviceProfiles {
         supportedProducts: [0x00CB],
         usbTransactionID: 0x1F,
         buttonLayout: ButtonSlotLayout(
-            visibleSlots: basiliskV335KUSBButtonSlots,
-            writableSlots: [1, 2, 3, 4, 5, 9, 10, 15, 52, 53, 96],
+            visibleSlots: basiliskV3FamilyButtonSlots,
+            writableSlots: basiliskV3FamilyButtonSlots.map(\.slot),
             documentedSlots: basiliskV335KUSBDocumentedReadOnlySlots
         ),
         supportsAdvancedLightingEffects: true,
@@ -581,8 +559,8 @@ public enum DeviceProfiles {
         transport: .usb,
         supportedProducts: [0x0099],
         buttonLayout: ButtonSlotLayout(
-            visibleSlots: basiliskV335KUSBButtonSlots,
-            writableSlots: [1, 2, 3, 4, 5, 9, 10, 15, 52, 53, 96],
+            visibleSlots: basiliskV3FamilyButtonSlots,
+            writableSlots: basiliskV3FamilyButtonSlots.map(\.slot),
             documentedSlots: basiliskV3USBDocumentedReadOnlySlots
         ),
         supportsAdvancedLightingEffects: true,
@@ -609,8 +587,8 @@ public enum DeviceProfiles {
         supportedProducts: [0x00AA, 0x00AB],
         usbTransactionID: 0x1F,
         buttonLayout: ButtonSlotLayout(
-            visibleSlots: basiliskV3ProUSBButtonSlots,
-            writableSlots: [1, 2, 3, 4, 5, 9, 10, 15, 52, 53],
+            visibleSlots: basiliskV3FamilyButtonSlots,
+            writableSlots: basiliskV3FamilyButtonSlots.map(\.slot),
             documentedSlots: basiliskV3ProUSBDocumentedReadOnlySlots
         ),
         supportsAdvancedLightingEffects: true,
@@ -665,8 +643,8 @@ public enum DeviceProfiles {
         transport: .bluetooth,
         supportedProducts: [0x00AC],
         buttonLayout: ButtonSlotLayout(
-            visibleSlots: basiliskV3ProBluetoothButtonSlots,
-            writableSlots: [1, 2, 3, 4, 5, 9, 10, 15, 52, 53],
+            visibleSlots: basiliskV3FamilyButtonSlots,
+            writableSlots: basiliskV3FamilyButtonSlots.map(\.slot),
             documentedSlots: basiliskV3ProBluetoothDocumentedReadOnlySlots
         ),
         supportsAdvancedLightingEffects: false,
