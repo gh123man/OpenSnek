@@ -53,6 +53,11 @@ final class SoftwareLightingRendererTests: XCTestCase {
                     layout: .basiliskV3ProUSB,
                     elapsedTime: 0.5
                 ),
+                SoftwareLightingRenderer.render(
+                    request: request,
+                    layout: .basiliskV3ProUSB,
+                    elapsedTime: 2.75
+                ),
             ]
             let tailSamples = frames.flatMap { [$0.colors[12], $0.colors[13]] }
 
@@ -130,6 +135,7 @@ final class SoftwareLightingRendererTests: XCTestCase {
         XCTAssertEqual(SoftwareLightingEffectRequest(presetID: .scrollingRainbow).speed, 1.0)
         XCTAssertEqual(SoftwareLightingEffectRequest(presetID: .flame).speed, 1.0)
         XCTAssertEqual(SoftwareLightingEffectRequest(presetID: .cometChase).speed, 1.0)
+        XCTAssertEqual(SoftwareLightingEffectRequest(presetID: .nightRider).speed, 1.0)
         XCTAssertEqual(SoftwareLightingEffectRequest(presetID: .aurora).speed, 1.0)
         XCTAssertEqual(SoftwareLightingEffectRequest(presetID: .jellybeans).speed, 1.0)
         XCTAssertEqual(SoftwareLightingEffectRequest(presetID: .batteryMeter).speed, 0.0)
@@ -156,6 +162,16 @@ final class SoftwareLightingRendererTests: XCTestCase {
             RGBPatch(r: 144, g: 48, b: 255),
             RGBPatch(r: 255, g: 56, b: 228),
         ])
+    }
+
+    func testNightRiderDefaultPaletteUsesRedScanner() {
+        XCTAssertEqual(SoftwareLightingPresetID.nightRider.label, "Night Rider")
+        XCTAssertEqual(SoftwareLightingPresetID.nightRider.defaultPalette, [
+            RGBPatch(r: 255, g: 0, b: 0),
+        ])
+        XCTAssertTrue(SoftwareLightingPresetID.nightRider.isAnimated)
+        XCTAssertFalse(SoftwareLightingPresetID.nightRider.usesPaletteControls)
+        XCTAssertTrue(SoftwareLightingPresetID.animatedPresets.contains(.nightRider))
     }
 
     func testBatteryMeterDefaultPaletteUsesThresholdColors() {
@@ -296,6 +312,42 @@ final class SoftwareLightingRendererTests: XCTestCase {
         if let changedIndex = changedIndices.first {
             XCTAssertTrue(renderedDefaultPalette.contains(second.colors[changedIndex]))
         }
+    }
+
+    func testNightRiderSweepsUnderglowAndPulsesLogoAndScrollWheel() {
+        let request = SoftwareLightingEffectRequest(presetID: .nightRider)
+        let layout = SoftwareLightingFrameLayout.basiliskV3ProUSB
+        let start = SoftwareLightingRenderer.render(
+            request: request,
+            layout: layout,
+            elapsedTime: 0.0
+        )
+        let rear = SoftwareLightingRenderer.render(
+            request: request,
+            layout: layout,
+            elapsedTime: 11.0 / 4.0
+        )
+        let returned = SoftwareLightingRenderer.render(
+            request: request,
+            layout: layout,
+            elapsedTime: 22.0 / 4.0
+        )
+        let pulseHigh = SoftwareLightingRenderer.render(
+            request: request,
+            layout: layout,
+            elapsedTime: .pi / 1.1
+        )
+
+        XCTAssertEqual(brightestStripIndex(in: start), 2)
+        XCTAssertEqual(brightestStripIndex(in: rear), 13)
+        XCTAssertEqual(brightestStripIndex(in: returned), 2)
+        XCTAssertGreaterThan(pulseHigh.colors[0].r, start.colors[0].r)
+        XCTAssertGreaterThan(pulseHigh.colors[1].r, start.colors[1].r)
+        XCTAssertEqual(pulseHigh.colors[0], pulseHigh.colors[1])
+        XCTAssertEqual(start.colors[0].g, 0)
+        XCTAssertEqual(start.colors[0].b, 0)
+        XCTAssertEqual(start.colors[1].g, 0)
+        XCTAssertEqual(start.colors[1].b, 0)
     }
 
     func testBatteryMeterRendersUnknownBatteryWithWhiteLogoAndScrollWheel() {
@@ -459,6 +511,12 @@ final class SoftwareLightingRendererTests: XCTestCase {
                 elapsedTime: 0.75
             )
             XCTAssertNotEqual(first.colors, second.colors, "\(preset.rawValue) should change over time")
+        }
+    }
+
+    private func brightestStripIndex(in frame: USBLightingFramePatch) -> Int? {
+        (2..<frame.colors.count).max { lhs, rhs in
+            frame.colors[lhs].r < frame.colors[rhs].r
         }
     }
 }
