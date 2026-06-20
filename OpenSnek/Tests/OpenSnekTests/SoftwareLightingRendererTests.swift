@@ -353,7 +353,7 @@ final class SoftwareLightingRendererTests: XCTestCase {
         XCTAssertEqual(redFrame.colors[0], RGBPatch(r: 255, g: 255, b: 255))
         XCTAssertEqual(redFrame.colors[1], RGBPatch(r: 255, g: 255, b: 255))
         XCTAssertEqual(redFrame.colors[2], RGBPatch(r: 255, g: 0, b: 0))
-        XCTAssertEqual(redFrame.colors[3], RGBPatch(r: 255, g: 0, b: 0))
+        XCTAssertEqual(redFrame.colors[3], RGBPatch(r: 173, g: 0, b: 0))
         XCTAssertEqual(
             Array(redFrame.colors.dropFirst(4)),
             Array(repeating: RGBPatch(r: 0, g: 0, b: 0), count: 10)
@@ -362,7 +362,7 @@ final class SoftwareLightingRendererTests: XCTestCase {
         XCTAssertEqual(yellowFrame.colors[0], RGBPatch(r: 255, g: 255, b: 255))
         XCTAssertEqual(yellowFrame.colors[1], RGBPatch(r: 255, g: 255, b: 255))
         XCTAssertEqual(yellowFrame.colors[2], RGBPatch(r: 255, g: 255, b: 0))
-        XCTAssertEqual(yellowFrame.colors[3], RGBPatch(r: 255, g: 255, b: 0))
+        XCTAssertEqual(yellowFrame.colors[3], RGBPatch(r: 204, g: 204, b: 0))
         XCTAssertEqual(
             Array(yellowFrame.colors.dropFirst(4)),
             Array(repeating: RGBPatch(r: 0, g: 0, b: 0), count: 10)
@@ -371,9 +371,10 @@ final class SoftwareLightingRendererTests: XCTestCase {
         XCTAssertEqual(whiteFrame.colors[0], RGBPatch(r: 255, g: 255, b: 255))
         XCTAssertEqual(whiteFrame.colors[1], RGBPatch(r: 255, g: 255, b: 255))
         XCTAssertEqual(
-            Array(whiteFrame.colors[2...10]),
-            Array(repeating: RGBPatch(r: 255, g: 255, b: 255), count: 9)
+            Array(whiteFrame.colors[2...9]),
+            Array(repeating: RGBPatch(r: 255, g: 255, b: 255), count: 8)
         )
+        XCTAssertEqual(whiteFrame.colors[10], RGBPatch(r: 224, g: 224, b: 224))
         XCTAssertEqual(
             Array(whiteFrame.colors[11...13]),
             Array(repeating: RGBPatch(r: 0, g: 0, b: 0), count: 3)
@@ -391,6 +392,39 @@ final class SoftwareLightingRendererTests: XCTestCase {
             Array(repeating: RGBPatch(r: 0, g: 0, b: 0), count: 6)
         )
         XCTAssertFalse(halfFrame.colors.contains(RGBPatch(r: 255, g: 255, b: 0)))
+    }
+
+    func testBatteryMeterFadesBoundaryCellByBatterySubPercentage() {
+        let request = SoftwareLightingEffectRequest(presetID: .batteryMeter)
+
+        let justAboveHalf = SoftwareLightingRenderer.render(
+            request: request,
+            layout: .basiliskV3ProUSB,
+            elapsedTime: 0.0,
+            batteryPercent: 51
+        )
+        let nearFull = SoftwareLightingRenderer.render(
+            request: request,
+            layout: .basiliskV3ProUSB,
+            elapsedTime: 0.0,
+            batteryPercent: 99
+        )
+
+        XCTAssertEqual(
+            Array(justAboveHalf.colors[2...7]),
+            Array(repeating: RGBPatch(r: 255, g: 255, b: 255), count: 6)
+        )
+        XCTAssertEqual(justAboveHalf.colors[8], RGBPatch(r: 31, g: 31, b: 31))
+        XCTAssertEqual(
+            Array(justAboveHalf.colors[9...13]),
+            Array(repeating: RGBPatch(r: 0, g: 0, b: 0), count: 5)
+        )
+
+        XCTAssertEqual(
+            Array(nearFull.colors[2...12]),
+            Array(repeating: RGBPatch(r: 255, g: 255, b: 255), count: 11)
+        )
+        XCTAssertEqual(nearFull.colors[13], RGBPatch(r: 224, g: 224, b: 224))
     }
 
     func testBatteryMeterIsStableOverTime() {

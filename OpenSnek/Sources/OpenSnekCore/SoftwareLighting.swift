@@ -335,10 +335,9 @@ public enum SoftwareLightingRenderer {
         let percent = max(0, min(100, batteryPercent))
         let stripCellCount = max(1, count - stripStartIndex)
         let stripIndex = index - stripStartIndex
-        let litCellCount = Int(ceil(Double(percent) / 100.0 * Double(stripCellCount)))
-        guard litCellCount > 0, stripIndex < litCellCount else {
-            return RGBPatch(r: 0, g: 0, b: 0)
-        }
+        let progress = Double(percent) / 100.0 * Double(stripCellCount)
+        let fullCellCount = Int(floor(progress))
+        let partialCellScale = progress - Double(fullCellCount)
 
         let color: RGBPatch
         if percent < 15 {
@@ -348,7 +347,14 @@ public enum SoftwareLightingRenderer {
         } else {
             color = RGBPatch(r: 255, g: 255, b: 255)
         }
-        return scaledColor(color, scale: intensity)
+
+        if stripIndex < fullCellCount {
+            return scaledColor(color, scale: intensity)
+        }
+        if stripIndex == fullCellCount, partialCellScale > 0, fullCellCount < stripCellCount {
+            return scaledColor(color, scale: intensity * partialCellScale)
+        }
+        return RGBPatch(r: 0, g: 0, b: 0)
     }
 
     private static func flame(

@@ -254,7 +254,8 @@ final class SoftwareLightingEngineTests: XCTestCase {
         XCTAssertEqual(meterFrame?.colors[0], RGBPatch(r: 255, g: 255, b: 255))
         XCTAssertEqual(meterFrame?.colors[1], RGBPatch(r: 255, g: 255, b: 255))
         XCTAssertEqual(meterFrame?.colors[2], RGBPatch(r: 255, g: 255, b: 255))
-        XCTAssertEqual(meterFrame?.colors[10], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(meterFrame?.colors[9], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(meterFrame?.colors[10], RGBPatch(r: 224, g: 224, b: 224))
         XCTAssertEqual(meterFrame?.colors[11], RGBPatch(r: 0, g: 0, b: 0))
         await engine.stop(deviceID: device.id)
     }
