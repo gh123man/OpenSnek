@@ -134,6 +134,15 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
     public var usesSpeedControl: Bool {
         isAnimated
     }
+
+    public var maximumPaletteColorCount: Int {
+        switch self {
+        case .nightRider:
+            return 1
+        case .flame, .scrollingRainbow, .cometChase, .aurora, .jellybeans, .batteryMeter:
+            return SoftwareLightingEffectRequest.maximumPaletteColorCount
+        }
+    }
 }
 
 public struct SoftwareLightingEffectRequest: Codable, Hashable, Sendable {
@@ -158,13 +167,18 @@ public struct SoftwareLightingEffectRequest: Codable, Hashable, Sendable {
         self.speed = max(0.0, min(2.0, speed ?? presetID.defaultSpeed))
         self.palette = Self.normalizedPalette(
             palette ?? presetID.defaultPalette,
-            fallback: presetID.defaultPalette
+            fallback: presetID.defaultPalette,
+            maximumColorCount: presetID.maximumPaletteColorCount
         )
     }
 
-    private static func normalizedPalette(_ palette: [RGBPatch], fallback: [RGBPatch]) -> [RGBPatch] {
+    private static func normalizedPalette(
+        _ palette: [RGBPatch],
+        fallback: [RGBPatch],
+        maximumColorCount: Int
+    ) -> [RGBPatch] {
         let source = palette.isEmpty ? fallback : palette
-        let limited = Array(source.prefix(maximumPaletteColorCount))
+        let limited = Array(source.prefix(max(1, maximumColorCount)))
         return limited.map { color in
             RGBPatch(
                 r: max(0, min(255, color.r)),

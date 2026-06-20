@@ -736,12 +736,12 @@ final class EditorStore {
     func setEditableSoftwareLightingPalette(_ palette: [RGBColor], for preset: SoftwareLightingPresetID) {
         let fallback = Self.defaultSoftwareLightingPalettes()[preset] ?? []
         let source = palette.isEmpty ? fallback : palette
-        editableSoftwareLightingPalettes[preset] = Array(source.prefix(SoftwareLightingEffectRequest.maximumPaletteColorCount))
+        editableSoftwareLightingPalettes[preset] = Array(source.prefix(preset.maximumPaletteColorCount))
     }
 
     func addEditableSoftwareLightingPaletteColor(for preset: SoftwareLightingPresetID) {
         var palette = editableSoftwareLightingPalette(for: preset)
-        guard palette.count < SoftwareLightingEffectRequest.maximumPaletteColorCount else { return }
+        guard palette.count < preset.maximumPaletteColorCount else { return }
         palette.append(palette.last ?? RGBColor(r: 255, g: 255, b: 255))
         setEditableSoftwareLightingPalette(palette, for: preset)
     }

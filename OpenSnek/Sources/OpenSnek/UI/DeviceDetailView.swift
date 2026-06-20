@@ -1903,41 +1903,48 @@ struct SoftwareLightingPaletteEditor: View {
                                 swatches: swatches
                             )
 
-                            Button {
-                                onRemove(index)
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 13, weight: .semibold))
+                            if maximumPaletteColorCount > 1 {
+                                Button {
+                                    onRemove(index)
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 13, weight: .semibold))
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(palette.count > 1 ? Color.white.opacity(0.62) : Color.white.opacity(0.24))
+                                .disabled(palette.count <= 1)
+                                .help("Remove color")
+                                .accessibilityLabel("Remove palette color \(index + 1)")
+                                .accessibilityIdentifier("software-lighting-palette-\(index)-remove-button")
+                            } else {
+                                Color.clear
+                                    .frame(width: 13, height: 13)
                             }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(palette.count > 1 ? Color.white.opacity(0.62) : Color.white.opacity(0.24))
-                            .disabled(palette.count <= 1)
-                            .help("Remove color")
-                            .accessibilityLabel("Remove palette color \(index + 1)")
-                            .accessibilityIdentifier("software-lighting-palette-\(index)-remove-button")
                         }
                         .frame(width: 44)
                     }
 
-                    Button(action: onAdd) {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 22, weight: .semibold))
-                            .frame(width: 44, height: 44)
+                    if maximumPaletteColorCount > 1 {
+                        Button(action: onAdd) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 22, weight: .semibold))
+                                .frame(width: 44, height: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(
+                            palette.count < maximumPaletteColorCount
+                                ? Color.white.opacity(0.86)
+                                : Color.white.opacity(0.34)
+                        )
+                        .disabled(palette.count >= maximumPaletteColorCount)
+                        .help("Add color")
+                        .accessibilityLabel("Add palette color")
+                        .accessibilityIdentifier("software-lighting-palette-add-button")
+                        .frame(width: 44)
+                        .padding(.top, 0)
+                        .padding(.bottom, 18)
+                        .opacity(palette.count < maximumPaletteColorCount ? 1 : 0.55)
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(
-                        palette.count < SoftwareLightingEffectRequest.maximumPaletteColorCount
-                            ? Color.white.opacity(0.86)
-                            : Color.white.opacity(0.34)
-                    )
-                    .disabled(palette.count >= SoftwareLightingEffectRequest.maximumPaletteColorCount)
-                    .help("Add color")
-                    .accessibilityLabel("Add palette color")
-                    .accessibilityIdentifier("software-lighting-palette-add-button")
-                    .frame(width: 44)
-                    .padding(.top, 0)
-                    .padding(.bottom, 18)
-                    .opacity(palette.count < SoftwareLightingEffectRequest.maximumPaletteColorCount ? 1 : 0.55)
                 }
                 .padding(.vertical, 8)
                 .padding(.horizontal, 4)
@@ -1961,6 +1968,10 @@ struct SoftwareLightingPaletteEditor: View {
                 palette = next
             }
         )
+    }
+
+    private var maximumPaletteColorCount: Int {
+        preset.maximumPaletteColorCount
     }
 }
 

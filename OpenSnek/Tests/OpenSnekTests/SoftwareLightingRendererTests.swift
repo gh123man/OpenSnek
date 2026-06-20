@@ -171,7 +171,20 @@ final class SoftwareLightingRendererTests: XCTestCase {
         ])
         XCTAssertTrue(SoftwareLightingPresetID.nightRider.isAnimated)
         XCTAssertTrue(SoftwareLightingPresetID.nightRider.usesPaletteControls)
+        XCTAssertEqual(SoftwareLightingPresetID.nightRider.maximumPaletteColorCount, 1)
         XCTAssertTrue(SoftwareLightingPresetID.animatedPresets.contains(.nightRider))
+    }
+
+    func testNightRiderRequestLimitsPaletteToOneColor() {
+        let request = SoftwareLightingEffectRequest(
+            presetID: .nightRider,
+            palette: [
+                RGBPatch(r: 0, g: 128, b: 255),
+                RGBPatch(r: 255, g: 255, b: 0),
+            ]
+        )
+
+        XCTAssertEqual(request.palette, [RGBPatch(r: 0, g: 128, b: 255)])
     }
 
     func testBatteryMeterDefaultPaletteUsesThresholdColors() {
