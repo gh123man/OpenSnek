@@ -437,7 +437,7 @@ final class SoftwareLightingRendererTests: XCTestCase {
         XCTAssertEqual(redFrame.colors[0], RGBPatch(r: 255, g: 255, b: 255))
         XCTAssertEqual(redFrame.colors[1], RGBPatch(r: 255, g: 255, b: 255))
         XCTAssertEqual(redFrame.colors[2], RGBPatch(r: 255, g: 0, b: 0))
-        XCTAssertEqual(redFrame.colors[3], RGBPatch(r: 173, g: 0, b: 0))
+        XCTAssertEqual(redFrame.colors[3], RGBPatch(r: 173, g: 173, b: 173))
         XCTAssertEqual(
             Array(redFrame.colors.dropFirst(4)),
             Array(repeating: RGBPatch(r: 0, g: 0, b: 0), count: 10)
@@ -446,7 +446,7 @@ final class SoftwareLightingRendererTests: XCTestCase {
         XCTAssertEqual(yellowFrame.colors[0], RGBPatch(r: 255, g: 255, b: 255))
         XCTAssertEqual(yellowFrame.colors[1], RGBPatch(r: 255, g: 255, b: 255))
         XCTAssertEqual(yellowFrame.colors[2], RGBPatch(r: 255, g: 255, b: 0))
-        XCTAssertEqual(yellowFrame.colors[3], RGBPatch(r: 204, g: 204, b: 0))
+        XCTAssertEqual(yellowFrame.colors[3], RGBPatch(r: 204, g: 204, b: 204))
         XCTAssertEqual(
             Array(yellowFrame.colors.dropFirst(4)),
             Array(repeating: RGBPatch(r: 0, g: 0, b: 0), count: 10)

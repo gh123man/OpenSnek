@@ -381,7 +381,7 @@ public enum SoftwareLightingRenderer {
             return scaledColor(color, scale: intensity)
         }
         if stripIndex == fullCellCount, partialCellScale > 0, fullCellCount < stripCellCount {
-            return scaledColor(color, scale: intensity * partialCellScale)
+            return scaledColor(RGBPatch(r: 255, g: 255, b: 255), scale: intensity * partialCellScale)
         }
         return RGBPatch(r: 0, g: 0, b: 0)
     }
