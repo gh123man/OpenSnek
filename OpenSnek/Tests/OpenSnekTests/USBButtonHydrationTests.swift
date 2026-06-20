@@ -361,9 +361,9 @@ final class USBButtonHydrationTests: XCTestCase {
         XCTAssertEqual(block, [0x06, 0x01, 0x05, 0x01, 0x90, 0x01, 0x90])
     }
 
-    func testBasiliskV3ProDoesNotExpose35KTopDPIButtonDefault() {
+    func testBasiliskV3ProDefaultDPIButtonBlockUsesDPICycleAction() {
         let block = ButtonBindingSupport.defaultUSBFunctionBlock(for: 96, profileID: .basiliskV3Pro)
-        XCTAssertNil(block)
+        XCTAssertEqual(block, [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00])
     }
 
     func testExtractUSBFunctionBlockRejectsMismatchedEchoedSlot() {

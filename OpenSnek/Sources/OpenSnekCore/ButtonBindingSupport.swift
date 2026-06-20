@@ -108,10 +108,8 @@ public enum ButtonBindingSupport {
             return ButtonBindingDraft(kind: .scrollRight, hidKey: 4, turboEnabled: false, turboRate: fallbackRate)
         case 96:
             switch profileID {
-            case .basiliskV3, .basiliskV335K, .basiliskV3XHyperspeed, .orochiV2, .none:
+            case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3XHyperspeed, .orochiV2, .none:
                 return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: fallbackRate)
-            case .basiliskV3Pro:
-                return nil
             }
         default:
             return nil
@@ -392,7 +390,7 @@ public enum ButtonBindingSupport {
             case .basiliskV3, .basiliskV335K:
                 return [0x04, 0x02, 0x0F, 0x7B, 0x00, 0x00, 0x00]
             case .basiliskV3Pro:
-                return nil
+                return [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
             case .basiliskV3XHyperspeed, .orochiV2, .none:
                 return [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
             }
@@ -438,10 +436,8 @@ public enum ButtonBindingSupport {
 
     private static func buttonSlotDescriptors(for profileID: DeviceProfileID?) -> [ButtonSlotDescriptor] {
         switch profileID {
-        case .basiliskV3Pro:
-            return DeviceProfiles.basiliskV3ProUSBButtonSlots
-        case .basiliskV3, .basiliskV335K:
-            return DeviceProfiles.basiliskV335KUSBButtonSlots
+        case .basiliskV3, .basiliskV3Pro, .basiliskV335K:
+            return DeviceProfiles.basiliskV3FamilyButtonSlots
         case .basiliskV3XHyperspeed, .none:
             return DeviceProfiles.basiliskV3XButtonSlots
         case .orochiV2:

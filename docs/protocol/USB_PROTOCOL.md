@@ -203,8 +203,9 @@ Observed control labels on `0x00AB`:
 - `0x0F`: sensitivity clutch / DPI clutch
 - `0x34`: wheel tilt left
 - `0x35`: wheel tilt right
+- `0x60`: top DPI button
 - `0x6A`: profile button
-- observed non-match: `0x60` does not read back like the Basilisk V3 35K top DPI-button block and is not currently shipped as a validated V3 Pro control
+- shipped family-parity slot: `0x60` does not read back like the Basilisk V3 35K top DPI-button block, so OpenSnek restores it with the standard DPI-cycle block while exposing it as part of the shared non-HyperSpeed V3 button map
 - observed write behavior: slot `0x0F` accepts remap writes and restores cleanly to its default block; slot `0x6A` accepted remap writes during probe, but repeated write/readback cycles became unstable enough that OpenSnek keeps it hidden for now
 
 Validated slot ids on Basilisk V3 35K (`0x00CB`): `0x01..0x05`, `0x09`, `0x0A`, `0x0E`, `0x0F`, `0x34`, `0x35`, `0x60`, `0x6A`.
@@ -230,6 +231,7 @@ Validated function block examples:
 - Basilisk V3 Pro sensitivity-clutch default (`0x0F`): `06 05 05 01 90 01 90`
 - Basilisk V3 Pro wheel-tilt defaults (`0x34`, `0x35`) observed on 2026-04-03 after Synapse rebind: `0e 03 68 00 14 00 00` / `0e 03 69 00 14 00 00`
 - OpenSnek now applies that same wheel-tilt block across the Basilisk V3 / V3 Pro / 35K USB family as the best current inference from their shared slot model; only the V3 Pro form has been directly read back in-session so far
+- Basilisk V3 Pro top DPI-button default (`0x60`): `06 01 06 00 00 00 00`
 - Basilisk V3 35K sensitivity-clutch default (`0x0F`): `06 01 05 01 90 01 90`
 - Basilisk V3 Pro / 35K profile-button default (`0x6A`): `12 01 01 00 00 00 00`
 - Basilisk V3 35K observed alternate DPI-button block (`0x60`): `04 02 0F 7B 00 00 00`
