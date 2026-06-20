@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [1.1.0]
 
 ### Added
 - Added a Night Rider advanced lighting preset for V3-family USB devices that sweeps one customizable scanner color across the underglow light bar while the logo and scroll wheel slowly pulse the same color. The preset defaults to red.
