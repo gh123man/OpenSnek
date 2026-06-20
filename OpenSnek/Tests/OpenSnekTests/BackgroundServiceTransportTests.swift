@@ -68,6 +68,10 @@ final class BackgroundServiceTransportTests: XCTestCase {
         XCTAssertEqual(softwareLightingStatus?.state, .running)
         XCTAssertEqual(softwareLightingStatus?.request?.presetID, .cometChase)
 
+        let stoppedAllSoftwareLighting = await serviceBackend.stopAllSoftwareLighting()
+        XCTAssertEqual(stoppedAllSoftwareLighting.map(\.state), [.stopped])
+        XCTAssertEqual(stoppedAllSoftwareLighting.map(\.deviceID), [devices[0].id])
+
         let stoppedSoftwareLighting = await serviceBackend.stopSoftwareLighting(device: devices[0])
         XCTAssertEqual(stoppedSoftwareLighting?.state, .stopped)
     }
@@ -438,6 +442,21 @@ private actor StubServiceBackend: HIDAccessRefreshControllingBackend {
         )
         softwareLightingStatusByDeviceID[deviceID] = status
         return status
+    }
+
+    func stopAllSoftwareLighting() async -> [SoftwareLightingEngineStatus] {
+        let statuses = softwareLightingStatusByDeviceID.keys.sorted().map { deviceID in
+            SoftwareLightingEngineStatus(
+                deviceID: deviceID,
+                state: .stopped,
+                request: softwareLightingStatusByDeviceID[deviceID]?.request,
+                updatedAt: Date(timeIntervalSince1970: 1_774_000_101)
+            )
+        }
+        for status in statuses {
+            softwareLightingStatusByDeviceID[status.deviceID] = status
+        }
+        return statuses
     }
 
     func softwareLightingStatus(deviceID: String) async -> SoftwareLightingEngineStatus? {

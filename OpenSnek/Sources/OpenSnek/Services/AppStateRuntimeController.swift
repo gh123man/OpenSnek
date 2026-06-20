@@ -507,7 +507,7 @@ final class AppStateRuntimeController {
 
         if enabled {
             do {
-                environment.backend = try await environment.serviceCoordinator.connectOrLaunchService()
+                await replaceBackend(try await environment.serviceCoordinator.connectOrLaunchService())
                 await restartBackendStateUpdates()
                 isBackendReady = true
                 await refreshHIDAccessStatus(forceRefresh: false)
@@ -515,7 +515,7 @@ final class AppStateRuntimeController {
                 transientStatusUntil = Date().addingTimeInterval(3.0)
                 deviceStore.errorMessage = nil
             } catch {
-                environment.backend = LocalBridgeBackend.shared
+                await replaceBackend(LocalBridgeBackend.shared)
                 await restartBackendStateUpdates()
                 isBackendReady = true
                 await refreshHIDAccessStatus(forceRefresh: false)
@@ -524,7 +524,7 @@ final class AppStateRuntimeController {
                 deviceStore.errorMessage = "Background service unavailable: \(error.localizedDescription)"
             }
         } else {
-            environment.backend = LocalBridgeBackend.shared
+            await replaceBackend(LocalBridgeBackend.shared)
             await restartBackendStateUpdates()
             isBackendReady = true
             await refreshHIDAccessStatus(forceRefresh: false)
@@ -627,7 +627,7 @@ final class AppStateRuntimeController {
     private func configureBackendForCurrentPreferences() async {
 #if DEBUG
         if OpenSnekUITestSupport.forcesLocalBackend {
-            environment.backend = LocalBridgeBackend.shared
+            await replaceBackend(LocalBridgeBackend.shared)
             await restartBackendStateUpdates()
             isBackendReady = true
             await refreshHIDAccessStatus(forceRefresh: false)
@@ -635,7 +635,7 @@ final class AppStateRuntimeController {
         }
 #endif
         do {
-            environment.backend = try await environment.serviceCoordinator.makeBackendForCurrentMode()
+            await replaceBackend(try await environment.serviceCoordinator.makeBackendForCurrentMode())
             await restartBackendStateUpdates()
             isBackendReady = true
             await refreshHIDAccessStatus(forceRefresh: false)
@@ -644,12 +644,23 @@ final class AppStateRuntimeController {
                 transientStatusUntil = Date().addingTimeInterval(2.0)
             }
         } catch {
-            environment.backend = LocalBridgeBackend.shared
+            await replaceBackend(LocalBridgeBackend.shared)
             await restartBackendStateUpdates()
             isBackendReady = true
             await refreshHIDAccessStatus(forceRefresh: false)
             deviceStore.errorMessage = "Background service unavailable: \(error.localizedDescription)"
         }
+    }
+
+    private func replaceBackend(_ backend: any DeviceBackend) async {
+        let previousBackend = environment.backend
+        if previousBackend.usesRemoteServiceTransport != backend.usesRemoteServiceTransport {
+            let stoppedStatuses = await previousBackend.stopAllSoftwareLighting()
+            for status in stoppedStatuses {
+                deviceStore.softwareLightingStatusByDeviceID[status.deviceID] = status
+            }
+        }
+        environment.backend = backend
     }
 
     private func checkForUpdates(now: Date = Date(), force: Bool = false) async {

@@ -54,6 +54,7 @@ protocol DeviceBackend: AnyObject, Sendable {
     ) async throws -> SoftwareLightingEngineStatus
     func stopSoftwareLighting(deviceID: String) async -> SoftwareLightingEngineStatus?
     func stopSoftwareLighting(device: MouseDevice) async -> SoftwareLightingEngineStatus?
+    func stopAllSoftwareLighting() async -> [SoftwareLightingEngineStatus]
     func softwareLightingStatus(deviceID: String) async -> SoftwareLightingEngineStatus?
     func debugUSBReadButtonBinding(device: MouseDevice, slot: Int, profile: Int) async throws -> [UInt8]?
 }
@@ -241,6 +242,10 @@ extension DeviceBackend {
 
     func stopSoftwareLighting(device: MouseDevice) async -> SoftwareLightingEngineStatus? {
         await stopSoftwareLighting(deviceID: device.id)
+    }
+
+    func stopAllSoftwareLighting() async -> [SoftwareLightingEngineStatus] {
+        []
     }
 
     func softwareLightingStatus(deviceID _: String) async -> SoftwareLightingEngineStatus? {
@@ -1033,6 +1038,14 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         return status
     }
 
+    func stopAllSoftwareLighting() async -> [SoftwareLightingEngineStatus] {
+        let statuses = await softwareLightingEngine.stopAll()
+        for status in statuses {
+            handleSoftwareLightingStatus(status)
+        }
+        return statuses
+    }
+
     func softwareLightingStatus(deviceID: String) async -> SoftwareLightingEngineStatus? {
         await softwareLightingEngine.status(deviceID: deviceID)
     }
@@ -1789,6 +1802,8 @@ private actor BackgroundServiceRequestHandler {
                 let statusRequest = try decodePayload(SoftwareLightingStatusRequest.self, from: request.payload)
                 payload = try BackendCodec.encode(await backend.stopSoftwareLighting(deviceID: statusRequest.deviceID))
             }
+        case .stopAllSoftwareLighting:
+            payload = try BackendCodec.encode(await backend.stopAllSoftwareLighting())
         case .softwareLightingStatus:
             let statusRequest = try decodePayload(SoftwareLightingStatusRequest.self, from: request.payload)
             payload = try BackendCodec.encode(await backend.softwareLightingStatus(deviceID: statusRequest.deviceID))
@@ -2058,6 +2073,14 @@ final actor IPCDeviceBackend: HIDAccessRefreshControllingBackend, ApplyOptionsSu
             payload: try BackendCodec.encode(SoftwareLightingStopRequest(device: device)),
             responseType: SoftwareLightingEngineStatus?.self
         )
+    }
+
+    func stopAllSoftwareLighting() async -> [SoftwareLightingEngineStatus] {
+        (try? await request(
+            method: .stopAllSoftwareLighting,
+            payload: nil,
+            responseType: [SoftwareLightingEngineStatus].self
+        )) ?? []
     }
 
     func softwareLightingStatus(deviceID: String) async -> SoftwareLightingEngineStatus? {

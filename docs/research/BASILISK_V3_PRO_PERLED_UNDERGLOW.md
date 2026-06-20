@@ -24,21 +24,21 @@ Activating Cmd 0x03 implicitly switches the active effect on the affected LEDs t
 | `args[2]` | START_COL | `0x00` valid |
 | `args[3]` | END_COL | inclusive; validated responsive through `0x0D` (14 cells) on PID `0x00AB` firmware `0x01140000` |
 | `args[4]` | Reserved/pad byte | Write `0x00`. Omitting this byte shifts the cell stream by one byte. |
-| `args[5..]` | RGB cells | **`[B, R, G]` triplet order** — Blue byte first, then Red, then Green |
+| `args[5..]` | RGB cells | **`[R, G, B]` triplet order** |
 
 Status byte conventions match the rest of the Razer USB report layout (`0x02` = success, `0x05` = not_supported, `0x03` = failure).
 
-### Byte order pitfall
+### Color byte order
 
-The triplet order is **`[B, R, G]`**, not the conventional `[R, G, B]`. This was discovered when a 3-phase verification on col 5 showed:
+The triplet order is conventional **`[R, G, B]`** once the reserved pad byte at `args[4]` is present. A post-pad 3-phase verification showed:
 
-| Args sent (B, R, G) | LED color observed |
+| Args sent (R, G, B) | LED color observed |
 |---|---|
-| `00, ff, 00` | Red |
-| `00, 00, ff` | Green |
-| `ff, 00, 00` | Blue |
+| `ff, 00, 00` | Red |
+| `00, ff, 00` | Green |
+| `00, 00, ff` | Blue |
 
-So to light an LED red, send `00, ff, 00`. To light it blue, send `ff, 00, 00`. This differs from the Static effect path (`Cmd 0x02`), which uses standard `[R, G, B]`. Watch out when bridging values between the two paths.
+Earlier unpadded probes falsely suggested a rotated `[B, R, G]` order because the missing pad byte shifted every color stream by one byte.
 
 Triplets begin after the reserved pad byte at `args[4]`. The pad was validated on 2026-06-20 after an unpadded single-cell 50% white probe split into a yellow light-bar LED and a blue scroll-wheel LED; the same probe with the pad lit only the intended light-bar LED in white.
 
@@ -79,7 +79,7 @@ Cells `0..11` were confirmed by a sequential single-LED sweep where each cell wa
 
 - `OpenSnek/Sources/OpenSnekCore/DeviceSupport.swift` defines the three USB lighting zones (`scroll_wheel`, `logo`, `underglow`) with LED IDs `[0x01, 0x04, 0x0A]`. These continue to work via Cmd `0x02` and are unaffected by anything in this document.
 - `OpenSnek/Sources/OpenSnekCore/SoftwareLighting.swift` models the V3-family USB Custom Frame layout as 14 cells, so all software lighting animations render the two tail cells instead of leaving them to stale hardware state.
-- `OpenSnekProbe usb-lighting-frame --colors ff0000,00ff00,0000ff --start-col 0 --pid 0x00aa` writes the decoded `Cmd 0x03` Custom Frame path with conventional RGB input converted to the device's `[B,R,G]` triplet order. `usb-raw --class 0x0F --cmd 0x03 --args ...` remains available for lower-level experiments.
+- `OpenSnekProbe usb-lighting-frame --colors ff0000,00ff00,0000ff --start-col 0 --pid 0x00aa` writes the decoded `Cmd 0x03` Custom Frame path with conventional RGB input and wire triplets. `usb-raw --class 0x0F --cmd 0x03 --args ...` remains available for lower-level experiments.
 - `docs/protocol/USB_PROTOCOL.md` now documents both Cmd 0x02's corrected effect-ID table and Cmd 0x03's Custom Frame shape.
 
 ## Effect-ID correction (separate fix, same source)

@@ -166,6 +166,59 @@ actor SoftwareLightingEngine {
     }
 
     @discardableResult
+    func stopAll() async -> [SoftwareLightingEngineStatus] {
+        var deviceKeys = Set(tasksByDeviceKey.keys)
+        deviceKeys.formUnion(desiredRequestByDeviceKey.keys)
+        deviceKeys.formUnion(deviceIDByDeviceKey.keys)
+        deviceKeys.formUnion(statusByDeviceKey.keys)
+        guard !deviceKeys.isEmpty else { return [] }
+
+        var stopGenerations: [String: UInt64] = [:]
+        let tasks = tasksByDeviceKey
+        for deviceKey in deviceKeys {
+            stopGenerations[deviceKey] = nextGeneration(for: deviceKey)
+            tasksByDeviceKey[deviceKey]?.cancel()
+        }
+        for task in tasks.values {
+            await task.value
+        }
+
+        var statuses: [SoftwareLightingEngineStatus] = []
+        for deviceKey in deviceKeys.sorted() {
+            guard generationByDeviceKey[deviceKey] == stopGenerations[deviceKey] else { continue }
+            let statusDeviceID = deviceIDByDeviceKey[deviceKey]
+                ?? statusByDeviceKey[deviceKey]?.deviceID
+                ?? deviceKey
+            let aliasDeviceIDs = Set(
+                deviceKeyByDeviceID
+                    .filter { $0.value == deviceKey }
+                    .map(\.key) + [statusDeviceID]
+            )
+
+            desiredRequestByDeviceKey.removeValue(forKey: deviceKey)
+            deviceByDeviceKey.removeValue(forKey: deviceKey)
+            statusByDeviceKey.removeValue(forKey: deviceKey)
+            deviceIDByDeviceKey.removeValue(forKey: deviceKey)
+            batteryPercentByDeviceKey.removeValue(forKey: deviceKey)
+            tasksByDeviceKey.removeValue(forKey: deviceKey)
+            removeAliases(for: deviceKey)
+
+            let status = SoftwareLightingEngineStatus(
+                deviceID: statusDeviceID,
+                state: .stopped,
+                request: nil,
+                message: nil
+            )
+            for deviceID in aliasDeviceIDs {
+                statusByDeviceID[deviceID] = status
+            }
+            statusUpdates.yield(status)
+            statuses.append(status)
+        }
+        return statuses
+    }
+
+    @discardableResult
     func suspend(deviceID: String, message: String) async -> SoftwareLightingEngineStatus? {
         let deviceKey = deviceKeyByDeviceID[deviceID] ?? deviceID
         guard let request = desiredRequestByDeviceKey[deviceKey] else {

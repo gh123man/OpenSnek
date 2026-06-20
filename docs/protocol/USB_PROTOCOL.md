@@ -742,7 +742,7 @@ Set Custom Frame (per-LED RGB):
     [2]   = START_COL
     [3]   = END_COL (inclusive; valid 0x00..0x0D on V3 USB family = 14 cells max)
     [4]   = reserved/pad byte; write 0x00
-    [5..] = cells; **byte order per cell is [B, R, G]**, not [R, G, B]
+    [5..] = cells; byte order per cell is [R, G, B]
 
 Writing a Custom Frame implicitly activates "custom" as the current effect on
 all addressed LEDs — no separate switch-effect step is required.
@@ -756,6 +756,8 @@ through `0x0B`; sending `0x0C..0x0D` remains accepted by the command echo.
 The reserved byte after `END_COL` is required: omitting it shifts the color
 stream by one byte, causing dim white cells to split into adjacent yellow/blue
 LEDs.
+With that reserved byte present, color triplets are conventional RGB; earlier
+unpadded probes falsely suggested a rotated byte order.
 
 Persistence note: unlike the normal zone-effect path (`Cmd 0x02`) and profile
 setting banks, Custom Frame state has been observed to clear on mouse restart.
@@ -798,7 +800,7 @@ OpenSnekProbe usb-lighting-concurrency \
 ```
 
 The probe accepts conventional RGB hex values and emits the `Cmd 0x03` payload
-in the device's `[B,R,G]` triplet order. The concurrency probe stress-tests
+with the reserved pad byte and RGB triplets. The concurrency probe stress-tests
 software frame writes against same-value poll-rate reads/writes; `--mode locked`
 uses OpenSnek's serialized HID path, while `--mode unlocked` intentionally
 bypasses that lock to test whether overlapping feature-report exchanges are

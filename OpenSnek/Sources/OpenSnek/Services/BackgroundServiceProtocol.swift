@@ -127,6 +127,7 @@ enum BackgroundServiceMethod: String, Codable, Sendable {
     case readLightingColor
     case startSoftwareLighting
     case stopSoftwareLighting
+    case stopAllSoftwareLighting
     case softwareLightingStatus
     case debugUSBReadButtonBinding
     case subscribeStateUpdates

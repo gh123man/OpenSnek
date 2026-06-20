@@ -182,9 +182,9 @@ public enum USBHIDProtocol {
         let endColumn = UInt8(max(0, min(255, Int(startColumn) + max(0, colors.count - 1))))
         var args = [storage, row, startColumn, endColumn, 0x00]
         for color in colors {
-            args.append(UInt8(max(0, min(255, color.b))))
             args.append(UInt8(max(0, min(255, color.r))))
             args.append(UInt8(max(0, min(255, color.g))))
+            args.append(UInt8(max(0, min(255, color.b))))
         }
         return args
     }
