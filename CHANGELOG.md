@@ -4,9 +4,13 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Added a Basilisk V3 Pro USB Battery Meter advanced lighting preset that keeps the logo and scroll wheel white while using the underglow strip as a battery progress bar. Lit strip cells are white at 30% and up, yellow from 15-29%, red below 15%, the boundary LED fades by fractional charge within each cell step, and cells turn off from the tail as charge drops. Battery Meter clears the prior software frame before rendering and uses a battery icon instead of palette swatches in the collapsed Lighting summary.
+
 ### Changed
 - The Connect a Device screen now opens supported devices in a centered, searchable profile-backed table instead of showing the growing list inline.
 - Advanced lighting animations now expose a persisted brightness slider alongside speed and palette controls.
+- V3-family USB software lighting now streams the full 14-cell Custom Frame range so the tail LEDs are addressed directly on every shared scroll/logo/underglow profile.
 
 ### Fixed
 - Basilisk V3 Pro USB and Bluetooth button maps now include the shared V3-family DPI button slot and use the same editable slot list as Basilisk V3 and Basilisk V3 35K.
@@ -35,9 +39,9 @@ All notable changes to this project are documented in this file.
 ## [2026-06-19]
 
 ### Added
-- Added a service-owned Basilisk V3 Pro USB software lighting engine that streams volatile 12-cell Custom Frame data while OpenSnek is running, with Flame, Scrolling Rainbow, Comet Chase, and Aurora presets plus app UI controls to start and stop the active preset.
+- Added a service-owned Basilisk V3 Pro USB software lighting engine that streams volatile 14-cell Custom Frame data while OpenSnek is running, with Flame, Scrolling Rainbow, Comet Chase, and Aurora presets plus app UI controls to start and stop the active preset.
 - Added a Jellybeans software lighting preset with a pastel palette and one-random-LED-per-tick color changes.
-- Extended the USB software lighting effects surface to the wired Basilisk V3 and Basilisk V3 35K underglow profiles using the shared V3-family 12-cell frame assumption.
+- Extended the USB software lighting effects surface to the wired Basilisk V3 and Basilisk V3 35K underglow profiles using the shared V3-family 14-cell frame assumption.
 - Added `OpenSnekProbe usb-lighting-concurrency`, a V3 Pro USB stress probe for comparing serialized Custom Frame streaming against unsafe overlapping feature-report reads/writes.
 
 ### Changed

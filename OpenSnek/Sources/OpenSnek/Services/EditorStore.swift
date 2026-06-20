@@ -317,6 +317,13 @@ final class EditorStore {
         return [.staticColor]
     }
 
+    var visibleSoftwareLightingPresets: [SoftwareLightingPresetID] {
+        guard let selectedDevice = deviceStore.selectedDevice else {
+            return SoftwareLightingPresetID.animatedPresets
+        }
+        return selectedDevice.supportedSoftwareLightingPresets
+    }
+
     var visibleOnboardProfileCount: Int {
         let deviceCount = deviceStore.selectedDevice?.onboard_profile_count ?? 1
         let stateCount = deviceStore.state?.onboard_profile_count ?? 1
@@ -709,9 +716,13 @@ final class EditorStore {
     }
 
     func updateEditableSoftwareLightingPreset(_ preset: SoftwareLightingPresetID) {
-        guard editableSoftwareLightingPreset != preset else { return }
-        editableSoftwareLightingPreset = preset
-        editableSoftwareLightingSpeed = preset.defaultSpeed
+        let supportedPresets = visibleSoftwareLightingPresets
+        let resolvedPreset = supportedPresets.contains(preset)
+            ? preset
+            : (supportedPresets.first ?? .flame)
+        guard editableSoftwareLightingPreset != resolvedPreset else { return }
+        editableSoftwareLightingPreset = resolvedPreset
+        editableSoftwareLightingSpeed = resolvedPreset.defaultSpeed
     }
 
     func updateSoftwareLightingApplyOnConnect(_ enabled: Bool) {
@@ -747,10 +758,16 @@ final class EditorStore {
     }
 
     func applySoftwareLightingEffectRequest(_ request: SoftwareLightingEffectRequest) {
-        editableSoftwareLightingPreset = request.presetID
-        editableSoftwareLightingSpeed = request.speed
+        let supportedPresets = visibleSoftwareLightingPresets
+        let resolvedPreset = supportedPresets.contains(request.presetID)
+            ? request.presetID
+            : (supportedPresets.first ?? .flame)
+        let usesPersistedPreset = resolvedPreset == request.presetID
+        let resolvedPalette = usesPersistedPreset ? request.palette : resolvedPreset.defaultPalette
+        editableSoftwareLightingPreset = resolvedPreset
+        editableSoftwareLightingSpeed = usesPersistedPreset ? request.speed : resolvedPreset.defaultSpeed
         editableSoftwareLightingBrightness = request.intensity
-        editableSoftwareLightingPalettes[request.presetID] = request.palette.map {
+        editableSoftwareLightingPalettes[resolvedPreset] = resolvedPalette.map {
             RGBColor(r: $0.r, g: $0.g, b: $0.b)
         }
     }

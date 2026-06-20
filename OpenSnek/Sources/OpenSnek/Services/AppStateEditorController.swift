@@ -2702,6 +2702,10 @@ final class AppStateEditorController {
         }
 
         let request = editorStore.softwareLightingEffectRequest()
+        guard device.supportsSoftwareLightingPreset(request.presetID) else {
+            deviceStore.errorMessage = "\(request.presetID.label) is not supported for this device."
+            return
+        }
         preferenceStore.persistSoftwareLightingRequest(request, device: device)
 
         do {
@@ -2725,8 +2729,11 @@ final class AppStateEditorController {
         let autoStartKey = DevicePersistenceKeys.key(for: device)
         guard !softwareLightingAutoStartInFlightKeys.contains(autoStartKey) else { return false }
 
-        let request = preferenceStore.loadPersistedSoftwareLightingRequest(device: device)
-            ?? SoftwareLightingEffectRequest(presetID: .flame)
+        let request = supportedSoftwareLightingRequest(
+            preferenceStore.loadPersistedSoftwareLightingRequest(device: device)
+                ?? SoftwareLightingEffectRequest(presetID: .flame),
+            for: device
+        )
         if deviceStore.softwareLightingStatusByDeviceID[device.id]?.state == .running,
            deviceStore.softwareLightingStatusByDeviceID[device.id]?.request == request {
             return false
@@ -2763,6 +2770,18 @@ final class AppStateEditorController {
             }
             return false
         }
+    }
+
+    private func supportedSoftwareLightingRequest(
+        _ request: SoftwareLightingEffectRequest,
+        for device: MouseDevice
+    ) -> SoftwareLightingEffectRequest {
+        guard device.supportsSoftwareLightingPreset(request.presetID) else {
+            return SoftwareLightingEffectRequest(
+                presetID: device.supportedSoftwareLightingPresets.first ?? .flame
+            )
+        }
+        return request
     }
 
     func stopSoftwareLighting() async {

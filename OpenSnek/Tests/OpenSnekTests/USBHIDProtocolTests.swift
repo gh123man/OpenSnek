@@ -151,11 +151,27 @@ final class USBHIDProtocolTests: XCTestCase {
             USBHIDProtocol.lightingCustomFrameArgs(
                 storage: 0x00,
                 row: 0x01,
-                startColumn: 0x0B,
+                startColumn: 0x0D,
                 colors: [RGBPatch(r: 0xFF, g: 0x00, b: 0x00)]
             ),
-            [0x00, 0x01, 0x0B, 0x0B, 0x00, 0xFF, 0x00]
+            [0x00, 0x01, 0x0D, 0x0D, 0x00, 0xFF, 0x00]
         )
+    }
+
+    func testLightingCustomFrameArgsCanAddressFourteenCellV3FamilyFrame() {
+        let colors = (0..<14).map { index in
+            RGBPatch(r: index, g: index + 1, b: index + 2)
+        }
+        let args = USBHIDProtocol.lightingCustomFrameArgs(
+            storage: 0x01,
+            row: 0x00,
+            startColumn: 0x00,
+            colors: colors
+        )
+
+        XCTAssertEqual(args.count, 46)
+        XCTAssertEqual(Array(args.prefix(4)), [0x01, 0x00, 0x00, 0x0D])
+        XCTAssertEqual(Array(args.suffix(3)), [0x0F, 0x0D, 0x0E])
     }
 
     func testProfileLightingEffectStateParsesStaticColorReadback() throws {

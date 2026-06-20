@@ -230,6 +230,91 @@ final class SoftwareLightingEngineTests: XCTestCase {
         XCTAssertNotNil(status?.message)
     }
 
+    func testBatteryMeterUsesSeededBatteryPercent() async throws {
+        let writer = RecordingSoftwareLightingFrameWriter()
+        let engine = SoftwareLightingEngine(
+            frameWriter: writer,
+            minimumFrameInterval: 0.005,
+            failureLimit: 3
+        )
+        let device = makeSoftwareLightingTestDevice()
+
+        _ = try await engine.start(
+            device: device,
+            request: SoftwareLightingEffectRequest(presetID: .batteryMeter, framesPerSecond: 30),
+            batteryPercent: 74
+        )
+
+        try await waitUntil {
+            await writer.frameCount() >= 2
+        }
+        let frames = await writer.recordedFrames()
+        XCTAssertEqual(frames.first?.colors, Array(repeating: RGBPatch(r: 0, g: 0, b: 0), count: 14))
+        let meterFrame = frames.dropFirst().first
+        XCTAssertEqual(meterFrame?.colors[0], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(meterFrame?.colors[1], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(meterFrame?.colors[2], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(meterFrame?.colors[9], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(meterFrame?.colors[10], RGBPatch(r: 224, g: 224, b: 224))
+        XCTAssertEqual(meterFrame?.colors[11], RGBPatch(r: 0, g: 0, b: 0))
+        await engine.stop(deviceID: device.id)
+    }
+
+    func testBatteryMeterUpdatesWhenBatteryPercentChanges() async throws {
+        let writer = RecordingSoftwareLightingFrameWriter()
+        let engine = SoftwareLightingEngine(
+            frameWriter: writer,
+            minimumFrameInterval: 0.005,
+            failureLimit: 3
+        )
+        let device = makeSoftwareLightingTestDevice()
+
+        _ = try await engine.start(
+            device: device,
+            request: SoftwareLightingEffectRequest(presetID: .batteryMeter, framesPerSecond: 30),
+            batteryPercent: 74
+        )
+        try await waitUntil {
+            await writer.recordedFrames().contains { $0.colors[2] == RGBPatch(r: 255, g: 255, b: 255) }
+        }
+        let frameCountBeforeBatteryChange = await writer.frameCount()
+        try await Task.sleep(nanoseconds: 50_000_000)
+        let frameCountAfterStableBattery = await writer.frameCount()
+        XCTAssertEqual(frameCountAfterStableBattery, frameCountBeforeBatteryChange)
+
+        await engine.updateBatteryPercent(deviceID: device.id, batteryPercent: 20)
+
+        try await waitUntil {
+            await writer.recordedFrames().contains { $0.colors[2] == RGBPatch(r: 255, g: 255, b: 0) }
+        }
+        await engine.stop(deviceID: device.id)
+    }
+
+    func testBatteryMeterIsRejectedForNonV3ProSoftwareLightingDevice() async throws {
+        let writer = RecordingSoftwareLightingFrameWriter()
+        let engine = SoftwareLightingEngine(
+            frameWriter: writer,
+            minimumFrameInterval: 0.005,
+            failureLimit: 3
+        )
+        let device = makeSoftwareLightingTestDevice(
+            productID: 0x00CB,
+            productName: "Basilisk V3 35K",
+            profileID: .basiliskV335K
+        )
+
+        do {
+            _ = try await engine.start(
+                device: device,
+                request: SoftwareLightingEffectRequest(presetID: .batteryMeter, framesPerSecond: 30),
+                batteryPercent: 74
+            )
+            XCTFail("Expected battery meter to be rejected for non-V3-Pro devices")
+        } catch let error as SoftwareLightingEngineError {
+            XCTAssertEqual(error.localizedDescription, "Battery Meter is not supported for this device")
+        }
+    }
+
     func testSuspendRetainsDesiredPresetAndResumeRestartsIt() async throws {
         let writer = RecordingSoftwareLightingFrameWriter()
         let engine = SoftwareLightingEngine(
@@ -316,6 +401,10 @@ private actor RecordingSoftwareLightingFrameWriter: SoftwareLightingFrameWriting
         frameDeviceIDs
     }
 
+    func recordedFrames() -> [USBLightingFramePatch] {
+        frames
+    }
+
     func maxConcurrentWrites() -> Int {
         maxActiveWrites
     }
@@ -328,19 +417,22 @@ private actor RecordingSoftwareLightingFrameWriter: SoftwareLightingFrameWriting
 private func makeSoftwareLightingTestDevice(
     id: String = "software-lighting-v3-pro",
     serial: String = "SOFTWARE-LIGHTING",
-    locationID: Int = 1
+    locationID: Int = 1,
+    productID: Int = 0x00AB,
+    productName: String = "Basilisk V3 Pro",
+    profileID: DeviceProfileID = .basiliskV3Pro
 ) -> MouseDevice {
     MouseDevice(
         id: id,
         vendor_id: 0x1532,
-        product_id: 0x00AB,
-        product_name: "Basilisk V3 Pro",
+        product_id: productID,
+        product_name: productName,
         transport: .usb,
         path_b64: "",
         serial: serial,
         firmware: "1.0.0",
         location_id: locationID,
-        profile_id: .basiliskV3Pro,
+        profile_id: profileID,
         supports_advanced_lighting_effects: true,
         onboard_profile_count: 5
     )

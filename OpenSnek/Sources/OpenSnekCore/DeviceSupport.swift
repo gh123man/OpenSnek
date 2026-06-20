@@ -281,6 +281,7 @@ public struct DeviceProfile: Hashable, Sendable {
     public let usbLightingLEDIDs: [UInt8]
     public let usbLightingZones: [USBLightingZoneDescriptor]
     public let softwareLightingFrameLayout: SoftwareLightingFrameLayout?
+    public let supportedSoftwareLightingPresets: [SoftwareLightingPresetID]
     public let passiveDPIInput: PassiveDPIInputDescriptor?
     public let supportsIndependentXYDPI: Bool
     public let onboardProfileSupport: OnboardProfileSupport
@@ -299,6 +300,7 @@ public struct DeviceProfile: Hashable, Sendable {
         usbLightingLEDIDs: [UInt8] = [],
         usbLightingZones: [USBLightingZoneDescriptor] = [],
         softwareLightingFrameLayout: SoftwareLightingFrameLayout? = nil,
+        supportedSoftwareLightingPresets: [SoftwareLightingPresetID] = [],
         passiveDPIInput: PassiveDPIInputDescriptor? = nil,
         supportsIndependentXYDPI: Bool = false,
         onboardProfileSupport: OnboardProfileSupport = .unavailable,
@@ -316,6 +318,7 @@ public struct DeviceProfile: Hashable, Sendable {
         self.usbLightingLEDIDs = usbLightingLEDIDs
         self.usbLightingZones = usbLightingZones
         self.softwareLightingFrameLayout = softwareLightingFrameLayout
+        self.supportedSoftwareLightingPresets = supportedSoftwareLightingPresets
         self.passiveDPIInput = passiveDPIInput
         self.supportsIndependentXYDPI = supportsIndependentXYDPI
         self.onboardProfileSupport = onboardProfileSupport
@@ -380,6 +383,16 @@ public extension MouseDevice {
         DeviceProfiles
             .resolve(vendorID: vendor_id, productID: product_id, transport: transport)?
             .softwareLightingFrameLayout != nil
+    }
+
+    var supportedSoftwareLightingPresets: [SoftwareLightingPresetID] {
+        DeviceProfiles
+            .resolve(vendorID: vendor_id, productID: product_id, transport: transport)?
+            .supportedSoftwareLightingPresets ?? []
+    }
+
+    func supportsSoftwareLightingPreset(_ preset: SoftwareLightingPresetID) -> Bool {
+        supportedSoftwareLightingPresets.contains(preset)
     }
 
     var softwareLightingFrameLayout: SoftwareLightingFrameLayout? {
@@ -541,6 +554,7 @@ public enum DeviceProfiles {
         usbLightingLEDIDs: [0x01, 0x04, 0x0A],
         usbLightingZones: basiliskV335KUSBLightingZones,
         softwareLightingFrameLayout: .basiliskV3ProUSB,
+        supportedSoftwareLightingPresets: SoftwareLightingPresetID.animatedPresets,
         passiveDPIInput: PassiveDPIInputDescriptor(
             usagePage: 0x01,
             usage: 0x06,
@@ -568,6 +582,7 @@ public enum DeviceProfiles {
         usbLightingLEDIDs: [0x01, 0x04, 0x0A],
         usbLightingZones: basiliskV335KUSBLightingZones,
         softwareLightingFrameLayout: .basiliskV3ProUSB,
+        supportedSoftwareLightingPresets: SoftwareLightingPresetID.animatedPresets,
         passiveDPIInput: PassiveDPIInputDescriptor(
             usagePage: 0x01,
             usage: 0x06,
@@ -596,6 +611,7 @@ public enum DeviceProfiles {
         usbLightingLEDIDs: [0x01, 0x04, 0x0A],
         usbLightingZones: basiliskV335KUSBLightingZones,
         softwareLightingFrameLayout: .basiliskV3ProUSB,
+        supportedSoftwareLightingPresets: SoftwareLightingPresetID.basiliskV3ProPresets,
         passiveDPIInput: PassiveDPIInputDescriptor(
             usagePage: 0x01,
             usage: 0x06,

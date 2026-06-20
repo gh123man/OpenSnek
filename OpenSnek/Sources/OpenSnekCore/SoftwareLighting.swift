@@ -6,6 +6,17 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
     case cometChase = "comet_chase"
     case aurora
     case jellybeans
+    case batteryMeter = "battery_meter"
+
+    public static let animatedPresets: [SoftwareLightingPresetID] = [
+        .flame,
+        .scrollingRainbow,
+        .cometChase,
+        .aurora,
+        .jellybeans,
+    ]
+
+    public static let basiliskV3ProPresets: [SoftwareLightingPresetID] = animatedPresets + [.batteryMeter]
 
     public var id: String { rawValue }
 
@@ -21,6 +32,8 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
             return "Aurora"
         case .jellybeans:
             return "Jellybeans"
+        case .batteryMeter:
+            return "Battery Meter"
         }
     }
 
@@ -65,20 +78,48 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
                 RGBPatch(r: 144, g: 48, b: 255),
                 RGBPatch(r: 255, g: 56, b: 228),
             ]
+        case .batteryMeter:
+            return [
+                RGBPatch(r: 255, g: 0, b: 0),
+                RGBPatch(r: 255, g: 255, b: 0),
+                RGBPatch(r: 255, g: 255, b: 255),
+            ]
         }
     }
 
     public var defaultSpeed: Double {
-        1.0
+        switch self {
+        case .batteryMeter:
+            return 0.0
+        case .flame, .scrollingRainbow, .cometChase, .aurora, .jellybeans:
+            return 1.0
+        }
     }
 
     public var renderSpeedMultiplier: Double {
         switch self {
         case .scrollingRainbow:
             return 3.0
-        case .flame, .cometChase, .aurora, .jellybeans:
+        case .flame, .cometChase, .aurora, .jellybeans, .batteryMeter:
             return 1.0
         }
+    }
+
+    public var isAnimated: Bool {
+        switch self {
+        case .batteryMeter:
+            return false
+        case .flame, .scrollingRainbow, .cometChase, .aurora, .jellybeans:
+            return true
+        }
+    }
+
+    public var usesPaletteControls: Bool {
+        self != .batteryMeter
+    }
+
+    public var usesSpeedControl: Bool {
+        isAnimated
     }
 }
 
@@ -181,23 +222,27 @@ public struct SoftwareLightingFrameLayout: Codable, Hashable, Sendable {
         cells.count
     }
 
+    private static let basiliskV3USBCells = [
+        SoftwareLightingFrameCell(index: 0, id: "logo", label: "Logo"),
+        SoftwareLightingFrameCell(index: 1, id: "scroll_wheel", label: "Scroll Wheel"),
+        SoftwareLightingFrameCell(index: 2, id: "underglow_left_front", label: "Underglow Left Front"),
+        SoftwareLightingFrameCell(index: 3, id: "underglow_left_2", label: "Underglow Left 2"),
+        SoftwareLightingFrameCell(index: 4, id: "underglow_left_3", label: "Underglow Left 3"),
+        SoftwareLightingFrameCell(index: 5, id: "underglow_left_4", label: "Underglow Left 4"),
+        SoftwareLightingFrameCell(index: 6, id: "underglow_left_rear", label: "Underglow Left Rear"),
+        SoftwareLightingFrameCell(index: 7, id: "underglow_right_rear", label: "Underglow Right Rear"),
+        SoftwareLightingFrameCell(index: 8, id: "underglow_right_2", label: "Underglow Right 2"),
+        SoftwareLightingFrameCell(index: 9, id: "underglow_right_3", label: "Underglow Right 3"),
+        SoftwareLightingFrameCell(index: 10, id: "underglow_right_middle", label: "Underglow Right Middle"),
+        SoftwareLightingFrameCell(index: 11, id: "underglow_right_front", label: "Underglow Right Front"),
+        SoftwareLightingFrameCell(index: 12, id: "underglow_tail_1", label: "Underglow Tail 1"),
+        SoftwareLightingFrameCell(index: 13, id: "underglow_tail_2", label: "Underglow Tail 2"),
+    ]
+
     public static let basiliskV3ProUSB = SoftwareLightingFrameLayout(
-        id: "basilisk_v3_pro_usb_12_cell",
-        label: "Basilisk V3-family USB 12-cell frame",
-        cells: [
-            SoftwareLightingFrameCell(index: 0, id: "logo", label: "Logo"),
-            SoftwareLightingFrameCell(index: 1, id: "scroll_wheel", label: "Scroll Wheel"),
-            SoftwareLightingFrameCell(index: 2, id: "underglow_left_front", label: "Underglow Left Front"),
-            SoftwareLightingFrameCell(index: 3, id: "underglow_left_2", label: "Underglow Left 2"),
-            SoftwareLightingFrameCell(index: 4, id: "underglow_left_3", label: "Underglow Left 3"),
-            SoftwareLightingFrameCell(index: 5, id: "underglow_left_4", label: "Underglow Left 4"),
-            SoftwareLightingFrameCell(index: 6, id: "underglow_left_rear", label: "Underglow Left Rear"),
-            SoftwareLightingFrameCell(index: 7, id: "underglow_right_rear", label: "Underglow Right Rear"),
-            SoftwareLightingFrameCell(index: 8, id: "underglow_right_2", label: "Underglow Right 2"),
-            SoftwareLightingFrameCell(index: 9, id: "underglow_right_3", label: "Underglow Right 3"),
-            SoftwareLightingFrameCell(index: 10, id: "underglow_right_middle", label: "Underglow Right Middle"),
-            SoftwareLightingFrameCell(index: 11, id: "underglow_right_front", label: "Underglow Right Front"),
-        ]
+        id: "basilisk_v3_family_usb_14_cell",
+        label: "Basilisk V3-family USB 14-cell frame",
+        cells: basiliskV3USBCells
     )
 }
 
@@ -232,7 +277,8 @@ public enum SoftwareLightingRenderer {
     public static func render(
         request: SoftwareLightingEffectRequest,
         layout: SoftwareLightingFrameLayout,
-        elapsedTime: TimeInterval
+        elapsedTime: TimeInterval,
+        batteryPercent: Int? = nil
     ) -> USBLightingFramePatch {
         let animationTime = max(0, elapsedTime) * request.speed * request.presetID.renderSpeedMultiplier
         let colors = (0..<layout.cellCount).map { index in
@@ -242,7 +288,8 @@ public enum SoftwareLightingRenderer {
                 index: index,
                 count: layout.cellCount,
                 time: animationTime,
-                intensity: request.intensity
+                intensity: request.intensity,
+                batteryPercent: batteryPercent
             )
         }
         return USBLightingFramePatch(colors: colors)
@@ -254,7 +301,8 @@ public enum SoftwareLightingRenderer {
         index: Int,
         count: Int,
         time: TimeInterval,
-        intensity: Double
+        intensity: Double,
+        batteryPercent: Int?
     ) -> RGBPatch {
         switch preset {
         case .flame:
@@ -267,7 +315,46 @@ public enum SoftwareLightingRenderer {
             return aurora(palette: palette, index: index, count: count, time: time, intensity: intensity)
         case .jellybeans:
             return jellybeans(palette: palette, index: index, count: count, time: time, intensity: intensity)
+        case .batteryMeter:
+            return batteryMeter(index: index, count: count, batteryPercent: batteryPercent, intensity: intensity)
         }
+    }
+
+    private static func batteryMeter(
+        index: Int,
+        count: Int,
+        batteryPercent: Int?,
+        intensity: Double
+    ) -> RGBPatch {
+        let stripStartIndex = count > 2 ? 2 : 0
+        if index < stripStartIndex {
+            return scaledColor(RGBPatch(r: 255, g: 255, b: 255), scale: intensity)
+        }
+
+        guard let batteryPercent else { return RGBPatch(r: 0, g: 0, b: 0) }
+        let percent = max(0, min(100, batteryPercent))
+        let stripCellCount = max(1, count - stripStartIndex)
+        let stripIndex = index - stripStartIndex
+        let progress = Double(percent) / 100.0 * Double(stripCellCount)
+        let fullCellCount = Int(floor(progress))
+        let partialCellScale = progress - Double(fullCellCount)
+
+        let color: RGBPatch
+        if percent < 15 {
+            color = RGBPatch(r: 255, g: 0, b: 0)
+        } else if percent < 30 {
+            color = RGBPatch(r: 255, g: 255, b: 0)
+        } else {
+            color = RGBPatch(r: 255, g: 255, b: 255)
+        }
+
+        if stripIndex < fullCellCount {
+            return scaledColor(color, scale: intensity)
+        }
+        if stripIndex == fullCellCount, partialCellScale > 0, fullCellCount < stripCellCount {
+            return scaledColor(color, scale: intensity * partialCellScale)
+        }
+        return RGBPatch(r: 0, g: 0, b: 0)
     }
 
     private static func flame(

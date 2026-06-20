@@ -1,14 +1,14 @@
 # Basilisk V3 Pro — per-LED lighting protocol
 
 **Date:** 2026-06-17
-**Hardware:** Razer Basilisk V3 Pro, USB cabled, PID `0x00AA`, firmware `0x02120000`
+**Hardware:** Razer Basilisk V3 Pro, USB cabled, PID `0x00AA`, firmware `0x02120000`; updated tail-cell validation on PID `0x00AB`, firmware `0x01140000`
 **Companion log:** [`captures/usb/2026-06-17-basilisk-v3-pro-perled/B-probe-log.md`](../../captures/usb/2026-06-17-basilisk-v3-pro-perled/B-probe-log.md)
 
 ## Summary
 
 OpenSnek currently ships the V3 Pro with three lighting zones (`scroll_wheel`, `logo`, `underglow`) driven by `Class 0x0F Cmd 0x02` (Set Effect). This is the OpenRazer-compatible zone-effect path, and it treats the entire underglow strip as a single LED.
 
-The V3 Pro firmware also supports a **second lighting command — `Class 0x0F Cmd 0x03` (Custom Frame)** — that writes per-LED RGB values into a flat 12-cell frame buffer covering all 12 LEDs on the mouse: 1 logo + 1 scroll wheel + **10 underglow**. This command is not documented in the public OpenSnek protocol notes and is not exposed by Razer Synapse either (Synapse exposes 9 underglow zones, so one underglow LED is hidden from official software).
+The V3 Pro firmware also supports a **second lighting command — `Class 0x0F Cmd 0x03` (Custom Frame)** — that writes per-LED RGB values into a flat frame buffer. Initial PID `0x00AA` probing confirmed 12 visible cells: 1 logo + 1 scroll wheel + **10 underglow**. Follow-up PID `0x00AB` probing on 2026-06-20 showed two additional responsive tail cells at columns `0x0C..0x0D`, for 14 total cells. Razer Synapse exposes fewer underglow zones than the Custom Frame path.
 
 Activating Cmd 0x03 implicitly switches the active effect on the affected LEDs to "custom frame mode", so a single write is enough — no separate switch-effect step is required. The frame is **volatile**: the mouse does not restore this state after restart, so the current conclusion is that Cmd 0x03 is a software-driven frame-buffer path for live patterns rather than an onboard persistent lighting setting.
 
@@ -18,11 +18,11 @@ Activating Cmd 0x03 implicitly switches the active effect on the affected LEDs t
 |-------|-------|-------|
 | Class | `0x0F` | Same class as the zone-effect path |
 | Command ID | `0x03` | Set Custom Frame |
-| Data size | `0x04 + 3 × cells` | e.g. `0x25` for 11 cells, `0x28` for 12 cells |
+| Data size | `0x04 + 3 × cells` | `0x2E` for the 14-cell V3-family frame |
 | `args[0]` | Storage byte | `0x01` is accepted, but the resulting Custom Frame state still does not survive mouse restart. |
 | `args[1]` | Row | **Ignored by firmware.** `0x00` and `0x01` produced identical LED state — `0x01` aliases to row 0. |
 | `args[2]` | START_COL | `0x00` valid |
-| `args[3]` | END_COL | inclusive; valid `0x00 .. 0x0B` (12 cells). `0x0C+` is accepted but no LED responds |
+| `args[3]` | END_COL | inclusive; validated responsive through `0x0D` (14 cells) on PID `0x00AB` firmware `0x01140000` |
 | `args[4..]` | RGB cells | **`[B, R, G]` triplet order** — Blue byte first, then Red, then Green |
 
 Status byte conventions match the rest of the Razer USB report layout (`0x02` = success, `0x05` = not_supported, `0x03` = failure).
@@ -41,7 +41,7 @@ So to light an LED red, send `00, ff, 00`. To light it blue, send `ff, 00, 00`. 
 
 ### Storage semantics for `0x00, 0x00, 0x00`
 
-`0x00, 0x00, 0x00` is an explicit OFF, not "skip this cell". Writing `00,00,00` at all 12 cells turns every LED off, including Logo and Scroll Wheel.
+`0x00, 0x00, 0x00` is an explicit OFF, not "skip this cell". Writing `00,00,00` at all cells turns every addressed LED off, including Logo and Scroll Wheel.
 
 ### Persistence semantics
 
@@ -67,13 +67,16 @@ User-described positions (looking at the mouse from above):
 | 9 | Underglow — right, one further up |
 | 10 | Underglow — right middle |
 | 11 | Underglow — right front (the LED Synapse hides) |
+| 12 | Underglow tail extension 1 (PID `0x00AB` tail-cell validation) |
+| 13 | Underglow tail extension 2 (PID `0x00AB` tail-cell validation) |
 
-This was confirmed by a sequential single-LED sweep where each cell was lit red while every other cell was OFF.
+Cells `0..11` were confirmed by a sequential single-LED sweep where each cell was lit red while every other cell was OFF. Cells `12..13` were confirmed on 2026-06-20 by writing all-white frames with `END_COL=0x0C` and then `0x0D`: `0x0C` lit an additional tail LED, and `0x0D` made the full tail read white.
 
 ## How this relates to existing OpenSnek code
 
-- `OpenSnek/Sources/OpenSnekCore/DeviceSupport.swift:440-444` defines the three USB lighting zones (`scroll_wheel`, `logo`, `underglow`) with LED IDs `[0x01, 0x04, 0x0A]`. These continue to work via Cmd 0x02 and are unaffected by anything in this document.
-- `OpenSnekProbe usb-lighting-frame --colors ff0000,00ff00,0000ff --start-col 0 --pid 0x00aa` writes the decoded `Cmd 0x03` Custom Frame path with conventional RGB input converted to the device's `[B,R,G]` triplet order. This is intentionally probe-only for now because the frame is volatile across mouse restart. `usb-raw --class 0x0F --cmd 0x03 --args ...` remains available for lower-level experiments.
+- `OpenSnek/Sources/OpenSnekCore/DeviceSupport.swift` defines the three USB lighting zones (`scroll_wheel`, `logo`, `underglow`) with LED IDs `[0x01, 0x04, 0x0A]`. These continue to work via Cmd `0x02` and are unaffected by anything in this document.
+- `OpenSnek/Sources/OpenSnekCore/SoftwareLighting.swift` models the V3-family USB Custom Frame layout as 14 cells, so all software lighting animations render the two tail cells instead of leaving them to stale hardware state.
+- `OpenSnekProbe usb-lighting-frame --colors ff0000,00ff00,0000ff --start-col 0 --pid 0x00aa` writes the decoded `Cmd 0x03` Custom Frame path with conventional RGB input converted to the device's `[B,R,G]` triplet order. `usb-raw --class 0x0F --cmd 0x03 --args ...` remains available for lower-level experiments.
 - `docs/protocol/USB_PROTOCOL.md` now documents both Cmd 0x02's corrected effect-ID table and Cmd 0x03's Custom Frame shape.
 
 ## Effect-ID correction (separate fix, same source)
@@ -96,6 +99,6 @@ The doc currently says `0x05` = Custom Frame, which led to a false start during 
 - **Near-term software-driven LED effects.** Build the next app-facing pass around live, software-owned effects that stream or reapply Custom Frame data while OpenSnek is running. Treat this as an effects engine/preset surface rather than a persistent hardware lighting editor.
 - **Storage byte variants.** `args[0] = 0x01` is accepted but does not make the frame persistent across mouse restart. Test whether `0x00` behaves identically for live software-driven animations.
 - **BLE parity.** The BLE vendor protocol probably supports the same operation via key `100F0300` or similar. Worth probing on the BT transport.
-- **Other Basilisk variants.** Cmd 0x03 may or may not work on the V3 (`0x0099`), V3 X HyperSpeed (`0x00B9`), and V3 35K (`0x00CB`). All three use the same scroll/logo/underglow zone shape, so a single probe per device should clarify.
-- **Logo-side accent lights.** Some Razer mice have additional LEDs on the side of the chassis (e.g., Mamba HyperFlux). The V3 Pro doesn't appear to, but Cmd 0x03's 12-cell limit and the row=0/row=1 alias are worth checking on a device that does.
+- **Other Basilisk variants.** OpenSnek assumes the 14-cell Cmd `0x03` layout for wired V3 (`0x0099`) and V3 35K (`0x00CB`) because they share the scroll/logo/underglow zone shape. V3 X HyperSpeed (`0x00B9`) has a different lighting model and still needs a dedicated probe before exposing Custom Frame software effects.
+- **Logo-side accent lights.** Some Razer mice have additional LEDs on the side of the chassis (e.g., Mamba HyperFlux). The V3 Pro doesn't appear to, but Cmd 0x03's 14-cell V3-family range and the row=0/row=1 alias are worth checking on a device that does.
 - **Implementation in OpenSnek.** Do not replace the current three-zone lighting UI with Custom Frame editing until there is a product decision around volatile/software-driven lighting. A future UI should likely be a live pattern/preview surface, not a persisted static lighting editor.

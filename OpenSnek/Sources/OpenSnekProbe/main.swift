@@ -1295,6 +1295,13 @@ enum OpenSnekProbe {
 
     private static func parseUSBLightingFrameArgs(_ args: [String]) throws -> (colors: [RGBPatch], storage: UInt8, row: UInt8, startColumn: UInt8, endColumn: UInt8, productID: Int?) {
         let flags = parseFlags(args)
+        let productID = try parseOptionalUSBPID(args)
+        let maxCellCount = DeviceProfiles.resolve(
+            vendorID: 0x1532,
+            productID: productID ?? 0x00AB,
+            transport: .usb
+        )?.softwareLightingFrameLayout?.cellCount ?? SoftwareLightingFrameLayout.basiliskV3ProUSB.cellCount
+        let maxColumn = max(0, maxCellCount - 1)
         guard let colorsRaw = flags["--colors"] else {
             throw ProbeError.usage("Missing --colors\n\(usageText)")
         }
@@ -1302,23 +1309,23 @@ enum OpenSnekProbe {
         guard !colors.isEmpty else {
             throw ProbeError.usage("--colors must include at least one RGB value")
         }
-        guard colors.count <= 12 else {
-            throw ProbeError.usage("--colors supports at most 12 V3 Pro custom-frame cells")
+        guard colors.count <= maxCellCount else {
+            throw ProbeError.usage("--colors supports at most \(maxCellCount) custom-frame cells for this profile")
         }
         let startColumn = parseUInt8(flags["--start-col"] ?? "0") ?? 0x00
-        guard startColumn <= 0x0B else {
-            throw ProbeError.usage("--start-col must be in the V3 Pro custom-frame range 0..11")
+        guard Int(startColumn) <= maxColumn else {
+            throw ProbeError.usage("--start-col must be in the custom-frame range 0..\(maxColumn)")
         }
         let endColumnInt = Int(startColumn) + colors.count - 1
-        guard endColumnInt <= 0x0B else {
-            throw ProbeError.usage("--colors extends past V3 Pro custom-frame column 11")
+        guard endColumnInt <= maxColumn else {
+            throw ProbeError.usage("--colors extends past custom-frame column \(maxColumn)")
         }
         let storage = parseUInt8(flags["--storage"] ?? "0x01") ?? 0x01
         guard storage == 0x00 || storage == 0x01 else {
             throw ProbeError.usage("--storage must be 0x00 or 0x01")
         }
         let row = parseUInt8(flags["--row"] ?? "0") ?? 0x00
-        return (colors, storage, row, startColumn, UInt8(endColumnInt), try parseOptionalUSBPID(args))
+        return (colors, storage, row, startColumn, UInt8(endColumnInt), productID)
     }
 
     private enum USBLightingConcurrencyMode {
