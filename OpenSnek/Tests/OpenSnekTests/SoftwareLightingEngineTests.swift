@@ -207,6 +207,51 @@ final class SoftwareLightingEngineTests: XCTestCase {
         await engine.stop(deviceID: device.id)
     }
 
+    func testStopAllCancelsEveryDeviceStream() async throws {
+        let writer = RecordingSoftwareLightingFrameWriter()
+        let engine = SoftwareLightingEngine(
+            frameWriter: writer,
+            minimumFrameInterval: 0.005,
+            failureLimit: 3
+        )
+        let firstDevice = makeSoftwareLightingTestDevice(
+            id: "software-lighting-stop-all-first",
+            serial: "STOP-ALL-1",
+            locationID: 1
+        )
+        let secondDevice = makeSoftwareLightingTestDevice(
+            id: "software-lighting-stop-all-second",
+            serial: "STOP-ALL-2",
+            locationID: 2
+        )
+
+        _ = try await engine.start(
+            device: firstDevice,
+            request: SoftwareLightingEffectRequest(presetID: .flame, framesPerSecond: 30)
+        )
+        _ = try await engine.start(
+            device: secondDevice,
+            request: SoftwareLightingEffectRequest(presetID: .aurora, framesPerSecond: 30)
+        )
+        try await waitUntil {
+            let deviceIDs = await writer.deviceIDs()
+            return deviceIDs.contains(firstDevice.id) && deviceIDs.contains(secondDevice.id)
+        }
+
+        let stopped = await engine.stopAll()
+        let frameCountAtStop = await writer.frameCount()
+        try await Task.sleep(nanoseconds: 60_000_000)
+        let frameCountAfterStop = await writer.frameCount()
+        let firstStatusAfterStop = await engine.status(deviceID: firstDevice.id)
+        let secondStatusAfterStop = await engine.status(deviceID: secondDevice.id)
+
+        XCTAssertEqual(Set(stopped.map(\.state)), [.stopped])
+        XCTAssertEqual(Set(stopped.map(\.deviceID)), [firstDevice.id, secondDevice.id])
+        XCTAssertEqual(frameCountAfterStop, frameCountAtStop)
+        XCTAssertEqual(firstStatusAfterStop?.state, .stopped)
+        XCTAssertEqual(secondStatusAfterStop?.state, .stopped)
+    }
+
     func testRepeatedFrameFailuresPublishFailedStatus() async throws {
         let writer = RecordingSoftwareLightingFrameWriter(failAllWrites: true)
         let engine = SoftwareLightingEngine(

@@ -4,6 +4,7 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
     case flame
     case scrollingRainbow = "scrolling_rainbow"
     case cometChase = "comet_chase"
+    case nightRider = "night_rider"
     case aurora
     case jellybeans
     case batteryMeter = "battery_meter"
@@ -12,6 +13,7 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
         .flame,
         .scrollingRainbow,
         .cometChase,
+        .nightRider,
         .aurora,
         .jellybeans,
     ]
@@ -28,6 +30,8 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
             return "Scrolling Rainbow"
         case .cometChase:
             return "Comet Chase"
+        case .nightRider:
+            return "Night Rider"
         case .aurora:
             return "Aurora"
         case .jellybeans:
@@ -60,6 +64,10 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
                 RGBPatch(r: 120, g: 72, b: 255),
                 RGBPatch(r: 255, g: 255, b: 255),
             ]
+        case .nightRider:
+            return [
+                RGBPatch(r: 255, g: 0, b: 0),
+            ]
         case .aurora:
             return [
                 RGBPatch(r: 38, g: 214, b: 126),
@@ -91,7 +99,7 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
         switch self {
         case .batteryMeter:
             return 0.0
-        case .flame, .scrollingRainbow, .cometChase, .aurora, .jellybeans:
+        case .flame, .scrollingRainbow, .cometChase, .nightRider, .aurora, .jellybeans:
             return 1.0
         }
     }
@@ -100,7 +108,7 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
         switch self {
         case .scrollingRainbow:
             return 3.0
-        case .flame, .cometChase, .aurora, .jellybeans, .batteryMeter:
+        case .flame, .cometChase, .nightRider, .aurora, .jellybeans, .batteryMeter:
             return 1.0
         }
     }
@@ -109,17 +117,31 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
         switch self {
         case .batteryMeter:
             return false
-        case .flame, .scrollingRainbow, .cometChase, .aurora, .jellybeans:
+        case .flame, .scrollingRainbow, .cometChase, .nightRider, .aurora, .jellybeans:
             return true
         }
     }
 
     public var usesPaletteControls: Bool {
-        self != .batteryMeter
+        switch self {
+        case .batteryMeter:
+            return false
+        case .flame, .scrollingRainbow, .cometChase, .nightRider, .aurora, .jellybeans:
+            return true
+        }
     }
 
     public var usesSpeedControl: Bool {
         isAnimated
+    }
+
+    public var maximumPaletteColorCount: Int {
+        switch self {
+        case .nightRider:
+            return 1
+        case .flame, .scrollingRainbow, .cometChase, .aurora, .jellybeans, .batteryMeter:
+            return SoftwareLightingEffectRequest.maximumPaletteColorCount
+        }
     }
 }
 
@@ -145,13 +167,18 @@ public struct SoftwareLightingEffectRequest: Codable, Hashable, Sendable {
         self.speed = max(0.0, min(2.0, speed ?? presetID.defaultSpeed))
         self.palette = Self.normalizedPalette(
             palette ?? presetID.defaultPalette,
-            fallback: presetID.defaultPalette
+            fallback: presetID.defaultPalette,
+            maximumColorCount: presetID.maximumPaletteColorCount
         )
     }
 
-    private static func normalizedPalette(_ palette: [RGBPatch], fallback: [RGBPatch]) -> [RGBPatch] {
+    private static func normalizedPalette(
+        _ palette: [RGBPatch],
+        fallback: [RGBPatch],
+        maximumColorCount: Int
+    ) -> [RGBPatch] {
         let source = palette.isEmpty ? fallback : palette
-        let limited = Array(source.prefix(maximumPaletteColorCount))
+        let limited = Array(source.prefix(max(1, maximumColorCount)))
         return limited.map { color in
             RGBPatch(
                 r: max(0, min(255, color.r)),
@@ -311,6 +338,8 @@ public enum SoftwareLightingRenderer {
             return scrollingRainbow(palette: palette, index: index, count: count, time: time, intensity: intensity)
         case .cometChase:
             return cometChase(palette: palette, index: index, count: count, time: time, intensity: intensity)
+        case .nightRider:
+            return nightRider(palette: palette, index: index, count: count, time: time, intensity: intensity)
         case .aurora:
             return aurora(palette: palette, index: index, count: count, time: time, intensity: intensity)
         case .jellybeans:
@@ -352,7 +381,7 @@ public enum SoftwareLightingRenderer {
             return scaledColor(color, scale: intensity)
         }
         if stripIndex == fullCellCount, partialCellScale > 0, fullCellCount < stripCellCount {
-            return scaledColor(color, scale: intensity * partialCellScale)
+            return scaledColor(RGBPatch(r: 255, g: 255, b: 255), scale: intensity * partialCellScale)
         }
         return RGBPatch(r: 0, g: 0, b: 0)
     }
@@ -421,6 +450,31 @@ public enum SoftwareLightingRenderer {
         let value = (0.35 + 0.55 * waveB) * intensity
         let color = samplePalette(palette, position: waveA, cyclic: true)
         return scaledColor(color, scale: value)
+    }
+
+    private static func nightRider(
+        palette: [RGBPatch],
+        index: Int,
+        count: Int,
+        time: TimeInterval,
+        intensity: Double
+    ) -> RGBPatch {
+        let color = paletteColor(palette, slot: 0)
+        let stripStartIndex = count > 2 ? 2 : 0
+        if index < stripStartIndex {
+            let pulse = 0.18 + 0.46 * (0.5 + 0.5 * sin(time * 1.1 - .pi / 2.0))
+            return scaledColor(color, scale: pulse * intensity)
+        }
+
+        let stripCount = max(1, count - stripStartIndex)
+        let stripIndex = index - stripStartIndex
+        let maxPosition = Double(max(0, stripCount - 1))
+        let head = pingPong(time * 4.0, max: maxPosition)
+        let distance = abs(Double(stripIndex) - head)
+        let core = max(0.0, 1.0 - distance / 0.85)
+        let halo = max(0.0, 1.0 - distance / 3.0)
+        let value = max(core, pow(halo, 2.4) * 0.28)
+        return scaledColor(color, scale: value * intensity)
     }
 
     private static func jellybeans(
@@ -492,6 +546,13 @@ public enum SoftwareLightingRenderer {
     private static func circularDistance(_ a: Double, _ b: Double, _ count: Double) -> Double {
         let raw = abs((a - b).truncatingRemainder(dividingBy: count))
         return min(raw, count - raw)
+    }
+
+    private static func pingPong(_ value: Double, max maxValue: Double) -> Double {
+        guard maxValue > 0 else { return 0 }
+        let period = maxValue * 2.0
+        let position = positiveModulo(value, period)
+        return position <= maxValue ? position : period - position
     }
 
     private static func scaled(_ value: Double, intensity: Double) -> Int {
@@ -576,6 +637,12 @@ public enum SoftwareLightingRenderer {
             return 0
         }
         return positive
+    }
+
+    private static func positiveModulo(_ value: Double, _ modulus: Double) -> Double {
+        guard modulus > 0 else { return 0 }
+        let remainder = value.truncatingRemainder(dividingBy: modulus)
+        return remainder < 0 ? remainder + modulus : remainder
     }
 
     private static func smoothRandom(time: TimeInterval, rate: Double, seed: UInt64) -> Double {

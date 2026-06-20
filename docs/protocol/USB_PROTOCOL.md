@@ -735,13 +735,14 @@ Effects:
 
 ```
 Set Custom Frame (per-LED RGB):
-  Command: Class 0x0F, ID 0x03, Size = 0x04 + 3 × cells
+  Command: Class 0x0F, ID 0x03, Size = 0x05 + 3 × cells
   Args:
     [0]   = storage byte; 0x01 accepted on V3 Pro but the frame still does not survive mouse restart
     [1]   = ROW (ignored by V3 Pro firmware; use 0x00)
     [2]   = START_COL
     [3]   = END_COL (inclusive; valid 0x00..0x0D on V3 USB family = 14 cells max)
-    [4..] = cells; **byte order per cell is [B, R, G]**, not [R, G, B]
+    [4]   = reserved/pad byte; write 0x00
+    [5..] = cells; byte order per cell is [R, G, B]
 
 Writing a Custom Frame implicitly activates "custom" as the current effect on
 all addressed LEDs — no separate switch-effect step is required.
@@ -752,6 +753,11 @@ and used as the shared V3-family USB software-lighting layout:
 Synapse exposes fewer underglow zones than the Custom Frame path. Earlier
 PID `0x00AA` firmware `0x02120000` probing only confirmed visible response
 through `0x0B`; sending `0x0C..0x0D` remains accepted by the command echo.
+The reserved byte after `END_COL` is required: omitting it shifts the color
+stream by one byte, causing dim white cells to split into adjacent yellow/blue
+LEDs.
+With that reserved byte present, color triplets are conventional RGB; earlier
+unpadded probes falsely suggested a rotated byte order.
 
 Persistence note: unlike the normal zone-effect path (`Cmd 0x02`) and profile
 setting banks, Custom Frame state has been observed to clear on mouse restart.
@@ -762,10 +768,14 @@ OpenSnek app behavior: the background service can stream Custom Frame data for
 the 14-cell Basilisk V3-family USB layout while OpenSnek is running. The wired
 Basilisk V3 and Basilisk V3 35K use the same 14-cell shared-layout assumption
 as V3 Pro until separately validated. The shipped presets are `flame`,
-`scrollingRainbow`, `cometChase`, `aurora`, and the V3 Pro-only `batteryMeter`.
-`batteryMeter` keeps logo and scroll wheel white, colors the underglow strip by
-charge threshold, and brightness-scales the boundary LED by fractional progress
-within the current cell step.
+`scrollingRainbow`, `cometChase`, `nightRider`, `aurora`, `jellybeans`, and the
+V3 Pro-only `batteryMeter`. `nightRider` sweeps one selected scanner color
+across the underglow light bar while slowly pulsing the logo and scroll wheel
+with the same color; its default palette is red and its palette is limited to
+one color.
+`batteryMeter` keeps logo and scroll wheel white, colors fully lit underglow
+strip cells by charge threshold, and brightness-scales the white boundary LED by
+fractional progress within the current cell step.
 Normal zone-effect/static-color writes stop the active software stream;
 unrelated DPI, button, poll-rate, scroll, and power-setting writes do not.
 Preset palettes and animation speed are app/service renderer inputs only; they
@@ -790,7 +800,7 @@ OpenSnekProbe usb-lighting-concurrency \
 ```
 
 The probe accepts conventional RGB hex values and emits the `Cmd 0x03` payload
-in the device's `[B,R,G]` triplet order. The concurrency probe stress-tests
+with the reserved pad byte and RGB triplets. The concurrency probe stress-tests
 software frame writes against same-value poll-rate reads/writes; `--mode locked`
 uses OpenSnek's serialized HID path, while `--mode unlocked` intentionally
 bypasses that lock to test whether overlapping feature-report exchanges are

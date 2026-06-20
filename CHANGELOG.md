@@ -5,7 +5,8 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
-- Added a Basilisk V3 Pro USB Battery Meter advanced lighting preset that keeps the logo and scroll wheel white while using the underglow strip as a battery progress bar. Lit strip cells are white at 30% and up, yellow from 15-29%, red below 15%, the boundary LED fades by fractional charge within each cell step, and cells turn off from the tail as charge drops. Battery Meter clears the prior software frame before rendering and uses a battery icon instead of palette swatches in the collapsed Lighting summary.
+- Added a Night Rider advanced lighting preset for V3-family USB devices that sweeps one customizable scanner color across the underglow light bar while the logo and scroll wheel slowly pulse the same color. The preset defaults to red.
+- Added a Basilisk V3 Pro USB Battery Meter advanced lighting preset that keeps the logo and scroll wheel white while using the underglow strip as a battery progress bar. Lit strip cells are white at 30% and up, yellow from 15-29%, red below 15%, the boundary LED fades white by fractional charge within each cell step, and cells turn off from the tail as charge drops. Battery Meter clears the prior software frame before rendering and uses a battery icon instead of palette swatches in the collapsed Lighting summary.
 
 ### Changed
 - The Connect a Device screen now opens supported devices in a centered, searchable profile-backed table instead of showing the growing list inline.
@@ -13,6 +14,9 @@ All notable changes to this project are documented in this file.
 - V3-family USB software lighting now streams the full 14-cell Custom Frame range so the tail LEDs are addressed directly on every shared scroll/logo/underglow profile.
 
 ### Fixed
+- USB Custom Frame lighting now includes the required reserved byte after `END_COL`, preventing mixed/dim software-effect cells from spilling color channels into adjacent LEDs.
+- USB Custom Frame lighting now sends post-pad color triplets as RGB, fixing Advanced effects that appeared color-rotated after the frame alignment fix.
+- Advanced software lighting now stops outgoing backend-owned frame streams during app/service handoff so a device cannot be driven by duplicate effect writers.
 - Basilisk V3 Pro USB and Bluetooth button maps now include the shared V3-family DPI button slot and use the same editable slot list as Basilisk V3 and Basilisk V3 35K.
 - The main UI window no longer rehydrates selected-device state and diagnostics for unchanged remote service snapshots, reducing idle CPU while the background service is active.
 - USB receiver presence is now tracked separately from mouse control reachability, so a connected dongle with a sleeping/off mouse stays listed but shows disconnected controls until feature-report telemetry responds again.
@@ -63,7 +67,7 @@ All notable changes to this project are documented in this file.
 ### Changed
 - Command execution no longer retries at the app or probe level: USB and Bluetooth command failures now surface instead of being hidden by repeated writes/readbacks, and Debug log level shows visible command failures as red command-failed notices with patch context in the log.
 - `OpenSnekProbe dpi-set` now performs one post-write verification read and removed the `--verify-retries` / `--verify-delay-ms` flags.
-- `OpenSnekProbe usb-lighting-frame` now writes Basilisk V3 Pro USB custom-frame lighting cells via `Class 0x0F Cmd 0x03`, converting conventional RGB input into the device's `[B,R,G]` frame byte order. The custom-frame path is documented as volatile/software-driven because the mouse does not restore this state after restart.
+- `OpenSnekProbe usb-lighting-frame` now writes Basilisk V3 Pro USB custom-frame lighting cells via `Class 0x0F Cmd 0x03`. The custom-frame path is documented as volatile/software-driven because the mouse does not restore this state after restart.
 - Documented and enabled capture-backed Basilisk V3 Pro Bluetooth sensitivity-clutch writes on slot `0x0F`, including right-click assignment plus 400-DPI and 800-DPI clutch payloads across stored target `4` and live target `1`.
 - DPI stage selection from the UI now applies only the selected live stage instead of rewriting the full stage table when stage values were not edited.
 - Debug logs now identify DPI active-stage UI mutations, hydrators, backend snapshots, USB read resolution, and active-stage apply requests so stale-state overwrites can be traced from a single repro.
