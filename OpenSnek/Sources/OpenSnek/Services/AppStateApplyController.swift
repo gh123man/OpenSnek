@@ -4,6 +4,10 @@ import OpenSnekCore
 
 @MainActor
 final class AppStateApplyController {
+    private static let fastDpiApplySuppressionDuration: TimeInterval = 0.9
+    private static let compactInteractionDurationAfterDpiApply: TimeInterval = 3.0
+    private static let dpiApplyFailureStatusDuration: TimeInterval = 4.0
+
     private let environment: AppEnvironment
     private let deviceStore: DeviceStore
     private let editorStore: EditorStore
@@ -88,7 +92,7 @@ final class AppStateApplyController {
     }
 
     func applyDpiStages() async {
-        let count = max(1, min(5, editorStore.editableStageCount))
+        let count = DeviceProfiles.clampDpiStageCount(editorStore.editableStageCount)
         let selectedDevice = deviceStore.selectedDevice
         let profileID = selectedDevice?.profile_id
         let values = Array(editorStore.editableStageValues.prefix(count)).map { DeviceProfiles.clampDPI($0, profileID: profileID) }
@@ -122,7 +126,7 @@ final class AppStateApplyController {
     }
 
     func applyActiveStageOnly() async {
-        let count = max(1, min(5, editorStore.editableStageCount))
+        let count = DeviceProfiles.clampDpiStageCount(editorStore.editableStageCount)
         let selectedDevice = deviceStore.selectedDevice
         let active = max(0, min(count - 1, editorStore.editableActiveStage - 1))
         AppLog.debug(
@@ -551,7 +555,7 @@ final class AppStateApplyController {
 
     private func rememberPendingActiveStageSelection(_ stage: Int, for device: MouseDevice?) {
         guard let device else { return }
-        let count = max(1, min(5, editorStore.editableStageCount))
+        let count = DeviceProfiles.clampDpiStageCount(editorStore.editableStageCount)
         pendingActiveStageSelectionByDeviceIdentityKey[deviceController.deviceIdentityKey(device)] = max(1, min(count, stage))
         AppLog.debug(
             "AppState",
@@ -853,7 +857,7 @@ final class AppStateApplyController {
         }
 
         guard let liveDPI = state.dpi else { return false }
-        let count = max(1, min(5, editorStore.editableStageCount))
+        let count = DeviceProfiles.clampDpiStageCount(editorStore.editableStageCount)
         guard stage >= 1, stage <= count else { return false }
         let visiblePairs = Array(editorStore.editableStagePairs.prefix(count))
         let matchingStages = visiblePairs.enumerated().compactMap { index, pair in
@@ -1118,11 +1122,11 @@ final class AppStateApplyController {
         applyDeviceID: String,
         presentationDeviceID: String
     ) {
-        guard patch.dpiStages != nil || patch.dpiStagePairs != nil || patch.activeStage != nil else { return }
-        let suppressedUntil = Date().addingTimeInterval(0.9)
+        guard patch.affectsDpiStages else { return }
+        let suppressedUntil = Date().addingTimeInterval(Self.fastDpiApplySuppressionDuration)
         deviceController.setFastDpiSuppressed(until: suppressedUntil, for: applyDeviceID)
         deviceController.setFastDpiSuppressed(until: suppressedUntil, for: presentationDeviceID)
-        runtimeController.setCompactInteraction(until: Date().addingTimeInterval(3.0))
+        runtimeController.setCompactInteraction(until: Date().addingTimeInterval(Self.compactInteractionDurationAfterDpiApply))
     }
 
     private func hydrateAfterSuccessfulApplyIfNeeded(
@@ -1220,12 +1224,12 @@ final class AppStateApplyController {
     }
 
     private func handleDpiApplyFailureIfNeeded(patch: DevicePatch, targetDevice: MouseDevice) {
-        guard patch.dpiStages != nil || patch.dpiStagePairs != nil || patch.activeStage != nil else { return }
+        guard patch.affectsDpiStages else { return }
         if let activeStage = patch.activeStage {
             clearPendingActiveStageSelection(matching: activeStage + 1, for: targetDevice)
         }
         runtimeStore.serviceStatusMessage = "DPI update failed"
-        runtimeController.setTransientStatus(until: Date().addingTimeInterval(4.0))
+        runtimeController.setTransientStatus(until: Date().addingTimeInterval(Self.dpiApplyFailureStatusDuration))
     }
 
     private func stopSoftwareLightingIfNormalLightingPatch(_ patch: DevicePatch, device: MouseDevice) async {

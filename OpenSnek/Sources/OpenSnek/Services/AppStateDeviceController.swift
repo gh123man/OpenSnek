@@ -344,15 +344,21 @@ final class AppStateDeviceController {
         deviceListChanged: Bool
     ) -> Bool {
         var didApplySnapshotChange = false
+        let activeStage = selectedState.dpi_stages.active_stage.map(String.init) ?? "nil"
+        let dpi = Self.diagnosticDpiPair(selectedState.dpi)
+        let values = selectedState.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil"
+        let scroll = Self.diagnosticScrollState(selectedState)
+        let pendingLocal = String(applyController.hasPendingLocalEdits)
+        let pendingActive = applyController.pendingActiveStageSelection(for: selectedDevice).map(String.init) ?? "nil"
         AppLog.debug(
             "AppState",
             "remoteSnapshot selected device=\(selectedDeviceID) " +
-            "active=\(selectedState.dpi_stages.active_stage.map(String.init) ?? "nil") " +
-            "dpi=\(Self.diagnosticDpiPair(selectedState.dpi)) " +
-            "values=\(selectedState.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
-            "scroll=\(Self.diagnosticScrollState(selectedState)) " +
-            "pendingLocal=\(applyController.hasPendingLocalEdits) " +
-            "pendingActive=\(applyController.pendingActiveStageSelection(for: selectedDevice).map(String.init) ?? "nil")"
+            "active=\(activeStage) " +
+            "dpi=\(dpi) " +
+            "values=\(values) " +
+            "scroll=\(scroll) " +
+            "pendingLocal=\(pendingLocal) " +
+            "pendingActive=\(pendingActive)"
         )
         let selectedLastUpdated = lastUpdatedByDeviceID[selectedDeviceID]
         let selectedStateChanged = deviceStore.state != selectedState
@@ -556,19 +562,29 @@ final class AppStateDeviceController {
         incoming updatedState: MouseState,
         merged: MouseState
     ) {
+        let incomingActive = updatedState.dpi_stages.active_stage.map(String.init) ?? "nil"
+        let incomingDpi = Self.diagnosticDpiPair(updatedState.dpi)
+        let incomingScroll = Self.diagnosticScrollState(updatedState)
+        let mergedActive = merged.dpi_stages.active_stage.map(String.init) ?? "nil"
+        let mergedDpi = Self.diagnosticDpiPair(merged.dpi)
+        let mergedValues = merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil"
+        let mergedScroll = Self.diagnosticScrollState(merged)
+        let selectedDeviceID = deviceStore.selectedDeviceID ?? "nil"
+        let pendingLocal = String(applyController.hasPendingLocalEdits)
+        let pendingActive = applyController.pendingActiveStageSelection(for: presentationDevice).map(String.init) ?? "nil"
         AppLog.debug(
             "AppState",
             "backendStateUpdate apply device=\(presentationDevice.id) source=\(sourceDeviceID) " +
-            "incomingActive=\(updatedState.dpi_stages.active_stage.map(String.init) ?? "nil") " +
-            "incomingDpi=\(Self.diagnosticDpiPair(updatedState.dpi)) " +
-            "incomingScroll=\(Self.diagnosticScrollState(updatedState)) " +
-            "mergedActive=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
-            "mergedDpi=\(Self.diagnosticDpiPair(merged.dpi)) " +
-            "mergedValues=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
-            "mergedScroll=\(Self.diagnosticScrollState(merged)) " +
-            "selected=\(deviceStore.selectedDeviceID ?? "nil") " +
-            "pendingLocal=\(applyController.hasPendingLocalEdits) " +
-            "pendingActive=\(applyController.pendingActiveStageSelection(for: presentationDevice).map(String.init) ?? "nil")"
+            "incomingActive=\(incomingActive) " +
+            "incomingDpi=\(incomingDpi) " +
+            "incomingScroll=\(incomingScroll) " +
+            "mergedActive=\(mergedActive) " +
+            "mergedDpi=\(mergedDpi) " +
+            "mergedValues=\(mergedValues) " +
+            "mergedScroll=\(mergedScroll) " +
+            "selected=\(selectedDeviceID) " +
+            "pendingLocal=\(pendingLocal) " +
+            "pendingActive=\(pendingActive)"
         )
     }
 
@@ -2293,7 +2309,7 @@ final class AppStateDeviceController {
 
     private func refreshDpiFast(for device: MouseDevice, now: Date) async {
         guard !isTearingDown else { return }
-        guard device.transport == .bluetooth || device.transport == .usb else { return }
+        guard device.transport.supportsHIDBackedControls else { return }
         guard !isStrictlyUnsupported(device) else { return }
         guard !refreshingFastDpiDeviceIDs.contains(device.id) else { return }
         guard !refreshingStateDeviceIDs.contains(device.id) else { return }

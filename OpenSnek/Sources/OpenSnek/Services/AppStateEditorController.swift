@@ -416,7 +416,7 @@ final class AppStateEditorController {
         lightingZoneOverride: String? = nil
     ) -> PersistedDeviceSettingsSnapshot? {
         guard deviceStore.selectedDevice?.id == device.id else { return nil }
-        let count = max(1, min(5, editorStore.editableStageCount))
+        let count = DeviceProfiles.clampDpiStageCount(editorStore.editableStageCount)
         let stageValues = Array(editorStore.editableStageValues.prefix(count)).map {
             DeviceProfiles.clampDPI($0, profileID: device.profile_id)
         }
@@ -532,7 +532,7 @@ final class AppStateEditorController {
            let device = deviceStore.selectedDevice {
             hydrateEditableDPI(from: dpi, device: device, liveDPI: state.dpi, source: "hydrateEditable.snapshot")
         } else if let pairs = state.dpi_stages.pairs, !pairs.isEmpty {
-            editorStore.editableStageCount = max(1, min(5, pairs.count))
+            editorStore.editableStageCount = DeviceProfiles.clampDpiStageCount(pairs.count)
             let profileID = deviceStore.selectedDevice?.profile_id
             for index in 0..<editorStore.editableStagePairs.count {
                 if index < pairs.count {
@@ -543,7 +543,7 @@ final class AppStateEditorController {
                 }
             }
         } else if let values = state.dpi_stages.values, !values.isEmpty {
-            editorStore.editableStageCount = max(1, min(5, values.count))
+            editorStore.editableStageCount = DeviceProfiles.clampDpiStageCount(values.count)
             let profileID = deviceStore.selectedDevice?.profile_id
             for index in 0..<editorStore.editableStageValues.count {
                 if index < values.count {
@@ -774,7 +774,7 @@ final class AppStateEditorController {
     }
 
     func applyPersistedSettingsSnapshotToEditor(_ snapshot: PersistedDeviceSettingsSnapshot, device: MouseDevice) {
-        let count = max(1, min(5, snapshot.stageCount))
+        let count = DeviceProfiles.clampDpiStageCount(snapshot.stageCount)
         editorStore.editableStageCount = count
         for index in 0..<editorStore.editableStagePairs.count {
             if index < snapshot.stagePairs.count {
@@ -1119,7 +1119,9 @@ final class AppStateEditorController {
                 hidKey: binding.kind == .keyboardSimple ? max(4, min(231, binding.hidKey ?? 4)) : 4,
                 hidModifiers: binding.kind == .keyboardSimple ? max(0, min(255, binding.hidModifiers ?? 0)) : 0,
                 turboEnabled: binding.kind.supportsTurbo ? binding.turboEnabled : false,
-                turboRate: max(1, min(255, binding.turboRate ?? 0x8E)),
+                turboRate: ButtonBindingSupport.clampTurboRate(
+                    binding.turboRate ?? ButtonBindingSupport.defaultTurboRate
+                ),
                 clutchDPI: binding.kind == .dpiClutch
                     ? DeviceProfiles.clampDPI(
                         binding.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI,
@@ -2120,7 +2122,7 @@ final class AppStateEditorController {
         device: MouseDevice,
         metadata: OnboardProfileMetadata? = nil
     ) -> OnboardProfileMutation {
-        let count = max(1, min(5, editorStore.editableStageCount))
+        let count = DeviceProfiles.clampDpiStageCount(editorStore.editableStageCount)
         let pairs = Array(editorStore.editableStagePairs.prefix(count)).map { pair in
             DpiPair(
                 x: DeviceProfiles.clampDPI(pair.x, device: device),
@@ -2416,7 +2418,7 @@ final class AppStateEditorController {
             : dpi.scalar.map { [$0] } ?? []
         guard !sourcePairs.isEmpty else { return }
 
-        let count = max(1, min(5, sourcePairs.count))
+        let count = DeviceProfiles.clampDpiStageCount(sourcePairs.count)
         var nextPairs = editorStore.editableStagePairs
         for index in 0..<nextPairs.count where index < count {
             let pair = sourcePairs[index]
@@ -3286,7 +3288,7 @@ final class AppStateEditorController {
         guard deviceStore.visibleButtonSlots.contains(where: { $0.slot == slot }) else { return }
         var next = editorStore.editableButtonBindings[slot] ?? defaultButtonBinding(for: slot)
         guard next.kind.supportsTurbo else { return }
-        next.turboRate = max(1, min(255, rate))
+        next.turboRate = ButtonBindingSupport.clampTurboRate(rate)
         editorStore.editableButtonBindings[slot] = next
         handleButtonWorkspaceDidChange(slot: slot)
     }

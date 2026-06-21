@@ -405,6 +405,8 @@ public extension MouseDevice {
 public enum DeviceProfiles {
     public static let minimumDPI = 100
     public static let defaultMaximumDPI = 30_000
+    public static let minimumDpiStageCount = 1
+    public static let maximumDpiStageCount = 5
     public static let sliderLowAnchorDPI = 2_000
     public static let sliderMidAnchorDPI = 10_000
     public static let sliderHighAnchorDPI = 20_000
@@ -818,6 +820,10 @@ public enum DeviceProfiles {
     public static func clampDPI(_ value: Int, device: MouseDevice?) -> Int {
         let range = dpiRange(for: device)
         return max(range.lowerBound, min(range.upperBound, value))
+    }
+
+    public static func clampDpiStageCount(_ count: Int) -> Int {
+        max(minimumDpiStageCount, min(maximumDpiStageCount, count))
     }
 
     public static func dpiSliderPosition(for value: Int, profileID: DeviceProfileID?) -> Double {

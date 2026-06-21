@@ -17,6 +17,15 @@ public enum DeviceTransportKind: String, CaseIterable, Codable, Hashable, Sendab
         case .bluetooth: return "BT"
         }
     }
+
+    // Keep HID-backed UI and DPI paths behind this semantic gate so a future
+    // transport does not inherit USB/Bluetooth behavior by falling through.
+    public var supportsHIDBackedControls: Bool {
+        switch self {
+        case .usb, .bluetooth:
+            return true
+        }
+    }
 }
 
 public enum DeviceProfileID: String, Codable, Hashable, Sendable {
@@ -536,7 +545,7 @@ public struct ButtonBindingPatch: Sendable, Hashable, Codable {
         self.turboEnabled = turboEnabled
         self.turboRate = turboRate
         self.clutchDPI = clutchDPI.map { max(100, min(30_000, $0)) }
-        self.persistentProfile = max(1, min(5, persistentProfile))
+        self.persistentProfile = OnboardProfileLimits.clampPersistentProfileID(persistentProfile)
         self.writePersistentLayer = writePersistentLayer
         self.writeDirectLayer = writeDirectLayer
     }
@@ -559,8 +568,8 @@ public struct USBButtonProfileActionPatch: Sendable, Hashable, Codable {
         targetProfile: Int
     ) {
         self.kind = kind
-        self.sourceProfile = sourceProfile.map { max(1, min(5, $0)) }
-        self.targetProfile = max(1, min(5, targetProfile))
+        self.sourceProfile = sourceProfile.map(OnboardProfileLimits.clampPersistentProfileID)
+        self.targetProfile = OnboardProfileLimits.clampPersistentProfileID(targetProfile)
     }
 }
 
@@ -643,6 +652,10 @@ public extension DevicePatch {
 }
 
 public extension DevicePatch {
+    var affectsDpiStages: Bool {
+        dpiStages != nil || dpiStagePairs != nil || activeStage != nil
+    }
+
     var resolvedDpiStagePairs: [DpiPair]? {
         if let dpiStagePairs {
             return dpiStagePairs

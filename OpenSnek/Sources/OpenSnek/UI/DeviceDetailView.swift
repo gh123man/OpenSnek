@@ -2101,7 +2101,7 @@ struct RGBSliderRow: View {
     }
 }
 
-private let maximumEditableDpiStageCount = 5
+private let maximumEditableDpiStageCount = DeviceProfiles.maximumDpiStageCount
 
 struct DpiStagesCard: View {
     let editorStore: EditorStore
@@ -2843,7 +2843,7 @@ struct ButtonMappingTableCard: View {
                 keyboardHidKey: editorStore.buttonBindingHidKey(for: slot.slot),
                 keyboardHidModifiers: editorStore.buttonBindingHidModifiers(for: slot.slot),
                 supportsKeyboardModifierChords: deviceStore.selectedDevice.map { device in
-                    device.transport == .usb || device.transport == .bluetooth
+                    device.transport.supportsHIDBackedControls
                 } ?? false,
                 turboEnabled: turboEnabled,
                 turboRatePressesPerSecond: turboRate,

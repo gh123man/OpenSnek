@@ -9,7 +9,20 @@ enum OpenSnekProbe {
             throw ProbeError.usage(usageText)
         }
         let commandArgs = Array(args.dropFirst())
+        try await dispatchCommand(command, commandArgs: commandArgs)
+    }
 
+    private static func dispatchCommand(_ command: String, commandArgs: [String]) async throws {
+        if command.hasPrefix("bt-") {
+            try await runBluetoothCommand(command, commandArgs: commandArgs)
+        } else if command.hasPrefix("usb-") {
+            try await runUSBCommand(command, commandArgs: commandArgs)
+        } else {
+            try await runDPICommand(command, commandArgs: commandArgs)
+        }
+    }
+
+    private static func runDPICommand(_ command: String, commandArgs: [String]) async throws {
         switch command {
         case "dpi-read":
             let bridge = ProbeBridge()
@@ -37,6 +50,13 @@ enum OpenSnekProbe {
                     try await Task.sleep(nanoseconds: UInt64(parsed.sleepMs) * 1_000_000)
                 }
             }
+        default:
+            throw ProbeError.usage("Unknown command '\(command)'\n\(usageText)")
+        }
+    }
+
+    private static func runBluetoothCommand(_ command: String, commandArgs: [String]) async throws {
+        switch command {
         case "bt-info":
             let bridge = ProbeBridge()
             let summaries = await bridge.connectedPeripherals() ?? []
@@ -386,6 +406,13 @@ enum OpenSnekProbe {
             for read in reads {
                 print(describeBTLightingReadResult(read))
             }
+        default:
+            throw ProbeError.usage("Unknown command '\(command)'\n\(usageText)")
+        }
+    }
+
+    private static func runUSBCommand(_ command: String, commandArgs: [String]) async throws {
+        switch command {
         case "usb-info":
             let usb = try USBProbeClient(productID: try parseOptionalUSBPID(commandArgs))
             print("usb \(usb.describe())")
@@ -823,7 +850,9 @@ enum OpenSnekProbe {
 
         let hidKey = max(0, min(255, Int(flags["--hid-key"] ?? "4") ?? 4))
         let turboEnabled = parseBoolean(flags["--turbo"] ?? "off")
-        let turboRate = max(1, min(255, Int(flags["--turbo-rate"] ?? "142") ?? 142))
+        let turboRate = ButtonBindingSupport.clampTurboRate(
+            Int(flags["--turbo-rate"] ?? "\(ButtonBindingSupport.defaultTurboRate)") ?? ButtonBindingSupport.defaultTurboRate
+        )
         let clutchDPI = Int(flags["--clutch-dpi"] ?? "").map { max(100, min(30_000, $0)) }
         let profiles = try parseUSBProfiles(flags["--profile"], defaultProfiles: [0x01, 0x00])
         return (slot, kindRaw, hidKey, turboEnabled, turboRate, clutchDPI, profiles, try parseOptionalUSBPID(args))
@@ -860,14 +889,10 @@ enum OpenSnekProbe {
             profiles = try parseUInt8List(raw)
             guard !profiles.isEmpty else { throw ProbeError.usage("Empty --profiles") }
         } else if let raw = flags["--stored-slots"] {
-            let storedSlots = try parseUInt8List(raw)
-            guard !storedSlots.isEmpty else { throw ProbeError.usage("Empty --stored-slots") }
-            for storedSlot in storedSlots where !(1...4).contains(storedSlot) {
-                throw ProbeError.usage("Invalid --stored-slots value '\(storedSlot)' (expected 1..4)")
-            }
-            profiles = storedSlots.map { $0 &+ 1 }
+            let storedSlots = try parseStoredSlots(raw, optionName: "--stored-slots")
+            profiles = storedSlots.map { OnboardProfileLimits.profileID(forStoredSlot: $0) }
         } else {
-            profiles = [0x02, 0x03, 0x04, 0x05]
+            profiles = OnboardProfileLimits.storedProfileIDs
         }
 
         let buttonSlotsRaw = flags["--button-slots"] ?? "5"
@@ -931,8 +956,8 @@ enum OpenSnekProbe {
         guard sourceProfile != targetProfile else {
             throw ProbeError.usage("usb-profile-clone source and target must be different")
         }
-        guard (0x02...0x05).contains(targetProfile) else {
-            throw ProbeError.usage("usb-profile-clone target must be a stored profile 2..5")
+        guard OnboardProfileLimits.containsStoredProfileID(targetProfile) else {
+            throw ProbeError.usage("usb-profile-clone target must be a stored profile \(OnboardProfileLimits.storedProfileIDRangeDescription)")
         }
 
         let buttonSlotsRaw = flags["--button-slots"] ?? "5"
@@ -982,16 +1007,14 @@ enum OpenSnekProbe {
             }
             profile = parsed
         } else if let raw = flags["--stored-slot"] {
-            guard let storedSlot = parseUInt8(raw), (1...4).contains(storedSlot) else {
-                throw ProbeError.usage("Invalid --stored-slot '\(raw)' (expected 1..4)")
-            }
-            profile = storedSlot &+ 1
+            let storedSlot = try parseStoredSlot(raw, optionName: "--stored-slot")
+            profile = OnboardProfileLimits.profileID(forStoredSlot: storedSlot)
         } else {
             throw ProbeError.usage("Missing --profile or --stored-slot\n\(usageText)")
         }
 
-        guard (0x01...0x05).contains(profile) else {
-            throw ProbeError.usage("usb-profile-active-set targets known USB profiles 1..5, not profile \(profile)")
+        guard OnboardProfileLimits.containsPersistentProfileID(profile) else {
+            throw ProbeError.usage("usb-profile-active-set targets known USB profiles \(OnboardProfileLimits.persistentProfileIDRangeDescription), not profile \(profile)")
         }
         return (profile, try parseOptionalUSBPID(args))
     }
@@ -1019,16 +1042,14 @@ enum OpenSnekProbe {
             }
             profile = parsed
         } else if let raw = flags[storedSlotKey] {
-            guard let storedSlot = parseUInt8(raw), (1...4).contains(storedSlot) else {
-                throw ProbeError.usage("Invalid \(storedSlotKey) '\(raw)' (expected 1..4)")
-            }
-            profile = storedSlot &+ 1
+            let storedSlot = try parseStoredSlot(raw, optionName: storedSlotKey)
+            profile = OnboardProfileLimits.profileID(forStoredSlot: storedSlot)
         } else {
             throw ProbeError.usage("Missing \(profileKey) or \(storedSlotKey)\n\(usageText)")
         }
 
-        guard (0x01...0x05).contains(profile) else {
-            throw ProbeError.usage("\(command) only targets known USB profiles 1..5, not profile \(profile)")
+        guard OnboardProfileLimits.containsPersistentProfileID(profile) else {
+            throw ProbeError.usage("\(command) only targets known USB profiles \(OnboardProfileLimits.persistentProfileIDRangeDescription), not profile \(profile)")
         }
         return profile
     }
@@ -1041,16 +1062,14 @@ enum OpenSnekProbe {
             }
             profile = parsed
         } else if let raw = flags["--stored-slot"] {
-            guard let storedSlot = parseUInt8(raw), (1...4).contains(storedSlot) else {
-                throw ProbeError.usage("Invalid --stored-slot '\(raw)' (expected 1..4)")
-            }
-            profile = storedSlot &+ 1
+            let storedSlot = try parseStoredSlot(raw, optionName: "--stored-slot")
+            profile = OnboardProfileLimits.profileID(forStoredSlot: storedSlot)
         } else {
             throw ProbeError.usage("Missing --profile or --stored-slot\n\(usageText)")
         }
 
-        guard (0x02...0x05).contains(profile) else {
-            throw ProbeError.usage("\(command) only targets known stored USB profiles 2..5, not live/base profile \(profile)")
+        guard OnboardProfileLimits.containsStoredProfileID(profile) else {
+            throw ProbeError.usage("\(command) only targets known stored USB profiles \(OnboardProfileLimits.storedProfileIDRangeDescription), not live/base profile \(profile)")
         }
         return profile
     }
@@ -1103,8 +1122,8 @@ enum OpenSnekProbe {
             throw ProbeError.usage("bt-profile-active-set changes the hardware-active Bluetooth target; pass --yes to continue\n\(usageText)")
         }
         let target = try parseBTProfileTarget(flags: flags)
-        guard (0x01...0x05).contains(target) else {
-            throw ProbeError.usage("bt-profile-active-set targets known Bluetooth profile targets 1..5, not target \(target)")
+        guard OnboardProfileLimits.containsPersistentProfileID(target) else {
+            throw ProbeError.usage("bt-profile-active-set targets known Bluetooth profile targets \(OnboardProfileLimits.persistentProfileIDRangeDescription), not target \(target)")
         }
         let timeoutSeconds = max(0.1, Double(flags["--timeout-ms"] ?? "1200").map { $0 / 1000.0 } ?? 1.2)
         let preferredPeripheralName = parsePeripheralName(flags["--name"])
@@ -1117,10 +1136,10 @@ enum OpenSnekProbe {
             throw ProbeError.usage("bt-profile-create clears and rewrites a persistent onboard target; pass --yes to continue\n\(usageText)")
         }
         let target = try parseBTProfileTarget(flags: flags)
-        guard target >= 0x02 else {
-            throw ProbeError.usage("bt-profile-create expects a stored target (use --stored-slot 1..4 or --target 2..5)")
+        guard OnboardProfileLimits.containsStoredProfileID(target) else {
+            throw ProbeError.usage("bt-profile-create expects a stored target (use --stored-slot \(OnboardProfileLimits.storedSlotRangeDescription) or --target \(OnboardProfileLimits.storedProfileIDRangeDescription))")
         }
-        let profileName = flags["--profile-name"] ?? "OPENSNEK_MAC_SLOT_\(max(1, Int(target) - 1))"
+        let profileName = flags["--profile-name"] ?? "OPENSNEK_MAC_SLOT_\(Int(target) - OnboardProfileLimits.storedSlotProfileIDOffset)"
         _ = try asciiBytes(profileName, maxLength: 0x74 - 0x10, fieldName: "--profile-name")
 
         let owner = flags["--owner"] ?? "31933b5452df5708882d4fb55d0b2905f16d829500fe936c56f98d5cd0241a76"
@@ -1169,8 +1188,8 @@ enum OpenSnekProbe {
             throw ProbeError.usage("Missing or invalid --button-slot\n\(usageText)")
         }
         let target = try parseBTProfileTarget(flags: flags)
-        guard target >= 0x02 else {
-            throw ProbeError.usage("bt-profile-button-set expects a stored target (use --stored-slot 1..4 or --target 2..5)")
+        guard OnboardProfileLimits.containsStoredProfileID(target) else {
+            throw ProbeError.usage("bt-profile-button-set expects a stored target (use --stored-slot \(OnboardProfileLimits.storedSlotRangeDescription) or --target \(OnboardProfileLimits.storedProfileIDRangeDescription))")
         }
 
         let payload: [UInt8]
@@ -1192,7 +1211,12 @@ enum OpenSnekProbe {
             let hidKey = parseUInt8(flags["--hid-key"] ?? "") ?? 0x09
             let hidModifiers = parseUInt8(flags["--hid-modifiers"] ?? "") ?? 0x00
             let turboEnabled = parseBoolean(flags["--turbo"] ?? "off")
-            let turboRate = UInt16(max(1, min(255, Int(flags["--turbo-rate"] ?? "142") ?? 142)))
+            let turboRate = UInt16(
+                ButtonBindingSupport.clampTurboRate(
+                    Int(flags["--turbo-rate"] ?? "\(ButtonBindingSupport.defaultTurboRate)") ??
+                        ButtonBindingSupport.defaultTurboRate
+                )
+            )
             let clutchDPI = Int(flags["--clutch-dpi"] ?? "").map { max(100, min(30_000, $0)) }
             let livePayload = BLEVendorProtocol.buildButtonPayload(
                 slot: buttonSlot,
@@ -1403,10 +1427,8 @@ enum OpenSnekProbe {
             return target
         }
         if let storedSlotRaw = flags["--stored-slot"] {
-            guard let storedSlot = parseUInt8(storedSlotRaw), (1...4).contains(storedSlot) else {
-                throw ProbeError.usage("Invalid --stored-slot '\(storedSlotRaw)' (expected 1..4)")
-            }
-            return storedSlot &+ 1
+            let storedSlot = try parseStoredSlot(storedSlotRaw, optionName: "--stored-slot")
+            return OnboardProfileLimits.profileID(forStoredSlot: storedSlot)
         }
         throw ProbeError.usage("Missing --stored-slot or --target\n\(usageText)")
     }
@@ -1418,14 +1440,26 @@ enum OpenSnekProbe {
             return targets
         }
         if let storedSlotsRaw = flags["--stored-slots"] {
-            let storedSlots = try parseUInt8List(storedSlotsRaw)
-            guard !storedSlots.isEmpty else { throw ProbeError.usage("Empty --stored-slots") }
-            for storedSlot in storedSlots where !(1...4).contains(storedSlot) {
-                throw ProbeError.usage("Invalid --stored-slots value '\(storedSlot)' (expected 1..4)")
-            }
-            return storedSlots.map { $0 &+ 1 }
+            let storedSlots = try parseStoredSlots(storedSlotsRaw, optionName: "--stored-slots")
+            return storedSlots.map { OnboardProfileLimits.profileID(forStoredSlot: $0) }
         }
-        return [0x02, 0x03, 0x04, 0x05]
+        return OnboardProfileLimits.storedProfileIDs
+    }
+
+    private static func parseStoredSlot(_ raw: String, optionName: String) throws -> UInt8 {
+        guard let storedSlot = parseUInt8(raw), OnboardProfileLimits.containsStoredSlot(storedSlot) else {
+            throw ProbeError.usage("Invalid \(optionName) '\(raw)' (expected \(OnboardProfileLimits.storedSlotRangeDescription))")
+        }
+        return storedSlot
+    }
+
+    private static func parseStoredSlots(_ raw: String, optionName: String) throws -> [UInt8] {
+        let storedSlots = try parseUInt8List(raw)
+        guard !storedSlots.isEmpty else { throw ProbeError.usage("Empty \(optionName)") }
+        for storedSlot in storedSlots where !OnboardProfileLimits.containsStoredSlot(storedSlot) {
+            throw ProbeError.usage("Invalid \(optionName) value '\(storedSlot)' (expected \(OnboardProfileLimits.storedSlotRangeDescription))")
+        }
+        return storedSlots
     }
 
     private static func parseUSBProfiles(_ raw: String?, defaultProfiles: [UInt8]) throws -> [UInt8] {
@@ -1465,7 +1499,9 @@ enum OpenSnekProbe {
 
     private static func parseValues(_ raw: String) throws -> [Int] {
         let values = raw.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
-        let clipped = values.prefix(5).map { max(100, min(30_000, $0)) }
+        let clipped = values.prefix(DeviceProfiles.maximumDpiStageCount).map {
+            DeviceProfiles.clampDPI($0, profileID: nil)
+        }
         guard !clipped.isEmpty else {
             throw ProbeError.usage("Invalid DPI values: \(raw)")
         }
@@ -2388,7 +2424,7 @@ enum OpenSnekProbe {
             activePairs = []
         }
         let storedMatches = dpiReads
-            .filter { $0.target >= 0x02 && !$0.pairs.isEmpty && $0.pairs == activePairs }
+            .filter { OnboardProfileLimits.containsStoredProfileID($0.target) && !$0.pairs.isEmpty && $0.pairs == activePairs }
             .map(\.target)
         if activePairs.isEmpty {
             print("fingerprint active=unavailable")

@@ -54,15 +54,13 @@ public struct PersistedDeviceSettingsSnapshot: Codable, Hashable, Sendable {
         usbLightingZoneID: String,
         buttonBindings: [Int: ButtonBindingDraft]
     ) {
-        let normalizedPairs = Array(stagePairs.prefix(5))
+        let normalizedPairs = Array(stagePairs.prefix(DeviceProfiles.maximumDpiStageCount))
         let fallbackValues = normalizedPairs.map(\.x)
-        let normalizedValues = Array((stageValues.isEmpty ? fallbackValues : stageValues).prefix(5))
-        let resolvedCount = max(
-            1,
-            min(
-                5,
-                max(stageCount, normalizedPairs.count, normalizedValues.count)
-            )
+        let normalizedValues = Array(
+            (stageValues.isEmpty ? fallbackValues : stageValues).prefix(DeviceProfiles.maximumDpiStageCount)
+        )
+        let resolvedCount = DeviceProfiles.clampDpiStageCount(
+            max(stageCount, normalizedPairs.count, normalizedValues.count)
         )
         self.stageCount = resolvedCount
         self.stageValues = normalizedValues
@@ -285,7 +283,9 @@ public final class DevicePreferenceStore: @unchecked Sendable {
                 hidKey: binding.kind == .keyboardSimple ? max(4, min(231, binding.hidKey ?? 4)) : 4,
                 hidModifiers: binding.kind == .keyboardSimple ? max(0, min(255, binding.hidModifiers ?? 0)) : 0,
                 turboEnabled: binding.kind.supportsTurbo ? binding.turboEnabled : false,
-                turboRate: max(1, min(255, binding.turboRate ?? 0x8E)),
+                turboRate: ButtonBindingSupport.clampTurboRate(
+                    binding.turboRate ?? ButtonBindingSupport.defaultTurboRate
+                ),
                 clutchDPI: binding.kind == .dpiClutch ? DeviceProfiles.clampDPI(binding.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI, device: device) : nil
             ),
             profileID: device.profile_id
@@ -342,7 +342,7 @@ public final class DevicePreferenceStore: @unchecked Sendable {
                     hidKey: max(4, min(231, pair.value.hidKey)),
                     hidModifiers: kind == .keyboardSimple ? max(0, min(255, pair.value.hidModifiers ?? 0)) : 0,
                     turboEnabled: kind.supportsTurbo ? pair.value.turboEnabled : false,
-                    turboRate: max(1, min(255, pair.value.turboRate)),
+                    turboRate: ButtonBindingSupport.clampTurboRate(pair.value.turboRate),
                     clutchDPI: kind == .dpiClutch ? DeviceProfiles.clampDPI(pair.value.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI, device: device) : nil
                 ),
                 profileID: device.profile_id

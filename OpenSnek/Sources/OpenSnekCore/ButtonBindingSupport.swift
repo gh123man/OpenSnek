@@ -2,10 +2,24 @@ import Foundation
 
 public enum ButtonBindingSupport {
     public static let defaultBasiliskDPIClutchDPI = 400
+    public static let defaultTurboRate = 0x8E
+    public static let minimumTurboRate = 1
+    public static let maximumTurboRate = 255
+    public static let minimumTurboPressesPerSecond = 1
+    public static let maximumTurboPressesPerSecond = 20
+
     // Basilisk V3-family USB wheel tilt stores 0x68/0x69 inside a mouse-turbo block.
     private static let horizontalScrollLeftButtonID: UInt8 = 0x68
     private static let horizontalScrollRightButtonID: UInt8 = 0x69
     private static let basiliskV3FamilyHorizontalScrollTurboRate = 0x14
+
+    public static func clampTurboRate(_ turboRate: Int) -> Int {
+        max(minimumTurboRate, min(maximumTurboRate, turboRate))
+    }
+
+    public static func clampTurboPressesPerSecond(_ pressesPerSecond: Int) -> Int {
+        max(minimumTurboPressesPerSecond, min(maximumTurboPressesPerSecond, pressesPerSecond))
+    }
 
     private static func basiliskDPIClutchBlock(
         dpi: Int = defaultBasiliskDPIClutchDPI,
@@ -36,7 +50,7 @@ public enum ButtonBindingSupport {
         buttonID: UInt8,
         turboRate: Int = basiliskV3FamilyHorizontalScrollTurboRate
     ) -> [UInt8] {
-        let turbo = UInt16(max(1, min(255, turboRate)))
+        let turbo = UInt16(clampTurboRate(turboRate))
         let turboHi = UInt8((turbo >> 8) & 0xFF)
         let turboLo = UInt8(turbo & 0xFF)
         return [0x0E, 0x03, buttonID, turboHi, turboLo, 0x00, 0x00]
@@ -46,13 +60,17 @@ public enum ButtonBindingSupport {
         buttonID: UInt8,
         turboRate: Int = basiliskV3FamilyHorizontalScrollTurboRate
     ) -> [UInt8] {
-        let turbo = UInt16(max(1, min(255, turboRate)))
+        let turbo = UInt16(clampTurboRate(turboRate))
         let turboHi = UInt8((turbo >> 8) & 0xFF)
         let turboLo = UInt8(turbo & 0xFF)
         return [0x0E, 0x01, buttonID, turboHi, turboLo, 0x00, 0x00]
     }
 
     private static func usesBasiliskV3FamilyHorizontalScrollBlock(_ profileID: DeviceProfileID?) -> Bool {
+        isBasiliskV3Family(profileID)
+    }
+
+    private static func isBasiliskV3Family(_ profileID: DeviceProfileID?) -> Bool {
         switch profileID {
         case .basiliskV3, .basiliskV3Pro, .basiliskV335K:
             return true
@@ -82,7 +100,7 @@ public enum ButtonBindingSupport {
     }
 
     public static func defaultButtonBinding(for slot: Int, profileID: DeviceProfileID? = nil) -> ButtonBindingDraft {
-        let fallback = ButtonBindingDraft(kind: .default, hidKey: 4, turboEnabled: false, turboRate: 0x8E)
+        let fallback = ButtonBindingDraft(kind: .default, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
         let visibleSlots = buttonSlotDescriptors(for: profileID)
         guard visibleSlots.contains(where: { $0.slot == slot }) else { return fallback }
         return fallback
@@ -92,24 +110,23 @@ public enum ButtonBindingSupport {
         for slot: Int,
         profileID: DeviceProfileID? = nil
     ) -> ButtonBindingDraft? {
-        let fallbackRate = 0x8E
         switch slot {
-        case 15 where profileID == .basiliskV3 || profileID == .basiliskV3Pro || profileID == .basiliskV335K:
+        case 15 where isBasiliskV3Family(profileID):
             return ButtonBindingDraft(
                 kind: .dpiClutch,
                 hidKey: 4,
                 turboEnabled: false,
-                turboRate: fallbackRate,
+                turboRate: defaultTurboRate,
                 clutchDPI: defaultDPIClutchDPI(for: profileID)
             )
-        case 52 where profileID == .basiliskV3 || profileID == .basiliskV3Pro || profileID == .basiliskV335K:
-            return ButtonBindingDraft(kind: .scrollLeft, hidKey: 4, turboEnabled: false, turboRate: fallbackRate)
-        case 53 where profileID == .basiliskV3 || profileID == .basiliskV3Pro || profileID == .basiliskV335K:
-            return ButtonBindingDraft(kind: .scrollRight, hidKey: 4, turboEnabled: false, turboRate: fallbackRate)
+        case 52 where isBasiliskV3Family(profileID):
+            return ButtonBindingDraft(kind: .scrollLeft, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
+        case 53 where isBasiliskV3Family(profileID):
+            return ButtonBindingDraft(kind: .scrollRight, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
         case 96:
             switch profileID {
             case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3XHyperspeed, .orochiV2, .none:
-                return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: fallbackRate)
+                return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
             }
         default:
             return nil
@@ -136,7 +153,6 @@ public enum ButtonBindingSupport {
         profileID: DeviceProfileID? = nil
     ) -> ButtonBindingDraft? {
         guard functionBlock.count == 7 else { return nil }
-        let fallbackRate = 0x8E
 
         if let defaultBlock = defaultUSBFunctionBlock(for: slot, profileID: profileID), functionBlock == defaultBlock {
             return defaultButtonBinding(for: slot, profileID: profileID)
@@ -169,24 +185,24 @@ public enum ButtonBindingSupport {
         switch fnClass {
         case 0x00:
             guard functionBlock == [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] else { return nil }
-            return ButtonBindingDraft(kind: .clearLayer, hidKey: 4, turboEnabled: false, turboRate: fallbackRate)
+            return ButtonBindingDraft(kind: .clearLayer, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
         case 0x04:
             if slot == 96, functionBlock == [0x04, 0x02, 0x0F, 0x7B, 0x00, 0x00, 0x00] {
-                return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: fallbackRate)
+                return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
             }
             return nil
         case 0x06:
             if functionBlock == [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00] {
-                return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: fallbackRate)
+                return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
             }
             if let profileID,
-               [.basiliskV3, .basiliskV3Pro, .basiliskV335K].contains(profileID),
+               isBasiliskV3Family(profileID),
                let dpi = basiliskDPIClutchDPI(from: functionBlock, profileID: profileID) {
                 return ButtonBindingDraft(
                     kind: .dpiClutch,
                     hidKey: 4,
                     turboEnabled: false,
-                    turboRate: fallbackRate,
+                    turboRate: defaultTurboRate,
                     clutchDPI: DeviceProfiles.clampDPI(dpi, profileID: profileID)
                 )
             }
@@ -195,7 +211,7 @@ public enum ButtonBindingSupport {
             guard let mouseButton = data.first,
                   let kind = buttonKindFromUSBMouseButton(mouseButton)
             else { return nil }
-            return ButtonBindingDraft(kind: kind, hidKey: 4, turboEnabled: false, turboRate: fallbackRate)
+            return ButtonBindingDraft(kind: kind, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
         case 0x02:
             guard !data.isEmpty else { return nil }
             let hidModifiers = data.count >= 2 ? Int(data[0]) : 0
@@ -205,7 +221,7 @@ public enum ButtonBindingSupport {
                 hidKey: max(4, min(231, hidKey)),
                 hidModifiers: max(0, min(255, hidModifiers)),
                 turboEnabled: false,
-                turboRate: fallbackRate
+                turboRate: defaultTurboRate
             )
         case 0x0D:
             guard data.count >= 4 else { return nil }
@@ -217,7 +233,7 @@ public enum ButtonBindingSupport {
                 hidKey: max(4, min(231, hidKey)),
                 hidModifiers: max(0, min(255, hidModifiers)),
                 turboEnabled: true,
-                turboRate: max(1, min(255, rawRate))
+                turboRate: clampTurboRate(rawRate)
             )
         case 0x0E:
             guard let buttonID = data.first,
@@ -228,7 +244,7 @@ public enum ButtonBindingSupport {
                     kind: kind,
                     hidKey: 4,
                     turboEnabled: false,
-                    turboRate: fallbackRate
+                    turboRate: defaultTurboRate
                 )
             }
             let rawRate = (Int(data[1]) << 8) | Int(data[2])
@@ -236,7 +252,7 @@ public enum ButtonBindingSupport {
                 kind: kind,
                 hidKey: 4,
                 turboEnabled: true,
-                turboRate: max(1, min(255, rawRate))
+                turboRate: clampTurboRate(rawRate)
             )
         default:
             return nil
@@ -282,15 +298,19 @@ public enum ButtonBindingSupport {
     }
 
     public static func turboRawToPressesPerSecond(_ rawRate: Int) -> Int {
-        let raw = max(1, min(255, rawRate))
-        let scaled = 20.0 - (Double(raw - 1) * 19.0 / 254.0)
-        return max(1, min(20, Int(round(scaled))))
+        let raw = clampTurboRate(rawRate)
+        let rawSpan = Double(maximumTurboRate - minimumTurboRate)
+        let ppsSpan = Double(maximumTurboPressesPerSecond - minimumTurboPressesPerSecond)
+        let scaled = Double(maximumTurboPressesPerSecond) - (Double(raw - minimumTurboRate) * ppsSpan / rawSpan)
+        return clampTurboPressesPerSecond(Int(round(scaled)))
     }
 
     public static func turboPressesPerSecondToRaw(_ pressesPerSecond: Int) -> Int {
-        let pps = max(1, min(20, pressesPerSecond))
-        let scaled = 1.0 + (Double(20 - pps) * 254.0 / 19.0)
-        return max(1, min(255, Int(round(scaled))))
+        let pps = clampTurboPressesPerSecond(pressesPerSecond)
+        let rawSpan = Double(maximumTurboRate - minimumTurboRate)
+        let ppsSpan = Double(maximumTurboPressesPerSecond - minimumTurboPressesPerSecond)
+        let scaled = Double(minimumTurboRate) + (Double(maximumTurboPressesPerSecond - pps) * rawSpan / ppsSpan)
+        return clampTurboRate(Int(round(scaled)))
     }
 
     public static func buttonKindFromUSBMouseButton(_ value: UInt8) -> ButtonBindingKind? {
@@ -335,7 +355,7 @@ public enum ButtonBindingSupport {
     ) -> [UInt8] {
         let clampedKey = UInt8(max(0, min(255, hidKey)))
         let clampedModifiers = UInt8(max(0, min(255, hidModifiers)))
-        let turbo = UInt16(max(1, min(255, turboRate)))
+        let turbo = UInt16(clampTurboRate(turboRate))
         let turboHi = UInt8((turbo >> 8) & 0xFF)
         let turboLo = UInt8(turbo & 0xFF)
 
@@ -427,7 +447,7 @@ public enum ButtonBindingSupport {
         ButtonBindingKind.allCases.filter { kind in
             switch kind {
             case .dpiClutch:
-                return profileID == .basiliskV3 || profileID == .basiliskV3Pro || profileID == .basiliskV335K
+                return isBasiliskV3Family(profileID)
             default:
                 return true
             }
@@ -446,11 +466,6 @@ public enum ButtonBindingSupport {
     }
 
     private static func usesExtendedBasiliskUSBReadLayout(_ profileID: DeviceProfileID?) -> Bool {
-        switch profileID {
-        case .basiliskV3, .basiliskV3Pro, .basiliskV335K:
-            return true
-        case .basiliskV3XHyperspeed, .orochiV2, .none:
-            return false
-        }
+        isBasiliskV3Family(profileID)
     }
 }

@@ -2321,7 +2321,7 @@ actor ProbeBridge {
 
     func setDpi(active: Int, values: [Int]) async throws -> DpiSnapshot {
         let current = try await readDpi()
-        let count = max(1, min(5, values.count))
+        let count = DeviceProfiles.clampDpiStageCount(values.count)
         let mergedSlots = BLEVendorProtocol.mergedStageSlots(
             currentSlots: current.slots,
             requestedCount: count,

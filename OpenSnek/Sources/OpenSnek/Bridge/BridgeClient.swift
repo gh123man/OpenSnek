@@ -704,11 +704,11 @@ actor BridgeClient {
     }
 
     private func applyBluetooth(device: MouseDevice, patch: DevicePatch) async throws -> MouseState {
-        let changedDpi = patch.dpiStages != nil || patch.dpiStagePairs != nil || patch.activeStage != nil
+        let changedDpi = patch.affectsDpiStages
         let changedLighting = patch.ledBrightness != nil || patch.ledRGB != nil || patch.lightingEffect != nil
         let changedPower = patch.sleepTimeout != nil
 
-        if patch.dpiStages != nil || patch.dpiStagePairs != nil || patch.activeStage != nil {
+        if patch.affectsDpiStages {
             let current: (active: Int, count: Int, slots: [Int], pairs: [DpiPair], stageIDs: [UInt8], marker: UInt8)?
             if let cached = btDpiSnapshotByDeviceID[device.id] {
                 current = cached
@@ -767,7 +767,9 @@ actor BridgeClient {
             let hidKey = UInt8(max(0, min(255, binding.hidKey ?? 4)))
             let hidModifiers = UInt8(max(0, min(255, binding.hidModifiers ?? 0)))
             let turboEnabled = kind.supportsTurbo && binding.turboEnabled
-            let turboRate = UInt16(max(1, min(255, binding.turboRate ?? 0x8E)))
+            let turboRate = UInt16(
+                ButtonBindingSupport.clampTurboRate(binding.turboRate ?? ButtonBindingSupport.defaultTurboRate)
+            )
             let clutchDPI = kind == .dpiClutch
                 ? DeviceProfiles.clampDPI(
                     binding.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI,
@@ -933,7 +935,7 @@ actor BridgeClient {
             let hidKey = binding.hidKey ?? 4
             let hidModifiers = binding.hidModifiers ?? 0
             let turboEnabled = binding.kind.supportsTurbo && binding.turboEnabled
-            let turboRate = max(1, min(255, binding.turboRate ?? 0x8E))
+            let turboRate = ButtonBindingSupport.clampTurboRate(binding.turboRate ?? ButtonBindingSupport.defaultTurboRate)
             let clutchDPI = binding.kind == .dpiClutch ? DeviceProfiles.clampDPI(binding.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI, device: device) : nil
             guard try runUSBWrite({
                 try setButtonBindingUSB(
@@ -1020,7 +1022,7 @@ actor BridgeClient {
         readUSBCurrentDpiStages: () throws -> USBDpiStageSnapshot?,
         readUSBCurrentDpi: () throws -> (Int, Int)?
     ) async throws -> MouseState? {
-        guard patch.dpiStages != nil || patch.dpiStagePairs != nil || patch.activeStage != nil else {
+        guard patch.affectsDpiStages else {
             return nil
         }
 

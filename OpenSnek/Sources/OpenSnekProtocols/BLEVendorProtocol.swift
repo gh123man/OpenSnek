@@ -235,13 +235,19 @@ public enum BLEVendorProtocol {
         return payload.prefix(header.payloadLength)
     }
 
-    public static func parseProfileTargets(payload: Data, maxProfileID: Int = 5) -> [Int] {
-        let maxID = max(1, min(255, maxProfileID))
+    public static func parseProfileTargets(
+        payload: Data,
+        maxProfileID: Int = OnboardProfileLimits.maximumPersistentProfileID
+    ) -> [Int] {
+        let maxID = max(
+            OnboardProfileLimits.minimumPersistentProfileID,
+            min(Int(UInt8.max), maxProfileID)
+        )
         return Array(
             Set(
                 payload.compactMap { byte -> Int? in
                     let value = Int(byte)
-                    guard value >= 1, value <= maxID else { return nil }
+                    guard value >= OnboardProfileLimits.minimumPersistentProfileID, value <= maxID else { return nil }
                     return value
                 }
             )
@@ -368,7 +374,7 @@ public enum BLEVendorProtocol {
     public static func parseDpiStageSnapshot(blob: Data) -> (active: Int, count: Int, slots: [Int], pairs: [DpiPair], stageIDs: [UInt8], marker: UInt8)? {
         if blob.count >= 9 {
             let activeRaw = Int(blob[0])
-            let declaredCount = max(1, min(5, Int(blob[1])))
+            let declaredCount = DeviceProfiles.clampDpiStageCount(Int(blob[1]))
             var slots: [Int] = []
             var pairs: [DpiPair] = []
             var stageIDs: [UInt8] = []
@@ -396,7 +402,7 @@ public enum BLEVendorProtocol {
                 pairs.append(fallback)
                 stageIDs.append(stageIDs.last.map { $0 &+ 1 } ?? UInt8(stageIDs.count))
             }
-            while slots.count < 5 {
+            while slots.count < DeviceProfiles.maximumDpiStageCount {
                 let fallback = pairs.last ?? DpiPair(x: slots.last ?? 800, y: slots.last ?? 800)
                 slots.append(fallback.x)
                 pairs.append(fallback)
@@ -409,16 +415,16 @@ public enum BLEVendorProtocol {
             return (
                 active: active,
                 count: count,
-                slots: Array(slots.prefix(5)),
-                pairs: Array(pairs.prefix(5)),
-                stageIDs: Array(stageIDs.prefix(5)),
+                slots: Array(slots.prefix(DeviceProfiles.maximumDpiStageCount)),
+                pairs: Array(pairs.prefix(DeviceProfiles.maximumDpiStageCount)),
+                stageIDs: Array(stageIDs.prefix(DeviceProfiles.maximumDpiStageCount)),
                 marker: marker
             )
         }
 
         if blob.count >= 7 {
             let activeRaw = Int(blob[0])
-            let count = max(1, min(5, Int(blob[1])))
+            let count = DeviceProfiles.clampDpiStageCount(Int(blob[1]))
             let value = Int(blob[3]) | (Int(blob[4]) << 8)
             let active = activeRaw >= 1 ? max(0, min(count - 1, activeRaw - 1)) : 0
             let sid = blob.count > 2 ? blob[2] : 0
@@ -426,9 +432,9 @@ public enum BLEVendorProtocol {
             return (
                 active: active,
                 count: count,
-                slots: Array(repeating: value, count: 5),
-                pairs: Array(repeating: pair, count: 5),
-                stageIDs: Array(repeating: sid, count: 5),
+                slots: Array(repeating: value, count: DeviceProfiles.maximumDpiStageCount),
+                pairs: Array(repeating: pair, count: DeviceProfiles.maximumDpiStageCount),
+                stageIDs: Array(repeating: sid, count: DeviceProfiles.maximumDpiStageCount),
                 marker: 0x03
             )
         }
@@ -483,21 +489,24 @@ public enum BLEVendorProtocol {
     }
 
     public static func mergedStagePairs(currentPairs: [DpiPair], requestedCount: Int, requestedPairs: [DpiPair]) -> [DpiPair] {
-        let count = max(1, min(5, requestedCount))
+        let count = DeviceProfiles.clampDpiStageCount(requestedCount)
         let clamped = requestedPairs.map { pair in
             DpiPair(
-                x: max(100, min(30000, pair.x)),
-                y: max(100, min(30000, pair.y))
+                x: DeviceProfiles.clampDPI(pair.x, profileID: nil),
+                y: DeviceProfiles.clampDPI(pair.y, profileID: nil)
             )
         }
-        var pairs = Array(currentPairs.prefix(5))
-        if pairs.count < 5 {
-            pairs += Array(repeating: clamped.first ?? DpiPair(x: 800, y: 800), count: 5 - pairs.count)
+        var pairs = Array(currentPairs.prefix(DeviceProfiles.maximumDpiStageCount))
+        if pairs.count < DeviceProfiles.maximumDpiStageCount {
+            pairs += Array(
+                repeating: clamped.first ?? DpiPair(x: 800, y: 800),
+                count: DeviceProfiles.maximumDpiStageCount - pairs.count
+            )
         }
 
         if count == 1 {
             let single = clamped.first ?? pairs[0]
-            return Array(repeating: single, count: 5)
+            return Array(repeating: single, count: DeviceProfiles.maximumDpiStageCount)
         }
 
         for i in 0..<count {
@@ -505,7 +514,7 @@ public enum BLEVendorProtocol {
                 pairs[i] = clamped[i]
             }
         }
-        return Array(pairs.prefix(5))
+        return Array(pairs.prefix(DeviceProfiles.maximumDpiStageCount))
     }
 
     public static func buildDpiStagePayload(active: Int, count: Int, slots: [Int], marker: UInt8, stageIDs: [UInt8]? = nil) -> Data {
@@ -519,9 +528,10 @@ public enum BLEVendorProtocol {
     }
 
     public static func buildDpiStagePayload(active: Int, count: Int, pairs: [DpiPair], marker: UInt8, stageIDs: [UInt8]? = nil) -> Data {
-        let clippedCount = max(1, min(5, count))
-        var ids = Array((stageIDs ?? [0, 1, 2, 3, 4]).prefix(5))
-        while ids.count < 5 {
+        let clippedCount = DeviceProfiles.clampDpiStageCount(count)
+        let defaultStageIDs = (0..<DeviceProfiles.maximumDpiStageCount).map(UInt8.init)
+        var ids = Array((stageIDs ?? defaultStageIDs).prefix(DeviceProfiles.maximumDpiStageCount))
+        while ids.count < DeviceProfiles.maximumDpiStageCount {
             ids.append(ids.last.map { $0 &+ 1 } ?? UInt8(ids.count))
         }
         let activeIndex = max(0, min(clippedCount - 1, active))

@@ -192,9 +192,7 @@ extension DevicePatch {
         if scrollMode != nil { return false }
         if scrollAcceleration != nil { return false }
         if scrollSmartReel != nil { return false }
-        if dpiStages != nil { return false }
-        if dpiStagePairs != nil { return false }
-        if activeStage != nil { return false }
+        if affectsDpiStages { return false }
         if ledBrightness != nil { return false }
         if ledRGB != nil { return false }
         if lightingEffect != nil { return false }
@@ -237,7 +235,7 @@ extension DevicePatch {
         if let buttonBinding {
             var detail = "button(slot=\(buttonBinding.slot),kind=\(buttonBinding.kind.rawValue)"
             if buttonBinding.turboEnabled {
-                detail += ",turbo=on,rate=\(buttonBinding.turboRate ?? 0x8E)"
+                detail += ",turbo=on,rate=\(buttonBinding.turboRate ?? ButtonBindingSupport.defaultTurboRate)"
             }
             if buttonBinding.kind == .dpiClutch {
                 detail += ",dpi=\(buttonBinding.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI)"
