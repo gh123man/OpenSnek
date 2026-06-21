@@ -8,7 +8,21 @@ enum OpenSnekProbe {
         guard let command = args.first else {
             throw ProbeError.usage(usageText)
         }
+        let commandArgs = Array(args.dropFirst())
+        try await dispatchCommand(command, commandArgs: commandArgs)
+    }
 
+    private static func dispatchCommand(_ command: String, commandArgs: [String]) async throws {
+        if command.hasPrefix("bt-") {
+            try await runBluetoothCommand(command, commandArgs: commandArgs)
+        } else if command.hasPrefix("usb-") {
+            try await runUSBCommand(command, commandArgs: commandArgs)
+        } else {
+            try await runDPICommand(command, commandArgs: commandArgs)
+        }
+    }
+
+    private static func runDPICommand(_ command: String, commandArgs: [String]) async throws {
         switch command {
         case "dpi-read":
             let bridge = ProbeBridge()
@@ -16,7 +30,7 @@ enum OpenSnekProbe {
             print("active=\(snapshot.active + 1) count=\(snapshot.count) values=\(snapshot.values)")
         case "dpi-set":
             let bridge = ProbeBridge()
-            let parsed = try parseSetArgs(Array(args.dropFirst()))
+            let parsed = try parseSetArgs(commandArgs)
             let snapshot = try await bridge.setDpi(
                 active: parsed.active,
                 values: parsed.values
@@ -24,7 +38,7 @@ enum OpenSnekProbe {
             print("applied active=\(snapshot.active + 1) values=\(snapshot.values)")
         case "dpi-cycle":
             let bridge = ProbeBridge()
-            let parsed = try parseCycleArgs(Array(args.dropFirst()))
+            let parsed = try parseCycleArgs(commandArgs)
             for i in 0..<parsed.loops {
                 let values = parsed.sequence[i % parsed.sequence.count]
                 let snapshot = try await bridge.setDpi(
@@ -36,6 +50,13 @@ enum OpenSnekProbe {
                     try await Task.sleep(nanoseconds: UInt64(parsed.sleepMs) * 1_000_000)
                 }
             }
+        default:
+            throw ProbeError.usage("Unknown command '\(command)'\n\(usageText)")
+        }
+    }
+
+    private static func runBluetoothCommand(_ command: String, commandArgs: [String]) async throws {
+        switch command {
         case "bt-info":
             let bridge = ProbeBridge()
             let summaries = await bridge.connectedPeripherals() ?? []
@@ -48,7 +69,7 @@ enum OpenSnekProbe {
             }
         case "bt-raw-read":
             let bridge = ProbeBridge()
-            let parsed = try parseBTRawReadArgs(Array(args.dropFirst()))
+            let parsed = try parseBTRawReadArgs(commandArgs)
             let result = try await bridge.rawRead(
                 key: parsed.key,
                 timeout: parsed.timeoutSeconds,
@@ -70,7 +91,7 @@ enum OpenSnekProbe {
             }
         case "bt-raw-write":
             let bridge = ProbeBridge()
-            let parsed = try parseBTRawWriteArgs(Array(args.dropFirst()))
+            let parsed = try parseBTRawWriteArgs(commandArgs)
             let result = try await bridge.rawWrite(
                 key: parsed.key,
                 payload: Data(parsed.payload),
@@ -86,7 +107,7 @@ enum OpenSnekProbe {
             }
         case "bt-profile-read":
             let bridge = ProbeBridge()
-            let parsed = try parseBTProfileReadArgs(Array(args.dropFirst()))
+            let parsed = try parseBTProfileReadArgs(commandArgs)
             print(
                 "bt-profile-read name=\"\(parsed.preferredPeripheralName ?? "")\" " +
                 "targets=\(parsed.targets.map { String($0) }.joined(separator: ",")) " +
@@ -102,7 +123,7 @@ enum OpenSnekProbe {
             )
         case "bt-profile-active-set":
             let bridge = ProbeBridge()
-            let parsed = try parseBTProfileActiveSetArgs(Array(args.dropFirst()))
+            let parsed = try parseBTProfileActiveSetArgs(commandArgs)
             let readKey = BLEVendorProtocol.Key.profileActiveTargetGet().bytes
             let before = try await bridge.rawRead(
                 key: readKey,
@@ -133,7 +154,7 @@ enum OpenSnekProbe {
             }
         case "bt-profile-create":
             let bridge = ProbeBridge()
-            let parsed = try parseBTProfileCreateArgs(Array(args.dropFirst()))
+            let parsed = try parseBTProfileCreateArgs(commandArgs)
             print(
                 "bt-profile-create \(btProfileTargetLabel(parsed.target)) " +
                 "profileName=\"\(parsed.profileName)\" guid=\(parsed.guid.uuidString.lowercased()) " +
@@ -153,7 +174,7 @@ enum OpenSnekProbe {
             )
         case "bt-profile-button-read":
             let bridge = ProbeBridge()
-            let parsed = try parseBTProfileButtonReadArgs(Array(args.dropFirst()))
+            let parsed = try parseBTProfileButtonReadArgs(commandArgs)
             let key = BLEVendorProtocol.Key.buttonBindGet(target: parsed.target, slot: parsed.buttonSlot).bytes
             let result = try await bridge.rawRead(
                 key: key,
@@ -168,7 +189,7 @@ enum OpenSnekProbe {
             print(describeBTProfileButtonRead(key: key, payload: result.payload, notifies: result.notifies))
         case "bt-profile-button-set":
             let bridge = ProbeBridge()
-            let parsed = try parseBTProfileButtonSetArgs(Array(args.dropFirst()))
+            let parsed = try parseBTProfileButtonSetArgs(commandArgs)
             let storedKey = BLEVendorProtocol.Key.buttonBindSet(target: parsed.target, slot: parsed.buttonSlot).bytes
             let storedPayload = parsed.payload
             let storedResult = try await bridge.rawWrite(
@@ -212,7 +233,7 @@ enum OpenSnekProbe {
                 print(describeBTProfileButtonRead(key: readKey, payload: readback.payload, notifies: readback.notifies))
             }
         case "bt-profile-hid-watch", "bt-profile-cycle-watch":
-            let parsed = try parseBTProfileHIDWatchArgs(Array(args.dropFirst()))
+            let parsed = try parseBTProfileHIDWatchArgs(commandArgs)
             let probe = try BTProfileHIDReportProbe(
                 productID: parsed.productID,
                 preferredPeripheralName: parsed.preferredPeripheralName
@@ -247,7 +268,7 @@ enum OpenSnekProbe {
             print("bt-profile-hid-watch complete reports=\(reportCount)")
         case "bt-profile-watch":
             let bridge = ProbeBridge()
-            let parsed = try parseBTProfileWatchArgs(Array(args.dropFirst()))
+            let parsed = try parseBTProfileWatchArgs(commandArgs)
             print(
                 "bt-profile-watch name=\"\(parsed.preferredPeripheralName ?? "")\" " +
                 "slot=\(parsed.buttonSlot) polls=\(parsed.samples) pollMs=\(parsed.pollMs)"
@@ -296,7 +317,7 @@ enum OpenSnekProbe {
             }
         case "bt-lighting-info":
             let bridge = ProbeBridge()
-            let parsed = try parseBTLightingZoneArgs(Array(args.dropFirst()))
+            let parsed = try parseBTLightingZoneArgs(commandArgs)
             let profile = await bridge.bluetoothLightingProfile(preferredPeripheralName: parsed.preferredPeripheralName)
             let zoneChoices = await bridge.bluetoothLightingZoneChoices(preferredPeripheralName: parsed.preferredPeripheralName)
             let supportedLEDIDs = try await bridge.bluetoothLightingLEDIDs(preferredPeripheralName: parsed.preferredPeripheralName)
@@ -322,7 +343,7 @@ enum OpenSnekProbe {
             }
         case "bt-lighting-read":
             let bridge = ProbeBridge()
-            let parsed = try parseBTLightingZoneArgs(Array(args.dropFirst()))
+            let parsed = try parseBTLightingZoneArgs(commandArgs)
             let zoneChoices = await bridge.bluetoothLightingZoneChoices(preferredPeripheralName: parsed.preferredPeripheralName)
             guard let reads = try await bridge.readBluetoothLighting(
                 preferredPeripheralName: parsed.preferredPeripheralName,
@@ -335,7 +356,7 @@ enum OpenSnekProbe {
             }
         case "bt-lighting-brightness":
             let bridge = ProbeBridge()
-            let parsed = try parseBTLightingBrightnessArgs(Array(args.dropFirst()))
+            let parsed = try parseBTLightingBrightnessArgs(commandArgs)
             let zoneChoices = await bridge.bluetoothLightingZoneChoices(preferredPeripheralName: parsed.preferredPeripheralName)
             guard let writes = try await bridge.writeBluetoothLightingBrightness(
                 value: parsed.value,
@@ -361,7 +382,7 @@ enum OpenSnekProbe {
             }
         case "bt-lighting-color":
             let bridge = ProbeBridge()
-            let parsed = try parseBTLightingColorArgs(Array(args.dropFirst()))
+            let parsed = try parseBTLightingColorArgs(commandArgs)
             let zoneChoices = await bridge.bluetoothLightingZoneChoices(preferredPeripheralName: parsed.preferredPeripheralName)
             guard let writes = try await bridge.writeBluetoothLightingColor(
                 color: parsed.color,
@@ -385,11 +406,18 @@ enum OpenSnekProbe {
             for read in reads {
                 print(describeBTLightingReadResult(read))
             }
+        default:
+            throw ProbeError.usage("Unknown command '\(command)'\n\(usageText)")
+        }
+    }
+
+    private static func runUSBCommand(_ command: String, commandArgs: [String]) async throws {
+        switch command {
         case "usb-info":
-            let usb = try USBProbeClient(productID: try parseOptionalUSBPID(Array(args.dropFirst())))
+            let usb = try USBProbeClient(productID: try parseOptionalUSBPID(commandArgs))
             print("usb \(usb.describe())")
         case "usb-profile-read":
-            let parsed = try parseUSBProfileReadArgs(Array(args.dropFirst()))
+            let parsed = try parseUSBProfileReadArgs(commandArgs)
             let usb = try USBProbeClient(productID: parsed.productID)
             print(
                 "usb-profile-read \(usb.describe()) " +
@@ -404,7 +432,7 @@ enum OpenSnekProbe {
                 includeEffective: parsed.includeEffective
             )
         case "usb-profile-active-read":
-            let usb = try USBProbeClient(productID: try parseOptionalUSBPID(Array(args.dropFirst())))
+            let usb = try USBProbeClient(productID: try parseOptionalUSBPID(commandArgs))
             print("usb-profile-active-read \(usb.describe())")
             if let active = try usb.readActiveProfileID() {
                 print("active-profile class=05 cmd=84 value=\(active) \(usbProfileLabel(active))")
@@ -412,7 +440,7 @@ enum OpenSnekProbe {
                 print("active-profile class=05 cmd=84 read_failed")
             }
         case "usb-profile-active-set":
-            let parsed = try parseUSBProfileActiveSetArgs(Array(args.dropFirst()))
+            let parsed = try parseUSBProfileActiveSetArgs(commandArgs)
             let usb = try USBProbeClient(productID: parsed.productID)
             let before = try usb.readActiveProfileID()
             print("usb-profile-active-set \(usb.describe()) profile=\(parsed.profile) \(usbProfileLabel(parsed.profile))")
@@ -428,17 +456,17 @@ enum OpenSnekProbe {
                 throw ProbeError.protocolError("USB profile \(parsed.profile) was rejected by active-profile selector 05:04")
             }
         case "usb-profile-verify-writes":
-            let parsed = try parseUSBProfileVerifyWritesArgs(Array(args.dropFirst()))
+            let parsed = try parseUSBProfileVerifyWritesArgs(commandArgs)
             let usb = try USBProbeClient(productID: parsed.productID)
             print("usb-profile-verify-writes \(usb.describe()) profile=\(parsed.profile)")
             try verifyUSBProfileSameValueWrites(usb: usb, profile: parsed.profile)
         case "usb-profile-verify-changed-writes":
-            let parsed = try parseUSBProfileVerifyWritesArgs(Array(args.dropFirst()), command: "usb-profile-verify-changed-writes")
+            let parsed = try parseUSBProfileVerifyWritesArgs(commandArgs, command: "usb-profile-verify-changed-writes")
             let usb = try USBProbeClient(productID: parsed.productID)
             print("usb-profile-verify-changed-writes \(usb.describe()) profile=\(parsed.profile)")
             try verifyUSBProfileChangedValueWrites(usb: usb, profile: parsed.profile)
         case "usb-profile-clone":
-            let parsed = try parseUSBProfileCloneArgs(Array(args.dropFirst()))
+            let parsed = try parseUSBProfileCloneArgs(commandArgs)
             let usb = try USBProbeClient(productID: parsed.productID)
             print(
                 "usb-profile-clone \(usb.describe()) " +
@@ -461,7 +489,7 @@ enum OpenSnekProbe {
         case "usb-profile-verify-metadata-write":
             throw ProbeError.protocolError("usb-profile-verify-metadata-write is disabled: 05:08 metadata chunks are mapped, but create/assign can disturb profile content and needs a guarded rewrite/readback probe")
         case "usb-profile-delete":
-            let parsed = try parseUSBProfileDeleteArgs(Array(args.dropFirst()))
+            let parsed = try parseUSBProfileDeleteArgs(commandArgs)
             let usb = try USBProbeClient(productID: parsed.productID)
             print("usb-profile-delete \(usb.describe()) profile=\(parsed.profile) mode=delete-unassign")
             let deleted = try usb.deleteProfile(profile: parsed.profile)
@@ -470,7 +498,7 @@ enum OpenSnekProbe {
                 throw ProbeError.protocolError("USB profile delete/unassign did not echo the expected command")
             }
         case "usb-battery-read":
-            let usb = try USBProbeClient(productID: try parseOptionalUSBPID(Array(args.dropFirst())))
+            let usb = try USBProbeClient(productID: try parseOptionalUSBPID(commandArgs))
             print("usb \(usb.describe())")
             if let battery = try usb.readBattery() {
                 print(
@@ -482,7 +510,7 @@ enum OpenSnekProbe {
                 print("battery: unavailable")
             }
         case "usb-lighting-info":
-            let parsed = try parseUSBLightingZoneArgs(Array(args.dropFirst()))
+            let parsed = try parseUSBLightingZoneArgs(commandArgs)
             let usb = try USBProbeClient(productID: parsed.productID)
             print("usb \(usb.describe())")
             print("supported-effects=\(usb.supportedLightingEffects().map(\.rawValue).joined(separator: ","))")
@@ -502,7 +530,7 @@ enum OpenSnekProbe {
                 print(describeUSBLightingReadResult(read))
             }
         case "usb-lighting-read":
-            let parsed = try parseUSBLightingZoneArgs(Array(args.dropFirst()))
+            let parsed = try parseUSBLightingZoneArgs(commandArgs)
             let usb = try USBProbeClient(productID: parsed.productID)
             print("usb \(usb.describe())")
             guard let reads = try usb.readLightingBrightness(zoneID: parsed.zoneID) else {
@@ -512,7 +540,7 @@ enum OpenSnekProbe {
                 print(describeUSBLightingReadResult(read))
             }
         case "usb-lighting-brightness":
-            let parsed = try parseUSBLightingBrightnessArgs(Array(args.dropFirst()))
+            let parsed = try parseUSBLightingBrightnessArgs(commandArgs)
             let usb = try USBProbeClient(productID: parsed.productID)
             print("usb \(usb.describe())")
             guard let writes = try usb.writeLightingBrightness(value: parsed.value, zoneID: parsed.zoneID) else {
@@ -531,7 +559,7 @@ enum OpenSnekProbe {
                 throw ProbeError.protocolError("One or more USB lighting brightness writes failed")
             }
         case "usb-lighting-effect":
-            let parsed = try parseUSBLightingEffectArgs(Array(args.dropFirst()))
+            let parsed = try parseUSBLightingEffectArgs(commandArgs)
             let usb = try USBProbeClient(productID: parsed.productID)
             print("usb \(usb.describe())")
             let supportedEffects = usb.supportedLightingEffects()
@@ -550,7 +578,7 @@ enum OpenSnekProbe {
                 throw ProbeError.protocolError("One or more USB lighting effect writes failed")
             }
         case "usb-lighting-frame":
-            let parsed = try parseUSBLightingFrameArgs(Array(args.dropFirst()))
+            let parsed = try parseUSBLightingFrameArgs(commandArgs)
             let usb = try USBProbeClient(productID: parsed.productID)
             print("usb \(usb.describe())")
             let result = try usb.writeLightingCustomFrame(
@@ -570,7 +598,7 @@ enum OpenSnekProbe {
                 throw ProbeError.protocolError("USB lighting custom-frame write failed")
             }
         case "usb-lighting-concurrency":
-            let parsed = try parseUSBLightingConcurrencyArgs(Array(args.dropFirst()))
+            let parsed = try parseUSBLightingConcurrencyArgs(commandArgs)
             let usb = try USBProbeClient(productID: parsed.productID)
             print(
                 "usb \(usb.describe()) concurrency frames=\(parsed.frames) commands=\(parsed.commands) " +
@@ -587,7 +615,7 @@ enum OpenSnekProbe {
                 print(describeUSBLightingConcurrencyResult(result))
             }
         case "usb-input-listen":
-            let parsed = try parseUSBInputListenArgs(Array(args.dropFirst()))
+            let parsed = try parseUSBInputListenArgs(commandArgs)
             let probe = try USBInputReportProbe(productID: parsed.productID)
             print("usb-input-listen candidates=\(probe.candidateCount) duration=\(String(format: "%.1f", parsed.durationSeconds))s")
             for line in probe.describeCandidates() {
@@ -620,7 +648,7 @@ enum OpenSnekProbe {
             }
             print("usb-input-listen complete reports=\(reportCount)")
         case "usb-input-values":
-            let parsed = try parseUSBInputListenArgs(Array(args.dropFirst()))
+            let parsed = try parseUSBInputListenArgs(commandArgs)
             let probe = try USBInputValueProbe(productID: parsed.productID)
             print("usb-input-values candidates=\(probe.candidateCount) duration=\(String(format: "%.1f", parsed.durationSeconds))s")
             for line in probe.describeCandidates() {
@@ -644,7 +672,7 @@ enum OpenSnekProbe {
             }
             print("usb-input-values complete events=\(eventCount)")
         case "usb-button-read":
-            let parsed = try parseUSBButtonReadArgs(Array(args.dropFirst()))
+            let parsed = try parseUSBButtonReadArgs(commandArgs)
             let usb = try USBProbeClient(productID: parsed.productID)
             print("usb \(usb.describe())")
             let slot = UInt8(max(0, min(255, parsed.slot)))
@@ -656,7 +684,7 @@ enum OpenSnekProbe {
                 }
             }
         case "usb-button-set":
-            let parsed = try parseUSBButtonSetArgs(Array(args.dropFirst()))
+            let parsed = try parseUSBButtonSetArgs(commandArgs)
             let usb = try USBProbeClient(productID: parsed.productID)
             print("usb \(usb.describe())")
             let wrote = try usb.writeButtonBinding(
@@ -678,7 +706,7 @@ enum OpenSnekProbe {
                 }
             }
         case "usb-button-set-raw":
-            let parsed = try parseUSBButtonSetRawArgs(Array(args.dropFirst()))
+            let parsed = try parseUSBButtonSetRawArgs(commandArgs)
             let usb = try USBProbeClient(productID: parsed.productID)
             print("usb \(usb.describe())")
             let slot = UInt8(max(0, min(255, parsed.slot)))
@@ -697,7 +725,7 @@ enum OpenSnekProbe {
                 }
             }
         case "usb-raw":
-            let parsed = try parseUSBRawArgs(Array(args.dropFirst()))
+            let parsed = try parseUSBRawArgs(commandArgs)
             let usb = try USBProbeClient(productID: parsed.productID)
             print("usb \(usb.describe())")
             let response = try usb.rawCommand(
@@ -822,7 +850,9 @@ enum OpenSnekProbe {
 
         let hidKey = max(0, min(255, Int(flags["--hid-key"] ?? "4") ?? 4))
         let turboEnabled = parseBoolean(flags["--turbo"] ?? "off")
-        let turboRate = max(1, min(255, Int(flags["--turbo-rate"] ?? "142") ?? 142))
+        let turboRate = ButtonBindingSupport.clampTurboRate(
+            Int(flags["--turbo-rate"] ?? "\(ButtonBindingSupport.defaultTurboRate)") ?? ButtonBindingSupport.defaultTurboRate
+        )
         let clutchDPI = Int(flags["--clutch-dpi"] ?? "").map { max(100, min(30_000, $0)) }
         let profiles = try parseUSBProfiles(flags["--profile"], defaultProfiles: [0x01, 0x00])
         return (slot, kindRaw, hidKey, turboEnabled, turboRate, clutchDPI, profiles, try parseOptionalUSBPID(args))
@@ -859,14 +889,10 @@ enum OpenSnekProbe {
             profiles = try parseUInt8List(raw)
             guard !profiles.isEmpty else { throw ProbeError.usage("Empty --profiles") }
         } else if let raw = flags["--stored-slots"] {
-            let storedSlots = try parseUInt8List(raw)
-            guard !storedSlots.isEmpty else { throw ProbeError.usage("Empty --stored-slots") }
-            for storedSlot in storedSlots where !(1...4).contains(storedSlot) {
-                throw ProbeError.usage("Invalid --stored-slots value '\(storedSlot)' (expected 1..4)")
-            }
-            profiles = storedSlots.map { $0 &+ 1 }
+            let storedSlots = try parseStoredSlots(raw, optionName: "--stored-slots")
+            profiles = storedSlots.map { OnboardProfileLimits.profileID(forStoredSlot: $0) }
         } else {
-            profiles = [0x02, 0x03, 0x04, 0x05]
+            profiles = OnboardProfileLimits.storedProfileIDs
         }
 
         let buttonSlotsRaw = flags["--button-slots"] ?? "5"
@@ -930,8 +956,8 @@ enum OpenSnekProbe {
         guard sourceProfile != targetProfile else {
             throw ProbeError.usage("usb-profile-clone source and target must be different")
         }
-        guard (0x02...0x05).contains(targetProfile) else {
-            throw ProbeError.usage("usb-profile-clone target must be a stored profile 2..5")
+        guard OnboardProfileLimits.containsStoredProfileID(targetProfile) else {
+            throw ProbeError.usage("usb-profile-clone target must be a stored profile \(OnboardProfileLimits.storedProfileIDRangeDescription)")
         }
 
         let buttonSlotsRaw = flags["--button-slots"] ?? "5"
@@ -981,16 +1007,14 @@ enum OpenSnekProbe {
             }
             profile = parsed
         } else if let raw = flags["--stored-slot"] {
-            guard let storedSlot = parseUInt8(raw), (1...4).contains(storedSlot) else {
-                throw ProbeError.usage("Invalid --stored-slot '\(raw)' (expected 1..4)")
-            }
-            profile = storedSlot &+ 1
+            let storedSlot = try parseStoredSlot(raw, optionName: "--stored-slot")
+            profile = OnboardProfileLimits.profileID(forStoredSlot: storedSlot)
         } else {
             throw ProbeError.usage("Missing --profile or --stored-slot\n\(usageText)")
         }
 
-        guard (0x01...0x05).contains(profile) else {
-            throw ProbeError.usage("usb-profile-active-set targets known USB profiles 1..5, not profile \(profile)")
+        guard OnboardProfileLimits.containsPersistentProfileID(profile) else {
+            throw ProbeError.usage("usb-profile-active-set targets known USB profiles \(OnboardProfileLimits.persistentProfileIDRangeDescription), not profile \(profile)")
         }
         return (profile, try parseOptionalUSBPID(args))
     }
@@ -1018,16 +1042,14 @@ enum OpenSnekProbe {
             }
             profile = parsed
         } else if let raw = flags[storedSlotKey] {
-            guard let storedSlot = parseUInt8(raw), (1...4).contains(storedSlot) else {
-                throw ProbeError.usage("Invalid \(storedSlotKey) '\(raw)' (expected 1..4)")
-            }
-            profile = storedSlot &+ 1
+            let storedSlot = try parseStoredSlot(raw, optionName: storedSlotKey)
+            profile = OnboardProfileLimits.profileID(forStoredSlot: storedSlot)
         } else {
             throw ProbeError.usage("Missing \(profileKey) or \(storedSlotKey)\n\(usageText)")
         }
 
-        guard (0x01...0x05).contains(profile) else {
-            throw ProbeError.usage("\(command) only targets known USB profiles 1..5, not profile \(profile)")
+        guard OnboardProfileLimits.containsPersistentProfileID(profile) else {
+            throw ProbeError.usage("\(command) only targets known USB profiles \(OnboardProfileLimits.persistentProfileIDRangeDescription), not profile \(profile)")
         }
         return profile
     }
@@ -1040,16 +1062,14 @@ enum OpenSnekProbe {
             }
             profile = parsed
         } else if let raw = flags["--stored-slot"] {
-            guard let storedSlot = parseUInt8(raw), (1...4).contains(storedSlot) else {
-                throw ProbeError.usage("Invalid --stored-slot '\(raw)' (expected 1..4)")
-            }
-            profile = storedSlot &+ 1
+            let storedSlot = try parseStoredSlot(raw, optionName: "--stored-slot")
+            profile = OnboardProfileLimits.profileID(forStoredSlot: storedSlot)
         } else {
             throw ProbeError.usage("Missing --profile or --stored-slot\n\(usageText)")
         }
 
-        guard (0x02...0x05).contains(profile) else {
-            throw ProbeError.usage("\(command) only targets known stored USB profiles 2..5, not live/base profile \(profile)")
+        guard OnboardProfileLimits.containsStoredProfileID(profile) else {
+            throw ProbeError.usage("\(command) only targets known stored USB profiles \(OnboardProfileLimits.storedProfileIDRangeDescription), not live/base profile \(profile)")
         }
         return profile
     }
@@ -1102,8 +1122,8 @@ enum OpenSnekProbe {
             throw ProbeError.usage("bt-profile-active-set changes the hardware-active Bluetooth target; pass --yes to continue\n\(usageText)")
         }
         let target = try parseBTProfileTarget(flags: flags)
-        guard (0x01...0x05).contains(target) else {
-            throw ProbeError.usage("bt-profile-active-set targets known Bluetooth profile targets 1..5, not target \(target)")
+        guard OnboardProfileLimits.containsPersistentProfileID(target) else {
+            throw ProbeError.usage("bt-profile-active-set targets known Bluetooth profile targets \(OnboardProfileLimits.persistentProfileIDRangeDescription), not target \(target)")
         }
         let timeoutSeconds = max(0.1, Double(flags["--timeout-ms"] ?? "1200").map { $0 / 1000.0 } ?? 1.2)
         let preferredPeripheralName = parsePeripheralName(flags["--name"])
@@ -1116,10 +1136,10 @@ enum OpenSnekProbe {
             throw ProbeError.usage("bt-profile-create clears and rewrites a persistent onboard target; pass --yes to continue\n\(usageText)")
         }
         let target = try parseBTProfileTarget(flags: flags)
-        guard target >= 0x02 else {
-            throw ProbeError.usage("bt-profile-create expects a stored target (use --stored-slot 1..4 or --target 2..5)")
+        guard OnboardProfileLimits.containsStoredProfileID(target) else {
+            throw ProbeError.usage("bt-profile-create expects a stored target (use --stored-slot \(OnboardProfileLimits.storedSlotRangeDescription) or --target \(OnboardProfileLimits.storedProfileIDRangeDescription))")
         }
-        let profileName = flags["--profile-name"] ?? "OPENSNEK_MAC_SLOT_\(max(1, Int(target) - 1))"
+        let profileName = flags["--profile-name"] ?? "OPENSNEK_MAC_SLOT_\(Int(target) - OnboardProfileLimits.storedSlotProfileIDOffset)"
         _ = try asciiBytes(profileName, maxLength: 0x74 - 0x10, fieldName: "--profile-name")
 
         let owner = flags["--owner"] ?? "31933b5452df5708882d4fb55d0b2905f16d829500fe936c56f98d5cd0241a76"
@@ -1168,8 +1188,8 @@ enum OpenSnekProbe {
             throw ProbeError.usage("Missing or invalid --button-slot\n\(usageText)")
         }
         let target = try parseBTProfileTarget(flags: flags)
-        guard target >= 0x02 else {
-            throw ProbeError.usage("bt-profile-button-set expects a stored target (use --stored-slot 1..4 or --target 2..5)")
+        guard OnboardProfileLimits.containsStoredProfileID(target) else {
+            throw ProbeError.usage("bt-profile-button-set expects a stored target (use --stored-slot \(OnboardProfileLimits.storedSlotRangeDescription) or --target \(OnboardProfileLimits.storedProfileIDRangeDescription))")
         }
 
         let payload: [UInt8]
@@ -1191,7 +1211,12 @@ enum OpenSnekProbe {
             let hidKey = parseUInt8(flags["--hid-key"] ?? "") ?? 0x09
             let hidModifiers = parseUInt8(flags["--hid-modifiers"] ?? "") ?? 0x00
             let turboEnabled = parseBoolean(flags["--turbo"] ?? "off")
-            let turboRate = UInt16(max(1, min(255, Int(flags["--turbo-rate"] ?? "142") ?? 142)))
+            let turboRate = UInt16(
+                ButtonBindingSupport.clampTurboRate(
+                    Int(flags["--turbo-rate"] ?? "\(ButtonBindingSupport.defaultTurboRate)") ??
+                        ButtonBindingSupport.defaultTurboRate
+                )
+            )
             let clutchDPI = Int(flags["--clutch-dpi"] ?? "").map { max(100, min(30_000, $0)) }
             let livePayload = BLEVendorProtocol.buildButtonPayload(
                 slot: buttonSlot,
@@ -1402,10 +1427,8 @@ enum OpenSnekProbe {
             return target
         }
         if let storedSlotRaw = flags["--stored-slot"] {
-            guard let storedSlot = parseUInt8(storedSlotRaw), (1...4).contains(storedSlot) else {
-                throw ProbeError.usage("Invalid --stored-slot '\(storedSlotRaw)' (expected 1..4)")
-            }
-            return storedSlot &+ 1
+            let storedSlot = try parseStoredSlot(storedSlotRaw, optionName: "--stored-slot")
+            return OnboardProfileLimits.profileID(forStoredSlot: storedSlot)
         }
         throw ProbeError.usage("Missing --stored-slot or --target\n\(usageText)")
     }
@@ -1417,14 +1440,26 @@ enum OpenSnekProbe {
             return targets
         }
         if let storedSlotsRaw = flags["--stored-slots"] {
-            let storedSlots = try parseUInt8List(storedSlotsRaw)
-            guard !storedSlots.isEmpty else { throw ProbeError.usage("Empty --stored-slots") }
-            for storedSlot in storedSlots where !(1...4).contains(storedSlot) {
-                throw ProbeError.usage("Invalid --stored-slots value '\(storedSlot)' (expected 1..4)")
-            }
-            return storedSlots.map { $0 &+ 1 }
+            let storedSlots = try parseStoredSlots(storedSlotsRaw, optionName: "--stored-slots")
+            return storedSlots.map { OnboardProfileLimits.profileID(forStoredSlot: $0) }
         }
-        return [0x02, 0x03, 0x04, 0x05]
+        return OnboardProfileLimits.storedProfileIDs
+    }
+
+    private static func parseStoredSlot(_ raw: String, optionName: String) throws -> UInt8 {
+        guard let storedSlot = parseUInt8(raw), OnboardProfileLimits.containsStoredSlot(storedSlot) else {
+            throw ProbeError.usage("Invalid \(optionName) '\(raw)' (expected \(OnboardProfileLimits.storedSlotRangeDescription))")
+        }
+        return storedSlot
+    }
+
+    private static func parseStoredSlots(_ raw: String, optionName: String) throws -> [UInt8] {
+        let storedSlots = try parseUInt8List(raw)
+        guard !storedSlots.isEmpty else { throw ProbeError.usage("Empty \(optionName)") }
+        for storedSlot in storedSlots where !OnboardProfileLimits.containsStoredSlot(storedSlot) {
+            throw ProbeError.usage("Invalid \(optionName) value '\(storedSlot)' (expected \(OnboardProfileLimits.storedSlotRangeDescription))")
+        }
+        return storedSlots
     }
 
     private static func parseUSBProfiles(_ raw: String?, defaultProfiles: [UInt8]) throws -> [UInt8] {
@@ -1464,7 +1499,9 @@ enum OpenSnekProbe {
 
     private static func parseValues(_ raw: String) throws -> [Int] {
         let values = raw.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
-        let clipped = values.prefix(5).map { max(100, min(30_000, $0)) }
+        let clipped = values.prefix(DeviceProfiles.maximumDpiStageCount).map {
+            DeviceProfiles.clampDPI($0, profileID: nil)
+        }
         guard !clipped.isEmpty else {
             throw ProbeError.usage("Invalid DPI values: \(raw)")
         }
@@ -2387,7 +2424,7 @@ enum OpenSnekProbe {
             activePairs = []
         }
         let storedMatches = dpiReads
-            .filter { $0.target >= 0x02 && !$0.pairs.isEmpty && $0.pairs == activePairs }
+            .filter { OnboardProfileLimits.containsStoredProfileID($0.target) && !$0.pairs.isEmpty && $0.pairs == activePairs }
             .map(\.target)
         if activePairs.isEmpty {
             print("fingerprint active=unavailable")
@@ -2881,14 +2918,15 @@ enum OpenSnekProbe {
         let dpiStageIDs: [UInt8]
 
         var signature: String {
-            [
-                buttonPayloadHex,
-                dpiPayloadHex,
-                dpiActive.map(String.init) ?? "nil",
-                dpiCount.map(String.init) ?? "nil",
-                dpiValues.map(String.init).joined(separator: ","),
-                dpiStageIDs.map { String(format: "%02x", $0) }.joined(separator: ","),
-            ].joined(separator: "|")
+            var parts: [String] = []
+            parts.reserveCapacity(6)
+            parts.append(buttonPayloadHex)
+            parts.append(dpiPayloadHex)
+            parts.append(dpiActive.map(String.init) ?? "nil")
+            parts.append(dpiCount.map(String.init) ?? "nil")
+            parts.append(dpiValues.map(String.init).joined(separator: ","))
+            parts.append(dpiStageIDs.map(Self.hexByte).joined(separator: ","))
+            return parts.joined(separator: "|")
         }
 
         var summary: String {
@@ -2900,6 +2938,10 @@ enum OpenSnekProbe {
                 dpiSummary = "dpi(payload=\(dpiPayloadHex))"
             }
             return "button=\(buttonDescription) \(dpiSummary)"
+        }
+
+        private static func hexByte(_ value: UInt8) -> String {
+            String(format: "%02x", value)
         }
     }
 

@@ -65,10 +65,6 @@ actor SoftwareLightingEngine {
         return statusByDeviceID[deviceID]
     }
 
-    func statuses() -> [String: SoftwareLightingEngineStatus] {
-        statusByDeviceID
-    }
-
     @discardableResult
     func start(
         device: MouseDevice,

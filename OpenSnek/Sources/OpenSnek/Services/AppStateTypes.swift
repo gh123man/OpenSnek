@@ -96,14 +96,11 @@ enum ButtonProfileSource: Hashable, Codable, Identifiable {
 
 struct USBButtonProfileSummary: Identifiable, Hashable {
     let profile: Int
-    let isSelected: Bool
     let isHardwareActive: Bool
     let isLiveActive: Bool
     let isCustomized: Bool?
-    let hasPendingChanges: Bool
 
     var id: Int { profile }
-    var isLoaded: Bool { isCustomized != nil }
 }
 
 enum PollingProfile: Equatable {
@@ -188,22 +185,21 @@ enum RuntimeWakeSchedule {
 
 extension DevicePatch {
     var isEmpty: Bool {
-        pollRate == nil &&
-            sleepTimeout == nil &&
-            deviceMode == nil &&
-            lowBatteryThresholdRaw == nil &&
-            scrollMode == nil &&
-            scrollAcceleration == nil &&
-            scrollSmartReel == nil &&
-            dpiStages == nil &&
-            dpiStagePairs == nil &&
-            activeStage == nil &&
-            ledBrightness == nil &&
-            ledRGB == nil &&
-            lightingEffect == nil &&
-            usbLightingZoneLEDIDs == nil &&
-            buttonBinding == nil &&
-            usbButtonProfileAction == nil
+        if pollRate != nil { return false }
+        if sleepTimeout != nil { return false }
+        if deviceMode != nil { return false }
+        if lowBatteryThresholdRaw != nil { return false }
+        if scrollMode != nil { return false }
+        if scrollAcceleration != nil { return false }
+        if scrollSmartReel != nil { return false }
+        if affectsDpiStages { return false }
+        if ledBrightness != nil { return false }
+        if ledRGB != nil { return false }
+        if lightingEffect != nil { return false }
+        if usbLightingZoneLEDIDs != nil { return false }
+        if buttonBinding != nil { return false }
+        if usbButtonProfileAction != nil { return false }
+        return true
     }
 
     var describe: String {
@@ -239,7 +235,7 @@ extension DevicePatch {
         if let buttonBinding {
             var detail = "button(slot=\(buttonBinding.slot),kind=\(buttonBinding.kind.rawValue)"
             if buttonBinding.turboEnabled {
-                detail += ",turbo=on,rate=\(buttonBinding.turboRate ?? 0x8E)"
+                detail += ",turbo=on,rate=\(buttonBinding.turboRate ?? ButtonBindingSupport.defaultTurboRate)"
             }
             if buttonBinding.kind == .dpiClutch {
                 detail += ",dpi=\(buttonBinding.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI)"

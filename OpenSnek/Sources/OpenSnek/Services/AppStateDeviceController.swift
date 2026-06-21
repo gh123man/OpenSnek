@@ -185,79 +185,11 @@ final class AppStateDeviceController {
         guard environment.usesRemoteServiceTransport else { return }
 
         let liveIDs = Set(snapshot.devices.map(\.id))
-        var didApplySnapshotChange = false
-        let liveSoftwareLightingAutoStartKeys = Set(snapshot.devices.map { DevicePersistenceKeys.key(for: $0) })
-        remoteSnapshotSoftwareLightingAutoStartKeys.formIntersection(liveSoftwareLightingAutoStartKeys)
-        stateCacheByDeviceID = stateCacheByDeviceID.filter { liveIDs.contains($0.key) }
-        lastUpdatedByDeviceID = lastUpdatedByDeviceID.filter { liveIDs.contains($0.key) }
-        lastStateMutationAtByDeviceID = lastStateMutationAtByDeviceID.filter { liveIDs.contains($0.key) }
-        usbControlAvailabilityByDeviceID = usbControlAvailabilityByDeviceID.filter { liveIDs.contains($0.key) }
-        pruneUSBPhysicalConnectSettling(liveIDs: liveIDs)
-        let previousSoftwareLightingStatuses = deviceStore.softwareLightingStatusByDeviceID
-        var softwareLightingStatuses = snapshot.softwareLightingStatusByDeviceID
-            .filter { liveIDs.contains($0.key) }
-        for (deviceID, previousStatus) in previousSoftwareLightingStatuses where liveIDs.contains(deviceID) {
-            guard previousStatus.state == .running else { continue }
-            if let snapshotStatus = softwareLightingStatuses[deviceID] {
-                if previousStatus.updatedAt > snapshotStatus.updatedAt {
-                    softwareLightingStatuses[deviceID] = previousStatus
-                }
-            } else {
-                softwareLightingStatuses[deviceID] = previousStatus
-            }
-        }
-        if previousSoftwareLightingStatuses != softwareLightingStatuses {
-            deviceStore.softwareLightingStatusByDeviceID = softwareLightingStatuses
+        pruneRemoteSnapshotCaches(liveIDs: liveIDs, devices: snapshot.devices)
+        var didApplySnapshotChange = applyRemoteSoftwareLightingStatuses(snapshot, liveIDs: liveIDs)
+        applyRemoteUSBControlAvailability(snapshot, liveIDs: liveIDs)
+        if applyRemoteStateCache(snapshot, liveIDs: liveIDs) {
             didApplySnapshotChange = true
-        }
-
-        for (deviceID, availability) in snapshot.usbControlAvailabilityByDeviceID where liveIDs.contains(deviceID) {
-            setUSBControlAvailability(
-                availability,
-                for: deviceID,
-                observedAt: snapshot.observedAtByDeviceID[deviceID] ?? Date()
-            )
-        }
-
-        for (deviceID, remoteState) in snapshot.stateByDeviceID {
-            let snapshotUpdatedAt = snapshot.lastUpdatedByDeviceID[deviceID] ?? Date()
-            if remoteState.device.transport == .usb,
-               snapshot.usbControlAvailabilityByDeviceID[deviceID] == nil {
-                setUSBControlAvailability(
-                    .receiverPresentMouseReachable,
-                    for: deviceID,
-                    observedAt: snapshot.observedAtByDeviceID[deviceID] ?? Date()
-                )
-            }
-            if remoteState.device.transport == .usb,
-               snapshot.usbControlAvailabilityByDeviceID[deviceID]?.blocksUSBControlInteraction != true {
-                let observedAt = max(snapshot.observedAtByDeviceID[deviceID] ?? snapshotUpdatedAt, snapshotUpdatedAt)
-                recordUSBLiveObservation(
-                    sourceDeviceID: deviceID,
-                    presentationDeviceID: deviceID,
-                    observedAt: observedAt,
-                    transportStatus: .pollingFallback
-                )
-            }
-            if let latestCachedAt = lastUpdatedByDeviceID[deviceID],
-               latestCachedAt > snapshotUpdatedAt {
-                AppLog.debug(
-                    "AppState",
-                    "remoteSnapshot superseded-drop device=\(deviceID) updatedAt=\(snapshotUpdatedAt.timeIntervalSince1970) " +
-                    "cachedAt=\(latestCachedAt.timeIntervalSince1970)"
-                )
-                continue
-            }
-            if stateCacheByDeviceID[deviceID] != remoteState ||
-                lastUpdatedByDeviceID[deviceID] != snapshotUpdatedAt {
-                didApplySnapshotChange = true
-                stateCacheByDeviceID[deviceID] = remoteState
-                lastUpdatedByDeviceID[deviceID] = snapshotUpdatedAt
-            }
-            lastStateMutationAtByDeviceID[deviceID] = snapshotUpdatedAt
-            if clearConnectionFailureState(sourceDeviceID: deviceID, presentationDeviceID: deviceID) {
-                didApplySnapshotChange = true
-            }
         }
 
         let sortedSnapshotDevices = snapshot.devices.sorted { $0.product_name < $1.product_name }
@@ -275,83 +207,8 @@ final class AppStateDeviceController {
         }
         scheduleRemoteSnapshotSoftwareLightingAutoStart(for: snapshot.devices)
 
-        if let selectedDeviceID = deviceStore.selectedDeviceID,
-           let selectedState = stateCacheByDeviceID[selectedDeviceID],
-           let selectedDevice = deviceStore.selectedDevice {
-            AppLog.debug(
-                "AppState",
-                "remoteSnapshot selected device=\(selectedDeviceID) " +
-                "active=\(selectedState.dpi_stages.active_stage.map(String.init) ?? "nil") " +
-                "dpi=\(Self.diagnosticDpiPair(selectedState.dpi)) " +
-                "values=\(selectedState.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
-                "scroll=\(Self.diagnosticScrollState(selectedState)) " +
-                "pendingLocal=\(applyController.hasPendingLocalEdits) " +
-                "pendingActive=\(applyController.pendingActiveStageSelection(for: selectedDevice).map(String.init) ?? "nil")"
-            )
-            let selectedLastUpdated = lastUpdatedByDeviceID[selectedDeviceID]
-            let selectedStateChanged = deviceStore.state != selectedState
-            let selectedLastUpdatedChanged = deviceStore.lastUpdated != selectedLastUpdated
-            if selectedStateChanged {
-                deviceStore.state = selectedState
-                didApplySnapshotChange = true
-            }
-            if selectedLastUpdatedChanged {
-                deviceStore.lastUpdated = selectedLastUpdated
-                didApplySnapshotChange = true
-            }
-            if selectedStateChanged || selectedLastUpdatedChanged || deviceListChanged {
-                let holdsPersistedConnectPresentation = primeSelectedConnectPresentationIfNeeded(
-                    device: selectedDevice,
-                    applyController: applyController,
-                    editorController: editorController
-                )
-                hydrateSelectedEditorPresentation(
-                    from: selectedState,
-                    device: selectedDevice,
-                    holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
-                    applyController: applyController,
-                    editorController: editorController,
-                    scheduleButtonHydration: true
-                )
-                scheduleSelectedDeviceLightingHydration(device: selectedDevice)
-            }
-            if deviceStore.errorMessage != nil {
-                deviceStore.errorMessage = nil
-                didApplySnapshotChange = true
-            }
-            if selectedDevice.transport == .usb, usbControlAvailability(for: selectedDevice).blocksUSBControlInteraction {
-                if deviceStore.warningMessage != nil {
-                    deviceStore.warningMessage = nil
-                    didApplySnapshotChange = true
-                }
-            } else {
-                setTelemetryWarning(editorController.telemetryWarning(for: selectedState, device: selectedDevice), device: selectedDevice)
-            }
-        } else if let selectedDeviceID = deviceStore.selectedDeviceID {
-            if deviceListChanged {
-                syncSelectedDevicePresentation(deviceID: selectedDeviceID)
-            }
-            if deviceStore.errorMessage != nil {
-                deviceStore.errorMessage = nil
-                didApplySnapshotChange = true
-            }
-        } else {
-            if deviceStore.state != nil {
-                deviceStore.state = nil
-                didApplySnapshotChange = true
-            }
-            if deviceStore.lastUpdated != nil {
-                deviceStore.lastUpdated = nil
-                didApplySnapshotChange = true
-            }
-            if deviceStore.warningMessage != nil {
-                deviceStore.warningMessage = nil
-                didApplySnapshotChange = true
-            }
-            if deviceStore.errorMessage != nil {
-                deviceStore.errorMessage = nil
-                didApplySnapshotChange = true
-            }
+        if applySelectedRemoteSnapshotPresentation(deviceListChanged: deviceListChanged) {
+            didApplySnapshotChange = true
         }
 
         if didApplySnapshotChange {
@@ -359,6 +216,230 @@ final class AppStateDeviceController {
                 await self?.refreshDpiUpdateTransportStatuses(for: snapshot.devices)
             }
         }
+    }
+
+    private func pruneRemoteSnapshotCaches(liveIDs: Set<String>, devices: [MouseDevice]) {
+        let liveSoftwareLightingAutoStartKeys = Set(devices.map { DevicePersistenceKeys.key(for: $0) })
+        remoteSnapshotSoftwareLightingAutoStartKeys.formIntersection(liveSoftwareLightingAutoStartKeys)
+        stateCacheByDeviceID = stateCacheByDeviceID.filter { liveIDs.contains($0.key) }
+        lastUpdatedByDeviceID = lastUpdatedByDeviceID.filter { liveIDs.contains($0.key) }
+        lastStateMutationAtByDeviceID = lastStateMutationAtByDeviceID.filter { liveIDs.contains($0.key) }
+        usbControlAvailabilityByDeviceID = usbControlAvailabilityByDeviceID.filter { liveIDs.contains($0.key) }
+        pruneUSBPhysicalConnectSettling(liveIDs: liveIDs)
+    }
+
+    private func applyRemoteSoftwareLightingStatuses(
+        _ snapshot: SharedServiceSnapshot,
+        liveIDs: Set<String>
+    ) -> Bool {
+        let previousStatuses = deviceStore.softwareLightingStatusByDeviceID
+        var nextStatuses = snapshot.softwareLightingStatusByDeviceID.filter { liveIDs.contains($0.key) }
+        for (deviceID, previousStatus) in previousStatuses where liveIDs.contains(deviceID) {
+            guard previousStatus.state == .running else { continue }
+            if let snapshotStatus = nextStatuses[deviceID], previousStatus.updatedAt <= snapshotStatus.updatedAt {
+                continue
+            }
+            nextStatuses[deviceID] = previousStatus
+        }
+        guard previousStatuses != nextStatuses else { return false }
+        deviceStore.softwareLightingStatusByDeviceID = nextStatuses
+        return true
+    }
+
+    private func applyRemoteUSBControlAvailability(
+        _ snapshot: SharedServiceSnapshot,
+        liveIDs: Set<String>
+    ) {
+        for (deviceID, availability) in snapshot.usbControlAvailabilityByDeviceID where liveIDs.contains(deviceID) {
+            setUSBControlAvailability(
+                availability,
+                for: deviceID,
+                observedAt: snapshot.observedAtByDeviceID[deviceID] ?? Date()
+            )
+        }
+    }
+
+    private func applyRemoteStateCache(
+        _ snapshot: SharedServiceSnapshot,
+        liveIDs: Set<String>
+    ) -> Bool {
+        var didApplySnapshotChange = false
+        for (deviceID, remoteState) in snapshot.stateByDeviceID where liveIDs.contains(deviceID) {
+            let snapshotUpdatedAt = snapshot.lastUpdatedByDeviceID[deviceID] ?? Date()
+            applyRemoteUSBObservationIfNeeded(snapshot, deviceID: deviceID, remoteState: remoteState, updatedAt: snapshotUpdatedAt)
+            if shouldDropSupersededRemoteState(deviceID: deviceID, updatedAt: snapshotUpdatedAt) {
+                continue
+            }
+            if stateCacheByDeviceID[deviceID] != remoteState ||
+                lastUpdatedByDeviceID[deviceID] != snapshotUpdatedAt {
+                didApplySnapshotChange = true
+                stateCacheByDeviceID[deviceID] = remoteState
+                lastUpdatedByDeviceID[deviceID] = snapshotUpdatedAt
+            }
+            lastStateMutationAtByDeviceID[deviceID] = snapshotUpdatedAt
+            if clearConnectionFailureState(sourceDeviceID: deviceID, presentationDeviceID: deviceID) {
+                didApplySnapshotChange = true
+            }
+        }
+        return didApplySnapshotChange
+    }
+
+    private func applyRemoteUSBObservationIfNeeded(
+        _ snapshot: SharedServiceSnapshot,
+        deviceID: String,
+        remoteState: MouseState,
+        updatedAt snapshotUpdatedAt: Date
+    ) {
+        guard remoteState.device.transport == .usb else { return }
+        if snapshot.usbControlAvailabilityByDeviceID[deviceID] == nil {
+            setUSBControlAvailability(
+                .receiverPresentMouseReachable,
+                for: deviceID,
+                observedAt: snapshot.observedAtByDeviceID[deviceID] ?? Date()
+            )
+        }
+        guard snapshot.usbControlAvailabilityByDeviceID[deviceID]?.blocksUSBControlInteraction != true else { return }
+        let observedAt = max(snapshot.observedAtByDeviceID[deviceID] ?? snapshotUpdatedAt, snapshotUpdatedAt)
+        recordUSBLiveObservation(
+            sourceDeviceID: deviceID,
+            presentationDeviceID: deviceID,
+            observedAt: observedAt,
+            transportStatus: .pollingFallback
+        )
+    }
+
+    private func shouldDropSupersededRemoteState(deviceID: String, updatedAt snapshotUpdatedAt: Date) -> Bool {
+        guard let latestCachedAt = lastUpdatedByDeviceID[deviceID], latestCachedAt > snapshotUpdatedAt else {
+            return false
+        }
+        AppLog.debug(
+            "AppState",
+            "remoteSnapshot superseded-drop device=\(deviceID) updatedAt=\(snapshotUpdatedAt.timeIntervalSince1970) " +
+            "cachedAt=\(latestCachedAt.timeIntervalSince1970)"
+        )
+        return true
+    }
+
+    private func applySelectedRemoteSnapshotPresentation(deviceListChanged: Bool) -> Bool {
+        if let selectedDeviceID = deviceStore.selectedDeviceID,
+           let selectedState = stateCacheByDeviceID[selectedDeviceID],
+           let selectedDevice = deviceStore.selectedDevice {
+            return applySelectedRemoteState(
+                selectedDeviceID: selectedDeviceID,
+                selectedState: selectedState,
+                selectedDevice: selectedDevice,
+                deviceListChanged: deviceListChanged
+            )
+        }
+        if let selectedDeviceID = deviceStore.selectedDeviceID {
+            return applyMissingSelectedRemoteState(selectedDeviceID: selectedDeviceID, deviceListChanged: deviceListChanged)
+        }
+        return clearRemoteSelectionPresentation()
+    }
+
+    private func applySelectedRemoteState(
+        selectedDeviceID: String,
+        selectedState: MouseState,
+        selectedDevice: MouseDevice,
+        deviceListChanged: Bool
+    ) -> Bool {
+        var didApplySnapshotChange = false
+        let activeStage = selectedState.dpi_stages.active_stage.map(String.init) ?? "nil"
+        let dpi = Self.diagnosticDpiPair(selectedState.dpi)
+        let values = selectedState.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil"
+        let scroll = Self.diagnosticScrollState(selectedState)
+        let pendingLocal = String(applyController.hasPendingLocalEdits)
+        let pendingActive = applyController.pendingActiveStageSelection(for: selectedDevice).map(String.init) ?? "nil"
+        AppLog.debug(
+            "AppState",
+            "remoteSnapshot selected device=\(selectedDeviceID) " +
+            "active=\(activeStage) " +
+            "dpi=\(dpi) " +
+            "values=\(values) " +
+            "scroll=\(scroll) " +
+            "pendingLocal=\(pendingLocal) " +
+            "pendingActive=\(pendingActive)"
+        )
+        let selectedLastUpdated = lastUpdatedByDeviceID[selectedDeviceID]
+        let selectedStateChanged = deviceStore.state != selectedState
+        let selectedLastUpdatedChanged = deviceStore.lastUpdated != selectedLastUpdated
+        if selectedStateChanged {
+            deviceStore.state = selectedState
+            didApplySnapshotChange = true
+        }
+        if selectedLastUpdatedChanged {
+            deviceStore.lastUpdated = selectedLastUpdated
+            didApplySnapshotChange = true
+        }
+        if selectedStateChanged || selectedLastUpdatedChanged || deviceListChanged {
+            hydrateSelectedRemoteState(selectedState, selectedDevice: selectedDevice)
+        }
+        if deviceStore.errorMessage != nil {
+            deviceStore.errorMessage = nil
+            didApplySnapshotChange = true
+        }
+        didApplySnapshotChange = clearOrUpdateSelectedRemoteWarning(
+            selectedState: selectedState,
+            selectedDevice: selectedDevice
+        ) || didApplySnapshotChange
+        return didApplySnapshotChange
+    }
+
+    private func hydrateSelectedRemoteState(_ selectedState: MouseState, selectedDevice: MouseDevice) {
+        let holdsPersistedConnectPresentation = primeSelectedConnectPresentationIfNeeded(
+            device: selectedDevice,
+            applyController: applyController,
+            editorController: editorController
+        )
+        hydrateSelectedEditorPresentation(
+            from: selectedState,
+            device: selectedDevice,
+            holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
+            applyController: applyController,
+            editorController: editorController,
+            scheduleButtonHydration: true
+        )
+        scheduleSelectedDeviceLightingHydration(device: selectedDevice)
+    }
+
+    private func clearOrUpdateSelectedRemoteWarning(selectedState: MouseState, selectedDevice: MouseDevice) -> Bool {
+        if selectedDevice.transport == .usb, usbControlAvailability(for: selectedDevice).blocksUSBControlInteraction {
+            guard deviceStore.warningMessage != nil else { return false }
+            deviceStore.warningMessage = nil
+            return true
+        }
+        setTelemetryWarning(editorController.telemetryWarning(for: selectedState, device: selectedDevice), device: selectedDevice)
+        return false
+    }
+
+    private func applyMissingSelectedRemoteState(selectedDeviceID: String, deviceListChanged: Bool) -> Bool {
+        if deviceListChanged {
+            syncSelectedDevicePresentation(deviceID: selectedDeviceID)
+        }
+        guard deviceStore.errorMessage != nil else { return false }
+        deviceStore.errorMessage = nil
+        return true
+    }
+
+    private func clearRemoteSelectionPresentation() -> Bool {
+        var didApplySnapshotChange = false
+        if deviceStore.state != nil {
+            deviceStore.state = nil
+            didApplySnapshotChange = true
+        }
+        if deviceStore.lastUpdated != nil {
+            deviceStore.lastUpdated = nil
+            didApplySnapshotChange = true
+        }
+        if deviceStore.warningMessage != nil {
+            deviceStore.warningMessage = nil
+            didApplySnapshotChange = true
+        }
+        if deviceStore.errorMessage != nil {
+            deviceStore.errorMessage = nil
+            didApplySnapshotChange = true
+        }
+        return didApplySnapshotChange
     }
 
     private func scheduleRemoteSnapshotSoftwareLightingAutoStart(for devices: [MouseDevice]) {
@@ -444,19 +525,11 @@ final class AppStateDeviceController {
         let previous = stateCacheByDeviceID[presentationDeviceID] ?? stateCacheByDeviceID[deviceID]
         let merged = updatedState.merged(with: previous)
         let shouldFocusOnActivity = shouldFocusServiceSelectionOnActivity(previous: previous, next: merged)
-        AppLog.debug(
-            "AppState",
-            "backendStateUpdate apply device=\(presentationDeviceID) source=\(deviceID) " +
-            "incomingActive=\(updatedState.dpi_stages.active_stage.map(String.init) ?? "nil") " +
-            "incomingDpi=\(Self.diagnosticDpiPair(updatedState.dpi)) " +
-            "incomingScroll=\(Self.diagnosticScrollState(updatedState)) " +
-            "mergedActive=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
-            "mergedDpi=\(Self.diagnosticDpiPair(merged.dpi)) " +
-            "mergedValues=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
-            "mergedScroll=\(Self.diagnosticScrollState(merged)) " +
-            "selected=\(deviceStore.selectedDeviceID ?? "nil") " +
-            "pendingLocal=\(applyController.hasPendingLocalEdits) " +
-            "pendingActive=\(applyController.pendingActiveStageSelection(for: presentationDevice).map(String.init) ?? "nil")"
+        logBackendStateUpdate(
+            sourceDeviceID: deviceID,
+            presentationDevice: presentationDevice,
+            incoming: updatedState,
+            merged: merged
         )
 
         cacheState(merged, sourceDeviceID: deviceID, presentationDeviceID: presentationDeviceID, updatedAt: updatedAt)
@@ -480,26 +553,61 @@ final class AppStateDeviceController {
         }
         runtimeController.updateStatusItemTransientDpi(previous: previous, next: merged, deviceID: presentationDeviceID)
 
-        if deviceStore.selectedDeviceID == presentationDeviceID {
-            if deviceStore.state != merged {
-                deviceStore.state = merged
-            }
-            let holdsPersistedConnectPresentation = primeSelectedConnectPresentationIfNeeded(
-                device: presentationDevice,
-                applyController: applyController,
-                editorController: editorController
-            )
-            hydrateSelectedEditorPresentation(
-                from: merged,
-                device: presentationDevice,
-                holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
-                applyController: applyController,
-                editorController: editorController,
-                scheduleButtonHydration: true
-            )
-            deviceStore.errorMessage = nil
-            setTelemetryWarning(editorController.telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)
+        applySelectedBackendStateUpdate(merged, presentationDevice: presentationDevice)
+    }
+
+    private func logBackendStateUpdate(
+        sourceDeviceID: String,
+        presentationDevice: MouseDevice,
+        incoming updatedState: MouseState,
+        merged: MouseState
+    ) {
+        let incomingActive = updatedState.dpi_stages.active_stage.map(String.init) ?? "nil"
+        let incomingDpi = Self.diagnosticDpiPair(updatedState.dpi)
+        let incomingScroll = Self.diagnosticScrollState(updatedState)
+        let mergedActive = merged.dpi_stages.active_stage.map(String.init) ?? "nil"
+        let mergedDpi = Self.diagnosticDpiPair(merged.dpi)
+        let mergedValues = merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil"
+        let mergedScroll = Self.diagnosticScrollState(merged)
+        let selectedDeviceID = deviceStore.selectedDeviceID ?? "nil"
+        let pendingLocal = String(applyController.hasPendingLocalEdits)
+        let pendingActive = applyController.pendingActiveStageSelection(for: presentationDevice).map(String.init) ?? "nil"
+        AppLog.debug(
+            "AppState",
+            "backendStateUpdate apply device=\(presentationDevice.id) source=\(sourceDeviceID) " +
+            "incomingActive=\(incomingActive) " +
+            "incomingDpi=\(incomingDpi) " +
+            "incomingScroll=\(incomingScroll) " +
+            "mergedActive=\(mergedActive) " +
+            "mergedDpi=\(mergedDpi) " +
+            "mergedValues=\(mergedValues) " +
+            "mergedScroll=\(mergedScroll) " +
+            "selected=\(selectedDeviceID) " +
+            "pendingLocal=\(pendingLocal) " +
+            "pendingActive=\(pendingActive)"
+        )
+    }
+
+    private func applySelectedBackendStateUpdate(_ merged: MouseState, presentationDevice: MouseDevice) {
+        guard deviceStore.selectedDeviceID == presentationDevice.id else { return }
+        if deviceStore.state != merged {
+            deviceStore.state = merged
         }
+        let holdsPersistedConnectPresentation = primeSelectedConnectPresentationIfNeeded(
+            device: presentationDevice,
+            applyController: applyController,
+            editorController: editorController
+        )
+        hydrateSelectedEditorPresentation(
+            from: merged,
+            device: presentationDevice,
+            holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
+            applyController: applyController,
+            editorController: editorController,
+            scheduleButtonHydration: true
+        )
+        deviceStore.errorMessage = nil
+        setTelemetryWarning(editorController.telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)
     }
 
     func applyBackendDpiTransportStatusUpdate(deviceID: String, status: DpiUpdateTransportStatus, updatedAt: Date) {
@@ -1669,49 +1777,12 @@ final class AppStateDeviceController {
 
     @discardableResult
     func refreshState(for device: MouseDevice) async -> Bool {
-        guard !isTearingDown else { return false }
-        guard !isStrictlyUnsupported(device) else { return false }
-        guard !refreshingStateDeviceIDs.contains(device.id) else { return false }
-        guard !isRestoringSettings(for: device) else {
-            AppLog.debug("AppState", "refreshState skipped restoring-settings device=\(device.id)")
-            return false
-        }
-        guard !deviceStore.isApplying else {
-            AppLog.debug("AppState", "refreshState skipped applying device=\(device.id)")
-            return false
-        }
-        guard !applyController.hasPendingLocalEditsAffecting(device) else {
-            AppLog.debug("AppState", "refreshState skipped pending-local-edits device=\(device.id)")
-            return false
-        }
-
         let now = Date()
-        if let suppressedUntil = stateRefreshSuppressedUntilByDeviceID[device.id],
-           now < suppressedUntil {
-            AppLog.debug(
-                "AppState",
-                "refreshState skipped backoff device=\(device.id) remaining=\(String(format: "%.3f", suppressedUntil.timeIntervalSince(now)))s"
-            )
-            return false
-        }
-        if Self.shouldDelayBluetoothRealtimeStateRefresh(
-            transport: device.transport,
-            transportStatus: dpiUpdateTransportStatusByDeviceID[device.id],
-            lastHeartbeatAt: lastPassiveHeartbeatAtByDeviceID[device.id],
-            lastFullStateRefreshStartedAt: lastFullStateRefreshStartedAtByDeviceID[device.id],
-            minimumRefreshInterval: runtimeController.effectiveRefreshStateInterval(
-                at: now,
-                profile: runtimeController.pollingProfile(at: now)
-            ),
-            now: now
-        ) {
-            AppLog.debug("AppState", "refreshState deferred active-bt-realtime device=\(device.id)")
+        guard canStartRefreshState(for: device, now: now) else {
             return false
         }
 
-        if deviceStore.selectedDeviceID == device.id, let cached = stateCacheByDeviceID[device.id] {
-            deviceStore.state = cached
-        }
+        presentCachedSelectedStateIfNeeded(for: device)
 
         refreshingStateDeviceIDs.insert(device.id)
         if deviceStore.selectedDeviceID == device.id {
@@ -1770,181 +1841,31 @@ final class AppStateDeviceController {
                 throw Self.usbTelemetryUnavailableError()
             }
             let latestCachedStableUpdateAt = latestCachedUpdateAt(sourceDeviceID: refreshDeviceID, presentationDeviceID: presentationDeviceID)
-            if let latestCachedMutationAt = latestCachedMutationAt(sourceDeviceID: refreshDeviceID, presentationDeviceID: presentationDeviceID),
-               latestCachedMutationAt > start,
-               let latestCachedState {
-                if latestCachedState.differsOnlyInDynamicDpiState(from: cachedStateBeforeRefresh) {
-                    let merged = latestCachedState.mergedWithStableReadTelemetry(from: fetched)
-                    let updatedAt = Date()
-                    cacheState(merged, sourceDeviceID: refreshDeviceID, presentationDeviceID: presentationDeviceID, updatedAt: updatedAt)
-                    // Track when the full read started so passive-HID throttling
-                    // preserves the configured poll cadence instead of adding the
-                    // vendor-read latency to every interval.
-                    lastFullStateRefreshStartedAtByDeviceID[refreshDeviceID] = start
-                    lastFullStateRefreshStartedAtByDeviceID[presentationDeviceID] = start
-                    if device.transport == .usb {
-                        recordUSBLiveObservation(
-                            sourceDeviceID: refreshDeviceID,
-                            presentationDeviceID: presentationDeviceID,
-                            observedAt: updatedAt
-                        )
-                    }
-                    refreshFailureCountByDeviceID[refreshDeviceID] = 0
-                    refreshFailureCountByDeviceID[presentationDeviceID] = 0
-                    stateRefreshSuppressedUntilByDeviceID[refreshDeviceID] = nil
-                    stateRefreshSuppressedUntilByDeviceID[presentationDeviceID] = nil
-                    usbTelemetryUnavailableBackoffDeviceIDs.remove(refreshDeviceID)
-                    usbTelemetryUnavailableBackoffDeviceIDs.remove(presentationDeviceID)
-                    unavailableDeviceIDs.remove(refreshDeviceID)
-                    unavailableDeviceIDs.remove(presentationDeviceID)
-
-                    if deviceStore.selectedDeviceID == presentationDeviceID {
-                        if deviceStore.state != merged {
-                            deviceStore.state = merged
-                        }
-                        let holdsPersistedConnectPresentation = primeSelectedConnectPresentationIfNeeded(
-                            device: presentationDevice,
-                            applyController: applyController,
-                            editorController: editorController
-                        )
-                        let hydratedEditable = hydrateSelectedEditorPresentation(
-                            from: merged,
-                            device: presentationDevice,
-                            holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
-                            applyController: applyController,
-                            editorController: editorController,
-                            scheduleButtonHydration: false
-                        )
-                        if hydratedEditable {
-                            scheduleSelectedEditorHydration(device: presentationDevice)
-                        }
-                        deviceStore.errorMessage = nil
-                        setTelemetryWarning(editorController.telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)
-                    }
-                    await restorePersistedSettingsIfNeeded(for: presentationDevice)
-                    return true
-                }
-                AppLog.debug(
-                    "AppState",
-                    "refreshState superseded-drop device=\(presentationDeviceID) startedAt=\(start.timeIntervalSince1970) " +
-                    "cachedAt=\(latestCachedStableUpdateAt?.timeIntervalSince1970 ?? 0) mutationAt=\(latestCachedMutationAt.timeIntervalSince1970)"
-                )
-                return false
-            }
-            if shouldPreferRecentDynamicDpiMutation(
-                over: fetched,
+            if let handledRecentDpi = await handleRecentDynamicDpiRefreshIfNeeded(
+                fetched: fetched,
                 latestCachedState: latestCachedState,
-                latestCachedMutationAt: latestCachedMutationAt(sourceDeviceID: refreshDeviceID, presentationDeviceID: presentationDeviceID),
-                latestCachedStableUpdateAt: latestCachedStableUpdateAt
-            ),
-               let latestCachedState {
-                let merged = latestCachedState.mergedWithStableReadTelemetry(from: fetched)
-                let updatedAt = Date()
-                cacheState(merged, sourceDeviceID: refreshDeviceID, presentationDeviceID: presentationDeviceID, updatedAt: updatedAt)
-                lastFullStateRefreshStartedAtByDeviceID[refreshDeviceID] = start
-                lastFullStateRefreshStartedAtByDeviceID[presentationDeviceID] = start
-                if device.transport == .usb {
-                    recordUSBLiveObservation(
-                        sourceDeviceID: refreshDeviceID,
-                        presentationDeviceID: presentationDeviceID,
-                        observedAt: updatedAt
-                    )
-                }
-                refreshFailureCountByDeviceID[refreshDeviceID] = 0
-                refreshFailureCountByDeviceID[presentationDeviceID] = 0
-                stateRefreshSuppressedUntilByDeviceID[refreshDeviceID] = nil
-                stateRefreshSuppressedUntilByDeviceID[presentationDeviceID] = nil
-                usbTelemetryUnavailableBackoffDeviceIDs.remove(refreshDeviceID)
-                usbTelemetryUnavailableBackoffDeviceIDs.remove(presentationDeviceID)
-                unavailableDeviceIDs.remove(refreshDeviceID)
-                unavailableDeviceIDs.remove(presentationDeviceID)
-
-                if deviceStore.selectedDeviceID == presentationDeviceID {
-                    if deviceStore.state != merged {
-                        deviceStore.state = merged
-                    }
-                    let holdsPersistedConnectPresentation = primeSelectedConnectPresentationIfNeeded(
-                        device: presentationDevice,
-                        applyController: applyController,
-                        editorController: editorController
-                    )
-                    let hydratedEditable = hydrateSelectedEditorPresentation(
-                        from: merged,
-                        device: presentationDevice,
-                        holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
-                        applyController: applyController,
-                        editorController: editorController,
-                        scheduleButtonHydration: false
-                    )
-                    if hydratedEditable {
-                        scheduleSelectedEditorHydration(device: presentationDevice)
-                    }
-                    deviceStore.errorMessage = nil
-                    setTelemetryWarning(editorController.telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)
-                }
-                await restorePersistedSettingsIfNeeded(for: presentationDevice)
-
-                AppLog.debug(
-                    "AppState",
-                    "refreshState merged recent-fast-dpi device=\(presentationDeviceID) active=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
-                    "values=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
-                    "scroll=\(Self.diagnosticScrollState(merged))"
-                )
-                return true
+                cachedStateBeforeRefresh: cachedStateBeforeRefresh,
+                latestCachedStableUpdateAt: latestCachedStableUpdateAt,
+                sourceDevice: device,
+                presentationDevice: presentationDevice,
+                sourceDeviceID: refreshDeviceID,
+                start: start
+            ) {
+                return handledRecentDpi
             }
             let previous = stateCacheByDeviceID[presentationDeviceID] ?? stateCacheByDeviceID[refreshDeviceID]
             let merged = fetched.merged(with: previous)
             let shouldFocusOnActivity = shouldFocusServiceSelectionOnActivity(previous: previous, next: merged)
-            let updatedAt = Date()
-            cacheState(merged, sourceDeviceID: refreshDeviceID, presentationDeviceID: presentationDeviceID, updatedAt: updatedAt)
-            if device.transport == .usb {
-                recordUSBLiveObservation(
-                    sourceDeviceID: refreshDeviceID,
-                    presentationDeviceID: presentationDeviceID,
-                    observedAt: updatedAt
-                )
-            }
-            seededReconnectStateDeviceIDs.remove(refreshDeviceID)
-            seededReconnectStateDeviceIDs.remove(presentationDeviceID)
-            lastFullStateRefreshStartedAtByDeviceID[refreshDeviceID] = start
-            lastFullStateRefreshStartedAtByDeviceID[presentationDeviceID] = start
-            refreshFailureCountByDeviceID[refreshDeviceID] = 0
-            refreshFailureCountByDeviceID[presentationDeviceID] = 0
-            stateRefreshSuppressedUntilByDeviceID[refreshDeviceID] = nil
-            stateRefreshSuppressedUntilByDeviceID[presentationDeviceID] = nil
-            usbTelemetryUnavailableBackoffDeviceIDs.remove(refreshDeviceID)
-            usbTelemetryUnavailableBackoffDeviceIDs.remove(presentationDeviceID)
-            unavailableDeviceIDs.remove(refreshDeviceID)
-            unavailableDeviceIDs.remove(presentationDeviceID)
-            if shouldFocusOnActivity {
-                focusServiceSelectionOnActivity(deviceID: presentationDeviceID)
-            }
-            runtimeController.updateStatusItemTransientDpi(previous: previous, next: merged, deviceID: presentationDeviceID)
-
-            if deviceStore.selectedDeviceID == presentationDeviceID {
-                if deviceStore.state != merged {
-                    deviceStore.state = merged
-                }
-                let holdsPersistedConnectPresentation = primeSelectedConnectPresentationIfNeeded(
-                    device: presentationDevice,
-                    applyController: applyController,
-                    editorController: editorController
-                )
-                let hydratedEditable = hydrateSelectedEditorPresentation(
-                    from: merged,
-                    device: presentationDevice,
-                    holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
-                    applyController: applyController,
-                    editorController: editorController,
-                    scheduleButtonHydration: false
-                )
-                if hydratedEditable {
-                    scheduleSelectedEditorHydration(device: presentationDevice)
-                }
-                deviceStore.errorMessage = nil
-                setTelemetryWarning(editorController.telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)
-            }
-            await restorePersistedSettingsIfNeeded(for: presentationDevice)
+            await finishSuccessfulRefreshState(
+                merged,
+                sourceDevice: device,
+                presentationDevice: presentationDevice,
+                previous: previous,
+                sourceDeviceID: refreshDeviceID,
+                start: start,
+                shouldFocusOnActivity: shouldFocusOnActivity,
+                clearSeededReconnectState: true
+            )
 
             AppLog.debug(
                 "AppState",
@@ -1955,114 +1876,406 @@ final class AppStateDeviceController {
             )
             return true
         } catch {
-            let presentationDeviceID = presentationDevice(for: device)?.id ?? refreshDeviceID
-            let failures = (refreshFailureCountByDeviceID[presentationDeviceID] ?? 0) + 1
-            refreshFailureCountByDeviceID[refreshDeviceID] = failures
-            refreshFailureCountByDeviceID[presentationDeviceID] = failures
-            let isAvailabilityFailure = Self.isDeviceAvailabilityMessage(error.localizedDescription)
-            let usbControlAvailabilityFailure: USBControlAvailability?
-            if device.transport == .usb, BridgeClient.isUSBTelemetryUnavailableError(error) {
-                usbControlAvailabilityFailure = .receiverPresentMouseUnavailable
-            } else if device.transport == .usb,
-                      isAvailabilityFailure,
-                      Self.isDeviceNotAvailableMessage(error.localizedDescription) {
-                usbControlAvailabilityFailure = .receiverAbsent
-            } else {
-                usbControlAvailabilityFailure = nil
-            }
-            let isUSBTelemetryUnavailable =
-                usbControlAvailabilityFailure == .receiverPresentMouseUnavailable
-            if let usbControlAvailabilityFailure {
-                setUSBControlAvailability(usbControlAvailabilityFailure, for: refreshDeviceID)
-                setUSBControlAvailability(usbControlAvailabilityFailure, for: presentationDeviceID)
-            }
-            if isUSBTelemetryUnavailable {
-                usbTelemetryUnavailableBackoffDeviceIDs.insert(refreshDeviceID)
-                usbTelemetryUnavailableBackoffDeviceIDs.insert(presentationDeviceID)
-            }
-            let hasCachedPresentationState =
-                stateCacheByDeviceID[presentationDeviceID] != nil ||
-                stateCacheByDeviceID[refreshDeviceID] != nil ||
-                (deviceStore.selectedDeviceID == presentationDeviceID && deviceStore.state != nil)
-            let hasSeededReconnectState = seededReconnectStateDeviceIDs.contains(presentationDeviceID)
-            let isRecoveringUSBAvailability =
-                device.transport == .usb &&
-                isAvailabilityFailure &&
-                !isUSBTelemetryUnavailable &&
-                (hasCachedPresentationState || hasSeededReconnectState)
-            let shouldTreatAsHardAvailabilityFailure =
-                isAvailabilityFailure &&
-                !isUSBTelemetryUnavailable &&
-                !isRecoveringUSBAvailability
-            if shouldTreatAsHardAvailabilityFailure {
-                unavailableDeviceIDs.insert(refreshDeviceID)
-                unavailableDeviceIDs.insert(presentationDeviceID)
-            }
+            return handleRefreshStateFailure(error, device: device, refreshDeviceID: refreshDeviceID)
+        }
+    }
 
-            if isAvailabilityFailure || isUSBTelemetryUnavailable || deviceStore.selectedDeviceID != presentationDeviceID {
-                let suppressedUntil = Date().addingTimeInterval(
-                    stateRefreshBackoffInterval(for: device, failures: failures, error: error)
-                )
-                stateRefreshSuppressedUntilByDeviceID[refreshDeviceID] = suppressedUntil
-                stateRefreshSuppressedUntilByDeviceID[presentationDeviceID] = suppressedUntil
-                AppLog.debug(
-                    "AppState",
-                    "refreshState backoff device=\(presentationDeviceID) selected=\(deviceStore.selectedDeviceID == presentationDeviceID) failures=\(failures) " +
-                    "until=\(suppressedUntil.timeIntervalSince1970): \(error.localizedDescription)"
-                )
-            }
+    private func canStartRefreshState(for device: MouseDevice, now: Date) -> Bool {
+        guard !isTearingDown else { return false }
+        guard !isStrictlyUnsupported(device) else { return false }
+        guard !refreshingStateDeviceIDs.contains(device.id) else { return false }
+        guard !isRestoringSettings(for: device) else {
+            AppLog.debug("AppState", "refreshState skipped restoring-settings device=\(device.id)")
+            return false
+        }
+        guard !deviceStore.isApplying else {
+            AppLog.debug("AppState", "refreshState skipped applying device=\(device.id)")
+            return false
+        }
+        guard !applyController.hasPendingLocalEditsAffecting(device) else {
+            AppLog.debug("AppState", "refreshState skipped pending-local-edits device=\(device.id)")
+            return false
+        }
+        guard !isRefreshBackoffActive(for: device, now: now) else { return false }
+        return !shouldDeferBluetoothRealtimeRefresh(for: device, now: now)
+    }
 
-            guard deviceStore.selectedDeviceID == presentationDeviceID else {
-                AppLog.debug("AppState", "refreshState masked non-selected failure device=\(presentationDeviceID): \(error.localizedDescription)")
-                return false
-            }
+    private func isRefreshBackoffActive(for device: MouseDevice, now: Date) -> Bool {
+        guard let suppressedUntil = stateRefreshSuppressedUntilByDeviceID[device.id], now < suppressedUntil else {
+            return false
+        }
+        AppLog.debug(
+            "AppState",
+            "refreshState skipped backoff device=\(device.id) remaining=\(String(format: "%.3f", suppressedUntil.timeIntervalSince(now)))s"
+        )
+        return true
+    }
 
-            if isUSBTelemetryUnavailable {
-                deviceStore.errorMessage = nil
-                deviceStore.warningMessage = nil
-                if !hasCachedPresentationState {
-                    deviceStore.state = nil
-                    deviceStore.lastUpdated = nil
-                }
-                return false
-            }
+    private func shouldDeferBluetoothRealtimeRefresh(for device: MouseDevice, now: Date) -> Bool {
+        let shouldDefer = Self.shouldDelayBluetoothRealtimeStateRefresh(
+            transport: device.transport,
+            transportStatus: dpiUpdateTransportStatusByDeviceID[device.id],
+            lastHeartbeatAt: lastPassiveHeartbeatAtByDeviceID[device.id],
+            lastFullStateRefreshStartedAt: lastFullStateRefreshStartedAtByDeviceID[device.id],
+            minimumRefreshInterval: runtimeController.effectiveRefreshStateInterval(
+                at: now,
+                profile: runtimeController.pollingProfile(at: now)
+            ),
+            now: now
+        )
+        if shouldDefer {
+            AppLog.debug("AppState", "refreshState deferred active-bt-realtime device=\(device.id)")
+        }
+        return shouldDefer
+    }
 
-            if shouldTreatAsHardAvailabilityFailure {
+    private func presentCachedSelectedStateIfNeeded(for device: MouseDevice) {
+        guard deviceStore.selectedDeviceID == device.id, let cached = stateCacheByDeviceID[device.id] else { return }
+        deviceStore.state = cached
+    }
+
+    private func handleRecentDynamicDpiRefreshIfNeeded(
+        fetched: MouseState,
+        latestCachedState: MouseState?,
+        cachedStateBeforeRefresh: MouseState?,
+        latestCachedStableUpdateAt: Date?,
+        sourceDevice: MouseDevice,
+        presentationDevice: MouseDevice,
+        sourceDeviceID: String,
+        start: Date
+    ) async -> Bool? {
+        let presentationDeviceID = presentationDevice.id
+        let latestMutationAt = latestCachedMutationAt(
+            sourceDeviceID: sourceDeviceID,
+            presentationDeviceID: presentationDeviceID
+        )
+        if let latestMutationAt, latestMutationAt > start {
+            return await handleConcurrentDynamicDpiMutation(
+                latestMutationAt: latestMutationAt,
+                latestCachedState: latestCachedState,
+                cachedStateBeforeRefresh: cachedStateBeforeRefresh,
+                fetched: fetched,
+                latestCachedStableUpdateAt: latestCachedStableUpdateAt,
+                sourceDevice: sourceDevice,
+                presentationDevice: presentationDevice,
+                sourceDeviceID: sourceDeviceID,
+                start: start
+            )
+        }
+        guard shouldPreferRecentDynamicDpiMutation(
+            over: fetched,
+            latestCachedState: latestCachedState,
+            latestCachedMutationAt: latestMutationAt,
+            latestCachedStableUpdateAt: latestCachedStableUpdateAt
+        ),
+              let latestCachedState else {
+            return nil
+        }
+
+        let merged = latestCachedState.mergedWithStableReadTelemetry(from: fetched)
+        await finishSuccessfulRefreshState(
+            merged,
+            sourceDevice: sourceDevice,
+            presentationDevice: presentationDevice,
+            previous: nil,
+            sourceDeviceID: sourceDeviceID,
+            start: start,
+            shouldFocusOnActivity: false,
+            clearSeededReconnectState: false
+        )
+        AppLog.debug(
+            "AppState",
+            "refreshState merged recent-fast-dpi device=\(presentationDevice.id) active=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
+            "values=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
+            "scroll=\(Self.diagnosticScrollState(merged))"
+        )
+        return true
+    }
+
+    private func handleConcurrentDynamicDpiMutation(
+        latestMutationAt: Date,
+        latestCachedState: MouseState?,
+        cachedStateBeforeRefresh: MouseState?,
+        fetched: MouseState,
+        latestCachedStableUpdateAt: Date?,
+        sourceDevice: MouseDevice,
+        presentationDevice: MouseDevice,
+        sourceDeviceID: String,
+        start: Date
+    ) async -> Bool {
+        if let latestCachedState,
+           latestCachedState.differsOnlyInDynamicDpiState(from: cachedStateBeforeRefresh) {
+            let merged = latestCachedState.mergedWithStableReadTelemetry(from: fetched)
+            await finishSuccessfulRefreshState(
+                merged,
+                sourceDevice: sourceDevice,
+                presentationDevice: presentationDevice,
+                previous: nil,
+                sourceDeviceID: sourceDeviceID,
+                start: start,
+                shouldFocusOnActivity: false,
+                clearSeededReconnectState: false
+            )
+            return true
+        }
+        AppLog.debug(
+            "AppState",
+            "refreshState superseded-drop device=\(presentationDevice.id) startedAt=\(start.timeIntervalSince1970) " +
+            "cachedAt=\(latestCachedStableUpdateAt?.timeIntervalSince1970 ?? 0) mutationAt=\(latestMutationAt.timeIntervalSince1970)"
+        )
+        return false
+    }
+
+    private func finishSuccessfulRefreshState(
+        _ merged: MouseState,
+        sourceDevice: MouseDevice,
+        presentationDevice: MouseDevice,
+        previous: MouseState?,
+        sourceDeviceID: String,
+        start: Date,
+        shouldFocusOnActivity: Bool,
+        clearSeededReconnectState: Bool
+    ) async {
+        let presentationDeviceID = presentationDevice.id
+        let updatedAt = Date()
+        cacheState(merged, sourceDeviceID: sourceDeviceID, presentationDeviceID: presentationDeviceID, updatedAt: updatedAt)
+        if sourceDevice.transport == .usb {
+            recordUSBLiveObservation(
+                sourceDeviceID: sourceDeviceID,
+                presentationDeviceID: presentationDeviceID,
+                observedAt: updatedAt
+            )
+        }
+        if clearSeededReconnectState {
+            seededReconnectStateDeviceIDs.remove(sourceDeviceID)
+            seededReconnectStateDeviceIDs.remove(presentationDeviceID)
+        }
+        // Track when the full read started so passive-HID throttling preserves
+        // the configured poll cadence instead of adding vendor-read latency.
+        lastFullStateRefreshStartedAtByDeviceID[sourceDeviceID] = start
+        lastFullStateRefreshStartedAtByDeviceID[presentationDeviceID] = start
+        clearRefreshFailureState(sourceDeviceID: sourceDeviceID, presentationDeviceID: presentationDeviceID)
+        if shouldFocusOnActivity {
+            focusServiceSelectionOnActivity(deviceID: presentationDeviceID)
+        }
+        if let previous {
+            runtimeController.updateStatusItemTransientDpi(previous: previous, next: merged, deviceID: presentationDeviceID)
+        }
+        applySelectedSuccessfulRefreshState(merged, presentationDevice: presentationDevice)
+        await restorePersistedSettingsIfNeeded(for: presentationDevice)
+    }
+
+    private func clearRefreshFailureState(sourceDeviceID: String, presentationDeviceID: String) {
+        refreshFailureCountByDeviceID[sourceDeviceID] = 0
+        refreshFailureCountByDeviceID[presentationDeviceID] = 0
+        stateRefreshSuppressedUntilByDeviceID[sourceDeviceID] = nil
+        stateRefreshSuppressedUntilByDeviceID[presentationDeviceID] = nil
+        usbTelemetryUnavailableBackoffDeviceIDs.remove(sourceDeviceID)
+        usbTelemetryUnavailableBackoffDeviceIDs.remove(presentationDeviceID)
+        unavailableDeviceIDs.remove(sourceDeviceID)
+        unavailableDeviceIDs.remove(presentationDeviceID)
+    }
+
+    private func applySelectedSuccessfulRefreshState(_ merged: MouseState, presentationDevice: MouseDevice) {
+        guard deviceStore.selectedDeviceID == presentationDevice.id else { return }
+        if deviceStore.state != merged {
+            deviceStore.state = merged
+        }
+        let holdsPersistedConnectPresentation = primeSelectedConnectPresentationIfNeeded(
+            device: presentationDevice,
+            applyController: applyController,
+            editorController: editorController
+        )
+        let hydratedEditable = hydrateSelectedEditorPresentation(
+            from: merged,
+            device: presentationDevice,
+            holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
+            applyController: applyController,
+            editorController: editorController,
+            scheduleButtonHydration: false
+        )
+        if hydratedEditable {
+            scheduleSelectedEditorHydration(device: presentationDevice)
+        }
+        deviceStore.errorMessage = nil
+        setTelemetryWarning(editorController.telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)
+    }
+
+    private struct RefreshFailureContext {
+        let presentationDeviceID: String
+        let failures: Int
+        let isAvailabilityFailure: Bool
+        let isUSBTelemetryUnavailable: Bool
+        let hasCachedPresentationState: Bool
+        let isRecoveringUSBAvailability: Bool
+        let shouldTreatAsHardAvailabilityFailure: Bool
+    }
+
+    private func handleRefreshStateFailure(
+        _ error: Error,
+        device: MouseDevice,
+        refreshDeviceID: String
+    ) -> Bool {
+        let context = refreshFailureContext(error, device: device, refreshDeviceID: refreshDeviceID)
+        applyRefreshFailureBackoffIfNeeded(context, error: error, device: device, refreshDeviceID: refreshDeviceID)
+
+        guard deviceStore.selectedDeviceID == context.presentationDeviceID else {
+            AppLog.debug("AppState", "refreshState masked non-selected failure device=\(context.presentationDeviceID): \(error.localizedDescription)")
+            return false
+        }
+        return surfaceSelectedRefreshFailure(context, error: error, device: device)
+    }
+
+    private func refreshFailureContext(
+        _ error: Error,
+        device: MouseDevice,
+        refreshDeviceID: String
+    ) -> RefreshFailureContext {
+        let presentationDeviceID = presentationDevice(for: device)?.id ?? refreshDeviceID
+        let failures = (refreshFailureCountByDeviceID[presentationDeviceID] ?? 0) + 1
+        refreshFailureCountByDeviceID[refreshDeviceID] = failures
+        refreshFailureCountByDeviceID[presentationDeviceID] = failures
+
+        let isAvailabilityFailure = Self.isDeviceAvailabilityMessage(error.localizedDescription)
+        let usbControlAvailabilityFailure = usbControlAvailabilityFailure(
+            error,
+            device: device,
+            isAvailabilityFailure: isAvailabilityFailure
+        )
+        let isUSBTelemetryUnavailable = usbControlAvailabilityFailure == .receiverPresentMouseUnavailable
+        if let usbControlAvailabilityFailure {
+            setUSBControlAvailability(usbControlAvailabilityFailure, for: refreshDeviceID)
+            setUSBControlAvailability(usbControlAvailabilityFailure, for: presentationDeviceID)
+        }
+        if isUSBTelemetryUnavailable {
+            usbTelemetryUnavailableBackoffDeviceIDs.insert(refreshDeviceID)
+            usbTelemetryUnavailableBackoffDeviceIDs.insert(presentationDeviceID)
+        }
+
+        let hasCachedPresentationState = hasCachedState(sourceDeviceID: refreshDeviceID, presentationDeviceID: presentationDeviceID)
+        let hasSeededReconnectState = seededReconnectStateDeviceIDs.contains(presentationDeviceID)
+        let isRecoveringUSBAvailability =
+            device.transport == .usb &&
+            isAvailabilityFailure &&
+            !isUSBTelemetryUnavailable &&
+            (hasCachedPresentationState || hasSeededReconnectState)
+        let shouldTreatAsHardAvailabilityFailure =
+            isAvailabilityFailure &&
+            !isUSBTelemetryUnavailable &&
+            !isRecoveringUSBAvailability
+        if shouldTreatAsHardAvailabilityFailure {
+            unavailableDeviceIDs.insert(refreshDeviceID)
+            unavailableDeviceIDs.insert(presentationDeviceID)
+        }
+
+        return RefreshFailureContext(
+            presentationDeviceID: presentationDeviceID,
+            failures: failures,
+            isAvailabilityFailure: isAvailabilityFailure,
+            isUSBTelemetryUnavailable: isUSBTelemetryUnavailable,
+            hasCachedPresentationState: hasCachedPresentationState,
+            isRecoveringUSBAvailability: isRecoveringUSBAvailability,
+            shouldTreatAsHardAvailabilityFailure: shouldTreatAsHardAvailabilityFailure
+        )
+    }
+
+    private func usbControlAvailabilityFailure(
+        _ error: Error,
+        device: MouseDevice,
+        isAvailabilityFailure: Bool
+    ) -> USBControlAvailability? {
+        guard device.transport == .usb else { return nil }
+        if BridgeClient.isUSBTelemetryUnavailableError(error) {
+            return .receiverPresentMouseUnavailable
+        }
+        if isAvailabilityFailure, Self.isDeviceNotAvailableMessage(error.localizedDescription) {
+            return .receiverAbsent
+        }
+        return nil
+    }
+
+    private func hasCachedState(sourceDeviceID: String, presentationDeviceID: String) -> Bool {
+        stateCacheByDeviceID[presentationDeviceID] != nil ||
+            stateCacheByDeviceID[sourceDeviceID] != nil ||
+            (deviceStore.selectedDeviceID == presentationDeviceID && deviceStore.state != nil)
+    }
+
+    private func applyRefreshFailureBackoffIfNeeded(
+        _ context: RefreshFailureContext,
+        error: Error,
+        device: MouseDevice,
+        refreshDeviceID: String
+    ) {
+        guard context.isAvailabilityFailure ||
+            context.isUSBTelemetryUnavailable ||
+            deviceStore.selectedDeviceID != context.presentationDeviceID else {
+            return
+        }
+        let suppressedUntil = Date().addingTimeInterval(
+            stateRefreshBackoffInterval(for: device, failures: context.failures, error: error)
+        )
+        stateRefreshSuppressedUntilByDeviceID[refreshDeviceID] = suppressedUntil
+        stateRefreshSuppressedUntilByDeviceID[context.presentationDeviceID] = suppressedUntil
+        AppLog.debug(
+            "AppState",
+            "refreshState backoff device=\(context.presentationDeviceID) " +
+            "selected=\(deviceStore.selectedDeviceID == context.presentationDeviceID) failures=\(context.failures) " +
+            "until=\(suppressedUntil.timeIntervalSince1970): \(error.localizedDescription)"
+        )
+    }
+
+    private func surfaceSelectedRefreshFailure(
+        _ context: RefreshFailureContext,
+        error: Error,
+        device: MouseDevice
+    ) -> Bool {
+        if context.isUSBTelemetryUnavailable {
+            deviceStore.errorMessage = nil
+            deviceStore.warningMessage = nil
+            if !context.hasCachedPresentationState {
                 deviceStore.state = nil
                 deviceStore.lastUpdated = nil
-                deviceStore.warningMessage = nil
-                deviceStore.errorMessage = error.localizedDescription
-                return false
-            }
-
-            if stateCacheByDeviceID[presentationDeviceID] == nil {
-                AppLog.error(
-                    "AppState",
-                    "refreshState failed device=\(presentationDeviceID) transport=\(device.transport.rawValue) no-cache: \(error.localizedDescription)"
-                )
-                deviceStore.errorMessage = isUSBTelemetryUnavailable || isRecoveringUSBAvailability
-                    ? nil
-                    : error.localizedDescription
-                deviceStore.warningMessage = nil
-            } else {
-                AppLog.debug("AppState", "refreshState transient-failure masked: \(error.localizedDescription)")
-                if isUSBTelemetryUnavailable || isRecoveringUSBAvailability {
-                    deviceStore.errorMessage = nil
-                } else if failures >= 3 {
-                    if failures == 3 {
-                        AppLog.warning(
-                            "AppState",
-                            "device read unstable device=\(presentationDeviceID) failures=\(failures): \(error.localizedDescription)"
-                        )
-                    }
-                    deviceStore.errorMessage = "Device read is failing repeatedly (\(failures)x): \(error.localizedDescription)"
-                } else {
-                    deviceStore.errorMessage = nil
-                }
-                deviceStore.warningMessage = "Using the last known values while live telemetry settles."
             }
             return false
         }
+
+        if context.shouldTreatAsHardAvailabilityFailure {
+            deviceStore.state = nil
+            deviceStore.lastUpdated = nil
+            deviceStore.warningMessage = nil
+            deviceStore.errorMessage = error.localizedDescription
+            return false
+        }
+
+        if stateCacheByDeviceID[context.presentationDeviceID] == nil {
+            AppLog.error(
+                "AppState",
+                "refreshState failed device=\(context.presentationDeviceID) transport=\(device.transport.rawValue) no-cache: \(error.localizedDescription)"
+            )
+            deviceStore.errorMessage = context.isRecoveringUSBAvailability ? nil : error.localizedDescription
+            deviceStore.warningMessage = nil
+        } else {
+            surfaceTransientRefreshFailure(context, error: error)
+        }
+        return false
+    }
+
+    private func surfaceTransientRefreshFailure(_ context: RefreshFailureContext, error: Error) {
+        AppLog.debug("AppState", "refreshState transient-failure masked: \(error.localizedDescription)")
+        if context.isRecoveringUSBAvailability {
+            deviceStore.errorMessage = nil
+        } else if context.failures >= 3 {
+            if context.failures == 3 {
+                AppLog.warning(
+                    "AppState",
+                    "device read unstable device=\(context.presentationDeviceID) failures=\(context.failures): \(error.localizedDescription)"
+                )
+            }
+            deviceStore.errorMessage = "Device read is failing repeatedly (\(context.failures)x): \(error.localizedDescription)"
+        } else {
+            deviceStore.errorMessage = nil
+        }
+        deviceStore.warningMessage = "Using the last known values while live telemetry settles."
     }
 
     private func shouldTreatPartialUSBTelemetryAsUnavailable(
@@ -2096,7 +2309,7 @@ final class AppStateDeviceController {
 
     private func refreshDpiFast(for device: MouseDevice, now: Date) async {
         guard !isTearingDown else { return }
-        guard device.transport == .bluetooth || device.transport == .usb else { return }
+        guard device.transport.supportsHIDBackedControls else { return }
         guard !isStrictlyUnsupported(device) else { return }
         guard !refreshingFastDpiDeviceIDs.contains(device.id) else { return }
         guard !refreshingStateDeviceIDs.contains(device.id) else { return }

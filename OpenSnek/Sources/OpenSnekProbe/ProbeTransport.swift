@@ -679,14 +679,26 @@ final class USBProbeClient: @unchecked Sendable {
 
     private func customFrameColors(frameIndex: Int) -> [RGBPatch] {
         let cellCount = customFrameCellCount
-        return (0..<cellCount).map { index in
-            let hue = (Double(index) / Double(cellCount)) + (Double(frameIndex) * 0.04)
-            let phase = hue - floor(hue)
-            let red = Int(round((0.5 + 0.5 * sin(phase * .pi * 2.0)) * 255.0))
-            let green = Int(round((0.5 + 0.5 * sin((phase + 0.333) * .pi * 2.0)) * 255.0))
-            let blue = Int(round((0.5 + 0.5 * sin((phase + 0.666) * .pi * 2.0)) * 255.0))
-            return RGBPatch(r: red, g: green, b: blue)
+        var colors: [RGBPatch] = []
+        colors.reserveCapacity(cellCount)
+        for index in 0..<cellCount {
+            colors.append(customFrameColor(cellIndex: index, cellCount: cellCount, frameIndex: frameIndex))
         }
+        return colors
+    }
+
+    private func customFrameColor(cellIndex: Int, cellCount: Int, frameIndex: Int) -> RGBPatch {
+        let hue = (Double(cellIndex) / Double(cellCount)) + (Double(frameIndex) * 0.04)
+        let phase = hue - floor(hue)
+        let red = customFrameColorChannel(phase: phase)
+        let green = customFrameColorChannel(phase: phase + 0.333)
+        let blue = customFrameColorChannel(phase: phase + 0.666)
+        return RGBPatch(r: red, g: green, b: blue)
+    }
+
+    private func customFrameColorChannel(phase: Double) -> Int {
+        let value = (0.5 + 0.5 * sin(phase * .pi * 2.0)) * 255.0
+        return Int(round(value))
     }
 
     private func rawCommandUnlocked(
@@ -2309,7 +2321,7 @@ actor ProbeBridge {
 
     func setDpi(active: Int, values: [Int]) async throws -> DpiSnapshot {
         let current = try await readDpi()
-        let count = max(1, min(5, values.count))
+        let count = DeviceProfiles.clampDpiStageCount(values.count)
         let mergedSlots = BLEVendorProtocol.mergedStageSlots(
             currentSlots: current.slots,
             requestedCount: count,

@@ -1,6 +1,5 @@
 import XCTest
 import OpenSnekCore
-@testable import OpenSnek
 
 final class SupportedDevicePresentationTests: XCTestCase {
     func testSupportedDeviceCatalogProfilesHavePresentationInputs() {

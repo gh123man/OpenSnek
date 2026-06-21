@@ -313,29 +313,15 @@ struct ServiceMenuBarView: View {
                 let stage = index + 1
                 let stagePair = editorStore.stagePair(index)
                 let isSelected = editorStore.editableActiveStage == stage
-                Button {
+                CompactStagePickerButton(
+                    title: stageDisplayText(stagePair),
+                    isSelected: isSelected
+                ) {
                     if !isSelected {
                         editorStore.setEditableActiveStage(stage, source: "ui.menu.stagePicker")
                         editorStore.scheduleAutoApplyActiveStage()
                     }
-                } label: {
-                    Text(stageDisplayText(stagePair))
-                        .font(.system(size: 11, weight: .black, design: .rounded))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .foregroundStyle(isSelected ? Color.accentColor : .primary)
-                        .frame(maxWidth: .infinity, minHeight: 34)
-                        .background(
-                            Capsule()
-                                .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.06))
-                        )
-                        .overlay(
-                            Capsule()
-                                .stroke(isSelected ? Color.accentColor : Color.primary.opacity(0.10), lineWidth: 1)
-                        )
-                        .contentShape(Capsule())
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -532,6 +518,41 @@ struct ServiceMenuBarView: View {
         await runtimeStore.refreshHIDAccessStatus(forceRefresh: false)
         guard let device = deviceStore.selectedDevice else { return }
         await deviceStore.refreshConnectionDiagnostics(for: device)
+    }
+}
+
+private struct CompactStagePickerButton: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            stageLabel
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var stageLabel: some View {
+        Text(title)
+            .font(.system(size: 11, weight: .black, design: .rounded))
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .foregroundStyle(isSelected ? Color.accentColor : .primary)
+            .frame(maxWidth: .infinity, minHeight: 34)
+            .background(stageBackground)
+            .overlay(stageBorder)
+            .contentShape(Capsule())
+    }
+
+    private var stageBackground: some View {
+        Capsule()
+            .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.06))
+    }
+
+    private var stageBorder: some View {
+        Capsule()
+            .stroke(isSelected ? Color.accentColor : Color.primary.opacity(0.10), lineWidth: 1)
     }
 }
 

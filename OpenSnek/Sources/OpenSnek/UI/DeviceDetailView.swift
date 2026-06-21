@@ -140,12 +140,10 @@ private enum DetailSection: Hashable {
 
 struct LightingSwatch: Identifiable, Hashable {
     let hex: UInt32
-    let color: Color
     let rgb: OpenSnekCore.RGBColor
 
     init(hex: UInt32) {
         self.hex = hex
-        self.color = Color(hex: hex)
         self.rgb = OpenSnekCore.RGBColor(
             r: Int((hex >> 16) & 0xFF),
             g: Int((hex >> 8) & 0xFF),
@@ -472,34 +470,7 @@ struct DeviceConnectingDetailView: View {
             VStack(alignment: .leading, spacing: 18) {
                 GenericDeviceOverviewBar(deviceStore: deviceStore, selected: selected)
 
-                VStack(spacing: 18) {
-                    ProgressView()
-                        .controlSize(.large)
-                        .tint(.white.opacity(0.92))
-
-                    VStack(spacing: 8) {
-                        Text(headline)
-                            .font(.system(size: 24, weight: .black, design: .rounded))
-                            .foregroundStyle(.white)
-
-                        Text(subtitle)
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.68))
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: 320)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 42)
-                .background(
-                    RoundedRectangle(cornerRadius: 28)
-                        .fill(Color.white.opacity(0.04))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 28)
-                                .stroke(Color.white.opacity(0.10), lineWidth: 1)
-                        )
-                )
+                DeviceConnectionLoadingCard(headline: headline, subtitle: subtitle)
 
                 DiagnosticsFooter(deviceStore: deviceStore, device: selected, state: nil)
             }
@@ -531,6 +502,55 @@ struct DeviceConnectingDetailView: View {
         case .usb:
             "Reading device settings and preparing controls."
         }
+    }
+}
+
+private struct DeviceConnectionLoadingCard: View {
+    let headline: String
+    let subtitle: String
+
+    var body: some View {
+        DeviceConnectionLoadingContent(headline: headline, subtitle: subtitle)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 42)
+        .background(DeviceConnectionLoadingBackground())
+    }
+}
+
+private struct DeviceConnectionLoadingContent: View {
+    let headline: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(spacing: 18) {
+            ProgressView()
+                .controlSize(.large)
+                .tint(.white.opacity(0.92))
+
+            VStack(spacing: 8) {
+                Text(headline)
+                    .font(.system(size: 24, weight: .black, design: .rounded))
+                    .foregroundStyle(.white)
+
+                Text(subtitle)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.68))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 320)
+            }
+        }
+    }
+}
+
+private struct DeviceConnectionLoadingBackground: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 28)
+            .fill(Color.white.opacity(0.04))
+            .overlay(
+                RoundedRectangle(cornerRadius: 28)
+                    .stroke(Color.white.opacity(0.10), lineWidth: 1)
+            )
     }
 }
 
@@ -627,18 +647,7 @@ struct DeviceStatusBadge: View {
     var helpText: String?
 
     var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(indicator.color)
-                .frame(width: 9, height: 9)
-                .shadow(color: indicator.color.opacity(0.45), radius: 6, y: 0)
-
-            Text(indicator.label)
-                .font(.system(size: 11, weight: .black, design: .rounded))
-                .foregroundStyle(.white.opacity(0.82))
-                .accessibilityIdentifier("device-status-label")
-                .accessibilityLabel(indicator.label)
-        }
+        DeviceStatusBadgeContent(indicator: indicator)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(
@@ -654,6 +663,25 @@ struct DeviceStatusBadge: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(indicator.label)
         .accessibilityIdentifier("device-status-badge")
+    }
+}
+
+private struct DeviceStatusBadgeContent: View {
+    let indicator: DeviceStatusIndicator
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(indicator.color)
+                .frame(width: 9, height: 9)
+                .shadow(color: indicator.color.opacity(0.45), radius: 6, y: 0)
+
+            Text(indicator.label)
+                .font(.system(size: 11, weight: .black, design: .rounded))
+                .foregroundStyle(.white.opacity(0.82))
+                .accessibilityIdentifier("device-status-label")
+                .accessibilityLabel(indicator.label)
+        }
     }
 }
 
@@ -691,67 +719,14 @@ struct DeviceDiagnosticsSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Device Diagnostics")
-                        .font(.system(size: 21, weight: .black, design: .rounded))
-                    Text(device.product_name)
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Button("Copy") {
-                    copyDiagnostics()
-                }
-                .buttonStyle(.borderedProminent)
-
-                Button("Done") {
-                    dismiss()
-                }
-                .buttonStyle(.bordered)
-            }
+            DeviceDiagnosticsSheetHeader(deviceName: device.product_name, copy: copyDiagnostics, done: { dismiss() })
 
             Text("Use this dump in bug reports when a device is unsupported, partially supported, or behaving unexpectedly.")
                 .hintTextStyle()
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Connection Paths")
-                    .font(.system(size: 12, weight: .black, design: .rounded))
-                ForEach(deviceStore.diagnosticsConnectionLines(for: device), id: \.self) { line in
-                    Text(line)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.black.opacity(0.04))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                    )
-            )
+            DeviceDiagnosticsConnectionPanel(lines: deviceStore.diagnosticsConnectionLines(for: device))
 
-            ScrollView {
-                Text(diagnosticsText)
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
-                    .padding(12)
-            }
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.black.opacity(0.05))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                    )
-            )
+            DeviceDiagnosticsTextPanel(text: diagnosticsText)
         }
         .padding(18)
         .frame(minWidth: 760, minHeight: 540, alignment: .topLeading)
@@ -763,6 +738,81 @@ struct DeviceDiagnosticsSheet: View {
     private func copyDiagnostics() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(diagnosticsText, forType: .string)
+    }
+}
+
+private struct DeviceDiagnosticsSheetHeader: View {
+    let deviceName: String
+    let copy: () -> Void
+    let done: () -> Void
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Device Diagnostics")
+                    .font(.system(size: 21, weight: .black, design: .rounded))
+                Text(deviceName)
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button("Copy", action: copy)
+                .buttonStyle(.borderedProminent)
+
+            Button("Done", action: done)
+                .buttonStyle(.bordered)
+        }
+    }
+}
+
+private struct DeviceDiagnosticsConnectionPanel: View {
+    let lines: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Connection Paths")
+                .font(.system(size: 12, weight: .black, design: .rounded))
+            ForEach(lines, id: \.self) { line in
+                Text(line)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.black.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct DeviceDiagnosticsTextPanel: View {
+    let text: String
+
+    var body: some View {
+        ScrollView {
+            Text(text)
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled)
+                .padding(12)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.black.opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+        )
     }
 }
 
@@ -956,10 +1006,6 @@ struct LightingCard: View {
 
     private var softwareLightingIsRunning: Bool {
         softwareLightingStatus?.state == .running
-    }
-
-    private var summarizesSoftwareLighting: Bool {
-        selected.supportsSoftwareLightingEffects && softwareLightingIsRunning
     }
 
     private var lightingSummaryTitle: String {
@@ -1877,80 +1923,87 @@ struct SoftwareLightingPaletteEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                Text("Palette")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.82))
-
-                Spacer(minLength: 12)
-
-                Button(action: onReset) {
-                    Label("Reset", systemImage: "arrow.counterclockwise")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .accessibilityIdentifier("software-lighting-palette-reset-button")
-            }
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: 0) {
-                    ForEach(Array(palette.indices), id: \.self) { index in
-                        VStack(spacing: 5) {
-                            LightingColorOrbPicker(
-                                title: "\(preset.label) palette color \(index + 1)",
-                                identifierPrefix: "software-lighting-palette-\(index)",
-                                color: paletteBinding(index),
-                                swatches: swatches
-                            )
-
-                            if maximumPaletteColorCount > 1 {
-                                Button {
-                                    onRemove(index)
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.system(size: 13, weight: .semibold))
-                                }
-                                .buttonStyle(.plain)
-                                .foregroundStyle(palette.count > 1 ? Color.white.opacity(0.62) : Color.white.opacity(0.24))
-                                .disabled(palette.count <= 1)
-                                .help("Remove color")
-                                .accessibilityLabel("Remove palette color \(index + 1)")
-                                .accessibilityIdentifier("software-lighting-palette-\(index)-remove-button")
-                            } else {
-                                Color.clear
-                                    .frame(width: 13, height: 13)
-                            }
-                        }
-                        .frame(width: 44)
-                    }
-
-                    if maximumPaletteColorCount > 1 {
-                        Button(action: onAdd) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 22, weight: .semibold))
-                                .frame(width: 44, height: 44)
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(
-                            palette.count < maximumPaletteColorCount
-                                ? Color.white.opacity(0.86)
-                                : Color.white.opacity(0.34)
-                        )
-                        .disabled(palette.count >= maximumPaletteColorCount)
-                        .help("Add color")
-                        .accessibilityLabel("Add palette color")
-                        .accessibilityIdentifier("software-lighting-palette-add-button")
-                        .frame(width: 44)
-                        .padding(.top, 0)
-                        .padding(.bottom, 18)
-                        .opacity(palette.count < maximumPaletteColorCount ? 1 : 0.55)
-                    }
-                }
-                .padding(.vertical, 8)
-                .padding(.horizontal, 4)
-            }
-            .accessibilityIdentifier("software-lighting-palette-list")
+            paletteHeader
+            paletteList
         }
+    }
+
+    private var paletteHeader: some View {
+        HStack(spacing: 12) {
+            Text("Palette")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.82))
+
+            Spacer(minLength: 12)
+
+            Button(action: onReset) {
+                Label("Reset", systemImage: "arrow.counterclockwise")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .accessibilityIdentifier("software-lighting-palette-reset-button")
+        }
+    }
+
+    private var paletteList: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .top, spacing: 0) {
+                ForEach(Array(palette.indices), id: \.self) { index in
+                    paletteColorItem(index)
+                }
+
+                if maximumPaletteColorCount > 1 {
+                    addColorButton
+                }
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 4)
+        }
+        .accessibilityIdentifier("software-lighting-palette-list")
+    }
+
+    private func paletteColorItem(_ index: Int) -> some View {
+        VStack(spacing: 5) {
+            LightingColorOrbPicker(
+                title: "\(preset.label) palette color \(index + 1)",
+                identifierPrefix: "software-lighting-palette-\(index)",
+                color: paletteBinding(index),
+                swatches: swatches
+            )
+
+            if maximumPaletteColorCount > 1 {
+                PaletteRemoveColorButton(
+                    index: index,
+                    canRemove: palette.count > 1,
+                    remove: { onRemove(index) }
+                )
+            } else {
+                PaletteRemoveColorPlaceholder()
+            }
+        }
+        .frame(width: 44)
+    }
+
+    private var addColorButton: some View {
+        Button(action: onAdd) {
+            Image(systemName: "plus.circle.fill")
+                .font(.system(size: 22, weight: .semibold))
+                .frame(width: 44, height: 44)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(
+            palette.count < maximumPaletteColorCount
+                ? Color.white.opacity(0.86)
+                : Color.white.opacity(0.34)
+        )
+        .disabled(palette.count >= maximumPaletteColorCount)
+        .help("Add color")
+        .accessibilityLabel("Add palette color")
+        .accessibilityIdentifier("software-lighting-palette-add-button")
+        .frame(width: 44)
+        .padding(.top, 0)
+        .padding(.bottom, 18)
+        .opacity(palette.count < maximumPaletteColorCount ? 1 : 0.55)
     }
 
     private func paletteBinding(_ index: Int) -> Binding<RGBColor> {
@@ -1975,72 +2028,47 @@ struct SoftwareLightingPaletteEditor: View {
     }
 }
 
-struct LightingColorEditor: View {
-    let title: String
-    var identifierPrefix: String? = nil
-    @Binding var color: OpenSnekCore.RGBColor
-    let swatches: [LightingSwatch]
+private struct PaletteRemoveColorButton: View {
+    let index: Int
+    let canRemove: Bool
+    let remove: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.74))
-
-            HStack(spacing: 8) {
-                ForEach(swatches) { swatch in
-                    ColorSwatchButton(
-                        color: swatch.color,
-                        isSelected: swatch.rgb == color,
-                        action: { color = swatch.rgb }
-                    )
-                }
-            }
-
-            RGBSliderRow(
-                label: "R",
-                accessibilityIdentifier: identifierPrefix.map { "\($0)-red-slider" },
-                tint: Color.red,
-                value: Binding(
-                    get: { color.r },
-                    set: { color.r = max(0, min(255, $0)) }
-                )
-            )
-
-            RGBSliderRow(
-                label: "G",
-                accessibilityIdentifier: identifierPrefix.map { "\($0)-green-slider" },
-                tint: Color.green,
-                value: Binding(
-                    get: { color.g },
-                    set: { color.g = max(0, min(255, $0)) }
-                )
-            )
-
-            RGBSliderRow(
-                label: "B",
-                accessibilityIdentifier: identifierPrefix.map { "\($0)-blue-slider" },
-                tint: Color.blue,
-                value: Binding(
-                    get: { color.b },
-                    set: { color.b = max(0, min(255, $0)) }
-                )
-            )
-
-            Text(String(format: "#%02X%02X%02X", color.r, color.g, color.b))
-                .font(.system(size: 12, weight: .bold, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.82))
+        Button(action: remove) {
+            PaletteRemoveColorIcon()
         }
-        .padding(8)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(0.04))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-        )
-        .optionalAccessibilityIdentifier(identifierPrefix.map { "\($0)-editor" })
+        .buttonStyle(.plain)
+        .foregroundStyle(foregroundColor)
+        .disabled(!canRemove)
+        .help("Remove color")
+        .accessibilityLabel(accessibilityLabelText)
+        .accessibilityIdentifier(accessibilityID)
+    }
+
+    private var foregroundColor: Color {
+        canRemove ? Color.white.opacity(0.62) : Color.white.opacity(0.24)
+    }
+
+    private var accessibilityLabelText: String {
+        "Remove palette color \(index + 1)"
+    }
+
+    private var accessibilityID: String {
+        "software-lighting-palette-\(index)-remove-button"
+    }
+}
+
+private struct PaletteRemoveColorIcon: View {
+    var body: some View {
+        Image(systemName: "xmark.circle.fill")
+            .font(.system(size: 13, weight: .semibold))
+    }
+}
+
+private struct PaletteRemoveColorPlaceholder: View {
+    var body: some View {
+        Color.clear
+            .frame(width: 13, height: 13)
     }
 }
 
@@ -2073,6 +2101,8 @@ struct RGBSliderRow: View {
     }
 }
 
+private let maximumEditableDpiStageCount = DeviceProfiles.maximumDpiStageCount
+
 struct DpiStagesCard: View {
     let editorStore: EditorStore
 
@@ -2080,175 +2110,235 @@ struct DpiStagesCard: View {
         _ = editorStore.onboardProfilesRevision
         let profileID = editorStore.selectedDeviceProfileID
         let supportsIndependentXYDPI = editorStore.selectedDeviceSupportsIndependentXYDPI
-        let supportsMultiStage = true
-        let stageCount = supportsMultiStage ? editorStore.editableStageCount : 1
+        let stageCount = editorStore.editableStageCount
         return Card(title: "DPI Stages", accessibilityIdentifier: "dpi-stages-card") {
-            HStack {
-                Text(
-                    supportsMultiStage
-                        ? "Enabled stages: \(editorStore.editableStageCount) / 5"
-                        : "Single-stage DPI"
-                )
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.82))
-                Spacer()
-                HStack(spacing: 8) {
-                    Button {
-                        guard supportsMultiStage else { return }
-                        let next = max(1, editorStore.editableStageCount - 1)
-                        guard next != editorStore.editableStageCount else { return }
-                        editorStore.editableStageCount = next
-                        editorStore.setEditableActiveStage(
-                            min(editorStore.editableActiveStage, editorStore.editableStageCount),
-                            source: "ui.detail.stageCount.decrease"
-                        )
-                        editorStore.normalizeExpandedXYStages()
-                        editorStore.scheduleAutoApplyDpi()
-                    } label: {
-                        Image(systemName: "minus.circle.fill")
-                            .font(.system(size: 20, weight: .bold))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(supportsMultiStage && editorStore.editableStageCount > 1 ? .white : .white.opacity(0.35))
-                    .disabled(!supportsMultiStage || editorStore.editableStageCount <= 1)
-                    .accessibilityIdentifier("dpi-stage-count-decrease-button")
-
-                    Button {
-                        guard supportsMultiStage else { return }
-                        let next = min(5, editorStore.editableStageCount + 1)
-                        guard next != editorStore.editableStageCount else { return }
-                        editorStore.editableStageCount = next
-                        editorStore.normalizeExpandedXYStages()
-                        editorStore.scheduleAutoApplyDpi()
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 20, weight: .bold))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(supportsMultiStage && editorStore.editableStageCount < 5 ? .white : .white.opacity(0.35))
-                    .disabled(!supportsMultiStage || editorStore.editableStageCount >= 5)
-                    .accessibilityIdentifier("dpi-stage-count-increase-button")
-                }
-            }
+            DpiStageCountHeader(editorStore: editorStore)
 
             ForEach(0..<stageCount, id: \.self) { idx in
-                let isSelectedStage = stageCount == 1 || editorStore.editableActiveStage == (idx + 1)
-                let stageColor = stageAccent(for: idx, isSelected: isSelectedStage)
-                let stagePair = editorStore.stagePair(idx)
-                let isXYExpanded = supportsIndependentXYDPI && editorStore.isStageXYExpanded(idx)
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        stageHeader(for: idx, stageCount: stageCount, stageColor: stageColor, isSelectedStage: isSelectedStage)
-
-                        Spacer()
-
-                        if isXYExpanded {
-                            HStack(spacing: 8) {
-                                axisTextField(label: "X", value: stagePair.x, stageIndex: idx) { parsed in
-                                    editorStore.updateStageX(idx, value: parsed)
-                                    editorStore.scheduleAutoApplyDpi()
-                                }
-                                axisTextField(label: "Y", value: stagePair.y, stageIndex: idx) { parsed in
-                                    editorStore.updateStageY(idx, value: parsed)
-                                    editorStore.scheduleAutoApplyDpi()
-                                }
-                            }
-                        } else {
-                            DpiValueField(
-                                placeholder: "DPI",
-                                value: editorStore.stageValue(idx),
-                                width: 100,
-                                accessibilityIdentifier: "dpi-stage-\(idx + 1)-value-field"
-                            ) { parsed in
-                                editorStore.updateStage(idx, value: parsed)
-                                editorStore.scheduleAutoApplyDpi()
-                            }
-                        }
-
-                        if supportsIndependentXYDPI {
-                            xyToggleButton(isExpanded: isXYExpanded, tint: stageColor) {
-                                if editorStore.toggleStageXYExpansion(idx) {
-                                    editorStore.scheduleAutoApplyDpi()
-                                }
-                            }
-                        }
-                    }
-
-                    if supportsIndependentXYDPI && !isXYExpanded && stagePair.x != stagePair.y {
-                        Text("Current split: X \(stagePair.x) / Y \(stagePair.y)")
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.62))
-                    }
-
-                    if isXYExpanded {
-                        axisSlider(
-                            label: "X",
-                            value: stagePair.x,
-                            stageIndex: idx,
-                            profileID: profileID,
-                            tint: isSelectedStage ? stageColor : Color.white.opacity(0.80)
-                        ) { quantized in
-                            editorStore.updateStageX(idx, value: quantized)
-                            editorStore.scheduleAutoApplyDpi()
-                        }
-                        axisSlider(
-                            label: "Y",
-                            value: stagePair.y,
-                            stageIndex: idx,
-                            profileID: profileID,
-                            tint: isSelectedStage ? stageColor.opacity(0.8) : Color.white.opacity(0.65)
-                        ) { quantized in
-                            editorStore.updateStageY(idx, value: quantized)
-                            editorStore.scheduleAutoApplyDpi()
-                        }
-                    } else {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Slider(
-                                value: Binding(
-                                    get: {
-                                        DeviceProfiles.dpiSliderPosition(
-                                            for: editorStore.stageValue(idx),
-                                            profileID: profileID
-                                        )
-                                    },
-                                    set: { newPosition in
-                                        editorStore.updateStage(
-                                            idx,
-                                            value: DeviceProfiles.dpi(forSliderPosition: newPosition, profileID: profileID)
-                                        )
-                                        editorStore.scheduleAutoApplyDpi()
-                                    }
-                                ),
-                                in: 0...1,
-                                onEditingChanged: { editing in
-                                    editorStore.isEditingDpiControl = editing
-                                }
-                            )
-                            .tint(isSelectedStage ? stageColor : Color.white.opacity(0.80))
-                            .accessibilityIdentifier("dpi-stage-\(idx + 1)-slider")
-
-                            DpiSliderScaleMarkers(
-                                profileID: profileID,
-                                markerColor: isSelectedStage ? stageColor : Color.white.opacity(0.72)
-                            )
-                        }
-                    }
-                }
-                .padding(8)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(isSelectedStage ? stageColor.opacity(0.24) : stageColor.opacity(0.10))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(isSelectedStage ? stageColor.opacity(0.95) : stageColor.opacity(0.35), lineWidth: isSelectedStage ? 2 : 1)
-                        )
+                DpiStageRow(
+                    editorStore: editorStore,
+                    index: idx,
+                    stageCount: stageCount,
+                    profileID: profileID,
+                    supportsIndependentXYDPI: supportsIndependentXYDPI
                 )
-                .shadow(color: isSelectedStage ? stageColor.opacity(0.30) : .clear, radius: 12, y: 0)
+            }
+        }
+    }
+}
+
+private struct DpiStageCountHeader: View {
+    let editorStore: EditorStore
+
+    var body: some View {
+        HStack {
+            Text("Enabled stages: \(editorStore.editableStageCount) / \(maximumEditableDpiStageCount)")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.82))
+            Spacer()
+            HStack(spacing: 8) {
+                stageCountButton(
+                    systemName: "minus.circle.fill",
+                    isEnabled: editorStore.editableStageCount > 1,
+                    accessibilityIdentifier: "dpi-stage-count-decrease-button",
+                    action: decreaseStageCount
+                )
+                stageCountButton(
+                    systemName: "plus.circle.fill",
+                    isEnabled: editorStore.editableStageCount < maximumEditableDpiStageCount,
+                    accessibilityIdentifier: "dpi-stage-count-increase-button",
+                    action: increaseStageCount
+                )
             }
         }
     }
 
-    private func axisTextField(label: String, value: Int, stageIndex: Int, onCommit: @escaping (Int) -> Void) -> some View {
+    private func stageCountButton(
+        systemName: String,
+        isEnabled: Bool,
+        accessibilityIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 20, weight: .bold))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isEnabled ? .white : .white.opacity(0.35))
+        .disabled(!isEnabled)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private func decreaseStageCount() {
+        let next = max(1, editorStore.editableStageCount - 1)
+        guard next != editorStore.editableStageCount else { return }
+        editorStore.editableStageCount = next
+        editorStore.setEditableActiveStage(
+            min(editorStore.editableActiveStage, editorStore.editableStageCount),
+            source: "ui.detail.stageCount.decrease"
+        )
+        editorStore.normalizeExpandedXYStages()
+        editorStore.scheduleAutoApplyDpi()
+    }
+
+    private func increaseStageCount() {
+        let next = min(maximumEditableDpiStageCount, editorStore.editableStageCount + 1)
+        guard next != editorStore.editableStageCount else { return }
+        editorStore.editableStageCount = next
+        editorStore.normalizeExpandedXYStages()
+        editorStore.scheduleAutoApplyDpi()
+    }
+}
+
+private struct DpiStageRow: View {
+    let editorStore: EditorStore
+    let index: Int
+    let stageCount: Int
+    let profileID: DeviceProfileID?
+    let supportsIndependentXYDPI: Bool
+
+    private var isSelectedStage: Bool {
+        stageCount == 1 || editorStore.editableActiveStage == index + 1
+    }
+
+    private var stageColor: Color {
+        dpiStageAccent(for: index, isSelected: isSelectedStage)
+    }
+
+    private var stagePair: DpiPair {
+        editorStore.stagePair(index)
+    }
+
+    private var isXYExpanded: Bool {
+        supportsIndependentXYDPI && editorStore.isStageXYExpanded(index)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            headerRow
+            splitSummary
+            sliderControls
+        }
+        .padding(8)
+        .background(rowBackground)
+        .shadow(color: isSelectedStage ? stageColor.opacity(0.30) : .clear, radius: 12, y: 0)
+    }
+
+    private var headerRow: some View {
+        HStack {
+            DpiStageHeader(
+                editorStore: editorStore,
+                index: index,
+                stageCount: stageCount,
+                stageColor: stageColor,
+                isSelectedStage: isSelectedStage
+            )
+
+            Spacer()
+
+            stageValueControls
+
+            if supportsIndependentXYDPI {
+                DpiStageXYToggleButton(isExpanded: isXYExpanded, tint: stageColor) {
+                    if editorStore.toggleStageXYExpansion(index) {
+                        editorStore.scheduleAutoApplyDpi()
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var stageValueControls: some View {
+        if isXYExpanded {
+            HStack(spacing: 8) {
+                DpiStageAxisTextField(label: "X", value: stagePair.x, stageIndex: index) { parsed in
+                    editorStore.updateStageX(index, value: parsed)
+                    editorStore.scheduleAutoApplyDpi()
+                }
+                DpiStageAxisTextField(label: "Y", value: stagePair.y, stageIndex: index) { parsed in
+                    editorStore.updateStageY(index, value: parsed)
+                    editorStore.scheduleAutoApplyDpi()
+                }
+            }
+        } else {
+            DpiValueField(
+                placeholder: "DPI",
+                value: editorStore.stageValue(index),
+                width: 100,
+                accessibilityIdentifier: "dpi-stage-\(index + 1)-value-field"
+            ) { parsed in
+                editorStore.updateStage(index, value: parsed)
+                editorStore.scheduleAutoApplyDpi()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var splitSummary: some View {
+        if supportsIndependentXYDPI && !isXYExpanded && stagePair.x != stagePair.y {
+            Text("Current split: X \(stagePair.x) / Y \(stagePair.y)")
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.62))
+        }
+    }
+
+    @ViewBuilder
+    private var sliderControls: some View {
+        if isXYExpanded {
+            DpiStageAxisSlider(
+                editorStore: editorStore,
+                label: "X",
+                value: stagePair.x,
+                stageIndex: index,
+                profileID: profileID,
+                tint: isSelectedStage ? stageColor : Color.white.opacity(0.80)
+            ) { quantized in
+                editorStore.updateStageX(index, value: quantized)
+                editorStore.scheduleAutoApplyDpi()
+            }
+            DpiStageAxisSlider(
+                editorStore: editorStore,
+                label: "Y",
+                value: stagePair.y,
+                stageIndex: index,
+                profileID: profileID,
+                tint: isSelectedStage ? stageColor.opacity(0.8) : Color.white.opacity(0.65)
+            ) { quantized in
+                editorStore.updateStageY(index, value: quantized)
+                editorStore.scheduleAutoApplyDpi()
+            }
+        } else {
+            DpiStageSingleSlider(
+                editorStore: editorStore,
+                index: index,
+                profileID: profileID,
+                tint: isSelectedStage ? stageColor : Color.white.opacity(0.80),
+                markerColor: isSelectedStage ? stageColor : Color.white.opacity(0.72)
+            )
+        }
+    }
+
+    private var rowBackground: some View {
+        RoundedRectangle(cornerRadius: 10)
+            .fill(isSelectedStage ? stageColor.opacity(0.24) : stageColor.opacity(0.10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(
+                        isSelectedStage ? stageColor.opacity(0.95) : stageColor.opacity(0.35),
+                        lineWidth: isSelectedStage ? 2 : 1
+                    )
+            )
+    }
+}
+
+private struct DpiStageAxisTextField: View {
+    let label: String
+    let value: Int
+    let stageIndex: Int
+    let onCommit: (Int) -> Void
+
+    var body: some View {
         HStack(spacing: 6) {
             Text(label)
                 .font(.system(size: 11, weight: .black, design: .monospaced))
@@ -2263,8 +2353,14 @@ struct DpiStagesCard: View {
             }
         }
     }
+}
 
-    private func xyToggleButton(isExpanded: Bool, tint: Color, action: @escaping () -> Void) -> some View {
+private struct DpiStageXYToggleButton: View {
+    let isExpanded: Bool
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
         Button(action: action) {
             Text("X/Y")
                 .font(.system(size: 10, weight: .black, design: .monospaced))
@@ -2282,15 +2378,18 @@ struct DpiStagesCard: View {
         }
         .buttonStyle(.plain)
     }
+}
 
-    private func axisSlider(
-        label: String,
-        value: Int,
-        stageIndex: Int,
-        profileID: DeviceProfileID?,
-        tint: Color,
-        onChange: @escaping (Int) -> Void
-    ) -> some View {
+private struct DpiStageAxisSlider: View {
+    let editorStore: EditorStore
+    let label: String
+    let value: Int
+    let stageIndex: Int
+    let profileID: DeviceProfileID?
+    let tint: Color
+    let onChange: (Int) -> Void
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("\(label)-Axis")
                 .font(.system(size: 11, weight: .black, design: .monospaced))
@@ -2318,51 +2417,153 @@ struct DpiStagesCard: View {
             }
         }
     }
+}
 
-    @ViewBuilder
-    private func stageHeader(for index: Int, stageCount: Int, stageColor: Color, isSelectedStage: Bool) -> some View {
-        if stageCount == 1 {
-            Text("DPI")
-                .foregroundStyle(stageColor)
-        } else {
-            Button {
-                let selected = index + 1
-                if editorStore.editableActiveStage != selected {
-                    editorStore.setEditableActiveStage(selected, source: "ui.detail.stageHeader")
-                    editorStore.scheduleAutoApplyActiveStage()
+private struct DpiStageSingleSlider: View {
+    let editorStore: EditorStore
+    let index: Int
+    let profileID: DeviceProfileID?
+    let tint: Color
+    let markerColor: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Slider(
+                value: Binding(
+                    get: {
+                        DeviceProfiles.dpiSliderPosition(
+                            for: editorStore.stageValue(index),
+                            profileID: profileID
+                        )
+                    },
+                    set: { newPosition in
+                        editorStore.updateStage(
+                            index,
+                            value: DeviceProfiles.dpi(forSliderPosition: newPosition, profileID: profileID)
+                        )
+                        editorStore.scheduleAutoApplyDpi()
+                    }
+                ),
+                in: 0...1,
+                onEditingChanged: { editing in
+                    editorStore.isEditingDpiControl = editing
                 }
-            } label: {
-                Label(
-                    "Stage \(index + 1)",
-                    systemImage: editorStore.editableActiveStage == (index + 1) ? "checkmark.square.fill" : "square"
-                )
-                .labelStyle(.titleAndIcon)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(isSelectedStage ? stageColor.opacity(0.18) : Color.white.opacity(0.05))
-                )
-                .overlay(
-                    Capsule()
-                        .stroke(isSelectedStage ? stageColor.opacity(0.95) : Color.white.opacity(0.16), lineWidth: 1)
-                )
-                .contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(isSelectedStage ? stageColor : .white)
-            .accessibilityIdentifier("dpi-stage-\(index + 1)-select-button")
+            )
+            .tint(tint)
+            .accessibilityIdentifier("dpi-stage-\(index + 1)-slider")
+
+            DpiSliderScaleMarkers(profileID: profileID, markerColor: markerColor)
         }
     }
+}
 
-    private func stageAccent(for index: Int, isSelected: Bool) -> Color {
-        switch index {
-        case 0: return Color(hex: isSelected ? 0xFF6B61 : 0xFF3B30) // Red
-        case 1: return Color(hex: isSelected ? 0x5BEB7E : 0x34C759) // Green
-        case 2: return Color(hex: isSelected ? 0x4FA7FF : 0x0A84FF) // Blue
-        case 3: return Color(hex: isSelected ? 0x36F0E8 : 0x00C7BE) // Teal
-        default: return Color(hex: isSelected ? 0xFFE35A : 0xFFD60A) // Yellow
+private struct DpiStageHeader: View {
+    let editorStore: EditorStore
+    let index: Int
+    let stageCount: Int
+    let stageColor: Color
+    let isSelectedStage: Bool
+
+    var body: some View {
+        if stageCount == 1 {
+            DpiSingleStageHeader(stageColor: stageColor)
+        } else {
+            DpiSelectableStageHeader(
+                editorStore: editorStore,
+                index: index,
+                stageColor: stageColor,
+                isSelectedStage: isSelectedStage
+            )
         }
+    }
+}
+
+private struct DpiSingleStageHeader: View {
+    let stageColor: Color
+
+    var body: some View {
+        Text("DPI")
+            .foregroundStyle(stageColor)
+    }
+}
+
+private struct DpiSelectableStageHeader: View {
+    let editorStore: EditorStore
+    let index: Int
+    let stageColor: Color
+    let isSelectedStage: Bool
+
+    private var stageNumber: Int { index + 1 }
+
+    var body: some View {
+        Button(action: selectStage) {
+            DpiSelectableStageHeaderLabel(
+                stageNumber: stageNumber,
+                systemImage: editorStore.editableActiveStage == stageNumber ? "checkmark.square.fill" : "square",
+                stageColor: stageColor,
+                isSelectedStage: isSelectedStage
+            )
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isSelectedStage ? stageColor : .white)
+        .accessibilityIdentifier("dpi-stage-\(stageNumber)-select-button")
+    }
+
+    private func selectStage() {
+        guard editorStore.editableActiveStage != stageNumber else { return }
+        editorStore.setEditableActiveStage(stageNumber, source: "ui.detail.stageHeader")
+        editorStore.scheduleAutoApplyActiveStage()
+    }
+}
+
+private struct DpiSelectableStageHeaderLabel: View {
+    let stageNumber: Int
+    let systemImage: String
+    let stageColor: Color
+    let isSelectedStage: Bool
+
+    var body: some View {
+        label
+            .labelStyle(.titleAndIcon)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(backgroundShape)
+            .overlay(borderShape)
+            .contentShape(Capsule())
+    }
+
+    private var label: some View {
+        Label(title, systemImage: systemImage)
+    }
+
+    private var title: String {
+        "Stage \(stageNumber)"
+    }
+
+    private var backgroundShape: some View {
+        Capsule().fill(backgroundColor)
+    }
+
+    private var borderShape: some View {
+        Capsule().stroke(borderColor, lineWidth: 1)
+    }
+
+    private var backgroundColor: Color {
+        isSelectedStage ? stageColor.opacity(0.18) : Color.white.opacity(0.05)
+    }
+
+    private var borderColor: Color {
+        isSelectedStage ? stageColor.opacity(0.95) : Color.white.opacity(0.16)
+    }
+}
+
+private func dpiStageAccent(for index: Int, isSelected: Bool) -> Color {
+    switch index {
+    case 0: return Color(hex: isSelected ? 0xFF6B61 : 0xFF3B30) // Red
+    case 1: return Color(hex: isSelected ? 0x5BEB7E : 0x34C759) // Green
+    case 2: return Color(hex: isSelected ? 0x4FA7FF : 0x0A84FF) // Blue
+    case 3: return Color(hex: isSelected ? 0x36F0E8 : 0x00C7BE) // Teal
+    default: return Color(hex: isSelected ? 0xFFE35A : 0xFFD60A) // Yellow
     }
 }
 
@@ -2443,27 +2644,22 @@ struct PollRateCard: View {
     var body: some View {
         Card(title: "Polling Rate", accessibilityIdentifier: "poll-rate-card") {
             LabeledControlRow(title: "Rate") {
-                HStack(spacing: 0) {
-                    ForEach(Array(pollRates.enumerated()), id: \.element) { index, rate in
-                        pollRateButton(rate)
-                        if index < pollRates.count - 1 {
-                            Rectangle()
-                                .fill(Color.white.opacity(0.14))
-                                .frame(width: 1, height: 18)
-                        }
+                Picker(
+                    "Rate",
+                    selection: Binding(
+                        get: { editorStore.editablePollRate },
+                        set: { editorStore.editablePollRate = $0 }
+                    )
+                ) {
+                    ForEach(pollRates, id: \.self) { rate in
+                        Text("\(rate) Hz")
+                            .tag(rate)
+                            .accessibilityIdentifier("poll-rate-option-\(rate)")
                     }
                 }
-                .frame(width: 220, height: 30)
-                .background(
-                    RoundedRectangle(cornerRadius: 7)
-                        .fill(Color.white.opacity(0.08))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 7)
-                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 7))
-                .accessibilityElement(children: .contain)
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(width: 220, alignment: .trailing)
                 .accessibilityLabel("Polling Rate")
                 .accessibilityIdentifier("poll-rate-picker")
             }
@@ -2471,25 +2667,6 @@ struct PollRateCard: View {
         .onChange(of: editorStore.editablePollRate) { _, _ in
             editorStore.scheduleAutoApplyPollRate()
         }
-    }
-
-    private func pollRateButton(_ rate: Int) -> some View {
-        let isSelected = editorStore.editablePollRate == rate
-        return Button {
-            editorStore.editablePollRate = rate
-        } label: {
-            Text("\(rate) Hz")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(isSelected ? .white : .white.opacity(0.72))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .background(isSelected ? Color.white.opacity(0.20) : Color.clear)
-        .accessibilityIdentifier("poll-rate-option-\(rate)")
-        .accessibilityLabel("\(rate) Hz")
-        .accessibilityValue(isSelected ? "Selected" : "Not selected")
-        .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -2666,7 +2843,7 @@ struct ButtonMappingTableCard: View {
                 keyboardHidKey: editorStore.buttonBindingHidKey(for: slot.slot),
                 keyboardHidModifiers: editorStore.buttonBindingHidModifiers(for: slot.slot),
                 supportsKeyboardModifierChords: deviceStore.selectedDevice.map { device in
-                    device.transport == .usb || device.transport == .bluetooth
+                    device.transport.supportsHIDBackedControls
                 } ?? false,
                 turboEnabled: turboEnabled,
                 turboRatePressesPerSecond: turboRate,
@@ -2716,42 +2893,56 @@ private struct OnboardProfilePillButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(onboardProfileSlotColor(activeProfileID))
-                    .frame(width: 9, height: 9)
-                    .overlay(
-                        Circle()
-                            .stroke(Color.white.opacity(0.38), lineWidth: 1)
-                    )
-                    .shadow(color: onboardProfileSlotColor(activeProfileID).opacity(0.45), radius: 6, y: 0)
-                    .accessibilityHidden(true)
-
-                Text(profileName)
-                    .font(.system(size: 11, weight: .black, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.92))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: 128, alignment: .leading)
-
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .black))
-                    .foregroundStyle(.white.opacity(0.54))
-                    .accessibilityHidden(true)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                Capsule()
-                    .fill(Color.white.opacity(0.08))
-                    .overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1))
-            )
-            .contentShape(Capsule())
+            OnboardProfilePillLabel(profileID: activeProfileID, profileName: profileName)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("onboard-profile-pill-button")
         .accessibilityLabel("Onboard profile \(profileName)")
         .help("Manage onboard profiles")
+    }
+}
+
+private struct OnboardProfilePillLabel: View {
+    let profileID: Int
+    let profileName: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            profileDot
+
+            Text(profileName)
+                .font(.system(size: 11, weight: .black, design: .rounded))
+                .foregroundStyle(.white.opacity(0.92))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: 128, alignment: .leading)
+
+            Image(systemName: "chevron.down")
+                .font(.system(size: 9, weight: .black))
+                .foregroundStyle(.white.opacity(0.54))
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            Capsule()
+                .fill(Color.white.opacity(0.08))
+                .overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1))
+        )
+        .contentShape(Capsule())
+    }
+
+    private var profileDot: some View {
+        let color = onboardProfileSlotColor(profileID)
+        return Circle()
+            .fill(color)
+            .frame(width: 9, height: 9)
+            .overlay(
+                Circle()
+                    .stroke(Color.white.opacity(0.38), lineWidth: 1)
+            )
+            .shadow(color: color.opacity(0.45), radius: 6, y: 0)
+            .accessibilityHidden(true)
     }
 }
 
@@ -2938,82 +3129,30 @@ private struct OnboardProfileManagerPanel: View {
         let plusOpacity = isEmptySlot && isHovered ? 0.82 : 0.0
         let slotColor = onboardProfileSlotColor(profile.profileID)
 
-        return Button {
-            Task { await editorStore.selectOnboardProfile(profile.profileID) }
-        } label: {
-            ZStack(alignment: .topTrailing) {
-                HStack(spacing: 8) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(slotColor.opacity(profile.isAssigned || isSelected ? 0.95 : 0.45))
-                        .frame(width: 4, height: 30)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(profile.isAssigned ? profile.displayName : "None")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .foregroundStyle(Color.white.opacity(titleOpacity))
-                            .lineLimit(1)
-                        Text(profile.profileID == 1 ? "Base" : "Slot \(profile.profileID)")
-                            .font(.system(size: 10, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(subtitleOpacity))
-                    }
-                    Spacer(minLength: 0)
-                    if isEmptySlot {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundStyle(Color.white.opacity(plusOpacity))
-                            .frame(width: 22, height: 22)
-                            .accessibilityLabel("Create profile")
-                    }
-                }
-                .padding(.leading, 8)
-                .padding(.trailing, 10)
-                .padding(.vertical, 7)
-
-                if profile.isActive {
-                    Text("active")
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color(hex: 0x30D158))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule()
-                                .fill(Color(hex: 0x30D158).opacity(0.14))
-                        )
-                        .offset(x: -6, y: 5)
+        return OnboardProfileSlotRowButton(
+            profile: profile,
+            style: OnboardProfileSlotRowStyle(
+                slotColor: slotColor,
+                titleOpacity: titleOpacity,
+                subtitleOpacity: subtitleOpacity,
+                fillOpacity: fillOpacity,
+                strokeOpacity: strokeOpacity,
+                plusOpacity: plusOpacity,
+                isSelected: isSelected
+            ),
+            isBusy: isBusy,
+            accessibilityLabel: profileAccessibilityLabel(profile),
+            select: {
+                Task { await editorStore.selectOnboardProfile(profile.profileID) }
+            },
+            setHovered: { isHovered in
+                if isHovered {
+                    hoveredProfileID = profile.profileID
+                } else if hoveredProfileID == profile.profileID {
+                    hoveredProfileID = nil
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.white.opacity(fillOpacity))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(
-                        profile.isActive
-                            ? Color(hex: 0x30D158).opacity(0.95)
-                            : Color.white.opacity(strokeOpacity),
-                        lineWidth: profile.isActive ? 2 : 1
-                    )
-            )
-            .shadow(
-                color: profile.isActive ? Color(hex: 0x30D158).opacity(0.35) : .clear,
-                radius: profile.isActive ? 8 : 0,
-                x: 0,
-                y: 0
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(isBusy)
-        .accessibilityIdentifier("onboard-profile-row-\(profile.profileID)")
-        .accessibilityLabel(profileAccessibilityLabel(profile))
-        .onHover { isHovered in
-            if isHovered {
-                hoveredProfileID = profile.profileID
-            } else if hoveredProfileID == profile.profileID {
-                hoveredProfileID = nil
-            }
-        }
+        )
     }
 
     private func profileAccessibilityLabel(_ profile: OnboardProfileSummary) -> String {
@@ -3057,69 +3196,85 @@ private struct OnboardProfileManagerPanel: View {
     @ViewBuilder
     private var actionPanel: some View {
         if let selectedProfileID, let selectedSummary {
-            VStack(alignment: .leading, spacing: 12) {
-                TextField(selectedSummary.isAssigned ? "Profile name" : "Name this profile", text: $renameName)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityIdentifier("onboard-profile-name-field")
-                    .onAppear {
-                        resetNameField(forProfileID: selectedProfileID)
-                    }
-                    .onChange(of: selectedProfileID) { _, newValue in
-                        resetNameField(forProfileID: newValue)
-                    }
-                    .onChange(of: editorStore.selectedOnboardProfileName) { _, newValue in
-                        resetNameFieldFromSelectedProfileName(newValue)
-                    }
-
-                if selectedSummary.isAssigned {
-                    assignedActions(selectedProfileID: selectedProfileID)
-                } else {
-                    copyFromPicker
-                    createAction(selectedProfileID: selectedProfileID)
-                }
-
-                if let statusLabel {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text(statusLabel)
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.64))
-                    }
-                }
-
-                if selectedSummary.profileID == 1 {
-                    Spacer(minLength: 4)
-                    baseProfileWarning
-                }
-            }
+            actionPanelContent(selectedProfileID: selectedProfileID, selectedSummary: selectedSummary)
             .frame(maxWidth: .infinity, minHeight: max(0, profileListHeight - 24), alignment: .topLeading)
             .padding(.leading, connectorWidth + 10)
             .padding(.trailing, 12)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, minHeight: profileListHeight, alignment: .topLeading)
-            .background(
-                ProfileActionPanelShape(
-                    arrowCenterY: selectedArrowCenterY,
-                    arrowWidth: connectorWidth,
-                    arrowHeight: 20,
-                    cornerRadius: actionPanelCornerRadius
-                )
-                    .fill(Color.white.opacity(0.06))
-                    .overlay(
-                        ProfileActionPanelShape(
-                            arrowCenterY: selectedArrowCenterY,
-                            arrowWidth: connectorWidth,
-                            arrowHeight: 20,
-                            cornerRadius: actionPanelCornerRadius
-                        )
-                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                    )
-            )
+            .background(actionPanelBackground)
         } else {
             Color.clear
                 .frame(height: slotRowHeight)
         }
+    }
+
+    @ViewBuilder
+    private func actionPanelContent(selectedProfileID: Int, selectedSummary: OnboardProfileSummary) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            actionPanelNameField(selectedProfileID: selectedProfileID, selectedSummary: selectedSummary)
+
+            if selectedSummary.isAssigned {
+                assignedActions(selectedProfileID: selectedProfileID)
+            } else {
+                copyFromPicker
+                createAction(selectedProfileID: selectedProfileID)
+            }
+
+            actionPanelStatus
+
+            if selectedSummary.profileID == 1 {
+                Spacer(minLength: 4)
+                baseProfileWarning
+            }
+        }
+    }
+
+    private func actionPanelNameField(selectedProfileID: Int, selectedSummary: OnboardProfileSummary) -> some View {
+        TextField(selectedSummary.isAssigned ? "Profile name" : "Name this profile", text: $renameName)
+            .textFieldStyle(.roundedBorder)
+            .accessibilityIdentifier("onboard-profile-name-field")
+            .onAppear {
+                resetNameField(forProfileID: selectedProfileID)
+            }
+            .onChange(of: selectedProfileID) { _, newValue in
+                resetNameField(forProfileID: newValue)
+            }
+            .onChange(of: editorStore.selectedOnboardProfileName) { _, newValue in
+                resetNameFieldFromSelectedProfileName(newValue)
+            }
+    }
+
+    @ViewBuilder
+    private var actionPanelStatus: some View {
+        if let statusLabel {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(statusLabel)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.64))
+            }
+        }
+    }
+
+    private var actionPanelBackground: some View {
+        ProfileActionPanelShape(
+            arrowCenterY: selectedArrowCenterY,
+            arrowWidth: connectorWidth,
+            arrowHeight: 20,
+            cornerRadius: actionPanelCornerRadius
+        )
+        .fill(Color.white.opacity(0.06))
+        .overlay(
+            ProfileActionPanelShape(
+                arrowCenterY: selectedArrowCenterY,
+                arrowWidth: connectorWidth,
+                arrowHeight: 20,
+                cornerRadius: actionPanelCornerRadius
+            )
+            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
     }
 
     private var baseProfileWarning: some View {
@@ -3240,6 +3395,110 @@ private struct OnboardProfileManagerPanel: View {
     }
 }
 
+private struct OnboardProfileSlotRowStyle {
+    let slotColor: Color
+    let titleOpacity: Double
+    let subtitleOpacity: Double
+    let fillOpacity: Double
+    let strokeOpacity: Double
+    let plusOpacity: Double
+    let isSelected: Bool
+}
+
+private struct OnboardProfileSlotRowButton: View {
+    let profile: OnboardProfileSummary
+    let style: OnboardProfileSlotRowStyle
+    let isBusy: Bool
+    let accessibilityLabel: String
+    let select: () -> Void
+    let setHovered: (Bool) -> Void
+
+    var body: some View {
+        Button(action: select) {
+            rowContent
+        }
+        .buttonStyle(.plain)
+        .disabled(isBusy)
+        .accessibilityIdentifier("onboard-profile-row-\(profile.profileID)")
+        .accessibilityLabel(accessibilityLabel)
+        .onHover(perform: setHovered)
+    }
+
+    private var rowContent: some View {
+        ZStack(alignment: .topTrailing) {
+            mainContent
+            activeBadge
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.white.opacity(style.fillOpacity))
+        )
+        .overlay(rowBorder)
+        .shadow(
+            color: profile.isActive ? Color(hex: 0x30D158).opacity(0.35) : .clear,
+            radius: profile.isActive ? 8 : 0,
+            x: 0,
+            y: 0
+        )
+    }
+
+    private var mainContent: some View {
+        HStack(spacing: 8) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(style.slotColor.opacity(profile.isAssigned || style.isSelected ? 0.95 : 0.45))
+                .frame(width: 4, height: 30)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(profile.isAssigned ? profile.displayName : "None")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color.white.opacity(style.titleOpacity))
+                    .lineLimit(1)
+                Text(profile.profileID == 1 ? "Base" : "Slot \(profile.profileID)")
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(style.subtitleOpacity))
+            }
+            Spacer(minLength: 0)
+            if !profile.isAssigned {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(style.plusOpacity))
+                    .frame(width: 22, height: 22)
+                    .accessibilityLabel("Create profile")
+            }
+        }
+        .padding(.leading, 8)
+        .padding(.trailing, 10)
+        .padding(.vertical, 7)
+    }
+
+    @ViewBuilder
+    private var activeBadge: some View {
+        if profile.isActive {
+            Text("active")
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .foregroundStyle(Color(hex: 0x30D158))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(
+                    Capsule()
+                        .fill(Color(hex: 0x30D158).opacity(0.14))
+                )
+                .offset(x: -6, y: 5)
+        }
+    }
+
+    private var rowBorder: some View {
+        RoundedRectangle(cornerRadius: 8)
+            .stroke(
+                profile.isActive
+                    ? Color(hex: 0x30D158).opacity(0.95)
+                    : Color.white.opacity(style.strokeOpacity),
+                lineWidth: profile.isActive ? 2 : 1
+            )
+    }
+}
+
 private struct ProfileActionPanelShape: Shape {
     let arrowCenterY: CGFloat
     let arrowWidth: CGFloat
@@ -3284,454 +3543,61 @@ private struct ProfileActionPanelShape: Shape {
     }
 }
 
-private struct LoadButtonProfilePopover: View {
-    let editorStore: EditorStore
-    let pickerLabel: (ButtonProfileSource) -> String
-    let onSelect: (ButtonProfileSource) -> Void
-    @State private var showsSavedProfiles = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            if showsSavedProfiles {
-                savedProfilesView
-            } else {
-                rootView
-            }
-        }
-        .padding(14)
-        .frame(width: 320, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color(nsColor: .windowBackgroundColor))
-        )
-    }
-
-    private var rootView: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Saved in OpenSnek")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.62))
-
-                if editorStore.savedButtonProfiles.isEmpty {
-                    Text("No saved local profiles yet.")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.58))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                } else {
-                    loadActionButton(
-                        "Saved Profiles",
-                        trailingDetail: "\(editorStore.savedButtonProfiles.count)",
-                        trailingSystemImage: "chevron.right"
-                    ) {
-                        showsSavedProfiles = true
-                    }
-                }
-            }
-
-            Divider().overlay(Color.white.opacity(0.08))
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("On This Mouse")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.62))
-
-                ForEach(editorStore.loadableMouseButtonSources, id: \.id) { source in
-                    loadActionButton(
-                        pickerLabel(source),
-                        isDisabled: source == .mouseSlot(1)
-                    ) {
-                        onSelect(source)
-                    }
-                }
-            }
-        }
-    }
-
-    private var savedProfilesView: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Button {
-                showsSavedProfiles = false
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text("Saved Profiles")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                }
-                .foregroundStyle(.white.opacity(0.72))
-            }
-            .buttonStyle(.plain)
-
-            ForEach(editorStore.savedButtonProfiles) { profile in
-                let source = ButtonProfileSource.openSnekProfile(profile.id)
-                loadActionButton(pickerLabel(source)) {
-                    onSelect(source)
-                }
-            }
-        }
-    }
-
-    private func loadActionButton(
-        _ title: String,
-        isDisabled: Bool = false,
-        trailingDetail: String? = nil,
-        trailingSystemImage: String? = nil,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            popoverRowLabel(
-                title,
-                trailingDetail: trailingDetail,
-                trailingSystemImage: trailingSystemImage
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(isDisabled)
-        .opacity(isDisabled ? 0.45 : 1.0)
-    }
-
-    private func popoverRowLabel(
-        _ title: String,
-        trailingDetail: String? = nil,
-        trailingSystemImage: String? = nil
-    ) -> some View {
-        HStack(spacing: 8) {
-            Text(title)
-            Spacer(minLength: 8)
-            if let trailingDetail {
-                Text(trailingDetail)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.42))
-            }
-            if let trailingSystemImage {
-                Image(systemName: trailingSystemImage)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.52))
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .contentShape(Rectangle())
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(0.05))
-        )
-    }
-}
-
-private struct StoreButtonProfilePopover: View {
-    let editorStore: EditorStore
-    let currentMouseSlot: Int?
-    let pickerLabel: (ButtonProfileSource) -> String
-    let onSave: () -> Void
-    let onWriteStoredSlot: (Int) -> Void
-    let onReplaceCurrentSlot: () -> Void
-    let onRevertToSource: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Saved in OpenSnek")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.62))
-
-                storeActionButton("Save", action: onSave)
-            }
-
-            if editorStore.supportsMultipleOnboardProfiles {
-                Divider().overlay(Color.white.opacity(0.08))
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Stored Slots")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.62))
-
-                    ForEach(editorStore.writableMouseButtonSources, id: \.id) { source in
-                        if case .mouseSlot(let slot) = source {
-                            storeActionButton(pickerLabel(source)) {
-                                onWriteStoredSlot(slot)
-                            }
-                        }
-                    }
-
-                    if let currentMouseSlot, currentMouseSlot > 1, editorStore.canReplaceCurrentMouseSlot {
-                        storeActionButton("Replace Current Stored Slot", action: onReplaceCurrentSlot)
-                    }
-                }
-            }
-
-            if editorStore.buttonWorkspaceHasUnsavedSourceChanges {
-                Divider().overlay(Color.white.opacity(0.08))
-                storeActionButton("Revert to Source", action: onRevertToSource)
-            }
-        }
-        .padding(14)
-        .frame(width: 280, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color(nsColor: .windowBackgroundColor))
-        )
-    }
-
-    private func storeActionButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Text(title)
-                Spacer(minLength: 8)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .contentShape(Rectangle())
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.white.opacity(0.05))
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct SaveButtonProfileSheet: View {
-    let initialName: String
-    let existingProfiles: [OpenSnekButtonProfile]
-    let onSaveNew: (String) -> Void
-    let onOverwrite: (UUID) -> Void
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var mode: SaveButtonProfileMode = .newProfile
-    @State private var name = ""
-    @State private var selectedProfileID: UUID?
-
-    private var trimmedName: String {
-        name.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var canSave: Bool {
-        switch mode {
-        case .newProfile:
-            return !trimmedName.isEmpty
-        case .overwriteExisting:
-            return selectedProfileID != nil
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Save Button Profile")
-                .font(.system(size: 20, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-
-            Text("Saved profiles live in OpenSnek and can be reused across devices.")
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.68))
-
-            Picker("Save Mode", selection: $mode) {
-                Text("New").tag(SaveButtonProfileMode.newProfile)
-                Text("Overwrite").tag(SaveButtonProfileMode.overwriteExisting)
-            }
-            .pickerStyle(.segmented)
-
-            if mode == .newProfile {
-                TextField("Profile Name", text: $name)
-                    .textFieldStyle(.roundedBorder)
-            } else {
-                Picker(
-                    "Existing Profile",
-                    selection: Binding(
-                        get: { selectedProfileID ?? existingProfiles.first?.id },
-                        set: { selectedProfileID = $0 }
-                    )
-                ) {
-                    ForEach(existingProfiles) { profile in
-                        Text(profile.name).tag(Optional(profile.id))
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-            }
-
-            HStack {
-                Spacer()
-
-                Button("Cancel") {
-                    dismiss()
-                }
-
-                Button("Save") {
-                    switch mode {
-                    case .newProfile:
-                        onSaveNew(trimmedName)
-                    case .overwriteExisting:
-                        if let selectedProfileID {
-                            onOverwrite(selectedProfileID)
-                        }
-                    }
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!canSave)
-            }
-        }
-        .padding(20)
-        .frame(width: 380)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .onAppear {
-            if name.isEmpty {
-                name = initialName
-            }
-            if selectedProfileID == nil {
-                selectedProfileID = existingProfiles.first?.id
-            }
-            if existingProfiles.isEmpty {
-                mode = .newProfile
-            }
-        }
-    }
-}
-
-private enum SaveButtonProfileMode: Hashable {
-    case newProfile
-    case overwriteExisting
-}
-
-private struct ManageButtonProfilesSheet: View {
-    let profiles: [OpenSnekButtonProfile]
-    let onRename: (UUID, String) -> Void
-    let onDelete: (UUID) -> Void
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var draftNames: [UUID: String] = [:]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Saved Button Profiles")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                    Text("Manage your OpenSnek profile library.")
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.68))
-                }
-
-                Spacer()
-
-                Button("Done") {
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-            }
-
-            if profiles.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("No saved profiles yet.")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white)
-                    Text("Use Store to save the current button layout into OpenSnek.")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.65))
-                }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.white.opacity(0.04))
-                )
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(profiles) { profile in
-                            HStack(spacing: 10) {
-                                TextField(
-                                    "Profile Name",
-                                    text: Binding(
-                                        get: { draftNames[profile.id] ?? profile.name },
-                                        set: { draftNames[profile.id] = $0 }
-                                    )
-                                )
-                                .textFieldStyle(.roundedBorder)
-
-                                Button("Rename") {
-                                    onRename(profile.id, draftNames[profile.id] ?? profile.name)
-                                }
-                                .disabled((draftNames[profile.id] ?? profile.name).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                                Button("Delete", role: .destructive) {
-                                    onDelete(profile.id)
-                                }
-                            }
-                            .padding(12)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color.white.opacity(0.04))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                                    )
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        .padding(20)
-        .frame(minWidth: 560, minHeight: 300)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .onAppear {
-            draftNames = profiles.reduce(into: [:]) { partialResult, profile in
-                partialResult[profile.id] = profile.name
-            }
-        }
-        .onChange(of: profiles) { _, newValue in
-            draftNames = newValue.reduce(into: [:]) { partialResult, profile in
-                partialResult[profile.id] = draftNames[profile.id] ?? profile.name
-            }
-        }
-    }
-}
-
 private struct UnsupportedButtonsFootnote: View {
     let entries: [DocumentedButtonSlot]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: "info.circle.fill")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(Color.white.opacity(0.72))
-                Text("Some buttons can't be changed yet")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.8))
-            }
+            header
 
             Text("OpenSnek can still use the rest of the device normally.")
                 .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.60))
 
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(entries) { entry in
-                    Text("\(entry.descriptor.friendlyName): \(entry.note ?? entry.access.defaultNotice ?? "Unsupported")")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.62))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
+            unsupportedRows
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(0.035))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-        )
+        .background(footnoteBackground)
+    }
+
+    private var header: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "info.circle.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Color.white.opacity(0.72))
+            Text("Some buttons can't be changed yet")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.8))
+        }
+    }
+
+    private var unsupportedRows: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(entries) { entry in
+                UnsupportedButtonFootnoteRow(entry: entry)
+            }
+        }
+    }
+
+    private var footnoteBackground: some View {
+        RoundedRectangle(cornerRadius: 10)
+            .fill(Color.white.opacity(0.035))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            )
+    }
+}
+
+private struct UnsupportedButtonFootnoteRow: View {
+    let entry: DocumentedButtonSlot
+
+    var body: some View {
+        Text("\(entry.descriptor.friendlyName): \(entry.note ?? entry.access.defaultNotice ?? "Unsupported")")
+            .font(.system(size: 11, weight: .medium, design: .rounded))
+            .foregroundStyle(.white.opacity(0.62))
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -3778,173 +3644,12 @@ private struct ButtonBindingRow: View {
     var body: some View {
         _ = editorStore.usbButtonProfilesRevision
         let profileID = editorStore.selectedDeviceProfileID
-        let dpiRange = DeviceProfiles.dpiRange(for: profileID)
         return VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 12) {
-                Text(row.friendlyName)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .accessibilityIdentifier("button-binding-row-\(row.slot)")
-
-                Spacer(minLength: 12)
-
-                Picker(
-                    "",
-                    selection: Binding(
-                        get: { editorStore.buttonBindingKind(for: row.slot) },
-                        set: { editorStore.updateButtonBindingKind(slot: row.slot, kind: $0) }
-                    )
-                ) {
-                    ForEach(ButtonBindingSupport.availableButtonBindingKinds(profileID: editorStore.selectedDeviceProfileID)) { kind in
-                        Text(kind.label).tag(kind)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(width: 220, alignment: .trailing)
-                .disabled(!row.isEditable)
-                .accessibilityIdentifier("button-binding-kind-picker-\(row.slot)")
-            }
-
-            if row.selectedKind == .keyboardSimple {
-                HStack(alignment: .center, spacing: 12) {
-                    Spacer()
-                    KeyboardBindingEditor(
-                        hidKey: row.keyboardHidKey,
-                        hidModifiers: row.keyboardHidModifiers,
-                        supportsModifierChords: row.supportsKeyboardModifierChords,
-                        isEditable: row.isEditable,
-                        onSelect: {
-                            editorStore.updateButtonBindingKeyboardShortcut(
-                                slot: row.slot,
-                                hidKey: $0.hidKey,
-                                hidModifiers: $0.hidModifiers
-                            )
-                        }
-                    )
-                }
-            }
-
-            if row.selectedKind == .dpiClutch {
-                HStack {
-                    Spacer()
-                    HStack(spacing: 8) {
-                        Text("Clutch DPI")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.72))
-                        DpiValueField(
-                            placeholder: "400",
-                            value: editorStore.buttonBindingClutchDPI(for: row.slot),
-                            width: 120,
-                            alignment: .center,
-                            isDisabled: !row.isEditable,
-                            accessibilityIdentifier: "button-binding-clutch-dpi-field-\(row.slot)"
-                        ) { parsed in
-                            editorStore.updateButtonBindingClutchDPI(slot: row.slot, dpi: parsed)
-                        }
-                    }
-                    .frame(width: 300, alignment: .trailing)
-                }
-
-                HStack(spacing: 8) {
-                    Spacer()
-                    Text("100")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.62))
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Slider(
-                            value: Binding(
-                                get: {
-                                    DeviceProfiles.dpiSliderPosition(
-                                        for: editorStore.buttonBindingClutchDPI(for: row.slot),
-                                        profileID: profileID
-                                    )
-                                },
-                                set: { newPosition in
-                                    editorStore.updateButtonBindingClutchDPI(
-                                        slot: row.slot,
-                                        dpi: DeviceProfiles.dpi(forSliderPosition: newPosition, profileID: profileID)
-                                    )
-                                }
-                            ),
-                            in: 0...1
-                        )
-                        .frame(width: 140)
-                        .disabled(!row.isEditable)
-                        .accessibilityIdentifier("button-binding-clutch-dpi-slider-\(row.slot)")
-
-                        DpiSliderScaleMarkers(
-                            profileID: profileID,
-                            markerColor: Color.white.opacity(0.84),
-                            compact: true
-                        )
-                        .frame(width: 140)
-                    }
-                    .frame(width: 140)
-
-                    Text("\(dpiRange.upperBound)")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.62))
-
-                    Text("\(row.clutchDPI)")
-                        .font(.system(size: 12, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.76))
-                        .frame(width: 56, alignment: .trailing)
-                }
-            }
-
-            if row.turboEligible {
-                HStack(spacing: 8) {
-                    Spacer()
-                    turboToggle
-                }
-
-                if row.turboEnabled {
-                    HStack(spacing: 8) {
-                        Spacer()
-                        Text("Slow")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.62))
-
-                        Slider(
-                            value: Binding(
-                                get: { Double(editorStore.buttonBindingTurboRatePressesPerSecond(for: row.slot)) },
-                                set: { editorStore.updateButtonBindingTurboPressesPerSecond(slot: row.slot, pressesPerSecond: Int(round($0))) }
-                            ),
-                            in: 1...20
-                        )
-                        .frame(width: 140)
-                        .disabled(!row.isEditable)
-                        .accessibilityIdentifier("button-binding-turbo-rate-slider-\(row.slot)")
-
-                        Text("Fast")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.62))
-
-                        Text("\(row.turboRatePressesPerSecond)/s")
-                            .font(.system(size: 12, weight: .bold, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.78))
-                            .frame(width: 54, alignment: .trailing)
-                    }
-
-                    HStack {
-                        Spacer()
-                        Text("Turbo rate: 1..20 presses per second")
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.58))
-                    }
-                }
-            }
-
-            if let notice = row.notice {
-                HStack {
-                    Spacer()
-                    Text(notice)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.58))
-                }
-            }
+            ButtonBindingHeaderRow(editorStore: editorStore, row: row, profileID: profileID)
+            keyboardSection
+            dpiClutchSection(profileID: profileID)
+            turboSection
+            noticeSection
         }
         .padding(8)
         .opacity(row.isEditable ? 1.0 : 0.75)
@@ -3954,8 +3659,204 @@ private struct ButtonBindingRow: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
+            )
         )
+    }
+
+    @ViewBuilder
+    private var keyboardSection: some View {
+        if row.selectedKind == .keyboardSimple {
+            ButtonBindingKeyboardControls(editorStore: editorStore, row: row)
+        }
+    }
+
+    @ViewBuilder
+    private func dpiClutchSection(profileID: DeviceProfileID?) -> some View {
+        if row.selectedKind == .dpiClutch {
+            ButtonBindingDpiClutchControls(editorStore: editorStore, row: row, profileID: profileID)
+        }
+    }
+
+    @ViewBuilder
+    private var turboSection: some View {
+        if row.turboEligible {
+            ButtonBindingTurboControls(editorStore: editorStore, row: row)
+        }
+    }
+
+    @ViewBuilder
+    private var noticeSection: some View {
+        if let notice = row.notice {
+            ButtonBindingNoticeRow(notice: notice)
+        }
+    }
+}
+
+private struct ButtonBindingHeaderRow: View {
+    let editorStore: EditorStore
+    let row: ButtonBindingRowModel
+    let profileID: DeviceProfileID?
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Text(row.friendlyName)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .accessibilityIdentifier("button-binding-row-\(row.slot)")
+
+            Spacer(minLength: 12)
+
+            Picker(
+                "",
+                selection: Binding(
+                    get: { editorStore.buttonBindingKind(for: row.slot) },
+                    set: { editorStore.updateButtonBindingKind(slot: row.slot, kind: $0) }
+                )
+            ) {
+                ForEach(ButtonBindingSupport.availableButtonBindingKinds(profileID: profileID)) { kind in
+                    Text(kind.label).tag(kind)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: 220, alignment: .trailing)
+            .disabled(!row.isEditable)
+            .accessibilityIdentifier("button-binding-kind-picker-\(row.slot)")
+        }
+    }
+}
+
+private struct ButtonBindingKeyboardControls: View {
+    let editorStore: EditorStore
+    let row: ButtonBindingRowModel
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Spacer()
+            KeyboardBindingEditor(
+                hidKey: row.keyboardHidKey,
+                hidModifiers: row.keyboardHidModifiers,
+                supportsModifierChords: row.supportsKeyboardModifierChords,
+                isEditable: row.isEditable
+            ) { selection in
+                editorStore.updateButtonBindingKeyboardShortcut(
+                    slot: row.slot,
+                    hidKey: selection.hidKey,
+                    hidModifiers: selection.hidModifiers
+                )
+            }
+        }
+    }
+}
+
+private struct ButtonBindingDpiClutchControls: View {
+    let editorStore: EditorStore
+    let row: ButtonBindingRowModel
+    let profileID: DeviceProfileID?
+
+    private var dpiRange: ClosedRange<Int> {
+        DeviceProfiles.dpiRange(for: profileID)
+    }
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 8) {
+            clutchValueRow
+            clutchSliderRow
+        }
+    }
+
+    private var clutchValueRow: some View {
+        HStack {
+            Spacer()
+            HStack(spacing: 8) {
+                Text("Clutch DPI")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.72))
+                DpiValueField(
+                    placeholder: "400",
+                    value: editorStore.buttonBindingClutchDPI(for: row.slot),
+                    width: 120,
+                    alignment: .center,
+                    isDisabled: !row.isEditable,
+                    accessibilityIdentifier: "button-binding-clutch-dpi-field-\(row.slot)"
+                ) { parsed in
+                    editorStore.updateButtonBindingClutchDPI(slot: row.slot, dpi: parsed)
+                }
+            }
+            .frame(width: 300, alignment: .trailing)
+        }
+    }
+
+    private var clutchSliderRow: some View {
+        HStack(spacing: 8) {
+            Spacer()
+            Text("100")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.62))
+
+            clutchSlider
+
+            Text("\(dpiRange.upperBound)")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.62))
+
+            Text("\(row.clutchDPI)")
+                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.76))
+                .frame(width: 56, alignment: .trailing)
+        }
+    }
+
+    private var clutchSlider: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Slider(
+                value: Binding(
+                    get: {
+                        DeviceProfiles.dpiSliderPosition(
+                            for: editorStore.buttonBindingClutchDPI(for: row.slot),
+                            profileID: profileID
+                        )
+                    },
+                    set: { newPosition in
+                        editorStore.updateButtonBindingClutchDPI(
+                            slot: row.slot,
+                            dpi: DeviceProfiles.dpi(forSliderPosition: newPosition, profileID: profileID)
+                        )
+                    }
+                ),
+                in: 0...1
+            )
+            .frame(width: 140)
+            .disabled(!row.isEditable)
+            .accessibilityIdentifier("button-binding-clutch-dpi-slider-\(row.slot)")
+
+            DpiSliderScaleMarkers(
+                profileID: profileID,
+                markerColor: Color.white.opacity(0.84),
+                compact: true
+            )
+            .frame(width: 140)
+        }
+        .frame(width: 140)
+    }
+}
+
+private struct ButtonBindingTurboControls: View {
+    let editorStore: EditorStore
+    let row: ButtonBindingRowModel
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 8) {
+            HStack(spacing: 8) {
+                Spacer()
+                turboToggle
+            }
+
+            if row.turboEnabled {
+                turboRateControls
+                ButtonBindingNoticeRow(notice: "Turbo rate: 1..20 presses per second")
+            }
+        }
     }
 
     private var turboToggle: some View {
@@ -3971,5 +3872,47 @@ private struct ButtonBindingRow: View {
         .foregroundStyle(.white.opacity(0.76))
         .disabled(!row.isEditable)
         .accessibilityIdentifier("button-binding-turbo-toggle-\(row.slot)")
+    }
+
+    private var turboRateControls: some View {
+        HStack(spacing: 8) {
+            Spacer()
+            Text("Slow")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.62))
+
+            Slider(
+                value: Binding(
+                    get: { Double(editorStore.buttonBindingTurboRatePressesPerSecond(for: row.slot)) },
+                    set: { editorStore.updateButtonBindingTurboPressesPerSecond(slot: row.slot, pressesPerSecond: Int(round($0))) }
+                ),
+                in: 1...20
+            )
+            .frame(width: 140)
+            .disabled(!row.isEditable)
+            .accessibilityIdentifier("button-binding-turbo-rate-slider-\(row.slot)")
+
+            Text("Fast")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.62))
+
+            Text("\(row.turboRatePressesPerSecond)/s")
+                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.78))
+                .frame(width: 54, alignment: .trailing)
+        }
+    }
+}
+
+private struct ButtonBindingNoticeRow: View {
+    let notice: String
+
+    var body: some View {
+        HStack {
+            Spacer()
+            Text(notice)
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.58))
+        }
     }
 }

@@ -596,38 +596,11 @@ public enum SoftwareLightingRenderer {
     }
 
     private static func lerpChannel(_ a: Int, _ b: Int, _ mix: Double) -> Int {
-        Int(round(Double(a) + (Double(b - a) * max(0.0, min(1.0, mix)))))
-    }
-
-    private static func hsv(hue: Double, saturation: Double, value: Double) -> RGBPatch {
-        let h = positiveFraction(hue) * 6.0
-        let s = max(0.0, min(1.0, saturation))
-        let v = max(0.0, min(1.0, value))
-        let c = v * s
-        let x = c * (1.0 - abs(h.truncatingRemainder(dividingBy: 2.0) - 1.0))
-        let m = v - c
-
-        let rgb: (Double, Double, Double)
-        switch h {
-        case 0..<1:
-            rgb = (c, x, 0)
-        case 1..<2:
-            rgb = (x, c, 0)
-        case 2..<3:
-            rgb = (0, c, x)
-        case 3..<4:
-            rgb = (0, x, c)
-        case 4..<5:
-            rgb = (x, 0, c)
-        default:
-            rgb = (c, 0, x)
-        }
-
-        return RGBPatch(
-            r: Int(round((rgb.0 + m) * 255)),
-            g: Int(round((rgb.1 + m) * 255)),
-            b: Int(round((rgb.2 + m) * 255))
-        )
+        let clampedMix = max(0.0, min(1.0, mix))
+        let start = Double(a)
+        let delta = Double(b - a)
+        let interpolated = start + delta * clampedMix
+        return Int(round(interpolated))
     }
 
     private static func positiveFraction(_ value: Double) -> Double {

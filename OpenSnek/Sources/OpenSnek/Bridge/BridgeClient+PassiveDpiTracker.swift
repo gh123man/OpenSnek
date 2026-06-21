@@ -223,7 +223,7 @@ extension BridgeClient {
         profile: DeviceProfile?,
         transport: DeviceTransportKind
     ) -> PassiveDPIEventMonitor.WatchTarget? {
-        guard transport == .usb || transport == .bluetooth, let descriptor = profile?.passiveDPIInput else { return nil }
+        guard transport.supportsHIDBackedControls, let descriptor = profile?.passiveDPIInput else { return nil }
 
         let usagePage = USBHIDSupport.intProperty(device, key: kIOHIDPrimaryUsagePageKey as CFString) ?? -1
         let usage = USBHIDSupport.intProperty(device, key: kIOHIDPrimaryUsageKey as CFString) ?? -1
@@ -323,7 +323,7 @@ extension BridgeClient {
     nonisolated static func shouldMaskBluetoothExpectedRead(
         parsedActive: Int,
         parsedValues: [Int],
-        parsedPairs: [DpiPair],
+        parsedPairs _: [DpiPair],
         expected: BluetoothExpectedDpiState
     ) -> Bool {
         guard let previousActive = expected.previousActive,

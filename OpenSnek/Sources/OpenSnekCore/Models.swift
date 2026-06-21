@@ -17,6 +17,15 @@ public enum DeviceTransportKind: String, CaseIterable, Codable, Hashable, Sendab
         case .bluetooth: return "BT"
         }
     }
+
+    // Keep HID-backed UI and DPI paths behind this semantic gate so a future
+    // transport does not inherit USB/Bluetooth behavior by falling through.
+    public var supportsHIDBackedControls: Bool {
+        switch self {
+        case .usb, .bluetooth:
+            return true
+        }
+    }
 }
 
 public enum DeviceProfileID: String, Codable, Hashable, Sendable {
@@ -293,20 +302,25 @@ public extension MouseState {
             return !hasStableTelemetryData
         }
 
-        return device == previous.device &&
-            connection == previous.connection &&
-            battery_percent == previous.battery_percent &&
-            charging == previous.charging &&
-            poll_rate == previous.poll_rate &&
+        let identityMatches = device == previous.device && connection == previous.connection
+        let batteryMatches = battery_percent == previous.battery_percent && charging == previous.charging
+        let baseSettingsMatch = poll_rate == previous.poll_rate &&
             sleep_timeout == previous.sleep_timeout &&
             device_mode == previous.device_mode &&
-            low_battery_threshold_raw == previous.low_battery_threshold_raw &&
-            scroll_mode == previous.scroll_mode &&
+            low_battery_threshold_raw == previous.low_battery_threshold_raw
+        let scrollSettingsMatch = scroll_mode == previous.scroll_mode &&
             scroll_acceleration == previous.scroll_acceleration &&
-            scroll_smart_reel == previous.scroll_smart_reel &&
-            active_onboard_profile == previous.active_onboard_profile &&
-            onboard_profile_count == previous.onboard_profile_count &&
-            led_value == previous.led_value &&
+            scroll_smart_reel == previous.scroll_smart_reel
+        let profileStateMatches = active_onboard_profile == previous.active_onboard_profile &&
+            onboard_profile_count == previous.onboard_profile_count
+        let lightingMatches = led_value == previous.led_value
+
+        return identityMatches &&
+            batteryMatches &&
+            baseSettingsMatch &&
+            scrollSettingsMatch &&
+            profileStateMatches &&
+            lightingMatches &&
             capabilities == previous.capabilities
     }
 
@@ -531,7 +545,7 @@ public struct ButtonBindingPatch: Sendable, Hashable, Codable {
         self.turboEnabled = turboEnabled
         self.turboRate = turboRate
         self.clutchDPI = clutchDPI.map { max(100, min(30_000, $0)) }
-        self.persistentProfile = max(1, min(5, persistentProfile))
+        self.persistentProfile = OnboardProfileLimits.clampPersistentProfileID(persistentProfile)
         self.writePersistentLayer = writePersistentLayer
         self.writeDirectLayer = writeDirectLayer
     }
@@ -554,8 +568,8 @@ public struct USBButtonProfileActionPatch: Sendable, Hashable, Codable {
         targetProfile: Int
     ) {
         self.kind = kind
-        self.sourceProfile = sourceProfile.map { max(1, min(5, $0)) }
-        self.targetProfile = max(1, min(5, targetProfile))
+        self.sourceProfile = sourceProfile.map(OnboardProfileLimits.clampPersistentProfileID)
+        self.targetProfile = OnboardProfileLimits.clampPersistentProfileID(targetProfile)
     }
 }
 
@@ -638,6 +652,10 @@ public extension DevicePatch {
 }
 
 public extension DevicePatch {
+    var affectsDpiStages: Bool {
+        dpiStages != nil || dpiStagePairs != nil || activeStage != nil
+    }
+
     var resolvedDpiStagePairs: [DpiPair]? {
         if let dpiStagePairs {
             return dpiStagePairs

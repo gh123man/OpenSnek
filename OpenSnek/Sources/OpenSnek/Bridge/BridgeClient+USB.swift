@@ -351,11 +351,6 @@ extension BridgeClient {
         return true
     }
 
-    func getDPIStages(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> (Int, [Int])? {
-        guard let snapshot = try getDPIStageSnapshot(session, device) else { return nil }
-        return (snapshot.active, snapshot.values)
-    }
-
     func getDPIStageSnapshot(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> USBDpiStageSnapshot? {
         guard let r = try perform(session, device, classID: 0x04, cmdID: 0x86, size: 0x26),
               let snapshot = parseUSBDpiStageSnapshotResponse(r, device: device)
@@ -376,8 +371,9 @@ extension BridgeClient {
     }
 
     func usbStageIDsForWrite(count: Int, stageIDs: [UInt8]?) -> [UInt8] {
-        let clippedCount = max(1, min(5, count))
-        var ids = Array((stageIDs ?? [0, 1, 2, 3, 4]).prefix(clippedCount))
+        let clippedCount = DeviceProfiles.clampDpiStageCount(count)
+        let defaultStageIDs = (0..<DeviceProfiles.maximumDpiStageCount).map(UInt8.init)
+        var ids = Array((stageIDs ?? defaultStageIDs).prefix(clippedCount))
         while ids.count < clippedCount {
             ids.append(ids.last.map { $0 &+ 1 } ?? UInt8(ids.count))
         }
@@ -392,7 +388,9 @@ extension BridgeClient {
         stagePairs: [DpiPair]? = nil,
         stageIDs: [UInt8]? = nil
     ) throws -> Bool {
-        let clippedPairs = Array((stagePairs ?? stages.map { DpiPair(x: $0, y: $0) }).prefix(5)).map { pair in
+        let clippedPairs = Array(
+            (stagePairs ?? stages.map { DpiPair(x: $0, y: $0) }).prefix(DeviceProfiles.maximumDpiStageCount)
+        ).map { pair in
             DpiPair(
                 x: DeviceProfiles.clampDPI(pair.x, device: device),
                 y: DeviceProfiles.clampDPI(pair.y, device: device)
@@ -430,7 +428,7 @@ extension BridgeClient {
         //   response[10] = stage count
         //   response[11...] = stage rows (7 bytes each)
         let activeRaw = Int(response[9])
-        let count = max(1, min(5, Int(response[10])))
+        let count = DeviceProfiles.clampDpiStageCount(Int(response[10]))
         var values: [Int] = []
         var pairs: [DpiPair] = []
         var stageIDs: [UInt8] = []
@@ -882,7 +880,7 @@ extension BridgeClient {
         )
         let clampedSlot = UInt8(max(0, min(255, slot)))
 
-        let clampedPersistentProfile = UInt8(max(1, min(5, persistentProfile)))
+        let clampedPersistentProfile = UInt8(OnboardProfileLimits.clampPersistentProfileID(persistentProfile))
 
         let wrotePersistent: Bool
         if writePersistentLayer {

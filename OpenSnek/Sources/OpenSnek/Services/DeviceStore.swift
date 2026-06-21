@@ -120,10 +120,6 @@ final class DeviceStore {
         return softwareLightingStatusByDeviceID[selectedDeviceID]
     }
 
-    var selectedDeviceSupportsSoftwareLightingEffects: Bool {
-        selectedDevice?.supportsSoftwareLightingEffects ?? false
-    }
-
     var currentBuildChannel: AppBuildChannel {
         ReleaseUpdateChecker.currentBuildChannel()
     }
@@ -275,26 +271,11 @@ final class DeviceStore {
         let deviceStatusIndicator = deviceController.statusIndicator(for: device)
         let deviceConnectionState = deviceController.connectionState(for: device)
         let deviceLastUpdated = deviceController.lastUpdatedTimestamp(for: device)
-        let appContextLines: [String] = [
-            "App version: \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown")",
-            "Build: \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown")",
-            "Selected device ID: \(selectedDeviceID ?? "none")",
-            "Refreshing state: \(isRefreshingState ? "Yes" : "No")",
-            "Applying changes: \(isApplying ? "Yes" : "No")",
-            "Pending local edits: \(applyController.hasPendingLocalEdits ? "Yes" : "No")",
-            "Current status badge: \(deviceStatusIndicator.label)",
-            "Current connection state: \(deviceConnectionState.diagnosticsLabel)",
-            "Last updated: \(deviceLastUpdated.map(diagnosticsTimestamp) ?? "Never")",
-            "Last selected-state update: \(lastUpdated.map(diagnosticsTimestamp) ?? "Never")",
-            "Current error: \(errorMessage ?? "none")",
-            "Current warning: \(warningMessage ?? "none")",
-            "Input Monitoring: \(runtimeStore.hidAccessStatus.diagnosticsLabel)",
-            "Input Monitoring host: \(runtimeStore.hidAccessStatus.hostLabel)",
-            "Polling profile: \(pollingProfileLabel(runtimeController.pollingProfile(at: Date())))",
-            "Remote service transport: \(usesRemoteServiceTransport ? "Enabled" : "Disabled")",
-            "Compact menu service: \(runtimeStore.backgroundServiceEnabled ? "Enabled" : "Disabled")",
-        ]
-        var lines = appContextLines
+        var lines = diagnosticsAppContextLines(
+            statusIndicator: deviceStatusIndicator,
+            connectionState: deviceConnectionState,
+            deviceLastUpdated: deviceLastUpdated
+        )
         if let hidAccessDetail = runtimeStore.hidAccessStatus.detail {
             lines.append("Input Monitoring detail: \(hidAccessDetail)")
         }
@@ -311,6 +292,32 @@ final class DeviceStore {
             profile: resolvedProfile,
             appContextLines: lines
         )
+    }
+
+    private func diagnosticsAppContextLines(
+        statusIndicator: DeviceStatusIndicator,
+        connectionState: DeviceConnectionState,
+        deviceLastUpdated: Date?
+    ) -> [String] {
+        [
+            "App version: \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown")",
+            "Build: \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown")",
+            "Selected device ID: \(selectedDeviceID ?? "none")",
+            "Refreshing state: \(isRefreshingState ? "Yes" : "No")",
+            "Applying changes: \(isApplying ? "Yes" : "No")",
+            "Pending local edits: \(applyController.hasPendingLocalEdits ? "Yes" : "No")",
+            "Current status badge: \(statusIndicator.label)",
+            "Current connection state: \(connectionState.diagnosticsLabel)",
+            "Last updated: \(deviceLastUpdated.map(diagnosticsTimestamp) ?? "Never")",
+            "Last selected-state update: \(lastUpdated.map(diagnosticsTimestamp) ?? "Never")",
+            "Current error: \(errorMessage ?? "none")",
+            "Current warning: \(warningMessage ?? "none")",
+            "Input Monitoring: \(runtimeStore.hidAccessStatus.diagnosticsLabel)",
+            "Input Monitoring host: \(runtimeStore.hidAccessStatus.hostLabel)",
+            "Polling profile: \(pollingProfileLabel(runtimeController.pollingProfile(at: Date())))",
+            "Remote service transport: \(usesRemoteServiceTransport ? "Enabled" : "Disabled")",
+            "Compact menu service: \(runtimeStore.backgroundServiceEnabled ? "Enabled" : "Disabled")",
+        ]
     }
 
     func githubIssueDiagnosticsPayload() -> String {

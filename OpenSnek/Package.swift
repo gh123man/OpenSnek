@@ -1,6 +1,11 @@
 // swift-tools-version: 6.2
 import PackageDescription
 
+let longFunctionBodyWarningThresholdMilliseconds = "200"
+let swiftCompilerDiagnostics: [SwiftSetting] = [
+    .unsafeFlags(["-Xfrontend", "-warn-long-function-bodies=\(longFunctionBodyWarningThresholdMilliseconds)"])
+]
+
 let package = Package(
     name: "OpenSnek",
     platforms: [
@@ -17,37 +22,44 @@ let package = Package(
     targets: [
         .target(
             name: "OpenSnekCore",
-            path: "Sources/OpenSnekCore"
+            path: "Sources/OpenSnekCore",
+            swiftSettings: swiftCompilerDiagnostics
         ),
         .target(
             name: "OpenSnekProtocols",
             dependencies: ["OpenSnekCore"],
-            path: "Sources/OpenSnekProtocols"
+            path: "Sources/OpenSnekProtocols",
+            swiftSettings: swiftCompilerDiagnostics
         ),
         .target(
             name: "OpenSnekHardware",
             dependencies: ["OpenSnekCore", "OpenSnekProtocols"],
-            path: "Sources/OpenSnekHardware"
+            path: "Sources/OpenSnekHardware",
+            swiftSettings: swiftCompilerDiagnostics
         ),
         .target(
             name: "OpenSnekAppSupport",
             dependencies: ["OpenSnekCore", "OpenSnekHardware"],
-            path: "Sources/OpenSnekAppSupport"
+            path: "Sources/OpenSnekAppSupport",
+            swiftSettings: swiftCompilerDiagnostics
         ),
         .executableTarget(
             name: "OpenSnek",
             dependencies: ["OpenSnekCore", "OpenSnekProtocols", "OpenSnekHardware", "OpenSnekAppSupport"],
-            path: "Sources/OpenSnek"
+            path: "Sources/OpenSnek",
+            swiftSettings: swiftCompilerDiagnostics
         ),
         .executableTarget(
             name: "OpenSnekProbe",
             dependencies: ["OpenSnekCore", "OpenSnekProtocols", "OpenSnekHardware"],
-            path: "Sources/OpenSnekProbe"
+            path: "Sources/OpenSnekProbe",
+            swiftSettings: swiftCompilerDiagnostics
         ),
         .testTarget(
             name: "OpenSnekTests",
             dependencies: ["OpenSnek", "OpenSnekCore", "OpenSnekProtocols", "OpenSnekHardware", "OpenSnekAppSupport"],
-            path: "Tests/OpenSnekTests"
+            path: "Tests/OpenSnekTests",
+            swiftSettings: swiftCompilerDiagnostics
         ),
     ]
 )

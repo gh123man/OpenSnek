@@ -939,10 +939,6 @@ final class AppStateRuntimeController {
         return ordered
     }
 
-    private func isLocallyInteractive(at now: Date) -> Bool {
-        compactMenuPresented || (compactInteractionUntil.map { now < $0 } ?? false)
-    }
-
     private func pruneExpiredRemoteClientPresence(now: Date) {
         guard !remoteClientPresenceByProcessID.isEmpty else { return }
         let expiredProcessIDs = remoteClientPresenceByProcessID.compactMap { processID, state in

@@ -496,7 +496,7 @@ extension BridgeClient {
             current = try await btGetDpiStageSnapshot(device: device)
         }
         let marker = current?.marker ?? 0x03
-        let count = max(1, min(5, values.count))
+        let count = DeviceProfiles.clampDpiStageCount(values.count)
         let currentPairs = current?.pairs ?? [
             DpiPair(x: 800, y: 800),
             DpiPair(x: 1600, y: 1600),
@@ -504,7 +504,8 @@ extension BridgeClient {
             DpiPair(x: 3200, y: 3200),
             DpiPair(x: 6400, y: 6400),
         ]
-        let currentStageIDs = Array((current?.stageIDs ?? [1, 2, 3, 4, 5]).prefix(5))
+        let defaultStageIDs = (1...DeviceProfiles.maximumDpiStageCount).map(UInt8.init)
+        let currentStageIDs = Array((current?.stageIDs ?? defaultStageIDs).prefix(DeviceProfiles.maximumDpiStageCount))
         let requestedPairs = pairs ?? values.map { DpiPair(x: $0, y: $0) }
         let mergedPairs = BLEVendorProtocol.mergedStagePairs(
             currentPairs: currentPairs,

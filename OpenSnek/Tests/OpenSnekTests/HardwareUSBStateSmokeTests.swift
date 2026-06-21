@@ -41,17 +41,19 @@ final class HardwareUSBStateSmokeTests: XCTestCase {
         }
 
         let state = try await readStateWithRetry(client: client, device: usb)
-        print(
-            "USB state: id=\(usb.id) " +
-            "dpiActive=\(state.dpi_stages.active_stage.map(String.init) ?? "nil") " +
-            "dpiValues=\(state.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
-            "led=\(state.led_value.map(String.init) ?? "nil") " +
-            "poll=\(state.poll_rate.map(String.init) ?? "nil") " +
-            "mode=\(state.device_mode.map { "\($0.mode):\($0.param)" } ?? "nil")"
-        )
+        print(usbStateSummary(device: usb, state: state))
 
         XCTAssertNotNil(state.poll_rate, "Expected USB poll-rate telemetry")
         XCTAssertNotNil(state.dpi_stages.values, "Expected USB DPI stage telemetry")
+    }
+
+    private func usbStateSummary(device: MouseDevice, state: MouseState) -> String {
+        let dpiActive = state.dpi_stages.active_stage.map(String.init) ?? "nil"
+        let dpiValues = state.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil"
+        let led = state.led_value.map(String.init) ?? "nil"
+        let poll = state.poll_rate.map(String.init) ?? "nil"
+        let mode = state.device_mode.map { "\($0.mode):\($0.param)" } ?? "nil"
+        return "USB state: id=\(device.id) dpiActive=\(dpiActive) dpiValues=\(dpiValues) led=\(led) poll=\(poll) mode=\(mode)"
     }
 
     func testUSBApplyCurrentStateRoundTrips() async throws {

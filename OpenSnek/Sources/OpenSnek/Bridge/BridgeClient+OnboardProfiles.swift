@@ -1241,7 +1241,7 @@ extension BridgeClient {
         profileID: Int,
         dpi: OnboardDPIProfileSnapshot
     ) throws {
-        let count = max(1, min(5, dpi.pairs.count))
+        let count = DeviceProfiles.clampDpiStageCount(dpi.pairs.count)
         let active = max(0, min(count - 1, dpi.activeStage ?? 0))
         let stageIDs = usbStageIDsForWrite(count: count, stageIDs: dpi.stageIDs)
         var args = [UInt8](repeating: 0, count: 3 + count * 7)
@@ -1637,7 +1637,7 @@ extension BridgeClient {
                         hidKey: UInt8(max(0, min(255, draft.hidKey))),
                         hidModifiers: UInt8(max(0, min(255, draft.hidModifiers))),
                         turboEnabled: draft.turboEnabled && draft.kind.supportsTurbo,
-                        turboRate: UInt16(max(1, min(255, draft.turboRate))),
+                        turboRate: UInt16(ButtonBindingSupport.clampTurboRate(draft.turboRate)),
                         clutchDPI: draft.kind == .dpiClutch
                             ? DeviceProfiles.clampDPI(
                                 draft.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI,
@@ -1693,9 +1693,9 @@ extension BridgeClient {
     }
 
     func btWriteOnboardProfileDPI(device: MouseDevice, target: Int, dpi: OnboardDPIProfileSnapshot) async throws {
-        let count = max(1, min(5, dpi.pairs.count))
+        let count = DeviceProfiles.clampDpiStageCount(dpi.pairs.count)
         let active = max(0, min(count - 1, dpi.activeStage ?? 0))
-        let pairs = Array(dpi.pairs.prefix(5))
+        let pairs = Array(dpi.pairs.prefix(DeviceProfiles.maximumDpiStageCount))
         let payload = BLEVendorProtocol.buildDpiStagePayload(
             active: active,
             count: count,
@@ -1815,19 +1815,19 @@ extension BridgeClient {
     nonisolated static func bluetoothDpiSnapshot(
         from dpi: OnboardDPIProfileSnapshot
     ) -> (active: Int, count: Int, slots: [Int], pairs: [DpiPair], stageIDs: [UInt8], marker: UInt8) {
-        let count = max(1, min(5, dpi.pairs.isEmpty ? 1 : dpi.pairs.count))
-        var pairs = Array(dpi.pairs.prefix(5))
+        let count = DeviceProfiles.clampDpiStageCount(dpi.pairs.isEmpty ? 1 : dpi.pairs.count)
+        var pairs = Array(dpi.pairs.prefix(DeviceProfiles.maximumDpiStageCount))
         if pairs.isEmpty {
             pairs = [dpi.scalar ?? DpiPair(x: 800, y: 800)]
         }
-        while pairs.count < 5 {
+        while pairs.count < DeviceProfiles.maximumDpiStageCount {
             pairs.append(pairs.last ?? DpiPair(x: 800, y: 800))
         }
-        var stageIDs = Array(dpi.stageIDs.prefix(5))
+        var stageIDs = Array(dpi.stageIDs.prefix(DeviceProfiles.maximumDpiStageCount))
         if stageIDs.isEmpty {
-            stageIDs = Array((1...5).map(UInt8.init))
+            stageIDs = Array((1...DeviceProfiles.maximumDpiStageCount).map(UInt8.init))
         }
-        while stageIDs.count < 5 {
+        while stageIDs.count < DeviceProfiles.maximumDpiStageCount {
             stageIDs.append(stageIDs.last.map { $0 &+ 1 } ?? UInt8(stageIDs.count + 1))
         }
         let active = max(0, min(count - 1, dpi.activeStage ?? 0))
@@ -1918,13 +1918,14 @@ private extension OnboardProfileSnapshot {
 
 private extension OnboardProfileMutation {
     var needsMappedContentFill: Bool {
-        dpi == nil ||
-            buttonBindings == nil ||
-            brightnessByLEDID == nil ||
-            staticColorByLEDID == nil ||
-            scrollMode == nil ||
-            scrollAcceleration == nil ||
-            scrollSmartReel == nil
+        if dpi == nil { return true }
+        if buttonBindings == nil { return true }
+        if brightnessByLEDID == nil { return true }
+        if staticColorByLEDID == nil { return true }
+        if scrollMode == nil { return true }
+        if scrollAcceleration == nil { return true }
+        if scrollSmartReel == nil { return true }
+        return false
     }
 
     var withoutMetadata: OnboardProfileMutation {

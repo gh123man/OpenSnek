@@ -40,18 +40,21 @@ struct OpenSnekApp: App {
 
     var body: some Scene {
         WindowGroup("") {
-            if appState.runtimeStore.isServiceProcess {
-                ServiceWindowSuppressorView()
-            } else {
-                ContentView(
-                    deviceStore: appState.deviceStore,
-                    editorStore: appState.editorStore,
-                    runtimeStore: appState.runtimeStore
-                )
-                    .frame(minWidth: Self.minimumMainWindowWidth, minHeight: Self.minimumMainWindowHeight)
-                    .background(WindowChromeConfigurator().frame(width: 0, height: 0))
-                    .background(SettingsOpenBridgeView(runtimeStore: appState.runtimeStore).frame(width: 0, height: 0))
+            Group {
+                if appState.runtimeStore.isServiceProcess {
+                    ServiceWindowSuppressorView()
+                } else {
+                    ContentView(
+                        deviceStore: appState.deviceStore,
+                        editorStore: appState.editorStore,
+                        runtimeStore: appState.runtimeStore
+                    )
+                        .frame(minWidth: Self.minimumMainWindowWidth, minHeight: Self.minimumMainWindowHeight)
+                        .background(WindowChromeConfigurator().frame(width: 0, height: 0))
+                        .background(SettingsOpenBridgeView(runtimeStore: appState.runtimeStore).frame(width: 0, height: 0))
+                }
             }
+            .openSnekFixedAppearance()
         }
         .defaultSize(width: Self.defaultMainWindowWidth, height: Self.defaultMainWindowHeight)
 
@@ -61,12 +64,14 @@ struct OpenSnekApp: App {
                 editorStore: appState.editorStore,
                 runtimeStore: appState.runtimeStore
             )
+            .openSnekFixedAppearance()
         } label: {
             ServiceMenuBarStatusItemLabel(
                 deviceStore: appState.deviceStore,
                 editorStore: appState.editorStore,
                 runtimeStore: appState.runtimeStore
             )
+            .openSnekFixedAppearance()
         }
         .menuBarExtraStyle(.window)
 
@@ -75,6 +80,7 @@ struct OpenSnekApp: App {
                 deviceStore: appState.deviceStore,
                 runtimeStore: appState.runtimeStore
             )
+            .openSnekFixedAppearance()
         }
     }
 }

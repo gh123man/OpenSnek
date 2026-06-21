@@ -44,6 +44,7 @@ struct WindowChromeConfigurator: NSViewRepresentable {
         }
         window.title = ""
         window.titleVisibility = .hidden
+        OpenSnekAppearance.apply(to: window)
         window.isMovableByWindowBackground = true
         window.titlebarAppearsTransparent = true
         window.styleMask.insert(.fullSizeContentView)
