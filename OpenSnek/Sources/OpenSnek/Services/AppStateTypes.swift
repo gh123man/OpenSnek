@@ -96,14 +96,11 @@ enum ButtonProfileSource: Hashable, Codable, Identifiable {
 
 struct USBButtonProfileSummary: Identifiable, Hashable {
     let profile: Int
-    let isSelected: Bool
     let isHardwareActive: Bool
     let isLiveActive: Bool
     let isCustomized: Bool?
-    let hasPendingChanges: Bool
 
     var id: Int { profile }
-    var isLoaded: Bool { isCustomized != nil }
 }
 
 enum PollingProfile: Equatable {

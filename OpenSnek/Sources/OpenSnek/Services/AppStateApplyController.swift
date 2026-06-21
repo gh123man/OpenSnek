@@ -462,13 +462,6 @@ final class AppStateApplyController {
         }
     }
 
-    func scheduleAutoApplyCurrentButtonWorkspaceToLive() {
-        scheduleAutoApply(key: .button(-1), delay: 260_000_000) { [weak self] in
-            guard let self else { return }
-            await self.applyCurrentButtonWorkspaceToLive()
-        }
-    }
-
     private func writableButtonSlots(for device: MouseDevice) -> [Int] {
         device.button_layout?.writableSlots ?? deviceStore.visibleButtonSlots.map(\.slot)
     }
@@ -666,17 +659,6 @@ final class AppStateApplyController {
         }
 
         editorController.saveCachedButtonBindings(device: selectedDevice, bindings: editorStore.editableButtonBindings, profile: clampedTarget)
-    }
-
-    func resetLiveButtonsToDeviceDefaultSlot() async {
-        guard editorStore.supportsMultipleOnboardProfiles else { return }
-        let defaultSlot = max(1, editorStore.activeOnboardProfile)
-        editorController.selectButtonProfileSource(.mouseSlot(defaultSlot))
-        await projectSelectedUSBButtonProfileToDirectLayer()
-        if let selectedDevice = deviceStore.selectedDevice {
-            let bindings = editorController.cachedButtonBindings(device: selectedDevice, profile: defaultSlot)
-            editorController.markButtonWorkspaceAppliedToLive(bindings: bindings, exactSource: .mouseSlot(defaultSlot))
-        }
     }
 
     func projectSelectedUSBButtonProfileToDirectLayer() async {

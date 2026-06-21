@@ -140,12 +140,10 @@ private enum DetailSection: Hashable {
 
 struct LightingSwatch: Identifiable, Hashable {
     let hex: UInt32
-    let color: Color
     let rgb: OpenSnekCore.RGBColor
 
     init(hex: UInt32) {
         self.hex = hex
-        self.color = Color(hex: hex)
         self.rgb = OpenSnekCore.RGBColor(
             r: Int((hex >> 16) & 0xFF),
             g: Int((hex >> 8) & 0xFF),
@@ -956,10 +954,6 @@ struct LightingCard: View {
 
     private var softwareLightingIsRunning: Bool {
         softwareLightingStatus?.state == .running
-    }
-
-    private var summarizesSoftwareLighting: Bool {
-        selected.supportsSoftwareLightingEffects && softwareLightingIsRunning
     }
 
     private var lightingSummaryTitle: String {
@@ -1975,75 +1969,6 @@ struct SoftwareLightingPaletteEditor: View {
     }
 }
 
-struct LightingColorEditor: View {
-    let title: String
-    var identifierPrefix: String? = nil
-    @Binding var color: OpenSnekCore.RGBColor
-    let swatches: [LightingSwatch]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.74))
-
-            HStack(spacing: 8) {
-                ForEach(swatches) { swatch in
-                    ColorSwatchButton(
-                        color: swatch.color,
-                        isSelected: swatch.rgb == color,
-                        action: { color = swatch.rgb }
-                    )
-                }
-            }
-
-            RGBSliderRow(
-                label: "R",
-                accessibilityIdentifier: identifierPrefix.map { "\($0)-red-slider" },
-                tint: Color.red,
-                value: Binding(
-                    get: { color.r },
-                    set: { color.r = max(0, min(255, $0)) }
-                )
-            )
-
-            RGBSliderRow(
-                label: "G",
-                accessibilityIdentifier: identifierPrefix.map { "\($0)-green-slider" },
-                tint: Color.green,
-                value: Binding(
-                    get: { color.g },
-                    set: { color.g = max(0, min(255, $0)) }
-                )
-            )
-
-            RGBSliderRow(
-                label: "B",
-                accessibilityIdentifier: identifierPrefix.map { "\($0)-blue-slider" },
-                tint: Color.blue,
-                value: Binding(
-                    get: { color.b },
-                    set: { color.b = max(0, min(255, $0)) }
-                )
-            )
-
-            Text(String(format: "#%02X%02X%02X", color.r, color.g, color.b))
-                .font(.system(size: 12, weight: .bold, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.82))
-        }
-        .padding(8)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(0.04))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-        )
-        .optionalAccessibilityIdentifier(identifierPrefix.map { "\($0)-editor" })
-    }
-}
-
 struct RGBSliderRow: View {
     let label: String
     var accessibilityIdentifier: String? = nil
@@ -2443,27 +2368,22 @@ struct PollRateCard: View {
     var body: some View {
         Card(title: "Polling Rate", accessibilityIdentifier: "poll-rate-card") {
             LabeledControlRow(title: "Rate") {
-                HStack(spacing: 0) {
-                    ForEach(Array(pollRates.enumerated()), id: \.element) { index, rate in
-                        pollRateButton(rate)
-                        if index < pollRates.count - 1 {
-                            Rectangle()
-                                .fill(Color.white.opacity(0.14))
-                                .frame(width: 1, height: 18)
-                        }
+                Picker(
+                    "Rate",
+                    selection: Binding(
+                        get: { editorStore.editablePollRate },
+                        set: { editorStore.editablePollRate = $0 }
+                    )
+                ) {
+                    ForEach(pollRates, id: \.self) { rate in
+                        Text("\(rate) Hz")
+                            .tag(rate)
+                            .accessibilityIdentifier("poll-rate-option-\(rate)")
                     }
                 }
-                .frame(width: 220, height: 30)
-                .background(
-                    RoundedRectangle(cornerRadius: 7)
-                        .fill(Color.white.opacity(0.08))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 7)
-                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 7))
-                .accessibilityElement(children: .contain)
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(width: 220, alignment: .trailing)
                 .accessibilityLabel("Polling Rate")
                 .accessibilityIdentifier("poll-rate-picker")
             }
@@ -2471,25 +2391,6 @@ struct PollRateCard: View {
         .onChange(of: editorStore.editablePollRate) { _, _ in
             editorStore.scheduleAutoApplyPollRate()
         }
-    }
-
-    private func pollRateButton(_ rate: Int) -> some View {
-        let isSelected = editorStore.editablePollRate == rate
-        return Button {
-            editorStore.editablePollRate = rate
-        } label: {
-            Text("\(rate) Hz")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(isSelected ? .white : .white.opacity(0.72))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .background(isSelected ? Color.white.opacity(0.20) : Color.clear)
-        .accessibilityIdentifier("poll-rate-option-\(rate)")
-        .accessibilityLabel("\(rate) Hz")
-        .accessibilityValue(isSelected ? "Selected" : "Not selected")
-        .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -3281,417 +3182,6 @@ private struct ProfileActionPanelShape: Shape {
         )
         path.closeSubpath()
         return path
-    }
-}
-
-private struct LoadButtonProfilePopover: View {
-    let editorStore: EditorStore
-    let pickerLabel: (ButtonProfileSource) -> String
-    let onSelect: (ButtonProfileSource) -> Void
-    @State private var showsSavedProfiles = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            if showsSavedProfiles {
-                savedProfilesView
-            } else {
-                rootView
-            }
-        }
-        .padding(14)
-        .frame(width: 320, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color(nsColor: .windowBackgroundColor))
-        )
-    }
-
-    private var rootView: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Saved in OpenSnek")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.62))
-
-                if editorStore.savedButtonProfiles.isEmpty {
-                    Text("No saved local profiles yet.")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.58))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                } else {
-                    loadActionButton(
-                        "Saved Profiles",
-                        trailingDetail: "\(editorStore.savedButtonProfiles.count)",
-                        trailingSystemImage: "chevron.right"
-                    ) {
-                        showsSavedProfiles = true
-                    }
-                }
-            }
-
-            Divider().overlay(Color.white.opacity(0.08))
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("On This Mouse")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.62))
-
-                ForEach(editorStore.loadableMouseButtonSources, id: \.id) { source in
-                    loadActionButton(
-                        pickerLabel(source),
-                        isDisabled: source == .mouseSlot(1)
-                    ) {
-                        onSelect(source)
-                    }
-                }
-            }
-        }
-    }
-
-    private var savedProfilesView: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Button {
-                showsSavedProfiles = false
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text("Saved Profiles")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                }
-                .foregroundStyle(.white.opacity(0.72))
-            }
-            .buttonStyle(.plain)
-
-            ForEach(editorStore.savedButtonProfiles) { profile in
-                let source = ButtonProfileSource.openSnekProfile(profile.id)
-                loadActionButton(pickerLabel(source)) {
-                    onSelect(source)
-                }
-            }
-        }
-    }
-
-    private func loadActionButton(
-        _ title: String,
-        isDisabled: Bool = false,
-        trailingDetail: String? = nil,
-        trailingSystemImage: String? = nil,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            popoverRowLabel(
-                title,
-                trailingDetail: trailingDetail,
-                trailingSystemImage: trailingSystemImage
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(isDisabled)
-        .opacity(isDisabled ? 0.45 : 1.0)
-    }
-
-    private func popoverRowLabel(
-        _ title: String,
-        trailingDetail: String? = nil,
-        trailingSystemImage: String? = nil
-    ) -> some View {
-        HStack(spacing: 8) {
-            Text(title)
-            Spacer(minLength: 8)
-            if let trailingDetail {
-                Text(trailingDetail)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.42))
-            }
-            if let trailingSystemImage {
-                Image(systemName: trailingSystemImage)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.52))
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .contentShape(Rectangle())
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(0.05))
-        )
-    }
-}
-
-private struct StoreButtonProfilePopover: View {
-    let editorStore: EditorStore
-    let currentMouseSlot: Int?
-    let pickerLabel: (ButtonProfileSource) -> String
-    let onSave: () -> Void
-    let onWriteStoredSlot: (Int) -> Void
-    let onReplaceCurrentSlot: () -> Void
-    let onRevertToSource: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Saved in OpenSnek")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.62))
-
-                storeActionButton("Save", action: onSave)
-            }
-
-            if editorStore.supportsMultipleOnboardProfiles {
-                Divider().overlay(Color.white.opacity(0.08))
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Stored Slots")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.62))
-
-                    ForEach(editorStore.writableMouseButtonSources, id: \.id) { source in
-                        if case .mouseSlot(let slot) = source {
-                            storeActionButton(pickerLabel(source)) {
-                                onWriteStoredSlot(slot)
-                            }
-                        }
-                    }
-
-                    if let currentMouseSlot, currentMouseSlot > 1, editorStore.canReplaceCurrentMouseSlot {
-                        storeActionButton("Replace Current Stored Slot", action: onReplaceCurrentSlot)
-                    }
-                }
-            }
-
-            if editorStore.buttonWorkspaceHasUnsavedSourceChanges {
-                Divider().overlay(Color.white.opacity(0.08))
-                storeActionButton("Revert to Source", action: onRevertToSource)
-            }
-        }
-        .padding(14)
-        .frame(width: 280, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color(nsColor: .windowBackgroundColor))
-        )
-    }
-
-    private func storeActionButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Text(title)
-                Spacer(minLength: 8)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .contentShape(Rectangle())
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.white.opacity(0.05))
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct SaveButtonProfileSheet: View {
-    let initialName: String
-    let existingProfiles: [OpenSnekButtonProfile]
-    let onSaveNew: (String) -> Void
-    let onOverwrite: (UUID) -> Void
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var mode: SaveButtonProfileMode = .newProfile
-    @State private var name = ""
-    @State private var selectedProfileID: UUID?
-
-    private var trimmedName: String {
-        name.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var canSave: Bool {
-        switch mode {
-        case .newProfile:
-            return !trimmedName.isEmpty
-        case .overwriteExisting:
-            return selectedProfileID != nil
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Save Button Profile")
-                .font(.system(size: 20, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-
-            Text("Saved profiles live in OpenSnek and can be reused across devices.")
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.68))
-
-            Picker("Save Mode", selection: $mode) {
-                Text("New").tag(SaveButtonProfileMode.newProfile)
-                Text("Overwrite").tag(SaveButtonProfileMode.overwriteExisting)
-            }
-            .pickerStyle(.segmented)
-
-            if mode == .newProfile {
-                TextField("Profile Name", text: $name)
-                    .textFieldStyle(.roundedBorder)
-            } else {
-                Picker(
-                    "Existing Profile",
-                    selection: Binding(
-                        get: { selectedProfileID ?? existingProfiles.first?.id },
-                        set: { selectedProfileID = $0 }
-                    )
-                ) {
-                    ForEach(existingProfiles) { profile in
-                        Text(profile.name).tag(Optional(profile.id))
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-            }
-
-            HStack {
-                Spacer()
-
-                Button("Cancel") {
-                    dismiss()
-                }
-
-                Button("Save") {
-                    switch mode {
-                    case .newProfile:
-                        onSaveNew(trimmedName)
-                    case .overwriteExisting:
-                        if let selectedProfileID {
-                            onOverwrite(selectedProfileID)
-                        }
-                    }
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!canSave)
-            }
-        }
-        .padding(20)
-        .frame(width: 380)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .onAppear {
-            if name.isEmpty {
-                name = initialName
-            }
-            if selectedProfileID == nil {
-                selectedProfileID = existingProfiles.first?.id
-            }
-            if existingProfiles.isEmpty {
-                mode = .newProfile
-            }
-        }
-    }
-}
-
-private enum SaveButtonProfileMode: Hashable {
-    case newProfile
-    case overwriteExisting
-}
-
-private struct ManageButtonProfilesSheet: View {
-    let profiles: [OpenSnekButtonProfile]
-    let onRename: (UUID, String) -> Void
-    let onDelete: (UUID) -> Void
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var draftNames: [UUID: String] = [:]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Saved Button Profiles")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                    Text("Manage your OpenSnek profile library.")
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.68))
-                }
-
-                Spacer()
-
-                Button("Done") {
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-            }
-
-            if profiles.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("No saved profiles yet.")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white)
-                    Text("Use Store to save the current button layout into OpenSnek.")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.65))
-                }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.white.opacity(0.04))
-                )
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(profiles) { profile in
-                            HStack(spacing: 10) {
-                                TextField(
-                                    "Profile Name",
-                                    text: Binding(
-                                        get: { draftNames[profile.id] ?? profile.name },
-                                        set: { draftNames[profile.id] = $0 }
-                                    )
-                                )
-                                .textFieldStyle(.roundedBorder)
-
-                                Button("Rename") {
-                                    onRename(profile.id, draftNames[profile.id] ?? profile.name)
-                                }
-                                .disabled((draftNames[profile.id] ?? profile.name).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                                Button("Delete", role: .destructive) {
-                                    onDelete(profile.id)
-                                }
-                            }
-                            .padding(12)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color.white.opacity(0.04))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                                    )
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        .padding(20)
-        .frame(minWidth: 560, minHeight: 300)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .onAppear {
-            draftNames = profiles.reduce(into: [:]) { partialResult, profile in
-                partialResult[profile.id] = profile.name
-            }
-        }
-        .onChange(of: profiles) { _, newValue in
-            draftNames = newValue.reduce(into: [:]) { partialResult, profile in
-                partialResult[profile.id] = draftNames[profile.id] ?? profile.name
-            }
-        }
     }
 }
 

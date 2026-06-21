@@ -351,11 +351,6 @@ extension BridgeClient {
         return true
     }
 
-    func getDPIStages(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> (Int, [Int])? {
-        guard let snapshot = try getDPIStageSnapshot(session, device) else { return nil }
-        return (snapshot.active, snapshot.values)
-    }
-
     func getDPIStageSnapshot(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> USBDpiStageSnapshot? {
         guard let r = try perform(session, device, classID: 0x04, cmdID: 0x86, size: 0x26),
               let snapshot = parseUSBDpiStageSnapshotResponse(r, device: device)

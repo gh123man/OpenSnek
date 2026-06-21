@@ -1,6 +1,5 @@
 import Foundation
 import IOKit.hid
-import OpenSnekAppSupport
 import OpenSnekCore
 import OpenSnekHardware
 import OpenSnekProtocols
@@ -17,8 +16,6 @@ actor BridgeClient {
         expiresAt: Date,
         remainingMasks: Int
     )
-    static let bluetoothPassiveResetSilenceInterval: TimeInterval = 1.0
-
     nonisolated static func resolveBluetoothDpiStageWrite(
         device: MouseDevice,
         patch: DevicePatch,

@@ -120,10 +120,6 @@ final class DeviceStore {
         return softwareLightingStatusByDeviceID[selectedDeviceID]
     }
 
-    var selectedDeviceSupportsSoftwareLightingEffects: Bool {
-        selectedDevice?.supportsSoftwareLightingEffects ?? false
-    }
-
     var currentBuildChannel: AppBuildChannel {
         ReleaseUpdateChecker.currentBuildChannel()
     }

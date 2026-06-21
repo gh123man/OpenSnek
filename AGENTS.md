@@ -43,6 +43,10 @@ Protocol behavior changes require docs, tests, and `CHANGELOG.md` updates in the
 11. Before creating a new topic branch, fetch `origin` and branch from an up-to-date `origin/main`. Before opening or updating a PR, check whether the branch is behind `origin/main`; if it is, merge or rebase `origin/main`, resolve conflicts, rerun validation, and push the updated branch.
 12. Before saying work is done or pushing code, run the complete unit test suite with `swift test --package-path OpenSnek` and ensure it passes locally.
 13. For Windows Synapse/BTVS reverse engineering, prefer automated captures over manual Wireshark work. Use `tools/windows/capture-btvs.ps1`, let it choose a fresh port unless intentionally passing `-ReuseBtvs`, take a same-session idle baseline when background traffic is ambiguous, then start analysis from `synapse-events.md`, `correlation.md`, and `summary.md` before opening the raw `.pcapng`.
+14. When asked to run the app, use `./run.sh` from the repository root unless the user explicitly asks for a different launch path.
+15. Use code comments strategically. If a change has unclear but important UI/UX effects, leave a concise comment that explains the constraint so future changes do not regress it.
+16. Avoid magic numbers unless the number is inherently self-descriptive. For bounded sets, including protocol characteristics where appropriate, prefer enums or named constants with clear domain names. For example, `let slot = 1` may be clear in local context, but `let button = 55` needs a descriptive name.
+17. Avoid repeating multi-case conditionals across the codebase. If the same case set appears in multiple places, such as `device == foo || device == bar || device == abc`, move the rule into a helper method, enum extension, or other reusable code.
 
 ## Quick Commands
 
@@ -51,7 +55,7 @@ swift build --package-path OpenSnek --product OpenSnekProbe
 swift run --package-path OpenSnek OpenSnekProbe dpi-read
 swift run --package-path OpenSnek OpenSnekProbe bt-lighting-info --name "BSK V3 PRO"
 swift run --package-path OpenSnek OpenSnekProbe usb-lighting-info --pid 0x00ab
-swift run --package-path OpenSnek OpenSnek
+./run.sh
 ```
 
 Windows BTVS/Synapse capture:

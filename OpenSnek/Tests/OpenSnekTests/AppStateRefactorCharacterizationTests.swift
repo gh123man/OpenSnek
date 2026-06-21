@@ -7259,16 +7259,6 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
         heldButtonReadKeys.insert(buttonKey(deviceID: deviceID, slot: slot, profile: profile))
     }
 
-    func waitForButtonBindingReadToStart(deviceID: String, slot: Int, profile: Int) async {
-        let key = buttonKey(deviceID: deviceID, slot: slot, profile: profile)
-        if startedHeldButtonReadKeys.contains(key) {
-            return
-        }
-        await withCheckedContinuation { continuation in
-            buttonReadStartedContinuations[key] = continuation
-        }
-    }
-
     func releaseButtonBindingRead(deviceID: String, slot: Int, profile: Int) {
         let key = buttonKey(deviceID: deviceID, slot: slot, profile: profile)
         heldButtonReadKeys.remove(key)
