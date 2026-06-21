@@ -25,6 +25,7 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        OpenSnekAppearance.apply()
         NSApp.setActivationPolicy(Self.launchActivationPolicy(launchRole: OpenSnekProcessRole.current))
     }
 

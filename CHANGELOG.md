@@ -10,6 +10,7 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 - The Connect a Device screen now opens supported devices in a centered, searchable profile-backed table instead of showing the growing list inline.
+- OpenSnek now pins its SwiftUI and AppKit surfaces to the dark appearance so system fields, controls, dynamic colors, and window chrome render consistently even when macOS is set to Light Mode.
 - Advanced lighting animations now expose a persisted brightness slider alongside speed and palette controls.
 - V3-family USB software lighting now streams the full 14-cell Custom Frame range so the tail LEDs are addressed directly on every shared scroll/logo/underglow profile.
 

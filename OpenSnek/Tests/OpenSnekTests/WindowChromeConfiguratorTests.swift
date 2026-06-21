@@ -4,6 +4,29 @@ import OpenSnekAppSupport
 
 @MainActor
 final class WindowChromeConfiguratorTests: XCTestCase {
+    func testOpenSnekAppearancePinsApplicationToFixedDarkAppearance() {
+        let previousAppearance = NSApp.appearance
+        defer { NSApp.appearance = previousAppearance }
+        NSApp.appearance = NSAppearance(named: .aqua)
+
+        OpenSnekAppearance.apply()
+
+        XCTAssertEqual(NSApp.appearance?.name, OpenSnekAppearance.appKitName)
+    }
+
+    func testConfigurePinsWindowToFixedDarkAppearance() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1100, height: 760),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+
+        WindowChromeConfigurator.configure(window)
+
+        XCTAssertEqual(window.appearance?.name, OpenSnekAppearance.appKitName)
+    }
+
     func testConfigureUsesCustomFramePersistenceInsteadOfAppKitAutosave() {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1100, height: 760),
