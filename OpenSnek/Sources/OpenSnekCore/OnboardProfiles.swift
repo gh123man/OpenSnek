@@ -218,14 +218,15 @@ public struct OnboardProfileMutation: Codable, Hashable, Sendable {
     }
 
     public var isEmpty: Bool {
-        metadata == nil &&
-            dpi == nil &&
-            buttonBindings == nil &&
-            brightnessByLEDID == nil &&
-            staticColorByLEDID == nil &&
-            scrollMode == nil &&
-            scrollAcceleration == nil &&
-            scrollSmartReel == nil
+        if metadata != nil { return false }
+        if dpi != nil { return false }
+        if buttonBindings != nil { return false }
+        if brightnessByLEDID != nil { return false }
+        if staticColorByLEDID != nil { return false }
+        if scrollMode != nil { return false }
+        if scrollAcceleration != nil { return false }
+        if scrollSmartReel != nil { return false }
+        return true
     }
 
     public func merged(with newer: OnboardProfileMutation) -> OnboardProfileMutation {

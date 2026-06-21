@@ -9,6 +9,9 @@ configs:
 settings:
   base:
     SWIFT_VERSION: 6.0
+    OTHER_SWIFT_FLAGS:
+      - -Xfrontend
+      - -warn-long-function-bodies=200
     CURRENT_PROJECT_VERSION: 1
     MARKETING_VERSION: 0.1.0
 targets:
@@ -107,6 +110,7 @@ targets:
         PRODUCT_NAME: OpenSnekProbe
         GENERATE_INFOPLIST_FILE: YES
         OTHER_SWIFT_FLAGS:
+          - $(inherited)
           - -parse-as-library
     dependencies:
       - target: OpenSnekCore

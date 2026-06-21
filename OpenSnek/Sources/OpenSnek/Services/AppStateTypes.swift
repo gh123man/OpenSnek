@@ -185,22 +185,23 @@ enum RuntimeWakeSchedule {
 
 extension DevicePatch {
     var isEmpty: Bool {
-        pollRate == nil &&
-            sleepTimeout == nil &&
-            deviceMode == nil &&
-            lowBatteryThresholdRaw == nil &&
-            scrollMode == nil &&
-            scrollAcceleration == nil &&
-            scrollSmartReel == nil &&
-            dpiStages == nil &&
-            dpiStagePairs == nil &&
-            activeStage == nil &&
-            ledBrightness == nil &&
-            ledRGB == nil &&
-            lightingEffect == nil &&
-            usbLightingZoneLEDIDs == nil &&
-            buttonBinding == nil &&
-            usbButtonProfileAction == nil
+        if pollRate != nil { return false }
+        if sleepTimeout != nil { return false }
+        if deviceMode != nil { return false }
+        if lowBatteryThresholdRaw != nil { return false }
+        if scrollMode != nil { return false }
+        if scrollAcceleration != nil { return false }
+        if scrollSmartReel != nil { return false }
+        if dpiStages != nil { return false }
+        if dpiStagePairs != nil { return false }
+        if activeStage != nil { return false }
+        if ledBrightness != nil { return false }
+        if ledRGB != nil { return false }
+        if lightingEffect != nil { return false }
+        if usbLightingZoneLEDIDs != nil { return false }
+        if buttonBinding != nil { return false }
+        if usbButtonProfileAction != nil { return false }
+        return true
     }
 
     var describe: String {

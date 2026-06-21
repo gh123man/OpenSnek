@@ -1918,13 +1918,14 @@ private extension OnboardProfileSnapshot {
 
 private extension OnboardProfileMutation {
     var needsMappedContentFill: Bool {
-        dpi == nil ||
-            buttonBindings == nil ||
-            brightnessByLEDID == nil ||
-            staticColorByLEDID == nil ||
-            scrollMode == nil ||
-            scrollAcceleration == nil ||
-            scrollSmartReel == nil
+        if dpi == nil { return true }
+        if buttonBindings == nil { return true }
+        if brightnessByLEDID == nil { return true }
+        if staticColorByLEDID == nil { return true }
+        if scrollMode == nil { return true }
+        if scrollAcceleration == nil { return true }
+        if scrollSmartReel == nil { return true }
+        return false
     }
 
     var withoutMetadata: OnboardProfileMutation {

@@ -1007,134 +1007,225 @@ final class AppStateApplyController {
         await stopSoftwareLightingIfNormalLightingPatch(patch, device: targetDevice)
 
         do {
-            let next: MouseState
-            if let configurableBackend = environment.backend as? any ApplyOptionsSupportingBackend {
-                next = try await configurableBackend.apply(
-                    device: targetDevice,
-                    patch: patch,
-                    options: backendApplyOptions
-                )
-            } else {
-                next = try await environment.backend.apply(device: targetDevice, patch: patch)
-            }
-            guard let presentationDevice = deviceController.presentationDevice(for: targetDevice) else {
-                let merged = next.merged(with: deviceController.cachedState(for: applyDeviceID))
-                deviceController.storeState(merged, for: applyDeviceID, updatedAt: Date())
-                AppLog.debug("AppState", "apply result cached for missing-presentation device=\(applyDeviceID)")
-                return true
-            }
-
-            let presentationDeviceID = presentationDevice.id
-            let merged = next.merged(
-                with: deviceController.cachedState(for: presentationDeviceID) ?? deviceController.cachedState(for: applyDeviceID)
-            )
-            deviceController.cacheState(merged, sourceDeviceID: applyDeviceID, presentationDeviceID: presentationDeviceID)
-            if shouldFocusOnActivity {
-                deviceController.focusServiceSelectionOnActivity(deviceID: presentationDeviceID)
-            }
-
-            if deviceStore.selectedDeviceID == presentationDeviceID, deviceStore.state != merged {
-                deviceStore.state = merged
-            }
-
-            let localEditsChangedDuringApply = clearLocalEditsOnSuccess && (lastLocalEditAt ?? .distantPast) > start
-            let shouldHydrateEditableState = clearLocalEditsOnSuccess && !localEditsChangedDuringApply && !applyCoordinator.hasPending
-            if patch.dpiStages != nil || patch.dpiStagePairs != nil || patch.activeStage != nil {
-                let suppressedUntil = Date().addingTimeInterval(0.9)
-                deviceController.setFastDpiSuppressed(until: suppressedUntil, for: applyDeviceID)
-                deviceController.setFastDpiSuppressed(until: suppressedUntil, for: presentationDeviceID)
-                runtimeController.setCompactInteraction(until: Date().addingTimeInterval(3.0))
-            }
-            if let activeStage = patch.activeStage {
-                clearPendingActiveStageSelection(matching: activeStage + 1, for: presentationDevice)
-            }
-
-            if shouldHydrateEditableState, deviceStore.selectedDeviceID == presentationDeviceID {
-                lastLocalEditAt = nil
-                editorController.hydrateEditable(from: merged)
-            } else if deviceStore.selectedDeviceID == presentationDeviceID {
-                editorController.hydrateLiveDpiPresentation(from: merged)
-                AppLog.debug(
-                    "AppState",
-                    "apply hydrate skipped pending=\(applyCoordinator.hasPending) localEditsDuringApply=\(localEditsChangedDuringApply)"
-                )
-            }
-
-            persistSuccessfulLightingPatch(
-                patch,
-                device: presentationDevice,
-                usbLightingZoneID: persistLightingZoneID
-            )
-            if let buttonBinding = patch.buttonBinding {
-                editorController.persistButtonBinding(buttonBinding, device: presentationDevice, profile: buttonBinding.persistentProfile)
-                editorController.cachePersistedButtonBinding(buttonBinding, device: presentationDevice, profile: buttonBinding.persistentProfile)
-            }
-            let preserveStoredLighting = patch.ledRGB == nil && patch.lightingEffect == nil
-            let snapshotLightingZoneOverride = snapshotLightingZoneOverride(
-                for: patch,
-                device: presentationDevice,
-                defaultZoneID: persistLightingZoneID
-            )
-            if deviceStore.selectedDeviceID == presentationDeviceID {
-                editorController.persistCurrentSettingsSnapshot(
-                    for: presentationDevice,
-                    preservingStoredLighting: preserveStoredLighting,
-                    lightingZoneOverride: snapshotLightingZoneOverride
-                )
-            }
-            editorController.persistSuccessfulPatchFieldsInSettingsSnapshot(
+            let next = try await applyBackendState(
+                device: targetDevice,
                 patch: patch,
-                device: presentationDevice,
-                lightingZoneID: snapshotLightingZoneOverride ?? persistLightingZoneID
+                options: backendApplyOptions
             )
-
-            if deviceStore.selectedDeviceID == presentationDeviceID {
-                deviceStore.errorMessage = nil
-                deviceController.setTelemetryWarning(
-                    editorController.telemetryWarning(for: merged, device: presentationDevice),
-                    device: presentationDevice
-                )
-            }
-
-            AppLog.event(
-                "AppState",
-                "apply ok device=\(presentationDevice.id) active=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
-                "values=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
-                "elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
+            return handleSuccessfulApply(
+                next,
+                targetDevice: targetDevice,
+                applyDeviceID: applyDeviceID,
+                patch: patch,
+                start: start,
+                shouldFocusOnActivity: shouldFocusOnActivity,
+                persistLightingZoneID: persistLightingZoneID,
+                clearLocalEditsOnSuccess: clearLocalEditsOnSuccess
             )
-            return true
         } catch {
-            AppLog.error(
-                "AppState",
-                "command apply failed device=\(targetDevice.id) patch=\(patch.describe) " +
-                "elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s: \(error.localizedDescription)"
+            handleApplyFailure(
+                error,
+                targetDevice: targetDevice,
+                patch: patch,
+                start: start,
+                shouldSurfaceApplyFailure: shouldSurfaceApplyFailure
             )
-            if shouldSurfaceApplyFailure {
-                let shouldShowApplyFailure: Bool
-                if let currentSelectedDevice = deviceStore.selectedDevice {
-                    shouldShowApplyFailure = deviceController.deviceIdentityKey(currentSelectedDevice) ==
-                        deviceController.deviceIdentityKey(targetDevice)
-                } else {
-                    shouldShowApplyFailure = false
-                }
-                if shouldShowApplyFailure {
-                    deviceStore.errorMessage = Self.commandFailureMessage(error)
-                    deviceStore.warningMessage = nil
-                    if patch.dpiStages != nil || patch.dpiStagePairs != nil || patch.activeStage != nil {
-                        if let activeStage = patch.activeStage {
-                            clearPendingActiveStageSelection(matching: activeStage + 1, for: targetDevice)
-                        }
-                        runtimeStore.serviceStatusMessage = "DPI update failed"
-                        runtimeController.setTransientStatus(until: Date().addingTimeInterval(4.0))
-                    }
-                } else {
-                    AppLog.debug("AppState", "apply failure masked for no-longer-selected device=\(targetDevice.id)")
-                }
-            } else {
-                AppLog.debug("AppState", "apply failure masked for non-selected restore device=\(targetDevice.id)")
-            }
             return false
         }
+    }
+
+    private func applyBackendState(
+        device targetDevice: MouseDevice,
+        patch: DevicePatch,
+        options: ApplyOptions
+    ) async throws -> MouseState {
+        if let configurableBackend = environment.backend as? any ApplyOptionsSupportingBackend {
+            return try await configurableBackend.apply(
+                device: targetDevice,
+                patch: patch,
+                options: options
+            )
+        }
+        return try await environment.backend.apply(device: targetDevice, patch: patch)
+    }
+
+    private func handleSuccessfulApply(
+        _ next: MouseState,
+        targetDevice: MouseDevice,
+        applyDeviceID: String,
+        patch: DevicePatch,
+        start: Date,
+        shouldFocusOnActivity: Bool,
+        persistLightingZoneID: String,
+        clearLocalEditsOnSuccess: Bool
+    ) -> Bool {
+        guard let presentationDevice = deviceController.presentationDevice(for: targetDevice) else {
+            let merged = next.merged(with: deviceController.cachedState(for: applyDeviceID))
+            deviceController.storeState(merged, for: applyDeviceID, updatedAt: Date())
+            AppLog.debug("AppState", "apply result cached for missing-presentation device=\(applyDeviceID)")
+            return true
+        }
+
+        let presentationDeviceID = presentationDevice.id
+        let merged = next.merged(
+            with: deviceController.cachedState(for: presentationDeviceID) ?? deviceController.cachedState(for: applyDeviceID)
+        )
+        deviceController.cacheState(merged, sourceDeviceID: applyDeviceID, presentationDeviceID: presentationDeviceID)
+        if shouldFocusOnActivity {
+            deviceController.focusServiceSelectionOnActivity(deviceID: presentationDeviceID)
+        }
+
+        if deviceStore.selectedDeviceID == presentationDeviceID, deviceStore.state != merged {
+            deviceStore.state = merged
+        }
+
+        let localEditsChangedDuringApply = clearLocalEditsOnSuccess && (lastLocalEditAt ?? .distantPast) > start
+        let shouldHydrateEditableState = clearLocalEditsOnSuccess && !localEditsChangedDuringApply && !applyCoordinator.hasPending
+        suppressFastDpiAfterSuccessfulApplyIfNeeded(
+            patch: patch,
+            applyDeviceID: applyDeviceID,
+            presentationDeviceID: presentationDeviceID
+        )
+        if let activeStage = patch.activeStage {
+            clearPendingActiveStageSelection(matching: activeStage + 1, for: presentationDevice)
+        }
+
+        hydrateAfterSuccessfulApplyIfNeeded(
+            merged,
+            presentationDeviceID: presentationDeviceID,
+            shouldHydrateEditableState: shouldHydrateEditableState,
+            localEditsChangedDuringApply: localEditsChangedDuringApply
+        )
+        persistSuccessfulApply(
+            patch: patch,
+            presentationDevice: presentationDevice,
+            presentationDeviceID: presentationDeviceID,
+            merged: merged,
+            persistLightingZoneID: persistLightingZoneID
+        )
+
+        AppLog.event(
+            "AppState",
+            "apply ok device=\(presentationDevice.id) active=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
+            "values=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
+            "elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
+        )
+        return true
+    }
+
+    private func suppressFastDpiAfterSuccessfulApplyIfNeeded(
+        patch: DevicePatch,
+        applyDeviceID: String,
+        presentationDeviceID: String
+    ) {
+        guard patch.dpiStages != nil || patch.dpiStagePairs != nil || patch.activeStage != nil else { return }
+        let suppressedUntil = Date().addingTimeInterval(0.9)
+        deviceController.setFastDpiSuppressed(until: suppressedUntil, for: applyDeviceID)
+        deviceController.setFastDpiSuppressed(until: suppressedUntil, for: presentationDeviceID)
+        runtimeController.setCompactInteraction(until: Date().addingTimeInterval(3.0))
+    }
+
+    private func hydrateAfterSuccessfulApplyIfNeeded(
+        _ merged: MouseState,
+        presentationDeviceID: String,
+        shouldHydrateEditableState: Bool,
+        localEditsChangedDuringApply: Bool
+    ) {
+        guard deviceStore.selectedDeviceID == presentationDeviceID else { return }
+        if shouldHydrateEditableState {
+            lastLocalEditAt = nil
+            editorController.hydrateEditable(from: merged)
+        } else {
+            editorController.hydrateLiveDpiPresentation(from: merged)
+            AppLog.debug(
+                "AppState",
+                "apply hydrate skipped pending=\(applyCoordinator.hasPending) localEditsDuringApply=\(localEditsChangedDuringApply)"
+            )
+        }
+    }
+
+    private func persistSuccessfulApply(
+        patch: DevicePatch,
+        presentationDevice: MouseDevice,
+        presentationDeviceID: String,
+        merged: MouseState,
+        persistLightingZoneID: String
+    ) {
+        persistSuccessfulLightingPatch(
+            patch,
+            device: presentationDevice,
+            usbLightingZoneID: persistLightingZoneID
+        )
+        if let buttonBinding = patch.buttonBinding {
+            editorController.persistButtonBinding(buttonBinding, device: presentationDevice, profile: buttonBinding.persistentProfile)
+            editorController.cachePersistedButtonBinding(buttonBinding, device: presentationDevice, profile: buttonBinding.persistentProfile)
+        }
+        let preserveStoredLighting = patch.ledRGB == nil && patch.lightingEffect == nil
+        let snapshotLightingZoneOverride = snapshotLightingZoneOverride(
+            for: patch,
+            device: presentationDevice,
+            defaultZoneID: persistLightingZoneID
+        )
+        if deviceStore.selectedDeviceID == presentationDeviceID {
+            editorController.persistCurrentSettingsSnapshot(
+                for: presentationDevice,
+                preservingStoredLighting: preserveStoredLighting,
+                lightingZoneOverride: snapshotLightingZoneOverride
+            )
+        }
+        editorController.persistSuccessfulPatchFieldsInSettingsSnapshot(
+            patch: patch,
+            device: presentationDevice,
+            lightingZoneID: snapshotLightingZoneOverride ?? persistLightingZoneID
+        )
+
+        if deviceStore.selectedDeviceID == presentationDeviceID {
+            deviceStore.errorMessage = nil
+            deviceController.setTelemetryWarning(
+                editorController.telemetryWarning(for: merged, device: presentationDevice),
+                device: presentationDevice
+            )
+        }
+    }
+
+    private func handleApplyFailure(
+        _ error: Error,
+        targetDevice: MouseDevice,
+        patch: DevicePatch,
+        start: Date,
+        shouldSurfaceApplyFailure: Bool
+    ) {
+        AppLog.error(
+            "AppState",
+            "command apply failed device=\(targetDevice.id) patch=\(patch.describe) " +
+            "elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s: \(error.localizedDescription)"
+        )
+        guard shouldSurfaceApplyFailure else {
+            AppLog.debug("AppState", "apply failure masked for non-selected restore device=\(targetDevice.id)")
+            return
+        }
+        guard shouldShowApplyFailure(for: targetDevice) else {
+            AppLog.debug("AppState", "apply failure masked for no-longer-selected device=\(targetDevice.id)")
+            return
+        }
+
+        deviceStore.errorMessage = Self.commandFailureMessage(error)
+        deviceStore.warningMessage = nil
+        handleDpiApplyFailureIfNeeded(patch: patch, targetDevice: targetDevice)
+    }
+
+    private func shouldShowApplyFailure(for targetDevice: MouseDevice) -> Bool {
+        guard let currentSelectedDevice = deviceStore.selectedDevice else { return false }
+        return deviceController.deviceIdentityKey(currentSelectedDevice) == deviceController.deviceIdentityKey(targetDevice)
+    }
+
+    private func handleDpiApplyFailureIfNeeded(patch: DevicePatch, targetDevice: MouseDevice) {
+        guard patch.dpiStages != nil || patch.dpiStagePairs != nil || patch.activeStage != nil else { return }
+        if let activeStage = patch.activeStage {
+            clearPendingActiveStageSelection(matching: activeStage + 1, for: targetDevice)
+        }
+        runtimeStore.serviceStatusMessage = "DPI update failed"
+        runtimeController.setTransientStatus(until: Date().addingTimeInterval(4.0))
     }
 
     private func stopSoftwareLightingIfNormalLightingPatch(_ patch: DevicePatch, device: MouseDevice) async {

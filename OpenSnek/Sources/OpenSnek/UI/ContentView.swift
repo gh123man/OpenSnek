@@ -418,48 +418,12 @@ private struct EmptyDeviceState: View {
     }
 
     var body: some View {
-        VStack(alignment: .center, spacing: 18) {
-            VStack(alignment: .center, spacing: 8) {
-                if showsWaitingState {
-                    ProgressView()
-                        .controlSize(.regular)
-                        .tint(.white.opacity(0.9))
-                        .frame(maxWidth: .infinity, alignment: .center)
-
-                    Text("Waiting for devices")
-                        .font(.system(size: 28, weight: .black, design: .rounded))
-                        .foregroundStyle(.white)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                } else {
-                    Text("Connect a device")
-                        .font(.system(size: 28, weight: .black, design: .rounded))
-                        .foregroundStyle(.white)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                }
-                VStack(spacing: 4) {
-                    Button {
-                        showsSupportedDevices = true
-                    } label: {
-                        Text("Supported devices")
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
-                            .underline()
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.white)
-                    .help("Open supported device table")
-
-                    Text("\(supportedFamilyCount) models · \(rows.count) connection paths")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.58))
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                }
-                .frame(maxWidth: .infinity, alignment: .center)
-            }
-            .frame(maxWidth: .infinity, alignment: .center)
-        }
+        EmptyDeviceStatePanel(
+            showsWaitingState: showsWaitingState,
+            supportedFamilyCount: supportedFamilyCount,
+            connectionPathCount: rows.count,
+            showSupportedDevices: { showsSupportedDevices = true }
+        )
         .frame(maxWidth: 440, alignment: .center)
         .padding(24)
         .background(
@@ -485,6 +449,70 @@ private struct EmptyDeviceState: View {
         .sheet(isPresented: $showsSupportedDevices) {
             SupportedDevicesTableSheet(rows: rows)
         }
+    }
+}
+
+private struct EmptyDeviceStatePanel: View {
+    let showsWaitingState: Bool
+    let supportedFamilyCount: Int
+    let connectionPathCount: Int
+    let showSupportedDevices: () -> Void
+
+    var body: some View {
+        VStack(alignment: .center, spacing: 18) {
+            VStack(alignment: .center, spacing: 8) {
+                if showsWaitingState {
+                    waitingHeader
+                } else {
+                    connectHeader
+                }
+                supportedDevicesLink
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+    }
+
+    private var waitingHeader: some View {
+        VStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.regular)
+                .tint(.white.opacity(0.9))
+                .frame(maxWidth: .infinity, alignment: .center)
+
+            titleText("Waiting for devices")
+        }
+    }
+
+    private var connectHeader: some View {
+        titleText("Connect a device")
+    }
+
+    private func titleText(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 28, weight: .black, design: .rounded))
+            .foregroundStyle(.white)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private var supportedDevicesLink: some View {
+        VStack(spacing: 4) {
+            Button(action: showSupportedDevices) {
+                Text("Supported devices")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .underline()
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.white)
+            .help("Open supported device table")
+
+            Text("\(supportedFamilyCount) models · \(connectionPathCount) connection paths")
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.58))
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 }
 
@@ -562,26 +590,7 @@ private struct SupportedDevicesTable: View {
     let rows: [SupportedDeviceRow]
 
     var body: some View {
-        VStack(spacing: 0) {
-            SupportedDevicesTableHeader()
-            Divider().overlay(Color.white.opacity(0.12))
-
-            if rows.isEmpty {
-                Text("No supported devices match the current search.")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.62))
-                    .frame(maxWidth: .infinity, minHeight: 260)
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(rows) { row in
-                            SupportedDevicesTableRow(row: row)
-                            Divider().overlay(Color.white.opacity(0.07))
-                        }
-                    }
-                }
-            }
-        }
+        SupportedDevicesTableContent(rows: rows)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color.white.opacity(0.05))
@@ -591,6 +600,41 @@ private struct SupportedDevicesTable: View {
                 )
         )
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+private struct SupportedDevicesTableContent: View {
+    let rows: [SupportedDeviceRow]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            SupportedDevicesTableHeader()
+            Divider().overlay(Color.white.opacity(0.12))
+
+            if rows.isEmpty {
+                emptyRowsView
+            } else {
+                supportedRowsView
+            }
+        }
+    }
+
+    private var emptyRowsView: some View {
+        Text("No supported devices match the current search.")
+            .font(.system(size: 13, weight: .semibold, design: .rounded))
+            .foregroundStyle(.white.opacity(0.62))
+            .frame(maxWidth: .infinity, minHeight: 260)
+    }
+
+    private var supportedRowsView: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(rows) { row in
+                    SupportedDevicesTableRow(row: row)
+                    Divider().overlay(Color.white.opacity(0.07))
+                }
+            }
+        }
     }
 }
 

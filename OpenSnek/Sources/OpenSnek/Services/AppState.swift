@@ -23,19 +23,20 @@ final class AppState {
         autoStart: Bool = true,
         statusItemDpiDisplayDuration: TimeInterval = 3.0
     ) {
-        let initialBackend = backend ?? Self.initialBackend(
+        let initialBackend: any DeviceBackend = backend ?? Self.initialBackend(
             launchRole: launchRole,
             serviceCoordinator: serviceCoordinator
         )
+        let updateChecker: any ReleaseUpdateChecking = releaseUpdateChecker ?? ReleaseUpdateChecker()
         let environment = AppEnvironment(
             launchRole: launchRole,
-            releaseUpdateChecker: releaseUpdateChecker ?? ReleaseUpdateChecker(),
+            releaseUpdateChecker: updateChecker,
             currentAppVersion: currentAppVersion,
             shouldCheckForReleaseUpdates: shouldCheckForReleaseUpdates,
             backend: initialBackend,
             serviceCoordinator: serviceCoordinator
         )
-        let buttonSlots = ButtonSlotDescriptor.defaults
+        let buttonSlots: [ButtonSlotDescriptor] = ButtonSlotDescriptor.defaults
         self.environment = environment
         self.deviceStore = DeviceStore(environment: environment)
         self.editorStore = EditorStore(deviceStore: deviceStore)

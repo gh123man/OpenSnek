@@ -47,6 +47,7 @@ Protocol behavior changes require docs, tests, and `CHANGELOG.md` updates in the
 15. Use code comments strategically. If a change has unclear but important UI/UX effects, leave a concise comment that explains the constraint so future changes do not regress it.
 16. Avoid magic numbers unless the number is inherently self-descriptive. For bounded sets, including protocol characteristics where appropriate, prefer enums or named constants with clear domain names. For example, `let slot = 1` may be clear in local context, but `let button = 55` needs a descriptive name.
 17. Avoid repeating multi-case conditionals across the codebase. If the same case set appears in multiple places, such as `device == foo || device == bar || device == abc`, move the rule into a helper method, enum extension, or other reusable code.
+18. Treat Swift long-function-body compiler warnings from `-warn-long-function-bodies=200` as errors. Fix them immediately by simplifying or splitting the flagged method; do not suppress or defer them.
 
 ## Quick Commands
 

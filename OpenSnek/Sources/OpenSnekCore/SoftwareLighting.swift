@@ -596,7 +596,11 @@ public enum SoftwareLightingRenderer {
     }
 
     private static func lerpChannel(_ a: Int, _ b: Int, _ mix: Double) -> Int {
-        Int(round(Double(a) + (Double(b - a) * max(0.0, min(1.0, mix)))))
+        let clampedMix = max(0.0, min(1.0, mix))
+        let start = Double(a)
+        let delta = Double(b - a)
+        let interpolated = start + delta * clampedMix
+        return Int(round(interpolated))
     }
 
     private static func positiveFraction(_ value: Double) -> Double {
