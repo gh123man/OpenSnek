@@ -1,6 +1,6 @@
 import XCTest
 
-final class MasterFeatureSweep {
+final class FeatureSweep {
     enum Feature: Hashable {
         case onboardProfiles
         case dpiStageSelection
@@ -867,8 +867,8 @@ final class MasterFeatureSweep {
     }
 }
 
-extension MasterFeatureSweep.Configuration {
-    static let v3XUSB = MasterFeatureSweep.Configuration(
+extension FeatureSweep.Configuration {
+    static let v3XUSB = FeatureSweep.Configuration(
         appReadyDeadline: 10,
         actionDeadline: 3,
         expectedSelectedDeviceName: "Razer Basilisk V3 X HyperSpeed",
@@ -878,11 +878,11 @@ extension MasterFeatureSweep.Configuration {
             "power-management-card",
             "poll-rate-card",
             "low-battery-threshold-card",
-            "button-mapping-card",
+            "button-mapping-card"
         ],
         absentCards: [
             "onboard-profile-pill-button",
-            "scroll-controls-card",
+            "scroll-controls-card"
         ],
         features: [
             .dpiStageSelection,
@@ -891,13 +891,13 @@ extension MasterFeatureSweep.Configuration {
             .pollRate,
             .sleepTimeout,
             .lowBatteryThreshold,
-            .buttonMapping,
+            .buttonMapping
         ],
         assertUSBPollRateCommand: true,
         buttonTurboCandidateSlots: [1, 2, 3, 4, 5, 9, 10, 96]
     )
 
-    static let v3XBluetooth = MasterFeatureSweep.Configuration(
+    static let v3XBluetooth = FeatureSweep.Configuration(
         appReadyDeadline: 15,
         actionDeadline: 5,
         expectedSelectedDeviceName: nil,
@@ -905,25 +905,25 @@ extension MasterFeatureSweep.Configuration {
             "dpi-stages-card",
             "lighting-card",
             "power-management-card",
-            "button-mapping-card",
+            "button-mapping-card"
         ],
         absentCards: [
             "onboard-profile-pill-button",
             "poll-rate-card",
             "low-battery-threshold-card",
-            "scroll-controls-card",
+            "scroll-controls-card"
         ],
         features: [
             .dpiValue,
             .lightingBrightness,
             .sleepTimeout,
-            .buttonMapping,
+            .buttonMapping
         ],
         assertUSBPollRateCommand: false,
         buttonTurboCandidateSlots: [1, 2, 3, 4, 5, 9, 10, 96]
     )
 
-    static let v3ProUSB = MasterFeatureSweep.Configuration(
+    static let v3ProUSB = FeatureSweep.Configuration(
         appReadyDeadline: 10,
         actionDeadline: 3,
         expectedSelectedDeviceName: "Razer Basilisk V3 Pro",
@@ -935,7 +935,7 @@ extension MasterFeatureSweep.Configuration {
             "poll-rate-card",
             "low-battery-threshold-card",
             "scroll-controls-card",
-            "button-mapping-card",
+            "button-mapping-card"
         ],
         absentCards: [],
         features: [
@@ -946,13 +946,13 @@ extension MasterFeatureSweep.Configuration {
             .sleepTimeout,
             .lowBatteryThreshold,
             .scrollControls,
-            .buttonMapping,
+            .buttonMapping
         ],
         assertUSBPollRateCommand: true,
         buttonTurboCandidateSlots: [1, 2, 3, 4, 5, 9, 10, 15, 52, 53, 106]
     )
 
-    static let v3ProBluetooth = MasterFeatureSweep.Configuration(
+    static let v3ProBluetooth = FeatureSweep.Configuration(
         appReadyDeadline: 15,
         actionDeadline: 5,
         expectedSelectedDeviceName: nil,
@@ -960,18 +960,18 @@ extension MasterFeatureSweep.Configuration {
             "dpi-stages-card",
             "onboard-profile-pill-button",
             "lighting-card",
-            "button-mapping-card",
+            "button-mapping-card"
         ],
         absentCards: [
             "poll-rate-card",
             "low-battery-threshold-card",
-            "scroll-controls-card",
+            "scroll-controls-card"
         ],
         features: [
             .onboardProfiles,
             .dpiValue,
             .lightingBrightness,
-            .buttonMapping,
+            .buttonMapping
         ],
         assertUSBPollRateCommand: false,
         buttonTurboCandidateSlots: []

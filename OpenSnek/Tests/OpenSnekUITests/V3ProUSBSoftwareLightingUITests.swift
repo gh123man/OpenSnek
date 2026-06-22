@@ -105,7 +105,7 @@ final class V3ProUSBSoftwareLightingUITests: OpenSnekHardwareUITestCase {
             "software-lighting-palette-reset-button",
             "software-lighting-palette-add-button",
             "software-lighting-palette-0-orb-button",
-            "software-lighting-apply-button",
+            "software-lighting-apply-button"
         ]
         for identifier in expectedIdentifiers {
             let element = app.descendants(matching: .any)[identifier]
@@ -157,7 +157,7 @@ final class V3ProUSBSoftwareLightingUITests: OpenSnekHardwareUITestCase {
                 app.menuItems[label],
                 app.buttons[label],
                 app.staticTexts[label],
-                app.descendants(matching: .any)[label],
+                app.descendants(matching: .any)[label]
             ],
             timeout: 2
         )
@@ -172,7 +172,7 @@ final class V3ProUSBSoftwareLightingUITests: OpenSnekHardwareUITestCase {
                 picker.descendants(matching: .button)[label],
                 app.buttons[label],
                 app.radioButtons[label],
-                app.descendants(matching: .any)[label],
+                app.descendants(matching: .any)[label]
             ],
             timeout: 0.5
         ) {
