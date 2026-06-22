@@ -33,6 +33,7 @@ All notable changes to this project are documented in this file.
 - `OpenSnekProbe` Bluetooth profile create/button write commands now reject targets outside the documented stored-profile range instead of accepting any target above the live profile.
 - USB dongle-only and sleeping-mouse states now switch to the disconnected presentation instead of staying on the loading/reconnecting screen when the dongle is visible but the mouse does not answer telemetry.
 - USB sleeping-mouse detection now depends on concrete unavailable/no-state telemetry results instead of aging out passive USB liveness observations.
+- The Lighting card now defaults to the Advanced tab when expanded while Advanced lighting is set to apply on connect or an Advanced effect is already running.
 - Disconnect and reconnect detail screens no longer show a duplicate red global error notice over the same connection-state UI.
 - Reconnect and disconnect recovery no longer shows yellow USB telemetry notices for expected temporary telemetry gaps while the device is settling.
 - USB telemetry-unavailable and availability backoff now survive newly visible dongle subscription updates, preventing the dongle-only state from falling back into an immediate reconnect retry loop.

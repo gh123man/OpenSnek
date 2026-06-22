@@ -37,9 +37,11 @@ struct LightingCard: View {
     }
 
     private var preferredLightingTab: LightingCardTab {
-        editorStore.editableSoftwareLightingApplyOnConnect && selected.supportsSoftwareLightingEffects
-            ? .advanced
-            : .onboard
+        LightingCardTab.preferred(
+            supportsSoftwareLightingEffects: selected.supportsSoftwareLightingEffects,
+            applyOnConnect: editorStore.editableSoftwareLightingApplyOnConnect,
+            softwareLightingStatus: softwareLightingStatus
+        )
     }
 
     private var availableTabs: [LightingCardTab] {
@@ -208,6 +210,10 @@ struct LightingCard: View {
             get: { selectedTab },
             set: { selectedTab = availableTabs.contains($0) ? $0 : .onboard }
         )
+    }
+
+    private func syncSelectedTabToPreferredLightingMode() {
+        selectedTab = preferredLightingTab
     }
 
     @ViewBuilder
@@ -514,15 +520,15 @@ struct LightingCard: View {
                 )
         )
         .onAppear {
-            selectedTab = preferredLightingTab
+            syncSelectedTabToPreferredLightingMode()
         }
         .onChange(of: selected.id) {
-            selectedTab = preferredLightingTab
+            syncSelectedTabToPreferredLightingMode()
             isExpanded = false
         }
-        .onChange(of: editorStore.editableSoftwareLightingApplyOnConnect) { _, enabled in
-            if enabled && selected.supportsSoftwareLightingEffects {
-                selectedTab = .advanced
+        .onChange(of: preferredLightingTab) { _, tab in
+            if tab == .advanced {
+                selectedTab = tab
             }
         }
     }
@@ -564,7 +570,11 @@ struct LightingCard: View {
 
             Button {
                 withAnimation(.easeInOut(duration: 0.16)) {
-                    isExpanded.toggle()
+                    let nextExpandedState = !isExpanded
+                    if nextExpandedState {
+                        syncSelectedTabToPreferredLightingMode()
+                    }
+                    isExpanded = nextExpandedState
                 }
             } label: {
                 Label(isExpanded ? "Collapse" : "Expand", systemImage: isExpanded ? "chevron.up" : "chevron.down")
@@ -783,11 +793,23 @@ struct LightingCard: View {
     }
 }
 
-private enum LightingCardTab: String, CaseIterable, Identifiable {
+enum LightingCardTab: String, CaseIterable, Identifiable {
     case onboard
     case advanced
 
     var id: String { rawValue }
+
+    static func preferred(
+        supportsSoftwareLightingEffects: Bool,
+        applyOnConnect: Bool,
+        softwareLightingStatus: SoftwareLightingEngineStatus?
+    ) -> LightingCardTab {
+        guard supportsSoftwareLightingEffects else { return .onboard }
+        if applyOnConnect || softwareLightingStatus?.isRunning == true {
+            return .advanced
+        }
+        return .onboard
+    }
 
     var label: String {
         switch self {
