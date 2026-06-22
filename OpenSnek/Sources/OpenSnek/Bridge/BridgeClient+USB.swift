@@ -5,6 +5,26 @@ import OpenSnekHardware
 import OpenSnekProtocols
 
 extension BridgeClient {
+    struct USBRawButtonBindingWrite {
+        let profile: UInt8
+        let slot: UInt8
+        let hypershift: UInt8
+        let functionBlock: [UInt8]
+    }
+
+    struct USBButtonBindingWrite {
+        let slot: Int
+        let kind: String
+        let hidKey: Int
+        let hidModifiers: Int
+        let turboEnabled: Bool
+        let turboRate: Int
+        let clutchDPI: Int?
+        let persistentProfile: Int
+        let writePersistentLayer: Bool
+        let writeDirectLayer: Bool
+    }
+
     static func usbButtonWriteSucceeded(
         writePersistentLayer: Bool,
         writeDirectLayer: Bool,
@@ -21,7 +41,6 @@ extension BridgeClient {
     }
 
     func resolvedUSBStateCapabilities(
-        device _: MouseDevice,
         profile: DeviceProfile?,
         stages: USBDpiStageSnapshot?,
         poll: Int?,
@@ -48,7 +67,6 @@ extension BridgeClient {
     }
 
     func resolvedUSBStateCapabilities(
-        device: MouseDevice,
         profile: DeviceProfile?,
         stages: (Int, [Int])?,
         poll: Int?,
@@ -56,10 +74,9 @@ extension BridgeClient {
         led: Int?
     ) -> Capabilities {
         resolvedUSBStateCapabilities(
-            device: device,
             profile: profile,
             stages: stages.map { active, values in
-                (
+                USBDpiStageSnapshot(
                     active: active,
                     values: values,
                     pairs: values.map { DpiPair(x: $0, y: $0) },
@@ -124,10 +141,12 @@ extension BridgeClient {
         if try setButtonBindingUSBRaw(
             session,
             device,
-            profile: clampedProfile,
-            slot: clampedSlot,
-            hypershift: clampedHypershift,
-            functionBlock: functionBlock
+            request: USBRawButtonBindingWrite(
+                profile: clampedProfile,
+                slot: clampedSlot,
+                hypershift: clampedHypershift,
+                functionBlock: functionBlock
+            )
         ) {
             deviceSessions[device.id] = session
             return true
@@ -160,7 +179,6 @@ extension BridgeClient {
             let led = try getScrollLEDBrightness(session, device)
             let profile = usbDeviceProfile(for: device)
             let capabilities = resolvedUSBStateCapabilities(
-                device: device,
                 profile: profile,
                 stages: stages,
                 poll: poll,
@@ -345,7 +363,7 @@ extension BridgeClient {
             UInt8((x >> 8) & 0xFF),
             UInt8(x & 0xFF),
             UInt8((y >> 8) & 0xFF),
-            UInt8(y & 0xFF),
+            UInt8(y & 0xFF)
         ]
         guard let r = try perform(session, device, classID: 0x04, cmdID: 0x05, size: 0x07, args: args), r[0] == 0x02 else { return false }
         return true
@@ -463,7 +481,7 @@ extension BridgeClient {
             stageIDs: Array(stageIDs.prefix(count)),
             count: count
         )
-        return (
+        return USBDpiStageSnapshot(
             active: active,
             values: Array(values.prefix(count)),
             pairs: Array(pairs.prefix(count)),
@@ -754,10 +772,12 @@ extension BridgeClient {
             guard try setButtonBindingUSBRaw(
                 session,
                 device,
-                profile: 0x00,
-                slot: slot,
-                hypershift: 0x00,
-                functionBlock: block
+                request: USBRawButtonBindingWrite(
+                    profile: 0x00,
+                    slot: slot,
+                    hypershift: 0x00,
+                    functionBlock: block
+                )
             ) else {
                 return false
             }
@@ -788,10 +808,12 @@ extension BridgeClient {
             guard try setButtonBindingUSBRaw(
                 session,
                 device,
-                profile: targetProfile,
-                slot: slot,
-                hypershift: 0x00,
-                functionBlock: block
+                request: USBRawButtonBindingWrite(
+                    profile: targetProfile,
+                    slot: slot,
+                    hypershift: 0x00,
+                    functionBlock: block
+                )
             ) else {
                 return false
             }
@@ -818,10 +840,12 @@ extension BridgeClient {
             guard try setButtonBindingUSBRaw(
                 session,
                 device,
-                profile: profile,
-                slot: slot,
-                hypershift: 0x00,
-                functionBlock: block
+                request: USBRawButtonBindingWrite(
+                    profile: profile,
+                    slot: slot,
+                    hypershift: 0x00,
+                    functionBlock: block
+                )
             ) else {
                 return false
             }
@@ -833,13 +857,10 @@ extension BridgeClient {
     func setButtonBindingUSBRaw(
         _ session: USBHIDControlSession,
         _ device: MouseDevice,
-        profile: UInt8,
-        slot: UInt8,
-        hypershift: UInt8,
-        functionBlock: [UInt8]
+        request: USBRawButtonBindingWrite
     ) throws -> Bool {
-        guard functionBlock.count == 7 else { return false }
-        let args = [profile, slot, hypershift] + functionBlock
+        guard request.functionBlock.count == 7 else { return false }
+        let args = [request.profile, request.slot, request.hypershift] + request.functionBlock
         guard let r = try perform(
             session,
             device,
@@ -856,62 +877,59 @@ extension BridgeClient {
     func setButtonBindingUSB(
         _ session: USBHIDControlSession,
         _ device: MouseDevice,
-        slot: Int,
-        kind: String,
-        hidKey: Int,
-        hidModifiers: Int = 0,
-        turboEnabled: Bool,
-        turboRate: Int,
-        clutchDPI: Int?,
-        persistentProfile: Int,
-        writePersistentLayer: Bool,
-        writeDirectLayer: Bool
+        request: USBButtonBindingWrite
     ) throws -> Bool {
-        guard let bindingKind = ButtonBindingKind(rawValue: kind) else { return false }
+        guard let bindingKind = ButtonBindingKind(rawValue: request.kind) else { return false }
         let functionBlock = ButtonBindingSupport.buildUSBFunctionBlock(
-            slot: slot,
+            slot: request.slot,
             kind: bindingKind,
-            hidKey: hidKey,
-            hidModifiers: hidModifiers,
-            turboEnabled: turboEnabled && bindingKind.supportsTurbo,
-            turboRate: turboRate,
-            clutchDPI: clutchDPI,
+            hidKey: request.hidKey,
+            hidModifiers: request.hidModifiers,
+            turboEnabled: request.turboEnabled && bindingKind.supportsTurbo,
+            turboRate: request.turboRate,
+            clutchDPI: request.clutchDPI,
             profileID: device.profile_id
         )
-        let clampedSlot = UInt8(max(0, min(255, slot)))
+        let clampedSlot = UInt8(max(0, min(255, request.slot)))
 
-        let clampedPersistentProfile = UInt8(OnboardProfileLimits.clampPersistentProfileID(persistentProfile))
+        let clampedPersistentProfile = UInt8(
+            OnboardProfileLimits.clampPersistentProfileID(request.persistentProfile)
+        )
 
         let wrotePersistent: Bool
-        if writePersistentLayer {
+        if request.writePersistentLayer {
             wrotePersistent = try setButtonBindingUSBRaw(
                 session,
                 device,
-                profile: clampedPersistentProfile,
-                slot: clampedSlot,
-                hypershift: 0x00,
-                functionBlock: functionBlock
+                request: USBRawButtonBindingWrite(
+                    profile: clampedPersistentProfile,
+                    slot: clampedSlot,
+                    hypershift: 0x00,
+                    functionBlock: functionBlock
+                )
             )
             guard wrotePersistent else { return false }
         } else {
             wrotePersistent = false
         }
         let wroteDirect: Bool
-        if writeDirectLayer {
+        if request.writeDirectLayer {
             wroteDirect = try setButtonBindingUSBRaw(
                 session,
                 device,
-                profile: 0x00,
-                slot: clampedSlot,
-                hypershift: 0x00,
-                functionBlock: functionBlock
+                request: USBRawButtonBindingWrite(
+                    profile: 0x00,
+                    slot: clampedSlot,
+                    hypershift: 0x00,
+                    functionBlock: functionBlock
+                )
             )
         } else {
             wroteDirect = false
         }
         return Self.usbButtonWriteSucceeded(
-            writePersistentLayer: writePersistentLayer,
-            writeDirectLayer: writeDirectLayer,
+            writePersistentLayer: request.writePersistentLayer,
+            writeDirectLayer: request.writeDirectLayer,
             wrotePersistent: wrotePersistent,
             wroteDirect: wroteDirect
         )

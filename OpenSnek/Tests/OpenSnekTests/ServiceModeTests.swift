@@ -134,16 +134,20 @@ final class ServiceModeTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 1_773_400_000)
 
         let sleep = RuntimeWakeSchedule.nextSleepInterval(
-            now: now,
-            profile: .serviceIdle,
-            fastDpiInterval: nil,
-            usesRemoteServiceTransport: false,
-            lastDevicePresencePollAt: now,
-            lastRefreshStatePollAt: now,
-            lastFastDpiPollAt: now,
-            lastRemoteClientPresencePingAt: .distantPast,
-            transientStatusUntil: nil,
-            nextRemoteClientPresenceExpiry: nil
+            RuntimeWakeSchedule.Context(
+                now: now,
+                profile: .serviceIdle,
+                refreshStateIntervalOverride: nil,
+                devicePresenceIntervalOverride: nil,
+                fastDpiInterval: nil,
+                usesRemoteServiceTransport: false,
+                lastDevicePresencePollAt: now,
+                lastRefreshStatePollAt: now,
+                lastFastDpiPollAt: now,
+                lastRemoteClientPresencePingAt: .distantPast,
+                transientStatusUntil: nil,
+                nextRemoteClientPresenceExpiry: nil
+            )
         )
 
         XCTAssertEqual(sleep, 4.0, accuracy: 0.001)
@@ -153,16 +157,20 @@ final class ServiceModeTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 1_773_400_100)
 
         let sleep = RuntimeWakeSchedule.nextSleepInterval(
-            now: now,
-            profile: .serviceInteractive,
-            fastDpiInterval: PollingProfile.serviceInteractive.fastDpiInterval,
-            usesRemoteServiceTransport: false,
-            lastDevicePresencePollAt: now,
-            lastRefreshStatePollAt: now,
-            lastFastDpiPollAt: now,
-            lastRemoteClientPresencePingAt: .distantPast,
-            transientStatusUntil: nil,
-            nextRemoteClientPresenceExpiry: nil
+            RuntimeWakeSchedule.Context(
+                now: now,
+                profile: .serviceInteractive,
+                refreshStateIntervalOverride: nil,
+                devicePresenceIntervalOverride: nil,
+                fastDpiInterval: PollingProfile.serviceInteractive.fastDpiInterval,
+                usesRemoteServiceTransport: false,
+                lastDevicePresencePollAt: now,
+                lastRefreshStatePollAt: now,
+                lastFastDpiPollAt: now,
+                lastRemoteClientPresencePingAt: .distantPast,
+                transientStatusUntil: nil,
+                nextRemoteClientPresenceExpiry: nil
+            )
         )
 
         XCTAssertEqual(sleep, 0.25, accuracy: 0.001)
@@ -172,16 +180,20 @@ final class ServiceModeTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 1_773_400_200)
 
         let sleep = RuntimeWakeSchedule.nextSleepInterval(
-            now: now,
-            profile: .foreground,
-            fastDpiInterval: PollingProfile.foreground.fastDpiInterval,
-            usesRemoteServiceTransport: true,
-            lastDevicePresencePollAt: .distantPast,
-            lastRefreshStatePollAt: .distantPast,
-            lastFastDpiPollAt: .distantPast,
-            lastRemoteClientPresencePingAt: now,
-            transientStatusUntil: nil,
-            nextRemoteClientPresenceExpiry: nil
+            RuntimeWakeSchedule.Context(
+                now: now,
+                profile: .foreground,
+                refreshStateIntervalOverride: nil,
+                devicePresenceIntervalOverride: nil,
+                fastDpiInterval: PollingProfile.foreground.fastDpiInterval,
+                usesRemoteServiceTransport: true,
+                lastDevicePresencePollAt: .distantPast,
+                lastRefreshStatePollAt: .distantPast,
+                lastFastDpiPollAt: .distantPast,
+                lastRemoteClientPresencePingAt: now,
+                transientStatusUntil: nil,
+                nextRemoteClientPresenceExpiry: nil
+            )
         )
 
         XCTAssertEqual(sleep, 1.0, accuracy: 0.001)
@@ -192,32 +204,38 @@ final class ServiceModeTests: XCTestCase {
 
         XCTAssertTrue(
             AppStateDeviceController.shouldDelayBluetoothRealtimeStateRefresh(
-                transport: .bluetooth,
-                transportStatus: .streamActive,
-                lastHeartbeatAt: now.addingTimeInterval(-0.2),
-                lastFullStateRefreshStartedAt: now.addingTimeInterval(-1.9),
-                minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
-                now: now
+                AppStateDeviceController.BluetoothRealtimeRefreshDelayContext(
+                    transport: .bluetooth,
+                    transportStatus: .streamActive,
+                    lastHeartbeatAt: now.addingTimeInterval(-0.2),
+                    lastFullStateRefreshStartedAt: now.addingTimeInterval(-1.9),
+                    minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
+                    now: now
+                )
             )
         )
         XCTAssertFalse(
             AppStateDeviceController.shouldDelayBluetoothRealtimeStateRefresh(
-                transport: .bluetooth,
-                transportStatus: .streamActive,
-                lastHeartbeatAt: now.addingTimeInterval(-0.2),
-                lastFullStateRefreshStartedAt: now.addingTimeInterval(-2.0),
-                minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
-                now: now
+                AppStateDeviceController.BluetoothRealtimeRefreshDelayContext(
+                    transport: .bluetooth,
+                    transportStatus: .streamActive,
+                    lastHeartbeatAt: now.addingTimeInterval(-0.2),
+                    lastFullStateRefreshStartedAt: now.addingTimeInterval(-2.0),
+                    minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
+                    now: now
+                )
             )
         )
         XCTAssertFalse(
             AppStateDeviceController.shouldDelayBluetoothRealtimeStateRefresh(
-                transport: .bluetooth,
-                transportStatus: .streamActive,
-                lastHeartbeatAt: now.addingTimeInterval(-0.2),
-                lastFullStateRefreshStartedAt: now.addingTimeInterval(-8.0),
-                minimumRefreshInterval: PollingProfile.serviceIdle.refreshStateInterval,
-                now: now
+                AppStateDeviceController.BluetoothRealtimeRefreshDelayContext(
+                    transport: .bluetooth,
+                    transportStatus: .streamActive,
+                    lastHeartbeatAt: now.addingTimeInterval(-0.2),
+                    lastFullStateRefreshStartedAt: now.addingTimeInterval(-8.0),
+                    minimumRefreshInterval: PollingProfile.serviceIdle.refreshStateInterval,
+                    now: now
+                )
             )
         )
     }
@@ -445,11 +463,11 @@ final class ServiceModeTests: XCTestCase {
     }
 
     @MainActor
-    func testSelectedDpiActivityPromotesServiceBackToInteractiveProfile() async {
+    func testSelectedDpiActivityPromotesServiceBackToInteractiveProfile() async throws {
         let backend = ServiceModeTransportBackend(transportStatus: .realTimeHID)
         let appState = AppState(launchRole: .service, backend: backend, autoStart: false)
         let device = backend.device
-        let previous = try! await backend.readState(device: device)
+        let previous = try await backend.readState(device: device)
         let next = MouseState(
             device: previous.device,
             connection: previous.connection,

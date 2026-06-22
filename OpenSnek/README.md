@@ -144,23 +144,23 @@ Manual XCUITest happy path. This launches the full macOS app against a connected
   test
 ```
 
-Manual V3 Pro USB master feature sweep. This changes and restores several hardware settings in one full-app XCUITest to catch cross-feature interference between back-to-back UI actions.
+Manual V3 Pro USB feature sweep. This changes and restores several hardware settings in one full-app XCUITest to catch cross-feature interference between back-to-back UI actions.
 
 ```bash
 ./OpenSnek/scripts/xcodebuild_generated.sh \
   -scheme OpenSnekUITests \
   -destination 'platform=macOS' \
-  -only-testing:OpenSnekUITests/V3ProUSBMasterFeatureUITests/testV3ProUSBMasterFeatureSweepDoesNotCrossInterfere \
+  -only-testing:OpenSnekUITests/V3ProUSBFeatureSweepUITests/testV3ProUSBFeatureSweepDoesNotCrossInterfere \
   test
 ```
 
-Manual V3 Pro Bluetooth master feature sweep. This runs the same composable feature harness against the real Bluetooth protocol scope (`vendor 0x068E`, `product 0x00AC`, `protocol ble-vendor`, profile `basilisk_v3_pro`).
+Manual V3 Pro Bluetooth feature sweep. This runs the same composable feature harness against the real Bluetooth protocol scope (`vendor 0x068E`, `product 0x00AC`, `protocol ble-vendor`, profile `basilisk_v3_pro`).
 
 ```bash
 ./OpenSnek/scripts/xcodebuild_generated.sh \
   -scheme OpenSnekUITests \
   -destination 'platform=macOS' \
-  -only-testing:OpenSnekUITests/V3ProBluetoothMasterFeatureUITests/testV3ProBluetoothMasterFeatureSweepDoesNotCrossInterfere \
+  -only-testing:OpenSnekUITests/V3ProBluetoothFeatureSweepUITests/testV3ProBluetoothFeatureSweepDoesNotCrossInterfere \
   test
 ```
 

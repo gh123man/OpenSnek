@@ -292,7 +292,7 @@ private enum KeyboardBindingCaptureSupport {
         59: 224, // Left Control
         60: 229, // Right Shift
         61: 230, // Right Option
-        62: 228, // Right Control
+        62: 228 // Right Control
     ]
 
     private static let hidKeyByKeypadKeyCode: [UInt16: Int] = [
@@ -312,7 +312,7 @@ private enum KeyboardBindingCaptureSupport {
         88: 94, // Keypad 6
         89: 95, // Keypad 7
         91: 96, // Keypad 8
-        92: 97, // Keypad 9
+        92: 97 // Keypad 9
     ]
 
     private static let hidKeyBySpecialKeyCode: [UInt16: Int] = [
@@ -350,7 +350,7 @@ private enum KeyboardBindingCaptureSupport {
         123: 80, // Left Arrow
         124: 79, // Right Arrow
         125: 81, // Down Arrow
-        126: 82, // Up Arrow
+        126: 82 // Up Arrow
     ]
 
     static func hidKey(from event: NSEvent) -> Int? {

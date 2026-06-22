@@ -1,9 +1,12 @@
 // swift-tools-version: 6.2
 import PackageDescription
 
-let longFunctionBodyWarningThresholdMilliseconds = "200"
+let longFunctionWarningMS = "200"
 let swiftCompilerDiagnostics: [SwiftSetting] = [
-    .unsafeFlags(["-Xfrontend", "-warn-long-function-bodies=\(longFunctionBodyWarningThresholdMilliseconds)"])
+    .unsafeFlags(["-Xfrontend", "-warn-long-function-bodies=\(longFunctionWarningMS)"])
+]
+let swiftLintBuildPlugins: [Target.PluginUsage] = [
+    .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins")
 ]
 
 let package = Package(
@@ -19,47 +22,57 @@ let package = Package(
         .executable(name: "OpenSnek", targets: ["OpenSnek"]),
         .executable(name: "OpenSnekProbe", targets: ["OpenSnekProbe"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/SimplyDanny/SwiftLintPlugins", exact: "0.63.3")
+    ],
     targets: [
         .target(
             name: "OpenSnekCore",
             path: "Sources/OpenSnekCore",
-            swiftSettings: swiftCompilerDiagnostics
+            swiftSettings: swiftCompilerDiagnostics,
+            plugins: swiftLintBuildPlugins
         ),
         .target(
             name: "OpenSnekProtocols",
             dependencies: ["OpenSnekCore"],
             path: "Sources/OpenSnekProtocols",
-            swiftSettings: swiftCompilerDiagnostics
+            swiftSettings: swiftCompilerDiagnostics,
+            plugins: swiftLintBuildPlugins
         ),
         .target(
             name: "OpenSnekHardware",
             dependencies: ["OpenSnekCore", "OpenSnekProtocols"],
             path: "Sources/OpenSnekHardware",
-            swiftSettings: swiftCompilerDiagnostics
+            swiftSettings: swiftCompilerDiagnostics,
+            plugins: swiftLintBuildPlugins
         ),
         .target(
             name: "OpenSnekAppSupport",
             dependencies: ["OpenSnekCore", "OpenSnekHardware"],
             path: "Sources/OpenSnekAppSupport",
-            swiftSettings: swiftCompilerDiagnostics
+            swiftSettings: swiftCompilerDiagnostics,
+            plugins: swiftLintBuildPlugins
         ),
         .executableTarget(
             name: "OpenSnek",
             dependencies: ["OpenSnekCore", "OpenSnekProtocols", "OpenSnekHardware", "OpenSnekAppSupport"],
             path: "Sources/OpenSnek",
-            swiftSettings: swiftCompilerDiagnostics
+            swiftSettings: swiftCompilerDiagnostics,
+            plugins: swiftLintBuildPlugins
         ),
         .executableTarget(
             name: "OpenSnekProbe",
             dependencies: ["OpenSnekCore", "OpenSnekProtocols", "OpenSnekHardware"],
             path: "Sources/OpenSnekProbe",
-            swiftSettings: swiftCompilerDiagnostics
+            swiftSettings: swiftCompilerDiagnostics,
+            plugins: swiftLintBuildPlugins
         ),
         .testTarget(
             name: "OpenSnekTests",
             dependencies: ["OpenSnek", "OpenSnekCore", "OpenSnekProtocols", "OpenSnekHardware", "OpenSnekAppSupport"],
             path: "Tests/OpenSnekTests",
-            swiftSettings: swiftCompilerDiagnostics
-        ),
+            swiftSettings: swiftCompilerDiagnostics,
+            plugins: swiftLintBuildPlugins
+        )
     ]
 )

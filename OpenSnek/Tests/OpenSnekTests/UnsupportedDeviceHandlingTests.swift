@@ -117,19 +117,8 @@ final class UnsupportedDeviceHandlingTests: XCTestCase {
 
     func testUnsupportedUSBUsesProbedCapabilitiesOnly() async {
         let client = BridgeClient(startHIDMonitoring: false)
-        let device = MouseDevice(
-            id: "usb-unsupported",
-            vendor_id: 0x1532,
-            product_id: 0x1234,
-            product_name: "Razer Mystery Mouse",
-            transport: .usb,
-            path_b64: "",
-            serial: nil,
-            firmware: nil
-        )
 
         let capabilities = await client.resolvedUSBStateCapabilities(
-            device: device,
             profile: nil,
             stages: (1, [800, 1600, 3200]),
             poll: 1000,

@@ -15,7 +15,7 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
         .cometChase,
         .nightRider,
         .aurora,
-        .jellybeans,
+        .jellybeans
     ]
 
     public static let basiliskV3ProPresets: [SoftwareLightingPresetID] = animatedPresets + [.batteryMeter]
@@ -47,7 +47,7 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
             return [
                 RGBPatch(r: 48, g: 0, b: 0),
                 RGBPatch(r: 255, g: 48, b: 0),
-                RGBPatch(r: 255, g: 176, b: 28),
+                RGBPatch(r: 255, g: 176, b: 28)
             ]
         case .scrollingRainbow:
             return [
@@ -56,24 +56,24 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
                 RGBPatch(r: 255, g: 235, b: 0),
                 RGBPatch(r: 20, g: 220, b: 80),
                 RGBPatch(r: 0, g: 190, b: 255),
-                RGBPatch(r: 130, g: 80, b: 255),
+                RGBPatch(r: 130, g: 80, b: 255)
             ]
         case .cometChase:
             return [
                 RGBPatch(r: 30, g: 190, b: 255),
                 RGBPatch(r: 120, g: 72, b: 255),
-                RGBPatch(r: 255, g: 255, b: 255),
+                RGBPatch(r: 255, g: 255, b: 255)
             ]
         case .nightRider:
             return [
-                RGBPatch(r: 255, g: 0, b: 0),
+                RGBPatch(r: 255, g: 0, b: 0)
             ]
         case .aurora:
             return [
                 RGBPatch(r: 38, g: 214, b: 126),
                 RGBPatch(r: 20, g: 210, b: 220),
                 RGBPatch(r: 96, g: 96, b: 255),
-                RGBPatch(r: 228, g: 94, b: 255),
+                RGBPatch(r: 228, g: 94, b: 255)
             ]
         case .jellybeans:
             return [
@@ -84,13 +84,13 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
                 RGBPatch(r: 0, g: 220, b: 255),
                 RGBPatch(r: 0, g: 92, b: 255),
                 RGBPatch(r: 144, g: 48, b: 255),
-                RGBPatch(r: 255, g: 56, b: 228),
+                RGBPatch(r: 255, g: 56, b: 228)
             ]
         case .batteryMeter:
             return [
                 RGBPatch(r: 255, g: 0, b: 0),
                 RGBPatch(r: 255, g: 255, b: 0),
-                RGBPatch(r: 255, g: 255, b: 255),
+                RGBPatch(r: 255, g: 255, b: 255)
             ]
         }
     }
@@ -263,7 +263,7 @@ public struct SoftwareLightingFrameLayout: Codable, Hashable, Sendable {
         SoftwareLightingFrameCell(index: 10, id: "underglow_right_middle", label: "Underglow Right Middle"),
         SoftwareLightingFrameCell(index: 11, id: "underglow_right_front", label: "Underglow Right Front"),
         SoftwareLightingFrameCell(index: 12, id: "underglow_tail_1", label: "Underglow Tail 1"),
-        SoftwareLightingFrameCell(index: 13, id: "underglow_tail_2", label: "Underglow Tail 2"),
+        SoftwareLightingFrameCell(index: 13, id: "underglow_tail_2", label: "Underglow Tail 2")
     ]
 
     public static let basiliskV3ProUSB = SoftwareLightingFrameLayout(
@@ -301,6 +301,16 @@ public struct USBLightingFramePatch: Codable, Hashable, Sendable {
 }
 
 public enum SoftwareLightingRenderer {
+    private struct RenderSample {
+        let preset: SoftwareLightingPresetID
+        let palette: [RGBPatch]
+        let index: Int
+        let count: Int
+        let time: TimeInterval
+        let intensity: Double
+        let batteryPercent: Int?
+    }
+
     public static func render(
         request: SoftwareLightingEffectRequest,
         layout: SoftwareLightingFrameLayout,
@@ -310,42 +320,77 @@ public enum SoftwareLightingRenderer {
         let animationTime = max(0, elapsedTime) * request.speed * request.presetID.renderSpeedMultiplier
         let colors = (0..<layout.cellCount).map { index in
             color(
-                preset: request.presetID,
-                palette: request.palette,
-                index: index,
-                count: layout.cellCount,
-                time: animationTime,
-                intensity: request.intensity,
-                batteryPercent: batteryPercent
+                RenderSample(
+                    preset: request.presetID,
+                    palette: request.palette,
+                    index: index,
+                    count: layout.cellCount,
+                    time: animationTime,
+                    intensity: request.intensity,
+                    batteryPercent: batteryPercent
+                )
             )
         }
         return USBLightingFramePatch(colors: colors)
     }
 
-    private static func color(
-        preset: SoftwareLightingPresetID,
-        palette: [RGBPatch],
-        index: Int,
-        count: Int,
-        time: TimeInterval,
-        intensity: Double,
-        batteryPercent: Int?
-    ) -> RGBPatch {
-        switch preset {
+    private static func color(_ sample: RenderSample) -> RGBPatch {
+        switch sample.preset {
         case .flame:
-            return flame(palette: palette, index: index, count: count, time: time, intensity: intensity)
+            return flame(
+                palette: sample.palette,
+                index: sample.index,
+                count: sample.count,
+                time: sample.time,
+                intensity: sample.intensity
+            )
         case .scrollingRainbow:
-            return scrollingRainbow(palette: palette, index: index, count: count, time: time, intensity: intensity)
+            return scrollingRainbow(
+                palette: sample.palette,
+                index: sample.index,
+                count: sample.count,
+                time: sample.time,
+                intensity: sample.intensity
+            )
         case .cometChase:
-            return cometChase(palette: palette, index: index, count: count, time: time, intensity: intensity)
+            return cometChase(
+                palette: sample.palette,
+                index: sample.index,
+                count: sample.count,
+                time: sample.time,
+                intensity: sample.intensity
+            )
         case .nightRider:
-            return nightRider(palette: palette, index: index, count: count, time: time, intensity: intensity)
+            return nightRider(
+                palette: sample.palette,
+                index: sample.index,
+                count: sample.count,
+                time: sample.time,
+                intensity: sample.intensity
+            )
         case .aurora:
-            return aurora(palette: palette, index: index, count: count, time: time, intensity: intensity)
+            return aurora(
+                palette: sample.palette,
+                index: sample.index,
+                count: sample.count,
+                time: sample.time,
+                intensity: sample.intensity
+            )
         case .jellybeans:
-            return jellybeans(palette: palette, index: index, count: count, time: time, intensity: intensity)
+            return jellybeans(
+                palette: sample.palette,
+                index: sample.index,
+                count: sample.count,
+                time: sample.time,
+                intensity: sample.intensity
+            )
         case .batteryMeter:
-            return batteryMeter(index: index, count: count, batteryPercent: batteryPercent, intensity: intensity)
+            return batteryMeter(
+                index: sample.index,
+                count: sample.count,
+                batteryPercent: sample.batteryPercent,
+                intensity: sample.intensity
+            )
         }
     }
 
@@ -511,10 +556,9 @@ public enum SoftwareLightingRenderer {
 
     private static func latestJellybeanChangeTick(for index: Int, count: Int, atOrBefore tick: Int) -> Int? {
         guard count > 0, tick >= 1 else { return nil }
-        for candidate in stride(from: tick, through: 1, by: -1) {
-            if jellybeanLEDIndex(tick: candidate, count: count) == index {
-                return candidate
-            }
+        for candidate in stride(from: tick, through: 1, by: -1)
+        where jellybeanLEDIndex(tick: candidate, count: count) == index {
+            return candidate
         }
         return nil
     }

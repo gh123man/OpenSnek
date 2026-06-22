@@ -5,23 +5,25 @@ import OpenSnekCore
 final class LightingSummaryPresentationTests: XCTestCase {
     func testBatteryMeterSummaryUsesBatteryIconInsteadOfPaletteSwatches() {
         let presentation = LightingSummaryPresentation.make(
-            supportsSoftwareLightingEffects: true,
-            softwareLightingStatus: SoftwareLightingEngineStatus(
-                deviceID: "lighting-summary-device",
-                state: .running,
-                request: SoftwareLightingEffectRequest(
-                    presetID: .batteryMeter,
-                    palette: SoftwareLightingPresetID.flame.defaultPalette
-                )
-            ),
-            editableSoftwareLightingPreset: .flame,
-            editableSoftwareLightingPalette: SoftwareLightingPresetID.flame.defaultPalette.map {
-                RGBColor(r: $0.r, g: $0.g, b: $0.b)
-            },
-            onboardEffectLabel: "Static",
-            onboardColors: [RGBColor(r: 255, g: 0, b: 0)],
-            fallbackColor: RGBColor(r: 0, g: 255, b: 0),
-            batteryState: makeLightingSummaryState(batteryPercent: 74)
+            LightingSummaryInput(
+                supportsSoftwareLightingEffects: true,
+                softwareLightingStatus: SoftwareLightingEngineStatus(
+                    deviceID: "lighting-summary-device",
+                    state: .running,
+                    request: SoftwareLightingEffectRequest(
+                        presetID: .batteryMeter,
+                        palette: SoftwareLightingPresetID.flame.defaultPalette
+                    )
+                ),
+                editableSoftwareLightingPreset: .flame,
+                editableSoftwareLightingPalette: SoftwareLightingPresetID.flame.defaultPalette.map {
+                    RGBColor(r: $0.r, g: $0.g, b: $0.b)
+                },
+                onboardEffectLabel: "Static",
+                onboardColors: [RGBColor(r: 255, g: 0, b: 0)],
+                fallbackColor: RGBColor(r: 0, g: 255, b: 0),
+                batteryState: makeLightingSummaryState(batteryPercent: 74)
+            )
         )
 
         XCTAssertEqual(presentation.title, "Battery Meter")
@@ -32,23 +34,25 @@ final class LightingSummaryPresentationTests: XCTestCase {
 
     func testRunningSoftwareLightingSummaryUsesRunningRequestPalette() {
         let presentation = LightingSummaryPresentation.make(
-            supportsSoftwareLightingEffects: true,
-            softwareLightingStatus: SoftwareLightingEngineStatus(
-                deviceID: "lighting-summary-device",
-                state: .running,
-                request: SoftwareLightingEffectRequest(
-                    presetID: .aurora,
-                    palette: [RGBPatch(r: 1, g: 2, b: 3)]
-                )
-            ),
-            editableSoftwareLightingPreset: .flame,
-            editableSoftwareLightingPalette: SoftwareLightingPresetID.flame.defaultPalette.map {
-                RGBColor(r: $0.r, g: $0.g, b: $0.b)
-            },
-            onboardEffectLabel: "Static",
-            onboardColors: [RGBColor(r: 255, g: 0, b: 0)],
-            fallbackColor: RGBColor(r: 0, g: 255, b: 0),
-            batteryState: makeLightingSummaryState(batteryPercent: 74)
+            LightingSummaryInput(
+                supportsSoftwareLightingEffects: true,
+                softwareLightingStatus: SoftwareLightingEngineStatus(
+                    deviceID: "lighting-summary-device",
+                    state: .running,
+                    request: SoftwareLightingEffectRequest(
+                        presetID: .aurora,
+                        palette: [RGBPatch(r: 1, g: 2, b: 3)]
+                    )
+                ),
+                editableSoftwareLightingPreset: .flame,
+                editableSoftwareLightingPalette: SoftwareLightingPresetID.flame.defaultPalette.map {
+                    RGBColor(r: $0.r, g: $0.g, b: $0.b)
+                },
+                onboardEffectLabel: "Static",
+                onboardColors: [RGBColor(r: 255, g: 0, b: 0)],
+                fallbackColor: RGBColor(r: 0, g: 255, b: 0),
+                batteryState: makeLightingSummaryState(batteryPercent: 74)
+            )
         )
 
         XCTAssertEqual(presentation.title, "Aurora")

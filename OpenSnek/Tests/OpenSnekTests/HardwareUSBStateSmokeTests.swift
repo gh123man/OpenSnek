@@ -155,7 +155,7 @@ final class HardwareUSBStateSmokeTests: XCTestCase {
         let targets = [
             max(100, min(30_000, base)),
             max(100, min(30_000, base + 800)),
-            max(100, min(30_000, base + 1_600)),
+            max(100, min(30_000, base + 1_600))
         ]
         for targetActive in [2, 0] {
             var writePatch = DevicePatch()

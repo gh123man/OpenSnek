@@ -1,7 +1,7 @@
 import XCTest
 
-final class V3ProBluetoothMasterFeatureUITests: OpenSnekHardwareUITestCase {
-    private lazy var sweep = MasterFeatureSweep(testCase: self, configuration: .v3ProBluetooth)
+final class V3ProBluetoothFeatureSweepUITests: OpenSnekHardwareUITestCase {
+    private lazy var sweep = FeatureSweep(testCase: self, configuration: .v3ProBluetooth)
     private var pendingClutchRestoreDPI: Int?
 
     override var expectedScope: HardwareDeviceScope {
@@ -16,7 +16,7 @@ final class V3ProBluetoothMasterFeatureUITests: OpenSnekHardwareUITestCase {
         }
     }
 
-    func testV3ProBluetoothMasterFeatureSweepDoesNotCrossInterfere() throws {
+    func testV3ProBluetoothFeatureSweepDoesNotCrossInterfere() throws {
         try sweep.run()
     }
 
@@ -68,7 +68,7 @@ final class V3ProBluetoothMasterFeatureUITests: OpenSnekHardwareUITestCase {
                 app.menuItems["DPI Clutch"],
                 app.buttons["DPI Clutch"],
                 app.staticTexts["DPI Clutch"],
-                app.descendants(matching: .any)["DPI Clutch"],
+                app.descendants(matching: .any)["DPI Clutch"]
             ],
             timeout: 2
         )

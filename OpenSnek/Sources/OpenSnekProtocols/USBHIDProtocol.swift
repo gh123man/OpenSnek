@@ -169,7 +169,7 @@ public enum USBHIDProtocol {
             0x01,
             UInt8(max(0, min(255, color.r))),
             UInt8(max(0, min(255, color.g))),
-            UInt8(max(0, min(255, color.b))),
+            UInt8(max(0, min(255, color.b)))
         ]
     }
 
@@ -267,7 +267,7 @@ public enum USBHIDProtocol {
             UInt8((clampedOffset >> 8) & 0xFF),
             UInt8(clampedOffset & 0xFF),
             UInt8((clampedLength >> 8) & 0xFF),
-            UInt8(clampedLength & 0xFF),
+            UInt8(clampedLength & 0xFF)
         ]
     }
 
@@ -309,7 +309,7 @@ public enum USBHIDProtocol {
             UInt8((clampedOffset >> 8) & 0xFF),
             UInt8(clampedOffset & 0xFF),
             UInt8((onboardProfileMetadataLength >> 8) & 0xFF),
-            UInt8(onboardProfileMetadataLength & 0xFF),
+            UInt8(onboardProfileMetadataLength & 0xFF)
         ]
         args.append(contentsOf: chunk)
         if args.count < Int(onboardProfileMetadataReadSize) {
@@ -383,7 +383,7 @@ public enum USBHIDProtocol {
             raw[5], raw[4],
             raw[7], raw[6],
             raw[8], raw[9], raw[10], raw[11],
-            raw[12], raw[13], raw[14], raw[15],
+            raw[12], raw[13], raw[14], raw[15]
         ]
         return UUID(uuid: (
             uuidBytes[0], uuidBytes[1], uuidBytes[2], uuidBytes[3],
@@ -398,14 +398,14 @@ public enum USBHIDProtocol {
             uuid.uuid.0, uuid.uuid.1, uuid.uuid.2, uuid.uuid.3,
             uuid.uuid.4, uuid.uuid.5, uuid.uuid.6, uuid.uuid.7,
             uuid.uuid.8, uuid.uuid.9, uuid.uuid.10, uuid.uuid.11,
-            uuid.uuid.12, uuid.uuid.13, uuid.uuid.14, uuid.uuid.15,
+            uuid.uuid.12, uuid.uuid.13, uuid.uuid.14, uuid.uuid.15
         ]
         return [
             bytes[3], bytes[2], bytes[1], bytes[0],
             bytes[5], bytes[4],
             bytes[7], bytes[6],
             bytes[8], bytes[9], bytes[10], bytes[11],
-            bytes[12], bytes[13], bytes[14], bytes[15],
+            bytes[12], bytes[13], bytes[14], bytes[15]
         ]
     }
 

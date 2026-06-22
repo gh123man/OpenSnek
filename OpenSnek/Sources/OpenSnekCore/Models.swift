@@ -574,22 +574,22 @@ public struct USBButtonProfileActionPatch: Sendable, Hashable, Codable {
 }
 
 public struct DevicePatch: Sendable, Hashable, Codable {
-    public var pollRate: Int? = nil
-    public var sleepTimeout: Int? = nil
-    public var deviceMode: DeviceMode? = nil
-    public var lowBatteryThresholdRaw: Int? = nil
-    public var scrollMode: Int? = nil
-    public var scrollAcceleration: Bool? = nil
-    public var scrollSmartReel: Bool? = nil
-    public var dpiStages: [Int]? = nil
-    public var dpiStagePairs: [DpiPair]? = nil
-    public var activeStage: Int? = nil
-    public var ledBrightness: Int? = nil
-    public var ledRGB: RGBPatch? = nil
-    public var lightingEffect: LightingEffectPatch? = nil
-    public var usbLightingZoneLEDIDs: [UInt8]? = nil
-    public var buttonBinding: ButtonBindingPatch? = nil
-    public var usbButtonProfileAction: USBButtonProfileActionPatch? = nil
+    public var pollRate: Int?
+    public var sleepTimeout: Int?
+    public var deviceMode: DeviceMode?
+    public var lowBatteryThresholdRaw: Int?
+    public var scrollMode: Int?
+    public var scrollAcceleration: Bool?
+    public var scrollSmartReel: Bool?
+    public var dpiStages: [Int]?
+    public var dpiStagePairs: [DpiPair]?
+    public var activeStage: Int?
+    public var ledBrightness: Int?
+    public var ledRGB: RGBPatch?
+    public var lightingEffect: LightingEffectPatch?
+    public var usbLightingZoneLEDIDs: [UInt8]?
+    public var buttonBinding: ButtonBindingPatch?
+    public var usbButtonProfileAction: USBButtonProfileActionPatch?
 
     public init(
         pollRate: Int? = nil,

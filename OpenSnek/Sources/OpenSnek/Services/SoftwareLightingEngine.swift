@@ -28,6 +28,15 @@ struct BridgeSoftwareLightingFrameWriter: SoftwareLightingFrameWriting {
 }
 
 actor SoftwareLightingEngine {
+    private struct RenderLoopContext {
+        let device: MouseDevice
+        let deviceKey: String
+        let generation: UInt64
+        let layout: SoftwareLightingFrameLayout
+        let request: SoftwareLightingEffectRequest
+        let frameInterval: TimeInterval
+    }
+
     private let frameWriter: any SoftwareLightingFrameWriting
     private let minimumFrameInterval: TimeInterval
     private let failureLimit: Int
@@ -118,12 +127,14 @@ actor SoftwareLightingEngine {
         let frameInterval = max(minimumFrameInterval, 1.0 / Double(request.framesPerSecond))
         tasksByDeviceKey[deviceKey] = Task { [weak self] in
             await self?.run(
-                device: device,
-                deviceKey: deviceKey,
-                generation: generation,
-                layout: layout,
-                request: request,
-                frameInterval: frameInterval
+                RenderLoopContext(
+                    device: device,
+                    deviceKey: deviceKey,
+                    generation: generation,
+                    layout: layout,
+                    request: request,
+                    frameInterval: frameInterval
+                )
             )
         }
         return status
@@ -258,14 +269,13 @@ actor SoftwareLightingEngine {
         batteryPercentByDeviceKey[deviceKey] = Self.clampedBatteryPercent(batteryPercent)
     }
 
-    private func run(
-        device: MouseDevice,
-        deviceKey: String,
-        generation: UInt64,
-        layout: SoftwareLightingFrameLayout,
-        request: SoftwareLightingEffectRequest,
-        frameInterval: TimeInterval
-    ) async {
+    private func run(_ context: RenderLoopContext) async {
+        let device = context.device
+        let deviceKey = context.deviceKey
+        let generation = context.generation
+        let layout = context.layout
+        let request = context.request
+        let frameInterval = context.frameInterval
         let startedAt = Date()
         var consecutiveFailures = 0
         var lastWrittenFrame: USBLightingFramePatch?

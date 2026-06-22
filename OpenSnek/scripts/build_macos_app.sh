@@ -281,6 +281,8 @@ if [[ "$CLEAN_BUILD" == true ]]; then
   XCODEBUILD_ACTIONS=(clean build)
 fi
 if ! xcodebuild \
+  -skipPackagePluginValidation \
+  -skipMacroValidation \
   -project "$ACTIVE_PROJECT_FILE" \
   -scheme OpenSnek \
   -configuration "$XCODE_CONFIGURATION" \

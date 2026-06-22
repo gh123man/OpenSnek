@@ -316,7 +316,7 @@ final class DeviceStore {
             "Input Monitoring host: \(runtimeStore.hidAccessStatus.hostLabel)",
             "Polling profile: \(pollingProfileLabel(runtimeController.pollingProfile(at: Date())))",
             "Remote service transport: \(usesRemoteServiceTransport ? "Enabled" : "Disabled")",
-            "Compact menu service: \(runtimeStore.backgroundServiceEnabled ? "Enabled" : "Disabled")",
+            "Compact menu service: \(runtimeStore.backgroundServiceEnabled ? "Enabled" : "Disabled")"
         ]
     }
 
@@ -337,14 +337,20 @@ final class DeviceStore {
         }
 
         return IssueReportFormatter.format(
-            appVersion: appVersion,
-            build: build,
-            logLevel: AppLog.currentLevel.label,
-            logPath: AppLog.path,
-            selectedDevice: selectedDevice.map { "\($0.product_name) [\($0.transport.connectionLabel)]" },
-            warning: warningMessage,
-            error: errorMessage,
-            devices: deviceEntries
+            IssueReportContext(
+                appInfo: IssueReportAppInfo(
+                    appVersion: appVersion,
+                    build: build,
+                    logLevel: AppLog.currentLevel.label,
+                    logPath: AppLog.path
+                ),
+                status: IssueReportStatus(
+                    selectedDevice: selectedDevice.map { "\($0.product_name) [\($0.transport.connectionLabel)]" },
+                    warning: warningMessage,
+                    error: errorMessage
+                ),
+                devices: deviceEntries
+            )
         )
     }
 
