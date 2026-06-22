@@ -710,7 +710,6 @@ private struct ServiceMenuBarStatusGlyph: View {
                 Image(nsImage: statusImage)
                     .interpolation(.high)
                     .antialiased(true)
-                    .renderingMode(.original)
                     .id(statusImageID)
             } else {
                 ZStack {
