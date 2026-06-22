@@ -93,6 +93,14 @@ swift run --package-path OpenSnek OpenSnekProbe usb-lighting-info --pid 0x00ab
 ./run.sh
 ```
 
+Codex SourceKit-LSP MCP setup for semantic Swift navigation, hover, references, and diagnostics:
+
+```bash
+./OpenSnek/scripts/setup_sourcekit_lsp_mcp.sh
+```
+
+Use `docs/development/SOURCEKIT_LSP.md` for setup details and troubleshooting. The SwiftPM LSP workspace root is `OpenSnek/`, not the repository root.
+
 Windows BTVS/Synapse capture:
 
 ```powershell
@@ -157,5 +165,6 @@ OPEN_SNEK_HW=1 swift test --package-path OpenSnek --filter HardwareDpiReliabilit
 
 - `docs/development/README.md`
 - `docs/development/REPO_MAP.md`
+- `docs/development/SOURCEKIT_LSP.md`
 - `docs/development/VALIDATION.md`
 - `docs/protocol/PROTOCOL.md`
