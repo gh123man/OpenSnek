@@ -14,9 +14,12 @@ excluded:
 disabled_rules:
   - function_body_length
   - cyclomatic_complexity
-  - file_length
   - type_body_length
   - line_length
   - identifier_name
+
+file_length:
+  warning: 1200
+  error: 1800
 
 strict: true
