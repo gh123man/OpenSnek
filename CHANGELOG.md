@@ -34,6 +34,7 @@ All notable changes to this project are documented in this file.
 - USB telemetry-unavailable and availability backoff now survive newly visible dongle subscription updates, preventing the dongle-only state from falling back into an immediate reconnect retry loop.
 - Selected USB devices with cached state now keep their last known presentation during temporary feature-report telemetry backoff when the mouse is still enumerated, instead of being marked disconnected.
 - Remote service snapshots now clear latched transient USB unavailable presentation, and cached USB devices no longer age into Disconnected solely because passive telemetry has been idle.
+- The Lighting card now hides the Advanced software-lighting tab on Basilisk V3 X HyperSpeed and Bluetooth devices that cannot stream software effects.
 
 ## [1.0.0]
 

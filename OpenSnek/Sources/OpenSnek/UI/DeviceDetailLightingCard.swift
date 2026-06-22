@@ -42,6 +42,14 @@ struct LightingCard: View {
             : .onboard
     }
 
+    private var availableTabs: [LightingCardTab] {
+        selected.supportsSoftwareLightingEffects ? LightingCardTab.allCases : [.onboard]
+    }
+
+    private var activeTab: LightingCardTab {
+        availableTabs.contains(selectedTab) ? selectedTab : .onboard
+    }
+
     private var accentOpacity: Double {
         let brightness = Double(max(0, min(255, editorStore.editableLedBrightness))) / 255.0
         return 0.10 + (brightness * 0.22)
@@ -69,7 +77,7 @@ struct LightingCard: View {
 
     private var usesSoftwareLightingPaletteForCard: Bool {
         selected.supportsSoftwareLightingEffects &&
-            (softwareLightingIsRunning || (isExpanded && selectedTab == .advanced))
+            (softwareLightingIsRunning || (isExpanded && activeTab == .advanced))
     }
 
     private var onboardLightingGradientColors: [Color] {
@@ -198,20 +206,22 @@ struct LightingCard: View {
     private var tabSelection: Binding<LightingCardTab> {
         Binding(
             get: { selectedTab },
-            set: { selectedTab = $0 }
+            set: { selectedTab = availableTabs.contains($0) ? $0 : .onboard }
         )
     }
 
     @ViewBuilder
     private func tabPicker() -> some View {
-        Picker("", selection: tabSelection) {
-            ForEach(LightingCardTab.allCases) { tab in
-                Text(tab.label).tag(tab)
+        if availableTabs.count > 1 {
+            Picker("", selection: tabSelection) {
+                ForEach(availableTabs) { tab in
+                    Text(tab.label).tag(tab)
+                }
             }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("lighting-card-tab-picker")
         }
-        .labelsHidden()
-        .pickerStyle(.segmented)
-        .accessibilityIdentifier("lighting-card-tab-picker")
     }
 
     @ViewBuilder
@@ -486,10 +496,10 @@ struct LightingCard: View {
 
                 tabPicker()
 
-                if selectedTab == .onboard {
-                    onboardControls()
-                } else {
+                if activeTab == .advanced {
                     advancedLightingControls()
+                } else {
+                    onboardControls()
                 }
             }
         }
@@ -568,14 +578,14 @@ struct LightingCard: View {
 
     @ViewBuilder
     private func advancedLightingControls() -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            lightingNotice(
-                systemImage: "bolt.horizontal.circle.fill",
-                iconColor: actionAccent,
-                text: "Advanced effects run only while OpenSnek is running."
-            )
+        if selected.supportsSoftwareLightingEffects {
+            VStack(alignment: .leading, spacing: 10) {
+                lightingNotice(
+                    systemImage: "bolt.horizontal.circle.fill",
+                    iconColor: actionAccent,
+                    text: "Advanced effects run only while OpenSnek is running."
+                )
 
-            if selected.supportsSoftwareLightingEffects {
                 HStack(spacing: 12) {
                     Text("Preset")
                         .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -651,11 +661,6 @@ struct LightingCard: View {
                 }
 
                 softwareLightingActionRow()
-            } else {
-                Text("Advanced software effects are available on Basilisk V3 USB devices with underglow.")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.58))
-                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

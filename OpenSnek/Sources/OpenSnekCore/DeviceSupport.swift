@@ -379,16 +379,24 @@ public struct DeviceProfile: Hashable, Sendable {
 }
 
 public extension MouseDevice {
+    private var resolvedProfile: DeviceProfile? {
+        DeviceProfiles.resolve(vendorID: vendor_id, productID: product_id, transport: transport)
+    }
+
     var supportsSoftwareLightingEffects: Bool {
-        DeviceProfiles
-            .resolve(vendorID: vendor_id, productID: product_id, transport: transport)?
-            .softwareLightingFrameLayout != nil
+        guard transport == .usb,
+              let profile = resolvedProfile else {
+            return false
+        }
+        return profile.softwareLightingFrameLayout != nil &&
+            !profile.supportedSoftwareLightingPresets.isEmpty
     }
 
     var supportedSoftwareLightingPresets: [SoftwareLightingPresetID] {
-        DeviceProfiles
-            .resolve(vendorID: vendor_id, productID: product_id, transport: transport)?
-            .supportedSoftwareLightingPresets ?? []
+        guard supportsSoftwareLightingEffects else {
+            return []
+        }
+        return resolvedProfile?.supportedSoftwareLightingPresets ?? []
     }
 
     func supportsSoftwareLightingPreset(_ preset: SoftwareLightingPresetID) -> Bool {
@@ -396,9 +404,10 @@ public extension MouseDevice {
     }
 
     var softwareLightingFrameLayout: SoftwareLightingFrameLayout? {
-        DeviceProfiles
-            .resolve(vendorID: vendor_id, productID: product_id, transport: transport)?
-            .softwareLightingFrameLayout
+        guard supportsSoftwareLightingEffects else {
+            return nil
+        }
+        return resolvedProfile?.softwareLightingFrameLayout
     }
 }
 
