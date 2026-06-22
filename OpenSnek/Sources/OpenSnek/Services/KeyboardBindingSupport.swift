@@ -164,6 +164,28 @@ enum AppStateKeyboardSupport {
         }
     }
 
+    static func filteredKeyOptions(matching query: String, excludingModifiers: Bool = false) -> [KeyboardBindingOption] {
+        let baseOptions = keyOptions.enumerated().filter { _, option in
+            !excludingModifiers || !isModifierKey(option.hidKey)
+        }
+        let normalizedQuery = normalizedToken(query)
+        guard !normalizedQuery.isEmpty else { return baseOptions.map(\.element) }
+
+        return baseOptions.compactMap { entry -> SearchMatch? in
+            let index = entry.offset
+            let option = entry.element
+            guard let score = fuzzyScore(option: option, normalizedQuery: normalizedQuery) else { return nil }
+            return SearchMatch(option: option, score: score, index: index)
+        }
+        .sorted { lhs, rhs in
+            if lhs.score != rhs.score {
+                return lhs.score > rhs.score
+            }
+            return lhs.index < rhs.index
+        }
+        .map(\.option)
+    }
+
     static func hidKey(fromKeyboardText text: String) -> Int? {
         if text == " " {
             return 44
@@ -171,6 +193,24 @@ enum AppStateKeyboardSupport {
         let normalized = normalizedToken(text)
         guard !normalized.isEmpty else { return nil }
         return hidKeyByAlias[normalized]
+    }
+
+    static func isModifierKey(_ hidKey: Int) -> Bool {
+        hidModifierBit(forHidKey: hidKey) != nil
+    }
+
+    static func hidModifierBit(forHidKey hidKey: Int) -> Int? {
+        switch hidKey {
+        case 224: return 0x01
+        case 225: return 0x02
+        case 226: return 0x04
+        case 227: return 0x08
+        case 228: return 0x10
+        case 229: return 0x20
+        case 230: return 0x40
+        case 231: return 0x80
+        default: return nil
+        }
     }
 
     static func keyboardDisplayLabel(forHidKey hidKey: Int) -> String {
@@ -203,6 +243,62 @@ enum AppStateKeyboardSupport {
 
     private static func option(_ hidKey: Int, _ label: String, aliases: [String], group: KeyboardBindingGroup) -> KeyboardBindingOption {
         KeyboardBindingOption(hidKey: hidKey, label: label, aliases: aliases, group: group)
+    }
+
+    private struct SearchMatch {
+        let option: KeyboardBindingOption
+        let score: Int
+        let index: Int
+    }
+
+    private static func fuzzyScore(option: KeyboardBindingOption, normalizedQuery: String) -> Int? {
+        let searchableValues = [option.label, option.group.label, String(format: "hid%02x", option.hidKey)] + option.aliases
+        let scores = searchableValues.compactMap { value -> Int? in
+            let target = normalizedToken(value)
+            guard !target.isEmpty else { return nil }
+            if target == normalizedQuery {
+                return 10_000 - target.count
+            }
+            if target.hasPrefix(normalizedQuery) {
+                return 9_000 - target.count
+            }
+            if target.contains(normalizedQuery) {
+                return 8_000 - target.count
+            }
+            guard let penalty = fuzzySubsequencePenalty(query: normalizedQuery, target: target) else {
+                return nil
+            }
+            return 7_000 - penalty - target.count
+        }
+        return scores.max()
+    }
+
+    private static func fuzzySubsequencePenalty(query: String, target: String) -> Int? {
+        var targetIndex = target.startIndex
+        var previousMatch: String.Index?
+        var penalty = 0
+
+        for character in query {
+            var matchedIndex: String.Index?
+            while targetIndex < target.endIndex {
+                if target[targetIndex] == character {
+                    matchedIndex = targetIndex
+                    break
+                }
+                target.formIndex(after: &targetIndex)
+            }
+            guard let matchedIndex else { return nil }
+
+            if let previousMatch {
+                penalty += target.distance(from: target.index(after: previousMatch), to: matchedIndex)
+            } else {
+                penalty += target.distance(from: target.startIndex, to: matchedIndex)
+            }
+            targetIndex = target.index(after: matchedIndex)
+            previousMatch = matchedIndex
+        }
+
+        return penalty
     }
 
     private static func normalizedToken(_ text: String) -> String {
