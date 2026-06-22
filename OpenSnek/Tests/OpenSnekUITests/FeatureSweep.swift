@@ -233,6 +233,7 @@ final class FeatureSweep {
     }
 
     private func exerciseLightingBrightness(from state: UITestState) throws {
+        expandCardIfNeeded("lighting-card")
         guard let initialBrightness = state.ledValue else {
             let slider = try requireElement("lighting-brightness-slider", timeout: 2)
             testCase.scrollElementToVisible(slider)
@@ -678,6 +679,13 @@ final class FeatureSweep {
     private func eventContainsBrightnessChange(_ event: UITestEvent) -> Bool {
         event.name == "onboardProfileMutationEnd" && event.onboardMutation?.brightnessByLEDID != nil ||
             event.name == "applyEnd" && event.patch?.ledBrightness != nil
+    }
+
+    private func expandCardIfNeeded(_ cardIdentifier: String) {
+        let button = testCase.app.descendants(matching: .any)["\(cardIdentifier)-expand-button"]
+        guard button.waitForExistence(timeout: 0.5) else { return }
+        testCase.scrollElementToVisible(button)
+        testCase.clickElement(button)
     }
 
     private func requireElement(
