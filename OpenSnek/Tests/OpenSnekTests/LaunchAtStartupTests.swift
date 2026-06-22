@@ -14,7 +14,7 @@ final class LaunchAtStartupTests: XCTestCase {
             [
                 "/Applications/OpenSnek.app/Contents/MacOS/OpenSnek",
                 "--service-mode",
-                "--login-start",
+                "--login-start"
             ]
         )
         XCTAssertEqual(plist["RunAtLoad"] as? Bool, true)

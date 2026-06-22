@@ -14,6 +14,59 @@ public enum OnboardProfileSupport: String, Codable, Hashable, Sendable {
     }
 }
 
+public enum OnboardProfileLimits {
+    public static let minimumPersistentProfileID = 1
+    public static let maximumPersistentProfileID = 5
+    public static let minimumStoredSlotID = 1
+    public static let maximumStoredSlotID = 4
+    public static let storedSlotProfileIDOffset = 1
+    public static let minimumStoredProfileID = minimumStoredSlotID + storedSlotProfileIDOffset
+
+    public static func clampPersistentProfileID(_ profileID: Int) -> Int {
+        max(minimumPersistentProfileID, min(maximumPersistentProfileID, profileID))
+    }
+
+    public static func containsPersistentProfileID(_ profileID: UInt8) -> Bool {
+        contains(Int(profileID), lowerBound: minimumPersistentProfileID, upperBound: maximumPersistentProfileID)
+    }
+
+    public static func containsStoredProfileID(_ profileID: UInt8) -> Bool {
+        contains(Int(profileID), lowerBound: minimumStoredProfileID, upperBound: maximumPersistentProfileID)
+    }
+
+    public static func containsStoredSlot(_ storedSlot: UInt8) -> Bool {
+        contains(Int(storedSlot), lowerBound: minimumStoredSlotID, upperBound: maximumStoredSlotID)
+    }
+
+    public static func profileID(forStoredSlot storedSlot: UInt8) -> UInt8 {
+        storedSlot &+ UInt8(storedSlotProfileIDOffset)
+    }
+
+    public static var storedProfileIDs: [UInt8] {
+        (minimumStoredProfileID...maximumPersistentProfileID).map { UInt8($0) }
+    }
+
+    public static var persistentProfileIDRangeDescription: String {
+        rangeDescription(minimumPersistentProfileID, maximumPersistentProfileID)
+    }
+
+    public static var storedProfileIDRangeDescription: String {
+        rangeDescription(minimumStoredProfileID, maximumPersistentProfileID)
+    }
+
+    public static var storedSlotRangeDescription: String {
+        rangeDescription(minimumStoredSlotID, maximumStoredSlotID)
+    }
+
+    private static func contains(_ value: Int, lowerBound: Int, upperBound: Int) -> Bool {
+        value >= lowerBound && value <= upperBound
+    }
+
+    private static func rangeDescription(_ lowerBound: Int, _ upperBound: Int) -> String {
+        "\(lowerBound)..\(upperBound)"
+    }
+}
+
 public struct OnboardProfileMetadata: Codable, Hashable, Sendable {
     public static let synapseCompatibleFallbackOwner = "31933b5452df5708882d4fb55d0b2905f16d829500fe936c56f98d5cd0241a76"
 
@@ -129,8 +182,8 @@ public struct OnboardDPIProfileSnapshot: Codable, Hashable, Sendable {
     ) {
         self.scalar = scalar
         self.activeStage = activeStage
-        self.pairs = Array(pairs.prefix(5))
-        self.stageIDs = Array(stageIDs.prefix(5))
+        self.pairs = Array(pairs.prefix(DeviceProfiles.maximumDpiStageCount))
+        self.stageIDs = Array(stageIDs.prefix(DeviceProfiles.maximumDpiStageCount))
         self.marker = marker
     }
 
@@ -139,7 +192,7 @@ public struct OnboardDPIProfileSnapshot: Codable, Hashable, Sendable {
     }
 
     public var stageCount: Int {
-        max(1, min(5, pairs.count))
+        DeviceProfiles.clampDpiStageCount(pairs.count)
     }
 }
 
@@ -218,14 +271,15 @@ public struct OnboardProfileMutation: Codable, Hashable, Sendable {
     }
 
     public var isEmpty: Bool {
-        metadata == nil &&
-            dpi == nil &&
-            buttonBindings == nil &&
-            brightnessByLEDID == nil &&
-            staticColorByLEDID == nil &&
-            scrollMode == nil &&
-            scrollAcceleration == nil &&
-            scrollSmartReel == nil
+        if metadata != nil { return false }
+        if dpi != nil { return false }
+        if buttonBindings != nil { return false }
+        if brightnessByLEDID != nil { return false }
+        if staticColorByLEDID != nil { return false }
+        if scrollMode != nil { return false }
+        if scrollAcceleration != nil { return false }
+        if scrollSmartReel != nil { return false }
+        return true
     }
 
     public func merged(with newer: OnboardProfileMutation) -> OnboardProfileMutation {

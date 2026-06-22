@@ -705,22 +705,24 @@ final class AppStateRuntimeController {
         }
         let profile = pollingProfile(at: now)
         return RuntimeWakeSchedule.nextSleepInterval(
-            now: now,
-            profile: profile,
-            refreshStateIntervalOverride: effectiveRefreshStateInterval(at: now, profile: profile),
-            devicePresenceIntervalOverride: effectiveDevicePresenceInterval(at: now, profile: profile),
-            fastDpiInterval: effectiveFastDpiInterval(at: now),
-            usesRemoteServiceTransport: environment.usesRemoteServiceTransport,
-            lastDevicePresencePollAt: lastDevicePresencePollAt,
-            lastRefreshStatePollAt: lastRefreshStatePollAt,
-            lastFastDpiPollAt: lastFastDpiPollAt,
-            lastRemoteClientPresencePingAt: lastRemoteClientPresencePingAt,
-            transientStatusUntil: transientStatusUntil,
-            nextRemoteClientPresenceExpiry: remoteClientPresenceByProcessID
-                .values
-                .map(\.expiresAt)
-                .filter { $0 > now }
-                .min()
+            RuntimeWakeSchedule.Context(
+                now: now,
+                profile: profile,
+                refreshStateIntervalOverride: effectiveRefreshStateInterval(at: now, profile: profile),
+                devicePresenceIntervalOverride: effectiveDevicePresenceInterval(at: now, profile: profile),
+                fastDpiInterval: effectiveFastDpiInterval(at: now),
+                usesRemoteServiceTransport: environment.usesRemoteServiceTransport,
+                lastDevicePresencePollAt: lastDevicePresencePollAt,
+                lastRefreshStatePollAt: lastRefreshStatePollAt,
+                lastFastDpiPollAt: lastFastDpiPollAt,
+                lastRemoteClientPresencePingAt: lastRemoteClientPresencePingAt,
+                transientStatusUntil: transientStatusUntil,
+                nextRemoteClientPresenceExpiry: remoteClientPresenceByProcessID
+                    .values
+                    .map(\.expiresAt)
+                    .filter { $0 > now }
+                    .min()
+            )
         )
     }
 
@@ -937,10 +939,6 @@ final class AppStateRuntimeController {
             ordered.append(deviceID)
         }
         return ordered
-    }
-
-    private func isLocallyInteractive(at now: Date) -> Bool {
-        compactMenuPresented || (compactInteractionUntil.map { now < $0 } ?? false)
     }
 
     private func pruneExpiredRemoteClientPresence(now: Date) {

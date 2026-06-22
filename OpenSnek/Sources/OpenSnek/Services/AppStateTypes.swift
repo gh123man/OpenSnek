@@ -96,14 +96,11 @@ enum ButtonProfileSource: Hashable, Codable, Identifiable {
 
 struct USBButtonProfileSummary: Identifiable, Hashable {
     let profile: Int
-    let isSelected: Bool
     let isHardwareActive: Bool
     let isLiveActive: Bool
     let isCustomized: Bool?
-    let hasPendingChanges: Bool
 
     var id: Int { profile }
-    var isLoaded: Bool { isCustomized != nil }
 }
 
 enum PollingProfile: Equatable {
@@ -142,43 +139,45 @@ enum PollingProfile: Equatable {
 }
 
 enum RuntimeWakeSchedule {
+    struct Context {
+        let now: Date
+        let profile: PollingProfile
+        let refreshStateIntervalOverride: TimeInterval?
+        let devicePresenceIntervalOverride: TimeInterval?
+        let fastDpiInterval: TimeInterval?
+        let usesRemoteServiceTransport: Bool
+        let lastDevicePresencePollAt: Date
+        let lastRefreshStatePollAt: Date
+        let lastFastDpiPollAt: Date
+        let lastRemoteClientPresencePingAt: Date
+        let transientStatusUntil: Date?
+        let nextRemoteClientPresenceExpiry: Date?
+    }
+
     static let minimumSleepInterval: TimeInterval = 0.10
     static let suspendedForSleepInterval: TimeInterval = 60.0
 
-    static func nextSleepInterval(
-        now: Date,
-        profile: PollingProfile,
-        refreshStateIntervalOverride: TimeInterval? = nil,
-        devicePresenceIntervalOverride: TimeInterval? = nil,
-        fastDpiInterval: TimeInterval?,
-        usesRemoteServiceTransport: Bool,
-        lastDevicePresencePollAt: Date,
-        lastRefreshStatePollAt: Date,
-        lastFastDpiPollAt: Date,
-        lastRemoteClientPresencePingAt: Date,
-        transientStatusUntil: Date?,
-        nextRemoteClientPresenceExpiry: Date?
-    ) -> TimeInterval {
+    static func nextSleepInterval(_ context: Context) -> TimeInterval {
         var intervals: [TimeInterval] = []
 
-        if usesRemoteServiceTransport {
-            intervals.append(max(0, 1.0 - now.timeIntervalSince(lastRemoteClientPresencePingAt)))
+        if context.usesRemoteServiceTransport {
+            intervals.append(max(0, 1.0 - context.now.timeIntervalSince(context.lastRemoteClientPresencePingAt)))
         } else {
-            let devicePresenceInterval = devicePresenceIntervalOverride ?? profile.devicePresenceInterval
-            let refreshStateInterval = refreshStateIntervalOverride ?? profile.refreshStateInterval
-            intervals.append(max(0, devicePresenceInterval - now.timeIntervalSince(lastDevicePresencePollAt)))
-            intervals.append(max(0, refreshStateInterval - now.timeIntervalSince(lastRefreshStatePollAt)))
-            if let fastInterval = fastDpiInterval {
-                intervals.append(max(0, fastInterval - now.timeIntervalSince(lastFastDpiPollAt)))
+            let devicePresenceInterval = context.devicePresenceIntervalOverride ?? context.profile.devicePresenceInterval
+            let refreshStateInterval = context.refreshStateIntervalOverride ?? context.profile.refreshStateInterval
+            intervals.append(max(0, devicePresenceInterval - context.now.timeIntervalSince(context.lastDevicePresencePollAt)))
+            intervals.append(max(0, refreshStateInterval - context.now.timeIntervalSince(context.lastRefreshStatePollAt)))
+            if let fastInterval = context.fastDpiInterval {
+                intervals.append(max(0, fastInterval - context.now.timeIntervalSince(context.lastFastDpiPollAt)))
             }
         }
 
-        if let transientStatusUntil {
-            intervals.append(max(0, transientStatusUntil.timeIntervalSince(now)))
+        if let transientStatusUntil = context.transientStatusUntil {
+            intervals.append(max(0, transientStatusUntil.timeIntervalSince(context.now)))
         }
 
-        if let nextRemoteClientPresenceExpiry {
-            intervals.append(max(0, nextRemoteClientPresenceExpiry.timeIntervalSince(now)))
+        if let nextRemoteClientPresenceExpiry = context.nextRemoteClientPresenceExpiry {
+            intervals.append(max(0, nextRemoteClientPresenceExpiry.timeIntervalSince(context.now)))
         }
 
         let nextDue = intervals.filter { $0.isFinite && $0 >= 0 }.min() ?? 1.0
@@ -188,22 +187,21 @@ enum RuntimeWakeSchedule {
 
 extension DevicePatch {
     var isEmpty: Bool {
-        pollRate == nil &&
-            sleepTimeout == nil &&
-            deviceMode == nil &&
-            lowBatteryThresholdRaw == nil &&
-            scrollMode == nil &&
-            scrollAcceleration == nil &&
-            scrollSmartReel == nil &&
-            dpiStages == nil &&
-            dpiStagePairs == nil &&
-            activeStage == nil &&
-            ledBrightness == nil &&
-            ledRGB == nil &&
-            lightingEffect == nil &&
-            usbLightingZoneLEDIDs == nil &&
-            buttonBinding == nil &&
-            usbButtonProfileAction == nil
+        if pollRate != nil { return false }
+        if sleepTimeout != nil { return false }
+        if deviceMode != nil { return false }
+        if lowBatteryThresholdRaw != nil { return false }
+        if scrollMode != nil { return false }
+        if scrollAcceleration != nil { return false }
+        if scrollSmartReel != nil { return false }
+        if affectsDpiStages { return false }
+        if ledBrightness != nil { return false }
+        if ledRGB != nil { return false }
+        if lightingEffect != nil { return false }
+        if usbLightingZoneLEDIDs != nil { return false }
+        if buttonBinding != nil { return false }
+        if usbButtonProfileAction != nil { return false }
+        return true
     }
 
     var describe: String {
@@ -239,7 +237,7 @@ extension DevicePatch {
         if let buttonBinding {
             var detail = "button(slot=\(buttonBinding.slot),kind=\(buttonBinding.kind.rawValue)"
             if buttonBinding.turboEnabled {
-                detail += ",turbo=on,rate=\(buttonBinding.turboRate ?? 0x8E)"
+                detail += ",turbo=on,rate=\(buttonBinding.turboRate ?? ButtonBindingSupport.defaultTurboRate)"
             }
             if buttonBinding.kind == .dpiClutch {
                 detail += ",dpi=\(buttonBinding.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI)"

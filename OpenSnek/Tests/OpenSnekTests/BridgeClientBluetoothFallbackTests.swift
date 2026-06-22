@@ -76,7 +76,7 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
         let pairs = [
             DpiPair(x: 500, y: 500),
             DpiPair(x: 900, y: 900),
-            DpiPair(x: 1400, y: 1400),
+            DpiPair(x: 1400, y: 1400)
         ]
         let resolved = try BridgeClient.resolveBluetoothDpiStageWrite(
             device: device,
@@ -110,7 +110,7 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
                 pairs: [
                     DpiPair(x: 400, y: 400),
                     DpiPair(x: 1200, y: 1200),
-                    DpiPair(x: 1300, y: 1300),
+                    DpiPair(x: 1300, y: 1300)
                 ],
                 stageIDs: [1, 2, 3],
                 marker: 0x03
@@ -143,7 +143,7 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
             pairs: [
                 DpiPair(x: 400, y: 400),
                 DpiPair(x: 1200, y: 1200),
-                DpiPair(x: 1300, y: 1300),
+                DpiPair(x: 1300, y: 1300)
             ],
             stageIDs: [1, 2, 3],
             marker: 0x03

@@ -28,6 +28,15 @@ struct BridgeSoftwareLightingFrameWriter: SoftwareLightingFrameWriting {
 }
 
 actor SoftwareLightingEngine {
+    private struct RenderLoopContext {
+        let device: MouseDevice
+        let deviceKey: String
+        let generation: UInt64
+        let layout: SoftwareLightingFrameLayout
+        let request: SoftwareLightingEffectRequest
+        let frameInterval: TimeInterval
+    }
+
     private let frameWriter: any SoftwareLightingFrameWriting
     private let minimumFrameInterval: TimeInterval
     private let failureLimit: Int
@@ -63,10 +72,6 @@ actor SoftwareLightingEngine {
             return status
         }
         return statusByDeviceID[deviceID]
-    }
-
-    func statuses() -> [String: SoftwareLightingEngineStatus] {
-        statusByDeviceID
     }
 
     @discardableResult
@@ -122,12 +127,14 @@ actor SoftwareLightingEngine {
         let frameInterval = max(minimumFrameInterval, 1.0 / Double(request.framesPerSecond))
         tasksByDeviceKey[deviceKey] = Task { [weak self] in
             await self?.run(
-                device: device,
-                deviceKey: deviceKey,
-                generation: generation,
-                layout: layout,
-                request: request,
-                frameInterval: frameInterval
+                RenderLoopContext(
+                    device: device,
+                    deviceKey: deviceKey,
+                    generation: generation,
+                    layout: layout,
+                    request: request,
+                    frameInterval: frameInterval
+                )
             )
         }
         return status
@@ -253,6 +260,18 @@ actor SoftwareLightingEngine {
         return try await start(device: device, request: request)
     }
 
+    @discardableResult
+    func reassertIfRunning(
+        device: MouseDevice,
+        batteryPercent: Int? = nil
+    ) async throws -> SoftwareLightingEngineStatus? {
+        let deviceKey = Self.lightingDeviceKey(for: device)
+        let status = statusByDeviceKey[deviceKey] ?? statusByDeviceID[device.id]
+        guard status?.state == .running else { return nil }
+        guard let request = desiredRequestByDeviceKey[deviceKey] ?? status?.request else { return nil }
+        return try await start(device: device, request: request, batteryPercent: batteryPercent)
+    }
+
     func updateBatteryPercent(deviceID: String, batteryPercent: Int?) {
         let deviceKey = deviceKeyByDeviceID[deviceID] ?? deviceID
         guard let batteryPercent else {
@@ -262,23 +281,24 @@ actor SoftwareLightingEngine {
         batteryPercentByDeviceKey[deviceKey] = Self.clampedBatteryPercent(batteryPercent)
     }
 
-    private func run(
-        device: MouseDevice,
-        deviceKey: String,
-        generation: UInt64,
-        layout: SoftwareLightingFrameLayout,
-        request: SoftwareLightingEffectRequest,
-        frameInterval: TimeInterval
-    ) async {
+    private func run(_ context: RenderLoopContext) async {
+        let device = context.device
+        let deviceKey = context.deviceKey
+        let generation = context.generation
+        let layout = context.layout
+        let request = context.request
+        let frameInterval = context.frameInterval
         let startedAt = Date()
         var consecutiveFailures = 0
         var lastWrittenFrame: USBLightingFramePatch?
 
         if request.presetID == .batteryMeter {
-            let clearFrame = USBLightingFramePatch(colors: Array(
-                repeating: RGBPatch(r: 0, g: 0, b: 0),
-                count: layout.cellCount
-            ))
+            let clearFrame = SoftwareLightingRenderer.render(
+                request: request,
+                layout: layout,
+                elapsedTime: 0.0,
+                batteryPercent: nil
+            )
             do {
                 try await frameWriter.writeSoftwareLightingFrame(device: device, frame: clearFrame)
                 guard isCurrent(deviceKey: deviceKey, generation: generation) else { return }

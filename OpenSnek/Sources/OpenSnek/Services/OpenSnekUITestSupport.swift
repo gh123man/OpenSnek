@@ -2,6 +2,27 @@
 import Foundation
 import OpenSnekCore
 
+struct UITestApplyEvent {
+    let device: MouseDevice
+    let patch: DevicePatch
+    let state: MouseState?
+    let activeApplyCount: Int
+    let maxConcurrentApplyCount: Int
+    let elapsed: TimeInterval?
+    let readbackPolicy: String
+    let error: Error?
+}
+
+struct UITestProfileMutationEvent {
+    let device: MouseDevice
+    let profileID: Int
+    let mutation: OnboardProfileMutation
+    let activeMutationCount: Int
+    let maxConcurrentMutationCount: Int
+    let elapsed: TimeInterval?
+    let error: Error?
+}
+
 enum OpenSnekUITestSupport {
     private static let eventsPathEnvironmentKey = "OPEN_SNEK_UITEST_EVENTS_PATH"
     private static let runIDEnvironmentKey = "OPEN_SNEK_UITEST_RUN_ID"
@@ -63,65 +84,43 @@ enum OpenSnekUITestSupport {
         )
     }
 
-    static func recordApplyStart(
-        device: MouseDevice,
-        patch: DevicePatch,
-        activeApplyCount: Int,
-        maxConcurrentApplyCount: Int,
-        readbackPolicy: String
-    ) {
+    static func recordApplyStart(_ event: UITestApplyEvent) {
         recorder.record(
             name: "applyStart",
-            deviceID: device.id,
-            scope: OpenSnekUITestScopeSnapshot(device),
-            patch: OpenSnekUITestPatchSnapshot(patch),
-            activeApplyCount: activeApplyCount,
-            maxConcurrentApplyCount: maxConcurrentApplyCount,
-            readbackPolicy: readbackPolicy
+            deviceID: event.device.id,
+            scope: OpenSnekUITestScopeSnapshot(event.device),
+            patch: OpenSnekUITestPatchSnapshot(event.patch),
+            activeApplyCount: event.activeApplyCount,
+            maxConcurrentApplyCount: event.maxConcurrentApplyCount,
+            readbackPolicy: event.readbackPolicy
         )
     }
 
-    static func recordApplyEnd(
-        device: MouseDevice,
-        patch: DevicePatch,
-        state: MouseState,
-        activeApplyCount: Int,
-        maxConcurrentApplyCount: Int,
-        elapsed: TimeInterval,
-        readbackPolicy: String
-    ) {
+    static func recordApplyEnd(_ event: UITestApplyEvent) {
         recorder.record(
             name: "applyEnd",
-            deviceID: device.id,
-            scope: OpenSnekUITestScopeSnapshot(device),
-            patch: OpenSnekUITestPatchSnapshot(patch),
-            state: OpenSnekUITestStateSnapshot(state),
-            activeApplyCount: activeApplyCount,
-            maxConcurrentApplyCount: maxConcurrentApplyCount,
-            elapsed: elapsed,
-            readbackPolicy: readbackPolicy
+            deviceID: event.device.id,
+            scope: OpenSnekUITestScopeSnapshot(event.device),
+            patch: OpenSnekUITestPatchSnapshot(event.patch),
+            state: event.state.map(OpenSnekUITestStateSnapshot.init),
+            activeApplyCount: event.activeApplyCount,
+            maxConcurrentApplyCount: event.maxConcurrentApplyCount,
+            elapsed: event.elapsed,
+            readbackPolicy: event.readbackPolicy
         )
     }
 
-    static func recordApplyError(
-        device: MouseDevice,
-        patch: DevicePatch,
-        activeApplyCount: Int,
-        maxConcurrentApplyCount: Int,
-        elapsed: TimeInterval,
-        readbackPolicy: String,
-        error: Error
-    ) {
+    static func recordApplyError(_ event: UITestApplyEvent) {
         recorder.record(
             name: "applyError",
-            deviceID: device.id,
-            scope: OpenSnekUITestScopeSnapshot(device),
-            patch: OpenSnekUITestPatchSnapshot(patch),
-            activeApplyCount: activeApplyCount,
-            maxConcurrentApplyCount: maxConcurrentApplyCount,
-            elapsed: elapsed,
-            readbackPolicy: readbackPolicy,
-            error: error.localizedDescription
+            deviceID: event.device.id,
+            scope: OpenSnekUITestScopeSnapshot(event.device),
+            patch: OpenSnekUITestPatchSnapshot(event.patch),
+            activeApplyCount: event.activeApplyCount,
+            maxConcurrentApplyCount: event.maxConcurrentApplyCount,
+            elapsed: event.elapsed,
+            readbackPolicy: event.readbackPolicy,
+            error: event.error?.localizedDescription
         )
     }
 
@@ -141,63 +140,42 @@ enum OpenSnekUITestSupport {
         )
     }
 
-    static func recordOnboardProfileMutationStart(
-        device: MouseDevice,
-        profileID: Int,
-        mutation: OnboardProfileMutation,
-        activeMutationCount: Int,
-        maxConcurrentMutationCount: Int
-    ) {
+    static func recordOnboardProfileMutationStart(_ event: UITestProfileMutationEvent) {
         recorder.record(
             name: "onboardProfileMutationStart",
-            deviceID: device.id,
-            scope: OpenSnekUITestScopeSnapshot(device),
-            profileID: profileID,
-            onboardMutation: OpenSnekUITestOnboardProfileMutationSnapshot(mutation),
-            activeApplyCount: activeMutationCount,
-            maxConcurrentApplyCount: maxConcurrentMutationCount
+            deviceID: event.device.id,
+            scope: OpenSnekUITestScopeSnapshot(event.device),
+            profileID: event.profileID,
+            onboardMutation: UITestProfileMutationSnapshot(event.mutation),
+            activeApplyCount: event.activeMutationCount,
+            maxConcurrentApplyCount: event.maxConcurrentMutationCount
         )
     }
 
-    static func recordOnboardProfileMutationEnd(
-        device: MouseDevice,
-        profileID: Int,
-        mutation: OnboardProfileMutation,
-        activeMutationCount: Int,
-        maxConcurrentMutationCount: Int,
-        elapsed: TimeInterval
-    ) {
+    static func recordOnboardProfileMutationEnd(_ event: UITestProfileMutationEvent) {
         recorder.record(
             name: "onboardProfileMutationEnd",
-            deviceID: device.id,
-            scope: OpenSnekUITestScopeSnapshot(device),
-            profileID: profileID,
-            onboardMutation: OpenSnekUITestOnboardProfileMutationSnapshot(mutation),
-            activeApplyCount: activeMutationCount,
-            maxConcurrentApplyCount: maxConcurrentMutationCount,
-            elapsed: elapsed
+            deviceID: event.device.id,
+            scope: OpenSnekUITestScopeSnapshot(event.device),
+            profileID: event.profileID,
+            onboardMutation: UITestProfileMutationSnapshot(event.mutation),
+            activeApplyCount: event.activeMutationCount,
+            maxConcurrentApplyCount: event.maxConcurrentMutationCount,
+            elapsed: event.elapsed
         )
     }
 
-    static func recordOnboardProfileMutationError(
-        device: MouseDevice,
-        profileID: Int,
-        mutation: OnboardProfileMutation,
-        activeMutationCount: Int,
-        maxConcurrentMutationCount: Int,
-        elapsed: TimeInterval,
-        error: Error
-    ) {
+    static func recordOnboardProfileMutationError(_ event: UITestProfileMutationEvent) {
         recorder.record(
             name: "onboardProfileMutationError",
-            deviceID: device.id,
-            scope: OpenSnekUITestScopeSnapshot(device),
-            profileID: profileID,
-            onboardMutation: OpenSnekUITestOnboardProfileMutationSnapshot(mutation),
-            activeApplyCount: activeMutationCount,
-            maxConcurrentApplyCount: maxConcurrentMutationCount,
-            elapsed: elapsed,
-            error: error.localizedDescription
+            deviceID: event.device.id,
+            scope: OpenSnekUITestScopeSnapshot(event.device),
+            profileID: event.profileID,
+            onboardMutation: UITestProfileMutationSnapshot(event.mutation),
+            activeApplyCount: event.activeMutationCount,
+            maxConcurrentApplyCount: event.maxConcurrentMutationCount,
+            elapsed: event.elapsed,
+            error: event.error?.localizedDescription
         )
     }
 
@@ -214,7 +192,7 @@ enum OpenSnekUITestSupport {
             deviceID: device.id,
             scope: OpenSnekUITestScopeSnapshot(device),
             profileID: profileID,
-            onboardMutation: OpenSnekUITestOnboardProfileMutationSnapshot(mutation),
+            onboardMutation: UITestProfileMutationSnapshot(mutation),
             activeApplyCount: activeMutationCount,
             maxConcurrentApplyCount: maxConcurrentMutationCount
         )
@@ -330,7 +308,7 @@ private final class OpenSnekUITestEventRecorder: @unchecked Sendable {
         profileID: Int? = nil,
         devices: [OpenSnekUITestDeviceSnapshot]? = nil,
         patch: OpenSnekUITestPatchSnapshot? = nil,
-        onboardMutation: OpenSnekUITestOnboardProfileMutationSnapshot? = nil,
+        onboardMutation: UITestProfileMutationSnapshot? = nil,
         command: OpenSnekUITestUSBCommandSnapshot? = nil,
         state: OpenSnekUITestStateSnapshot? = nil,
         activeApplyCount: Int? = nil,
@@ -401,7 +379,7 @@ private struct OpenSnekUITestEvent: Encodable {
     let profileID: Int?
     let devices: [OpenSnekUITestDeviceSnapshot]?
     let patch: OpenSnekUITestPatchSnapshot?
-    let onboardMutation: OpenSnekUITestOnboardProfileMutationSnapshot?
+    let onboardMutation: UITestProfileMutationSnapshot?
     let command: OpenSnekUITestUSBCommandSnapshot?
     let state: OpenSnekUITestStateSnapshot?
     let activeApplyCount: Int?
@@ -480,7 +458,7 @@ private struct OpenSnekUITestPatchSnapshot: Encodable {
     }
 }
 
-private struct OpenSnekUITestOnboardProfileMutationSnapshot: Encodable {
+private struct UITestProfileMutationSnapshot: Encodable {
     let metadataName: String?
     let dpiActiveStage: Int?
     let dpiStages: [Int]?

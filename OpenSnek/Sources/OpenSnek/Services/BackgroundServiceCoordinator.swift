@@ -43,7 +43,7 @@ final class BackgroundServiceCoordinator {
         self.launchAgentsDirectoryURL = launchAgentsDirectoryURL
         self.defaults.register(defaults: [
             Self.backgroundServiceEnabledDefaultsKey: true,
-            Self.launchAtStartupDefaultsKey: false,
+            Self.launchAtStartupDefaultsKey: false
         ])
     }
 
@@ -443,7 +443,7 @@ final class BackgroundServiceCoordinator {
             "KeepAlive": false,
             "WorkingDirectory": workingDirectoryPath,
             "StandardOutPath": ("~/Library/Logs/OpenSnek/service.stdout.log" as NSString).expandingTildeInPath,
-            "StandardErrorPath": ("~/Library/Logs/OpenSnek/service.stderr.log" as NSString).expandingTildeInPath,
+            "StandardErrorPath": ("~/Library/Logs/OpenSnek/service.stderr.log" as NSString).expandingTildeInPath
         ]
     }
 }

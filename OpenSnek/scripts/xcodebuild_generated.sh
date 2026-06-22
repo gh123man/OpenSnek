@@ -19,4 +19,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 "$SCRIPT_DIR/generate_xcodeproj.sh"
-exec xcodebuild -project "$PACKAGE_DIR/OpenSnek.xcodeproj" "$@"
+exec xcodebuild \
+  -skipPackagePluginValidation \
+  -skipMacroValidation \
+  -project "$PACKAGE_DIR/OpenSnek.xcodeproj" \
+  "$@"

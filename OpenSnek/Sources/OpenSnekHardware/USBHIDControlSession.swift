@@ -8,7 +8,7 @@ public enum USBHIDSupport {
     public static func intProperty(_ device: IOHIDDevice, key: CFString) -> Int? {
         guard let value = IOHIDDeviceGetProperty(device, key) else { return nil }
         if CFGetTypeID(value) == CFNumberGetTypeID() {
-            return (value as! NSNumber).intValue
+            return (value as? NSNumber)?.intValue
         }
         return nil
     }

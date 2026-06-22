@@ -8,6 +8,12 @@ final class HardwareDpiReliabilityTests: XCTestCase {
         let active: Int // 0-indexed
     }
 
+    private struct StableDpiExpectation {
+        let values: [Int]
+        let active: Int
+        let consecutiveMatches: Int
+    }
+
     private func requireHardwareRunEnabled() throws {
         let env = ProcessInfo.processInfo.environment
         guard env["OPEN_SNEK_HW"] == "1" else {
@@ -30,7 +36,7 @@ final class HardwareDpiReliabilityTests: XCTestCase {
             Step(values: [800, 1600, 3200], active: 0),
             Step(values: [800, 1600, 3200], active: 2),
             Step(values: [1200, 2400], active: 1),
-            Step(values: [900], active: 0),
+            Step(values: [900], active: 0)
         ]
 
         for (idx, step) in steps.enumerated() {
@@ -40,10 +46,12 @@ final class HardwareDpiReliabilityTests: XCTestCase {
             let stable = try await waitForStableDpiState(
                 client: client,
                 device: bt,
-                expectedValues: step.values,
-                expectedActive: step.active,
-                timeout: 4.0,
-                consecutiveMatches: 3
+                expectation: StableDpiExpectation(
+                    values: step.values,
+                    active: step.active,
+                    consecutiveMatches: 3
+                ),
+                timeout: 4.0
             )
 
             XCTAssertTrue(
@@ -56,10 +64,8 @@ final class HardwareDpiReliabilityTests: XCTestCase {
     private func waitForStableDpiState(
         client: BridgeClient,
         device: MouseDevice,
-        expectedValues: [Int],
-        expectedActive: Int,
-        timeout: TimeInterval,
-        consecutiveMatches: Int
+        expectation: StableDpiExpectation,
+        timeout: TimeInterval
     ) async throws -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         var matches = 0
@@ -68,11 +74,11 @@ final class HardwareDpiReliabilityTests: XCTestCase {
             let state = try await client.readState(device: device)
             let values = state.dpi_stages.values ?? []
             let active = state.dpi_stages.active_stage ?? -1
-            let compared = Array(values.prefix(expectedValues.count))
+            let compared = Array(values.prefix(expectation.values.count))
 
-            if active == expectedActive && compared == expectedValues {
+            if active == expectation.active && compared == expectation.values {
                 matches += 1
-                if matches >= consecutiveMatches {
+                if matches >= expectation.consecutiveMatches {
                     return true
                 }
             } else {

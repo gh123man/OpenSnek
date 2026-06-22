@@ -163,37 +163,52 @@ private struct LoadingScrimModifier: ViewModifier {
             .disabled(isPresented)
             .overlay {
                 if isPresented {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color.black.opacity(0.46))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
-                            )
-
-                        HStack(spacing: 10) {
-                            ProgressView()
-                                .controlSize(.small)
-                                .tint(.white.opacity(0.90))
-                            Text(label ?? "Loading")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white.opacity(0.82))
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(
-                            Capsule()
-                                .fill(Color.white.opacity(0.11))
-                                .overlay(
-                                    Capsule()
-                                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                                )
-                        )
-                    }
-                    .transition(.opacity)
+                    LoadingScrimOverlay(label: label ?? "Loading")
+                        .transition(.opacity)
                 }
             }
             .animation(.easeInOut(duration: 0.14), value: isPresented)
+    }
+}
+
+private struct LoadingScrimOverlay: View {
+    let label: String
+
+    var body: some View {
+        ZStack {
+            scrimBackground
+            loadingBadge
+        }
+    }
+
+    private var scrimBackground: some View {
+        RoundedRectangle(cornerRadius: 16)
+            .fill(Color.black.opacity(0.46))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
+            )
+    }
+
+    private var loadingBadge: some View {
+        HStack(spacing: 10) {
+            ProgressView()
+                .controlSize(.small)
+                .tint(.white.opacity(0.90))
+            Text(label)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.82))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            Capsule()
+                .fill(Color.white.opacity(0.11))
+                .overlay(
+                    Capsule()
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                )
+        )
     }
 }
 

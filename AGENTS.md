@@ -43,6 +43,45 @@ Protocol behavior changes require docs, tests, and `CHANGELOG.md` updates in the
 11. Before creating a new topic branch, fetch `origin` and branch from an up-to-date `origin/main`. Before opening or updating a PR, check whether the branch is behind `origin/main`; if it is, merge or rebase `origin/main`, resolve conflicts, rerun validation, and push the updated branch.
 12. Before saying work is done or pushing code, run the complete unit test suite with `swift test --package-path OpenSnek` and ensure it passes locally.
 13. For Windows Synapse/BTVS reverse engineering, prefer automated captures over manual Wireshark work. Use `tools/windows/capture-btvs.ps1`, let it choose a fresh port unless intentionally passing `-ReuseBtvs`, take a same-session idle baseline when background traffic is ambiguous, then start analysis from `synapse-events.md`, `correlation.md`, and `summary.md` before opening the raw `.pcapng`.
+14. When asked to run the app, use `./run.sh` from the repository root unless the user explicitly asks for a different launch path.
+15. Use code comments strategically. If a change has unclear but important UI/UX effects, leave a concise comment that explains the constraint so future changes do not regress it.
+16. Avoid magic numbers unless the number is inherently self-descriptive. For bounded sets, including protocol characteristics where appropriate, prefer enums or named constants with clear domain names. For example, `let slot = 1` may be clear in local context, but `let button = 55` needs a descriptive name.
+17. Avoid repeating multi-case conditionals across the codebase. If the same case set appears in multiple places, such as `device == foo || device == bar || device == abc`, move the rule into a helper method, enum extension, or other reusable code.
+18. Treat Swift long-function-body compiler warnings from `-warn-long-function-bodies=200` as errors. Fix them immediately by simplifying or splitting the flagged method; do not suppress or defer them.
+
+## Swift Style Defaults
+
+Write new Swift as if strict SwiftLint default rules are already enforcing it. Prefer code shape
+changes over local `swiftlint:disable` comments; only suppress a rule when the exception is
+intentional, documented, and narrower than the next-best refactor.
+
+- Keep functions and closures focused. If a method needs multiple phases, validation branches, or
+  large local setup, split it into named helpers before it grows into a lint or compiler long-body
+  problem.
+- Avoid long parameter lists and large tuples. Group related values into small request, context,
+  result, or snapshot structs with domain-specific names; reuse those types where the same shape
+  crosses module or test boundaries.
+- Prefer early `guard` exits and helper methods over deep nesting. Use `for ... where ...` when a
+  loop body only runs for matching elements.
+- Avoid force casts and force tries. In production code, use typed errors, optional binding, or
+  guarded casts. In tests, prefer `try XCTUnwrap(...)` or explicit assertions that explain the
+  expectation.
+- Do not interpolate optionals directly into strings. Unwrap first, use `map(String.init)`, or
+  provide an explicit fallback value.
+- Use meaningful identifiers by default, even while `identifier_name` is temporarily disabled.
+  Single-letter names are acceptable only for tiny local scopes where the domain is conventional,
+  such as coordinates or RGB components.
+- Keep literals and repeated case sets named. Use local constants, enums, or extensions for
+  protocol bytes, button slots, device groups, and other bounded domains.
+- Keep line wrapping readable even while `line_length` is temporarily disabled. Break long argument
+  lists, arrays, dictionaries, chained calls, and assertions across lines with trailing commas
+  omitted.
+- Let Swift format conventions carry simple control flow: no unnecessary parentheses around `if`,
+  `guard`, `while`, or `switch` conditions.
+- Before pushing Swift changes, run
+  `swift package --package-path OpenSnek plugin --allow-writing-to-package-directory swiftlint`
+  plus the focused tests for the touched area; run `swift test --package-path OpenSnek` before
+  declaring the branch ready.
 
 ## Quick Commands
 
@@ -51,8 +90,16 @@ swift build --package-path OpenSnek --product OpenSnekProbe
 swift run --package-path OpenSnek OpenSnekProbe dpi-read
 swift run --package-path OpenSnek OpenSnekProbe bt-lighting-info --name "BSK V3 PRO"
 swift run --package-path OpenSnek OpenSnekProbe usb-lighting-info --pid 0x00ab
-swift run --package-path OpenSnek OpenSnek
+./run.sh
 ```
+
+Codex SourceKit-LSP MCP setup for semantic Swift navigation, hover, references, and diagnostics:
+
+```bash
+./OpenSnek/scripts/setup_sourcekit_lsp_mcp.sh
+```
+
+Use `docs/development/SOURCEKIT_LSP.md` for setup details and troubleshooting. The SwiftPM LSP workspace root is `OpenSnek/`, not the repository root.
 
 Windows BTVS/Synapse capture:
 
@@ -79,23 +126,23 @@ Manual XCUITest happy path. This is manual-only and runs the full macOS app agai
   test
 ```
 
-Manual V3 Pro USB master feature sweep. This changes and restores several hardware settings in one full-app XCUITest to catch cross-feature interference between back-to-back UI actions.
+Manual V3 Pro USB feature sweep. This changes and restores several hardware settings in one full-app XCUITest to catch cross-feature interference between back-to-back UI actions.
 
 ```bash
 ./OpenSnek/scripts/xcodebuild_generated.sh \
   -scheme OpenSnekUITests \
   -destination 'platform=macOS' \
-  -only-testing:OpenSnekUITests/V3ProUSBMasterFeatureUITests/testV3ProUSBMasterFeatureSweepDoesNotCrossInterfere \
+  -only-testing:OpenSnekUITests/V3ProUSBFeatureSweepUITests/testV3ProUSBFeatureSweepDoesNotCrossInterfere \
   test
 ```
 
-Manual V3 Pro Bluetooth master feature sweep. This runs the same composable feature harness against the real Bluetooth protocol scope (`vendor 0x068E`, `product 0x00AC`, `protocol ble-vendor`, profile `basilisk_v3_pro`).
+Manual V3 Pro Bluetooth feature sweep. This runs the same composable feature harness against the real Bluetooth protocol scope (`vendor 0x068E`, `product 0x00AC`, `protocol ble-vendor`, profile `basilisk_v3_pro`).
 
 ```bash
 ./OpenSnek/scripts/xcodebuild_generated.sh \
   -scheme OpenSnekUITests \
   -destination 'platform=macOS' \
-  -only-testing:OpenSnekUITests/V3ProBluetoothMasterFeatureUITests/testV3ProBluetoothMasterFeatureSweepDoesNotCrossInterfere \
+  -only-testing:OpenSnekUITests/V3ProBluetoothFeatureSweepUITests/testV3ProBluetoothFeatureSweepDoesNotCrossInterfere \
   test
 ```
 
@@ -118,5 +165,6 @@ OPEN_SNEK_HW=1 swift test --package-path OpenSnek --filter HardwareDpiReliabilit
 
 - `docs/development/README.md`
 - `docs/development/REPO_MAP.md`
+- `docs/development/SOURCEKIT_LSP.md`
 - `docs/development/VALIDATION.md`
 - `docs/protocol/PROTOCOL.md`

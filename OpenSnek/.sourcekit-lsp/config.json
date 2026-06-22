@@ -1,0 +1,6 @@
+{
+  "defaultWorkspaceType": "swiftPM",
+  "swiftPM": {
+    "configuration": "debug"
+  }
+}

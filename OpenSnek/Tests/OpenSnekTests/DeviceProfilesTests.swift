@@ -10,6 +10,8 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual])
         XCTAssertEqual(profile?.usbLightingLEDIDs, [0x01])
         XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel"])
+        XCTAssertNil(profile?.softwareLightingFrameLayout)
+        XCTAssertEqual(profile?.supportedSoftwareLightingPresets, [])
         XCTAssertEqual(profile?.usbTransactionID, 0x1F)
         XCTAssertEqual(profile?.passiveDPIInput?.usagePage, 0x01)
         XCTAssertEqual(profile?.passiveDPIInput?.usage, 0x06)
@@ -194,7 +196,7 @@ final class DeviceProfilesTests: XCTestCase {
             ("Basilisk V3 USB", DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x0099, transport: .usb)),
             ("Basilisk V3 Pro USB", DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00AB, transport: .usb)),
             ("Basilisk V3 Pro Bluetooth", DeviceProfiles.resolve(vendorID: 0x068E, productID: 0x00AC, transport: .bluetooth)),
-            ("Basilisk V3 35K USB", DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00CB, transport: .usb)),
+            ("Basilisk V3 35K USB", DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00CB, transport: .usb))
         ]
 
         for (label, maybeProfile) in profiles {
@@ -295,6 +297,79 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertTrue(bluetoothV3Pro.showsLightingControls)
         XCTAssertTrue(bluetoothV3X.showsLightingControls)
         XCTAssertTrue(usbV3Pro.showsLightingControls)
+    }
+
+    func testSoftwareLightingSupportIsUSBOnlyAndRequiresFrameLayout() {
+        let usbV3X = MouseDevice(
+            id: "usb-v3x",
+            vendor_id: 0x1532,
+            product_id: 0x00B9,
+            product_name: "Basilisk V3 X HyperSpeed",
+            transport: .usb,
+            path_b64: "",
+            serial: nil,
+            firmware: nil,
+            profile_id: .basiliskV3XHyperspeed
+        )
+        let usbV3Pro = MouseDevice(
+            id: "usb-v3-pro",
+            vendor_id: 0x1532,
+            product_id: 0x00AB,
+            product_name: "Basilisk V3 Pro",
+            transport: .usb,
+            path_b64: "",
+            serial: nil,
+            firmware: nil,
+            profile_id: .basiliskV3Pro
+        )
+        let bluetoothDevices = [
+            MouseDevice(
+                id: "bt-v3x",
+                vendor_id: 0x068E,
+                product_id: 0x00BA,
+                product_name: "Basilisk V3 X HyperSpeed",
+                transport: .bluetooth,
+                path_b64: "",
+                serial: nil,
+                firmware: nil,
+                profile_id: .basiliskV3XHyperspeed
+            ),
+            MouseDevice(
+                id: "bt-v3-pro",
+                vendor_id: 0x068E,
+                product_id: 0x00AC,
+                product_name: "Basilisk V3 Pro",
+                transport: .bluetooth,
+                path_b64: "",
+                serial: nil,
+                firmware: nil,
+                profile_id: .basiliskV3Pro
+            ),
+            MouseDevice(
+                id: "bt-orochi",
+                vendor_id: 0x1532,
+                product_id: 0x0095,
+                product_name: "Orochi V2",
+                transport: .bluetooth,
+                path_b64: "",
+                serial: nil,
+                firmware: nil,
+                profile_id: .orochiV2
+            )
+        ]
+
+        XCTAssertFalse(usbV3X.supportsSoftwareLightingEffects)
+        XCTAssertNil(usbV3X.softwareLightingFrameLayout)
+        XCTAssertEqual(usbV3X.supportedSoftwareLightingPresets, [])
+        XCTAssertTrue(usbV3Pro.supportsSoftwareLightingEffects)
+        XCTAssertEqual(usbV3Pro.softwareLightingFrameLayout, .basiliskV3ProUSB)
+        XCTAssertEqual(usbV3Pro.supportedSoftwareLightingPresets, SoftwareLightingPresetID.basiliskV3ProPresets)
+
+        for device in bluetoothDevices {
+            XCTAssertFalse(device.supportsSoftwareLightingEffects, device.product_name)
+            XCTAssertNil(device.softwareLightingFrameLayout, device.product_name)
+            XCTAssertEqual(device.supportedSoftwareLightingPresets, [], device.product_name)
+        }
     }
 
     func testBasiliskV3ProBluetoothLightingTargetsResolveAllZones() throws {

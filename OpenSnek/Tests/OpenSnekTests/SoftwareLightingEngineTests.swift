@@ -294,13 +294,19 @@ final class SoftwareLightingEngineTests: XCTestCase {
             await writer.frameCount() >= 2
         }
         let frames = await writer.recordedFrames()
-        XCTAssertEqual(frames.first?.colors, Array(repeating: RGBPatch(r: 0, g: 0, b: 0), count: 14))
+        let clearFrame = try XCTUnwrap(frames.first)
+        XCTAssertEqual(clearFrame.colors[0], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(clearFrame.colors[1], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(
+            Array(clearFrame.colors.dropFirst(2)),
+            Array(repeating: RGBPatch(r: 0, g: 0, b: 0), count: 12)
+        )
         let meterFrame = frames.dropFirst().first
         XCTAssertEqual(meterFrame?.colors[0], RGBPatch(r: 255, g: 255, b: 255))
         XCTAssertEqual(meterFrame?.colors[1], RGBPatch(r: 255, g: 255, b: 255))
         XCTAssertEqual(meterFrame?.colors[2], RGBPatch(r: 255, g: 255, b: 255))
         XCTAssertEqual(meterFrame?.colors[9], RGBPatch(r: 255, g: 255, b: 255))
-        XCTAssertEqual(meterFrame?.colors[10], RGBPatch(r: 224, g: 224, b: 224))
+        XCTAssertEqual(meterFrame?.colors[10], RGBPatch(r: 26, g: 26, b: 26))
         XCTAssertEqual(meterFrame?.colors[11], RGBPatch(r: 0, g: 0, b: 0))
         await engine.stop(deviceID: device.id)
     }
@@ -332,6 +338,49 @@ final class SoftwareLightingEngineTests: XCTestCase {
         try await waitUntil {
             await writer.recordedFrames().contains { $0.colors[2] == RGBPatch(r: 255, g: 255, b: 0) }
         }
+        await engine.stop(deviceID: device.id)
+    }
+
+    func testReassertRunningBatteryMeterRewritesStableFrameStream() async throws {
+        let writer = RecordingSoftwareLightingFrameWriter()
+        let engine = SoftwareLightingEngine(
+            frameWriter: writer,
+            minimumFrameInterval: 0.005,
+            failureLimit: 3
+        )
+        let device = makeSoftwareLightingTestDevice()
+
+        _ = try await engine.start(
+            device: device,
+            request: SoftwareLightingEffectRequest(presetID: .batteryMeter, framesPerSecond: 30),
+            batteryPercent: 74
+        )
+        try await waitUntil {
+            await writer.frameCount() >= 2
+        }
+        let stableFrameCount = await writer.frameCount()
+        try await Task.sleep(nanoseconds: 50_000_000)
+        let frameCountAfterStableDelay = await writer.frameCount()
+        XCTAssertEqual(frameCountAfterStableDelay, stableFrameCount)
+
+        let reasserted = try await engine.reassertIfRunning(device: device, batteryPercent: 74)
+
+        XCTAssertEqual(reasserted?.state, .running)
+        XCTAssertEqual(reasserted?.request?.presetID, .batteryMeter)
+        try await waitUntil {
+            await writer.frameCount() >= stableFrameCount + 2
+        }
+        let frames = await writer.recordedFrames()
+        let reassertClearFrame = frames[stableFrameCount]
+        XCTAssertEqual(reassertClearFrame.colors[0], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(reassertClearFrame.colors[1], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(
+            Array(reassertClearFrame.colors.dropFirst(2)),
+            Array(repeating: RGBPatch(r: 0, g: 0, b: 0), count: 12)
+        )
+        let reassertMeterFrame = frames[stableFrameCount + 1]
+        XCTAssertEqual(reassertMeterFrame.colors[2], RGBPatch(r: 255, g: 255, b: 255))
+        XCTAssertEqual(reassertMeterFrame.colors[10], RGBPatch(r: 26, g: 26, b: 26))
         await engine.stop(deviceID: device.id)
     }
 

@@ -3,6 +3,7 @@ import IOKit.hid
 import OpenSnekAppSupport
 import OpenSnekCore
 import OpenSnekHardware
+import OpenSnekProtocols
 
 extension BridgeClient {
     func passiveDpiEventStream() -> AsyncStream<PassiveDPIEvent> {
@@ -135,7 +136,7 @@ extension BridgeClient {
             return
         }
 
-        btExpectedDpiByDeviceID[event.deviceID] = (
+        btExpectedDpiByDeviceID[event.deviceID] = BluetoothExpectedDpiState(
             active: expected.active,
             values: expected.values,
             pairs: expected.values.map { DpiPair(x: $0, y: $0) },
@@ -147,7 +148,7 @@ extension BridgeClient {
         )
 
         if let snapshot = btDpiSnapshotByDeviceID[event.deviceID] {
-            btDpiSnapshotByDeviceID[event.deviceID] = (
+            btDpiSnapshotByDeviceID[event.deviceID] = BLEVendorProtocol.DpiStageSnapshot(
                 active: expected.active,
                 count: snapshot.count,
                 slots: snapshot.slots,
@@ -223,7 +224,7 @@ extension BridgeClient {
         profile: DeviceProfile?,
         transport: DeviceTransportKind
     ) -> PassiveDPIEventMonitor.WatchTarget? {
-        guard transport == .usb || transport == .bluetooth, let descriptor = profile?.passiveDPIInput else { return nil }
+        guard transport.supportsHIDBackedControls, let descriptor = profile?.passiveDPIInput else { return nil }
 
         let usagePage = USBHIDSupport.intProperty(device, key: kIOHIDPrimaryUsagePageKey as CFString) ?? -1
         let usage = USBHIDSupport.intProperty(device, key: kIOHIDPrimaryUsageKey as CFString) ?? -1
@@ -283,7 +284,7 @@ extension BridgeClient {
 
     nonisolated static func bluetoothPassiveDpiExpectation(
         event: PassiveDPIEvent,
-        snapshot: (active: Int, count: Int, slots: [Int], pairs: [DpiPair], stageIDs: [UInt8], marker: UInt8)?,
+        snapshot: BLEVendorProtocol.DpiStageSnapshot?,
         state: MouseState?
     ) -> (active: Int, values: [Int])? {
         let values: [Int]
@@ -306,13 +307,17 @@ extension BridgeClient {
         deviceID.hasSuffix(":\(DeviceTransportKind.bluetooth.rawValue)")
     }
 
+    struct BluetoothPassiveObservationResetContext {
+        let previousState: MouseState?
+        let active: Int
+        let values: [Int]
+        let lastHeartbeatAt: Date?
+        let lastObservedAt: Date?
+        let now: Date
+    }
+
     nonisolated static func shouldResetBluetoothPassiveObservation(
-        previousState _: MouseState?,
-        active _: Int,
-        values _: [Int],
-        lastHeartbeatAt _: Date?,
-        lastObservedAt _: Date?,
-        now _: Date
+        _: BluetoothPassiveObservationResetContext
     ) -> Bool {
         // Basilisk V3 Pro Bluetooth can leave the vendor DPI active-stage read
         // behind passive HID updates indefinitely. Passive HID is the trusted
@@ -323,7 +328,7 @@ extension BridgeClient {
     nonisolated static func shouldMaskBluetoothExpectedRead(
         parsedActive: Int,
         parsedValues: [Int],
-        parsedPairs: [DpiPair],
+        parsedPairs _: [DpiPair],
         expected: BluetoothExpectedDpiState
     ) -> Bool {
         guard let previousActive = expected.previousActive,

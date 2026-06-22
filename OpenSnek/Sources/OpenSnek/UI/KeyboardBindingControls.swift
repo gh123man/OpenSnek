@@ -17,30 +17,9 @@ struct KeyboardBindingEditor: View {
     var body: some View {
         VStack(alignment: .trailing, spacing: 10) {
             HStack(spacing: 8) {
-                Button {
+                KeyboardBindingCurrentKeyButton(label: keyLabel, isEditable: isEditable) {
                     isShowingRecorder = true
-                } label: {
-                    HStack(spacing: 6) {
-                        Text(keyLabel)
-                        Image(systemName: "keyboard")
-                            .font(.system(size: 11, weight: .bold))
-                    }
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.86))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .fill(Color.white.opacity(0.06))
-                            .overlay(
-                                Capsule()
-                                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                            )
-                    )
                 }
-                .buttonStyle(.plain)
-                .controlSize(.small)
-                .disabled(!isEditable)
             }
         }
         .popover(isPresented: $isShowingRecorder) {
@@ -53,6 +32,37 @@ struct KeyboardBindingEditor: View {
                 isShowingRecorder = false
             }
         }
+    }
+}
+
+private struct KeyboardBindingCurrentKeyButton: View {
+    let label: String
+    let isEditable: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Text(label)
+                Image(systemName: "keyboard")
+                    .font(.system(size: 11, weight: .bold))
+            }
+            .font(.system(size: 12, weight: .bold, design: .rounded))
+            .foregroundStyle(.white.opacity(0.86))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(Color.white.opacity(0.06))
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .controlSize(.small)
+        .disabled(!isEditable)
     }
 }
 
@@ -78,76 +88,15 @@ private struct KeyboardBindingRecorderPopover: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Press A Key")
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+            title
 
             Text("Current binding: \(currentLabel)")
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.72))
 
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.white.opacity(0.05))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.white.opacity(0.10), lineWidth: 1)
-                    )
+            capturePanel
 
-                VStack(spacing: 6) {
-                    Text("Press one supported key")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.86))
-
-                    Text(supportsModifierChords ? "Shortcuts can include modifiers." : "Modifiers can be captured on their own.")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.58))
-                }
-
-                KeyboardBindingCaptureField(supportsModifierChords: supportsModifierChords) { selection in
-                    onCapture(selection)
-                    dismiss()
-                }
-            }
-            .frame(width: 300, height: 108)
-
-            Menu {
-                ForEach(AppStateKeyboardSupport.groupedKeyOptions, id: \.group.id) { entry in
-                    Section(entry.group.label) {
-                        ForEach(entry.options) { option in
-                            Button {
-                                onCapture(KeyboardBindingSelection(hidKey: option.hidKey, hidModifiers: 0))
-                                dismiss()
-                            } label: {
-                                if option.hidKey == currentHidKey {
-                                    Label(option.label, systemImage: "checkmark")
-                                } else {
-                                    Text(option.label)
-                                }
-                            }
-                        }
-                    }
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "list.bullet")
-                        .font(.system(size: 11, weight: .bold))
-                    Text("Browse Supported Keys")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                }
-                .foregroundStyle(.white.opacity(0.84))
-                .frame(width: 300)
-                .padding(.vertical, 9)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.white.opacity(0.06))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color.white.opacity(0.10), lineWidth: 1)
-                        )
-                )
-            }
-            .menuStyle(.borderlessButton)
+            browseSupportedKeysMenu
 
             Text("Media and macro families are still hidden until the underlying protocol taxonomy is validated.")
                 .font(.system(size: 11, weight: .medium, design: .rounded))
@@ -165,6 +114,98 @@ private struct KeyboardBindingRecorderPopover: View {
         .padding(14)
         .frame(width: 332)
         .background(Color(red: 0.09, green: 0.11, blue: 0.13))
+    }
+
+    private var title: some View {
+        Text("Press A Key")
+            .font(.system(size: 14, weight: .bold, design: .rounded))
+            .foregroundStyle(.white)
+    }
+
+    private var capturePanel: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white.opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                )
+
+            captureInstructions
+
+            KeyboardBindingCaptureField(supportsModifierChords: supportsModifierChords) { selection in
+                onCapture(selection)
+                dismiss()
+            }
+        }
+        .frame(width: 300, height: 108)
+    }
+
+    private var captureInstructions: some View {
+        VStack(spacing: 6) {
+            Text("Press one supported key")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.86))
+
+            Text(supportsModifierChords ? "Shortcuts can include modifiers." : "Modifiers can be captured on their own.")
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.58))
+        }
+    }
+
+    private var browseSupportedKeysMenu: some View {
+        Menu {
+            supportedKeyMenuSections
+        } label: {
+            BrowseSupportedKeysLabel()
+        }
+        .menuStyle(.borderlessButton)
+    }
+
+    private var supportedKeyMenuSections: some View {
+        ForEach(AppStateKeyboardSupport.groupedKeyOptions, id: \.group.id) { entry in
+            Section(entry.group.label) {
+                ForEach(entry.options) { option in
+                    supportedKeyButton(option)
+                }
+            }
+        }
+    }
+
+    private func supportedKeyButton(_ option: KeyboardBindingOption) -> some View {
+        Button {
+            onCapture(KeyboardBindingSelection(hidKey: option.hidKey, hidModifiers: 0))
+            dismiss()
+        } label: {
+            if option.hidKey == currentHidKey {
+                Label(option.label, systemImage: "checkmark")
+            } else {
+                Text(option.label)
+            }
+        }
+    }
+
+}
+
+private struct BrowseSupportedKeysLabel: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "list.bullet")
+                .font(.system(size: 11, weight: .bold))
+            Text("Browse Supported Keys")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+        }
+        .foregroundStyle(.white.opacity(0.84))
+        .frame(width: 300)
+        .padding(.vertical, 9)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.white.opacity(0.06))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                )
+        )
     }
 }
 
@@ -251,7 +292,7 @@ private enum KeyboardBindingCaptureSupport {
         59: 224, // Left Control
         60: 229, // Right Shift
         61: 230, // Right Option
-        62: 228, // Right Control
+        62: 228 // Right Control
     ]
 
     private static let hidKeyByKeypadKeyCode: [UInt16: Int] = [
@@ -271,7 +312,7 @@ private enum KeyboardBindingCaptureSupport {
         88: 94, // Keypad 6
         89: 95, // Keypad 7
         91: 96, // Keypad 8
-        92: 97, // Keypad 9
+        92: 97 // Keypad 9
     ]
 
     private static let hidKeyBySpecialKeyCode: [UInt16: Int] = [
@@ -309,7 +350,7 @@ private enum KeyboardBindingCaptureSupport {
         123: 80, // Left Arrow
         124: 79, // Right Arrow
         125: 81, // Down Arrow
-        126: 82, // Up Arrow
+        126: 82 // Up Arrow
     ]
 
     static func hidKey(from event: NSEvent) -> Int? {

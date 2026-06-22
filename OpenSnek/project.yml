@@ -9,10 +9,24 @@ configs:
 settings:
   base:
     SWIFT_VERSION: 6.0
+    OTHER_SWIFT_FLAGS:
+      - -Xfrontend
+      - -warn-long-function-bodies=200
     CURRENT_PROJECT_VERSION: 1
     MARKETING_VERSION: 0.1.0
+packages:
+  SwiftLintPlugins:
+    url: https://github.com/SimplyDanny/SwiftLintPlugins
+    exactVersion: 0.63.3
+targetTemplates:
+  SwiftLintBuild:
+    buildToolPlugins:
+      - plugin: SwiftLintBuildToolPlugin
+        package: SwiftLintPlugins
 targets:
   OpenSnekCore:
+    templates:
+      - SwiftLintBuild
     type: library.static
     platform: macOS
     deploymentTarget: "14.0"
@@ -24,6 +38,8 @@ targets:
         DEFINES_MODULE: YES
 
   OpenSnekProtocols:
+    templates:
+      - SwiftLintBuild
     type: library.static
     platform: macOS
     deploymentTarget: "14.0"
@@ -37,6 +53,8 @@ targets:
         DEFINES_MODULE: YES
 
   OpenSnekHardware:
+    templates:
+      - SwiftLintBuild
     type: library.static
     platform: macOS
     deploymentTarget: "14.0"
@@ -51,6 +69,8 @@ targets:
         DEFINES_MODULE: YES
 
   OpenSnekAppSupport:
+    templates:
+      - SwiftLintBuild
     type: library.static
     platform: macOS
     deploymentTarget: "14.0"
@@ -65,6 +85,8 @@ targets:
         DEFINES_MODULE: YES
 
   OpenSnek:
+    templates:
+      - SwiftLintBuild
     type: application
     platform: macOS
     deploymentTarget: "14.0"
@@ -97,6 +119,8 @@ targets:
         - OpenSnekTests
 
   OpenSnekProbe:
+    templates:
+      - SwiftLintBuild
     type: tool
     platform: macOS
     deploymentTarget: "14.0"
@@ -106,8 +130,6 @@ targets:
       base:
         PRODUCT_NAME: OpenSnekProbe
         GENERATE_INFOPLIST_FILE: YES
-        OTHER_SWIFT_FLAGS:
-          - -parse-as-library
     dependencies:
       - target: OpenSnekCore
       - target: OpenSnekProtocols
@@ -116,6 +138,8 @@ targets:
       gatherCoverageData: false
 
   OpenSnekTests:
+    templates:
+      - SwiftLintBuild
     type: bundle.unit-test
     platform: macOS
     deploymentTarget: "14.0"
@@ -133,6 +157,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: io.opensnek.OpenSnekTests
 
   OpenSnekUITests:
+    templates:
+      - SwiftLintBuild
     type: bundle.ui-testing
     platform: macOS
     deploymentTarget: "14.0"

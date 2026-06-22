@@ -24,7 +24,7 @@ public struct DeviceDiagnosticsFormatter {
                 "Location ID: \(hex(device.location_id, width: 8))",
                 "Serial: \(display(device.serial))",
                 "Firmware: \(display(state?.device.firmware ?? device.firmware))",
-                "Path (base64): \(display(device.path_b64))",
+                "Path (base64): \(display(device.path_b64))"
             ]
         }
 
@@ -40,7 +40,7 @@ public struct DeviceDiagnosticsFormatter {
                 "Resolved profile: \(profile?.id.rawValue ?? "none")",
                 "Reported profile ID: \(device.profile_id?.rawValue ?? "none")",
                 "Advanced lighting effects: \(yesNo(device.supports_advanced_lighting_effects))",
-                "Onboard profile count: \(device.onboard_profile_count)",
+                "Onboard profile count: \(device.onboard_profile_count)"
             ]
         }
 
@@ -53,7 +53,7 @@ public struct DeviceDiagnosticsFormatter {
                 "Polling rate: \(yesNo(state.capabilities.poll_rate))",
                 "Power management: \(yesNo(state.capabilities.power_management))",
                 "Button remap: \(yesNo(state.capabilities.button_remap))",
-                "Lighting: \(yesNo(state.capabilities.lighting))",
+                "Lighting: \(yesNo(state.capabilities.lighting))"
             ]
         }
 
@@ -64,7 +64,7 @@ public struct DeviceDiagnosticsFormatter {
 
             var sectionLines: [String] = [
                 "Visible slots: \(formatSlots(layout.visibleSlots))",
-                "Writable slots: \(formatInts(layout.writableSlots))",
+                "Writable slots: \(formatInts(layout.writableSlots))"
             ]
 
             let hiddenReadOnly = layout.documentedSlots.filter { slot in
@@ -89,7 +89,7 @@ public struct DeviceDiagnosticsFormatter {
             }
             return [
                 "Supported effects: \(effects)",
-                "USB zones: \(zones.isEmpty ? "None mapped" : zones.joined(separator: "; "))",
+                "USB zones: \(zones.isEmpty ? "None mapped" : zones.joined(separator: "; "))"
             ]
         }
 
@@ -110,7 +110,7 @@ public struct DeviceDiagnosticsFormatter {
                 "Smart reel: \(displayBool(state.scroll_smart_reel))",
                 "Active onboard profile: \(displayInt(state.active_onboard_profile))",
                 "Reported onboard profile count: \(displayInt(state.onboard_profile_count))",
-                "LED brightness: \(displayInt(state.led_value))",
+                "LED brightness: \(displayInt(state.led_value))"
             ]
         }
 

@@ -31,12 +31,12 @@ class OpenSnekHardwareUITestCase: XCTestCase {
             eventsURL.path,
             "--ui-test-run-id",
             runID,
-            "--ui-test-force-local-backend",
+            "--ui-test-force-local-backend"
         ]
         app.launchEnvironment = [
             "OPEN_SNEK_UITEST_EVENTS_PATH": eventsURL.path,
             "OPEN_SNEK_UITEST_RUN_ID": runID,
-            "OPEN_SNEK_UITEST_FORCE_LOCAL_BACKEND": "1",
+            "OPEN_SNEK_UITEST_FORCE_LOCAL_BACKEND": "1"
         ]
     }
 
@@ -365,7 +365,7 @@ class OpenSnekHardwareUITestCase: XCTestCase {
             in: [
                 app.staticTexts[identifier],
                 app.textFields[identifier],
-                app.descendants(matching: .any)[identifier],
+                app.descendants(matching: .any)[identifier]
             ],
             timeout: timeout
         )
@@ -414,7 +414,7 @@ class OpenSnekHardwareUITestCase: XCTestCase {
             app.buttons[identifier],
             app.radioButtons[identifier],
             app.buttons[label],
-            app.radioButtons[label],
+            app.radioButtons[label]
         ]
 
         if let option = firstExistingElement(in: candidates, timeout: 1) {

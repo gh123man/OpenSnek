@@ -15,7 +15,7 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
         .cometChase,
         .nightRider,
         .aurora,
-        .jellybeans,
+        .jellybeans
     ]
 
     public static let basiliskV3ProPresets: [SoftwareLightingPresetID] = animatedPresets + [.batteryMeter]
@@ -47,7 +47,7 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
             return [
                 RGBPatch(r: 48, g: 0, b: 0),
                 RGBPatch(r: 255, g: 48, b: 0),
-                RGBPatch(r: 255, g: 176, b: 28),
+                RGBPatch(r: 255, g: 176, b: 28)
             ]
         case .scrollingRainbow:
             return [
@@ -56,24 +56,24 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
                 RGBPatch(r: 255, g: 235, b: 0),
                 RGBPatch(r: 20, g: 220, b: 80),
                 RGBPatch(r: 0, g: 190, b: 255),
-                RGBPatch(r: 130, g: 80, b: 255),
+                RGBPatch(r: 130, g: 80, b: 255)
             ]
         case .cometChase:
             return [
                 RGBPatch(r: 30, g: 190, b: 255),
                 RGBPatch(r: 120, g: 72, b: 255),
-                RGBPatch(r: 255, g: 255, b: 255),
+                RGBPatch(r: 255, g: 255, b: 255)
             ]
         case .nightRider:
             return [
-                RGBPatch(r: 255, g: 0, b: 0),
+                RGBPatch(r: 255, g: 0, b: 0)
             ]
         case .aurora:
             return [
                 RGBPatch(r: 38, g: 214, b: 126),
                 RGBPatch(r: 20, g: 210, b: 220),
                 RGBPatch(r: 96, g: 96, b: 255),
-                RGBPatch(r: 228, g: 94, b: 255),
+                RGBPatch(r: 228, g: 94, b: 255)
             ]
         case .jellybeans:
             return [
@@ -84,13 +84,13 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
                 RGBPatch(r: 0, g: 220, b: 255),
                 RGBPatch(r: 0, g: 92, b: 255),
                 RGBPatch(r: 144, g: 48, b: 255),
-                RGBPatch(r: 255, g: 56, b: 228),
+                RGBPatch(r: 255, g: 56, b: 228)
             ]
         case .batteryMeter:
             return [
                 RGBPatch(r: 255, g: 0, b: 0),
                 RGBPatch(r: 255, g: 255, b: 0),
-                RGBPatch(r: 255, g: 255, b: 255),
+                RGBPatch(r: 255, g: 255, b: 255)
             ]
         }
     }
@@ -263,7 +263,7 @@ public struct SoftwareLightingFrameLayout: Codable, Hashable, Sendable {
         SoftwareLightingFrameCell(index: 10, id: "underglow_right_middle", label: "Underglow Right Middle"),
         SoftwareLightingFrameCell(index: 11, id: "underglow_right_front", label: "Underglow Right Front"),
         SoftwareLightingFrameCell(index: 12, id: "underglow_tail_1", label: "Underglow Tail 1"),
-        SoftwareLightingFrameCell(index: 13, id: "underglow_tail_2", label: "Underglow Tail 2"),
+        SoftwareLightingFrameCell(index: 13, id: "underglow_tail_2", label: "Underglow Tail 2")
     ]
 
     public static let basiliskV3ProUSB = SoftwareLightingFrameLayout(
@@ -301,57 +301,126 @@ public struct USBLightingFramePatch: Codable, Hashable, Sendable {
 }
 
 public enum SoftwareLightingRenderer {
+    private struct BatteryMeterProgressAnchor {
+        let chargeFraction: Double
+        let fillFraction: Double
+    }
+
+    private static let batteryMeterLowFlashPeriod: TimeInterval = 1.0
+    private static let batteryMeterLowFlashDutyCycle = 0.5
+    private static let batteryMeterVisualMidpointFillFraction = 4.5 / 12.0
+    private static let batteryMeterProgressAnchors = [
+        BatteryMeterProgressAnchor(chargeFraction: 0.0, fillFraction: 0.0),
+        BatteryMeterProgressAnchor(chargeFraction: 0.2, fillFraction: 0.2),
+        // Hardware light-bar geometry reads 50% as centered at 4.5 of the 12 strip cells.
+        BatteryMeterProgressAnchor(chargeFraction: 0.5, fillFraction: batteryMeterVisualMidpointFillFraction),
+        BatteryMeterProgressAnchor(chargeFraction: 1.0, fillFraction: 1.0)
+    ]
+
+    private struct RenderSample {
+        let preset: SoftwareLightingPresetID
+        let palette: [RGBPatch]
+        let index: Int
+        let count: Int
+        let time: TimeInterval
+        let intensity: Double
+        let batteryPercent: Int?
+    }
+
     public static func render(
         request: SoftwareLightingEffectRequest,
         layout: SoftwareLightingFrameLayout,
         elapsedTime: TimeInterval,
         batteryPercent: Int? = nil
     ) -> USBLightingFramePatch {
-        let animationTime = max(0, elapsedTime) * request.speed * request.presetID.renderSpeedMultiplier
+        let renderTime = max(0, elapsedTime)
+        let animationTime: TimeInterval
+        if request.presetID == .batteryMeter {
+            animationTime = renderTime
+        } else {
+            animationTime = renderTime * request.speed * request.presetID.renderSpeedMultiplier
+        }
         let colors = (0..<layout.cellCount).map { index in
             color(
-                preset: request.presetID,
-                palette: request.palette,
-                index: index,
-                count: layout.cellCount,
-                time: animationTime,
-                intensity: request.intensity,
-                batteryPercent: batteryPercent
+                RenderSample(
+                    preset: request.presetID,
+                    palette: request.palette,
+                    index: index,
+                    count: layout.cellCount,
+                    time: animationTime,
+                    intensity: request.intensity,
+                    batteryPercent: batteryPercent
+                )
             )
         }
         return USBLightingFramePatch(colors: colors)
     }
 
-    private static func color(
-        preset: SoftwareLightingPresetID,
-        palette: [RGBPatch],
-        index: Int,
-        count: Int,
-        time: TimeInterval,
-        intensity: Double,
-        batteryPercent: Int?
-    ) -> RGBPatch {
-        switch preset {
+    private static func color(_ sample: RenderSample) -> RGBPatch {
+        switch sample.preset {
         case .flame:
-            return flame(palette: palette, index: index, count: count, time: time, intensity: intensity)
+            return flame(
+                palette: sample.palette,
+                index: sample.index,
+                count: sample.count,
+                time: sample.time,
+                intensity: sample.intensity
+            )
         case .scrollingRainbow:
-            return scrollingRainbow(palette: palette, index: index, count: count, time: time, intensity: intensity)
+            return scrollingRainbow(
+                palette: sample.palette,
+                index: sample.index,
+                count: sample.count,
+                time: sample.time,
+                intensity: sample.intensity
+            )
         case .cometChase:
-            return cometChase(palette: palette, index: index, count: count, time: time, intensity: intensity)
+            return cometChase(
+                palette: sample.palette,
+                index: sample.index,
+                count: sample.count,
+                time: sample.time,
+                intensity: sample.intensity
+            )
         case .nightRider:
-            return nightRider(palette: palette, index: index, count: count, time: time, intensity: intensity)
+            return nightRider(
+                palette: sample.palette,
+                index: sample.index,
+                count: sample.count,
+                time: sample.time,
+                intensity: sample.intensity
+            )
         case .aurora:
-            return aurora(palette: palette, index: index, count: count, time: time, intensity: intensity)
+            return aurora(
+                palette: sample.palette,
+                index: sample.index,
+                count: sample.count,
+                time: sample.time,
+                intensity: sample.intensity
+            )
         case .jellybeans:
-            return jellybeans(palette: palette, index: index, count: count, time: time, intensity: intensity)
+            return jellybeans(
+                palette: sample.palette,
+                index: sample.index,
+                count: sample.count,
+                time: sample.time,
+                intensity: sample.intensity
+            )
         case .batteryMeter:
-            return batteryMeter(index: index, count: count, batteryPercent: batteryPercent, intensity: intensity)
+            return batteryMeter(
+                index: sample.index,
+                count: sample.count,
+                time: sample.time,
+                batteryPercent: sample.batteryPercent,
+                intensity: sample.intensity
+            )
         }
     }
 
     private static func batteryMeter(
         index: Int,
         count: Int,
+        time: TimeInterval,
         batteryPercent: Int?,
         intensity: Double
     ) -> RGBPatch {
@@ -364,7 +433,7 @@ public enum SoftwareLightingRenderer {
         let percent = max(0, min(100, batteryPercent))
         let stripCellCount = max(1, count - stripStartIndex)
         let stripIndex = index - stripStartIndex
-        let progress = Double(percent) / 100.0 * Double(stripCellCount)
+        let progress = batteryMeterProgress(percent: percent, stripCellCount: stripCellCount)
         let fullCellCount = Int(floor(progress))
         let partialCellScale = progress - Double(fullCellCount)
 
@@ -377,13 +446,42 @@ public enum SoftwareLightingRenderer {
             color = RGBPatch(r: 255, g: 255, b: 255)
         }
 
+        if percent < 15, !batteryMeterLowFlashIsOn(time: time) {
+            return RGBPatch(r: 0, g: 0, b: 0)
+        }
+
         if stripIndex < fullCellCount {
             return scaledColor(color, scale: intensity)
         }
         if stripIndex == fullCellCount, partialCellScale > 0, fullCellCount < stripCellCount {
-            return scaledColor(RGBPatch(r: 255, g: 255, b: 255), scale: intensity * partialCellScale)
+            return scaledColor(color, scale: intensity * partialCellScale)
         }
         return RGBPatch(r: 0, g: 0, b: 0)
+    }
+
+    private static func batteryMeterProgress(percent: Int, stripCellCount: Int) -> Double {
+        let chargeFraction = Double(percent) / 100.0
+        return batteryMeterFillFraction(chargeFraction: chargeFraction) * Double(stripCellCount)
+    }
+
+    private static func batteryMeterFillFraction(chargeFraction: Double) -> Double {
+        let clampedCharge = max(0.0, min(1.0, chargeFraction))
+        var previous = batteryMeterProgressAnchors[0]
+        for anchor in batteryMeterProgressAnchors.dropFirst() {
+            guard clampedCharge > anchor.chargeFraction else {
+                let span = anchor.chargeFraction - previous.chargeFraction
+                guard span > 0 else { return anchor.fillFraction }
+                let phase = (clampedCharge - previous.chargeFraction) / span
+                return previous.fillFraction + ((anchor.fillFraction - previous.fillFraction) * phase)
+            }
+            previous = anchor
+        }
+        return batteryMeterProgressAnchors.last?.fillFraction ?? clampedCharge
+    }
+
+    private static func batteryMeterLowFlashIsOn(time: TimeInterval) -> Bool {
+        let phase = positiveModulo(time, batteryMeterLowFlashPeriod) / batteryMeterLowFlashPeriod
+        return phase < batteryMeterLowFlashDutyCycle
     }
 
     private static func flame(
@@ -511,10 +609,9 @@ public enum SoftwareLightingRenderer {
 
     private static func latestJellybeanChangeTick(for index: Int, count: Int, atOrBefore tick: Int) -> Int? {
         guard count > 0, tick >= 1 else { return nil }
-        for candidate in stride(from: tick, through: 1, by: -1) {
-            if jellybeanLEDIndex(tick: candidate, count: count) == index {
-                return candidate
-            }
+        for candidate in stride(from: tick, through: 1, by: -1)
+        where jellybeanLEDIndex(tick: candidate, count: count) == index {
+            return candidate
         }
         return nil
     }
@@ -596,38 +693,11 @@ public enum SoftwareLightingRenderer {
     }
 
     private static func lerpChannel(_ a: Int, _ b: Int, _ mix: Double) -> Int {
-        Int(round(Double(a) + (Double(b - a) * max(0.0, min(1.0, mix)))))
-    }
-
-    private static func hsv(hue: Double, saturation: Double, value: Double) -> RGBPatch {
-        let h = positiveFraction(hue) * 6.0
-        let s = max(0.0, min(1.0, saturation))
-        let v = max(0.0, min(1.0, value))
-        let c = v * s
-        let x = c * (1.0 - abs(h.truncatingRemainder(dividingBy: 2.0) - 1.0))
-        let m = v - c
-
-        let rgb: (Double, Double, Double)
-        switch h {
-        case 0..<1:
-            rgb = (c, x, 0)
-        case 1..<2:
-            rgb = (x, c, 0)
-        case 2..<3:
-            rgb = (0, c, x)
-        case 3..<4:
-            rgb = (0, x, c)
-        case 4..<5:
-            rgb = (x, 0, c)
-        default:
-            rgb = (c, 0, x)
-        }
-
-        return RGBPatch(
-            r: Int(round((rgb.0 + m) * 255)),
-            g: Int(round((rgb.1 + m) * 255)),
-            b: Int(round((rgb.2 + m) * 255))
-        )
+        let clampedMix = max(0.0, min(1.0, mix))
+        let start = Double(a)
+        let delta = Double(b - a)
+        let interpolated = start + delta * clampedMix
+        return Int(round(interpolated))
     }
 
     private static func positiveFraction(_ value: Double) -> Double {
