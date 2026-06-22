@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [1.1.0]
 
 ### Added
+- Added strict SwiftLint enforcement to SwiftPM, CI, and generated Xcode builds using the default SwiftLint ruleset.
 - Added a Night Rider advanced lighting preset for V3-family USB devices that sweeps one customizable scanner color across the underglow light bar while the logo and scroll wheel slowly pulse the same color. The preset defaults to red.
 - Added a Basilisk V3 Pro USB Battery Meter advanced lighting preset that keeps the logo and scroll wheel white while using the underglow strip as a battery progress bar. Lit strip cells are white at 30% and up, yellow from 15-29%, red below 15%, the boundary LED fades white by fractional charge within each cell step, and cells turn off from the tail as charge drops. Battery Meter clears the prior software frame before rendering and uses a battery icon instead of palette swatches in the collapsed Lighting summary.
 
@@ -16,6 +17,7 @@ All notable changes to this project are documented in this file.
 - V3-family USB software lighting now streams the full 14-cell Custom Frame range so the tail LEDs are addressed directly on every shared scroll/logo/underglow profile.
 
 ### Fixed
+- Generated Xcode `OpenSnekProbe` builds no longer pass `-parse-as-library`, allowing the probe's top-level async entrypoint to compile.
 - USB Custom Frame lighting now includes the required reserved byte after `END_COL`, preventing mixed/dim software-effect cells from spilling color channels into adjacent LEDs.
 - USB Custom Frame lighting now sends post-pad color triplets as RGB, fixing Advanced effects that appeared color-rotated after the frame alignment fix.
 - Advanced software lighting now stops outgoing backend-owned frame streams during app/service handoff so a device cannot be driven by duplicate effect writers.

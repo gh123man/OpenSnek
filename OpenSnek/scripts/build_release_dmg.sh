@@ -229,6 +229,8 @@ echo "[open-snek] Generating Xcode project"
 generate_export_options "$PACKAGE_DIR/ci/ExportOptions-DeveloperID.plist" "$EXPORT_OPTIONS_TMP"
 
 ARCHIVE_ARGS=(
+  -skipPackagePluginValidation
+  -skipMacroValidation
   -project "$PACKAGE_DIR/OpenSnek.xcodeproj"
   -scheme OpenSnek
   -configuration Release

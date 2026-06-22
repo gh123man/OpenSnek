@@ -1,0 +1,22 @@
+included:
+  - Package.swift
+  - Sources
+  - Tests
+  - scripts
+
+excluded:
+  - .build
+  - .dist
+  - .release
+  - .xcode-dd
+  - OpenSnek.xcodeproj
+
+disabled_rules:
+  - function_body_length
+  - cyclomatic_complexity
+  - file_length
+  - type_body_length
+  - line_length
+  - identifier_name
+
+strict: true
