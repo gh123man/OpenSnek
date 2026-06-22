@@ -8,13 +8,15 @@ All notable changes to this project are documented in this file.
 - Added strict SwiftLint enforcement to SwiftPM, CI, and generated Xcode builds using the default SwiftLint ruleset.
 - Added repo-local SourceKit-LSP configuration plus a Codex MCP setup script and development guide for semantic Swift navigation, references, hover, and diagnostics.
 - Added a Night Rider advanced lighting preset for V3-family USB devices that sweeps one customizable scanner color across the underglow light bar while the logo and scroll wheel slowly pulse the same color. The preset defaults to red.
-- Added a Basilisk V3 Pro USB Battery Meter advanced lighting preset that keeps the logo and scroll wheel white while using the underglow strip as a battery progress bar. Lit strip cells are white at 30% and up, yellow from 15-29%, red below 15%, the boundary LED fades white by fractional charge within each cell step, and cells turn off from the tail as charge drops. Battery Meter clears the prior software frame before rendering and uses a battery icon instead of palette swatches in the collapsed Lighting summary.
+- Added a Basilisk V3 Pro USB Battery Meter advanced lighting preset that keeps the logo and scroll wheel white while using the underglow strip as a battery progress bar. Lit strip cells are white at 30% and up, yellow from 15-29%, red below 15%, and the red low-battery bar flashes while preserving the same fractional boundary-cell color. Cells turn off from the tail as charge drops. Battery Meter clears the prior light-bar frame before rendering and uses a battery icon instead of palette swatches in the collapsed Lighting summary.
 
 ### Changed
 - The Connect a Device screen now opens supported devices in a centered, searchable profile-backed table instead of showing the growing list inline.
 - OpenSnek now pins its SwiftUI and AppKit surfaces to the dark appearance so system fields, controls, dynamic colors, and window chrome render consistently even when macOS is set to Light Mode.
 - The Polling Rate control now uses the same segmented picker styling as other fixed-choice device controls.
 - Advanced lighting animations now expose a persisted brightness slider alongside speed and palette controls.
+- Active Advanced software-lighting effects are now reasserted after onboard profile switches so the volatile frame stream keeps driving the device.
+- Battery Meter progress is now visually calibrated so 50% lands at four-and-a-half underglow cells instead of filling half the physical cell count.
 - V3-family USB software lighting now streams the full 14-cell Custom Frame range so the tail LEDs are addressed directly on every shared scroll/logo/underglow profile.
 
 ### Fixed

@@ -260,6 +260,18 @@ actor SoftwareLightingEngine {
         return try await start(device: device, request: request)
     }
 
+    @discardableResult
+    func reassertIfRunning(
+        device: MouseDevice,
+        batteryPercent: Int? = nil
+    ) async throws -> SoftwareLightingEngineStatus? {
+        let deviceKey = Self.lightingDeviceKey(for: device)
+        let status = statusByDeviceKey[deviceKey] ?? statusByDeviceID[device.id]
+        guard status?.state == .running else { return nil }
+        guard let request = desiredRequestByDeviceKey[deviceKey] ?? status?.request else { return nil }
+        return try await start(device: device, request: request, batteryPercent: batteryPercent)
+    }
+
     func updateBatteryPercent(deviceID: String, batteryPercent: Int?) {
         let deviceKey = deviceKeyByDeviceID[deviceID] ?? deviceID
         guard let batteryPercent else {
@@ -281,10 +293,12 @@ actor SoftwareLightingEngine {
         var lastWrittenFrame: USBLightingFramePatch?
 
         if request.presetID == .batteryMeter {
-            let clearFrame = USBLightingFramePatch(colors: Array(
-                repeating: RGBPatch(r: 0, g: 0, b: 0),
-                count: layout.cellCount
-            ))
+            let clearFrame = SoftwareLightingRenderer.render(
+                request: request,
+                layout: layout,
+                elapsedTime: 0.0,
+                batteryPercent: nil
+            )
             do {
                 try await frameWriter.writeSoftwareLightingFrame(device: device, frame: clearFrame)
                 guard isCurrent(deviceKey: deviceKey, generation: generation) else { return }
