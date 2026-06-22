@@ -13,6 +13,7 @@ All notable changes to this project are documented in this file.
 - OpenSnek now pins its SwiftUI and AppKit surfaces to the dark appearance so system fields, controls, dynamic colors, and window chrome render consistently even when macOS is set to Light Mode.
 - Advanced lighting animations now expose a persisted brightness slider alongside speed and palette controls.
 - V3-family USB software lighting now streams the full 14-cell Custom Frame range so the tail LEDs are addressed directly on every shared scroll/logo/underglow profile.
+- Release automation now treats semver prerelease tags such as `v1.2.0-beta.1` as GitHub prereleases with `latest=false`, allowing beta DMGs to ship without triggering stable update banners.
 
 ### Fixed
 - USB Custom Frame lighting now includes the required reserved byte after `END_COL`, preventing mixed/dim software-effect cells from spilling color channels into adjacent LEDs.
