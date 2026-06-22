@@ -778,11 +778,16 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         maxConcurrentApplyCount = max(maxConcurrentApplyCount, activeApplyCount)
 #if DEBUG
         OpenSnekUITestSupport.recordApplyStart(
-            device: device,
-            patch: patch,
-            activeApplyCount: activeApplyCount,
-            maxConcurrentApplyCount: maxConcurrentApplyCount,
-            readbackPolicy: options.readbackPolicy.rawValue
+            UITestApplyEvent(
+                device: device,
+                patch: patch,
+                state: nil,
+                activeApplyCount: activeApplyCount,
+                maxConcurrentApplyCount: maxConcurrentApplyCount,
+                elapsed: nil,
+                readbackPolicy: options.readbackPolicy.rawValue,
+                error: nil
+            )
         )
         if activeApplyCount > 1 {
             OpenSnekUITestSupport.recordOverlapDetected(
@@ -803,13 +808,16 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         } catch {
 #if DEBUG
             OpenSnekUITestSupport.recordApplyError(
-                device: device,
-                patch: patch,
-                activeApplyCount: activeApplyCount,
-                maxConcurrentApplyCount: maxConcurrentApplyCount,
-                elapsed: Date().timeIntervalSince(startedAt),
-                readbackPolicy: options.readbackPolicy.rawValue,
-                error: error
+                UITestApplyEvent(
+                    device: device,
+                    patch: patch,
+                    state: nil,
+                    activeApplyCount: activeApplyCount,
+                    maxConcurrentApplyCount: maxConcurrentApplyCount,
+                    elapsed: Date().timeIntervalSince(startedAt),
+                    readbackPolicy: options.readbackPolicy.rawValue,
+                    error: error
+                )
             )
 #endif
             throw error
@@ -832,13 +840,16 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         publishSnapshotIfService()
 #if DEBUG
         OpenSnekUITestSupport.recordApplyEnd(
-            device: device,
-            patch: patch,
-            state: merged,
-            activeApplyCount: activeApplyCount,
-            maxConcurrentApplyCount: maxConcurrentApplyCount,
-            elapsed: Date().timeIntervalSince(startedAt),
-            readbackPolicy: options.readbackPolicy.rawValue
+            UITestApplyEvent(
+                device: device,
+                patch: patch,
+                state: merged,
+                activeApplyCount: activeApplyCount,
+                maxConcurrentApplyCount: maxConcurrentApplyCount,
+                elapsed: Date().timeIntervalSince(startedAt),
+                readbackPolicy: options.readbackPolicy.rawValue,
+                error: nil
+            )
         )
 #endif
         return merged

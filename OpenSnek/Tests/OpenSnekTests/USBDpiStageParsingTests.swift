@@ -56,13 +56,13 @@ final class USBDpiStageParsingTests: XCTestCase {
     }
 
     func testUSBFastDpiActiveResolutionUsesLiveValueOnlyWhenUnique() {
-        let uniqueStages: BridgeClient.USBDpiStageSnapshot = (
+        let uniqueStages = BridgeClient.USBDpiStageSnapshot(
             active: 0,
             values: [800, 1600, 3200],
             pairs: [800, 1600, 3200].map { DpiPair(x: $0, y: $0) },
             stageIDs: [0x01, 0x02, 0x03]
         )
-        let duplicateStages: BridgeClient.USBDpiStageSnapshot = (
+        let duplicateStages = BridgeClient.USBDpiStageSnapshot(
             active: 2,
             values: [800, 1600, 1600],
             pairs: [800, 1600, 1600].map { DpiPair(x: $0, y: $0) },
@@ -75,23 +75,23 @@ final class USBDpiStageParsingTests: XCTestCase {
     }
 
     func testUSBActiveResolutionUsesLiveDpiPairWhenStageTokenIsStale() {
-        let staleTokenStages: BridgeClient.USBDpiStageSnapshot = (
+        let staleTokenStages = BridgeClient.USBDpiStageSnapshot(
             active: 0,
             values: [800, 1600, 3200],
             pairs: [800, 1600, 3200].map { DpiPair(x: $0, y: $0) },
             stageIDs: [0x01, 0x02, 0x03]
         )
-        let independentPairs: BridgeClient.USBDpiStageSnapshot = (
+        let independentPairs = BridgeClient.USBDpiStageSnapshot(
             active: 0,
             values: [1200, 1200, 2400],
             pairs: [
                 DpiPair(x: 1200, y: 1200),
                 DpiPair(x: 1200, y: 1600),
-                DpiPair(x: 2400, y: 2400),
+                DpiPair(x: 2400, y: 2400)
             ],
             stageIDs: [0x01, 0x02, 0x03]
         )
-        let duplicatePairs: BridgeClient.USBDpiStageSnapshot = (
+        let duplicatePairs = BridgeClient.USBDpiStageSnapshot(
             active: 0,
             values: [800, 3200, 3200],
             pairs: [800, 3200, 3200].map { DpiPair(x: $0, y: $0) },

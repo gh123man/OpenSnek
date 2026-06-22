@@ -33,13 +33,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 81,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 81,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    )
                 )
             ],
             holdFirstApply: true
@@ -88,13 +87,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    )
                 )
             ],
             shouldUseFastPolling: true
@@ -138,13 +136,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    )
                 )
             ]
         )
@@ -161,7 +158,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 DpiPair(x: 2444, y: 2444),
                 DpiPair(x: 3777, y: 3777),
                 DpiPair(x: 6400, y: 6400),
-                DpiPair(x: 12000, y: 12000),
+                DpiPair(x: 12000, y: 12000)
             ]
             appState.editorStore.editableActiveStage = 2
         }
@@ -179,7 +176,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             [
                 DpiPair(x: 1555, y: 1555),
                 DpiPair(x: 2444, y: 2444),
-                DpiPair(x: 3777, y: 3777),
+                DpiPair(x: 3777, y: 3777)
             ]
         )
         XCTAssertEqual(patch.activeStage, 1)
@@ -197,13 +194,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    )
                 )
             ]
         )
@@ -220,7 +216,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 DpiPair(x: 1600, y: 1600),
                 DpiPair(x: 3200, y: 3200),
                 DpiPair(x: 6400, y: 6400),
-                DpiPair(x: 12000, y: 12000),
+                DpiPair(x: 12000, y: 12000)
             ]
             appState.editorStore.editableActiveStage = 3
             appState.editorStore.scheduleAutoApplyActiveStage()
@@ -246,13 +242,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         )
         let staleState = makeRefactorTestState(
             device: device,
-            connection: "usb",
-            batteryPercent: 74,
-            dpiValues: [800, 1600, 3200],
-            activeStage: 0,
-            dpiValue: 800,
-            pollRate: 1000,
-            sleepTimeout: 300
+            telemetry: RefactorTestStateTelemetry(
+                connection: "usb",
+                batteryPercent: 74,
+                dpiValues: [800, 1600, 3200],
+                activeStage: 0
+            )
         )
         let backend = AppStateRefactorStubBackend(
             devices: [device],
@@ -271,7 +266,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 DpiPair(x: 1600, y: 1600),
                 DpiPair(x: 3200, y: 3200),
                 DpiPair(x: 6400, y: 6400),
-                DpiPair(x: 12000, y: 12000),
+                DpiPair(x: 12000, y: 12000)
             ]
             appState.editorStore.editableActiveStage = 3
             appState.editorStore.scheduleAutoApplyActiveStage()
@@ -307,27 +302,29 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         let dpiValues = [600, 800, 1000, 1200, 1400]
         let staleState = makeRefactorTestState(
             device: device,
-            connection: "usb",
-            batteryPercent: 74,
-            dpiValues: dpiValues,
-            activeStage: 4,
-            dpiValue: 1400,
-            pollRate: 1000,
-            sleepTimeout: 300,
-            activeOnboardProfile: 1,
-            onboardProfileCount: 5
+            telemetry: RefactorTestStateTelemetry(
+                connection: "usb",
+                batteryPercent: 74,
+                dpiValues: dpiValues,
+                activeStage: 4
+            ),
+            options: RefactorTestStateOptions(
+                activeOnboardProfile: 1,
+                onboardProfileCount: 5
+            )
         )
         let confirmedState = makeRefactorTestState(
             device: device,
-            connection: "usb",
-            batteryPercent: 74,
-            dpiValues: dpiValues,
-            activeStage: 0,
-            dpiValue: 600,
-            pollRate: 1000,
-            sleepTimeout: 300,
-            activeOnboardProfile: 1,
-            onboardProfileCount: 5
+            telemetry: RefactorTestStateTelemetry(
+                connection: "usb",
+                batteryPercent: 74,
+                dpiValues: dpiValues,
+                activeStage: 0
+            ),
+            options: RefactorTestStateOptions(
+                activeOnboardProfile: 1,
+                onboardProfileCount: 5
+            )
         )
         let backend = AppStateRefactorStubBackend(
             devices: [device],
@@ -418,13 +415,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [800, 20_000, 24_000],
-                    activeStage: 1,
-                    dpiValue: 20_000,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [800, 20_000, 24_000],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -480,13 +476,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 68,
-                    dpiValues: [1200, 2400, 3600],
-                    activeStage: 1,
-                    dpiValue: 2400,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 68,
+                        dpiValues: [1200, 2400, 3600],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -537,13 +532,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 67,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 67,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 1
+                    )
                 )
             ],
             holdFirstApply: true
@@ -614,13 +608,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 68,
-                    dpiValues: [1200, 2400, 3600],
-                    activeStage: 1,
-                    dpiValue: 2400,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 68,
+                        dpiValues: [1200, 2400, 3600],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -669,24 +662,22 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 alphaDevice.id: makeRefactorTestState(
                     device: alphaDevice,
-                    connection: "usb",
-                    batteryPercent: 81,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 81,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    )
                 ),
                 betaDevice.id: makeRefactorTestState(
                     device: betaDevice,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [1000, 2000, 3000],
-                    activeStage: 1,
-                    dpiValue: 2000,
-                    pollRate: 1000,
-                    sleepTimeout: 300
-                ),
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [1000, 2000, 3000],
+                        activeStage: 1
+                    )
+                )
             ],
             shouldUseFastPolling: true,
             holdFirstApply: true
@@ -747,13 +738,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 81,
-                    dpiValues: [1200, 2400, 3600],
-                    activeStage: 1,
-                    dpiValue: 2400,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 81,
+                        dpiValues: [1200, 2400, 3600],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -791,13 +781,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 71,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 71,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -834,13 +823,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 71,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 71,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -876,13 +864,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 71,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 71,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -924,13 +911,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 71,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 71,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -986,13 +972,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 73,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 73,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -1061,13 +1046,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 68,
-                    dpiValues: [1200, 2400, 3600],
-                    activeStage: 1,
-                    dpiValue: 2400,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 68,
+                        dpiValues: [1200, 2400, 3600],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -1105,13 +1089,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 73,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 73,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -1191,7 +1174,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                     DpiPair(x: 900, y: 900),
                     DpiPair(x: 1000, y: 1000),
                     DpiPair(x: 1200, y: 1200),
-                    DpiPair(x: 1400, y: 1400),
+                    DpiPair(x: 1400, y: 1400)
                 ],
                 activeStage: 3,
                 pollRate: 500,
@@ -1224,13 +1207,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
 
         let liveState = makeRefactorTestState(
             device: device,
-            connection: "usb",
-            batteryPercent: 81,
-            dpiValues: [600, 900, 1000, 1200, 1400],
-            activeStage: 0,
-            dpiValue: 600,
-            pollRate: 1000,
-            sleepTimeout: 300
+            telemetry: RefactorTestStateTelemetry(
+                connection: "usb",
+                batteryPercent: 81,
+                dpiValues: [600, 900, 1000, 1200, 1400],
+                activeStage: 0
+            )
         )
 
         await MainActor.run {
@@ -1263,23 +1245,21 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
 
         let initialState = makeRefactorTestState(
             device: device,
-            connection: "usb",
-            batteryPercent: 81,
-            dpiValues: [600, 900, 1000, 1200, 1400],
-            activeStage: 1,
-            dpiValue: 900,
-            pollRate: 1000,
-            sleepTimeout: 300
+            telemetry: RefactorTestStateTelemetry(
+                connection: "usb",
+                batteryPercent: 81,
+                dpiValues: [600, 900, 1000, 1200, 1400],
+                activeStage: 1
+            )
         )
         let liveState = makeRefactorTestState(
             device: device,
-            connection: "usb",
-            batteryPercent: 81,
-            dpiValues: [600, 900, 1000, 1200, 1400],
-            activeStage: 3,
-            dpiValue: 1200,
-            pollRate: 1000,
-            sleepTimeout: 300
+            telemetry: RefactorTestStateTelemetry(
+                connection: "usb",
+                batteryPercent: 81,
+                dpiValues: [600, 900, 1000, 1200, 1400],
+                activeStage: 3
+            )
         )
 
         await MainActor.run {
@@ -1447,13 +1427,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 79,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 79,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -1507,13 +1486,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 79,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 79,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -1560,13 +1538,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 79,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 79,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -1615,7 +1592,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             palette: [
                 RGBPatch(r: 12, g: 34, b: 56),
                 RGBPatch(r: 78, g: 90, b: 123),
-                RGBPatch(r: 145, g: 167, b: 189),
+                RGBPatch(r: 145, g: 167, b: 189)
             ]
         )
         let preferenceStore = DevicePreferenceStore()
@@ -1627,13 +1604,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 79,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 79,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -1683,13 +1659,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 79,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 79,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -1705,7 +1680,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             appState.editorStore.setEditableSoftwareLightingPalette(
                 [
                     RGBColor(r: 101, g: 102, b: 103),
-                    RGBColor(r: 201, g: 202, b: 203),
+                    RGBColor(r: 201, g: 202, b: 203)
                 ],
                 for: .cometChase
             )
@@ -1726,7 +1701,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 speed: 0.65,
                 palette: [
                     RGBPatch(r: 101, g: 102, b: 103),
-                    RGBPatch(r: 201, g: 202, b: 203),
+                    RGBPatch(r: 201, g: 202, b: 203)
                 ]
             )
         )
@@ -1759,13 +1734,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 73,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 73,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -1818,13 +1792,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 71,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 71,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -1869,13 +1842,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 75,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 75,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -1917,13 +1889,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 88,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 88,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -1967,13 +1938,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 88,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 88,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -2018,13 +1988,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 88,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 88,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -2076,13 +2045,12 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 81,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 81,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -2160,15 +2128,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 76,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 2,
-                    onboardProfileCount: 2
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 76,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 2,
+                        onboardProfileCount: 2
+                    )
                 )
             ]
         )
@@ -2199,15 +2168,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 77,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 2
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 77,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 2
+                    )
                 )
             ]
         )
@@ -2291,15 +2261,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 80,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 3
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 80,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 3
+                    )
                 )
             ]
         )
@@ -2369,15 +2340,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 79,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 3
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 79,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 3
+                    )
                 )
             ]
         )
@@ -2462,15 +2434,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 78,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 2
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 78,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 2
+                    )
                 )
             ]
         )
@@ -2529,15 +2502,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 82,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 2
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 82,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 2
+                    )
                 )
             ]
         )
@@ -2578,15 +2552,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 82,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 3
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 82,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 3
+                    )
                 )
             ]
         )
@@ -2633,15 +2608,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 82,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 3
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 82,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 3
+                    )
                 )
             ]
         )
@@ -2701,15 +2677,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 82,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 3
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 82,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 3
+                    )
                 )
             ]
         )
@@ -2757,15 +2734,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 82,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 4
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 82,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 4
+                    )
                 )
             ]
         )
@@ -2844,15 +2822,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 82,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 3
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 82,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 3
+                    )
                 )
             ]
         )
@@ -2886,15 +2865,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 76,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 3
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 76,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 3
+                    )
                 )
             ]
         )
@@ -2958,15 +2938,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 76,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 3
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 76,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 3
+                    )
                 )
             ]
         )
@@ -3013,7 +2994,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
     func testEditingProjectedStoredUSBButtonProfileAutoAppliesToBaseAndDirectLayer() async throws {
         for (profileID, onboardProfileCount) in [
             (DeviceProfileID.basiliskV3, 5),
-            (.basiliskV335K, 5),
+            (.basiliskV335K, 5)
         ] {
             let device = makeRefactorTestDevice(
                 id: "usb-profile-projected-auto-apply-\(profileID.rawValue)",
@@ -3029,15 +3010,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 stateByDeviceID: [
                     device.id: makeRefactorTestState(
                         device: device,
-                        connection: "usb",
-                        batteryPercent: 76,
-                        dpiValues: [800, 1600, 2400],
-                        activeStage: 0,
-                        dpiValue: 800,
-                        pollRate: 1000,
-                        sleepTimeout: 300,
-                        activeOnboardProfile: 1,
-                        onboardProfileCount: onboardProfileCount
+                        telemetry: RefactorTestStateTelemetry(
+                            connection: "usb",
+                            batteryPercent: 76,
+                            dpiValues: [800, 1600, 2400],
+                            activeStage: 0
+                        ),
+                        options: RefactorTestStateOptions(
+                            activeOnboardProfile: 1,
+                            onboardProfileCount: onboardProfileCount
+                        )
                     )
                 ]
             )
@@ -3113,15 +3095,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 3
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 3
+                    )
                 )
             ]
         )
@@ -3164,15 +3147,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 76,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 3
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 76,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 3
+                    )
                 )
             ]
         )
@@ -3225,15 +3209,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 76,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 76,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -3285,27 +3270,29 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 firstDevice.id: makeRefactorTestState(
                     device: firstDevice,
-                    connection: "usb",
-                    batteryPercent: 76,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 76,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 ),
                 secondDevice.id: makeRefactorTestState(
                     device: secondDevice,
-                    connection: "usb",
-                    batteryPercent: 81,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 81,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -3378,15 +3365,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 79,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 3
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 79,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 3
+                    )
                 )
             ]
         )
@@ -3450,15 +3438,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 82,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 3
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 82,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 3
+                    )
                 )
             ],
             holdFirstApply: true
@@ -3512,15 +3501,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 84,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 3
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 84,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 3
+                    )
                 )
             ]
         )
@@ -3563,15 +3553,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 3
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 3
+                    )
                 )
             ]
         )
@@ -3622,15 +3613,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 3
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 3
+                    )
                 )
             ]
         )
@@ -3687,15 +3679,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 3
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 3
+                    )
                 )
             ]
         )
@@ -3808,23 +3801,21 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 alphaDevice.id: makeRefactorTestState(
                     device: alphaDevice,
-                    connection: "usb",
-                    batteryPercent: 77,
-                    dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 77,
+                        dpiValues: [800, 1600, 2400],
+                        activeStage: 0
+                    )
                 ),
                 betaDevice.id: makeRefactorTestState(
                     device: betaDevice,
-                    connection: "usb",
-                    batteryPercent: 78,
-                    dpiValues: [900, 1800, 2700],
-                    activeStage: 1,
-                    dpiValue: 1800,
-                    pollRate: 1000,
-                    sleepTimeout: 300
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 78,
+                        dpiValues: [900, 1800, 2700],
+                        activeStage: 1
+                    )
                 )
             ]
         )
@@ -3876,15 +3867,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -3896,7 +3888,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
                     makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
-                    makeRefactorOnboardProfileSummary(profileID: 3, name: "Stored 3", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 3, name: "Stored 3", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -3917,7 +3909,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 staticColorByLEDID: [
                     1: RGBPatch(r: wheelColor.r, g: wheelColor.g, b: wheelColor.b),
                     4: RGBPatch(r: logoColor.r, g: logoColor.g, b: logoColor.b),
-                    10: RGBPatch(r: underglowColor.r, g: underglowColor.g, b: underglowColor.b),
+                    10: RGBPatch(r: underglowColor.r, g: underglowColor.g, b: underglowColor.b)
                 ]
             ),
             forDeviceID: device.id
@@ -3951,15 +3943,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 deviceID: device.id,
                 state: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [3200, 6400],
-                    activeStage: 1,
-                    dpiValue: 6400,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 3,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [3200, 6400],
+                        activeStage: 1
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 3,
+                        onboardProfileCount: 5
+                    )
                 ),
                 updatedAt: Date()
             )
@@ -4008,15 +4001,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [400, 800, 1300, 1600, 6400],
-                    activeStage: 0,
-                    dpiValue: 400,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [400, 800, 1300, 1600, 6400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -4027,7 +4021,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 assignedProfileIDs: [1, 2],
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
-                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -4058,15 +4052,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 deviceID: device.id,
                 state: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 75,
-                    dpiValues: [400, 800, 1300, 1600, 6400],
-                    activeStage: 4,
-                    dpiValue: 6400,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 2,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 75,
+                        dpiValues: [400, 800, 1300, 1600, 6400],
+                        activeStage: 4
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 2,
+                        onboardProfileCount: 5
+                    )
                 ),
                 updatedAt: Date()
             )
@@ -4099,15 +4094,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 2,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 2,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -4121,15 +4117,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 deviceID: device.id,
                 state: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 2,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 2,
+                        onboardProfileCount: 5
+                    )
                 ),
                 updatedAt: Date()
             )
@@ -4137,15 +4134,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 deviceID: device.id,
                 state: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [1200, 2400],
-                    activeStage: 0,
-                    dpiValue: 1200,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 3,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [1200, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 3,
+                        onboardProfileCount: 5
+                    )
                 ),
                 updatedAt: Date()
             )
@@ -4179,15 +4177,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 2,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 2,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -4198,7 +4197,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 assignedProfileIDs: [1, 2],
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: false),
-                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: true)
                 ]
             ),
             forDeviceID: device.id
@@ -4252,15 +4251,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 2,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 2,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -4271,7 +4271,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 assignedProfileIDs: [1, 2],
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: false),
-                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: true)
                 ]
             ),
             forDeviceID: device.id
@@ -4330,15 +4330,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -4348,7 +4349,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 maxProfileID: 5,
                 assignedProfileIDs: [1],
                 profiles: [
-                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true)
                 ]
             ),
             forDeviceID: device.id
@@ -4412,15 +4413,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         )
         let staleState = makeRefactorTestState(
             device: device,
-            connection: "bluetooth",
-            batteryPercent: 74,
-            dpiValues: [800, 1600, 3200],
-            activeStage: 0,
-            dpiValue: 800,
-            pollRate: 1000,
-            sleepTimeout: 300,
-            activeOnboardProfile: 1,
-            onboardProfileCount: 5
+            telemetry: RefactorTestStateTelemetry(
+                connection: "bluetooth",
+                batteryPercent: 74,
+                dpiValues: [800, 1600, 3200],
+                activeStage: 0
+            ),
+            options: RefactorTestStateOptions(
+                activeOnboardProfile: 1,
+                onboardProfileCount: 5
+            )
         )
         let backend = AppStateRefactorStubBackend(
             devices: [device],
@@ -4432,7 +4434,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 maxProfileID: 5,
                 assignedProfileIDs: [1],
                 profiles: [
-                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true)
                 ]
             ),
             forDeviceID: device.id
@@ -4478,15 +4480,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         )
         let initialState = makeRefactorTestState(
             device: device,
-            connection: "bluetooth",
-            batteryPercent: 74,
-            dpiValues: [800, 1600, 3200],
-            activeStage: 0,
-            dpiValue: 800,
-            pollRate: 1000,
-            sleepTimeout: 300,
-            activeOnboardProfile: 1,
-            onboardProfileCount: 5
+            telemetry: RefactorTestStateTelemetry(
+                connection: "bluetooth",
+                batteryPercent: 74,
+                dpiValues: [800, 1600, 3200],
+                activeStage: 0
+            ),
+            options: RefactorTestStateOptions(
+                activeOnboardProfile: 1,
+                onboardProfileCount: 5
+            )
         )
         let backend = AppStateRefactorStubBackend(
             devices: [device],
@@ -4511,15 +4514,17 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 deviceID: device.id,
                 state: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 3200,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0,
+                        dpiValue: 3200
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 ),
                 updatedAt: Date().addingTimeInterval(1)
             )
@@ -4556,15 +4561,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 2,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 2,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -4596,15 +4602,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -4660,15 +4667,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -4709,15 +4717,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 2,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 2,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -4728,7 +4737,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 assignedProfileIDs: [1, 2],
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: false),
-                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: true)
                 ]
             ),
             forDeviceID: device.id
@@ -4775,15 +4784,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [1200, 2400],
-                    activeStage: 0,
-                    dpiValue: 1200,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 2,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [1200, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 2,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -4795,7 +4805,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: false),
                     makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: true),
-                    makeRefactorOnboardProfileSummary(profileID: 3, name: "Stored 3", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 3, name: "Stored 3", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -4827,15 +4837,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 deviceID: device.id,
                 state: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [3200, 6400],
-                    activeStage: 0,
-                    dpiValue: 3200,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 3,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [3200, 6400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 3,
+                        onboardProfileCount: 5
+                    )
                 ),
                 updatedAt: Date()
             )
@@ -4852,15 +4863,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 deviceID: device.id,
                 state: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [1200, 2400],
-                    activeStage: 0,
-                    dpiValue: 1200,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 2,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [1200, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 2,
+                        onboardProfileCount: 5
+                    )
                 ),
                 updatedAt: Date()
             )
@@ -4891,15 +4903,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -4910,7 +4923,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 assignedProfileIDs: [1, 2],
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
-                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -4956,15 +4969,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -4975,7 +4989,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 assignedProfileIDs: [1, 3],
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
-                    makeRefactorOnboardProfileSummary(profileID: 3, name: "Stored 3", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 3, name: "Stored 3", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -5027,7 +5041,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             [
                 1: RGBPatch(r: profileColor.r, g: profileColor.g, b: profileColor.b),
                 4: RGBPatch(r: profileColor.r, g: profileColor.g, b: profileColor.b),
-                10: RGBPatch(r: profileColor.r, g: profileColor.g, b: profileColor.b),
+                10: RGBPatch(r: profileColor.r, g: profileColor.g, b: profileColor.b)
             ]
         )
     }
@@ -5045,15 +5059,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -5063,7 +5078,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 maxProfileID: 5,
                 assignedProfileIDs: [1],
                 profiles: [
-                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true)
                 ]
             ),
             forDeviceID: device.id
@@ -5105,15 +5120,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -5125,7 +5141,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
                     makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
-                    makeRefactorOnboardProfileSummary(profileID: 3, name: "Stored 3", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 3, name: "Stored 3", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -5179,15 +5195,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -5198,7 +5215,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 assignedProfileIDs: [1, 2],
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
-                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -5228,15 +5245,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 deviceID: device.id,
                 state: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 ),
                 updatedAt: Date()
             )
@@ -5272,7 +5290,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             staticColorByLEDID: [
                 1: RGBPatch(r: 10, g: 20, b: 30),
                 4: RGBPatch(r: 40, g: 50, b: 60),
-                10: RGBPatch(r: 70, g: 80, b: 90),
+                10: RGBPatch(r: 70, g: 80, b: 90)
             ]
         )
         let backend = AppStateRefactorStubBackend(
@@ -5280,15 +5298,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -5299,7 +5318,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 assignedProfileIDs: [1, 3],
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
-                    makeRefactorOnboardProfileSummary(profileID: 3, name: "Stored 3", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 3, name: "Stored 3", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -5352,15 +5371,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -5371,7 +5391,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 assignedProfileIDs: [1, 2],
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
-                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -5417,15 +5437,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -5436,7 +5457,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 assignedProfileIDs: [1, 2],
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
-                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -5474,7 +5495,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 DpiPair(x: 2600, y: 2600),
                 DpiPair(x: 3200, y: 3200),
                 DpiPair(x: 6400, y: 6400),
-                DpiPair(x: 12000, y: 12000),
+                DpiPair(x: 12000, y: 12000)
             ]
             appState.editorStore.editableActiveStage = 1
         }
@@ -5503,15 +5524,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -5521,7 +5543,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             assignedProfileIDs: [1, 2],
             profiles: [
                 makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
-                makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false)
             ]
         )
         await backend.setOnboardInventory(staleInventory, forDeviceID: device.id)
@@ -5565,15 +5587,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -5584,7 +5607,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 assignedProfileIDs: [1, 2],
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
-                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -5608,7 +5631,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 maxProfileID: 5,
                 assignedProfileIDs: [1],
                 profiles: [
-                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true)
                 ]
             ),
             forDeviceID: device.id
@@ -5638,15 +5661,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [1200, 2400],
-                    activeStage: 0,
-                    dpiValue: 1200,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 2,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [1200, 2400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 2,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -5658,7 +5682,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: false),
                     makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: true),
-                    makeRefactorOnboardProfileSummary(profileID: 3, name: "Stored 3", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 3, name: "Stored 3", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -5710,15 +5734,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -5729,7 +5754,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 assignedProfileIDs: [1, 2],
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
-                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -5758,7 +5783,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 DpiPair(x: 2600, y: 2600),
                 DpiPair(x: 3200, y: 3200),
                 DpiPair(x: 6400, y: 6400),
-                DpiPair(x: 12000, y: 12000),
+                DpiPair(x: 12000, y: 12000)
             ]
             appState.editorStore.editableActiveStage = 2
         }
@@ -5792,15 +5817,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [400, 800, 1300, 1600, 6400],
-                    activeStage: 2,
-                    dpiValue: 1300,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [400, 800, 1300, 1600, 6400],
+                        activeStage: 2
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -5811,7 +5837,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 assignedProfileIDs: [1, 2],
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
-                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -5839,7 +5865,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 DpiPair(x: 900, y: 900),
                 DpiPair(x: 1400, y: 1400),
                 DpiPair(x: 1600, y: 1600),
-                DpiPair(x: 6400, y: 6400),
+                DpiPair(x: 6400, y: 6400)
             ]
             appState.editorStore.editableActiveStage = 3
         }
@@ -5906,15 +5932,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [400, 1200, 1300],
-                    activeStage: 0,
-                    dpiValue: 400,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [400, 1200, 1300],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -5926,7 +5953,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 assignedProfileIDs: [1, 2],
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
-                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -5986,15 +6013,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [400, 1200, 1300],
-                    activeStage: 0,
-                    dpiValue: 400,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [400, 1200, 1300],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -6006,7 +6034,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
                     makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
-                    makeRefactorOnboardProfileSummary(profileID: 3, name: "Stored 3", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 3, name: "Stored 3", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -6067,15 +6095,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [400, 800, 1300, 1600, 6400],
-                    activeStage: 0,
-                    dpiValue: 400,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [400, 800, 1300, 1600, 6400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -6086,7 +6115,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 assignedProfileIDs: [1, 2],
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
-                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -6165,15 +6194,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [400, 800, 1300, 1600, 6400],
-                    activeStage: 0,
-                    dpiValue: 400,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [400, 800, 1300, 1600, 6400],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -6184,7 +6214,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 assignedProfileIDs: [1, 2],
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
-                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -6249,15 +6279,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [400, 800, 1300, 1600, 6400],
-                    activeStage: 2,
-                    dpiValue: 1300,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [400, 800, 1300, 1600, 6400],
+                        activeStage: 2
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -6268,7 +6299,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 assignedProfileIDs: [1, 2],
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
-                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -6324,15 +6355,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb-hid",
-                    batteryPercent: 88,
-                    dpiValues: [400, 800, 1300, 1600, 6400],
-                    activeStage: 2,
-                    dpiValue: 1300,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb-hid",
+                        batteryPercent: 88,
+                        dpiValues: [400, 800, 1300, 1600, 6400],
+                        activeStage: 2
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -6342,7 +6374,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 maxProfileID: 5,
                 assignedProfileIDs: [1],
                 profiles: [
-                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
+                    makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true)
                 ]
             ),
             forDeviceID: device.id
@@ -6355,7 +6387,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 staticColorByLEDID: [
                     1: RGBPatch(r: 0, g: 0, b: 255),
                     4: RGBPatch(r: 0, g: 0, b: 255),
-                    10: RGBPatch(r: 0, g: 0, b: 255),
+                    10: RGBPatch(r: 0, g: 0, b: 255)
                 ]
             ),
             forDeviceID: device.id
@@ -6398,15 +6430,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "bluetooth",
-                    batteryPercent: 74,
-                    dpiValues: [400, 800, 1300, 1600, 6400],
-                    activeStage: 2,
-                    dpiValue: 1300,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "bluetooth",
+                        batteryPercent: 74,
+                        dpiValues: [400, 800, 1300, 1600, 6400],
+                        activeStage: 2
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -6417,7 +6450,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 assignedProfileIDs: [1, 2],
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
-                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -6431,7 +6464,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 staticColorByLEDID: [
                     1: RGBPatch(r: 0, g: 0, b: 255),
                     4: RGBPatch(r: 0, g: 0, b: 255),
-                    10: RGBPatch(r: 0, g: 0, b: 255),
+                    10: RGBPatch(r: 0, g: 0, b: 255)
                 ]
             ),
             forDeviceID: device.id
@@ -6476,15 +6509,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -6495,7 +6529,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 assignedProfileIDs: [1, 2],
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
-                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -6560,18 +6594,19 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         )
         let initialState = makeRefactorTestState(
             device: device,
-            connection: "usb",
-            batteryPercent: 74,
-            dpiValues: [800, 1600, 3200],
-            activeStage: 0,
-            dpiValue: 800,
-            pollRate: 1000,
-            sleepTimeout: 300,
-            activeOnboardProfile: 1,
-            onboardProfileCount: 5,
-            scrollMode: 0,
-            scrollAcceleration: false,
-            scrollSmartReel: false
+            telemetry: RefactorTestStateTelemetry(
+                connection: "usb",
+                batteryPercent: 74,
+                dpiValues: [800, 1600, 3200],
+                activeStage: 0
+            ),
+            options: RefactorTestStateOptions(
+                activeOnboardProfile: 1,
+                onboardProfileCount: 5,
+                scrollMode: 0,
+                scrollAcceleration: false,
+                scrollSmartReel: false
+            )
         )
         let backend = AppStateRefactorStubBackend(
             devices: [device],
@@ -6610,18 +6645,19 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
 
         let updatedState = makeRefactorTestState(
             device: device,
-            connection: "usb",
-            batteryPercent: 74,
-            dpiValues: [800, 1600, 3200],
-            activeStage: 0,
-            dpiValue: 800,
-            pollRate: 1000,
-            sleepTimeout: 300,
-            activeOnboardProfile: 1,
-            onboardProfileCount: 5,
-            scrollMode: 1,
-            scrollAcceleration: false,
-            scrollSmartReel: false
+            telemetry: RefactorTestStateTelemetry(
+                connection: "usb",
+                batteryPercent: 74,
+                dpiValues: [800, 1600, 3200],
+                activeStage: 0
+            ),
+            options: RefactorTestStateOptions(
+                activeOnboardProfile: 1,
+                onboardProfileCount: 5,
+                scrollMode: 1,
+                scrollAcceleration: false,
+                scrollSmartReel: false
+            )
         )
         await backend.setState(updatedState, forDeviceID: device.id)
 
@@ -6647,15 +6683,16 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
             stateByDeviceID: [
                 device.id: makeRefactorTestState(
                     device: device,
-                    connection: "usb",
-                    batteryPercent: 74,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800,
-                    pollRate: 1000,
-                    sleepTimeout: 300,
-                    activeOnboardProfile: 1,
-                    onboardProfileCount: 5
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 74,
+                        dpiValues: [800, 1600, 3200],
+                        activeStage: 0
+                    ),
+                    options: RefactorTestStateOptions(
+                        activeOnboardProfile: 1,
+                        onboardProfileCount: 5
+                    )
                 )
             ]
         )
@@ -6666,7 +6703,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 assignedProfileIDs: [1, 2],
                 profiles: [
                     makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: true),
-                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false),
+                    makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false)
                 ]
             ),
             forDeviceID: device.id
@@ -6690,7 +6727,7 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
                 DpiPair(x: 2600, y: 2600),
                 DpiPair(x: 3200, y: 3200),
                 DpiPair(x: 6400, y: 6400),
-                DpiPair(x: 12000, y: 12000),
+                DpiPair(x: 12000, y: 12000)
             ]
             appState.editorStore.editableActiveStage = 2
         }
@@ -6704,6 +6741,24 @@ final class AppStateRefactorCharacterizationTests: XCTestCase {
         XCTAssertEqual(applyCount, 0)
         XCTAssertEqual(errorMessage, "Failed to update onboard profile: stored profile write unavailable")
     }
+}
+
+private struct RecordedOnboardUpdate {
+    let deviceID: String
+    let profileID: Int
+    let mutation: OnboardProfileMutation
+}
+
+private struct RecordedOnboardCreate {
+    let deviceID: String
+    let targetProfileID: Int?
+    let mutation: OnboardProfileMutation
+}
+
+private struct RecordedOnboardRename {
+    let deviceID: String
+    let profileID: Int
+    let name: String
 }
 
 private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupportingBackend {
@@ -6736,9 +6791,9 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
     private var onboardReadCountByKey: [String: Int] = [:]
     private var onboardCoreReadCountByKey: [String: Int] = [:]
     private var onboardButtonReadCountByKey: [String: Int] = [:]
-    private var onboardUpdates: [(deviceID: String, profileID: Int, mutation: OnboardProfileMutation)] = []
-    private var onboardCreates: [(deviceID: String, targetProfileID: Int?, mutation: OnboardProfileMutation)] = []
-    private var onboardRenames: [(deviceID: String, profileID: Int, name: String)] = []
+    private var onboardUpdates: [RecordedOnboardUpdate] = []
+    private var onboardCreates: [RecordedOnboardCreate] = []
+    private var onboardRenames: [RecordedOnboardRename] = []
     private var onboardDeletes: [(deviceID: String, profileID: Int)] = []
     private var onboardActivations: [(deviceID: String, profileID: Int)] = []
     private var onboardListFailureMessage: String?
@@ -7029,7 +7084,11 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
                 NSLocalizedDescriptionKey: "Profile target \(target) is already assigned"
             ])
         }
-        onboardCreates.append((device.id, targetProfileID, mutation))
+        onboardCreates.append(RecordedOnboardCreate(
+            deviceID: device.id,
+            targetProfileID: targetProfileID,
+            mutation: mutation
+        ))
         let snapshot = OnboardProfileSnapshot(
             profileID: target,
             metadata: mutation.metadata ?? OnboardProfileMetadata(name: "Profile \(target)"),
@@ -7061,7 +7120,11 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
     }
 
     func renameOnboardProfile(device: MouseDevice, profileID: Int, name: String) async throws -> OnboardProfileSnapshot {
-        onboardRenames.append((device.id, profileID, name))
+        onboardRenames.append(RecordedOnboardRename(
+            deviceID: device.id,
+            profileID: profileID,
+            name: name
+        ))
         let current = try await readOnboardProfile(device: device, profileID: profileID)
         let updated = OnboardProfileSnapshot(
             profileID: profileID,
@@ -7102,7 +7165,11 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
         profileID: Int,
         mutation: OnboardProfileMutation
     ) async throws -> OnboardProfileSnapshot {
-        onboardUpdates.append((device.id, profileID, mutation))
+        onboardUpdates.append(RecordedOnboardUpdate(
+            deviceID: device.id,
+            profileID: profileID,
+            mutation: mutation
+        ))
         let key = onboardSnapshotKey(deviceID: device.id, profileID: profileID)
         if heldOnboardUpdates.contains(key) {
             startedHeldOnboardUpdates.insert(key)
@@ -7404,7 +7471,7 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
         onboardUpdateReleaseContinuations[key] = nil
     }
 
-    func recordedOnboardUpdates() -> [(deviceID: String, profileID: Int, mutation: OnboardProfileMutation)] {
+    func recordedOnboardUpdates() -> [RecordedOnboardUpdate] {
         onboardUpdates
     }
 
@@ -7412,11 +7479,11 @@ private actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupporting
         onboardUpdateFailureMessage = message
     }
 
-    func recordedOnboardCreates() -> [(deviceID: String, targetProfileID: Int?, mutation: OnboardProfileMutation)] {
+    func recordedOnboardCreates() -> [RecordedOnboardCreate] {
         onboardCreates
     }
 
-    func recordedOnboardRenames() -> [(deviceID: String, profileID: Int, name: String)] {
+    func recordedOnboardRenames() -> [RecordedOnboardRename] {
         onboardRenames
     }
 
@@ -7619,22 +7686,60 @@ private func makeRefactorOnboardProfileSnapshot(
     )
 }
 
+private struct RefactorTestStateTelemetry {
+    let connection: String
+    let batteryPercent: Int
+    let dpiValues: [Int]
+    let activeStage: Int
+    let dpiValue: Int?
+
+    init(
+        connection: String,
+        batteryPercent: Int,
+        dpiValues: [Int],
+        activeStage: Int,
+        dpiValue: Int? = nil
+    ) {
+        self.connection = connection
+        self.batteryPercent = batteryPercent
+        self.dpiValues = dpiValues
+        self.activeStage = activeStage
+        self.dpiValue = dpiValue
+    }
+}
+
+private struct RefactorTestStateOptions {
+    let activeOnboardProfile: Int?
+    let onboardProfileCount: Int?
+    let scrollMode: Int?
+    let scrollAcceleration: Bool?
+    let scrollSmartReel: Bool?
+
+    init(
+        activeOnboardProfile: Int? = nil,
+        onboardProfileCount: Int? = nil,
+        scrollMode: Int? = nil,
+        scrollAcceleration: Bool? = nil,
+        scrollSmartReel: Bool? = nil
+    ) {
+        self.activeOnboardProfile = activeOnboardProfile
+        self.onboardProfileCount = onboardProfileCount
+        self.scrollMode = scrollMode
+        self.scrollAcceleration = scrollAcceleration
+        self.scrollSmartReel = scrollSmartReel
+    }
+}
+
 private func makeRefactorTestState(
     device: MouseDevice,
-    connection: String,
-    batteryPercent: Int,
-    dpiValues: [Int],
-    activeStage: Int,
-    dpiValue: Int,
-    pollRate: Int,
-    sleepTimeout: Int,
-    activeOnboardProfile: Int? = nil,
-    onboardProfileCount: Int? = nil,
-    scrollMode: Int? = nil,
-    scrollAcceleration: Bool? = nil,
-    scrollSmartReel: Bool? = nil
+    telemetry: RefactorTestStateTelemetry,
+    options: RefactorTestStateOptions = RefactorTestStateOptions()
 ) -> MouseState {
-    MouseState(
+    let derivedDpiValue = telemetry.dpiValues.indices.contains(telemetry.activeStage)
+        ? telemetry.dpiValues[telemetry.activeStage]
+        : (telemetry.dpiValues.first ?? 0)
+    let dpiValue = telemetry.dpiValue ?? derivedDpiValue
+    return MouseState(
         device: DeviceSummary(
             id: device.id,
             product_name: device.product_name,
@@ -7642,19 +7747,19 @@ private func makeRefactorTestState(
             transport: device.transport,
             firmware: device.firmware
         ),
-        connection: connection,
-        battery_percent: batteryPercent,
+        connection: telemetry.connection,
+        battery_percent: telemetry.batteryPercent,
         charging: false,
         dpi: DpiPair(x: dpiValue, y: dpiValue),
-        dpi_stages: DpiStages(active_stage: activeStage, values: dpiValues),
-        poll_rate: pollRate,
-        sleep_timeout: sleepTimeout,
+        dpi_stages: DpiStages(active_stage: telemetry.activeStage, values: telemetry.dpiValues),
+        poll_rate: 1000,
+        sleep_timeout: 300,
         device_mode: DeviceMode(mode: 0x00, param: 0x00),
-        scroll_mode: scrollMode,
-        scroll_acceleration: scrollAcceleration,
-        scroll_smart_reel: scrollSmartReel,
-        active_onboard_profile: activeOnboardProfile,
-        onboard_profile_count: onboardProfileCount,
+        scroll_mode: options.scrollMode,
+        scroll_acceleration: options.scrollAcceleration,
+        scroll_smart_reel: options.scrollSmartReel,
+        active_onboard_profile: options.activeOnboardProfile,
+        onboard_profile_count: options.onboardProfileCount,
         led_value: 64,
         capabilities: Capabilities(
             dpi_stages: true,
@@ -7678,7 +7783,7 @@ private func makeRefactorSettingsSnapshot(
         stagePairs: [
             DpiPair(x: 900, y: 900),
             DpiPair(x: 1800, y: 1800),
-            DpiPair(x: 3600, y: 3600),
+            DpiPair(x: 3600, y: 3600)
         ],
         activeStage: 3,
         pollRate: 500,
@@ -7723,12 +7828,11 @@ private func clearRefactorPreferences(for device: MouseDevice) {
         "buttonBindings.\(legacyKey).profile2",
         "buttonBindings.\(legacyKey).profile3",
         "buttonBindings.\(legacyKey).profile4",
-        "buttonBindings.\(legacyKey).profile5",
+        "buttonBindings.\(legacyKey).profile5"
     ]
-    for storedKey in defaults.dictionaryRepresentation().keys {
-        if prefixes.contains(where: { storedKey.hasPrefix($0) }) {
-            defaults.removeObject(forKey: storedKey)
-        }
+    for storedKey in defaults.dictionaryRepresentation().keys
+    where prefixes.contains(where: { storedKey.hasPrefix($0) }) {
+        defaults.removeObject(forKey: storedKey)
     }
     clearSavedButtonProfiles()
 }

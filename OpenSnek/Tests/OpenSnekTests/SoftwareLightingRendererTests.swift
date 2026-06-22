@@ -19,7 +19,7 @@ final class SoftwareLightingRendererTests: XCTestCase {
             "underglow_right_middle",
             "underglow_right_front",
             "underglow_tail_1",
-            "underglow_tail_2",
+            "underglow_tail_2"
         ])
     }
 
@@ -57,7 +57,7 @@ final class SoftwareLightingRendererTests: XCTestCase {
                     request: request,
                     layout: .basiliskV3ProUSB,
                     elapsedTime: 2.75
-                ),
+                )
             ]
             let tailSamples = frames.flatMap { [$0.colors[12], $0.colors[13]] }
 
@@ -146,7 +146,7 @@ final class SoftwareLightingRendererTests: XCTestCase {
         XCTAssertEqual(SoftwareLightingPresetID.flame.defaultPalette, [
             RGBPatch(r: 48, g: 0, b: 0),
             RGBPatch(r: 255, g: 48, b: 0),
-            RGBPatch(r: 255, g: 176, b: 28),
+            RGBPatch(r: 255, g: 176, b: 28)
         ])
     }
 
@@ -160,14 +160,14 @@ final class SoftwareLightingRendererTests: XCTestCase {
             RGBPatch(r: 0, g: 220, b: 255),
             RGBPatch(r: 0, g: 92, b: 255),
             RGBPatch(r: 144, g: 48, b: 255),
-            RGBPatch(r: 255, g: 56, b: 228),
+            RGBPatch(r: 255, g: 56, b: 228)
         ])
     }
 
     func testNightRiderDefaultPaletteUsesRedScanner() {
         XCTAssertEqual(SoftwareLightingPresetID.nightRider.label, "Night Rider")
         XCTAssertEqual(SoftwareLightingPresetID.nightRider.defaultPalette, [
-            RGBPatch(r: 255, g: 0, b: 0),
+            RGBPatch(r: 255, g: 0, b: 0)
         ])
         XCTAssertTrue(SoftwareLightingPresetID.nightRider.isAnimated)
         XCTAssertTrue(SoftwareLightingPresetID.nightRider.usesPaletteControls)
@@ -180,7 +180,7 @@ final class SoftwareLightingRendererTests: XCTestCase {
             presetID: .nightRider,
             palette: [
                 RGBPatch(r: 0, g: 128, b: 255),
-                RGBPatch(r: 255, g: 255, b: 0),
+                RGBPatch(r: 255, g: 255, b: 0)
             ]
         )
 
@@ -192,7 +192,7 @@ final class SoftwareLightingRendererTests: XCTestCase {
         XCTAssertEqual(SoftwareLightingPresetID.batteryMeter.defaultPalette, [
             RGBPatch(r: 255, g: 0, b: 0),
             RGBPatch(r: 255, g: 255, b: 0),
-            RGBPatch(r: 255, g: 255, b: 255),
+            RGBPatch(r: 255, g: 255, b: 255)
         ])
         XCTAssertFalse(SoftwareLightingPresetID.batteryMeter.isAnimated)
         XCTAssertFalse(SoftwareLightingPresetID.batteryMeter.usesPaletteControls)
@@ -234,14 +234,14 @@ final class SoftwareLightingRendererTests: XCTestCase {
         let palettes = [
             [
                 RGBPatch(r: 255, g: 0, b: 0),
-                RGBPatch(r: 0, g: 255, b: 0),
+                RGBPatch(r: 0, g: 255, b: 0)
             ],
             [
                 RGBPatch(r: 255, g: 0, b: 0),
                 RGBPatch(r: 0, g: 255, b: 0),
                 RGBPatch(r: 0, g: 0, b: 255),
-                RGBPatch(r: 255, g: 255, b: 0),
-            ],
+                RGBPatch(r: 255, g: 255, b: 0)
+            ]
         ]
         let period = 1.0 / (0.18 * SoftwareLightingPresetID.scrollingRainbow.renderSpeedMultiplier)
 
@@ -271,7 +271,7 @@ final class SoftwareLightingRendererTests: XCTestCase {
             palette: [
                 RGBPatch(r: 255, g: 0, b: 0),
                 RGBPatch(r: 0, g: 255, b: 0),
-                RGBPatch(r: 0, g: 0, b: 255),
+                RGBPatch(r: 0, g: 0, b: 255)
             ]
         )
         let layout = SoftwareLightingFrameLayout.basiliskV3ProUSB

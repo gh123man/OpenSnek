@@ -18,7 +18,7 @@ struct DeviceDetailView: View {
 
     private let swatches: [LightingSwatch] = [
         LightingSwatch(hex: 0xFF0000), LightingSwatch(hex: 0x00FF00), LightingSwatch(hex: 0x0000FF), LightingSwatch(hex: 0xFFFF00),
-        LightingSwatch(hex: 0x00FFFF), LightingSwatch(hex: 0xFF00FF), LightingSwatch(hex: 0xFFFFFF), LightingSwatch(hex: 0xFF8000),
+        LightingSwatch(hex: 0x00FFFF), LightingSwatch(hex: 0xFF00FF), LightingSwatch(hex: 0xFFFFFF), LightingSwatch(hex: 0xFF8000)
     ]
 
     var body: some View {
@@ -909,7 +909,7 @@ struct LightingCard: View {
     private var singleColorGradientColors: [Color] {
         [
             accentBase.opacity(accentOpacity),
-            Color.white.opacity(0.05),
+            Color.white.opacity(0.05)
         ]
     }
 
@@ -986,7 +986,7 @@ struct LightingCard: View {
         guard colors.dropFirst().contains(where: { $0 != firstColor }) else {
             return [
                 Color(rgb: firstColor).opacity(accentOpacity),
-                Color.white.opacity(0.05),
+                Color.white.opacity(0.05)
             ]
         }
 
@@ -1022,16 +1022,18 @@ struct LightingCard: View {
 
     private var lightingSummaryPresentation: LightingSummaryPresentation {
         LightingSummaryPresentation.make(
-            supportsSoftwareLightingEffects: selected.supportsSoftwareLightingEffects,
-            softwareLightingStatus: softwareLightingStatus,
-            editableSoftwareLightingPreset: editorStore.editableSoftwareLightingPreset,
-            editableSoftwareLightingPalette: editorStore.editableSoftwareLightingPalette(
-                for: editorStore.editableSoftwareLightingPreset
+            LightingSummaryInput(
+                supportsSoftwareLightingEffects: selected.supportsSoftwareLightingEffects,
+                softwareLightingStatus: softwareLightingStatus,
+                editableSoftwareLightingPreset: editorStore.editableSoftwareLightingPreset,
+                editableSoftwareLightingPalette: editorStore.editableSoftwareLightingPalette(
+                    for: editorStore.editableSoftwareLightingPreset
+                ),
+                onboardEffectLabel: editorStore.editableLightingEffect.label,
+                onboardColors: editorStore.lightingGradientDisplayColors,
+                fallbackColor: editorStore.editableColor,
+                batteryState: editorStore.deviceStore.state
             ),
-            onboardEffectLabel: editorStore.editableLightingEffect.label,
-            onboardColors: editorStore.lightingGradientDisplayColors,
-            fallbackColor: editorStore.editableColor,
-            batteryState: editorStore.deviceStore.state
         )
     }
 
@@ -1651,40 +1653,31 @@ struct LightingSummaryPresentation: Equatable {
     let swatches: [RGBColor]
     let batteryIcon: BatteryIconPresentation?
 
-    static func make(
-        supportsSoftwareLightingEffects: Bool,
-        softwareLightingStatus: SoftwareLightingEngineStatus?,
-        editableSoftwareLightingPreset: SoftwareLightingPresetID,
-        editableSoftwareLightingPalette: [RGBColor],
-        onboardEffectLabel: String,
-        onboardColors: [RGBColor],
-        fallbackColor: RGBColor,
-        batteryState: MouseState?
-    ) -> LightingSummaryPresentation {
-        if supportsSoftwareLightingEffects,
-           softwareLightingStatus?.state == .running {
-            let preset = softwareLightingStatus?.request?.presetID ?? editableSoftwareLightingPreset
+    static func make(_ input: LightingSummaryInput) -> LightingSummaryPresentation {
+        if input.supportsSoftwareLightingEffects,
+           input.softwareLightingStatus?.state == .running {
+            let preset = input.softwareLightingStatus?.request?.presetID ?? input.editableSoftwareLightingPreset
             if preset == .batteryMeter {
                 return LightingSummaryPresentation(
                     title: preset.label,
                     swatches: [],
-                    batteryIcon: batteryIcon(for: batteryState)
+                    batteryIcon: batteryIcon(for: input.batteryState)
                 )
             }
 
-            let palette = softwareLightingStatus?.request?.palette.map { color in
+            let palette = input.softwareLightingStatus?.request?.palette.map { color in
                 RGBColor(r: color.r, g: color.g, b: color.b)
-            } ?? editableSoftwareLightingPalette
+            } ?? input.editableSoftwareLightingPalette
             return LightingSummaryPresentation(
                 title: preset.label,
-                swatches: condensedSwatches(from: palette, fallback: fallbackColor),
+                swatches: condensedSwatches(from: palette, fallback: input.fallbackColor),
                 batteryIcon: nil
             )
         }
 
         return LightingSummaryPresentation(
-            title: "Onboard \(onboardEffectLabel)",
-            swatches: condensedSwatches(from: onboardColors, fallback: fallbackColor),
+            title: "Onboard \(input.onboardEffectLabel)",
+            swatches: condensedSwatches(from: input.onboardColors, fallback: input.fallbackColor),
             batteryIcon: nil
         )
     }
@@ -1718,6 +1711,17 @@ struct LightingSummaryPresentation: Equatable {
         }
         return uniqueColors.isEmpty ? [fallback] : uniqueColors
     }
+}
+
+struct LightingSummaryInput {
+    let supportsSoftwareLightingEffects: Bool
+    let softwareLightingStatus: SoftwareLightingEngineStatus?
+    let editableSoftwareLightingPreset: SoftwareLightingPresetID
+    let editableSoftwareLightingPalette: [RGBColor]
+    let onboardEffectLabel: String
+    let onboardColors: [RGBColor]
+    let fallbackColor: RGBColor
+    let batteryState: MouseState?
 }
 
 private enum LightingZoneEditMode: String, CaseIterable, Identifiable {
@@ -2074,7 +2078,7 @@ private struct PaletteRemoveColorPlaceholder: View {
 
 struct RGBSliderRow: View {
     let label: String
-    var accessibilityIdentifier: String? = nil
+    var accessibilityIdentifier: String?
     let tint: Color
     @Binding var value: Int
 
@@ -2573,7 +2577,7 @@ private struct DpiValueField: View {
     let width: CGFloat
     var alignment: TextAlignment = .leading
     var isDisabled: Bool = false
-    var accessibilityIdentifier: String? = nil
+    var accessibilityIdentifier: String?
     let onCommit: (Int) -> Void
 
     @State private var draft: String
@@ -3158,7 +3162,7 @@ private struct OnboardProfileManagerPanel: View {
     private func profileAccessibilityLabel(_ profile: OnboardProfileSummary) -> String {
         var parts = [
             profile.isAssigned ? profile.displayName : "None",
-            profile.profileID == 1 ? "Base" : "Slot \(profile.profileID)",
+            profile.profileID == 1 ? "Base" : "Slot \(profile.profileID)"
         ]
         if profile.isActive {
             parts.append("active")

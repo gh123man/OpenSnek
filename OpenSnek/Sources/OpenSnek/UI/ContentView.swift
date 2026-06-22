@@ -579,7 +579,7 @@ private struct SupportedDeviceRow: Identifiable {
             transport.connectionLabel,
             transport.shortLabel,
             productIDs,
-            capabilities,
+            capabilities
         ]
         .joined(separator: " ")
         .lowercased()

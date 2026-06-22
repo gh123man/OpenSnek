@@ -162,7 +162,7 @@ final class DevicePreferenceStoreTests: XCTestCase {
             speed: 1.35,
             palette: [
                 RGBPatch(r: 11, g: 22, b: 33),
-                RGBPatch(r: 44, g: 55, b: 66),
+                RGBPatch(r: 44, g: 55, b: 66)
             ]
         )
 

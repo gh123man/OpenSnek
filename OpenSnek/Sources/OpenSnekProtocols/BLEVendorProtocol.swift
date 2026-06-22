@@ -26,6 +26,47 @@ public enum BLEVendorProtocol {
         }
     }
 
+    public struct DpiStageSnapshot: Equatable, Sendable {
+        public let active: Int
+        public let count: Int
+        public let slots: [Int]
+        public let pairs: [DpiPair]
+        public let stageIDs: [UInt8]
+        public let marker: UInt8
+
+        public init(
+            active: Int,
+            count: Int,
+            slots: [Int],
+            pairs: [DpiPair],
+            stageIDs: [UInt8] = [],
+            marker: UInt8 = 0x03
+        ) {
+            self.active = active
+            self.count = count
+            self.slots = slots
+            self.pairs = pairs
+            self.stageIDs = stageIDs
+            self.marker = marker
+        }
+    }
+
+    public struct DpiStagesRead: Equatable, Sendable {
+        public let active: Int
+        public let count: Int
+        public let values: [Int]
+        public let pairs: [DpiPair]
+        public let marker: UInt8
+
+        public init(active: Int, count: Int, values: [Int], pairs: [DpiPair], marker: UInt8) {
+            self.active = active
+            self.count = count
+            self.values = values
+            self.pairs = pairs
+            self.marker = marker
+        }
+    }
+
     public struct Key: Equatable, Sendable {
         public let b0: UInt8
         public let b1: UInt8
@@ -271,7 +312,7 @@ public enum BLEVendorProtocol {
             UInt8(clampedOffset & 0xFF),
             UInt8((clampedOffset >> 8) & 0xFF),
             UInt8(clampedLength & 0xFF),
-            UInt8((clampedLength >> 8) & 0xFF),
+            UInt8((clampedLength >> 8) & 0xFF)
         ])
     }
 
@@ -282,7 +323,7 @@ public enum BLEVendorProtocol {
             UInt8(onboardProfileMetadataLength & 0xFF),
             UInt8((onboardProfileMetadataLength >> 8) & 0xFF),
             UInt8(clampedOffset & 0xFF),
-            UInt8((clampedOffset >> 8) & 0xFF),
+            UInt8((clampedOffset >> 8) & 0xFF)
         ])
         if clampedOffset < end {
             payload.append(contentsOf: metadata[clampedOffset..<end])
@@ -371,7 +412,7 @@ public enum BLEVendorProtocol {
         return nil
     }
 
-    public static func parseDpiStageSnapshot(blob: Data) -> (active: Int, count: Int, slots: [Int], pairs: [DpiPair], stageIDs: [UInt8], marker: UInt8)? {
+    public static func parseDpiStageSnapshot(blob: Data) -> DpiStageSnapshot? {
         if blob.count >= 9 {
             let activeRaw = Int(blob[0])
             let declaredCount = DeviceProfiles.clampDpiStageCount(Int(blob[1]))
@@ -412,7 +453,7 @@ public enum BLEVendorProtocol {
             let count = min(declaredCount, slots.count)
             let visibleIDs = Array(stageIDs.prefix(count))
             let active = resolveActiveStage(activeRaw: activeRaw, stageIDs: visibleIDs, count: count)
-            return (
+            return DpiStageSnapshot(
                 active: active,
                 count: count,
                 slots: Array(slots.prefix(DeviceProfiles.maximumDpiStageCount)),
@@ -429,7 +470,7 @@ public enum BLEVendorProtocol {
             let active = activeRaw >= 1 ? max(0, min(count - 1, activeRaw - 1)) : 0
             let sid = blob.count > 2 ? blob[2] : 0
             let pair = DpiPair(x: value, y: value)
-            return (
+            return DpiStageSnapshot(
                 active: active,
                 count: count,
                 slots: Array(repeating: value, count: DeviceProfiles.maximumDpiStageCount),
@@ -442,9 +483,9 @@ public enum BLEVendorProtocol {
         return nil
     }
 
-    public static func parseDpiStages(blob: Data) -> (active: Int, count: Int, values: [Int], pairs: [DpiPair], marker: UInt8)? {
+    public static func parseDpiStages(blob: Data) -> DpiStagesRead? {
         guard let snapshot = parseDpiStageSnapshot(blob: blob) else { return nil }
-        return (
+        return DpiStagesRead(
             active: snapshot.active,
             count: snapshot.count,
             values: Array(snapshot.slots.prefix(snapshot.count)),
@@ -509,10 +550,8 @@ public enum BLEVendorProtocol {
             return Array(repeating: single, count: DeviceProfiles.maximumDpiStageCount)
         }
 
-        for i in 0..<count {
-            if i < clamped.count {
-                pairs[i] = clamped[i]
-            }
+        for i in 0..<count where i < clamped.count {
+            pairs[i] = clamped[i]
         }
         return Array(pairs.prefix(DeviceProfiles.maximumDpiStageCount))
     }
@@ -593,7 +632,7 @@ public enum BLEVendorProtocol {
                         0x00,
                         UInt8(clampedTurboRate & 0xFF),
                         0x00,
-                        0x00,
+                        0x00
                     ]
                 )
             }
@@ -619,7 +658,7 @@ public enum BLEVendorProtocol {
                         0x00,
                         basiliskV3FamilyHorizontalScrollTurboRate,
                         0x00,
-                        0x00,
+                        0x00
                     ]
                 )
             }
@@ -652,7 +691,7 @@ public enum BLEVendorProtocol {
                     0x00,
                     basiliskV3FamilyHorizontalScrollTurboRate,
                     0x00,
-                    0x00,
+                    0x00
                 ]
             )
         case .scrollRight:
@@ -665,7 +704,7 @@ public enum BLEVendorProtocol {
                     0x00,
                     basiliskV3FamilyHorizontalScrollTurboRate,
                     0x00,
-                    0x00,
+                    0x00
                 ]
             )
         case .mouseBack:
@@ -717,7 +756,7 @@ public enum BLEVendorProtocol {
             UInt8(max(0, min(255, r))),
             UInt8(max(0, min(255, g))),
             UInt8(max(0, min(255, b))),
-            0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00
         ])
     }
 

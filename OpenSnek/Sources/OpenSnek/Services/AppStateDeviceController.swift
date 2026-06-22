@@ -11,6 +11,46 @@ final class AppStateDeviceController {
     private static let usbTelemetryUnavailableMessage =
         "USB device telemetry unavailable. Feature-report interface did not return usable responses."
 
+    struct BluetoothRealtimeRefreshDelayContext {
+        let transport: DeviceTransportKind
+        let transportStatus: DpiUpdateTransportStatus?
+        let lastHeartbeatAt: Date?
+        let lastFullStateRefreshStartedAt: Date?
+        let minimumRefreshInterval: TimeInterval
+        let now: Date
+    }
+
+    private struct EditorPresentationHydrationRequest {
+        let state: MouseState
+        let device: MouseDevice
+        let holdsPersistedConnectPresentation: Bool
+        let applyController: AppStateApplyController
+        let editorController: AppStateEditorController
+        let scheduleButtonHydration: Bool
+    }
+
+    private struct RecentDynamicDpiRefreshContext {
+        let fetched: MouseState
+        let latestCachedState: MouseState?
+        let cachedStateBeforeRefresh: MouseState?
+        let latestCachedStableUpdateAt: Date?
+        let sourceDevice: MouseDevice
+        let presentationDevice: MouseDevice
+        let sourceDeviceID: String
+        let start: Date
+    }
+
+    private struct SuccessfulRefreshContext {
+        let merged: MouseState
+        let sourceDevice: MouseDevice
+        let presentationDevice: MouseDevice
+        let previous: MouseState?
+        let sourceDeviceID: String
+        let start: Date
+        let shouldFocusOnActivity: Bool
+        let clearSeededReconnectState: Bool
+    }
+
     private let environment: AppEnvironment
     private let deviceStore: DeviceStore
     @WeakBound("AppStateDeviceController", dependency: "editorController")
@@ -135,7 +175,7 @@ final class AppStateDeviceController {
         var lines = [
             "Presence: \(presence)",
             "Telemetry: \(deviceConnectionState.diagnosticsLabel)",
-            "DPI updates: \(dpiPath)",
+            "DPI updates: \(dpiPath)"
         ]
         if device.transport == .usb {
             lines.insert(
@@ -392,12 +432,14 @@ final class AppStateDeviceController {
             editorController: editorController
         )
         hydrateSelectedEditorPresentation(
-            from: selectedState,
-            device: selectedDevice,
-            holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
-            applyController: applyController,
-            editorController: editorController,
-            scheduleButtonHydration: true
+            EditorPresentationHydrationRequest(
+                state: selectedState,
+                device: selectedDevice,
+                holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
+                applyController: applyController,
+                editorController: editorController,
+                scheduleButtonHydration: true
+            )
         )
         scheduleSelectedDeviceLightingHydration(device: selectedDevice)
     }
@@ -599,12 +641,14 @@ final class AppStateDeviceController {
             editorController: editorController
         )
         hydrateSelectedEditorPresentation(
-            from: merged,
-            device: presentationDevice,
-            holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
-            applyController: applyController,
-            editorController: editorController,
-            scheduleButtonHydration: true
+            EditorPresentationHydrationRequest(
+                state: merged,
+                device: presentationDevice,
+                holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
+                applyController: applyController,
+                editorController: editorController,
+                scheduleButtonHydration: true
+            )
         )
         deviceStore.errorMessage = nil
         setTelemetryWarning(editorController.telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)
@@ -991,12 +1035,14 @@ final class AppStateDeviceController {
             deviceStore.lastUpdated = lastUpdatedByDeviceID[deviceID]
             deviceStore.warningMessage = nil
             hydrateSelectedEditorPresentation(
-                from: cached,
-                device: device,
-                holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
-                applyController: applyController,
-                editorController: editorController,
-                scheduleButtonHydration: false
+                EditorPresentationHydrationRequest(
+                    state: cached,
+                    device: device,
+                    holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
+                    applyController: applyController,
+                    editorController: editorController,
+                    scheduleButtonHydration: false
+                )
             )
         } else if (unavailableDeviceIDs.contains(deviceID) && !preservesTelemetryBackoffPresentation) ||
             usbAvailability == .receiverAbsent {
@@ -1013,12 +1059,14 @@ final class AppStateDeviceController {
             deviceStore.lastUpdated = lastUpdatedByDeviceID[deviceID]
             deviceStore.warningMessage = editorController.telemetryWarning(for: cached, device: device)
             let hydratedEditable = hydrateSelectedEditorPresentation(
-                from: cached,
-                device: device,
-                holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
-                applyController: applyController,
-                editorController: editorController,
-                scheduleButtonHydration: true
+                EditorPresentationHydrationRequest(
+                    state: cached,
+                    device: device,
+                    holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
+                    applyController: applyController,
+                    editorController: editorController,
+                    scheduleButtonHydration: true
+                )
             )
             if hydratedEditable {
                 scheduleSelectedDeviceLightingHydration(device: device)
@@ -1029,12 +1077,14 @@ final class AppStateDeviceController {
             }
             deviceStore.warningMessage = editorController.telemetryWarning(for: state, device: device)
             let hydratedEditable = hydrateSelectedEditorPresentation(
-                from: deviceStore.state ?? state,
-                device: device,
-                holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
-                applyController: applyController,
-                editorController: editorController,
-                scheduleButtonHydration: true
+                EditorPresentationHydrationRequest(
+                    state: deviceStore.state ?? state,
+                    device: device,
+                    holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
+                    applyController: applyController,
+                    editorController: editorController,
+                    scheduleButtonHydration: true
+                )
             )
             if hydratedEditable {
                 scheduleSelectedDeviceLightingHydration(device: device)
@@ -1063,25 +1113,22 @@ final class AppStateDeviceController {
     }
 
     @discardableResult
-    private func hydrateSelectedEditorPresentation(
-        from state: MouseState,
-        device: MouseDevice,
-        holdsPersistedConnectPresentation: Bool,
-        applyController: AppStateApplyController,
-        editorController: AppStateEditorController,
-        scheduleButtonHydration: Bool
-    ) -> Bool {
+    private func hydrateSelectedEditorPresentation(_ request: EditorPresentationHydrationRequest) -> Bool {
+        let state = request.state
+        let device = request.device
+        let applyController = request.applyController
+        let editorController = request.editorController
         guard applyController.shouldHydrateEditable(for: device) else {
             editorController.hydrateLiveDpiPresentation(from: state)
             return false
         }
-        if holdsPersistedConnectPresentation {
+        if request.holdsPersistedConnectPresentation {
             editorController.hydrateLiveDpiPresentation(from: state)
             return false
         }
 
         editorController.hydrateEditable(from: state)
-        if scheduleButtonHydration {
+        if request.scheduleButtonHydration {
             scheduleSelectedDeviceButtonBindingHydration(device: device)
         }
         return true
@@ -1842,14 +1889,16 @@ final class AppStateDeviceController {
             }
             let latestCachedStableUpdateAt = latestCachedUpdateAt(sourceDeviceID: refreshDeviceID, presentationDeviceID: presentationDeviceID)
             if let handledRecentDpi = await handleRecentDynamicDpiRefreshIfNeeded(
-                fetched: fetched,
-                latestCachedState: latestCachedState,
-                cachedStateBeforeRefresh: cachedStateBeforeRefresh,
-                latestCachedStableUpdateAt: latestCachedStableUpdateAt,
-                sourceDevice: device,
-                presentationDevice: presentationDevice,
-                sourceDeviceID: refreshDeviceID,
-                start: start
+                RecentDynamicDpiRefreshContext(
+                    fetched: fetched,
+                    latestCachedState: latestCachedState,
+                    cachedStateBeforeRefresh: cachedStateBeforeRefresh,
+                    latestCachedStableUpdateAt: latestCachedStableUpdateAt,
+                    sourceDevice: device,
+                    presentationDevice: presentationDevice,
+                    sourceDeviceID: refreshDeviceID,
+                    start: start
+                )
             ) {
                 return handledRecentDpi
             }
@@ -1857,14 +1906,16 @@ final class AppStateDeviceController {
             let merged = fetched.merged(with: previous)
             let shouldFocusOnActivity = shouldFocusServiceSelectionOnActivity(previous: previous, next: merged)
             await finishSuccessfulRefreshState(
-                merged,
-                sourceDevice: device,
-                presentationDevice: presentationDevice,
-                previous: previous,
-                sourceDeviceID: refreshDeviceID,
-                start: start,
-                shouldFocusOnActivity: shouldFocusOnActivity,
-                clearSeededReconnectState: true
+                SuccessfulRefreshContext(
+                    merged: merged,
+                    sourceDevice: device,
+                    presentationDevice: presentationDevice,
+                    previous: previous,
+                    sourceDeviceID: refreshDeviceID,
+                    start: start,
+                    shouldFocusOnActivity: shouldFocusOnActivity,
+                    clearSeededReconnectState: true
+                )
             )
 
             AppLog.debug(
@@ -1913,15 +1964,17 @@ final class AppStateDeviceController {
 
     private func shouldDeferBluetoothRealtimeRefresh(for device: MouseDevice, now: Date) -> Bool {
         let shouldDefer = Self.shouldDelayBluetoothRealtimeStateRefresh(
-            transport: device.transport,
-            transportStatus: dpiUpdateTransportStatusByDeviceID[device.id],
-            lastHeartbeatAt: lastPassiveHeartbeatAtByDeviceID[device.id],
-            lastFullStateRefreshStartedAt: lastFullStateRefreshStartedAtByDeviceID[device.id],
-            minimumRefreshInterval: runtimeController.effectiveRefreshStateInterval(
-                at: now,
-                profile: runtimeController.pollingProfile(at: now)
-            ),
-            now: now
+            BluetoothRealtimeRefreshDelayContext(
+                transport: device.transport,
+                transportStatus: dpiUpdateTransportStatusByDeviceID[device.id],
+                lastHeartbeatAt: lastPassiveHeartbeatAtByDeviceID[device.id],
+                lastFullStateRefreshStartedAt: lastFullStateRefreshStartedAtByDeviceID[device.id],
+                minimumRefreshInterval: runtimeController.effectiveRefreshStateInterval(
+                    at: now,
+                    profile: runtimeController.pollingProfile(at: now)
+                ),
+                now: now
+            )
         )
         if shouldDefer {
             AppLog.debug("AppState", "refreshState deferred active-bt-realtime device=\(device.id)")
@@ -1934,16 +1987,14 @@ final class AppStateDeviceController {
         deviceStore.state = cached
     }
 
-    private func handleRecentDynamicDpiRefreshIfNeeded(
-        fetched: MouseState,
-        latestCachedState: MouseState?,
-        cachedStateBeforeRefresh: MouseState?,
-        latestCachedStableUpdateAt: Date?,
-        sourceDevice: MouseDevice,
-        presentationDevice: MouseDevice,
-        sourceDeviceID: String,
-        start: Date
-    ) async -> Bool? {
+    private func handleRecentDynamicDpiRefreshIfNeeded(_ context: RecentDynamicDpiRefreshContext) async -> Bool? {
+        let fetched = context.fetched
+        let latestCachedState = context.latestCachedState
+        let latestCachedStableUpdateAt = context.latestCachedStableUpdateAt
+        let sourceDevice = context.sourceDevice
+        let presentationDevice = context.presentationDevice
+        let sourceDeviceID = context.sourceDeviceID
+        let start = context.start
         let presentationDeviceID = presentationDevice.id
         let latestMutationAt = latestCachedMutationAt(
             sourceDeviceID: sourceDeviceID,
@@ -1952,14 +2003,7 @@ final class AppStateDeviceController {
         if let latestMutationAt, latestMutationAt > start {
             return await handleConcurrentDynamicDpiMutation(
                 latestMutationAt: latestMutationAt,
-                latestCachedState: latestCachedState,
-                cachedStateBeforeRefresh: cachedStateBeforeRefresh,
-                fetched: fetched,
-                latestCachedStableUpdateAt: latestCachedStableUpdateAt,
-                sourceDevice: sourceDevice,
-                presentationDevice: presentationDevice,
-                sourceDeviceID: sourceDeviceID,
-                start: start
+                context: context
             )
         }
         guard shouldPreferRecentDynamicDpiMutation(
@@ -1974,14 +2018,16 @@ final class AppStateDeviceController {
 
         let merged = latestCachedState.mergedWithStableReadTelemetry(from: fetched)
         await finishSuccessfulRefreshState(
-            merged,
-            sourceDevice: sourceDevice,
-            presentationDevice: presentationDevice,
-            previous: nil,
-            sourceDeviceID: sourceDeviceID,
-            start: start,
-            shouldFocusOnActivity: false,
-            clearSeededReconnectState: false
+            SuccessfulRefreshContext(
+                merged: merged,
+                sourceDevice: sourceDevice,
+                presentationDevice: presentationDevice,
+                previous: nil,
+                sourceDeviceID: sourceDeviceID,
+                start: start,
+                shouldFocusOnActivity: false,
+                clearSeededReconnectState: false
+            )
         )
         AppLog.debug(
             "AppState",
@@ -1994,27 +2040,30 @@ final class AppStateDeviceController {
 
     private func handleConcurrentDynamicDpiMutation(
         latestMutationAt: Date,
-        latestCachedState: MouseState?,
-        cachedStateBeforeRefresh: MouseState?,
-        fetched: MouseState,
-        latestCachedStableUpdateAt: Date?,
-        sourceDevice: MouseDevice,
-        presentationDevice: MouseDevice,
-        sourceDeviceID: String,
-        start: Date
+        context: RecentDynamicDpiRefreshContext
     ) async -> Bool {
+        let latestCachedState = context.latestCachedState
+        let cachedStateBeforeRefresh = context.cachedStateBeforeRefresh
+        let fetched = context.fetched
+        let latestCachedStableUpdateAt = context.latestCachedStableUpdateAt
+        let sourceDevice = context.sourceDevice
+        let presentationDevice = context.presentationDevice
+        let sourceDeviceID = context.sourceDeviceID
+        let start = context.start
         if let latestCachedState,
            latestCachedState.differsOnlyInDynamicDpiState(from: cachedStateBeforeRefresh) {
             let merged = latestCachedState.mergedWithStableReadTelemetry(from: fetched)
             await finishSuccessfulRefreshState(
-                merged,
-                sourceDevice: sourceDevice,
-                presentationDevice: presentationDevice,
-                previous: nil,
-                sourceDeviceID: sourceDeviceID,
-                start: start,
-                shouldFocusOnActivity: false,
-                clearSeededReconnectState: false
+                SuccessfulRefreshContext(
+                    merged: merged,
+                    sourceDevice: sourceDevice,
+                    presentationDevice: presentationDevice,
+                    previous: nil,
+                    sourceDeviceID: sourceDeviceID,
+                    start: start,
+                    shouldFocusOnActivity: false,
+                    clearSeededReconnectState: false
+                )
             )
             return true
         }
@@ -2026,16 +2075,15 @@ final class AppStateDeviceController {
         return false
     }
 
-    private func finishSuccessfulRefreshState(
-        _ merged: MouseState,
-        sourceDevice: MouseDevice,
-        presentationDevice: MouseDevice,
-        previous: MouseState?,
-        sourceDeviceID: String,
-        start: Date,
-        shouldFocusOnActivity: Bool,
-        clearSeededReconnectState: Bool
-    ) async {
+    private func finishSuccessfulRefreshState(_ context: SuccessfulRefreshContext) async {
+        let merged = context.merged
+        let sourceDevice = context.sourceDevice
+        let presentationDevice = context.presentationDevice
+        let previous = context.previous
+        let sourceDeviceID = context.sourceDeviceID
+        let start = context.start
+        let shouldFocusOnActivity = context.shouldFocusOnActivity
+        let clearSeededReconnectState = context.clearSeededReconnectState
         let presentationDeviceID = presentationDevice.id
         let updatedAt = Date()
         cacheState(merged, sourceDeviceID: sourceDeviceID, presentationDeviceID: presentationDeviceID, updatedAt: updatedAt)
@@ -2087,12 +2135,14 @@ final class AppStateDeviceController {
             editorController: editorController
         )
         let hydratedEditable = hydrateSelectedEditorPresentation(
-            from: merged,
-            device: presentationDevice,
-            holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
-            applyController: applyController,
-            editorController: editorController,
-            scheduleButtonHydration: false
+            EditorPresentationHydrationRequest(
+                state: merged,
+                device: presentationDevice,
+                holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
+                applyController: applyController,
+                editorController: editorController,
+                scheduleButtonHydration: false
+            )
         )
         if hydratedEditable {
             scheduleSelectedEditorHydration(device: presentationDevice)
@@ -2453,12 +2503,14 @@ final class AppStateDeviceController {
                     editorController: editorController
                 )
                 hydrateSelectedEditorPresentation(
-                    from: updated,
-                    device: presentationDevice,
-                    holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
-                    applyController: applyController,
-                    editorController: editorController,
-                    scheduleButtonHydration: false
+                    EditorPresentationHydrationRequest(
+                        state: updated,
+                        device: presentationDevice,
+                        holdsPersistedConnectPresentation: holdsPersistedConnectPresentation,
+                        applyController: applyController,
+                        editorController: editorController,
+                        scheduleButtonHydration: false
+                    )
                 )
             }
             AppLog.debug(
@@ -2626,7 +2678,7 @@ final class AppStateDeviceController {
     private func latestUSBLiveObservationAt(for device: MouseDevice) -> Date? {
         [
             lastPassiveHeartbeatAtByDeviceID[device.id],
-            lastUSBFastDpiAtByDeviceID[device.id],
+            lastUSBFastDpiAtByDeviceID[device.id]
         ].compactMap { $0 }.max()
     }
 
@@ -2677,21 +2729,16 @@ final class AppStateDeviceController {
     }
 
     nonisolated static func shouldDelayBluetoothRealtimeStateRefresh(
-        transport: DeviceTransportKind,
-        transportStatus: DpiUpdateTransportStatus?,
-        lastHeartbeatAt: Date?,
-        lastFullStateRefreshStartedAt: Date?,
-        minimumRefreshInterval: TimeInterval,
-        now: Date
+        _ context: BluetoothRealtimeRefreshDelayContext
     ) -> Bool {
-        guard transport == .bluetooth else { return false }
-        guard transportStatus == .streamActive || transportStatus == .realTimeHID else { return false }
-        guard let lastHeartbeatAt,
-              now.timeIntervalSince(lastHeartbeatAt) < 0.8 else {
+        guard context.transport == .bluetooth else { return false }
+        guard context.transportStatus == .streamActive || context.transportStatus == .realTimeHID else { return false }
+        guard let lastHeartbeatAt = context.lastHeartbeatAt,
+              context.now.timeIntervalSince(lastHeartbeatAt) < 0.8 else {
             return false
         }
-        guard let lastFullStateRefreshStartedAt else { return false }
-        return now.timeIntervalSince(lastFullStateRefreshStartedAt) < minimumRefreshInterval
+        guard let lastFullStateRefreshStartedAt = context.lastFullStateRefreshStartedAt else { return false }
+        return context.now.timeIntervalSince(lastFullStateRefreshStartedAt) < context.minimumRefreshInterval
     }
 
     private func restorePersistedSettingsIfNeeded(for device: MouseDevice) async {

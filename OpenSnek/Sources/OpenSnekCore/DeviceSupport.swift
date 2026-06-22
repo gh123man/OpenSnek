@@ -21,7 +21,7 @@ public struct ButtonSlotDescriptor: Identifiable, Hashable, Codable, Sendable {
         ButtonSlotDescriptor(slot: 5, friendlyName: "Forward Button", defaultKind: .mouseForward),
         ButtonSlotDescriptor(slot: 9, friendlyName: "Scroll Up", defaultKind: .scrollUp),
         ButtonSlotDescriptor(slot: 10, friendlyName: "Scroll Down", defaultKind: .scrollDown),
-        ButtonSlotDescriptor(slot: 96, friendlyName: "DPI Cycle", defaultKind: .default),
+        ButtonSlotDescriptor(slot: 96, friendlyName: "DPI Cycle", defaultKind: .default)
     ]
 }
 
@@ -419,11 +419,11 @@ public enum DeviceProfiles {
     public static let sliderExtremeStepDPI = 1_000
 
     public static let basiliskV3XUSBLightingEffects: [LightingEffectKind] = [
-        .off, .staticColor, .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual,
+        .off, .staticColor, .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual
     ]
 
     public static let basiliskV335KUSBLightingEffects: [LightingEffectKind] = [
-        .off, .staticColor, .spectrum, .wave,
+        .off, .staticColor, .spectrum, .wave
     ]
 
     public static let basiliskV3XButtonSlots: [ButtonSlotDescriptor] = [
@@ -434,11 +434,11 @@ public enum DeviceProfiles {
         ButtonSlotDescriptor(slot: 5, friendlyName: "Forward Button", defaultKind: .mouseForward),
         ButtonSlotDescriptor(slot: 9, friendlyName: "Scroll Up", defaultKind: .scrollUp),
         ButtonSlotDescriptor(slot: 10, friendlyName: "Scroll Down", defaultKind: .scrollDown),
-        ButtonSlotDescriptor(slot: 96, friendlyName: "DPI Cycle", defaultKind: .default),
+        ButtonSlotDescriptor(slot: 96, friendlyName: "DPI Cycle", defaultKind: .default)
     ]
 
     public static let basiliskV3XUSBLightingZones: [USBLightingZoneDescriptor] = [
-        USBLightingZoneDescriptor(id: "scroll_wheel", label: "Scroll Wheel", ledIDs: [0x01]),
+        USBLightingZoneDescriptor(id: "scroll_wheel", label: "Scroll Wheel", ledIDs: [0x01])
     ]
 
     public static let basiliskV3XBluetoothDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
@@ -446,7 +446,7 @@ public enum DeviceProfiles {
             descriptor: ButtonSlotDescriptor(slot: 6, friendlyName: "Hypershift / Sniper", defaultKind: .default),
             access: .softwareReadOnly,
             note: "This button uses a separate device path, so OpenSnek cannot reassign it yet."
-        ),
+        )
     ]
 
     public static let basiliskV3FamilyButtonSlots: [ButtonSlotDescriptor] = [
@@ -460,7 +460,7 @@ public enum DeviceProfiles {
         ButtonSlotDescriptor(slot: 15, friendlyName: "Sensitivity Clutch", defaultKind: .default),
         ButtonSlotDescriptor(slot: 52, friendlyName: "Wheel Tilt Left", defaultKind: .scrollLeft),
         ButtonSlotDescriptor(slot: 53, friendlyName: "Wheel Tilt Right", defaultKind: .scrollRight),
-        ButtonSlotDescriptor(slot: 96, friendlyName: "DPI Button", defaultKind: .default),
+        ButtonSlotDescriptor(slot: 96, friendlyName: "DPI Button", defaultKind: .default)
     ]
 
     public static let basiliskV3ProBluetoothButtonSlots = basiliskV3FamilyButtonSlots
@@ -472,7 +472,7 @@ public enum DeviceProfiles {
             descriptor: ButtonSlotDescriptor(slot: 106, friendlyName: "Profile Button", defaultKind: .default),
             access: .softwareReadOnly,
             note: "The V3 Pro Bluetooth path still needs capture-backed profile-button defaults before OpenSnek can expose this control."
-        ),
+        )
     ]
 
     public static let basiliskV335KUSBDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
@@ -485,7 +485,7 @@ public enum DeviceProfiles {
             descriptor: ButtonSlotDescriptor(slot: 106, friendlyName: "Profile Button", defaultKind: .default),
             access: .softwareReadOnly,
             note: "This button is handled separately by the mouse, so OpenSnek cannot reassign it yet."
-        ),
+        )
     ]
 
     public static let basiliskV3USBDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
@@ -498,13 +498,13 @@ public enum DeviceProfiles {
             descriptor: ButtonSlotDescriptor(slot: 106, friendlyName: "Profile Button", defaultKind: .default),
             access: .softwareReadOnly,
             note: "This OpenRazer-backed profile assumes the Basilisk V3 matches the 35K's separate profile-button path, but OpenSnek has not validated that on hardware yet."
-        ),
+        )
     ]
 
     public static let basiliskV335KUSBLightingZones: [USBLightingZoneDescriptor] = [
         USBLightingZoneDescriptor(id: "scroll_wheel", label: "Scroll Wheel", ledIDs: [0x01]),
         USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x04]),
-        USBLightingZoneDescriptor(id: "underglow", label: "Underglow", ledIDs: [0x0A]),
+        USBLightingZoneDescriptor(id: "underglow", label: "Underglow", ledIDs: [0x0A])
     ]
 
     public static let basiliskV3ProUSBDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
@@ -512,7 +512,7 @@ public enum DeviceProfiles {
             descriptor: ButtonSlotDescriptor(slot: 106, friendlyName: "Profile Button", defaultKind: .default),
             access: .protocolReadOnly,
             note: "Observed remap writes can land on this button, but the V3 Pro's USB ACK/readback path is not stable enough to ship in OpenSnek yet."
-        ),
+        )
     ]
 
     public static let basiliskV3XUSB = DeviceProfile(
@@ -694,7 +694,7 @@ public enum DeviceProfiles {
         ButtonSlotDescriptor(slot: 5, friendlyName: "Forward Button", defaultKind: .mouseForward),
         ButtonSlotDescriptor(slot: 9, friendlyName: "Scroll Up", defaultKind: .scrollUp),
         ButtonSlotDescriptor(slot: 10, friendlyName: "Scroll Down", defaultKind: .scrollDown),
-        ButtonSlotDescriptor(slot: 96, friendlyName: "DPI Cycle", defaultKind: .default),
+        ButtonSlotDescriptor(slot: 96, friendlyName: "DPI Cycle", defaultKind: .default)
     ]
 
     public static let orochiV2Bluetooth = DeviceProfile(
@@ -730,7 +730,7 @@ public enum DeviceProfiles {
         basiliskV335KUSB,
         basiliskV3XBluetooth,
         basiliskV3ProBluetooth,
-        orochiV2Bluetooth,
+        orochiV2Bluetooth
     ]
 
     public static func resolve(vendorID: Int, productID: Int, transport: DeviceTransportKind) -> DeviceProfile? {
@@ -804,10 +804,8 @@ public enum DeviceProfiles {
         guard let first = segments.first else { return [minimumDPI] }
 
         var markers = [first.dpiRange.lowerBound]
-        for segment in segments {
-            if markers.last != segment.dpiRange.upperBound {
-                markers.append(segment.dpiRange.upperBound)
-            }
+        for segment in segments where markers.last != segment.dpiRange.upperBound {
+            markers.append(segment.dpiRange.upperBound)
         }
         return markers
     }
@@ -876,7 +874,7 @@ public enum DeviceProfiles {
                 positionRange: 0...sliderLowAnchorPosition,
                 dpiRange: minimumDPI...lowUpper,
                 step: sliderFineStepDPI
-            ),
+            )
         ]
 
         let midUpper = min(maximum, sliderMidAnchorDPI)

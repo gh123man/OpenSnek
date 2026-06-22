@@ -534,21 +534,17 @@ final class AppStateEditorController {
         } else if let pairs = state.dpi_stages.pairs, !pairs.isEmpty {
             editorStore.editableStageCount = DeviceProfiles.clampDpiStageCount(pairs.count)
             let profileID = deviceStore.selectedDevice?.profile_id
-            for index in 0..<editorStore.editableStagePairs.count {
-                if index < pairs.count {
-                    editorStore.editableStagePairs[index] = DpiPair(
-                        x: DeviceProfiles.clampDPI(pairs[index].x, profileID: profileID),
-                        y: DeviceProfiles.clampDPI(pairs[index].y, profileID: profileID)
-                    )
-                }
+            for index in 0..<editorStore.editableStagePairs.count where index < pairs.count {
+                editorStore.editableStagePairs[index] = DpiPair(
+                    x: DeviceProfiles.clampDPI(pairs[index].x, profileID: profileID),
+                    y: DeviceProfiles.clampDPI(pairs[index].y, profileID: profileID)
+                )
             }
         } else if let values = state.dpi_stages.values, !values.isEmpty {
             editorStore.editableStageCount = DeviceProfiles.clampDpiStageCount(values.count)
             let profileID = deviceStore.selectedDevice?.profile_id
-            for index in 0..<editorStore.editableStageValues.count {
-                if index < values.count {
-                    editorStore.editableStageValues[index] = DeviceProfiles.clampDPI(values[index], profileID: profileID)
-                }
+            for index in 0..<editorStore.editableStageValues.count where index < values.count {
+                editorStore.editableStageValues[index] = DeviceProfiles.clampDPI(values[index], profileID: profileID)
             }
         } else if let dpi = state.dpi?.x {
             editorStore.editableStageCount = 1
@@ -863,12 +859,7 @@ final class AppStateEditorController {
         preferenceStore.persistLightingEffect(effect, device: device)
     }
 
-    func loadPersistedLightingEffect(device: MouseDevice) -> (
-        kind: LightingEffectKind,
-        waveDirection: LightingWaveDirection,
-        reactiveSpeed: Int,
-        secondaryColor: RGBColor
-    )? {
+    func loadPersistedLightingEffect(device: MouseDevice) -> PersistedLightingEffectPreference? {
         preferenceStore.loadPersistedLightingEffect(device: device)
     }
 
@@ -2021,11 +2012,15 @@ final class AppStateEditorController {
         )
 #if DEBUG
         OpenSnekUITestSupport.recordOnboardProfileMutationStart(
-            device: device,
-            profileID: selected,
-            mutation: mutation,
-            activeMutationCount: activeOnboardProfileMutationCount,
-            maxConcurrentMutationCount: maxConcurrentOnboardProfileMutationCount
+            UITestProfileMutationEvent(
+                device: device,
+                profileID: selected,
+                mutation: mutation,
+                activeMutationCount: activeOnboardProfileMutationCount,
+                maxConcurrentMutationCount: maxConcurrentOnboardProfileMutationCount,
+                elapsed: nil,
+                error: nil
+            )
         )
         if activeOnboardProfileMutationCount > 1 {
             OpenSnekUITestSupport.recordOnboardProfileMutationOverlapDetected(
@@ -2057,12 +2052,15 @@ final class AppStateEditorController {
                 )
 #if DEBUG
                 OpenSnekUITestSupport.recordOnboardProfileMutationEnd(
-                    device: device,
-                    profileID: selected,
-                    mutation: resolvedMutation,
-                    activeMutationCount: activeOnboardProfileMutationCount,
-                    maxConcurrentMutationCount: maxConcurrentOnboardProfileMutationCount,
-                    elapsed: Date().timeIntervalSince(startedAt)
+                    UITestProfileMutationEvent(
+                        device: device,
+                        profileID: selected,
+                        mutation: resolvedMutation,
+                        activeMutationCount: activeOnboardProfileMutationCount,
+                        maxConcurrentMutationCount: maxConcurrentOnboardProfileMutationCount,
+                        elapsed: Date().timeIntervalSince(startedAt),
+                        error: nil
+                    )
                 )
 #endif
                 return true
@@ -2091,12 +2089,15 @@ final class AppStateEditorController {
             bumpOnboardProfilesRevision()
 #if DEBUG
             OpenSnekUITestSupport.recordOnboardProfileMutationEnd(
-                device: device,
-                profileID: selected,
-                mutation: resolvedMutation,
-                activeMutationCount: activeOnboardProfileMutationCount,
-                maxConcurrentMutationCount: maxConcurrentOnboardProfileMutationCount,
-                elapsed: Date().timeIntervalSince(startedAt)
+                UITestProfileMutationEvent(
+                    device: device,
+                    profileID: selected,
+                    mutation: resolvedMutation,
+                    activeMutationCount: activeOnboardProfileMutationCount,
+                    maxConcurrentMutationCount: maxConcurrentOnboardProfileMutationCount,
+                    elapsed: Date().timeIntervalSince(startedAt),
+                    error: nil
+                )
             )
 #endif
             return true
@@ -2105,13 +2106,15 @@ final class AppStateEditorController {
             deviceStore.errorMessage = "Failed to update onboard profile: \(error.localizedDescription)"
 #if DEBUG
             OpenSnekUITestSupport.recordOnboardProfileMutationError(
-                device: device,
-                profileID: selected,
-                mutation: mutation,
-                activeMutationCount: activeOnboardProfileMutationCount,
-                maxConcurrentMutationCount: maxConcurrentOnboardProfileMutationCount,
-                elapsed: Date().timeIntervalSince(startedAt),
-                error: error
+                UITestProfileMutationEvent(
+                    device: device,
+                    profileID: selected,
+                    mutation: mutation,
+                    activeMutationCount: activeOnboardProfileMutationCount,
+                    maxConcurrentMutationCount: maxConcurrentOnboardProfileMutationCount,
+                    elapsed: Date().timeIntervalSince(startedAt),
+                    error: error
+                )
             )
 #endif
             return false

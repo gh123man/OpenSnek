@@ -5,22 +5,62 @@ import OpenSnekHardware
 import OpenSnekProtocols
 
 actor BridgeClient {
-    typealias USBDpiStageSnapshot = (active: Int, values: [Int], pairs: [DpiPair], stageIDs: [UInt8])
-    typealias BluetoothExpectedDpiState = (
-        active: Int,
-        values: [Int],
-        pairs: [DpiPair],
-        previousActive: Int?,
-        previousValues: [Int]?,
-        previousPairs: [DpiPair]?,
-        expiresAt: Date,
-        remainingMasks: Int
-    )
+    struct USBDpiStageSnapshot: Equatable, Sendable {
+        let active: Int
+        let values: [Int]
+        let pairs: [DpiPair]
+        let stageIDs: [UInt8]
+    }
+
+    struct BluetoothExpectedDpiState: Equatable, Sendable {
+        let active: Int
+        let values: [Int]
+        let pairs: [DpiPair]
+        let previousActive: Int?
+        let previousValues: [Int]?
+        let previousPairs: [DpiPair]?
+        let expiresAt: Date
+        var remainingMasks: Int
+    }
+
+    struct BluetoothResolvedDpiStageWrite: Equatable, Sendable {
+        let active: Int
+        let stages: [Int]
+        let pairs: [DpiPair]
+    }
+
+    struct USBDpiApplyLogContext {
+        let device: MouseDevice
+        let patch: DevicePatch
+        let cachedDpiStages: DpiStages?
+        let current: USBDpiStageSnapshot?
+        let activeClamped: Int
+        let livePair: DpiPair
+        let stages: [Int]
+    }
+
+    struct USBActiveDpiOnlyApplyContext {
+        let device: MouseDevice
+        let patch: DevicePatch
+        let cachedState: MouseState?
+        let activeClamped: Int
+        let livePair: DpiPair
+    }
+
+    struct USBResolvedDpiStagesApplyContext {
+        let device: MouseDevice
+        let stages: [Int]
+        let activeClamped: Int
+        let livePair: DpiPair
+        let resolvedStagePairs: [DpiPair]
+        let stageIDs: [UInt8]?
+    }
+
     nonisolated static func resolveBluetoothDpiStageWrite(
         device: MouseDevice,
         patch: DevicePatch,
-        current: (active: Int, count: Int, slots: [Int], pairs: [DpiPair])?
-    ) throws -> (active: Int, stages: [Int], pairs: [DpiPair]) {
+        current: BLEVendorProtocol.DpiStageSnapshot?
+    ) throws -> BluetoothResolvedDpiStageWrite {
         let resolvedValues = patch.dpiStagePairs?.map(\.x) ??
             patch.dpiStages ??
             current.map { Array($0.slots.prefix($0.count)) }
@@ -41,7 +81,7 @@ actor BridgeClient {
             )
         } ?? stages.map { DpiPair(x: $0, y: $0) }
         let active = patch.activeStage ?? current?.active ?? 0
-        return (active: active, stages: stages, pairs: stagePairs)
+        return BluetoothResolvedDpiStageWrite(active: active, stages: stages, pairs: stagePairs)
     }
 
     nonisolated static func resolvedUSBActiveStage(
@@ -90,7 +130,7 @@ actor BridgeClient {
     var passiveDpiTargetsByDeviceID: [String: [PassiveDPIEventMonitor.WatchTarget]] = [:]
     var passiveDpiUpgradeNotBeforeByDeviceID: [String: Date] = [:]
     var btReqID: UInt8 = 0x30
-    var btDpiSnapshotByDeviceID: [String: (active: Int, count: Int, slots: [Int], pairs: [DpiPair], stageIDs: [UInt8], marker: UInt8)] = [:]
+    var btDpiSnapshotByDeviceID: [String: BLEVendorProtocol.DpiStageSnapshot] = [:]
     var btExpectedDpiByDeviceID: [String: BluetoothExpectedDpiState] = [:]
     let btVendorClient = BLEVendorTransportClient()
     let hidDevicePresenceMonitor = HIDDevicePresenceMonitor()
@@ -171,7 +211,7 @@ actor BridgeClient {
         let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
         IOHIDManagerSetDeviceMatchingMultiple(manager, [
             [kIOHIDVendorIDKey: usbVID] as CFDictionary,
-            [kIOHIDVendorIDKey: btVID] as CFDictionary,
+            [kIOHIDVendorIDKey: btVID] as CFDictionary
         ] as CFArray)
 
         let openResult = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
@@ -238,8 +278,8 @@ actor BridgeClient {
         let connectedBluetoothPeripheralNames = await btVendorClient.connectedPeripheralSummaries()?.map(\.name)
 
         let devices: [IOHIDDevice]
-        if let set = IOHIDManagerCopyDevices(manager) {
-            devices = (set as NSSet).allObjects.map { $0 as! IOHIDDevice }
+        if let set = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice> {
+            devices = Array(set)
         } else {
             devices = []
         }
@@ -249,7 +289,7 @@ actor BridgeClient {
         var passiveDpiTargets: [PassiveDPIEventMonitor.WatchTarget] = []
         for device in devices {
             guard let vendor = USBHIDSupport.intProperty(device, key: kIOHIDVendorIDKey as CFString),
-                  (vendor == usbVID || vendor == btVID),
+                  vendor == usbVID || vendor == btVID,
                   let product = USBHIDSupport.intProperty(device, key: kIOHIDProductIDKey as CFString) else { continue }
 
             let name = USBHIDSupport.stringProperty(device, key: kIOHIDProductKey as CFString) ?? "Razer Mouse"
@@ -619,12 +659,14 @@ actor BridgeClient {
             let now = Date()
             if passiveDpiObservedDeviceIDs.contains(device.id),
                Self.shouldResetBluetoothPassiveObservation(
-                previousState: lastStateByDeviceID[device.id],
-                active: parsed.active,
-                values: parsed.values,
-                lastHeartbeatAt: passiveDpiLastHeartbeatAtByDeviceID[device.id],
-                lastObservedAt: passiveDpiLastObservedAtByDeviceID[device.id],
-                now: now
+                BluetoothPassiveObservationResetContext(
+                    previousState: lastStateByDeviceID[device.id],
+                    active: parsed.active,
+                    values: parsed.values,
+                    lastHeartbeatAt: passiveDpiLastHeartbeatAtByDeviceID[device.id],
+                    lastObservedAt: passiveDpiLastObservedAtByDeviceID[device.id],
+                    now: now
+                )
                ) {
                 AppLog.debug(
                     "Bridge",
@@ -709,7 +751,7 @@ actor BridgeClient {
         let changedPower = patch.sleepTimeout != nil
 
         if patch.affectsDpiStages {
-            let current: (active: Int, count: Int, slots: [Int], pairs: [DpiPair], stageIDs: [UInt8], marker: UInt8)?
+            let current: BLEVendorProtocol.DpiStageSnapshot?
             if let cached = btDpiSnapshotByDeviceID[device.id] {
                 current = cached
             } else {
@@ -718,14 +760,7 @@ actor BridgeClient {
             let resolved = try Self.resolveBluetoothDpiStageWrite(
                 device: device,
                 patch: patch,
-                current: current.map {
-                    (
-                        active: $0.active,
-                        count: $0.count,
-                        slots: $0.slots,
-                        pairs: $0.pairs
-                    )
-                }
+                current: current
             )
             guard try await btSetDpiStages(device: device, active: resolved.active, values: resolved.stages, pairs: resolved.pairs) else {
                 throw BridgeError.commandFailed("Failed to set Bluetooth DPI stages")
@@ -777,14 +812,16 @@ actor BridgeClient {
                 )
                 : nil
             guard try await btSetButtonBinding(
-                device: device,
-                slot: slot,
-                kind: kind,
-                hidKey: hidKey,
-                hidModifiers: hidModifiers,
-                turboEnabled: turboEnabled,
-                turboRate: turboRate,
-                clutchDPI: clutchDPI
+                BluetoothButtonBindingWrite(
+                    device: device,
+                    slot: slot,
+                    kind: kind,
+                    hidKey: hidKey,
+                    hidModifiers: hidModifiers,
+                    turboEnabled: turboEnabled,
+                    turboRate: turboRate,
+                    clutchDPI: clutchDPI
+                )
             ) else {
                 throw BridgeError.commandFailed("Failed to set Bluetooth button binding")
             }
@@ -941,16 +978,18 @@ actor BridgeClient {
                 try setButtonBindingUSB(
                     $0,
                     device,
-                    slot: slot,
-                    kind: kind,
-                    hidKey: hidKey,
-                    hidModifiers: hidModifiers,
-                    turboEnabled: turboEnabled,
-                    turboRate: turboRate,
-                    clutchDPI: clutchDPI,
-                    persistentProfile: binding.persistentProfile,
-                    writePersistentLayer: binding.writePersistentLayer,
-                    writeDirectLayer: binding.writeDirectLayer
+                    request: USBButtonBindingWrite(
+                        slot: slot,
+                        kind: kind,
+                        hidKey: hidKey,
+                        hidModifiers: hidModifiers,
+                        turboEnabled: turboEnabled,
+                        turboRate: turboRate,
+                        clutchDPI: clutchDPI,
+                        persistentProfile: binding.persistentProfile,
+                        writePersistentLayer: binding.writePersistentLayer,
+                        writeDirectLayer: binding.writeDirectLayer
+                    )
                 )
             }) else {
                 throw BridgeError.commandFailed("Failed to set button binding")
@@ -1052,34 +1091,40 @@ actor BridgeClient {
         let activeClamped = max(0, min(stages.count - 1, active))
         let livePair = resolvedStagePairs[activeClamped]
         logUSBDpiApply(
-            device: device,
-            patch: patch,
-            cachedDpiStages: cachedDpiStages,
-            current: current,
-            activeClamped: activeClamped,
-            livePair: livePair,
-            stages: stages
+            USBDpiApplyLogContext(
+                device: device,
+                patch: patch,
+                cachedDpiStages: cachedDpiStages,
+                current: current,
+                activeClamped: activeClamped,
+                livePair: livePair,
+                stages: stages
+            )
         )
 
         if patch.isActiveStageOnly {
             return try await applyUSBActiveDpiOnly(
-                device: device,
-                patch: patch,
-                cachedState: cachedState,
-                activeClamped: activeClamped,
-                livePair: livePair,
+                USBActiveDpiOnlyApplyContext(
+                    device: device,
+                    patch: patch,
+                    cachedState: cachedState,
+                    activeClamped: activeClamped,
+                    livePair: livePair
+                ),
                 runUSBWrite: runUSBWrite,
                 readUSBCurrentDpi: readUSBCurrentDpi
             )
         }
 
         try applyUSBResolvedDpiStages(
-            device: device,
-            stages: stages,
-            activeClamped: activeClamped,
-            livePair: livePair,
-            resolvedStagePairs: resolvedStagePairs,
-            stageIDs: current?.stageIDs,
+            USBResolvedDpiStagesApplyContext(
+                device: device,
+                stages: stages,
+                activeClamped: activeClamped,
+                livePair: livePair,
+                resolvedStagePairs: resolvedStagePairs,
+                stageIDs: current?.stageIDs
+            ),
             runUSBWrite: runUSBWrite,
             readUSBCurrentDpiStages: readUSBCurrentDpiStages,
             readUSBCurrentDpi: readUSBCurrentDpi
@@ -1120,35 +1165,25 @@ actor BridgeClient {
         return pairs ?? stages.map { DpiPair(x: $0, y: $0) }
     }
 
-    private func logUSBDpiApply(
-        device: MouseDevice,
-        patch: DevicePatch,
-        cachedDpiStages: DpiStages?,
-        current: USBDpiStageSnapshot?,
-        activeClamped: Int,
-        livePair: DpiPair,
-        stages: [Int]
-    ) {
+    private func logUSBDpiApply(_ context: USBDpiApplyLogContext) {
         AppLog.debug(
             "Bridge",
-            "apply usb dpi device=\(device.id) activeOnly=\(patch.isActiveStageOnly) " +
-            "requestedActive=\(patch.activeStage.map(String.init) ?? "nil") " +
-            "resolvedActive=\(activeClamped) livePair=(\(livePair.x),\(livePair.y)) " +
-            "cachedActive=\(cachedDpiStages?.active_stage.map(String.init) ?? "nil") " +
-            "currentActive=\(current?.active.description ?? "nil") " +
-            "stages=\(stages.map(String.init).joined(separator: ","))"
+            "apply usb dpi device=\(context.device.id) activeOnly=\(context.patch.isActiveStageOnly) " +
+            "requestedActive=\(context.patch.activeStage.map(String.init) ?? "nil") " +
+            "resolvedActive=\(context.activeClamped) livePair=(\(context.livePair.x),\(context.livePair.y)) " +
+            "cachedActive=\(context.cachedDpiStages?.active_stage.map(String.init) ?? "nil") " +
+            "currentActive=\(context.current?.active.description ?? "nil") " +
+            "stages=\(context.stages.map(String.init).joined(separator: ","))"
         )
     }
 
     private func applyUSBActiveDpiOnly(
-        device: MouseDevice,
-        patch: DevicePatch,
-        cachedState: MouseState?,
-        activeClamped: Int,
-        livePair: DpiPair,
+        _ context: USBActiveDpiOnlyApplyContext,
         runUSBWrite: ((USBHIDControlSession) throws -> Bool) throws -> Bool,
         readUSBCurrentDpi: () throws -> (Int, Int)?
     ) async throws -> MouseState {
+        let device = context.device
+        let livePair = context.livePair
         guard try runUSBWrite({ try setDPI($0, device, dpiX: livePair.x, dpiY: livePair.y, store: false) }) else {
             throw BridgeError.commandFailed("Failed to apply active DPI stage")
         }
@@ -1159,35 +1194,32 @@ actor BridgeClient {
         )
         AppLog.debug(
             "Bridge",
-            "apply usb active-stage verified device=\(device.id) active=\(activeClamped) live=(\(livePair.x),\(livePair.y))"
+            "apply usb active-stage verified device=\(device.id) active=\(context.activeClamped) live=(\(livePair.x),\(livePair.y))"
         )
         let baseState: MouseState
-        if let cachedState {
+        if let cachedState = context.cachedState {
             baseState = cachedState
         } else {
             baseState = try await readState(device: device)
         }
-        let projected = projectedState(from: baseState, applying: patch, device: device)
+        let projected = projectedState(from: baseState, applying: context.patch, device: device)
         lastStateByDeviceID[device.id] = projected
         return projected
     }
 
     private func applyUSBResolvedDpiStages(
-        device: MouseDevice,
-        stages: [Int],
-        activeClamped: Int,
-        livePair: DpiPair,
-        resolvedStagePairs: [DpiPair],
-        stageIDs: [UInt8]?,
+        _ context: USBResolvedDpiStagesApplyContext,
         runUSBWrite: ((USBHIDControlSession) throws -> Bool) throws -> Bool,
         readUSBCurrentDpiStages: () throws -> USBDpiStageSnapshot?,
         readUSBCurrentDpi: () throws -> (Int, Int)?
     ) throws {
-        if stages.count == 1 {
+        let device = context.device
+        let livePair = context.livePair
+        if context.stages.count == 1 {
             try applyUSBSingleDpiStage(
                 device: device,
                 livePair: livePair,
-                stageIDs: stageIDs,
+                stageIDs: context.stageIDs,
                 runUSBWrite: runUSBWrite,
                 readUSBCurrentDpi: readUSBCurrentDpi
             )
@@ -1198,19 +1230,19 @@ actor BridgeClient {
             try setDPIStages(
                 $0,
                 device,
-                stages: stages,
-                activeStage: activeClamped,
-                stagePairs: resolvedStagePairs,
-                stageIDs: stageIDs
+                stages: context.stages,
+                activeStage: context.activeClamped,
+                stagePairs: context.resolvedStagePairs,
+                stageIDs: context.stageIDs
             )
         }) else {
             throw BridgeError.commandFailed("Failed to set DPI stages")
         }
         try verifyUSBStageWrite(
             device: device,
-            stages: stages,
-            activeClamped: activeClamped,
-            resolvedStagePairs: resolvedStagePairs,
+            stages: context.stages,
+            activeClamped: context.activeClamped,
+            resolvedStagePairs: context.resolvedStagePairs,
             readUSBCurrentDpiStages: readUSBCurrentDpiStages
         )
         guard try runUSBWrite({ try setDPI($0, device, dpiX: livePair.x, dpiY: livePair.y, store: false) }) else {

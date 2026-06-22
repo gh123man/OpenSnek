@@ -47,7 +47,7 @@ enum PermissionSupport {
         task.waitUntilExit()
 
         let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        let output = String(decoding: outputData, as: UTF8.self)
+        let output = (String(bytes: outputData, encoding: .utf8) ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard task.terminationStatus == 0 else {
@@ -67,7 +67,7 @@ enum PermissionSupport {
             "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
             "x-apple.systempreferences:com.apple.preference.security?Privacy_InputMonitoring",
             "x-apple.systempreferences:com.apple.preference.security?Privacy",
-            "x-apple.systempreferences:com.apple.preference.security",
+            "x-apple.systempreferences:com.apple.preference.security"
         ]
 
         for candidate in candidates {

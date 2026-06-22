@@ -1156,10 +1156,12 @@ extension BridgeClient {
                 guard try setButtonBindingUSBRaw(
                     session,
                     device,
-                    profile: UInt8(profileID),
-                    slot: UInt8(slot),
-                    hypershift: 0x00,
-                    functionBlock: block
+                    request: USBRawButtonBindingWrite(
+                        profile: UInt8(profileID),
+                        slot: UInt8(slot),
+                        hypershift: 0x00,
+                        functionBlock: block
+                    )
                 ) else {
                     throw BridgeError.commandFailed("USB onboard profile button write failed for slot \(slot).")
                 }
@@ -1227,7 +1229,7 @@ extension BridgeClient {
             UInt8((y >> 8) & 0xFF),
             UInt8(y & 0xFF),
             0x00,
-            0x00,
+            0x00
         ]
         guard let response = try perform(session, device, classID: 0x04, cmdID: 0x05, size: 0x07, args: args),
               response[0] == 0x02 else {
@@ -1717,7 +1719,7 @@ extension BridgeClient {
             UInt8(scalar.y & 0xFF),
             UInt8((scalar.y >> 8) & 0xFF),
             0x00,
-            0x00,
+            0x00
         ])
         guard try await btWriteAck(
             device: device,
@@ -1814,7 +1816,7 @@ extension BridgeClient {
 
     nonisolated static func bluetoothDpiSnapshot(
         from dpi: OnboardDPIProfileSnapshot
-    ) -> (active: Int, count: Int, slots: [Int], pairs: [DpiPair], stageIDs: [UInt8], marker: UInt8) {
+    ) -> BLEVendorProtocol.DpiStageSnapshot {
         let count = DeviceProfiles.clampDpiStageCount(dpi.pairs.isEmpty ? 1 : dpi.pairs.count)
         var pairs = Array(dpi.pairs.prefix(DeviceProfiles.maximumDpiStageCount))
         if pairs.isEmpty {
@@ -1831,7 +1833,7 @@ extension BridgeClient {
             stageIDs.append(stageIDs.last.map { $0 &+ 1 } ?? UInt8(stageIDs.count + 1))
         }
         let active = max(0, min(count - 1, dpi.activeStage ?? 0))
-        return (
+        return BLEVendorProtocol.DpiStageSnapshot(
             active: active,
             count: count,
             slots: pairs.map(\.x),

@@ -20,6 +20,25 @@ public enum DeviceConnectBehavior: String, CaseIterable, Codable, Hashable, Iden
     public var id: String { rawValue }
 }
 
+public struct PersistedLightingEffectPreference: Hashable, Sendable {
+    public let kind: LightingEffectKind
+    public let waveDirection: LightingWaveDirection
+    public let reactiveSpeed: Int
+    public let secondaryColor: RGBColor
+
+    public init(
+        kind: LightingEffectKind,
+        waveDirection: LightingWaveDirection,
+        reactiveSpeed: Int,
+        secondaryColor: RGBColor
+    ) {
+        self.kind = kind
+        self.waveDirection = waveDirection
+        self.reactiveSpeed = reactiveSpeed
+        self.secondaryColor = secondaryColor
+    }
+}
+
 public struct PersistedDeviceSettingsSnapshot: Codable, Hashable, Sendable {
     public var stageCount: Int
     public var stageValues: [Int]
@@ -214,12 +233,7 @@ public final class DevicePreferenceStore: @unchecked Sendable {
         defaults.set(data, forKey: key)
     }
 
-    public func loadPersistedLightingEffect(device: MouseDevice) -> (
-        kind: LightingEffectKind,
-        waveDirection: LightingWaveDirection,
-        reactiveSpeed: Int,
-        secondaryColor: RGBColor
-    )? {
+    public func loadPersistedLightingEffect(device: MouseDevice) -> PersistedLightingEffectPreference? {
         let key = "lightingEffect.\(DevicePersistenceKeys.key(for: device))"
         let legacyKey = "lightingEffect.\(DevicePersistenceKeys.legacyKey(for: device))"
         let data = defaults.data(forKey: key) ?? defaults.data(forKey: legacyKey)
@@ -245,7 +259,12 @@ public final class DevicePreferenceStore: @unchecked Sendable {
             g: max(0, min(255, values[1])),
             b: max(0, min(255, values[2]))
         )
-        return (kind: kind, waveDirection: direction, reactiveSpeed: speed, secondaryColor: color)
+        return PersistedLightingEffectPreference(
+            kind: kind,
+            waveDirection: direction,
+            reactiveSpeed: speed,
+            secondaryColor: color
+        )
     }
 
     public func persistSoftwareLightingApplyOnConnect(_ enabled: Bool, device: MouseDevice) {

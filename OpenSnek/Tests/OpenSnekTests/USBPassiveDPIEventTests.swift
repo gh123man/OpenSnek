@@ -1,6 +1,7 @@
 import Foundation
 import XCTest
 import OpenSnekCore
+import OpenSnekProtocols
 @testable import OpenSnekHardware
 @testable import OpenSnek
 
@@ -135,17 +136,17 @@ final class USBPassiveDPIEventTests: XCTestCase {
             observedDeviceIDs: ["bt-device:bluetooth", "usb-device"],
             previousTargetIDsByDeviceID: [
                 "bt-device:bluetooth": ["bt-a"],
-                "usb-device": ["usb-a", "usb-b"],
+                "usb-device": ["usb-a", "usb-b"]
             ],
             nextTargetIDsByDeviceID: [
                 "bt-device:bluetooth": ["bt-b"],
-                "usb-device": ["usb-c", "usb-d"],
+                "usb-device": ["usb-c", "usb-d"]
             ]
         )
         let removed = BridgeClient.reconciledObservedPassiveDpiDeviceIDs(
             observedDeviceIDs: ["bt-device:bluetooth"],
             previousTargetIDsByDeviceID: [
-                "bt-device:bluetooth": ["bt-a"],
+                "bt-device:bluetooth": ["bt-a"]
             ],
             nextTargetIDsByDeviceID: [:]
         )
@@ -252,62 +253,74 @@ final class USBPassiveDPIEventTests: XCTestCase {
 
         XCTAssertTrue(
             AppStateDeviceController.shouldDelayBluetoothRealtimeStateRefresh(
-                transport: .bluetooth,
-                transportStatus: .realTimeHID,
-                lastHeartbeatAt: now.addingTimeInterval(-0.2),
-                lastFullStateRefreshStartedAt: now.addingTimeInterval(-1.9),
-                minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
-                now: now
+                AppStateDeviceController.BluetoothRealtimeRefreshDelayContext(
+                    transport: .bluetooth,
+                    transportStatus: .realTimeHID,
+                    lastHeartbeatAt: now.addingTimeInterval(-0.2),
+                    lastFullStateRefreshStartedAt: now.addingTimeInterval(-1.9),
+                    minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
+                    now: now
+                )
             )
         )
         XCTAssertTrue(
             AppStateDeviceController.shouldDelayBluetoothRealtimeStateRefresh(
-                transport: .bluetooth,
-                transportStatus: .streamActive,
-                lastHeartbeatAt: now.addingTimeInterval(-0.2),
-                lastFullStateRefreshStartedAt: now.addingTimeInterval(-1.9),
-                minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
-                now: now
+                AppStateDeviceController.BluetoothRealtimeRefreshDelayContext(
+                    transport: .bluetooth,
+                    transportStatus: .streamActive,
+                    lastHeartbeatAt: now.addingTimeInterval(-0.2),
+                    lastFullStateRefreshStartedAt: now.addingTimeInterval(-1.9),
+                    minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
+                    now: now
+                )
             )
         )
         XCTAssertFalse(
             AppStateDeviceController.shouldDelayBluetoothRealtimeStateRefresh(
-                transport: .bluetooth,
-                transportStatus: .realTimeHID,
-                lastHeartbeatAt: now.addingTimeInterval(-1.0),
-                lastFullStateRefreshStartedAt: now.addingTimeInterval(-1.9),
-                minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
-                now: now
+                AppStateDeviceController.BluetoothRealtimeRefreshDelayContext(
+                    transport: .bluetooth,
+                    transportStatus: .realTimeHID,
+                    lastHeartbeatAt: now.addingTimeInterval(-1.0),
+                    lastFullStateRefreshStartedAt: now.addingTimeInterval(-1.9),
+                    minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
+                    now: now
+                )
             )
         )
         XCTAssertFalse(
             AppStateDeviceController.shouldDelayBluetoothRealtimeStateRefresh(
-                transport: .bluetooth,
-                transportStatus: .realTimeHID,
-                lastHeartbeatAt: now.addingTimeInterval(-0.2),
-                lastFullStateRefreshStartedAt: now.addingTimeInterval(-2.0),
-                minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
-                now: now
+                AppStateDeviceController.BluetoothRealtimeRefreshDelayContext(
+                    transport: .bluetooth,
+                    transportStatus: .realTimeHID,
+                    lastHeartbeatAt: now.addingTimeInterval(-0.2),
+                    lastFullStateRefreshStartedAt: now.addingTimeInterval(-2.0),
+                    minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
+                    now: now
+                )
             )
         )
         XCTAssertFalse(
             AppStateDeviceController.shouldDelayBluetoothRealtimeStateRefresh(
-                transport: .bluetooth,
-                transportStatus: .pollingFallback,
-                lastHeartbeatAt: now.addingTimeInterval(-0.2),
-                lastFullStateRefreshStartedAt: now.addingTimeInterval(-1.9),
-                minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
-                now: now
+                AppStateDeviceController.BluetoothRealtimeRefreshDelayContext(
+                    transport: .bluetooth,
+                    transportStatus: .pollingFallback,
+                    lastHeartbeatAt: now.addingTimeInterval(-0.2),
+                    lastFullStateRefreshStartedAt: now.addingTimeInterval(-1.9),
+                    minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
+                    now: now
+                )
             )
         )
         XCTAssertFalse(
             AppStateDeviceController.shouldDelayBluetoothRealtimeStateRefresh(
-                transport: .usb,
-                transportStatus: .realTimeHID,
-                lastHeartbeatAt: now.addingTimeInterval(-0.2),
-                lastFullStateRefreshStartedAt: now.addingTimeInterval(-1.9),
-                minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
-                now: now
+                AppStateDeviceController.BluetoothRealtimeRefreshDelayContext(
+                    transport: .usb,
+                    transportStatus: .realTimeHID,
+                    lastHeartbeatAt: now.addingTimeInterval(-0.2),
+                    lastFullStateRefreshStartedAt: now.addingTimeInterval(-1.9),
+                    minimumRefreshInterval: PollingProfile.serviceInteractive.refreshStateInterval,
+                    now: now
+                )
             )
         )
     }
@@ -330,56 +343,64 @@ final class USBPassiveDPIEventTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 1_773_600_011)
 
         let staleReadAfterSilence = BridgeClient.shouldResetBluetoothPassiveObservation(
-            previousState: makePassiveTestState(
-                device: device,
-                dpiValues: [800, 900, 1000, 1100, 1200],
-                activeStage: 1,
-                dpiValue: 900
-            ),
-            active: 3,
-            values: [800, 900, 1000, 1100, 1200],
-            lastHeartbeatAt: now.addingTimeInterval(-1.6),
-            lastObservedAt: now.addingTimeInterval(-1.2),
-            now: now
+            BridgeClient.BluetoothPassiveObservationResetContext(
+                previousState: makePassiveTestState(
+                    device: device,
+                    dpiValues: [800, 900, 1000, 1100, 1200],
+                    activeStage: 1,
+                    dpiValue: 900
+                ),
+                active: 3,
+                values: [800, 900, 1000, 1100, 1200],
+                lastHeartbeatAt: now.addingTimeInterval(-1.6),
+                lastObservedAt: now.addingTimeInterval(-1.2),
+                now: now
+            )
         )
         let staleReadWithRecentEvent = BridgeClient.shouldResetBluetoothPassiveObservation(
-            previousState: makePassiveTestState(
-                device: device,
-                dpiValues: [800, 900, 1000, 1100, 1200],
-                activeStage: 1,
-                dpiValue: 900
-            ),
-            active: 3,
-            values: [800, 900, 1000, 1100, 1200],
-            lastHeartbeatAt: now.addingTimeInterval(-0.1),
-            lastObservedAt: now.addingTimeInterval(-0.1),
-            now: now
+            BridgeClient.BluetoothPassiveObservationResetContext(
+                previousState: makePassiveTestState(
+                    device: device,
+                    dpiValues: [800, 900, 1000, 1100, 1200],
+                    activeStage: 1,
+                    dpiValue: 900
+                ),
+                active: 3,
+                values: [800, 900, 1000, 1100, 1200],
+                lastHeartbeatAt: now.addingTimeInterval(-0.1),
+                lastObservedAt: now.addingTimeInterval(-0.1),
+                now: now
+            )
         )
         let staleReadWithHeartbeat = BridgeClient.shouldResetBluetoothPassiveObservation(
-            previousState: makePassiveTestState(
-                device: device,
-                dpiValues: [800, 900, 1000, 1100, 1200],
-                activeStage: 1,
-                dpiValue: 900
-            ),
-            active: 3,
-            values: [800, 900, 1000, 1100, 1200],
-            lastHeartbeatAt: now.addingTimeInterval(-0.1),
-            lastObservedAt: now.addingTimeInterval(-0.6),
-            now: now
+            BridgeClient.BluetoothPassiveObservationResetContext(
+                previousState: makePassiveTestState(
+                    device: device,
+                    dpiValues: [800, 900, 1000, 1100, 1200],
+                    activeStage: 1,
+                    dpiValue: 900
+                ),
+                active: 3,
+                values: [800, 900, 1000, 1100, 1200],
+                lastHeartbeatAt: now.addingTimeInterval(-0.1),
+                lastObservedAt: now.addingTimeInterval(-0.6),
+                now: now
+            )
         )
         let staleReadDuringRecentSilence = BridgeClient.shouldResetBluetoothPassiveObservation(
-            previousState: makePassiveTestState(
-                device: device,
-                dpiValues: [800, 900, 1000, 1100, 1200],
-                activeStage: 1,
-                dpiValue: 900
-            ),
-            active: 3,
-            values: [800, 900, 1000, 1100, 1200],
-            lastHeartbeatAt: nil,
-            lastObservedAt: now.addingTimeInterval(-0.6),
-            now: now
+            BridgeClient.BluetoothPassiveObservationResetContext(
+                previousState: makePassiveTestState(
+                    device: device,
+                    dpiValues: [800, 900, 1000, 1100, 1200],
+                    activeStage: 1,
+                    dpiValue: 900
+                ),
+                active: 3,
+                values: [800, 900, 1000, 1100, 1200],
+                lastHeartbeatAt: nil,
+                lastObservedAt: now.addingTimeInterval(-0.6),
+                now: now
+            )
         )
 
         XCTAssertFalse(staleReadAfterSilence)
@@ -400,17 +421,19 @@ final class USBPassiveDPIEventTests: XCTestCase {
         )
         XCTAssertFalse(
             BridgeClient.shouldResetBluetoothPassiveObservation(
-                previousState: makePassiveTestState(
-                    device: device,
-                    dpiValues: [800, 900, 1000, 1100, 1200],
-                    activeStage: 1,
-                    dpiValue: 900
-                ),
-                active: 4,
-                values: [800, 900, 1000, 1100, 1200],
-                lastHeartbeatAt: now.addingTimeInterval(-1.4),
-                lastObservedAt: now.addingTimeInterval(-1.4),
-                now: now
+                BridgeClient.BluetoothPassiveObservationResetContext(
+                    previousState: makePassiveTestState(
+                        device: device,
+                        dpiValues: [800, 900, 1000, 1100, 1200],
+                        activeStage: 1,
+                        dpiValue: 900
+                    ),
+                    active: 4,
+                    values: [800, 900, 1000, 1100, 1200],
+                    lastHeartbeatAt: now.addingTimeInterval(-1.4),
+                    lastObservedAt: now.addingTimeInterval(-1.4),
+                    now: now
+                )
             )
         )
         XCTAssertFalse(
@@ -422,7 +445,7 @@ final class USBPassiveDPIEventTests: XCTestCase {
     }
 
     func testBluetoothExpectedReadMasksOnlyMatchingPreviousState() {
-        let expected: BridgeClient.BluetoothExpectedDpiState = (
+        let expected = BridgeClient.BluetoothExpectedDpiState(
             active: 3,
             values: [800, 900, 1000, 1100, 1200],
             pairs: [800, 900, 1000, 1100, 1200].map { DpiPair(x: $0, y: $0) },
@@ -452,7 +475,7 @@ final class USBPassiveDPIEventTests: XCTestCase {
     }
 
     func testBluetoothExpectedReadMasksPreviousActiveEvenWhenPreviousPairsDiffer() {
-        let expected: BridgeClient.BluetoothExpectedDpiState = (
+        let expected = BridgeClient.BluetoothExpectedDpiState(
             active: 3,
             values: [800, 900, 1000, 1100, 1200],
             pairs: [800, 900, 1000, 1100, 1200].map { DpiPair(x: $0, y: $0) },
@@ -463,7 +486,7 @@ final class USBPassiveDPIEventTests: XCTestCase {
                 DpiPair(x: 1100, y: 1100),
                 DpiPair(x: 1000, y: 1000),
                 DpiPair(x: 1100, y: 1100),
-                DpiPair(x: 1200, y: 1200),
+                DpiPair(x: 1200, y: 1200)
             ],
             expiresAt: Date(timeIntervalSince1970: 1_773_600_020),
             remainingMasks: 4
@@ -480,7 +503,7 @@ final class USBPassiveDPIEventTests: XCTestCase {
     }
 
     func testBluetoothExpectedReadDoesNotMaskWhenPreviousStateIsUnknown() {
-        let expected: BridgeClient.BluetoothExpectedDpiState = (
+        let expected = BridgeClient.BluetoothExpectedDpiState(
             active: 2,
             values: [800, 900, 1000, 1100, 1200],
             pairs: [800, 900, 1000, 1100, 1200].map { DpiPair(x: $0, y: $0) },
@@ -545,15 +568,15 @@ final class USBPassiveDPIEventTests: XCTestCase {
         )
     }
 
-    func testPassiveDPIParserAcceptsObservedUSBAndBluetoothFrames() {
-        let v3XUSBDescriptor = try! XCTUnwrap(
+    func testPassiveDPIParserAcceptsObservedUSBAndBluetoothFrames() throws {
+        let v3XUSBDescriptor = try XCTUnwrap(
             DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00B9, transport: .usb)?.passiveDPIInput
         )
         let v3XUSBObserved800 = PassiveDPIParser.parse(
             report: [0x05, 0x02, 0x03, 0x20, 0x03, 0x20, 0x00, 0x00],
             descriptor: v3XUSBDescriptor
         )
-        let descriptor = try! XCTUnwrap(
+        let descriptor = try XCTUnwrap(
             DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00AB, transport: .usb)?.passiveDPIInput
         )
 
@@ -573,14 +596,14 @@ final class USBPassiveDPIEventTests: XCTestCase {
             report: [0x05, 0x02, 0x04, 0x4C, 0x04, 0x4C, 0x00, 0x00],
             descriptor: descriptor
         )
-        let usb35KDescriptor = try! XCTUnwrap(
+        let usb35KDescriptor = try XCTUnwrap(
             DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00CB, transport: .usb)?.passiveDPIInput
         )
         let usb35KObserved1600 = PassiveDPIParser.parse(
             report: [0x05, 0x02, 0x06, 0x40, 0x06, 0x40, 0x00, 0x00],
             descriptor: usb35KDescriptor
         )
-        let bluetoothDescriptor = try! XCTUnwrap(
+        let bluetoothDescriptor = try XCTUnwrap(
             DeviceProfiles.resolve(vendorID: 0x068E, productID: 0x00BA, transport: .bluetooth)?.passiveDPIInput
         )
         let bluetoothDuplicatedReportID = PassiveDPIParser.parse(
@@ -591,7 +614,7 @@ final class USBPassiveDPIEventTests: XCTestCase {
             report: [0x05, 0x02, 0x03, 0x20, 0x03, 0x20, 0x00, 0x00, 0x00],
             descriptor: bluetoothDescriptor
         )
-        let bluetoothV3ProDescriptor = try! XCTUnwrap(
+        let bluetoothV3ProDescriptor = try XCTUnwrap(
             DeviceProfiles.resolve(vendorID: 0x068E, productID: 0x00AC, transport: .bluetooth)?.passiveDPIInput
         )
         let bluetoothV3ProObserved900 = PassiveDPIParser.parse(
@@ -615,8 +638,8 @@ final class USBPassiveDPIEventTests: XCTestCase {
         XCTAssertEqual(bluetoothV3ProObserved1100, PassiveDPIReading(dpiX: 1100, dpiY: 1100))
     }
 
-    func testPassiveUSBParserRejectsInvalidSubtypeAndOutOfRangeValues() {
-        let descriptor = try! XCTUnwrap(
+    func testPassiveUSBParserRejectsInvalidSubtypeAndOutOfRangeValues() throws {
+        let descriptor = try XCTUnwrap(
             DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00AB, transport: .usb)?.passiveDPIInput
         )
 
@@ -633,8 +656,8 @@ final class USBPassiveDPIEventTests: XCTestCase {
         XCTAssertNil(outOfRange)
     }
 
-    func testPassiveBluetoothParserClassifiesHeartbeatFramesSeparatelyFromDpiFrames() {
-        let descriptor = try! XCTUnwrap(
+    func testPassiveBluetoothParserClassifiesHeartbeatFramesSeparatelyFromDpiFrames() throws {
+        let descriptor = try XCTUnwrap(
             DeviceProfiles.resolve(vendorID: 0x068E, productID: 0x00BA, transport: .bluetooth)?.passiveDPIInput
         )
 
@@ -656,8 +679,8 @@ final class USBPassiveDPIEventTests: XCTestCase {
         XCTAssertEqual(other, .other)
     }
 
-    func testPassiveParserClassifiesUSBProfileSwitchReportDirectly() {
-        let usbDescriptor = try! XCTUnwrap(
+    func testPassiveParserClassifiesUSBProfileSwitchReportDirectly() throws {
+        let usbDescriptor = try XCTUnwrap(
             DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00AB, transport: .usb)?.passiveDPIInput
         )
 
@@ -670,8 +693,8 @@ final class USBPassiveDPIEventTests: XCTestCase {
         )
     }
 
-    func testPassiveParserRequiresBluetoothProfileSwitchPrelude() {
-        let bluetoothDescriptor = try! XCTUnwrap(
+    func testPassiveParserRequiresBluetoothProfileSwitchPrelude() throws {
+        let bluetoothDescriptor = try XCTUnwrap(
             DeviceProfiles.resolve(vendorID: 0x068E, productID: 0x00AC, transport: .bluetooth)?.passiveDPIInput
         )
 
@@ -834,7 +857,7 @@ final class USBPassiveDPIEventTests: XCTestCase {
         let event = PassiveDPIEvent(deviceID: device.id, dpiX: 1100, dpiY: 1100, observedAt: Date())
         let expectationFromSnapshot = BridgeClient.bluetoothPassiveDpiExpectation(
             event: event,
-            snapshot: (
+            snapshot: BLEVendorProtocol.DpiStageSnapshot(
                 active: 0,
                 count: 5,
                 slots: [800, 900, 1000, 1100, 1500],

@@ -11,16 +11,17 @@ final class RemoteServiceSnapshotTests: XCTestCase {
             device: makeSnapshotDevice(
                 id: "delta-device",
                 productName: "Delta Mouse",
-                transport: .bluetooth,
-                serial: "DELTA",
-                locationID: 9,
+                identity: SnapshotDeviceIdentity(
+                    transport: .bluetooth,
+                    serial: "DELTA",
+                    locationID: 9
+                ),
                 profile: .basiliskV3Pro
             ),
             connection: "bluetooth",
             batteryPercent: 83,
             dpiValues: [800, 1600, 2400],
-            activeStage: 1,
-            dpiValue: 1600
+            activeStage: 1
         )
         let delta = MouseState(
             device: previous.device,
@@ -66,9 +67,11 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let device = makeSnapshotDevice(
             id: "snapshot-device",
             productName: "Snapshot Mouse",
-            transport: .usb,
-            serial: "SNAPSHOT",
-            locationID: 1,
+            identity: SnapshotDeviceIdentity(
+                transport: .usb,
+                serial: "SNAPSHOT",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let state = makeSnapshotState(
@@ -76,8 +79,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
             connection: "usb",
             batteryPercent: 81,
             dpiValues: [800, 2400, 6400],
-            activeStage: 1,
-            dpiValue: 2400
+            activeStage: 1
         )
         let snapshot = SharedServiceSnapshot(
             devices: [device],
@@ -120,9 +122,11 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let device = makeSnapshotDevice(
             id: "snapshot-duplicate-device",
             productName: "Snapshot Duplicate Mouse",
-            transport: .usb,
-            serial: "SNAPSHOT-DUPLICATE",
-            locationID: 2,
+            identity: SnapshotDeviceIdentity(
+                transport: .usb,
+                serial: "SNAPSHOT-DUPLICATE",
+                locationID: 2
+            ),
             profile: .basiliskV3Pro
         )
         let state = makeSnapshotState(
@@ -130,8 +134,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
             connection: "usb",
             batteryPercent: 81,
             dpiValues: [800, 2400, 6400],
-            activeStage: 1,
-            dpiValue: 2400
+            activeStage: 1
         )
         let updatedAt = Date(timeIntervalSince1970: 1_773_320_010)
         let snapshot = SharedServiceSnapshot(
@@ -172,9 +175,11 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let device = makeSnapshotDevice(
             id: "snapshot-software-lighting-auto",
             productName: "Basilisk V3 Pro",
-            transport: .usb,
-            serial: "SNAPSHOT-SOFTWARE-LIGHTING-\(UUID().uuidString)",
-            locationID: 0x0114_0000,
+            identity: SnapshotDeviceIdentity(
+                transport: .usb,
+                serial: "SNAPSHOT-SOFTWARE-LIGHTING-\(UUID().uuidString)",
+                locationID: 0x0114_0000
+            ),
             profile: .basiliskV3Pro
         )
         clearSnapshotPreferences(for: device)
@@ -186,7 +191,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
             speed: 1.25,
             palette: [
                 RGBPatch(r: 12, g: 34, b: 56),
-                RGBPatch(r: 90, g: 120, b: 240),
+                RGBPatch(r: 90, g: 120, b: 240)
             ]
         )
         let preferenceStore = DevicePreferenceStore()
@@ -202,8 +207,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
             connection: "usb",
             batteryPercent: 81,
             dpiValues: [800, 2400, 6400],
-            activeStage: 1,
-            dpiValue: 2400
+            activeStage: 1
         )
         let snapshot = SharedServiceSnapshot(
             devices: [device],
@@ -243,9 +247,11 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let device = makeSnapshotDevice(
             id: "snapshot-usb-unavailable-latch",
             productName: "Snapshot USB Mouse",
-            transport: .usb,
-            serial: "SNAPSHOT-USB-UNAVAILABLE",
-            locationID: 1,
+            identity: SnapshotDeviceIdentity(
+                transport: .usb,
+                serial: "SNAPSHOT-USB-UNAVAILABLE",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let state = makeSnapshotState(
@@ -253,8 +259,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
             connection: "usb",
             batteryPercent: 81,
             dpiValues: [800, 2400, 6400],
-            activeStage: 1,
-            dpiValue: 2400
+            activeStage: 1
         )
 
         await MainActor.run {
@@ -292,9 +297,11 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let device = makeSnapshotDevice(
             id: "snapshot-live-dpi-device",
             productName: "Snapshot Live DPI Mouse",
-            transport: .usb,
-            serial: "SNAPSHOT-LIVE-DPI",
-            locationID: 1,
+            identity: SnapshotDeviceIdentity(
+                transport: .usb,
+                serial: "SNAPSHOT-LIVE-DPI",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let preferenceStore = DevicePreferenceStore()
@@ -306,7 +313,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
                 stagePairs: [
                     DpiPair(x: 900, y: 900),
                     DpiPair(x: 1800, y: 1800),
-                    DpiPair(x: 3600, y: 3600),
+                    DpiPair(x: 3600, y: 3600)
                 ],
                 activeStage: 3,
                 pollRate: 500,
@@ -334,16 +341,14 @@ final class RemoteServiceSnapshotTests: XCTestCase {
             connection: "usb",
             batteryPercent: 81,
             dpiValues: [800, 1600, 3200],
-            activeStage: 1,
-            dpiValue: 1600
+            activeStage: 1
         )
         let laterState = makeSnapshotState(
             device: device,
             connection: "usb",
             batteryPercent: 81,
             dpiValues: [800, 1600, 3200],
-            activeStage: 2,
-            dpiValue: 3200
+            activeStage: 2
         )
 
         await MainActor.run {
@@ -374,9 +379,11 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let device = makeSnapshotDevice(
             id: "snapshot-pending-live-dpi-device",
             productName: "Snapshot Pending Live DPI Mouse",
-            transport: .usb,
-            serial: "SNAPSHOT-PENDING-LIVE-DPI",
-            locationID: 1,
+            identity: SnapshotDeviceIdentity(
+                transport: .usb,
+                serial: "SNAPSHOT-PENDING-LIVE-DPI",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let appState = await MainActor.run {
@@ -388,16 +395,14 @@ final class RemoteServiceSnapshotTests: XCTestCase {
             connection: "usb",
             batteryPercent: 81,
             dpiValues: [800, 1600, 3200],
-            activeStage: 1,
-            dpiValue: 1600
+            activeStage: 1
         )
         let laterState = makeSnapshotState(
             device: device,
             connection: "usb",
             batteryPercent: 81,
             dpiValues: [800, 1600, 3200],
-            activeStage: 2,
-            dpiValue: 3200
+            activeStage: 2
         )
 
         await MainActor.run {
@@ -432,9 +437,11 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let device = makeSnapshotDevice(
             id: "remote-lighting-restore-device",
             productName: "Remote Lighting Mouse",
-            transport: .usb,
-            serial: "REMOTE-LIGHTING",
-            locationID: 7,
+            identity: SnapshotDeviceIdentity(
+                transport: .usb,
+                serial: "REMOTE-LIGHTING",
+                locationID: 7
+            ),
             profile: .basiliskV3Pro
         )
         let state = makeSnapshotState(
@@ -442,8 +449,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
             connection: "usb",
             batteryPercent: 78,
             dpiValues: [800, 1600, 2400],
-            activeStage: 1,
-            dpiValue: 1600
+            activeStage: 1
         )
         let backend = SnapshotRecordingRemoteBackend(device: device, state: state)
         let preferenceStore = DevicePreferenceStore()
@@ -469,9 +475,11 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let device = makeSnapshotDevice(
             id: "snapshot-remote-read-device",
             productName: "Snapshot Remote Mouse",
-            transport: .usb,
-            serial: "SNAPSHOT-READ",
-            locationID: 1,
+            identity: SnapshotDeviceIdentity(
+                transport: .usb,
+                serial: "SNAPSHOT-READ",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let state = makeSnapshotState(
@@ -479,8 +487,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
             connection: "usb",
             batteryPercent: 81,
             dpiValues: [800, 2400, 6400],
-            activeStage: 1,
-            dpiValue: 2400
+            activeStage: 1
         )
         let backend = SnapshotReadbackRemoteBackend(stateByDeviceID: [device.id: state])
         let appState = await MainActor.run {
@@ -509,9 +516,11 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let device = makeSnapshotDevice(
             id: "snapshot-button-device",
             productName: "Snapshot Button Mouse",
-            transport: .bluetooth,
-            serial: "SNAPSHOT-BTN-\(UUID().uuidString)",
-            locationID: 4,
+            identity: SnapshotDeviceIdentity(
+                transport: .bluetooth,
+                serial: "SNAPSHOT-BTN-\(UUID().uuidString)",
+                locationID: 4
+            ),
             profile: .basiliskV3XHyperspeed
         )
         DevicePreferenceStore().savePersistedButtonBindings(
@@ -538,8 +547,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
             connection: "bluetooth",
             batteryPercent: 79,
             dpiValues: [800, 1600, 3200],
-            activeStage: 1,
-            dpiValue: 1600
+            activeStage: 1
         )
         let snapshot = SharedServiceSnapshot(
             devices: [device],
@@ -568,9 +576,11 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let device = makeSnapshotDevice(
             id: "snapshot-lighting-device",
             productName: "Snapshot Lighting Mouse",
-            transport: .bluetooth,
-            serial: "SNAPSHOT-LIGHT-\(UUID().uuidString)",
-            locationID: 5,
+            identity: SnapshotDeviceIdentity(
+                transport: .bluetooth,
+                serial: "SNAPSHOT-LIGHT-\(UUID().uuidString)",
+                locationID: 5
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let persistedColor = RGBColor(r: 255, g: 255, b: 255)
@@ -588,8 +598,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
             connection: "bluetooth",
             batteryPercent: 79,
             dpiValues: [800, 1600, 3200],
-            activeStage: 1,
-            dpiValue: 1600
+            activeStage: 1
         )
         let snapshot = SharedServiceSnapshot(
             devices: [device],
@@ -619,17 +628,21 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let bluetoothDevice = makeSnapshotDevice(
             id: "bluetooth-device",
             productName: "A Bluetooth Mouse",
-            transport: .bluetooth,
-            serial: "BT",
-            locationID: 2,
+            identity: SnapshotDeviceIdentity(
+                transport: .bluetooth,
+                serial: "BT",
+                locationID: 2
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let usbDevice = makeSnapshotDevice(
             id: "usb-device",
             productName: "Z USB Mouse",
-            transport: .usb,
-            serial: "USB",
-            locationID: 1,
+            identity: SnapshotDeviceIdentity(
+                transport: .usb,
+                serial: "USB",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let initialSnapshot = SharedServiceSnapshot(
@@ -640,21 +653,19 @@ final class RemoteServiceSnapshotTests: XCTestCase {
                     connection: "bluetooth",
                     batteryPercent: 74,
                     dpiValues: [1200, 2400, 3200],
-                    activeStage: 2,
-                    dpiValue: 3200
+                    activeStage: 2
                 ),
                 usbDevice.id: makeSnapshotState(
                     device: usbDevice,
                     connection: "usb",
                     batteryPercent: 81,
                     dpiValues: [800, 2400, 6400],
-                    activeStage: 1,
-                    dpiValue: 2400
-                ),
+                    activeStage: 1
+                )
             ],
             lastUpdatedByDeviceID: [
                 bluetoothDevice.id: Date(timeIntervalSince1970: 1_773_320_010),
-                usbDevice.id: Date(timeIntervalSince1970: 1_773_320_000),
+                usbDevice.id: Date(timeIntervalSince1970: 1_773_320_000)
             ]
         )
         let laterSnapshot = SharedServiceSnapshot(
@@ -665,21 +676,19 @@ final class RemoteServiceSnapshotTests: XCTestCase {
                     connection: "bluetooth",
                     batteryPercent: 75,
                     dpiValues: [1400, 2800, 4200],
-                    activeStage: 2,
-                    dpiValue: 4200
+                    activeStage: 2
                 ),
                 usbDevice.id: makeSnapshotState(
                     device: usbDevice,
                     connection: "usb",
                     batteryPercent: 82,
                     dpiValues: [900, 1800, 3600],
-                    activeStage: 0,
-                    dpiValue: 900
-                ),
+                    activeStage: 0
+                )
             ],
             lastUpdatedByDeviceID: [
                 bluetoothDevice.id: Date(timeIntervalSince1970: 1_773_320_020),
-                usbDevice.id: Date(timeIntervalSince1970: 1_773_320_021),
+                usbDevice.id: Date(timeIntervalSince1970: 1_773_320_021)
             ]
         )
 
@@ -712,17 +721,21 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let alphaDevice = makeSnapshotDevice(
             id: "alpha-device",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "ALPHA",
-            locationID: 1,
+            identity: SnapshotDeviceIdentity(
+                transport: .usb,
+                serial: "ALPHA",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let betaDevice = makeSnapshotDevice(
             id: "beta-device",
             productName: "Beta Mouse",
-            transport: .usb,
-            serial: "BETA",
-            locationID: 2,
+            identity: SnapshotDeviceIdentity(
+                transport: .usb,
+                serial: "BETA",
+                locationID: 2
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let snapshot = SharedServiceSnapshot(
@@ -733,21 +746,19 @@ final class RemoteServiceSnapshotTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 70,
                     dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800
+                    activeStage: 0
                 ),
                 betaDevice.id: makeSnapshotState(
                     device: betaDevice,
                     connection: "usb",
                     batteryPercent: 72,
                     dpiValues: [1000, 2000, 3000],
-                    activeStage: 1,
-                    dpiValue: 2000
-                ),
+                    activeStage: 1
+                )
             ],
             lastUpdatedByDeviceID: [
                 alphaDevice.id: Date(timeIntervalSince1970: 1_700_000_000),
-                betaDevice.id: Date(),
+                betaDevice.id: Date()
             ]
         )
 
@@ -778,9 +789,11 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let device = makeSnapshotDevice(
             id: "usb-fresh-observation",
             productName: "Snapshot USB Mouse",
-            transport: .usb,
-            serial: "USB-FRESH",
-            locationID: 4,
+            identity: SnapshotDeviceIdentity(
+                transport: .usb,
+                serial: "USB-FRESH",
+                locationID: 4
+            ),
             profile: .basiliskV3Pro
         )
         let now = Date()
@@ -792,8 +805,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 80,
                     dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600
+                    activeStage: 1
                 )
             ],
             lastUpdatedByDeviceID: [
@@ -824,9 +836,11 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let device = makeSnapshotDevice(
             id: "usb-stale-observation",
             productName: "Snapshot USB Mouse",
-            transport: .usb,
-            serial: "USB-STALE",
-            locationID: 5,
+            identity: SnapshotDeviceIdentity(
+                transport: .usb,
+                serial: "USB-STALE",
+                locationID: 5
+            ),
             profile: .basiliskV3Pro
         )
         let now = Date()
@@ -838,8 +852,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 80,
                     dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600
+                    activeStage: 1
                 )
             ],
             lastUpdatedByDeviceID: [
@@ -872,9 +885,11 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let device = makeSnapshotDevice(
             id: "usb-explicit-unavailable",
             productName: "Snapshot USB Mouse",
-            transport: .usb,
-            serial: "USB-EXPLICIT-UNAVAILABLE",
-            locationID: 4,
+            identity: SnapshotDeviceIdentity(
+                transport: .usb,
+                serial: "USB-EXPLICIT-UNAVAILABLE",
+                locationID: 4
+            ),
             profile: .basiliskV3Pro
         )
         let now = Date()
@@ -886,8 +901,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 80,
                     dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600
+                    activeStage: 1
                 )
             ],
             lastUpdatedByDeviceID: [
@@ -905,8 +919,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 80,
                     dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600
+                    activeStage: 1
                 )
             ],
             lastUpdatedByDeviceID: [
@@ -951,9 +964,11 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let device = makeSnapshotDevice(
             id: "usb-explicit-unavailable-new-insert",
             productName: "Snapshot USB Mouse",
-            transport: .usb,
-            serial: "USB-EXPLICIT-UNAVAILABLE-NEW",
-            locationID: 4,
+            identity: SnapshotDeviceIdentity(
+                transport: .usb,
+                serial: "USB-EXPLICIT-UNAVAILABLE-NEW",
+                locationID: 4
+            ),
             profile: .basiliskV3Pro
         )
         let now = Date()
@@ -994,9 +1009,11 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let device = makeSnapshotDevice(
             id: "usb-healthy-cadence",
             productName: "Snapshot USB Mouse",
-            transport: .usb,
-            serial: "USB-HEALTHY",
-            locationID: 6,
+            identity: SnapshotDeviceIdentity(
+                transport: .usb,
+                serial: "USB-HEALTHY",
+                locationID: 6
+            ),
             profile: .basiliskV3Pro
         )
         let now = Date()
@@ -1008,8 +1025,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 80,
                     dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600
+                    activeStage: 1
                 )
             ],
             lastUpdatedByDeviceID: [
@@ -1040,9 +1056,11 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let device = makeSnapshotDevice(
             id: "usb-service-idle-cadence",
             productName: "Snapshot USB Mouse",
-            transport: .usb,
-            serial: "USB-SERVICE-IDLE",
-            locationID: 7,
+            identity: SnapshotDeviceIdentity(
+                transport: .usb,
+                serial: "USB-SERVICE-IDLE",
+                locationID: 7
+            ),
             profile: .basiliskV3Pro
         )
         let now = Date()
@@ -1055,8 +1073,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 80,
                     dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600
+                    activeStage: 1
                 )
             ],
             lastUpdatedByDeviceID: [
@@ -1088,9 +1105,11 @@ final class RemoteServiceSnapshotTests: XCTestCase {
         let device = makeSnapshotDevice(
             id: "bt-snapshot-stale",
             productName: "Snapshot BT Mouse",
-            transport: .bluetooth,
-            serial: "BT-SNAPSHOT",
-            locationID: 3,
+            identity: SnapshotDeviceIdentity(
+                transport: .bluetooth,
+                serial: "BT-SNAPSHOT",
+                locationID: 3
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let newerSnapshot = SharedServiceSnapshot(
@@ -1101,8 +1120,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
                     connection: "bluetooth",
                     batteryPercent: 75,
                     dpiValues: [800, 900, 1000, 1100, 1500],
-                    activeStage: 3,
-                    dpiValue: 1100
+                    activeStage: 3
                 )
             ],
             lastUpdatedByDeviceID: [
@@ -1117,8 +1135,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
                     connection: "bluetooth",
                     batteryPercent: 74,
                     dpiValues: [800, 900, 1000, 1100, 1500],
-                    activeStage: 1,
-                    dpiValue: 900
+                    activeStage: 1
                 )
             ],
             lastUpdatedByDeviceID: [
@@ -1201,8 +1218,7 @@ final class RemoteServiceSnapshotTests: XCTestCase {
             connection: "bluetooth",
             batteryPercent: 79,
             dpiValues: [1000, 2000, 3000],
-            activeStage: 2,
-            dpiValue: 3000
+            activeStage: 2
         )
         await backend.emit(
             .snapshot(
@@ -1265,33 +1281,36 @@ private func clearSnapshotPreferences(for device: MouseDevice) {
         "buttonBindings.\(key).profile1",
         "buttonBindings.\(key).profile2",
         "buttonBindings.\(legacyKey).profile1",
-        "buttonBindings.\(legacyKey).profile2",
+        "buttonBindings.\(legacyKey).profile2"
     ]
-    for storedKey in defaults.dictionaryRepresentation().keys {
-        if prefixes.contains(where: { storedKey.hasPrefix($0) }) {
-            defaults.removeObject(forKey: storedKey)
-        }
+    for storedKey in defaults.dictionaryRepresentation().keys
+    where prefixes.contains(where: { storedKey.hasPrefix($0) }) {
+        defaults.removeObject(forKey: storedKey)
     }
+}
+
+private struct SnapshotDeviceIdentity {
+    let transport: DeviceTransportKind
+    let serial: String
+    let locationID: Int
 }
 
 private func makeSnapshotDevice(
     id: String,
     productName: String,
-    transport: DeviceTransportKind,
-    serial: String,
-    locationID: Int,
+    identity: SnapshotDeviceIdentity,
     profile: DeviceProfileID
 ) -> MouseDevice {
     MouseDevice(
         id: id,
         vendor_id: 0x1532,
-        product_id: transport == .bluetooth ? 0x00BA : 0x00AB,
+        product_id: identity.transport == .bluetooth ? 0x00BA : 0x00AB,
         product_name: productName,
-        transport: transport,
+        transport: identity.transport,
         path_b64: "",
-        serial: serial,
+        serial: identity.serial,
         firmware: "1.0.0",
-        location_id: locationID,
+        location_id: identity.locationID,
         profile_id: profile,
         supports_advanced_lighting_effects: true,
         onboard_profile_count: 1
@@ -1303,10 +1322,10 @@ private func makeSnapshotState(
     connection: String,
     batteryPercent: Int,
     dpiValues: [Int],
-    activeStage: Int,
-    dpiValue: Int
+    activeStage: Int
 ) -> MouseState {
-    MouseState(
+    let dpiValue = dpiValues.indices.contains(activeStage) ? dpiValues[activeStage] : (dpiValues.first ?? 0)
+    return MouseState(
         device: DeviceSummary(
             id: device.id,
             product_name: device.product_name,

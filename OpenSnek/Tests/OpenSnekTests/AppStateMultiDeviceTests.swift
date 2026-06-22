@@ -10,9 +10,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let device = makeTestDevice(
             id: "profile-button-footnote-device",
             productName: "Profile Button Test Mouse",
-            transport: .bluetooth,
-            serial: "PROFILE-BUTTON",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .bluetooth,
+                serial: "PROFILE-BUTTON",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let backend = MultiDeviceStubBackend(
@@ -23,8 +25,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "bluetooth",
                     batteryPercent: 74,
                     dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800
+                    activeStage: 0
                 )
             ]
         )
@@ -45,17 +46,21 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let alphaDevice = makeTestDevice(
             id: "alpha-device",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "ALPHA",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "ALPHA",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let betaDevice = makeTestDevice(
             id: "beta-device",
             productName: "Beta Mouse",
-            transport: .bluetooth,
-            serial: "BETA",
-            locationID: 2,
+            identity: MultiDeviceTestIdentity(
+                transport: .bluetooth,
+                serial: "BETA",
+                locationID: 2
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let backend = MultiDeviceStubBackend(
@@ -66,17 +71,15 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 81,
                     dpiValues: [1200, 2400, 3600],
-                    activeStage: 0,
-                    dpiValue: 1200
+                    activeStage: 0
                 ),
                 betaDevice.id: makeTestState(
                     device: betaDevice,
                     connection: "bluetooth",
                     batteryPercent: 72,
                     dpiValues: [3200, 4800, 6400],
-                    activeStage: 1,
-                    dpiValue: 4800
-                ),
+                    activeStage: 1
+                )
             ]
         )
         let appState = await MainActor.run {
@@ -110,17 +113,21 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let bluetoothDevice = makeTestDevice(
             id: "bt-device",
             productName: "Alpha Mouse",
-            transport: .bluetooth,
-            serial: "BT-OK",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .bluetooth,
+                serial: "BT-OK",
+                locationID: 1
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let unavailableDongle = makeTestDevice(
             id: "usb-dongle",
             productName: "Zeta Mouse",
-            transport: .usb,
-            serial: "USB-IDLE",
-            locationID: 2,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-IDLE",
+                locationID: 2
+            ),
             profile: .basiliskV3Pro
         )
         let backend = PartiallyFailingMultiDeviceStubBackend(
@@ -131,8 +138,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "bluetooth",
                     batteryPercent: 72,
                     dpiValues: [3200, 4800, 6400],
-                    activeStage: 1,
-                    dpiValue: 4800
+                    activeStage: 1
                 )
             ],
             failingDeviceIDs: [unavailableDongle.id]
@@ -159,9 +165,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let usbDevice = makeTestDevice(
             id: "usb-selected-telemetry-unavailable",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "USB-SELECTED-TELEMETRY",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-SELECTED-TELEMETRY",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let backend = DeviceListUpdatingStubBackend(
@@ -172,8 +180,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 81,
                     dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800
+                    activeStage: 0
                 )
             ]
         )
@@ -221,9 +228,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let usbDevice = makeTestDevice(
             id: "usb-selected-telemetry-cached-sync",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "USB-SELECTED-TELEMETRY-CACHED",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-SELECTED-TELEMETRY-CACHED",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let backend = DeviceListUpdatingStubBackend(
@@ -234,8 +243,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 81,
                     dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800
+                    activeStage: 0
                 )
             ]
         )
@@ -280,9 +288,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let usbDevice = makeTestDevice(
             id: "usb-selected-cached-receiver-idle",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "USB-SELECTED-CACHED-IDLE",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-SELECTED-CACHED-IDLE",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let backend = DeviceListUpdatingStubBackend(
@@ -293,8 +303,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 81,
                     dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800
+                    activeStage: 0
                 )
             ]
         )
@@ -324,9 +333,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let usbDevice = makeTestDevice(
             id: "usb-selected-telemetry-no-cache",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "USB-SELECTED-NO-CACHE",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-SELECTED-NO-CACHE",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let backend = DeviceListUpdatingStubBackend(
@@ -337,8 +348,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 81,
                     dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800
+                    activeStage: 0
                 )
             ]
         )
@@ -377,9 +387,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let usbDevice = makeTestDevice(
             id: "usb-selected-telemetry-recovers",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "USB-SELECTED-RECOVERS",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-SELECTED-RECOVERS",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let backend = DeviceListUpdatingStubBackend(
@@ -390,8 +402,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 81,
                     dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800
+                    activeStage: 0
                 )
             ]
         )
@@ -434,9 +445,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let usbDevice = makeTestDevice(
             id: "usb-new-insert-connect-grace",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "USB-NEW-INSERT-GRACE",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-NEW-INSERT-GRACE",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let backend = DeviceListUpdatingStubBackend(
@@ -447,8 +460,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 81,
                     dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800
+                    activeStage: 0
                 )
             ]
         )
@@ -476,9 +488,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let usbDevice = makeTestDevice(
             id: "usb-selected-partial-telemetry-no-cache",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "USB-SELECTED-PARTIAL-NO-CACHE",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-SELECTED-PARTIAL-NO-CACHE",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let fullState = makeTestState(
@@ -486,8 +500,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
             connection: "usb",
             batteryPercent: 81,
             dpiValues: [800, 1600, 3200],
-            activeStage: 0,
-            dpiValue: 800
+            activeStage: 0
         )
         let partialState = MouseState(
             device: fullState.device,
@@ -540,9 +553,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let usbDevice = makeTestDevice(
             id: "usb-dongle-telemetry-backoff",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "USB-DONGLE-BACKOFF",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-DONGLE-BACKOFF",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let backend = DeviceListUpdatingStubBackend(
@@ -553,8 +568,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 81,
                     dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800
+                    activeStage: 0
                 )
             ],
             dpiUpdateTransportStatus: .realTimeHID
@@ -586,9 +600,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let usbDevice = makeTestDevice(
             id: "usb-dongle-newly-visible-telemetry-backoff",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "USB-DONGLE-NEW-BACKOFF",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-DONGLE-NEW-BACKOFF",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let backend = DeviceListUpdatingStubBackend(
@@ -599,8 +615,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 81,
                     dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800
+                    activeStage: 0
                 )
             ],
             dpiUpdateTransportStatus: .realTimeHID
@@ -631,9 +646,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let usbDevice = makeTestDevice(
             id: "usb-dongle-newly-visible-availability-backoff",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "USB-DONGLE-NEW-AVAILABILITY",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-DONGLE-NEW-AVAILABILITY",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let backend = DeviceListUpdatingStubBackend(
@@ -644,8 +661,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 81,
                     dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800
+                    activeStage: 0
                 )
             ],
             dpiUpdateTransportStatus: .realTimeHID
@@ -675,17 +691,21 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let alphaDevice = makeTestDevice(
             id: "alpha-device",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "ALPHA",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "ALPHA",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let betaDevice = makeTestDevice(
             id: "beta-device",
             productName: "Beta Mouse",
-            transport: .bluetooth,
-            serial: "BETA",
-            locationID: 2,
+            identity: MultiDeviceTestIdentity(
+                transport: .bluetooth,
+                serial: "BETA",
+                locationID: 2
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let backend = DeviceListUpdatingStubBackend(
@@ -696,8 +716,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 81,
                     dpiValues: [1200, 2400, 3600],
-                    activeStage: 0,
-                    dpiValue: 1200
+                    activeStage: 0
                 )
             ]
         )
@@ -712,8 +731,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
                 connection: "bluetooth",
                 batteryPercent: 72,
                 dpiValues: [3200, 4800, 6400],
-                activeStage: 1,
-                dpiValue: 4800
+                activeStage: 1
             ),
             for: betaDevice.id
         )
@@ -738,9 +756,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let usbDevice = makeTestDevice(
             id: "usb-dongle",
             productName: "Zeta Mouse",
-            transport: .usb,
-            serial: "USB-IDLE",
-            locationID: 2,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-IDLE",
+                locationID: 2
+            ),
             profile: .basiliskV3Pro
         )
         let initialState = makeTestState(
@@ -748,8 +768,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
             connection: "usb",
             batteryPercent: 72,
             dpiValues: [800, 900, 2000, 1100, 1200],
-            activeStage: 2,
-            dpiValue: 2000
+            activeStage: 2
         )
         let backend = DisconnectingMultiDeviceStubBackend(
             devices: [usbDevice],
@@ -783,9 +802,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let usbDevice = makeTestDevice(
             id: "usb-recovery",
             productName: "Zeta Mouse",
-            transport: .usb,
-            serial: "USB-RECOVER",
-            locationID: 2,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-RECOVER",
+                locationID: 2
+            ),
             profile: .basiliskV3Pro
         )
         let restoredState = makeTestState(
@@ -793,8 +814,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
             connection: "usb",
             batteryPercent: 72,
             dpiValues: [800, 900, 2000, 1100, 1200],
-            activeStage: 2,
-            dpiValue: 2000
+            activeStage: 2
         )
         let backend = DisconnectingMultiDeviceStubBackend(
             devices: [usbDevice],
@@ -828,9 +848,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let usbDevice = makeTestDevice(
             id: "usb-diagnostics",
             productName: "Zeta Mouse",
-            transport: .usb,
-            serial: "USB-DIAG",
-            locationID: 3,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-DIAG",
+                locationID: 3
+            ),
             profile: .basiliskV3Pro
         )
         let initialState = makeTestState(
@@ -838,8 +860,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
             connection: "usb",
             batteryPercent: 68,
             dpiValues: [800, 1600, 3200],
-            activeStage: 1,
-            dpiValue: 1600
+            activeStage: 1
         )
         let backend = DeviceListUpdatingStubBackend(
             devices: [usbDevice],
@@ -878,9 +899,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let bluetoothDevice = makeTestDevice(
             id: "bt-fallback",
             productName: "Basilisk V3 Pro",
-            transport: .bluetooth,
-            serial: "BT-FALLBACK",
-            locationID: 4,
+            identity: MultiDeviceTestIdentity(
+                transport: .bluetooth,
+                serial: "BT-FALLBACK",
+                locationID: 4
+            ),
             profile: .basiliskV3Pro
         )
         let initialState = makeTestState(
@@ -888,8 +911,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
             connection: "bluetooth",
             batteryPercent: 74,
             dpiValues: [800, 1600, 3200],
-            activeStage: 1,
-            dpiValue: 1600
+            activeStage: 1
         )
         let backend = DeviceListUpdatingStubBackend(
             devices: [bluetoothDevice],
@@ -934,9 +956,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let bluetoothDevice = makeTestDevice(
             id: "bt-warning",
             productName: "Basilisk V3 Pro",
-            transport: .bluetooth,
-            serial: "BT-WARNING",
-            locationID: 5,
+            identity: MultiDeviceTestIdentity(
+                transport: .bluetooth,
+                serial: "BT-WARNING",
+                locationID: 5
+            ),
             profile: .basiliskV3Pro
         )
         let initialState = makeTestState(
@@ -944,8 +968,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
             connection: "bluetooth",
             batteryPercent: 71,
             dpiValues: [800, 1600, 3200],
-            activeStage: 1,
-            dpiValue: 1600
+            activeStage: 1
         )
         let backend = DeviceListUpdatingStubBackend(
             devices: [bluetoothDevice],
@@ -991,9 +1014,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let bluetoothDevice = makeTestDevice(
             id: "bt-revision",
             productName: "Basilisk V3 Pro",
-            transport: .bluetooth,
-            serial: "BT-REVISION",
-            locationID: 6,
+            identity: MultiDeviceTestIdentity(
+                transport: .bluetooth,
+                serial: "BT-REVISION",
+                locationID: 6
+            ),
             profile: .basiliskV3Pro
         )
         let initialState = makeTestState(
@@ -1001,8 +1026,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
             connection: "bluetooth",
             batteryPercent: 69,
             dpiValues: [800, 1600, 3200],
-            activeStage: 1,
-            dpiValue: 1600
+            activeStage: 1
         )
         let backend = DeviceListUpdatingStubBackend(
             devices: [bluetoothDevice],
@@ -1032,9 +1056,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let usbDevice = makeTestDevice(
             id: "usb-refresh-unlocks-controls",
             productName: "Basilisk V3 Pro",
-            transport: .usb,
-            serial: "USB-UNLOCKS",
-            locationID: 7,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-UNLOCKS",
+                locationID: 7
+            ),
             profile: .basiliskV3Pro
         )
         let refreshedState = makeTestState(
@@ -1042,8 +1068,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
             connection: "usb",
             batteryPercent: 72,
             dpiValues: [800, 1600, 3200],
-            activeStage: 1,
-            dpiValue: 1600
+            activeStage: 1
         )
         let backend = DeviceListUpdatingStubBackend(
             devices: [usbDevice],
@@ -1074,9 +1099,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let bluetoothDevice = makeTestDevice(
             id: "bt-listening-fast",
             productName: "Basilisk V3 Pro",
-            transport: .bluetooth,
-            serial: "BT-LISTENING-FAST",
-            locationID: 7,
+            identity: MultiDeviceTestIdentity(
+                transport: .bluetooth,
+                serial: "BT-LISTENING-FAST",
+                locationID: 7
+            ),
             profile: .basiliskV3Pro
         )
         let initialState = makeTestState(
@@ -1084,8 +1111,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
             connection: "bluetooth",
             batteryPercent: 66,
             dpiValues: [800, 1600, 3200],
-            activeStage: 1,
-            dpiValue: 1600
+            activeStage: 1
         )
         let backend = DeviceListUpdatingStubBackend(
             devices: [bluetoothDevice],
@@ -1112,9 +1138,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let bluetoothDevice = makeTestDevice(
             id: "bt-passive-heartbeat",
             productName: "Basilisk V3 Pro",
-            transport: .bluetooth,
-            serial: "BT-PASSIVE-HEARTBEAT",
-            locationID: 8,
+            identity: MultiDeviceTestIdentity(
+                transport: .bluetooth,
+                serial: "BT-PASSIVE-HEARTBEAT",
+                locationID: 8
+            ),
             profile: .basiliskV3Pro
         )
         let initialState = makeTestState(
@@ -1122,8 +1150,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
             connection: "bluetooth",
             batteryPercent: 73,
             dpiValues: [800, 1600, 3200],
-            activeStage: 1,
-            dpiValue: 1600
+            activeStage: 1
         )
         let backend = DeviceListUpdatingStubBackend(
             devices: [bluetoothDevice],
@@ -1161,9 +1188,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let bluetoothDevice = makeTestDevice(
             id: "bt-device",
             productName: "Alpha Mouse",
-            transport: .bluetooth,
-            serial: "BT-ONE",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .bluetooth,
+                serial: "BT-ONE",
+                locationID: 1
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let backend = DeviceListUpdatingStubBackend(
@@ -1174,8 +1203,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "bluetooth",
                     batteryPercent: 72,
                     dpiValues: [800, 1600, 2400],
-                    activeStage: 1,
-                    dpiValue: 1600
+                    activeStage: 1
                 )
             ]
         )
@@ -1201,9 +1229,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let usbDevice = makeTestDevice(
             id: "usb-reconnect",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "USB-ONE",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-ONE",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let initialState = makeTestState(
@@ -1211,16 +1241,14 @@ final class AppStateMultiDeviceTests: XCTestCase {
             connection: "usb",
             batteryPercent: 81,
             dpiValues: [800, 1600, 3200],
-            activeStage: 0,
-            dpiValue: 800
+            activeStage: 0
         )
         let refreshedState = makeTestState(
             device: usbDevice,
             connection: "usb",
             batteryPercent: 81,
             dpiValues: [800, 1600, 3200],
-            activeStage: 2,
-            dpiValue: 3200
+            activeStage: 2
         )
         let backend = DeviceListUpdatingStubBackend(
             devices: [usbDevice],
@@ -1251,17 +1279,21 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let originalDevice = makeTestDevice(
             id: "usb-reconnect-original",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "USB-RECONNECT-SERIAL",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-RECONNECT-SERIAL",
+                locationID: 1
+            ),
             profile: .basiliskV335K
         )
         let replacementDevice = makeTestDevice(
             id: "usb-reconnect-replacement",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "USB-RECONNECT-SERIAL",
-            locationID: 2,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-RECONNECT-SERIAL",
+                locationID: 2
+            ),
             profile: .basiliskV335K
         )
         let originalState = makeTestState(
@@ -1269,22 +1301,20 @@ final class AppStateMultiDeviceTests: XCTestCase {
             connection: "usb",
             batteryPercent: 81,
             dpiValues: [800, 1600, 3200],
-            activeStage: 0,
-            dpiValue: 800
+            activeStage: 0
         )
         let replacementState = makeTestState(
             device: replacementDevice,
             connection: "usb",
             batteryPercent: 81,
             dpiValues: [800, 1600, 3200],
-            activeStage: 2,
-            dpiValue: 3200
+            activeStage: 2
         )
         let backend = DeviceListUpdatingStubBackend(
             devices: [originalDevice],
             stateByDeviceID: [
                 originalDevice.id: originalState,
-                replacementDevice.id: replacementState,
+                replacementDevice.id: replacementState
             ]
         )
         let appState = await MainActor.run {
@@ -1293,7 +1323,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
 
         await appState.deviceStore.refreshDevices()
         await backend.setTransientReadFailures([
-            "USB device telemetry unavailable. Feature-report interface did not return usable responses.",
+            "USB device telemetry unavailable. Feature-report interface did not return usable responses."
         ], for: replacementDevice.id)
         await backend.emitDeviceListUpdate([replacementDevice])
 
@@ -1311,9 +1341,11 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let usbDevice = makeTestDevice(
             id: "usb-lighting-reconnect",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "USB-LIGHTING-RECONNECT",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-LIGHTING-RECONNECT",
+                locationID: 1
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let persistedColor = RGBColor(r: 11, g: 22, b: 33)
@@ -1330,8 +1362,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 81,
                     dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800
+                    activeStage: 0
                 )
             ]
         )
@@ -1369,17 +1400,21 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let alphaDevice = makeTestDevice(
             id: "alpha-selected",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "ALPHA-SELECTED",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "ALPHA-SELECTED",
+                locationID: 1
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let betaDevice = makeTestDevice(
             id: "beta-restore",
             productName: "Beta Mouse",
-            transport: .usb,
-            serial: "BETA-RESTORE",
-            locationID: 2,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "BETA-RESTORE",
+                locationID: 2
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let persistedColor = RGBColor(r: 21, g: 31, b: 41)
@@ -1399,16 +1434,14 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 81,
                     dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800
+                    activeStage: 0
                 ),
                 betaDevice.id: makeTestState(
                     device: betaDevice,
                     connection: "usb",
                     batteryPercent: 79,
                     dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600
+                    activeStage: 1
                 )
             ]
         )
@@ -1447,17 +1480,21 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let usbDevice = makeTestDevice(
             id: "usb-recovery",
             productName: "Shared Mouse",
-            transport: .usb,
-            serial: "MATCHED-DEVICE",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "MATCHED-DEVICE",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let bluetoothDevice = makeTestDevice(
             id: "bt-recovery",
             productName: "Shared Mouse",
-            transport: .bluetooth,
-            serial: "MATCHED-DEVICE",
-            locationID: 2,
+            identity: MultiDeviceTestIdentity(
+                transport: .bluetooth,
+                serial: "MATCHED-DEVICE",
+                locationID: 2
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let bluetoothState = makeTestState(
@@ -1465,8 +1502,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
             connection: "bluetooth",
             batteryPercent: 74,
             dpiValues: [1200, 2400, 3600],
-            activeStage: 1,
-            dpiValue: 2400
+            activeStage: 1
         )
         let backend = DeviceListUpdatingStubBackend(
             devices: [usbDevice],
@@ -1499,17 +1535,21 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let usbDevice = makeTestDevice(
             id: "usb-unrelated",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "USB-ONLY",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-ONLY",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let bluetoothDevice = makeTestDevice(
             id: "bt-unrelated",
             productName: "Beta Mouse",
-            transport: .bluetooth,
-            serial: "BT-ONLY",
-            locationID: 2,
+            identity: MultiDeviceTestIdentity(
+                transport: .bluetooth,
+                serial: "BT-ONLY",
+                locationID: 2
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let bluetoothState = makeTestState(
@@ -1517,8 +1557,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
             connection: "bluetooth",
             batteryPercent: 74,
             dpiValues: [1200, 2400, 3600],
-            activeStage: 1,
-            dpiValue: 2400
+            activeStage: 1
         )
         let backend = DeviceListUpdatingStubBackend(
             devices: [usbDevice],
@@ -1557,17 +1596,21 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let alphaDevice = makeTestDevice(
             id: "alpha-device",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "ALPHA",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "ALPHA",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let betaDevice = makeTestDevice(
             id: "beta-device",
             productName: "Beta Mouse",
-            transport: .usb,
-            serial: "BETA",
-            locationID: 2,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "BETA",
+                locationID: 2
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let now = Date(timeIntervalSince1970: 1_773_400_000)
@@ -1609,17 +1652,21 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let alphaDevice = makeTestDevice(
             id: "alpha-device",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "ALPHA",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "ALPHA",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let betaDevice = makeTestDevice(
             id: "beta-device",
             productName: "Beta Mouse",
-            transport: .usb,
-            serial: "BETA",
-            locationID: 2,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "BETA",
+                locationID: 2
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let now = Date(timeIntervalSince1970: 1_773_400_050)
@@ -1655,17 +1702,21 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let alphaDevice = makeTestDevice(
             id: "alpha-device",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "ALPHA",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "ALPHA",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let betaDevice = makeTestDevice(
             id: "beta-device",
             productName: "Beta Mouse",
-            transport: .usb,
-            serial: "BETA",
-            locationID: 2,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "BETA",
+                locationID: 2
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let now = Date(timeIntervalSince1970: 1_773_400_100)
@@ -1691,17 +1742,21 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let alphaDevice = makeTestDevice(
             id: "alpha-device",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "ALPHA",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "ALPHA",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let betaDevice = makeTestDevice(
             id: "beta-device",
             productName: "Beta Mouse",
-            transport: .bluetooth,
-            serial: "BETA",
-            locationID: 2,
+            identity: MultiDeviceTestIdentity(
+                transport: .bluetooth,
+                serial: "BETA",
+                locationID: 2
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let backend = MultiDeviceStubBackend(
@@ -1712,17 +1767,15 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 81,
                     dpiValues: [1200, 2400, 3600],
-                    activeStage: 0,
-                    dpiValue: 1200
+                    activeStage: 0
                 ),
                 betaDevice.id: makeTestState(
                     device: betaDevice,
                     connection: "bluetooth",
                     batteryPercent: 72,
                     dpiValues: [3200, 4800, 6400],
-                    activeStage: 1,
-                    dpiValue: 4800
-                ),
+                    activeStage: 1
+                )
             ]
         )
         let appState = await MainActor.run {
@@ -1742,17 +1795,21 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let alphaDevice = makeTestDevice(
             id: "alpha-device",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "ALPHA",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "ALPHA",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let betaDevice = makeTestDevice(
             id: "beta-device",
             productName: "Beta Mouse",
-            transport: .bluetooth,
-            serial: "BETA",
-            locationID: 2,
+            identity: MultiDeviceTestIdentity(
+                transport: .bluetooth,
+                serial: "BETA",
+                locationID: 2
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let backend = MultiDeviceStubBackend(
@@ -1763,17 +1820,15 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 81,
                     dpiValues: [1200, 2400, 3600],
-                    activeStage: 0,
-                    dpiValue: 1200
+                    activeStage: 0
                 ),
                 betaDevice.id: makeTestState(
                     device: betaDevice,
                     connection: "bluetooth",
                     batteryPercent: 72,
                     dpiValues: [3200, 4800, 6400],
-                    activeStage: 1,
-                    dpiValue: 4800
-                ),
+                    activeStage: 1
+                )
             ]
         )
         let appState = await MainActor.run {
@@ -1797,17 +1852,21 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let alphaDevice = makeTestDevice(
             id: "alpha-device",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "ALPHA",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "ALPHA",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let betaDevice = makeTestDevice(
             id: "beta-device",
             productName: "Beta Mouse",
-            transport: .bluetooth,
-            serial: "BETA",
-            locationID: 2,
+            identity: MultiDeviceTestIdentity(
+                transport: .bluetooth,
+                serial: "BETA",
+                locationID: 2
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let backend = MultiDeviceStubBackend(
@@ -1818,17 +1877,15 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 81,
                     dpiValues: [1200, 2400, 3600],
-                    activeStage: 0,
-                    dpiValue: 1200
+                    activeStage: 0
                 ),
                 betaDevice.id: makeTestState(
                     device: betaDevice,
                     connection: "bluetooth",
                     batteryPercent: 72,
                     dpiValues: [3200, 4800, 6400],
-                    activeStage: 1,
-                    dpiValue: 4800
-                ),
+                    activeStage: 1
+                )
             ]
         )
         let appState = await MainActor.run {
@@ -1856,17 +1913,21 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let alphaDevice = makeTestDevice(
             id: "alpha-device",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "ALPHA",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "ALPHA",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let betaDevice = makeTestDevice(
             id: "beta-device",
             productName: "Beta Mouse",
-            transport: .bluetooth,
-            serial: "BETA",
-            locationID: 2,
+            identity: MultiDeviceTestIdentity(
+                transport: .bluetooth,
+                serial: "BETA",
+                locationID: 2
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let backend = MultiDeviceStubBackend(
@@ -1877,17 +1938,15 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 81,
                     dpiValues: [1200, 2400, 3600],
-                    activeStage: 0,
-                    dpiValue: 1200
+                    activeStage: 0
                 ),
                 betaDevice.id: makeTestState(
                     device: betaDevice,
                     connection: "bluetooth",
                     batteryPercent: 72,
                     dpiValues: [3200, 4800, 6400],
-                    activeStage: 1,
-                    dpiValue: 4800
-                ),
+                    activeStage: 1
+                )
             ]
         )
         let appState = await MainActor.run {
@@ -1911,17 +1970,21 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let usbDevice = makeTestDevice(
             id: "usb-shared",
             productName: "Shared Mouse",
-            transport: .usb,
-            serial: "MATCHED-DEVICE",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "MATCHED-DEVICE",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let bluetoothDevice = makeTestDevice(
             id: "bt-shared",
             productName: "Shared Mouse",
-            transport: .bluetooth,
-            serial: "MATCHED-DEVICE",
-            locationID: 2,
+            identity: MultiDeviceTestIdentity(
+                transport: .bluetooth,
+                serial: "MATCHED-DEVICE",
+                locationID: 2
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let backend = MultiDeviceStubBackend(
@@ -1932,8 +1995,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "bluetooth",
                     batteryPercent: 74,
                     dpiValues: [1200, 2400, 3600],
-                    activeStage: 1,
-                    dpiValue: 2400
+                    activeStage: 1
                 )
             ]
         )
@@ -1958,17 +2020,21 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let usbDevice = makeTestDevice(
             id: "usb-shared",
             productName: "Shared Mouse",
-            transport: .usb,
-            serial: "MATCHED-DEVICE",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "MATCHED-DEVICE",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let bluetoothDevice = makeTestDevice(
             id: "bt-shared",
             productName: "Shared Mouse",
-            transport: .bluetooth,
-            serial: "MATCHED-DEVICE",
-            locationID: 2,
+            identity: MultiDeviceTestIdentity(
+                transport: .bluetooth,
+                serial: "MATCHED-DEVICE",
+                locationID: 2
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let backend = MultiDeviceStubBackend(
@@ -1979,8 +2045,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "bluetooth",
                     batteryPercent: 74,
                     dpiValues: [1200, 2400, 3600],
-                    activeStage: 1,
-                    dpiValue: 2400
+                    activeStage: 1
                 )
             ]
         )
@@ -2005,17 +2070,21 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let alphaDevice = makeTestDevice(
             id: "alpha-device",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "ALPHA",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "ALPHA",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let betaDevice = makeTestDevice(
             id: "beta-device",
             productName: "Beta Mouse",
-            transport: .usb,
-            serial: "BETA",
-            locationID: 2,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "BETA",
+                locationID: 2
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let backend = MultiDeviceStubBackend(
@@ -2026,17 +2095,15 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 81,
                     dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800
+                    activeStage: 0
                 ),
                 betaDevice.id: makeTestState(
                     device: betaDevice,
                     connection: "usb",
                     batteryPercent: 77,
                     dpiValues: [1000, 2000, 3000],
-                    activeStage: 0,
-                    dpiValue: 1000
-                ),
+                    activeStage: 0
+                )
             ]
         )
         let appState = await MainActor.run {
@@ -2054,8 +2121,7 @@ final class AppStateMultiDeviceTests: XCTestCase {
                 connection: "usb",
                 batteryPercent: 77,
                 dpiValues: [1800, 3600, 5400],
-                activeStage: 1,
-                dpiValue: 3600
+                activeStage: 1
             ),
             for: betaDevice.id
         )
@@ -2075,17 +2141,21 @@ final class AppStateMultiDeviceTests: XCTestCase {
         let alphaDevice = makeTestDevice(
             id: "alpha-device",
             productName: "Alpha Mouse",
-            transport: .usb,
-            serial: "ALPHA",
-            locationID: 1,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "ALPHA",
+                locationID: 1
+            ),
             profile: .basiliskV3Pro
         )
         let betaDevice = makeTestDevice(
             id: "beta-device",
             productName: "Beta Mouse",
-            transport: .usb,
-            serial: "BETA",
-            locationID: 2,
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "BETA",
+                locationID: 2
+            ),
             profile: .basiliskV3XHyperspeed
         )
         let backend = MultiDeviceStubBackend(
@@ -2096,17 +2166,15 @@ final class AppStateMultiDeviceTests: XCTestCase {
                     connection: "usb",
                     batteryPercent: 81,
                     dpiValues: [800, 1600, 2400],
-                    activeStage: 0,
-                    dpiValue: 800
+                    activeStage: 0
                 ),
                 betaDevice.id: makeTestState(
                     device: betaDevice,
                     connection: "usb",
                     batteryPercent: 77,
                     dpiValues: [1000, 2000, 3000],
-                    activeStage: 0,
-                    dpiValue: 1000
-                ),
+                    activeStage: 0
+                )
             ]
         )
         let appState = await MainActor.run {
@@ -2550,24 +2618,28 @@ private actor DeviceListUpdatingStubBackend: DeviceBackend {
     }
 }
 
+private struct MultiDeviceTestIdentity {
+    let transport: DeviceTransportKind
+    let serial: String
+    let locationID: Int
+}
+
 private func makeTestDevice(
     id: String,
     productName: String,
-    transport: DeviceTransportKind,
-    serial: String,
-    locationID: Int,
+    identity: MultiDeviceTestIdentity,
     profile: DeviceProfileID
 ) -> MouseDevice {
     MouseDevice(
         id: id,
         vendor_id: 0x1532,
-        product_id: transport == .bluetooth ? 0x00BA : 0x00AB,
+        product_id: identity.transport == .bluetooth ? 0x00BA : 0x00AB,
         product_name: productName,
-        transport: transport,
+        transport: identity.transport,
         path_b64: "",
-        serial: serial,
+        serial: identity.serial,
         firmware: "1.0.0",
-        location_id: locationID,
+        location_id: identity.locationID,
         profile_id: profile,
         supports_advanced_lighting_effects: true,
         onboard_profile_count: 1
@@ -2579,10 +2651,10 @@ private func makeTestState(
     connection: String,
     batteryPercent: Int,
     dpiValues: [Int],
-    activeStage: Int,
-    dpiValue: Int
+    activeStage: Int
 ) -> MouseState {
-    MouseState(
+    let dpiValue = dpiValues.indices.contains(activeStage) ? dpiValues[activeStage] : (dpiValues.first ?? 0)
+    return MouseState(
         device: DeviceSummary(
             id: device.id,
             product_name: device.product_name,
@@ -2615,7 +2687,7 @@ private func makeMultiDeviceSettingsSnapshot(color: OpenSnekCore.RGBColor) -> Pe
         stagePairs: [
             DpiPair(x: 900, y: 900),
             DpiPair(x: 1800, y: 1800),
-            DpiPair(x: 3600, y: 3600),
+            DpiPair(x: 3600, y: 3600)
         ],
         activeStage: 3,
         pollRate: 500,
@@ -2646,12 +2718,11 @@ private func clearMultiDeviceLightingPreferences(for device: MouseDevice) {
         "connectBehavior.\(key)",
         "connectBehavior.\(legacyKey)",
         "settingsSnapshot.\(key)",
-        "settingsSnapshot.\(legacyKey)",
+        "settingsSnapshot.\(legacyKey)"
     ]
-    for storedKey in defaults.dictionaryRepresentation().keys {
-        if prefixes.contains(where: { storedKey.hasPrefix($0) }) {
-            defaults.removeObject(forKey: storedKey)
-        }
+    for storedKey in defaults.dictionaryRepresentation().keys
+    where prefixes.contains(where: { storedKey.hasPrefix($0) }) {
+        defaults.removeObject(forKey: storedKey)
     }
 }
 

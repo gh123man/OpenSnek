@@ -75,7 +75,7 @@ final class BackgroundServiceCoordinatorTests: XCTestCase {
             in: [
                 .init(processIdentifier: 101, activationPolicy: .accessory, isActive: true, isTerminated: false),
                 .init(processIdentifier: 102, activationPolicy: .regular, isActive: false, isTerminated: false),
-                .init(processIdentifier: 103, activationPolicy: .regular, isActive: true, isTerminated: false),
+                .init(processIdentifier: 103, activationPolicy: .regular, isActive: true, isTerminated: false)
             ],
             excluding: 101
         )
@@ -88,7 +88,7 @@ final class BackgroundServiceCoordinatorTests: XCTestCase {
             in: [
                 .init(processIdentifier: 201, activationPolicy: .regular, isActive: true, isTerminated: false),
                 .init(processIdentifier: 202, activationPolicy: .regular, isActive: false, isTerminated: true),
-                .init(processIdentifier: 203, activationPolicy: .accessory, isActive: false, isTerminated: false),
+                .init(processIdentifier: 203, activationPolicy: .accessory, isActive: false, isTerminated: false)
             ],
             excluding: 201
         )
@@ -102,7 +102,7 @@ final class BackgroundServiceCoordinatorTests: XCTestCase {
                 .init(processIdentifier: 301, activationPolicy: .accessory, isActive: true, isTerminated: false),
                 .init(processIdentifier: 302, activationPolicy: .regular, isActive: true, isTerminated: false),
                 .init(processIdentifier: 303, activationPolicy: .accessory, isActive: false, isTerminated: false),
-                .init(processIdentifier: 304, activationPolicy: .regular, isActive: false, isTerminated: true),
+                .init(processIdentifier: 304, activationPolicy: .regular, isActive: false, isTerminated: true)
             ],
             excluding: 301
         )
@@ -156,7 +156,7 @@ final class BackgroundServiceCoordinatorTests: XCTestCase {
             [
                 "/Applications/OpenSnek.app/Contents/MacOS/OpenSnek",
                 "--service-mode",
-                "--login-start",
+                "--login-start"
             ]
         )
         XCTAssertEqual(plist["WorkingDirectory"] as? String, "/Applications/OpenSnek.app/Contents/MacOS")

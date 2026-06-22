@@ -35,6 +35,24 @@ final class AppStateApplyController {
         case activeStage
     }
 
+    private struct ApplyBehavior {
+        let markApplyingState: Bool
+        let shouldFocusOnActivity: Bool
+        let shouldSurfaceApplyFailure: Bool
+        let persistLightingZoneID: String
+        let clearLocalEditsOnSuccess: Bool
+        let backendApplyOptions: ApplyOptions
+    }
+
+    private struct SuccessfulApplyContext {
+        let next: MouseState
+        let targetDevice: MouseDevice
+        let applyDeviceID: String
+        let patch: DevicePatch
+        let start: Date
+        let behavior: ApplyBehavior
+    }
+
     private var applyTasks: [ApplyTaskKey: Task<Void, Never>] = [:]
     private(set) var hasPendingLocalEdits = false
     private var applyDrainTask: Task<Void, Never>?
@@ -290,7 +308,7 @@ final class AppStateApplyController {
     func applyLedColor() async {
         if let selectedDevice = deviceStore.selectedDevice,
            supportsOnboardProfileLightingEditorWrites(device: selectedDevice),
-           (editorStore.editableLightingEffect == .staticColor || !selectedDevice.supports_advanced_lighting_effects) {
+           editorStore.editableLightingEffect == .staticColor || !selectedDevice.supports_advanced_lighting_effects {
             _ = await applyOnboardProfileMutationForCurrentSelection(
                 OnboardProfileMutation(staticColorByLEDID: currentStaticOnboardProfileColors(for: selectedDevice))
             )
@@ -525,7 +543,7 @@ final class AppStateApplyController {
         allZones: Bool = false
     ) async -> Bool {
         guard supportsOnboardProfileLightingEditorWrites(device: device),
-              (editorStore.editableLightingEffect == .staticColor || !device.supports_advanced_lighting_effects) else {
+              editorStore.editableLightingEffect == .staticColor || !device.supports_advanced_lighting_effects else {
             return false
         }
         return await applyOnboardProfileMutationForCurrentSelection(
@@ -613,11 +631,14 @@ final class AppStateApplyController {
             let succeeded = await apply(
                 device: selectedDevice,
                 patch: patch,
-                markApplyingState: true,
-                shouldFocusOnActivity: true,
-                shouldSurfaceApplyFailure: true,
-                persistLightingZoneID: editorStore.editableUSBLightingZoneID,
-                clearLocalEditsOnSuccess: false
+                behavior: ApplyBehavior(
+                    markApplyingState: true,
+                    shouldFocusOnActivity: true,
+                    shouldSurfaceApplyFailure: true,
+                    persistLightingZoneID: editorStore.editableUSBLightingZoneID,
+                    clearLocalEditsOnSuccess: false,
+                    backendApplyOptions: ApplyOptions()
+                )
             )
             guard succeeded else { return }
         }
@@ -653,11 +674,14 @@ final class AppStateApplyController {
             let succeeded = await apply(
                 device: selectedDevice,
                 patch: patch,
-                markApplyingState: true,
-                shouldFocusOnActivity: false,
-                shouldSurfaceApplyFailure: true,
-                persistLightingZoneID: editorStore.editableUSBLightingZoneID,
-                clearLocalEditsOnSuccess: false
+                behavior: ApplyBehavior(
+                    markApplyingState: true,
+                    shouldFocusOnActivity: false,
+                    shouldSurfaceApplyFailure: true,
+                    persistLightingZoneID: editorStore.editableUSBLightingZoneID,
+                    clearLocalEditsOnSuccess: false,
+                    backendApplyOptions: ApplyOptions()
+                )
             )
             guard succeeded else { return }
         }
@@ -676,11 +700,14 @@ final class AppStateApplyController {
         let succeeded = await apply(
             device: selectedDevice,
             patch: patch,
-            markApplyingState: true,
-            shouldFocusOnActivity: true,
-            shouldSurfaceApplyFailure: true,
-            persistLightingZoneID: editorStore.editableUSBLightingZoneID,
-            clearLocalEditsOnSuccess: false
+            behavior: ApplyBehavior(
+                markApplyingState: true,
+                shouldFocusOnActivity: true,
+                shouldSurfaceApplyFailure: true,
+                persistLightingZoneID: editorStore.editableUSBLightingZoneID,
+                clearLocalEditsOnSuccess: false,
+                backendApplyOptions: ApplyOptions()
+            )
         )
         guard succeeded else { return }
         editorController.setLiveUSBButtonProfileOverride(editorStore.editableUSBButtonProfile, for: selectedDevice)
@@ -715,11 +742,14 @@ final class AppStateApplyController {
         let succeeded = await apply(
             device: selectedDevice,
             patch: patch,
-            markApplyingState: true,
-            shouldFocusOnActivity: true,
-            shouldSurfaceApplyFailure: true,
-            persistLightingZoneID: editorStore.editableUSBLightingZoneID,
-            clearLocalEditsOnSuccess: false
+            behavior: ApplyBehavior(
+                markApplyingState: true,
+                shouldFocusOnActivity: true,
+                shouldSurfaceApplyFailure: true,
+                persistLightingZoneID: editorStore.editableUSBLightingZoneID,
+                clearLocalEditsOnSuccess: false,
+                backendApplyOptions: ApplyOptions()
+            )
         )
         guard succeeded else { return }
 
@@ -744,11 +774,14 @@ final class AppStateApplyController {
         let succeeded = await apply(
             device: selectedDevice,
             patch: patch,
-            markApplyingState: true,
-            shouldFocusOnActivity: true,
-            shouldSurfaceApplyFailure: true,
-            persistLightingZoneID: editorStore.editableUSBLightingZoneID,
-            clearLocalEditsOnSuccess: false
+            behavior: ApplyBehavior(
+                markApplyingState: true,
+                shouldFocusOnActivity: true,
+                shouldSurfaceApplyFailure: true,
+                persistLightingZoneID: editorStore.editableUSBLightingZoneID,
+                clearLocalEditsOnSuccess: false,
+                backendApplyOptions: ApplyOptions()
+            )
         )
         guard succeeded else { return }
 
@@ -790,11 +823,14 @@ final class AppStateApplyController {
             let succeeded = await apply(
                 device: selectedDevice,
                 patch: patch,
-                markApplyingState: true,
-                shouldFocusOnActivity: true,
-                shouldSurfaceApplyFailure: true,
-                persistLightingZoneID: editorStore.editableUSBLightingZoneID,
-                clearLocalEditsOnSuccess: false
+                behavior: ApplyBehavior(
+                    markApplyingState: true,
+                    shouldFocusOnActivity: true,
+                    shouldSurfaceApplyFailure: true,
+                    persistLightingZoneID: editorStore.editableUSBLightingZoneID,
+                    clearLocalEditsOnSuccess: false,
+                    backendApplyOptions: ApplyOptions()
+                )
             )
             guard succeeded else { return }
         }
@@ -906,11 +942,14 @@ final class AppStateApplyController {
             let restoredState = await apply(
                 device: device,
                 patch: plan.patch,
-                markApplyingState: targetsSelectedDevice,
-                shouldFocusOnActivity: false,
-                shouldSurfaceApplyFailure: targetsSelectedDevice,
-                persistLightingZoneID: persistLightingZoneID,
-                clearLocalEditsOnSuccess: false
+                behavior: ApplyBehavior(
+                    markApplyingState: targetsSelectedDevice,
+                    shouldFocusOnActivity: false,
+                    shouldSurfaceApplyFailure: targetsSelectedDevice,
+                    persistLightingZoneID: persistLightingZoneID,
+                    clearLocalEditsOnSuccess: false,
+                    backendApplyOptions: ApplyOptions()
+                )
             )
             guard restoredState else { return false }
         }
@@ -932,12 +971,14 @@ final class AppStateApplyController {
                         writeDirectLayer: true
                     )
                 ),
-                markApplyingState: targetsSelectedDevice,
-                shouldFocusOnActivity: false,
-                shouldSurfaceApplyFailure: targetsSelectedDevice,
-                persistLightingZoneID: persistLightingZoneID,
-                clearLocalEditsOnSuccess: false,
-                backendApplyOptions: restoreButtonApplyOptions
+                behavior: ApplyBehavior(
+                    markApplyingState: targetsSelectedDevice,
+                    shouldFocusOnActivity: false,
+                    shouldSurfaceApplyFailure: targetsSelectedDevice,
+                    persistLightingZoneID: persistLightingZoneID,
+                    clearLocalEditsOnSuccess: false,
+                    backendApplyOptions: restoreButtonApplyOptions
+                )
             )
             guard restoredButton else { return false }
         }
@@ -975,11 +1016,14 @@ final class AppStateApplyController {
         _ = await apply(
             device: selectedDevice,
             patch: patch,
-            markApplyingState: true,
-            shouldFocusOnActivity: true,
-            shouldSurfaceApplyFailure: true,
-            persistLightingZoneID: editorStore.editableUSBLightingZoneID,
-            clearLocalEditsOnSuccess: true
+            behavior: ApplyBehavior(
+                markApplyingState: true,
+                shouldFocusOnActivity: true,
+                shouldSurfaceApplyFailure: true,
+                persistLightingZoneID: editorStore.editableUSBLightingZoneID,
+                clearLocalEditsOnSuccess: true,
+                backendApplyOptions: ApplyOptions()
+            )
         )
     }
 
@@ -987,20 +1031,15 @@ final class AppStateApplyController {
     private func apply(
         device targetDevice: MouseDevice,
         patch: DevicePatch,
-        markApplyingState: Bool,
-        shouldFocusOnActivity: Bool,
-        shouldSurfaceApplyFailure: Bool,
-        persistLightingZoneID: String,
-        clearLocalEditsOnSuccess: Bool,
-        backendApplyOptions: ApplyOptions = ApplyOptions()
+        behavior: ApplyBehavior
     ) async -> Bool {
         applyCoordinator.bumpRevision()
         AppLog.event("AppState", "apply start device=\(targetDevice.id) patch=\(patch.describe)")
-        if markApplyingState {
+        if behavior.markApplyingState {
             deviceStore.isApplying = true
         }
         defer {
-            if markApplyingState {
+            if behavior.markApplyingState {
                 deviceStore.isApplying = false
             }
         }
@@ -1014,17 +1053,17 @@ final class AppStateApplyController {
             let next = try await applyBackendState(
                 device: targetDevice,
                 patch: patch,
-                options: backendApplyOptions
+                options: behavior.backendApplyOptions
             )
             return handleSuccessfulApply(
-                next,
-                targetDevice: targetDevice,
-                applyDeviceID: applyDeviceID,
-                patch: patch,
-                start: start,
-                shouldFocusOnActivity: shouldFocusOnActivity,
-                persistLightingZoneID: persistLightingZoneID,
-                clearLocalEditsOnSuccess: clearLocalEditsOnSuccess
+                SuccessfulApplyContext(
+                    next: next,
+                    targetDevice: targetDevice,
+                    applyDeviceID: applyDeviceID,
+                    patch: patch,
+                    start: start,
+                    behavior: behavior
+                )
             )
         } catch {
             handleApplyFailure(
@@ -1032,7 +1071,7 @@ final class AppStateApplyController {
                 targetDevice: targetDevice,
                 patch: patch,
                 start: start,
-                shouldSurfaceApplyFailure: shouldSurfaceApplyFailure
+                shouldSurfaceApplyFailure: behavior.shouldSurfaceApplyFailure
             )
             return false
         }
@@ -1053,16 +1092,13 @@ final class AppStateApplyController {
         return try await environment.backend.apply(device: targetDevice, patch: patch)
     }
 
-    private func handleSuccessfulApply(
-        _ next: MouseState,
-        targetDevice: MouseDevice,
-        applyDeviceID: String,
-        patch: DevicePatch,
-        start: Date,
-        shouldFocusOnActivity: Bool,
-        persistLightingZoneID: String,
-        clearLocalEditsOnSuccess: Bool
-    ) -> Bool {
+    private func handleSuccessfulApply(_ context: SuccessfulApplyContext) -> Bool {
+        let next = context.next
+        let targetDevice = context.targetDevice
+        let applyDeviceID = context.applyDeviceID
+        let patch = context.patch
+        let start = context.start
+        let behavior = context.behavior
         guard let presentationDevice = deviceController.presentationDevice(for: targetDevice) else {
             let merged = next.merged(with: deviceController.cachedState(for: applyDeviceID))
             deviceController.storeState(merged, for: applyDeviceID, updatedAt: Date())
@@ -1075,7 +1111,7 @@ final class AppStateApplyController {
             with: deviceController.cachedState(for: presentationDeviceID) ?? deviceController.cachedState(for: applyDeviceID)
         )
         deviceController.cacheState(merged, sourceDeviceID: applyDeviceID, presentationDeviceID: presentationDeviceID)
-        if shouldFocusOnActivity {
+        if behavior.shouldFocusOnActivity {
             deviceController.focusServiceSelectionOnActivity(deviceID: presentationDeviceID)
         }
 
@@ -1083,8 +1119,8 @@ final class AppStateApplyController {
             deviceStore.state = merged
         }
 
-        let localEditsChangedDuringApply = clearLocalEditsOnSuccess && (lastLocalEditAt ?? .distantPast) > start
-        let shouldHydrateEditableState = clearLocalEditsOnSuccess && !localEditsChangedDuringApply && !applyCoordinator.hasPending
+        let localEditsChangedDuringApply = behavior.clearLocalEditsOnSuccess && (lastLocalEditAt ?? .distantPast) > start
+        let shouldHydrateEditableState = behavior.clearLocalEditsOnSuccess && !localEditsChangedDuringApply && !applyCoordinator.hasPending
         suppressFastDpiAfterSuccessfulApplyIfNeeded(
             patch: patch,
             applyDeviceID: applyDeviceID,
@@ -1105,7 +1141,7 @@ final class AppStateApplyController {
             presentationDevice: presentationDevice,
             presentationDeviceID: presentationDeviceID,
             merged: merged,
-            persistLightingZoneID: persistLightingZoneID
+            persistLightingZoneID: behavior.persistLightingZoneID
         )
 
         AppLog.event(

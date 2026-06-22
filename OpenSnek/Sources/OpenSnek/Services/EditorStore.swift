@@ -18,7 +18,7 @@ final class EditorStore {
         DpiPair(x: 1600, y: 1600),
         DpiPair(x: 3200, y: 3200),
         DpiPair(x: 6400, y: 6400),
-        DpiPair(x: 12000, y: 12000),
+        DpiPair(x: 12000, y: 12000)
     ] {
         didSet {
             guard !isSyncingEditableStageRepresentations else { return }

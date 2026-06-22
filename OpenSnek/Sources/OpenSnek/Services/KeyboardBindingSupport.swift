@@ -75,7 +75,7 @@ enum AppStateKeyboardSupport {
             option(54, ",", aliases: ["comma"], group: .punctuation),
             option(55, ".", aliases: ["period", "dot"], group: .punctuation),
             option(56, "/", aliases: ["slash", "forwardslash"], group: .punctuation),
-            option(100, "Non-US \\", aliases: ["nonusbackslash"], group: .punctuation),
+            option(100, "Non-US \\", aliases: ["nonusbackslash"], group: .punctuation)
         ]
 
         options += [
@@ -84,7 +84,7 @@ enum AppStateKeyboardSupport {
             option(42, "Delete", aliases: ["backspace"], group: .editing),
             option(43, "Tab", aliases: [], group: .editing),
             option(44, "Space", aliases: ["spacebar"], group: .editing),
-            option(57, "Caps Lock", aliases: ["caps"], group: .editing),
+            option(57, "Caps Lock", aliases: ["caps"], group: .editing)
         ]
 
         options += [
@@ -100,7 +100,7 @@ enum AppStateKeyboardSupport {
             option(79, "Right Arrow", aliases: ["rightarrow", "right"], group: .navigation),
             option(80, "Left Arrow", aliases: ["leftarrow", "left"], group: .navigation),
             option(81, "Down Arrow", aliases: ["downarrow", "down"], group: .navigation),
-            option(82, "Up Arrow", aliases: ["uparrow", "up"], group: .navigation),
+            option(82, "Up Arrow", aliases: ["uparrow", "up"], group: .navigation)
         ]
 
         options += (1...12).map { number in
@@ -128,7 +128,7 @@ enum AppStateKeyboardSupport {
             option(97, "Keypad 9", aliases: ["numpad9"], group: .keypad),
             option(98, "Keypad 0", aliases: ["numpad0"], group: .keypad),
             option(99, "Keypad .", aliases: ["keypadperiod", "numpadperiod"], group: .keypad),
-            option(103, "Keypad =", aliases: ["keypadequals", "numpadequals"], group: .keypad),
+            option(103, "Keypad =", aliases: ["keypadequals", "numpadequals"], group: .keypad)
         ]
 
         options += [
@@ -139,11 +139,11 @@ enum AppStateKeyboardSupport {
             option(228, "Right Control", aliases: ["rightctrl", "rightcontrol"], group: .modifiers),
             option(229, "Right Shift", aliases: ["rightshift"], group: .modifiers),
             option(230, "Right Option", aliases: ["rightalt", "rightoption"], group: .modifiers),
-            option(231, "Right Command", aliases: ["rightcmd", "rightcommand", "rightgui"], group: .modifiers),
+            option(231, "Right Command", aliases: ["rightcmd", "rightcommand", "rightgui"], group: .modifiers)
         ]
 
         options += [
-            option(101, "Menu", aliases: ["application", "contextmenu"], group: .system),
+            option(101, "Menu", aliases: ["application", "contextmenu"], group: .system)
         ]
 
         return options
@@ -194,7 +194,7 @@ enum AppStateKeyboardSupport {
             (0x10, "Right Control"),
             (0x20, "Right Shift"),
             (0x40, "Right Option"),
-            (0x80, "Right Command"),
+            (0x80, "Right Command")
         ]
         return ordered.compactMap { bit, label in
             bits & bit == bit ? label : nil
