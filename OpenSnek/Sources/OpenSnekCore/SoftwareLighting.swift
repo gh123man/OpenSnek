@@ -301,6 +301,22 @@ public struct USBLightingFramePatch: Codable, Hashable, Sendable {
 }
 
 public enum SoftwareLightingRenderer {
+    private struct BatteryMeterProgressAnchor {
+        let chargeFraction: Double
+        let fillFraction: Double
+    }
+
+    private static let batteryMeterLowFlashPeriod: TimeInterval = 1.0
+    private static let batteryMeterLowFlashDutyCycle = 0.5
+    private static let batteryMeterVisualMidpointFillFraction = 4.5 / 12.0
+    private static let batteryMeterProgressAnchors = [
+        BatteryMeterProgressAnchor(chargeFraction: 0.0, fillFraction: 0.0),
+        BatteryMeterProgressAnchor(chargeFraction: 0.2, fillFraction: 0.2),
+        // Hardware light-bar geometry reads 50% as centered at 4.5 of the 12 strip cells.
+        BatteryMeterProgressAnchor(chargeFraction: 0.5, fillFraction: batteryMeterVisualMidpointFillFraction),
+        BatteryMeterProgressAnchor(chargeFraction: 1.0, fillFraction: 1.0)
+    ]
+
     private struct RenderSample {
         let preset: SoftwareLightingPresetID
         let palette: [RGBPatch]
@@ -317,7 +333,13 @@ public enum SoftwareLightingRenderer {
         elapsedTime: TimeInterval,
         batteryPercent: Int? = nil
     ) -> USBLightingFramePatch {
-        let animationTime = max(0, elapsedTime) * request.speed * request.presetID.renderSpeedMultiplier
+        let renderTime = max(0, elapsedTime)
+        let animationTime: TimeInterval
+        if request.presetID == .batteryMeter {
+            animationTime = renderTime
+        } else {
+            animationTime = renderTime * request.speed * request.presetID.renderSpeedMultiplier
+        }
         let colors = (0..<layout.cellCount).map { index in
             color(
                 RenderSample(
@@ -388,6 +410,7 @@ public enum SoftwareLightingRenderer {
             return batteryMeter(
                 index: sample.index,
                 count: sample.count,
+                time: sample.time,
                 batteryPercent: sample.batteryPercent,
                 intensity: sample.intensity
             )
@@ -397,6 +420,7 @@ public enum SoftwareLightingRenderer {
     private static func batteryMeter(
         index: Int,
         count: Int,
+        time: TimeInterval,
         batteryPercent: Int?,
         intensity: Double
     ) -> RGBPatch {
@@ -409,7 +433,7 @@ public enum SoftwareLightingRenderer {
         let percent = max(0, min(100, batteryPercent))
         let stripCellCount = max(1, count - stripStartIndex)
         let stripIndex = index - stripStartIndex
-        let progress = Double(percent) / 100.0 * Double(stripCellCount)
+        let progress = batteryMeterProgress(percent: percent, stripCellCount: stripCellCount)
         let fullCellCount = Int(floor(progress))
         let partialCellScale = progress - Double(fullCellCount)
 
@@ -422,13 +446,42 @@ public enum SoftwareLightingRenderer {
             color = RGBPatch(r: 255, g: 255, b: 255)
         }
 
+        if percent < 15, !batteryMeterLowFlashIsOn(time: time) {
+            return RGBPatch(r: 0, g: 0, b: 0)
+        }
+
         if stripIndex < fullCellCount {
             return scaledColor(color, scale: intensity)
         }
         if stripIndex == fullCellCount, partialCellScale > 0, fullCellCount < stripCellCount {
-            return scaledColor(RGBPatch(r: 255, g: 255, b: 255), scale: intensity * partialCellScale)
+            return scaledColor(color, scale: intensity * partialCellScale)
         }
         return RGBPatch(r: 0, g: 0, b: 0)
+    }
+
+    private static func batteryMeterProgress(percent: Int, stripCellCount: Int) -> Double {
+        let chargeFraction = Double(percent) / 100.0
+        return batteryMeterFillFraction(chargeFraction: chargeFraction) * Double(stripCellCount)
+    }
+
+    private static func batteryMeterFillFraction(chargeFraction: Double) -> Double {
+        let clampedCharge = max(0.0, min(1.0, chargeFraction))
+        var previous = batteryMeterProgressAnchors[0]
+        for anchor in batteryMeterProgressAnchors.dropFirst() {
+            guard clampedCharge > anchor.chargeFraction else {
+                let span = anchor.chargeFraction - previous.chargeFraction
+                guard span > 0 else { return anchor.fillFraction }
+                let phase = (clampedCharge - previous.chargeFraction) / span
+                return previous.fillFraction + ((anchor.fillFraction - previous.fillFraction) * phase)
+            }
+            previous = anchor
+        }
+        return batteryMeterProgressAnchors.last?.fillFraction ?? clampedCharge
+    }
+
+    private static func batteryMeterLowFlashIsOn(time: TimeInterval) -> Bool {
+        let phase = positiveModulo(time, batteryMeterLowFlashPeriod) / batteryMeterLowFlashPeriod
+        return phase < batteryMeterLowFlashDutyCycle
     }
 
     private static func flame(

@@ -773,9 +773,11 @@ V3 Pro-only `batteryMeter`. `nightRider` sweeps one selected scanner color
 across the underglow light bar while slowly pulsing the logo and scroll wheel
 with the same color; its default palette is red and its palette is limited to
 one color.
-`batteryMeter` keeps logo and scroll wheel white, colors fully lit underglow
-strip cells by charge threshold, and brightness-scales the white boundary LED by
-fractional progress within the current cell step.
+`batteryMeter` keeps logo and scroll wheel white, colors the underglow strip by
+charge threshold, brightness-scales the boundary LED with the same threshold
+color by fractional progress within the current cell step, visually calibrates
+50% charge to four-and-a-half of the 12 underglow cells, and flashes the red
+low-battery bar below 15%.
 Normal zone-effect/static-color writes stop the active software stream;
 unrelated DPI, button, poll-rate, scroll, and power-setting writes do not.
 Preset palettes and animation speed are app/service renderer inputs only; they

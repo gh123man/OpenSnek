@@ -474,8 +474,9 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
 
     func activateOnboardProfile(device: MouseDevice, profileID: Int) async throws -> MouseState {
         let state = try await client.activateOnboardProfile(device: device, profileID: profileID)
-        cacheAndPublishState(state, for: device.id, updatedAt: Date())
-        return state
+        let merged = cacheAndPublishState(state, for: device.id, updatedAt: Date())
+        await reassertSoftwareLightingAfterProfileChange(device: device, state: merged)
+        return merged
     }
 
     func refreshActiveOnboardProfile(device: MouseDevice) async throws -> MouseState {
@@ -900,7 +901,8 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         guard let device = cachedDevices.first(where: { $0.id == event.deviceID }) else { return }
         do {
             let state = try await client.refreshActiveOnboardProfile(device: device)
-            cacheAndPublishState(state, for: event.deviceID, updatedAt: event.observedAt)
+            let merged = cacheAndPublishState(state, for: event.deviceID, updatedAt: event.observedAt)
+            await reassertSoftwareLightingAfterProfileChange(device: device, state: merged)
         } catch {
             AppLog.warning(
                 "Backend",
@@ -925,6 +927,30 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         softwareLightingStatusByDeviceID[deviceID]?.state == .running
     }
 
+    private func reassertSoftwareLightingAfterProfileChange(device: MouseDevice, state: MouseState) async {
+        do {
+            guard let status = try await softwareLightingEngine.reassertIfRunning(
+                device: device,
+                batteryPercent: state.battery_percent
+            ) else {
+                return
+            }
+            handleSoftwareLightingStatus(status)
+            let presetText = status.request?.presetID.rawValue ?? "<none>"
+            let profileText = state.active_onboard_profile.map(String.init) ?? "<nil>"
+            AppLog.debug(
+                "Backend",
+                "software lighting reasserted after profile change device=\(device.id) " +
+                    "profile=\(profileText) preset=\(presetText)"
+            )
+        } catch {
+            AppLog.warning(
+                "Backend",
+                "software lighting reassert failed after profile change device=\(device.id): \(error.localizedDescription)"
+            )
+        }
+    }
+
     private func verifyUSBReachabilityDuringSoftwareLightingIfNeeded(device: MouseDevice, now: Date) async throws {
         guard device.transport == .usb else { return }
         if let lastProbeAt = softwareLightingUSBReachabilityProbeAtByDeviceID[device.id],
@@ -947,7 +973,8 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         }
     }
 
-    private func cacheAndPublishState(_ state: MouseState, for deviceID: String, updatedAt: Date) {
+    @discardableResult
+    private func cacheAndPublishState(_ state: MouseState, for deviceID: String, updatedAt: Date) -> MouseState {
         let merged = Self.mergedApplyState(
             state,
             previous: cachedStateByDeviceID[deviceID] ?? reconnectSeedStateByDeviceID[deviceID]
@@ -966,6 +993,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         }
         publishStateUpdate(.deviceState(deviceID: deviceID, state: merged, updatedAt: updatedAt))
         publishSnapshotIfService()
+        return merged
     }
 
     private func updateSoftwareLightingBatteryPercent(deviceID: String, from state: MouseState) {
