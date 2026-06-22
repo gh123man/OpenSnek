@@ -31,4 +31,23 @@ final class KeyboardBindingSupportTests: XCTestCase {
             "Command + ["
         )
     }
+
+    func testFuzzySearchMatchesAliasesAndSubsequences() {
+        XCTAssertEqual(AppStateKeyboardSupport.filteredKeyOptions(matching: "pgdn").first?.label, "Page Down")
+        XCTAssertEqual(AppStateKeyboardSupport.filteredKeyOptions(matching: "cmd").first?.label, "Left Command")
+    }
+
+    func testFuzzySearchCanExcludeModifiersForChordActionKey() {
+        let tabResults = AppStateKeyboardSupport.filteredKeyOptions(matching: "tab", excludingModifiers: true)
+        XCTAssertEqual(tabResults.first?.label, "Tab")
+
+        let commandResults = AppStateKeyboardSupport.filteredKeyOptions(matching: "cmd", excludingModifiers: true)
+        XCTAssertTrue(commandResults.allSatisfy { $0.group != .modifiers })
+    }
+
+    func testModifierKeysResolveToHIDModifierBits() {
+        XCTAssertEqual(AppStateKeyboardSupport.hidModifierBit(forHidKey: 227), 0x08)
+        XCTAssertEqual(AppStateKeyboardSupport.hidModifierBit(forHidKey: 231), 0x80)
+        XCTAssertNil(AppStateKeyboardSupport.hidModifierBit(forHidKey: 43))
+    }
 }

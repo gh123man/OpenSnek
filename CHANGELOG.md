@@ -12,6 +12,7 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 - The Connect a Device screen now opens supported devices in a centered, searchable profile-backed table instead of showing the growing list inline.
+- The keybinding picker now has fuzzy search and supports building modifier chords such as Command + Tab by choosing a modifier, then an action key.
 - OpenSnek now pins its SwiftUI and AppKit surfaces to the dark appearance so system fields, controls, dynamic colors, and window chrome render consistently even when macOS is set to Light Mode.
 - The Polling Rate control now uses the same segmented picker styling as other fixed-choice device controls.
 - Advanced lighting animations now expose a persisted brightness slider alongside speed and palette controls.
