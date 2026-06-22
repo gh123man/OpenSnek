@@ -49,6 +49,40 @@ Protocol behavior changes require docs, tests, and `CHANGELOG.md` updates in the
 17. Avoid repeating multi-case conditionals across the codebase. If the same case set appears in multiple places, such as `device == foo || device == bar || device == abc`, move the rule into a helper method, enum extension, or other reusable code.
 18. Treat Swift long-function-body compiler warnings from `-warn-long-function-bodies=200` as errors. Fix them immediately by simplifying or splitting the flagged method; do not suppress or defer them.
 
+## Swift Style Defaults
+
+Write new Swift as if strict SwiftLint default rules are already enforcing it. Prefer code shape
+changes over local `swiftlint:disable` comments; only suppress a rule when the exception is
+intentional, documented, and narrower than the next-best refactor.
+
+- Keep functions and closures focused. If a method needs multiple phases, validation branches, or
+  large local setup, split it into named helpers before it grows into a lint or compiler long-body
+  problem.
+- Avoid long parameter lists and large tuples. Group related values into small request, context,
+  result, or snapshot structs with domain-specific names; reuse those types where the same shape
+  crosses module or test boundaries.
+- Prefer early `guard` exits and helper methods over deep nesting. Use `for ... where ...` when a
+  loop body only runs for matching elements.
+- Avoid force casts and force tries. In production code, use typed errors, optional binding, or
+  guarded casts. In tests, prefer `try XCTUnwrap(...)` or explicit assertions that explain the
+  expectation.
+- Do not interpolate optionals directly into strings. Unwrap first, use `map(String.init)`, or
+  provide an explicit fallback value.
+- Use meaningful identifiers by default, even while `identifier_name` is temporarily disabled.
+  Single-letter names are acceptable only for tiny local scopes where the domain is conventional,
+  such as coordinates or RGB components.
+- Keep literals and repeated case sets named. Use local constants, enums, or extensions for
+  protocol bytes, button slots, device groups, and other bounded domains.
+- Keep line wrapping readable even while `line_length` is temporarily disabled. Break long argument
+  lists, arrays, dictionaries, chained calls, and assertions across lines with trailing commas
+  omitted.
+- Let Swift format conventions carry simple control flow: no unnecessary parentheses around `if`,
+  `guard`, `while`, or `switch` conditions.
+- Before pushing Swift changes, run
+  `swift package --package-path OpenSnek plugin --allow-writing-to-package-directory swiftlint`
+  plus the focused tests for the touched area; run `swift test --package-path OpenSnek` before
+  declaring the branch ready.
+
 ## Quick Commands
 
 ```bash
