@@ -71,7 +71,6 @@ struct OpenSnekApp: App {
                 editorStore: appState.editorStore,
                 runtimeStore: appState.runtimeStore
             )
-            .openSnekFixedAppearance()
         }
         .menuBarExtraStyle(.window)
 
