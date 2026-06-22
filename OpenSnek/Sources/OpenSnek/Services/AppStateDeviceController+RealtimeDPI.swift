@@ -202,6 +202,7 @@ extension AppStateDeviceController {
         for deviceID: String,
         observedAt _: Date = Date()
     ) {
+        cancelPendingUSBControlUnavailable(for: deviceID)
         if availability == .receiverPresentMouseReachable {
             clearUSBPhysicalConnectSettling(for: deviceID)
         }
@@ -213,6 +214,90 @@ extension AppStateDeviceController {
             "usbControlAvailability device=\(deviceID) previous=\(previous?.rawValue ?? "nil") next=\(availability.rawValue)"
         )
         deviceStore.invalidateConnectionDiagnostics()
+    }
+
+    @discardableResult
+    func setBackendObservedUSBControlAvailability(
+        _ availability: USBControlAvailability,
+        for deviceID: String,
+        observedAt: Date
+    ) -> Bool {
+        if shouldDropStaleUSBControlUnavailable(availability, for: deviceID, observedAt: observedAt) {
+            AppLog.debug(
+                "AppState",
+                "usbControlAvailability stale-drop device=\(deviceID) availability=\(availability.rawValue)"
+            )
+            return false
+        }
+
+        if shouldDebounceUSBControlUnavailable(availability, for: deviceID) {
+            schedulePendingUSBControlUnavailable(for: deviceID, observedAt: observedAt)
+            return false
+        }
+
+        setUSBControlAvailability(availability, for: deviceID, observedAt: observedAt)
+        return true
+    }
+
+    func shouldDropStaleUSBControlUnavailable(
+        _ availability: USBControlAvailability,
+        for deviceID: String,
+        observedAt: Date
+    ) -> Bool {
+        guard availability == .receiverPresentMouseUnavailable else { return false }
+        guard let latestUSBObservationAt = latestUSBLiveObservationAt(for: deviceID) else { return false }
+        return observedAt < latestUSBObservationAt
+    }
+
+    func shouldDebounceUSBControlUnavailable(_ availability: USBControlAvailability, for deviceID: String) -> Bool {
+        guard availability == .receiverPresentMouseUnavailable else { return false }
+        guard usbControlAvailabilityByDeviceID[deviceID] != .receiverPresentMouseUnavailable else { return false }
+        guard let device = usbControlAvailabilityDevice(for: deviceID) else { return false }
+        return shouldTreatActivePassiveHIDAsConnected(device: device, now: Date())
+    }
+
+    func schedulePendingUSBControlUnavailable(for deviceID: String, observedAt: Date) {
+        pendingUSBControlUnavailableTasksByDeviceID[deviceID]?.cancel()
+        // USB feature-report probes can fail once while fast DPI or passive HID
+        // still proves the mouse is alive; wait briefly before changing UI state.
+        pendingUSBControlUnavailableTasksByDeviceID[deviceID] = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(
+                    nanoseconds: UInt64(Self.usbControlUnavailableDebounceInterval * 1_000_000_000)
+                )
+            } catch {
+                return
+            }
+            guard let self, !self.isTearingDown else { return }
+            self.pendingUSBControlUnavailableTasksByDeviceID.removeValue(forKey: deviceID)
+            guard !self.shouldDropStaleUSBControlUnavailable(
+                .receiverPresentMouseUnavailable,
+                for: deviceID,
+                observedAt: observedAt
+            ) else {
+                AppLog.debug("AppState", "usbControlAvailability pending stale-drop device=\(deviceID)")
+                return
+            }
+            self.setUSBControlAvailability(
+                .receiverPresentMouseUnavailable,
+                for: deviceID,
+                observedAt: observedAt
+            )
+        }
+    }
+
+    func cancelPendingUSBControlUnavailable(for deviceID: String) {
+        pendingUSBControlUnavailableTasksByDeviceID.removeValue(forKey: deviceID)?.cancel()
+    }
+
+    func usbControlAvailabilityDevice(for deviceID: String) -> MouseDevice? {
+        if let device = deviceStore.devices.first(where: { $0.id == deviceID }) {
+            return device
+        }
+        if deviceStore.selectedDeviceID == deviceID {
+            return deviceStore.selectedDevice
+        }
+        return nil
     }
 
     func armUSBPhysicalConnectSettling(
@@ -334,9 +419,13 @@ extension AppStateDeviceController {
     }
 
     func latestUSBLiveObservationAt(for device: MouseDevice) -> Date? {
+        latestUSBLiveObservationAt(for: device.id)
+    }
+
+    func latestUSBLiveObservationAt(for deviceID: String) -> Date? {
         [
-            lastPassiveHeartbeatAtByDeviceID[device.id],
-            lastUSBFastDpiAtByDeviceID[device.id]
+            lastPassiveHeartbeatAtByDeviceID[deviceID],
+            lastUSBFastDpiAtByDeviceID[deviceID]
         ].compactMap { $0 }.max()
     }
 
