@@ -9,7 +9,8 @@ Usage:
   cut_release.sh --version <semver> [--skip-tests]
 
 Options:
-  --version <semver>   Release version without leading v (required)
+  --version <semver>   Release version without leading v (required).
+                       Use a prerelease suffix for beta builds, e.g. 1.2.3-beta.1.
   --skip-tests         Skip swift test preflight
   -h, --help           Show this help
 USAGE
@@ -46,10 +47,24 @@ if [[ -z "$VERSION" ]]; then
   exit 1
 fi
 
+if [[ "$VERSION" == v* || "$VERSION" == V* ]]; then
+  echo "Version must be bare semver without a leading v: $VERSION" >&2
+  exit 1
+fi
+
+if [[ ! "$VERSION" =~ ^[0-9]+(\.[0-9]+){2}(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$ ]]; then
+  echo "Expected semantic version like 1.2.3 or 1.2.3-beta.1, got: $VERSION" >&2
+  exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$PACKAGE_DIR/.." && pwd)"
 TAG="v$VERSION"
+RELEASE_KIND="release"
+if [[ "$VERSION" == *-* ]]; then
+  RELEASE_KIND="pre-release"
+fi
 
 if [[ -n "$(git -C "$REPO_ROOT" status --short)" ]]; then
   echo "Working tree must be clean before cutting a release." >&2
@@ -73,4 +88,4 @@ git -C "$REPO_ROOT" tag -a "$TAG" -m "OpenSnek $VERSION"
 git -C "$REPO_ROOT" push origin main
 git -C "$REPO_ROOT" push origin "$TAG"
 
-echo "Pushed $TAG from main."
+echo "Pushed $TAG from main. GitHub Actions will publish a $RELEASE_KIND."

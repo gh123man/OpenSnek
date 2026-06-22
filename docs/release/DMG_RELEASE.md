@@ -92,11 +92,19 @@ Preferred release entrypoint:
 ./OpenSnek/scripts/cut_release.sh --version <version>
 ```
 
+Beta release entrypoint:
+
+```bash
+./OpenSnek/scripts/cut_release.sh --version <version>-beta.1
+```
+
 That script:
 - fetches and fast-forwards `main`
 - runs `swift test --package-path OpenSnek`
 - creates an annotated `v<version>` tag
 - pushes `main` and the tag
+
+Versions with a prerelease suffix, such as `1.2.0-beta.1`, are published by the GitHub Actions workflow as GitHub prereleases with `latest=false`. OpenSnek checks GitHub's latest full release endpoint for update banners, so beta prereleases do not prompt existing stable users to update.
 
 The GitHub Actions workflow can also be triggered manually by pushing a version tag:
 
@@ -115,6 +123,7 @@ The workflow will:
 6. create a styled drag-install DMG, then sign, notarize, and staple it
 7. publish the latest top section from `CHANGELOG.md` as the GitHub Release notes
 8. upload `OpenSnek-<version>.dmg` to the matching GitHub Release
+9. mark prerelease-suffix tags as GitHub prereleases instead of latest full releases
 
 ## Project generation check
 

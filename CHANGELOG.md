@@ -18,6 +18,7 @@ All notable changes to this project are documented in this file.
 - Active Advanced software-lighting effects are now reasserted after onboard profile switches so the volatile frame stream keeps driving the device.
 - Battery Meter progress is now visually calibrated so 50% lands at four-and-a-half underglow cells instead of filling half the physical cell count.
 - V3-family USB software lighting now streams the full 14-cell Custom Frame range so the tail LEDs are addressed directly on every shared scroll/logo/underglow profile.
+- Release automation now treats semver prerelease tags such as `v1.2.0-beta.1` as GitHub prereleases with `latest=false`, allowing beta DMGs to ship without triggering stable update banners.
 
 ### Fixed
 - Generated Xcode `OpenSnekProbe` builds no longer pass `-parse-as-library`, allowing the probe's top-level async entrypoint to compile.
