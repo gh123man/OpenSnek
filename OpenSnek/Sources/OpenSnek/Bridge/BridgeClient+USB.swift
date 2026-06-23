@@ -5,6 +5,11 @@ import OpenSnekHardware
 import OpenSnekProtocols
 
 extension BridgeClient {
+    enum USBDPIStageDeclaredCountMode {
+        case logical
+        case fixedRowCount
+    }
+
     struct USBRawButtonBindingWrite {
         let profile: UInt8
         let slot: UInt8
@@ -397,7 +402,7 @@ extension BridgeClient {
         return max(0, min(count - 1, activeRaw))
     }
 
-    func usbStageIDsForWrite(count: Int, stageIDs: [UInt8]?) -> [UInt8] {
+    nonisolated static func usbStageIDsForWrite(count: Int, stageIDs: [UInt8]?) -> [UInt8] {
         let clippedCount = DeviceProfiles.clampDpiStageCount(count)
         let defaultStageIDs = (0..<DeviceProfiles.maximumDpiStageCount).map(UInt8.init)
         var ids = Array((stageIDs ?? defaultStageIDs).prefix(clippedCount))
@@ -405,6 +410,96 @@ extension BridgeClient {
             ids.append(ids.last.map { $0 &+ 1 } ?? UInt8(ids.count))
         }
         return ids
+    }
+
+    func usbStageIDsForWrite(count: Int, stageIDs: [UInt8]?) -> [UInt8] {
+        Self.usbStageIDsForWrite(count: count, stageIDs: stageIDs)
+    }
+
+    nonisolated static func usbDPIStageWriteArgs(
+        profileID: UInt8,
+        activeStage: Int,
+        pairs: [DpiPair],
+        stageIDs: [UInt8]?,
+        device: MouseDevice,
+        declaredCountMode: USBDPIStageDeclaredCountMode = .logical
+    ) -> [UInt8]? {
+        guard !pairs.isEmpty else { return nil }
+        let logicalCount = DeviceProfiles.clampDpiStageCount(pairs.count)
+        let activeIndex = max(0, min(logicalCount - 1, activeStage))
+        let rowCount = DeviceProfiles.maximumDpiStageCount
+        let declaredCount: Int
+        switch declaredCountMode {
+        case .logical:
+            declaredCount = logicalCount
+        case .fixedRowCount:
+            declaredCount = rowCount
+        }
+        let writeStageIDs = usbStageIDsForWrite(count: rowCount, stageIDs: stageIDs)
+        guard writeStageIDs.count == rowCount else { return nil }
+
+        // The command size is always 0x26. Live/single-slot writes can declare
+        // the logical stage count, but mapped V3 Pro USB stored slots reject a
+        // reduced declaration even when the payload includes all five rows.
+        var rowPairs = Array(pairs.prefix(rowCount)).map { pair in
+            DpiPair(
+                x: DeviceProfiles.clampDPI(pair.x, device: device),
+                y: DeviceProfiles.clampDPI(pair.y, device: device)
+            )
+        }
+        while rowPairs.count < rowCount {
+            rowPairs.append(rowPairs.last ?? DpiPair(x: 800, y: 800))
+        }
+
+        var args = [UInt8](repeating: 0, count: 3 + rowCount * 7)
+        args[0] = profileID
+        args[1] = writeStageIDs[activeIndex]
+        args[2] = UInt8(declaredCount)
+        var offset = 3
+        for index in 0..<rowCount {
+            let pair = rowPairs[index]
+            args[offset] = writeStageIDs[index]
+            args[offset + 1] = UInt8((pair.x >> 8) & 0xFF)
+            args[offset + 2] = UInt8(pair.x & 0xFF)
+            args[offset + 3] = UInt8((pair.y >> 8) & 0xFF)
+            args[offset + 4] = UInt8(pair.y & 0xFF)
+            offset += 7
+        }
+        return args
+    }
+
+    nonisolated static func usbStoredProfileDPIWriteSnapshot(
+        requested dpi: OnboardDPIProfileSnapshot,
+        slotContext context: OnboardDPIProfileSnapshot?
+    ) -> OnboardDPIProfileSnapshot {
+        guard let context,
+              dpi.pairs.count < DeviceProfiles.maximumDpiStageCount,
+              context.pairs.count == DeviceProfiles.maximumDpiStageCount else {
+            return dpi
+        }
+
+        let rowCount = DeviceProfiles.maximumDpiStageCount
+        var pairs = Array(dpi.pairs.prefix(rowCount))
+        while pairs.count < rowCount {
+            pairs.append(context.pairs[pairs.count])
+        }
+        let stageIDs = context.stageIDs.isEmpty ? dpi.stageIDs : context.stageIDs
+        let contextActive = context.activeStage.map { max(0, min(rowCount - 1, $0)) }
+        let requestedActive = dpi.activeStage.map { max(0, min(max(0, dpi.pairs.count - 1), $0)) }
+        let requestedScalar = dpi.scalar ??
+            requestedActive.flatMap { dpi.pairs.indices.contains($0) ? dpi.pairs[$0] : nil }
+
+        // USB create/assign gives the slot a firmware stage table before we rewrite
+        // content. V3 Pro USB rejects reduced local profiles if that rewrite resets
+        // the stored active token, so keep the slot token and IDs while replacing the
+        // leading rows with the local profile's DPI values.
+        return OnboardDPIProfileSnapshot(
+            scalar: requestedScalar ?? pairs.first,
+            activeStage: contextActive ?? requestedActive,
+            pairs: pairs,
+            stageIDs: stageIDs,
+            marker: dpi.marker ?? context.marker
+        )
     }
 
     func setDPIStages(
@@ -415,32 +510,14 @@ extension BridgeClient {
         stagePairs: [DpiPair]? = nil,
         stageIDs: [UInt8]? = nil
     ) throws -> Bool {
-        let clippedPairs = Array(
-            (stagePairs ?? stages.map { DpiPair(x: $0, y: $0) }).prefix(DeviceProfiles.maximumDpiStageCount)
-        ).map { pair in
-            DpiPair(
-                x: DeviceProfiles.clampDPI(pair.x, device: device),
-                y: DeviceProfiles.clampDPI(pair.y, device: device)
-            )
-        }
-        guard !clippedPairs.isEmpty else { return false }
-        let activeClamped = max(0, min(clippedPairs.count - 1, activeStage))
-        let writeStageIDs = usbStageIDsForWrite(count: clippedPairs.count, stageIDs: stageIDs)
-        guard writeStageIDs.count == clippedPairs.count else { return false }
-
-        var args = [UInt8](repeating: 0, count: 3 + clippedPairs.count * 7)
-        args[0] = 0x01
-        args[1] = writeStageIDs[activeClamped]
-        args[2] = UInt8(clippedPairs.count)
-        var off = 3
-        for (i, pair) in clippedPairs.enumerated() {
-            args[off] = writeStageIDs[i]
-            args[off + 1] = UInt8((pair.x >> 8) & 0xFF)
-            args[off + 2] = UInt8(pair.x & 0xFF)
-            args[off + 3] = UInt8((pair.y >> 8) & 0xFF)
-            args[off + 4] = UInt8(pair.y & 0xFF)
-            off += 7
-        }
+        let pairs = stagePairs ?? stages.map { DpiPair(x: $0, y: $0) }
+        guard let args = Self.usbDPIStageWriteArgs(
+            profileID: 0x01,
+            activeStage: activeStage,
+            pairs: pairs,
+            stageIDs: stageIDs,
+            device: device
+        ) else { return false }
 
         guard let r = try perform(session, device, classID: 0x04, cmdID: 0x06, size: 0x26, args: args) else { return false }
         return r[0] == 0x02

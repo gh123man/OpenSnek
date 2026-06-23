@@ -86,13 +86,13 @@ struct OnboardProfilePillButton: View {
         Button(action: action) {
             OnboardProfilePillLabel(
                 profileID: activeProfileID,
-                profileName: isLoadingProfiles ? "Load Profiles" : profileName,
+                profileName: isLoadingProfiles ? "Loading profiles" : profileName,
                 isLoading: isLoadingProfiles
             )
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("onboard-profile-pill-button")
-        .accessibilityLabel(isLoadingProfiles ? "Onboard profile Load Profiles" : "Onboard profile \(profileName)")
+        .accessibilityLabel(isLoadingProfiles ? "Onboard profile Loading profiles" : "Onboard profile \(profileName)")
         .help("Manage onboard profiles")
     }
 }

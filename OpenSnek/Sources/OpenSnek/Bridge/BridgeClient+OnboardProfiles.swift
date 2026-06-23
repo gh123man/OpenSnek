@@ -138,12 +138,18 @@ extension BridgeClient {
                     profileID: target,
                     metadata: createdMetadata
                 )
+                let dpiWriteContext = try? self.usbReadOnboardProfileDPI(
+                    session,
+                    device,
+                    profileID: target
+                )
                 try self.usbApplyOnboardProfileMutation(
                     session,
                     device,
                     profile: profile,
                     profileID: target,
-                    mutation: createMutation.withoutMetadata
+                    mutation: createMutation.withoutMetadata,
+                    dpiWriteContext: dpiWriteContext
                 )
                 _ = try self.validateUSBOnboardProfileReadback(
                     device: device,
@@ -382,12 +388,18 @@ extension BridgeClient {
                     )
                     try self.usbWriteOnboardProfileMetadata(session, device, profileID: profileID, metadata: metadataForWrite)
                 }
+                let dpiWriteContext = mutation.dpi == nil ? nil : try? self.usbReadOnboardProfileDPI(
+                    session,
+                    device,
+                    profileID: profileID
+                )
                 try self.usbApplyOnboardProfileMutation(
                     session,
                     device,
                     profile: profile,
                     profileID: profileID,
-                    mutation: mutation.withoutMetadata
+                    mutation: mutation.withoutMetadata,
+                    dpiWriteContext: dpiWriteContext
                 )
                 if activeBeforeMutation == profileID {
                     _ = try self.usbWriteActiveOnboardProfileID(session, device, profileID: profileID)

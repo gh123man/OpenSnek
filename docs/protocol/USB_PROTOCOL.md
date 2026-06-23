@@ -373,6 +373,7 @@ Observed on Basilisk V3 Pro (`0x00AB`) on June 16, 2026:
 - storage `2` returned the Bluetooth-created target-`2` table `400,800,1600,3200,6400`
 - storage `3` returned the Bluetooth-recreated target-`3` table `760,960,1160,1360,1560`
 - stored-bank writes are not yet enabled in production; changed-value `0x04:0x05` / `0x04:0x06` write/readback with restore is validated on profile `5`, and those values persisted across USB reconnect. Cross-transport readback and power-cycle persistence still need guarded validation before shipping.
+- profile picker hardware validation on June 23, 2026 showed mapped stored-slot writes reject a reduced declared count such as `3` even when the fixed `0x26` payload is padded to five rows. The same validation also showed the V3 Pro USB stored-slot writer can reject a reduced-profile rewrite that resets the slot's active stage token. For V3 Pro USB stored slots, OpenSnek reads the firmware-created slot table, preserves its active token and stage IDs, writes all five rows, and declares count `5`; live/single-slot writes may still use the logical count where supported.
 
 #### Passive USB DPI Input Report (Observed on Basilisk V3 X HyperSpeed `0x00B9`, Basilisk V3 Pro `0x00AB`; matching interface tuple present on Basilisk V3 35K `0x00CB`)
 

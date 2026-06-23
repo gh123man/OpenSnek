@@ -606,10 +606,15 @@ extension BridgeClient {
         _ device: MouseDevice,
         profile: DeviceProfile,
         profileID: Int,
-        mutation: OnboardProfileMutation
+        mutation: OnboardProfileMutation,
+        dpiWriteContext: OnboardDPIProfileSnapshot? = nil
     ) throws {
         if let dpi = mutation.dpi, !dpi.pairs.isEmpty {
-            try usbWriteOnboardProfileDPIStages(session, device, profileID: profileID, dpi: dpi)
+            let dpiForWrite = Self.usbStoredProfileDPIWriteSnapshot(
+                requested: dpi,
+                slotContext: dpiWriteContext
+            )
+            try usbWriteOnboardProfileDPIStages(session, device, profileID: profileID, dpi: dpiForWrite)
             if let scalar = dpi.scalar ?? dpi.activeStage.flatMap({ active in
                 dpi.pairs.indices.contains(active) ? dpi.pairs[active] : nil
             }) {
@@ -720,24 +725,17 @@ extension BridgeClient {
         profileID: Int,
         dpi: OnboardDPIProfileSnapshot
     ) throws {
-        let count = DeviceProfiles.clampDpiStageCount(dpi.pairs.count)
-        let active = max(0, min(count - 1, dpi.activeStage ?? 0))
-        let stageIDs = usbStageIDsForWrite(count: count, stageIDs: dpi.stageIDs)
-        var args = [UInt8](repeating: 0, count: 3 + count * 7)
-        args[0] = UInt8(profileID)
-        args[1] = stageIDs[active]
-        args[2] = UInt8(count)
-        var offset = 3
-        for index in 0..<count {
-            let pair = dpi.pairs[index]
-            let x = DeviceProfiles.clampDPI(pair.x, device: device)
-            let y = DeviceProfiles.clampDPI(pair.y, device: device)
-            args[offset] = stageIDs[index]
-            args[offset + 1] = UInt8((x >> 8) & 0xFF)
-            args[offset + 2] = UInt8(x & 0xFF)
-            args[offset + 3] = UInt8((y >> 8) & 0xFF)
-            args[offset + 4] = UInt8(y & 0xFF)
-            offset += 7
+        guard let args = Self.usbDPIStageWriteArgs(
+            profileID: UInt8(profileID),
+            activeStage: dpi.activeStage ?? 0,
+            pairs: dpi.pairs,
+            stageIDs: dpi.stageIDs,
+            device: device,
+            // V3 Pro USB stored slots reject reduced declared counts; the
+            // single-slot/live path keeps logical declarations where supported.
+            declaredCountMode: .fixedRowCount
+        ) else {
+            throw BridgeError.commandFailed("USB onboard profile DPI stage write failed.")
         }
         guard let response = try perform(session, device, classID: 0x04, cmdID: 0x06, size: 0x26, args: args),
               response[0] == 0x02 else {
