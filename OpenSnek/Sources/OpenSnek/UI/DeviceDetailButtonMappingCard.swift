@@ -661,6 +661,7 @@ private struct OnboardProfileSlotRowButton: View {
         .disabled(isBusy)
         .accessibilityIdentifier("onboard-profile-row-\(profile.profileID)")
         .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(accessibilityLabel)
         .onHover(perform: setHovered)
     }
 
@@ -728,6 +729,7 @@ private struct OnboardProfileSlotRowButton: View {
                 Capsule()
                     .fill(Color(hex: 0x30D158).opacity(0.14))
             )
+            .accessibilityIdentifier("onboard-profile-row-\(profile.profileID)-active-badge")
     }
 
     private var rowBorder: some View {
