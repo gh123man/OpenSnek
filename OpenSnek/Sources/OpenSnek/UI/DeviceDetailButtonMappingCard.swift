@@ -194,10 +194,6 @@ private struct ProfilePickerPanel: View {
         editorStore.isOnboardProfileRefreshInFlight
     }
 
-    private var statusLabel: String? {
-        editorStore.buttonProfileOperationStatusText ?? editorStore.onboardProfileLoadStatusText
-    }
-
     private var selectedProfileID: Int? {
         editorStore.selectedOnboardProfileID
     }
@@ -436,7 +432,6 @@ private struct ProfilePickerPanel: View {
                 newLocalProfileName: $newLocalProfileName,
                 localProfileRenameNames: $localProfileRenameNames
             )
-            actionPanelStatus
         }
     }
 
@@ -453,19 +448,6 @@ private struct ProfilePickerPanel: View {
             .onChange(of: editorStore.selectedOnboardProfileName) { _, newValue in
                 resetNameFieldFromSelectedProfileName(newValue)
             }
-    }
-
-    @ViewBuilder
-    private var actionPanelStatus: some View {
-        if let statusLabel {
-            HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
-                Text(statusLabel)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.64))
-            }
-        }
     }
 
     private var actionPanelBackground: some View {
