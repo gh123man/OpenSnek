@@ -66,6 +66,12 @@ struct OnboardProfilePillButton: View {
         editorStore.onboardProfileSummaries.first { $0.profileID == activeProfileID }
     }
 
+    private var isLoadingProfiles: Bool {
+        // On mapped devices the active slot id can arrive before the UUID-backed inventory.
+        // Show loading here so the pill does not flash a fallback name like Base Profile.
+        editorStore.isOnboardProfilePillLoading
+    }
+
     private var profileName: String {
         if let activeSummary {
             return activeSummary.displayName
@@ -78,11 +84,15 @@ struct OnboardProfilePillButton: View {
 
     var body: some View {
         Button(action: action) {
-            OnboardProfilePillLabel(profileID: activeProfileID, profileName: profileName)
+            OnboardProfilePillLabel(
+                profileID: activeProfileID,
+                profileName: isLoadingProfiles ? "Load Profiles" : profileName,
+                isLoading: isLoadingProfiles
+            )
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("onboard-profile-pill-button")
-        .accessibilityLabel("Onboard profile \(profileName)")
+        .accessibilityLabel(isLoadingProfiles ? "Onboard profile Load Profiles" : "Onboard profile \(profileName)")
         .help("Manage onboard profiles")
     }
 }
@@ -90,10 +100,11 @@ struct OnboardProfilePillButton: View {
 private struct OnboardProfilePillLabel: View {
     let profileID: Int
     let profileName: String
+    let isLoading: Bool
 
     var body: some View {
         HStack(spacing: 8) {
-            profileDot
+            leadingIndicator
 
             Text(profileName)
                 .font(.system(size: 11, weight: .black, design: .rounded))
@@ -115,6 +126,19 @@ private struct OnboardProfilePillLabel: View {
                 .overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1))
         )
         .contentShape(Capsule())
+    }
+
+    @ViewBuilder
+    private var leadingIndicator: some View {
+        if isLoading {
+            ProgressView()
+                .controlSize(.small)
+                .scaleEffect(0.62)
+                .frame(width: 9, height: 9)
+                .accessibilityHidden(true)
+        } else {
+            profileDot
+        }
     }
 
     private var profileDot: some View {

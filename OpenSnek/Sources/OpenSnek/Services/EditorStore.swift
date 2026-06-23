@@ -352,6 +352,10 @@ final class EditorStore {
         return editorController.supportsProfilePicker(device: selectedDevice)
     }
 
+    var isOnboardProfilePillLoading: Bool {
+        supportsOnboardProfileCRUD && isOnboardProfileRefreshInFlight
+    }
+
     var onboardProfileSummaries: [OnboardProfileSummary] {
         _ = onboardProfilesRevision
         return editorController.onboardProfileSummaries()

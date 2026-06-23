@@ -46,7 +46,7 @@ final class AppStateOnboardInventoryTests: XCTestCase {
         XCTAssertEqual(listCount, 0)
     }
 
-    func testRefreshingOnboardProfilesDoesNotBlockGlobalEditorControls() async throws {
+    func testRefreshingOnboardProfilesUsesPillLoadingWithoutBlockingGlobalEditorControls() async throws {
         let device = makeRefactorTestDevice(
             id: "onboard-nonblocking-refresh-device",
             transport: .bluetooth,
@@ -96,19 +96,25 @@ final class AppStateOnboardInventoryTests: XCTestCase {
         let operationState = await MainActor.run {
             (
                 appState.editorStore.isButtonProfileOperationInFlight,
-                appState.editorStore.isOnboardProfileRefreshInFlight
+                appState.editorStore.isOnboardProfileRefreshInFlight,
+                appState.editorStore.isOnboardProfilePillLoading
             )
         }
         XCTAssertFalse(operationState.0)
         XCTAssertTrue(operationState.1)
+        XCTAssertTrue(operationState.2)
 
         await backend.releaseOnboardProfileList(deviceID: device.id)
         await refresh
 
         let finalRefreshState = await MainActor.run {
-            appState.editorStore.isOnboardProfileRefreshInFlight
+            (
+                appState.editorStore.isOnboardProfileRefreshInFlight,
+                appState.editorStore.isOnboardProfilePillLoading
+            )
         }
-        XCTAssertFalse(finalRefreshState)
+        XCTAssertFalse(finalRefreshState.0)
+        XCTAssertFalse(finalRefreshState.1)
     }
 
     func testFailedOnboardProfileRefreshClearsCardLoadingState() async throws {
