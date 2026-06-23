@@ -663,7 +663,7 @@ final class AppStateLocalProfileTests: XCTestCase {
 
         await appState.deviceStore.refreshDevices()
         await MainActor.run {
-            appState.editorStore.createLocalProfile(name: "Copy", copying: emptyProfile.id)
+            _ = appState.editorStore.createLocalProfile(name: "Copy", copying: emptyProfile.id)
         }
 
         let copied = try XCTUnwrap(

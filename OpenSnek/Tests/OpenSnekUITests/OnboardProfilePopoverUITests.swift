@@ -68,7 +68,7 @@ class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
             "Empty slot details should not show the onboard name field before a profile is loaded"
         )
 
-        try createLocalProfileFromCurrentEditorAndLoad(named: createdName)
+        try createFreshLocalProfileAndWaitForAutoAssign(named: createdName)
         createdProfileID = targetProfileID
         XCTAssertTrue(
             waitForProfileRow(targetProfileID, containing: createdName, timeout: actionTimeout),
@@ -201,7 +201,7 @@ class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
         )
     }
 
-    private func createLocalProfileFromCurrentEditorAndLoad(named name: String) throws {
+    private func createFreshLocalProfileAndWaitForAutoAssign(named name: String) throws {
         let newProfileButton = try requireElement("local-profile-create-button", timeout: 2)
         XCTAssertTrue(waitForElementEnabled(newProfileButton, timeout: 2), "New Profile should be enabled")
         clickElement(newProfileButton)
@@ -213,31 +213,6 @@ class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
         let startFreshButton = try requireElement("local-profile-start-fresh-button", timeout: 2)
         XCTAssertTrue(waitForElementEnabled(startFreshButton, timeout: 2), "Start Fresh should enable after naming")
         clickElement(startFreshButton)
-
-        let localProfileButton = try localProfileReplaceButton(named: name, timeout: 2)
-        XCTAssertTrue(waitForElementEnabled(localProfileButton, timeout: 2), "Created local profile should be loadable")
-        clickElement(localProfileButton)
-    }
-
-    private func localProfileReplaceButton(
-        named name: String,
-        timeout: TimeInterval,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) throws -> XCUIElement {
-        let deadline = Date().addingTimeInterval(timeout)
-        repeat {
-            if let button = app.buttons.allElementsBoundByIndex.first(where: { candidate in
-                candidate.identifier.hasPrefix("local-profile-replace-") && candidate.label == name
-            }) {
-                scrollLocalProfileListToExpose(button.identifier)
-                return button
-            }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
-        } while Date() < deadline
-
-        XCTFail("Missing local profile row named \(name)", file: file, line: line)
-        return app.buttons["local-profile-replace-missing-\(name)"]
     }
 
     private func requireElement(

@@ -508,13 +508,48 @@ final class EditorStore {
         }
     }
 
-    func createLocalProfile(name: String, copying sourceID: UUID?) {
+    @discardableResult
+    func createLocalProfile(name: String, copying sourceID: UUID?) -> OpenSnekLocalProfile {
         editorController.createLocalProfile(name: name, copying: sourceID)
     }
 
-    func createLocalProfileFromMouse(name: String) async {
+    @discardableResult
+    func createFreshLocalProfile(name: String) -> OpenSnekLocalProfile {
+        editorController.createFreshLocalProfile(name: name)
+    }
+
+    @discardableResult
+    func createLocalProfileFromMouse(name: String) async -> OpenSnekLocalProfile? {
         await withButtonProfileOperation(statusText: "Creating profile...") { [self] in
             await self.editorController.createLocalProfileFromMouse(name: name)
+        }
+    }
+
+    func createFreshLocalProfileAndReplaceSelected(name: String) async {
+        await createLocalProfileAndReplaceSelected(statusText: "Creating profile...") { [self] in
+            self.editorController.createFreshLocalProfile(name: name)
+        }
+    }
+
+    func createCopiedLocalProfileAndReplaceSelected(name: String, copying sourceID: UUID) async {
+        await createLocalProfileAndReplaceSelected(statusText: "Creating profile...") { [self] in
+            self.editorController.createLocalProfile(name: name, copying: sourceID)
+        }
+    }
+
+    func createMouseLocalProfileAndReplaceSelected(name: String) async {
+        await createLocalProfileAndReplaceSelected(statusText: "Creating profile...") { [self] in
+            await self.editorController.createLocalProfileFromMouse(name: name)
+        }
+    }
+
+    private func createLocalProfileAndReplaceSelected(
+        statusText: String,
+        createProfile: @escaping @MainActor () async -> OpenSnekLocalProfile?
+    ) async {
+        await withButtonProfileOperation(statusText: statusText) { [self] in
+            guard let profile = await createProfile() else { return }
+            await self.editorController.replaceSelectedProfile(with: profile.id)
         }
     }
 

@@ -22,7 +22,7 @@ All notable changes to this project are documented in this file.
 - Battery Meter progress is now visually calibrated so 50% lands at four-and-a-half underglow cells instead of filling half the physical cell count.
 - V3-family USB software lighting now streams the full 14-cell Custom Frame range so the tail LEDs are addressed directly on every shared scroll/logo/underglow profile.
 - Release automation now treats semver prerelease tags such as `v1.2.0-beta.1` as GitHub prereleases with `latest=false`, allowing beta DMGs to ship without triggering stable update banners.
-- The profile picker now hides the local profile already loaded in the selected slot, labels empty onboard slots as Load Profile, and distinguishes deleting a local profile from deleting an onboard slot assignment.
+- The profile picker now hides the local profile already loaded in the selected slot, labels empty onboard slots as Load Profile, uses device defaults for Start Fresh, auto-loads newly created profiles into the selected slot, and distinguishes deleting a local profile from deleting an onboard slot assignment.
 
 ### Fixed
 - Generated Xcode `OpenSnekProbe` builds no longer pass `-parse-as-library`, allowing the probe's top-level async entrypoint to compile.

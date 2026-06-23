@@ -147,7 +147,7 @@ struct LocalProfileLibraryPanel: View {
 
             HStack(spacing: 8) {
                 Button {
-                    createNewLocalProfile(copying: nil)
+                    createFreshLocalProfileAndAssign()
                 } label: {
                     Label("Start Fresh", systemImage: "sparkles")
                 }
@@ -169,7 +169,7 @@ struct LocalProfileLibraryPanel: View {
                     } else {
                         ForEach(copySourceProfiles) { profile in
                             Button(profile.name) {
-                                createNewLocalProfile(copying: profile.id)
+                                createCopiedLocalProfileAndAssign(copying: profile.id)
                             }
                         }
                     }
@@ -190,10 +190,26 @@ struct LocalProfileLibraryPanel: View {
         newLocalProfileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private func createNewLocalProfile(copying sourceID: UUID?) {
-        editorStore.createLocalProfile(name: newLocalProfileName, copying: sourceID)
+    private func createFreshLocalProfileAndAssign() {
+        let name = newLocalProfileName
         newLocalProfileName = ""
         isNewProfilePresented = false
+        Task {
+            await createAndAssignLocalProfile {
+                await editorStore.createFreshLocalProfileAndReplaceSelected(name: name)
+            }
+        }
+    }
+
+    private func createCopiedLocalProfileAndAssign(copying sourceID: UUID) {
+        let name = newLocalProfileName
+        newLocalProfileName = ""
+        isNewProfilePresented = false
+        Task {
+            await createAndAssignLocalProfile {
+                await editorStore.createCopiedLocalProfileAndReplaceSelected(name: name, copying: sourceID)
+            }
+        }
     }
 
     private func createNewLocalProfileFromMouse() {
@@ -201,8 +217,19 @@ struct LocalProfileLibraryPanel: View {
         newLocalProfileName = ""
         isNewProfilePresented = false
         Task {
-            await editorStore.createLocalProfileFromMouse(name: name)
+            await createAndAssignLocalProfile {
+                await editorStore.createMouseLocalProfileAndReplaceSelected(name: name)
+            }
         }
+    }
+
+    @MainActor
+    private func createAndAssignLocalProfile(_ operation: @escaping @MainActor () async -> Void) async {
+        localProfileActionInFlight = true
+        defer {
+            localProfileActionInFlight = false
+        }
+        await operation()
     }
 }
 

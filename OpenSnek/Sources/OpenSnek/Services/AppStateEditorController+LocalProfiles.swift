@@ -10,6 +10,11 @@ extension AppStateEditorController {
         let effect: LightingEffectPatch?
     }
 
+    private static let freshProfileDPIValues = [800, 1600, 3200]
+    private static let freshProfileActiveStage = 0
+    private static let freshProfileBrightness = 64
+    private static let freshProfileColor = RGBPatch(r: 0, g: 255, b: 0)
+
     func supportsProfilePicker(device: MouseDevice) -> Bool {
         device.profile_id != nil
     }
@@ -58,35 +63,55 @@ extension AppStateEditorController {
         return selectedIdentifier == onboardIdentifier
     }
 
-    func createLocalProfile(name: String, copying sourceID: UUID?) {
+    @discardableResult
+    func createLocalProfile(name: String, copying sourceID: UUID?) -> OpenSnekLocalProfile {
         let content = contentForNewLocalProfile(copying: sourceID)
-        _ = preferenceStore.createOpenSnekLocalProfile(
+        let profile = preferenceStore.createOpenSnekLocalProfile(
             name: name,
             content: content
         )
         bumpOnboardProfilesRevision()
         bumpUSBButtonProfilesRevision()
+        return profile
     }
 
-    func createLocalProfileFromMouse(name: String) async {
+    @discardableResult
+    func createFreshLocalProfile(name: String) -> OpenSnekLocalProfile {
+        let content: OpenSnekLocalProfileContent
+        if let device = deviceStore.selectedDevice {
+            content = defaultLocalProfileContent(device: device)
+        } else {
+            content = OpenSnekLocalProfileContent()
+        }
+        let profile = preferenceStore.createOpenSnekLocalProfile(
+            name: name,
+            content: content
+        )
+        bumpOnboardProfilesRevision()
+        bumpUSBButtonProfilesRevision()
+        return profile
+    }
+
+    func createLocalProfileFromMouse(name: String) async -> OpenSnekLocalProfile? {
         guard let device = deviceStore.selectedDevice else {
-            createLocalProfile(name: name, copying: nil)
-            return
+            return createLocalProfile(name: name, copying: nil)
         }
         do {
             if supportsProfilePicker(device: device), !supportsOnboardProfileCRUD(device: device) {
                 try await hydrateSingleSlotProfileFromMouse(device: device)
             }
-            _ = preferenceStore.createOpenSnekLocalProfile(
+            let profile = preferenceStore.createOpenSnekLocalProfile(
                 name: name,
                 content: currentLocalProfileContent(device: device)
             )
             deviceStore.errorMessage = nil
             bumpOnboardProfilesRevision()
             bumpUSBButtonProfilesRevision()
+            return profile
         } catch {
             AppLog.error("AppState", "create local profile from mouse failed device=\(device.id): \(error.localizedDescription)")
             deviceStore.errorMessage = "Failed to create profile from mouse: \(error.localizedDescription)"
+            return nil
         }
     }
 
@@ -340,6 +365,59 @@ extension AppStateEditorController {
             return OpenSnekLocalProfileContent()
         }
         return currentLocalProfileContent(device: device)
+    }
+
+    private func defaultLocalProfileContent(device: MouseDevice) -> OpenSnekLocalProfileContent {
+        let pairs = Self.freshProfileDPIValues.map { value in
+            let clamped = DeviceProfiles.clampDPI(value, device: device)
+            return DpiPair(x: clamped, y: clamped)
+        }
+        let activeStage = max(0, min(max(0, pairs.count - 1), Self.freshProfileActiveStage))
+        let lightingLEDIDs = device.showsLightingControls ? lightingLEDIDs(for: device) : []
+        let brightness = defaultLocalProfileBrightness(ledIDs: lightingLEDIDs, device: device)
+        let staticColors = defaultLocalProfileStaticColors(ledIDs: lightingLEDIDs)
+        return OpenSnekLocalProfileContent(
+            dpi: OnboardDPIProfileSnapshot(
+                scalar: pairs.indices.contains(activeStage) ? pairs[activeStage] : pairs.first,
+                activeStage: activeStage,
+                pairs: pairs
+            ),
+            buttonBindings: defaultLocalProfileButtonBindings(device: device),
+            brightnessByLEDID: brightness,
+            staticColorByLEDID: staticColors,
+            lightingEffect: defaultLocalProfileLightingEffect(device: device),
+            scrollMode: device.supportsScrollModeControls ? 0 : nil,
+            scrollAcceleration: device.supportsScrollModeControls ? false : nil,
+            scrollSmartReel: device.supportsScrollModeControls ? false : nil
+        )
+    }
+
+    private func defaultLocalProfileButtonBindings(device: MouseDevice) -> [Int: ButtonBindingDraft] {
+        let layout = resolvedDeviceProfile(for: device)?.buttonLayout ?? device.button_layout
+        let writableSlots = layout?.writableSlots ?? buttonSlots.map(\.slot)
+        return Dictionary(uniqueKeysWithValues: writableSlots.map { slot in
+            (
+                slot,
+                ButtonBindingSupport.defaultButtonBinding(for: slot, profileID: device.profile_id)
+            )
+        })
+    }
+
+    private func defaultLocalProfileBrightness(
+        ledIDs: [UInt8],
+        device: MouseDevice
+    ) -> [Int: Int] {
+        guard device.supportsLightingBrightnessControls else { return [:] }
+        return Dictionary(uniqueKeysWithValues: ledIDs.map { (Int($0), Self.freshProfileBrightness) })
+    }
+
+    private func defaultLocalProfileStaticColors(ledIDs: [UInt8]) -> [Int: RGBPatch] {
+        Dictionary(uniqueKeysWithValues: ledIDs.map { (Int($0), Self.freshProfileColor) })
+    }
+
+    private func defaultLocalProfileLightingEffect(device: MouseDevice) -> LightingEffectPatch? {
+        guard device.supports_advanced_lighting_effects else { return nil }
+        return LightingEffectPatch(kind: .staticColor, primary: Self.freshProfileColor)
     }
 
     private func repairEmptyLocalProfile(
@@ -701,7 +779,8 @@ extension AppStateEditorController {
         _ bindings: [Int: ButtonBindingDraft],
         for device: MouseDevice
     ) -> [Int: ButtonBindingDraft] {
-        let writableSlots = Set(device.button_layout?.writableSlots ?? buttonSlots.map(\.slot))
+        let layout = resolvedDeviceProfile(for: device)?.buttonLayout ?? device.button_layout
+        let writableSlots = Set(layout?.writableSlots ?? buttonSlots.map(\.slot))
         let availableKinds = Set(ButtonBindingSupport.availableButtonBindingKinds(profileID: device.profile_id))
         return bindings.reduce(into: [Int: ButtonBindingDraft]()) { partialResult, pair in
             guard writableSlots.contains(pair.key) else { return }
