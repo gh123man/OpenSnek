@@ -225,9 +225,18 @@ extension BridgeClient {
         } else {
             scrollProfileID = profileID
         }
-        let scrollMode = try getScrollMode(session, device, profileID: scrollProfileID)
-        let scrollAcceleration = try getScrollAcceleration(session, device, profileID: scrollProfileID)
-        let scrollSmartReel = try getScrollSmartReel(session, device, profileID: scrollProfileID)
+        let scrollMode: Int?
+        let scrollAcceleration: Bool?
+        let scrollSmartReel: Bool?
+        if device.supportsScrollModeControls {
+            scrollMode = try getScrollMode(session, device, profileID: scrollProfileID)
+            scrollAcceleration = try getScrollAcceleration(session, device, profileID: scrollProfileID)
+            scrollSmartReel = try getScrollSmartReel(session, device, profileID: scrollProfileID)
+        } else {
+            scrollMode = nil
+            scrollAcceleration = nil
+            scrollSmartReel = nil
+        }
         return OnboardProfileSnapshot(
             profileID: profileID,
             metadata: metadata,
@@ -666,17 +675,19 @@ extension BridgeClient {
                 }
             }
         }
-        if let scrollMode = mutation.scrollMode,
-           !(try setScrollMode(session, device, mode: scrollMode, profileID: profileID)) {
-            throw BridgeError.commandFailed("USB onboard profile scroll mode write failed.")
-        }
-        if let scrollAcceleration = mutation.scrollAcceleration,
-           !(try setScrollAcceleration(session, device, enabled: scrollAcceleration, profileID: profileID)) {
-            throw BridgeError.commandFailed("USB onboard profile scroll acceleration write failed.")
-        }
-        if let scrollSmartReel = mutation.scrollSmartReel,
-           !(try setScrollSmartReel(session, device, enabled: scrollSmartReel, profileID: profileID)) {
-            throw BridgeError.commandFailed("USB onboard profile smart reel write failed.")
+        if device.supportsScrollModeControls {
+            if let scrollMode = mutation.scrollMode,
+               !(try setScrollMode(session, device, mode: scrollMode, profileID: profileID)) {
+                throw BridgeError.commandFailed("USB onboard profile scroll mode write failed.")
+            }
+            if let scrollAcceleration = mutation.scrollAcceleration,
+               !(try setScrollAcceleration(session, device, enabled: scrollAcceleration, profileID: profileID)) {
+                throw BridgeError.commandFailed("USB onboard profile scroll acceleration write failed.")
+            }
+            if let scrollSmartReel = mutation.scrollSmartReel,
+               !(try setScrollSmartReel(session, device, enabled: scrollSmartReel, profileID: profileID)) {
+                throw BridgeError.commandFailed("USB onboard profile smart reel write failed.")
+            }
         }
     }
 

@@ -65,9 +65,9 @@ final class AppStateRestoreTests: XCTestCase {
         XCTAssertEqual(patch.pollRate, 500)
         XCTAssertEqual(patch.sleepTimeout, 420)
         XCTAssertEqual(patch.lowBatteryThresholdRaw, 0x20)
-        XCTAssertEqual(patch.scrollMode, 1)
-        XCTAssertEqual(patch.scrollAcceleration, true)
-        XCTAssertEqual(patch.scrollSmartReel, false)
+        XCTAssertNil(patch.scrollMode)
+        XCTAssertNil(patch.scrollAcceleration)
+        XCTAssertNil(patch.scrollSmartReel)
         XCTAssertEqual(patch.dpiStages, [900, 1800, 3600])
         XCTAssertEqual(patch.activeStage, 2)
         XCTAssertEqual(patch.ledRGB?.r, persistedColor.r)
@@ -77,6 +77,39 @@ final class AppStateRestoreTests: XCTestCase {
         XCTAssertEqual(buttonPatch.buttonBinding?.hidKey, 80)
         XCTAssertEqual(editableColor, persistedColor)
         XCTAssertEqual(editableActiveStage, 3)
+    }
+
+    func testUSBHyperSpeedPersistedSettingsRestoreOmitsUnsupportedScrollAndBrightnessFields() async throws {
+        let device = makeRefactorUSBLightingRestoreDevice(
+            id: "usb-hyperspeed-filter-restore-device",
+            serial: "USB-HS-FILTER-\(UUID().uuidString)"
+        )
+        let persistedColor = RGBColor(r: 91, g: 102, b: 113)
+        let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
+        preferenceStore.persistDeviceSettingsSnapshot(
+            makeRefactorSettingsSnapshot(color: persistedColor, zoneID: "scroll_wheel"),
+            device: device
+        )
+        defer { clearRefactorPreferences(for: device) }
+
+        let appState = await MainActor.run {
+            AppState(
+                launchRole: .app,
+                backend: AppStateRefactorStubBackend(devices: [], stateByDeviceID: [:]),
+                autoStart: false
+            )
+        }
+
+        let plan = await MainActor.run {
+            appState.editorController.persistedSettingsRestorePlan(device: device)
+        }
+        let patch = try XCTUnwrap(plan?.patch)
+        XCTAssertNil(patch.scrollMode)
+        XCTAssertNil(patch.scrollAcceleration)
+        XCTAssertNil(patch.scrollSmartReel)
+        XCTAssertNil(patch.ledBrightness)
+        XCTAssertEqual(patch.ledRGB, RGBPatch(r: persistedColor.r, g: persistedColor.g, b: persistedColor.b))
     }
 
     func testBluetoothHyperspeedLightingApplyPersistsSnapshotFromAppliedPatch() async throws {

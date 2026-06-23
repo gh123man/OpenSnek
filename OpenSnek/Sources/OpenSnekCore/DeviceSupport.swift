@@ -284,6 +284,9 @@ public struct DeviceProfile: Hashable, Sendable {
     public let supportedSoftwareLightingPresets: [SoftwareLightingPresetID]
     public let passiveDPIInput: PassiveDPIInputDescriptor?
     public let supportsIndependentXYDPI: Bool
+    public let supportsScrollModeControls: Bool
+    public let supportsLightingBrightnessControls: Bool
+    public let usesProjectedDPIStageWriteReadback: Bool
     public let onboardProfileSupport: OnboardProfileSupport
     public let onboardProfileCount: Int
     public let isLocallyValidated: Bool
@@ -303,6 +306,9 @@ public struct DeviceProfile: Hashable, Sendable {
         supportedSoftwareLightingPresets: [SoftwareLightingPresetID] = [],
         passiveDPIInput: PassiveDPIInputDescriptor? = nil,
         supportsIndependentXYDPI: Bool = false,
+        supportsScrollModeControls: Bool = false,
+        supportsLightingBrightnessControls: Bool = false,
+        usesProjectedDPIStageWriteReadback: Bool = false,
         onboardProfileSupport: OnboardProfileSupport = .unavailable,
         onboardProfileCount: Int = 1,
         isLocallyValidated: Bool = true
@@ -321,6 +327,9 @@ public struct DeviceProfile: Hashable, Sendable {
         self.supportedSoftwareLightingPresets = supportedSoftwareLightingPresets
         self.passiveDPIInput = passiveDPIInput
         self.supportsIndependentXYDPI = supportsIndependentXYDPI
+        self.supportsScrollModeControls = supportsScrollModeControls
+        self.supportsLightingBrightnessControls = supportsLightingBrightnessControls
+        self.usesProjectedDPIStageWriteReadback = usesProjectedDPIStageWriteReadback
         self.onboardProfileSupport = onboardProfileSupport
         self.onboardProfileCount = max(1, onboardProfileCount)
         self.isLocallyValidated = isLocallyValidated
@@ -399,6 +408,20 @@ public extension MouseDevice {
         return resolvedProfile?.supportedSoftwareLightingPresets ?? []
     }
 
+    var supportsScrollModeControls: Bool {
+        guard transport == .usb else { return false }
+        return resolvedProfile?.supportsScrollModeControls ?? false
+    }
+
+    var supportsLightingBrightnessControls: Bool {
+        guard showsLightingControls else { return false }
+        return resolvedProfile?.supportsLightingBrightnessControls ?? false
+    }
+
+    var usesProjectedDPIStageWriteReadback: Bool {
+        return resolvedProfile?.usesProjectedDPIStageWriteReadback ?? false
+    }
+
     func supportsSoftwareLightingPreset(_ preset: SoftwareLightingPresetID) -> Bool {
         supportedSoftwareLightingPresets.contains(preset)
     }
@@ -450,7 +473,7 @@ public enum DeviceProfiles {
         USBLightingZoneDescriptor(id: "scroll_wheel", label: "Scroll Wheel", ledIDs: [0x01])
     ]
 
-    public static let basiliskV3XBluetoothDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
+    public static let basiliskV3XDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
         DocumentedButtonSlot(
             descriptor: ButtonSlotDescriptor(slot: 6, friendlyName: "Hypershift / Sniper", defaultKind: .default),
             access: .softwareReadOnly,
@@ -532,7 +555,8 @@ public enum DeviceProfiles {
         usbTransactionID: 0x1F,
         buttonLayout: ButtonSlotLayout(
             visibleSlots: basiliskV3XButtonSlots,
-            writableSlots: basiliskV3XButtonSlots.map(\.slot)
+            writableSlots: basiliskV3XButtonSlots.map(\.slot),
+            documentedSlots: basiliskV3XDocumentedReadOnlySlots
         ),
         supportsAdvancedLightingEffects: true,
         supportedLightingEffects: basiliskV3XUSBLightingEffects,
@@ -546,6 +570,7 @@ public enum DeviceProfiles {
             minInputReportSize: 5,
             maximumDPI: 18_000
         ),
+        usesProjectedDPIStageWriteReadback: true,
         onboardProfileCount: 1
     )
 
@@ -575,6 +600,8 @@ public enum DeviceProfiles {
             maximumDPI: 35_000
         ),
         supportsIndependentXYDPI: true,
+        supportsScrollModeControls: true,
+        supportsLightingBrightnessControls: true,
         onboardProfileCount: 5
     )
 
@@ -602,6 +629,8 @@ public enum DeviceProfiles {
             minInputReportSize: 5,
             maximumDPI: 26_000
         ),
+        supportsScrollModeControls: true,
+        supportsLightingBrightnessControls: true,
         onboardProfileCount: 5,
         isLocallyValidated: false
     )
@@ -633,6 +662,8 @@ public enum DeviceProfiles {
             maximumDPI: 30_000
         ),
         supportsIndependentXYDPI: true,
+        supportsScrollModeControls: true,
+        supportsLightingBrightnessControls: true,
         onboardProfileSupport: .mappedCore,
         onboardProfileCount: 5
     )
@@ -644,8 +675,8 @@ public enum DeviceProfiles {
         supportedProducts: [0x00BA],
         buttonLayout: ButtonSlotLayout(
             visibleSlots: basiliskV3XButtonSlots,
-            writableSlots: [1, 2, 3, 4, 5, 9, 10, 96],
-            documentedSlots: basiliskV3XBluetoothDocumentedReadOnlySlots
+            writableSlots: basiliskV3XButtonSlots.map(\.slot),
+            documentedSlots: basiliskV3XDocumentedReadOnlySlots
         ),
         supportsAdvancedLightingEffects: false,
         supportedLightingEffects: [.staticColor],
@@ -661,6 +692,7 @@ public enum DeviceProfiles {
             maxFeatureReportSize: 1,
             maximumDPI: 18_000
         ),
+        supportsLightingBrightnessControls: true,
         onboardProfileCount: 1
     )
 
@@ -691,6 +723,7 @@ public enum DeviceProfiles {
             maximumDPI: 30_000
         ),
         supportsIndependentXYDPI: true,
+        supportsLightingBrightnessControls: true,
         onboardProfileSupport: .mappedCore,
         onboardProfileCount: 5
     )

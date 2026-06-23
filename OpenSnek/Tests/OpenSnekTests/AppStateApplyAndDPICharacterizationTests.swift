@@ -5,6 +5,25 @@ import OpenSnekCore
 @testable import OpenSnek
 
 final class AppStateApplyAndDPICharacterizationTests: XCTestCase {
+    func testNewlyEnabledDPIStageSeedsDistinctValueBeforeApply() async {
+        let appState = await MainActor.run {
+            AppState(
+                launchRole: .app,
+                backend: AppStateRefactorStubBackend(devices: [], stateByDeviceID: [:]),
+                autoStart: false
+            )
+        }
+
+        await MainActor.run {
+            appState.editorStore.editableStageCount = 1
+            appState.editorStore.editableStageValues = [1200, 1200, 3200, 6400, 12000]
+            appState.editorStore.seedNewlyEnabledDPIStage(at: 1)
+
+            XCTAssertEqual(appState.editorStore.stageValue(0), 1200)
+            XCTAssertEqual(appState.editorStore.stageValue(1), 800)
+        }
+    }
+
     func testApplyWithoutSelectedDeviceShowsNoDeviceSelectedError() async throws {
         let backend = AppStateRefactorStubBackend(devices: [], stateByDeviceID: [:])
         let appState = await MainActor.run {

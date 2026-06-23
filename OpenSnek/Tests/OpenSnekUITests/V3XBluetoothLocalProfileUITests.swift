@@ -1,6 +1,50 @@
 import XCTest
 
-final class V3XBluetoothLocalProfileUITests: OpenSnekHardwareUITestCase {
+final class V3XBluetoothLocalProfileUITests: V3XLocalProfileUITestSupport {
+    override var expectedScope: HardwareDeviceScope {
+        .v3XBluetooth
+    }
+
+    func testV3XBluetoothLocalProfilePickerReflectsCreateReplaceRenameDeleteFlows() throws {
+        try runLocalProfilePickerReflectsCreateReplaceRenameDeleteFlows()
+    }
+
+    func testV3XBluetoothLocalProfileSwitchesDPIStagesAndButtonBindings() throws {
+        try runLocalProfileSwitchesDPIStagesAndButtonBindings()
+    }
+
+    func testV3XBluetoothRestoreLastProfileSelectionReflectsKnownProfile() throws {
+        try runRestoreLastProfileSelectionReflectsKnownProfile()
+    }
+
+    func testV3XBluetoothRestoreLastProfileColdLaunchReflectsKnownProfile() throws {
+        try runRestoreLastProfileColdLaunchReflectsKnownProfile()
+    }
+}
+
+final class V3XUSBLocalProfileUITests: V3XLocalProfileUITestSupport {
+    override var expectedScope: HardwareDeviceScope {
+        .v3XUSB
+    }
+
+    func testV3XUSBLocalProfilePickerReflectsCreateReplaceRenameDeleteFlows() throws {
+        try runLocalProfilePickerReflectsCreateReplaceRenameDeleteFlows()
+    }
+
+    func testV3XUSBLocalProfileSwitchesDPIStagesAndButtonBindings() throws {
+        try runLocalProfileSwitchesDPIStagesAndButtonBindings()
+    }
+
+    func testV3XUSBRestoreLastProfileSelectionReflectsKnownProfile() throws {
+        try runRestoreLastProfileSelectionReflectsKnownProfile()
+    }
+
+    func testV3XUSBRestoreLastProfileColdLaunchReflectsKnownProfile() throws {
+        try runRestoreLastProfileColdLaunchReflectsKnownProfile()
+    }
+}
+
+class V3XLocalProfileUITestSupport: OpenSnekHardwareUITestCase {
     private struct TemporaryLocalProfile: Equatable {
         var name: String
         let replaceIdentifier: String
@@ -20,15 +64,11 @@ final class V3XBluetoothLocalProfileUITests: OpenSnekHardwareUITestCase {
     private var originalProfileName: String?
     private var temporaryProfiles: [TemporaryLocalProfile] = []
 
-    override var expectedScope: HardwareDeviceScope {
-        .v3XBluetooth
-    }
-
     override func restoreHardwareStateIfNeeded() {
         restoreAndDeleteTemporaryProfiles()
     }
 
-    func testV3XBluetoothLocalProfilePickerReflectsCreateReplaceRenameDeleteFlows() throws {
+    func runLocalProfilePickerReflectsCreateReplaceRenameDeleteFlows() throws {
         let deviceName = try XCTUnwrap(launchAndWaitForScopedDevice(timeout: 10))
         if let expectedProductName = expectedScope.productName {
             assertElementText(deviceName, equals: expectedProductName, context: "selected device name")
@@ -82,7 +122,7 @@ final class V3XBluetoothLocalProfileUITests: OpenSnekHardwareUITestCase {
         try restoreAndDeleteTemporaryProfilesThrowing()
     }
 
-    func testV3XBluetoothLocalProfileSwitchesDPIStagesAndButtonBindings() throws {
+    func runLocalProfileSwitchesDPIStagesAndButtonBindings() throws {
         _ = try XCTUnwrap(
             launchAndWaitForScopedDevice(timeout: 15),
             "Expected connected \(expectedScope.description)"
@@ -133,7 +173,7 @@ final class V3XBluetoothLocalProfileUITests: OpenSnekHardwareUITestCase {
         try restoreAndDeleteTemporaryProfilesThrowing()
     }
 
-    func testV3XBluetoothRestoreLastProfileSelectionReflectsKnownProfile() throws {
+    func runRestoreLastProfileSelectionReflectsKnownProfile() throws {
         _ = try XCTUnwrap(
             launchAndWaitForScopedDevice(timeout: 15),
             "Expected connected \(expectedScope.description)"
@@ -161,7 +201,7 @@ final class V3XBluetoothLocalProfileUITests: OpenSnekHardwareUITestCase {
         try restoreAndDeleteTemporaryProfilesThrowing()
     }
 
-    func testV3XBluetoothRestoreLastProfileColdLaunchReflectsKnownProfile() throws {
+    func runRestoreLastProfileColdLaunchReflectsKnownProfile() throws {
         _ = try XCTUnwrap(
             launchAndWaitForScopedDevice(timeout: 15),
             "Expected connected \(expectedScope.description)"
@@ -189,7 +229,7 @@ final class V3XBluetoothLocalProfileUITests: OpenSnekHardwareUITestCase {
         try keepMouseAwakeForUITest(timeout: actionTimeout)
 
         try openProfilePicker()
-        // The real single-slot Bluetooth path used to relaunch with Restore Last Profile
+        // The real single-slot hardware path used to relaunch with Restore Last Profile
         // selected but present Base Profile. Keep this assertion on the visible UI state.
         XCTAssertTrue(
             onConnectPresentationMatchesSelectedOption("Restore Last Profile"),

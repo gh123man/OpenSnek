@@ -6,6 +6,9 @@ final class DeviceProfilesTests: XCTestCase {
         let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00B9, transport: .usb)
         XCTAssertEqual(profile?.id, .basiliskV3XHyperspeed)
         XCTAssertEqual(profile?.buttonLayout.writableSlots, [1, 2, 3, 4, 5, 9, 10, 96])
+        XCTAssertEqual(profile?.buttonLayout.documentedSlots.map(\.slot), [1, 2, 3, 4, 5, 6, 9, 10, 96])
+        XCTAssertEqual(profile?.buttonLayout.access(for: 6), .softwareReadOnly)
+        XCTAssertEqual(profile?.buttonLayout.softwareReadOnlySlots.map(\.slot), [6])
         XCTAssertEqual(profile?.supportsAdvancedLightingEffects, true)
         XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual])
         XCTAssertEqual(profile?.usbLightingLEDIDs, [0x01])
@@ -18,7 +21,23 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.passiveDPIInput?.reportID, 0x05)
         XCTAssertEqual(profile?.passiveDPIInput?.subtype, 0x02)
         XCTAssertEqual(profile?.passiveDPIInput?.maximumDPI, 18_000)
+        XCTAssertEqual(profile?.supportsScrollModeControls, false)
+        XCTAssertEqual(profile?.supportsLightingBrightnessControls, false)
+        XCTAssertEqual(profile?.usesProjectedDPIStageWriteReadback, true)
         XCTAssertEqual(profile?.onboardProfileCount, 1)
+    }
+
+    func testBasiliskV3XUSBAndBluetoothExposeSameButtonBindings() throws {
+        let usb = try XCTUnwrap(DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00B9, transport: .usb))
+        let bluetooth = try XCTUnwrap(DeviceProfiles.resolve(vendorID: 0x068E, productID: 0x00BA, transport: .bluetooth))
+
+        XCTAssertEqual(usb.buttonLayout.visibleSlots, bluetooth.buttonLayout.visibleSlots)
+        XCTAssertEqual(usb.buttonLayout.writableSlots, bluetooth.buttonLayout.writableSlots)
+        XCTAssertEqual(usb.buttonLayout.documentedSlots, bluetooth.buttonLayout.documentedSlots)
+        XCTAssertEqual(
+            ButtonBindingSupport.availableButtonBindingKinds(profileID: usb.id),
+            ButtonBindingSupport.availableButtonBindingKinds(profileID: bluetooth.id)
+        )
     }
 
     func testResolveUSBProfileForBasiliskV335K() {
@@ -46,6 +65,9 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.passiveDPIInput?.reportID, 0x05)
         XCTAssertEqual(profile?.passiveDPIInput?.subtype, 0x02)
         XCTAssertEqual(profile?.passiveDPIInput?.maximumDPI, 35_000)
+        XCTAssertEqual(profile?.supportsScrollModeControls, true)
+        XCTAssertEqual(profile?.supportsLightingBrightnessControls, true)
+        XCTAssertEqual(profile?.usesProjectedDPIStageWriteReadback, false)
         XCTAssertEqual(profile?.onboardProfileCount, 5)
     }
 
@@ -77,6 +99,8 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.passiveDPIInput?.reportID, 0x05)
         XCTAssertEqual(profile?.passiveDPIInput?.subtype, 0x02)
         XCTAssertEqual(profile?.passiveDPIInput?.maximumDPI, 26_000)
+        XCTAssertEqual(profile?.supportsScrollModeControls, true)
+        XCTAssertEqual(profile?.supportsLightingBrightnessControls, true)
         XCTAssertEqual(profile?.onboardProfileCount, 5)
         XCTAssertEqual(profile?.isLocallyValidated, false)
     }
@@ -114,6 +138,8 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.passiveDPIInput?.profileSwitchPrefixes, [[0x05, 0x39]])
         XCTAssertEqual(profile?.passiveDPIInput?.profileSwitchPreludePrefixes, [])
         XCTAssertEqual(profile?.passiveDPIInput?.maximumDPI, 30_000)
+        XCTAssertEqual(profile?.supportsScrollModeControls, true)
+        XCTAssertEqual(profile?.supportsLightingBrightnessControls, true)
         XCTAssertEqual(profile?.onboardProfileSupport, .mappedCore)
         XCTAssertEqual(profile?.onboardProfileCount, 5)
     }
@@ -158,6 +184,8 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.passiveDPIInput?.reportID, 0x05)
         XCTAssertEqual(profile?.passiveDPIInput?.subtype, 0x02)
         XCTAssertEqual(profile?.passiveDPIInput?.maximumDPI, 18_000)
+        XCTAssertEqual(profile?.supportsScrollModeControls, false)
+        XCTAssertEqual(profile?.supportsLightingBrightnessControls, true)
         XCTAssertEqual(profile?.onboardProfileCount, 1)
     }
 
@@ -183,6 +211,8 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.passiveDPIInput?.profileSwitchPrefixes, [[0x05, 0x05, 0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]])
         XCTAssertEqual(profile?.passiveDPIInput?.profileSwitchPreludePrefixes, [[0x04, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]])
         XCTAssertEqual(profile?.passiveDPIInput?.maximumDPI, 30_000)
+        XCTAssertEqual(profile?.supportsScrollModeControls, false)
+        XCTAssertEqual(profile?.supportsLightingBrightnessControls, true)
         XCTAssertEqual(profile?.onboardProfileSupport, .mappedCore)
         XCTAssertEqual(profile?.onboardProfileCount, 5)
         XCTAssertEqual(profile?.usbLightingLEDIDs, [0x01, 0x04, 0x0A])
@@ -216,6 +246,7 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.supportedLightingEffects, [])
         XCTAssertEqual(profile?.usbLightingZones.count, 0)
         XCTAssertEqual(profile?.passiveDPIInput?.maximumDPI, 18_000)
+        XCTAssertEqual(profile?.supportsLightingBrightnessControls, false)
         XCTAssertEqual(profile?.onboardProfileCount, 1)
         XCTAssertFalse(ButtonBindingSupport.availableButtonBindingKinds(profileID: .orochiV2).contains(.dpiClutch))
         XCTAssertNil(ButtonBindingSupport.defaultDPIClutchDPI(for: .orochiV2))

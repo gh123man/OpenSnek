@@ -54,6 +54,7 @@ actor BridgeClient {
         let livePair: DpiPair
         let resolvedStagePairs: [DpiPair]
         let stageIDs: [UInt8]?
+        let usesProjectedReadback: Bool
     }
 
     nonisolated static func resolveBluetoothDpiStageWrite(

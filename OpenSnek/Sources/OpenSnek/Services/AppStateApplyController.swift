@@ -250,9 +250,8 @@ final class AppStateApplyController {
     }
 
     func applyScrollMode() async {
-        if let selectedDevice = deviceStore.selectedDevice,
-           supportsOnboardProfileCRUD(device: selectedDevice),
-           selectedDevice.transport == .usb {
+        guard let selectedDevice = selectedDeviceForScrollModeApply() else { return }
+        if supportsOnboardProfileCRUD(device: selectedDevice) {
             _ = await applyOnboardProfileMutationForCurrentSelection(
                 OnboardProfileMutation(scrollMode: max(0, min(1, editorStore.editableScrollMode)))
             )
@@ -269,9 +268,8 @@ final class AppStateApplyController {
     }
 
     func applyScrollAcceleration() async {
-        if let selectedDevice = deviceStore.selectedDevice,
-           supportsOnboardProfileCRUD(device: selectedDevice),
-           selectedDevice.transport == .usb {
+        guard let selectedDevice = selectedDeviceForScrollModeApply() else { return }
+        if supportsOnboardProfileCRUD(device: selectedDevice) {
             _ = await applyOnboardProfileMutationForCurrentSelection(
                 OnboardProfileMutation(scrollAcceleration: editorStore.editableScrollAcceleration)
             )
@@ -288,15 +286,22 @@ final class AppStateApplyController {
     }
 
     func applyScrollSmartReel() async {
-        if let selectedDevice = deviceStore.selectedDevice,
-           supportsOnboardProfileCRUD(device: selectedDevice),
-           selectedDevice.transport == .usb {
+        guard let selectedDevice = selectedDeviceForScrollModeApply() else { return }
+        if supportsOnboardProfileCRUD(device: selectedDevice) {
             _ = await applyOnboardProfileMutationForCurrentSelection(
                 OnboardProfileMutation(scrollSmartReel: editorStore.editableScrollSmartReel)
             )
             return
         }
         enqueueApply(DevicePatch(scrollSmartReel: editorStore.editableScrollSmartReel))
+    }
+
+    private func selectedDeviceForScrollModeApply() -> MouseDevice? {
+        guard let selectedDevice = deviceStore.selectedDevice,
+              selectedDevice.supportsScrollModeControls else {
+            return nil
+        }
+        return selectedDevice
     }
 
     func scheduleAutoApplyScrollSmartReel() {
@@ -307,8 +312,11 @@ final class AppStateApplyController {
     }
 
     func applyLedBrightness() async {
-        if let selectedDevice = deviceStore.selectedDevice,
-           supportsOnboardProfileLightingEditorWrites(device: selectedDevice) {
+        guard let selectedDevice = deviceStore.selectedDevice,
+              selectedDevice.supportsLightingBrightnessControls else {
+            return
+        }
+        if supportsOnboardProfileLightingEditorWrites(device: selectedDevice) {
             let brightness = Dictionary(
                 uniqueKeysWithValues: onboardProfileLEDIDs(for: selectedDevice).map { ledID in
                     (Int(ledID), editorStore.editableLedBrightness)

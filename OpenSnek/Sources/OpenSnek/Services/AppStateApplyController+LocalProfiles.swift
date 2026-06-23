@@ -23,14 +23,15 @@ extension AppStateApplyController {
             max(0, min(max(0, dpiStageCount - 1), active))
         }
         let lightingPatch = localProfileLightingPatch(content, device: device)
+        let supportsScrollModeControls = device.supportsScrollModeControls
         let patch = DevicePatch(
-            scrollMode: device.transport == .usb ? content.scrollMode : nil,
-            scrollAcceleration: device.transport == .usb ? content.scrollAcceleration : nil,
-            scrollSmartReel: device.transport == .usb ? content.scrollSmartReel : nil,
+            scrollMode: supportsScrollModeControls ? content.scrollMode : nil,
+            scrollAcceleration: supportsScrollModeControls ? content.scrollAcceleration : nil,
+            scrollSmartReel: supportsScrollModeControls ? content.scrollSmartReel : nil,
             dpiStages: dpiPatchValues?.isEmpty == false ? dpiPatchValues : nil,
             dpiStagePairs: dpiPatchPairs?.isEmpty == false ? dpiPatchPairs : nil,
             activeStage: activeStage,
-            ledBrightness: content.brightnessByLEDID.values.max(),
+            ledBrightness: device.supportsLightingBrightnessControls ? content.brightnessByLEDID.values.max() : nil,
             ledRGB: lightingPatch.rgb,
             lightingEffect: lightingPatch.effect,
             usbLightingZoneLEDIDs: lightingPatch.ledIDs
@@ -54,8 +55,9 @@ extension AppStateApplyController {
         }
 
         let persistentProfile = persistentProfileForRestoredLiveButtons(device: device)
-        for slot in content.buttonBindings.keys.sorted() {
-            guard let draft = content.buttonBindings[slot] else { continue }
+        let buttonBindings = localProfileButtonBindingsToApply(content.buttonBindings, device: device)
+        for slot in buttonBindings.keys.sorted() {
+            guard let draft = buttonBindings[slot] else { continue }
             let succeeded = await apply(
                 device: device,
                 patch: DevicePatch(
@@ -83,6 +85,46 @@ extension AppStateApplyController {
         editorController.setLiveUSBButtonProfileOverride(persistentProfile, for: device)
         editorController.markButtonWorkspaceAppliedToLive(bindings: content.buttonBindings, exactSource: nil)
         return true
+    }
+
+    private func localProfileButtonBindingsToApply(
+        _ bindings: [Int: ButtonBindingDraft],
+        device: MouseDevice
+    ) -> [Int: ButtonBindingDraft] {
+        bindings.filter { slot, draft in
+            shouldApplyLocalProfileButtonBinding(slot: slot, draft: draft, device: device)
+        }
+    }
+
+    private func shouldApplyLocalProfileButtonBinding(
+        slot: Int,
+        draft: ButtonBindingDraft,
+        device: MouseDevice
+    ) -> Bool {
+        let current = editorStore.editableButtonBindings[slot]
+            ?? editorController.defaultButtonBinding(for: slot, device: device)
+        return normalizedProfileButtonBinding(draft, slot: slot, device: device)
+            != normalizedProfileButtonBinding(current, slot: slot, device: device)
+    }
+
+    private func normalizedProfileButtonBinding(
+        _ draft: ButtonBindingDraft,
+        slot: Int,
+        device: MouseDevice
+    ) -> ButtonBindingDraft {
+        let availableKinds = Set(ButtonBindingSupport.availableButtonBindingKinds(profileID: device.profile_id))
+        let resolved = availableKinds.contains(draft.kind)
+            ? draft
+            : ButtonBindingSupport.defaultButtonBinding(for: slot, profileID: device.profile_id)
+        // Single-slot profile switches can contain full button snapshots. Avoid
+        // no-op default writes because some devices ACK the meaningful remap but
+        // reject a redundant live-layer default restore, which would make the UI
+        // forget the selected local profile even though the switch succeeded.
+        return ButtonBindingSupport.normalizedDefaultRepresentation(
+            for: slot,
+            draft: resolved,
+            profileID: device.profile_id
+        )
     }
 
     private func localProfileLightingPatch(

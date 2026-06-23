@@ -6,6 +6,8 @@ import OpenSnekCore
 @MainActor
 @Observable
 final class EditorStore {
+    private static let preferredExpandedDPIStageValues = [800, 1600, 3200, 6400, 12000]
+
     @ObservationIgnored let deviceStore: DeviceStore
     var editableStageValues: [Int] = [800, 1600, 3200, 6400, 12000] {
         didSet {
@@ -579,6 +581,23 @@ final class EditorStore {
         let clamped = DeviceProfiles.clampDPI(value, profileID: selectedDeviceProfileID)
         editableStageValues[index] = clamped
         editableStagePairs[index] = DpiPair(x: clamped, y: clamped)
+    }
+
+    func seedNewlyEnabledDPIStage(at index: Int) {
+        guard index >= 0 && index < editableStageValues.count else { return }
+        let visibleCount = max(0, min(index, editableStageCount, editableStageValues.count))
+        let visibleValues = Set(editableStageValues.prefix(visibleCount))
+        let current = DeviceProfiles.clampDPI(editableStageValues[index], profileID: selectedDeviceProfileID)
+        guard visibleValues.contains(current) else {
+            updateStage(index, value: current)
+            return
+        }
+        guard let replacement = Self.preferredExpandedDPIStageValues
+            .map({ DeviceProfiles.clampDPI($0, profileID: selectedDeviceProfileID) })
+            .first(where: { !visibleValues.contains($0) }) else {
+            return
+        }
+        updateStage(index, value: replacement)
     }
 
     func stageValue(_ index: Int) -> Int {

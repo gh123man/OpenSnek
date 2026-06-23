@@ -375,7 +375,12 @@ extension AppStateEditorController {
         let activeStage = max(0, min(max(0, count - 1), editorStore.editableActiveStage - 1))
         let scalar = pairs.indices.contains(activeStage) ? pairs[activeStage] : pairs.first
         let lightingLEDIDs = lightingLEDIDs(for: device)
-        let brightness = Dictionary(uniqueKeysWithValues: lightingLEDIDs.map { (Int($0), editorStore.editableLedBrightness) })
+        let brightness: [Int: Int]
+        if device.supportsLightingBrightnessControls {
+            brightness = Dictionary(uniqueKeysWithValues: lightingLEDIDs.map { (Int($0), editorStore.editableLedBrightness) })
+        } else {
+            brightness = [:]
+        }
         let staticColors = Dictionary(uniqueKeysWithValues: lightingLEDIDs.map { ledID in
             (
                 Int(ledID),
@@ -386,6 +391,7 @@ extension AppStateEditorController {
                 )
             )
         })
+        let supportsScrollModeControls = device.supportsScrollModeControls
         return OpenSnekLocalProfileContent(
             dpi: OnboardDPIProfileSnapshot(
                 scalar: scalar,
@@ -398,9 +404,9 @@ extension AppStateEditorController {
             brightnessByLEDID: brightness,
             staticColorByLEDID: staticColors,
             lightingEffect: device.supports_advanced_lighting_effects ? currentLightingEffectPatch() : nil,
-            scrollMode: device.transport == .usb ? editorStore.editableScrollMode : nil,
-            scrollAcceleration: device.transport == .usb ? editorStore.editableScrollAcceleration : nil,
-            scrollSmartReel: device.transport == .usb ? editorStore.editableScrollSmartReel : nil
+            scrollMode: supportsScrollModeControls ? editorStore.editableScrollMode : nil,
+            scrollAcceleration: supportsScrollModeControls ? editorStore.editableScrollAcceleration : nil,
+            scrollSmartReel: supportsScrollModeControls ? editorStore.editableScrollSmartReel : nil
         )
     }
 
@@ -447,9 +453,9 @@ extension AppStateEditorController {
             brightnessByLEDID: lighting.brightness,
             staticColorByLEDID: lighting.staticColors,
             lightingEffect: lighting.effect,
-            scrollMode: device.transport == .usb ? content.scrollMode : nil,
-            scrollAcceleration: device.transport == .usb ? content.scrollAcceleration : nil,
-            scrollSmartReel: device.transport == .usb ? content.scrollSmartReel : nil
+            scrollMode: device.supportsScrollModeControls ? content.scrollMode : nil,
+            scrollAcceleration: device.supportsScrollModeControls ? content.scrollAcceleration : nil,
+            scrollSmartReel: device.supportsScrollModeControls ? content.scrollSmartReel : nil
         )
     }
 
@@ -466,9 +472,9 @@ extension AppStateEditorController {
             buttonBindings: content.buttonBindings,
             brightnessByLEDID: content.brightnessByLEDID.isEmpty ? nil : content.brightnessByLEDID,
             staticColorByLEDID: staticColors,
-            scrollMode: device.transport == .usb ? content.scrollMode : nil,
-            scrollAcceleration: device.transport == .usb ? content.scrollAcceleration : nil,
-            scrollSmartReel: device.transport == .usb ? content.scrollSmartReel : nil
+            scrollMode: device.supportsScrollModeControls ? content.scrollMode : nil,
+            scrollAcceleration: device.supportsScrollModeControls ? content.scrollAcceleration : nil,
+            scrollSmartReel: device.supportsScrollModeControls ? content.scrollSmartReel : nil
         )
     }
 
@@ -691,8 +697,9 @@ extension AppStateEditorController {
         }
         let targetLEDIDs = lightingLEDIDs(for: device).map(Int.init)
         let sourceBrightness = content.brightnessByLEDID.values.max()
-        let brightness = sourceBrightness.map { value in
-            Dictionary(uniqueKeysWithValues: targetLEDIDs.map { ($0, value) })
+        let brightness: [Int: Int] = sourceBrightness.flatMap { value in
+            guard device.supportsLightingBrightnessControls else { return nil }
+            return Dictionary(uniqueKeysWithValues: targetLEDIDs.map { ($0, value) })
         } ?? [:]
 
         let sourceColor = primaryStaticColor(from: content)
@@ -740,7 +747,7 @@ extension AppStateEditorController {
         } else if let effect = content.lightingEffect {
             editorStore.editableLightingEffect = effect.kind
         }
-        if device.transport == .usb {
+        if device.supportsScrollModeControls {
             if let scrollMode = content.scrollMode {
                 editorStore.editableScrollMode = scrollMode
             }

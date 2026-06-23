@@ -8,15 +8,16 @@ extension AppStateEditorController {
         device: MouseDevice,
         metadata: OnboardProfileMetadata? = nil
     ) -> OnboardProfileMutation {
+        let supportsScrollModeControls = device.supportsScrollModeControls
         return OnboardProfileMutation(
             metadata: metadata,
             dpi: currentOnboardDPIProfileSnapshot(device: device),
             buttonBindings: editorStore.editableButtonBindings,
             brightnessByLEDID: currentOnboardBrightnessByLEDID(device: device),
             staticColorByLEDID: currentOnboardStaticColorByLEDID(device: device),
-            scrollMode: device.transport == .usb ? editorStore.editableScrollMode : nil,
-            scrollAcceleration: device.transport == .usb ? editorStore.editableScrollAcceleration : nil,
-            scrollSmartReel: device.transport == .usb ? editorStore.editableScrollSmartReel : nil
+            scrollMode: supportsScrollModeControls ? editorStore.editableScrollMode : nil,
+            scrollAcceleration: supportsScrollModeControls ? editorStore.editableScrollAcceleration : nil,
+            scrollSmartReel: supportsScrollModeControls ? editorStore.editableScrollSmartReel : nil
         )
     }
 

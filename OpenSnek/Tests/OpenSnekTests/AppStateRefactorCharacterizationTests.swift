@@ -836,6 +836,8 @@ func makeRefactorTestDevice(
     let resolvedProfileID = profileID ?? (transport == .bluetooth ? .basiliskV3XHyperspeed : .basiliskV3Pro)
     let productID: Int
     switch (transport, resolvedProfileID) {
+    case (.usb, .basiliskV3XHyperspeed):
+        productID = 0x00B9
     case (.usb, .basiliskV3):
         productID = 0x0099
     case (.usb, .basiliskV335K):

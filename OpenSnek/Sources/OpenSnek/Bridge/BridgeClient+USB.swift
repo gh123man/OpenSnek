@@ -173,9 +173,18 @@ extension BridgeClient {
             let onboardProfile = try getOnboardProfileInfo(session, device)
             let scrollProfileID = onboardProfile?.active ?? 1
             let lowBatteryThreshold = try getLowBatteryThreshold(session, device)
-            let scrollMode = try getScrollMode(session, device, profileID: scrollProfileID)
-            let scrollAcceleration = try getScrollAcceleration(session, device, profileID: scrollProfileID)
-            let scrollSmartReel = try getScrollSmartReel(session, device, profileID: scrollProfileID)
+            let scrollMode: Int?
+            let scrollAcceleration: Bool?
+            let scrollSmartReel: Bool?
+            if device.supportsScrollModeControls {
+                scrollMode = try getScrollMode(session, device, profileID: scrollProfileID)
+                scrollAcceleration = try getScrollAcceleration(session, device, profileID: scrollProfileID)
+                scrollSmartReel = try getScrollSmartReel(session, device, profileID: scrollProfileID)
+            } else {
+                scrollMode = nil
+                scrollAcceleration = nil
+                scrollSmartReel = nil
+            }
             let led = try getScrollLEDBrightness(session, device)
             let profile = usbDeviceProfile(for: device)
             let capabilities = resolvedUSBStateCapabilities(

@@ -668,6 +668,61 @@ final class AppStateLocalProfileTests: XCTestCase {
         XCTAssertEqual(betaState.2, .mouseBack)
     }
 
+    func testSingleSlotUSBReplacementSkipsUnchangedButtonBindings() async throws {
+        clearSavedButtonProfiles()
+        let device = makeSingleSlotUSBProfileDevice(id: "local-profile-usb-skip-unchanged-buttons")
+        defer { clearRefactorPreferences(for: device) }
+
+        let profile = DevicePreferenceStore().createOpenSnekLocalProfile(
+            name: "USB Switch",
+            content: OpenSnekLocalProfileContent(
+                dpi: OnboardDPIProfileSnapshot(
+                    scalar: DpiPair(x: 1200, y: 1200),
+                    activeStage: 0,
+                    pairs: [DpiPair(x: 1200, y: 1200), DpiPair(x: 2400, y: 2400)]
+                ),
+                buttonBindings: [
+                    4: ButtonBindingDraft(kind: .mouseForward, hidKey: 4, turboEnabled: false, turboRate: 0x8E),
+                    10: ButtonBindingSupport.defaultButtonBinding(
+                        for: 10,
+                        profileID: .basiliskV3XHyperspeed
+                    )
+                ]
+            )
+        )
+        let backend = makeLocalProfileBackend(device: device, activeProfile: 1, dpiValues: [800, 1600])
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+        await MainActor.run {
+            appState.editorStore.editableButtonBindings[4] = ButtonBindingDraft(
+                kind: .mouseBack,
+                hidKey: 4,
+                turboEnabled: false,
+                turboRate: 0x8E
+            )
+            appState.editorStore.editableButtonBindings[10] = ButtonBindingSupport.defaultButtonBinding(
+                for: 10,
+                profileID: .basiliskV3XHyperspeed
+            )
+        }
+
+        await appState.editorStore.replaceSelectedProfile(with: profile.id)
+
+        try await waitForRefactorCondition {
+            await backend.recordedPatches().contains { $0.buttonBinding?.slot == 4 }
+        }
+
+        let buttonPatches = await backend.recordedPatches().compactMap(\.buttonBinding)
+        XCTAssertEqual(buttonPatches.map(\.slot), [4])
+        XCTAssertEqual(buttonPatches.first?.kind, .mouseForward)
+        XCTAssertEqual(DevicePreferenceStore().loadSelectedLocalProfileID(device: device), profile.id)
+        let summary = await MainActor.run { appState.editorStore.onboardProfileSummaries.first }
+        XCTAssertEqual(summary?.metadata?.name, "USB Switch")
+    }
+
     func testSingleSlotReplacementWaitsForInFlightLocalApplyBeforeSwitching() async throws {
         clearSavedButtonProfiles()
         defer { clearSavedButtonProfiles() }
@@ -749,35 +804,7 @@ final class AppStateLocalProfileTests: XCTestCase {
 
         let sourceDevice = makeMappedProfileDevice(id: "local-profile-cross-source")
         let targetDevice = makeSingleSlotProfileDevice(id: "local-profile-cross-target")
-        let source = DevicePreferenceStore().upsertOpenSnekLocalProfile(
-            name: "V3 Pro Travel",
-            content: OpenSnekLocalProfileContent(
-                dpi: OnboardDPIProfileSnapshot(
-                    scalar: DpiPair(x: 30_000, y: 31_000),
-                    activeStage: 1,
-                    pairs: [
-                        DpiPair(x: 600, y: 700),
-                        DpiPair(x: 30_000, y: 31_000)
-                    ]
-                ),
-                buttonBindings: [
-                    4: ButtonBindingDraft(kind: .mouseForward, hidKey: 4, turboEnabled: false, turboRate: 0x8E),
-                    15: ButtonBindingDraft(kind: .dpiClutch, hidKey: 4, turboEnabled: false, turboRate: 0x8E)
-                ],
-                brightnessByLEDID: [1: 42, 4: 96, 10: 128],
-                staticColorByLEDID: [4: RGBPatch(r: 11, g: 22, b: 33)],
-                lightingEffect: LightingEffectPatch(
-                    kind: .wave,
-                    primary: RGBPatch(r: 11, g: 22, b: 33),
-                    waveDirection: .right
-                ),
-                scrollMode: 1,
-                scrollAcceleration: true,
-                scrollSmartReel: true
-            ),
-            onboardIdentifier: UUID(),
-            device: sourceDevice
-        )
+        let source = makeV3ProTravelLocalProfile(sourceDevice: sourceDevice)
         let backend = makeLocalProfileBackend(device: targetDevice, activeProfile: 1, dpiValues: [800, 1600])
         let appState = await MainActor.run {
             AppState(launchRole: .app, backend: backend, autoStart: false)
@@ -805,6 +832,36 @@ final class AppStateLocalProfileTests: XCTestCase {
         XCTAssertEqual(patches.compactMap(\.buttonBinding).map(\.slot), [4])
         XCTAssertEqual(patches.compactMap(\.buttonBinding).first?.kind, .mouseForward)
     }
+
+    func testCrossDeviceV3ProLocalProfileDoesNotApplyScrollModeFieldsToUSBHyperSpeed() async throws {
+        clearSavedButtonProfiles()
+        defer { clearSavedButtonProfiles() }
+
+        let sourceDevice = makeMappedProfileDevice(id: "local-profile-cross-usb-source")
+        let targetDevice = makeSingleSlotUSBProfileDevice(id: "local-profile-cross-usb-target")
+        let source = makeV3ProTravelLocalProfile(sourceDevice: sourceDevice)
+        let backend = makeLocalProfileBackend(device: targetDevice, activeProfile: 1, dpiValues: [800, 1600])
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+        await appState.editorStore.replaceSelectedProfile(with: source.id)
+
+        try await waitForRefactorCondition {
+            await backend.recordedPatches().contains { $0.buttonBinding?.slot == 4 }
+        }
+
+        let patches = await backend.recordedPatches()
+        let dpiPatch = try XCTUnwrap(patches.first { $0.dpiStages != nil })
+        XCTAssertEqual(dpiPatch.dpiStages, [600, 18_000])
+        XCTAssertNil(dpiPatch.scrollMode)
+        XCTAssertNil(dpiPatch.scrollAcceleration)
+        XCTAssertNil(dpiPatch.scrollSmartReel)
+        XCTAssertNil(dpiPatch.ledBrightness)
+        XCTAssertEqual(patches.compactMap(\.buttonBinding).map(\.slot), [4])
+    }
 }
 
 private func makeMappedProfileDevice(id: String) -> MouseDevice {
@@ -824,6 +881,48 @@ private func makeSingleSlotProfileDevice(id: String) -> MouseDevice {
         serial: "LOCAL-PROFILE-\(UUID().uuidString)",
         onboardProfileCount: 1,
         profileID: .basiliskV3XHyperspeed
+    )
+}
+
+private func makeSingleSlotUSBProfileDevice(id: String) -> MouseDevice {
+    makeRefactorTestDevice(
+        id: id,
+        transport: .usb,
+        serial: "LOCAL-PROFILE-\(UUID().uuidString)",
+        onboardProfileCount: 1,
+        profileID: .basiliskV3XHyperspeed
+    )
+}
+
+private func makeV3ProTravelLocalProfile(sourceDevice: MouseDevice) -> OpenSnekLocalProfile {
+    DevicePreferenceStore().upsertOpenSnekLocalProfile(
+        name: "V3 Pro Travel",
+        content: OpenSnekLocalProfileContent(
+            dpi: OnboardDPIProfileSnapshot(
+                scalar: DpiPair(x: 30_000, y: 31_000),
+                activeStage: 1,
+                pairs: [
+                    DpiPair(x: 600, y: 700),
+                    DpiPair(x: 30_000, y: 31_000)
+                ]
+            ),
+            buttonBindings: [
+                4: ButtonBindingDraft(kind: .mouseForward, hidKey: 4, turboEnabled: false, turboRate: 0x8E),
+                15: ButtonBindingDraft(kind: .dpiClutch, hidKey: 4, turboEnabled: false, turboRate: 0x8E)
+            ],
+            brightnessByLEDID: [1: 42, 4: 96, 10: 128],
+            staticColorByLEDID: [4: RGBPatch(r: 11, g: 22, b: 33)],
+            lightingEffect: LightingEffectPatch(
+                kind: .wave,
+                primary: RGBPatch(r: 11, g: 22, b: 33),
+                waveDirection: .right
+            ),
+            scrollMode: 1,
+            scrollAcceleration: true,
+            scrollSmartReel: true
+        ),
+        onboardIdentifier: UUID(),
+        device: sourceDevice
     )
 }
 
@@ -847,9 +946,9 @@ private func makeLocalProfileBackend(
                 options: RefactorTestStateOptions(
                     activeOnboardProfile: activeProfile,
                     onboardProfileCount: device.onboard_profile_count,
-                    scrollMode: device.transport == .usb ? 0 : nil,
-                    scrollAcceleration: device.transport == .usb ? false : nil,
-                    scrollSmartReel: device.transport == .usb ? false : nil
+                    scrollMode: device.supportsScrollModeControls ? 0 : nil,
+                    scrollAcceleration: device.supportsScrollModeControls ? false : nil,
+                    scrollSmartReel: device.supportsScrollModeControls ? false : nil
                 )
             )
         ],

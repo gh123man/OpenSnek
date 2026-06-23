@@ -105,7 +105,7 @@ private func makeAppLocalStorageResetterTestDevice() -> MouseDevice {
         button_layout: ButtonSlotLayout(
             visibleSlots: DeviceProfiles.basiliskV3XButtonSlots,
             writableSlots: DeviceProfiles.basiliskV3XButtonSlots.map(\.slot),
-            documentedSlots: DeviceProfiles.basiliskV3XBluetoothDocumentedReadOnlySlots
+            documentedSlots: DeviceProfiles.basiliskV3XDocumentedReadOnlySlots
         )
     )
 }

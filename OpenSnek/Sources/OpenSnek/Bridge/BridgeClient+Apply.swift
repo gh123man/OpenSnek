@@ -34,7 +34,8 @@ extension BridgeClient {
             }
         }
 
-        if let brightness = patch.ledBrightness {
+        if let brightness = patch.ledBrightness,
+           device.supportsLightingBrightnessControls {
             guard try await btSetLightingValue(device: device, value: brightness) else {
                 throw BridgeError.commandFailed("Failed to set Bluetooth lighting value")
             }
@@ -170,7 +171,8 @@ extension BridgeClient {
             return projected
         }
 
-        if let brightness = patch.ledBrightness {
+        if let brightness = patch.ledBrightness,
+           device.supportsLightingBrightnessControls {
             guard try runUSBWrite({ try setScrollLEDBrightness($0, device, value: brightness) }) else {
                 throw BridgeError.commandFailed("Failed to set LED brightness")
             }
@@ -290,21 +292,23 @@ extension BridgeClient {
             }
         }
 
-        if let scrollMode = patch.scrollMode {
-            guard try runUSBWrite({ try setScrollMode($0, device, mode: scrollMode) }) else {
-                throw BridgeError.commandFailed("Failed to set scroll mode")
+        if device.supportsScrollModeControls {
+            if let scrollMode = patch.scrollMode {
+                guard try runUSBWrite({ try setScrollMode($0, device, mode: scrollMode) }) else {
+                    throw BridgeError.commandFailed("Failed to set scroll mode")
+                }
             }
-        }
 
-        if let scrollAcceleration = patch.scrollAcceleration {
-            guard try runUSBWrite({ try setScrollAcceleration($0, device, enabled: scrollAcceleration) }) else {
-                throw BridgeError.commandFailed("Failed to set scroll acceleration")
+            if let scrollAcceleration = patch.scrollAcceleration {
+                guard try runUSBWrite({ try setScrollAcceleration($0, device, enabled: scrollAcceleration) }) else {
+                    throw BridgeError.commandFailed("Failed to set scroll acceleration")
+                }
             }
-        }
 
-        if let scrollSmartReel = patch.scrollSmartReel {
-            guard try runUSBWrite({ try setScrollSmartReel($0, device, enabled: scrollSmartReel) }) else {
-                throw BridgeError.commandFailed("Failed to set scroll smart reel")
+            if let scrollSmartReel = patch.scrollSmartReel {
+                guard try runUSBWrite({ try setScrollSmartReel($0, device, enabled: scrollSmartReel) }) else {
+                    throw BridgeError.commandFailed("Failed to set scroll smart reel")
+                }
             }
         }
 
@@ -390,12 +394,26 @@ extension BridgeClient {
                 activeClamped: activeClamped,
                 livePair: livePair,
                 resolvedStagePairs: resolvedStagePairs,
-                stageIDs: current?.stageIDs
+                stageIDs: current?.stageIDs,
+                usesProjectedReadback: device.usesProjectedDPIStageWriteReadback
             ),
             runUSBWrite: runUSBWrite,
             readUSBCurrentDpiStages: readUSBCurrentDpiStages,
             readUSBCurrentDpi: readUSBCurrentDpi
         )
+        if device.usesProjectedDPIStageWriteReadback {
+            let baseState: MouseState?
+            if let cachedState {
+                baseState = cachedState
+            } else {
+                baseState = try? await readState(device: device)
+            }
+            if let baseState {
+                let projected = projectedState(from: baseState, applying: patch, device: device)
+                lastStateByDeviceID[device.id] = projected
+                return projected
+            }
+        }
         return nil
     }
 
@@ -504,6 +522,19 @@ extension BridgeClient {
             )
         }) else {
             throw BridgeError.commandFailed("Failed to set DPI stages")
+        }
+        if context.usesProjectedReadback {
+            // Basilisk V3 X HyperSpeed USB ACKs the stage-table write but can
+            // immediately report the old one-slot table/live DPI. Project the
+            // accepted write so profile switches do not collapse back to Base Profile.
+            guard try runUSBWrite({ try setDPI($0, device, dpiX: livePair.x, dpiY: livePair.y, store: false) }) else {
+                throw BridgeError.commandFailed("Failed to apply active DPI stage")
+            }
+            AppLog.debug(
+                "Bridge",
+                "usb dpi stage write projected device=\(device.id) stages=\(context.stages) active=\(context.activeClamped)"
+            )
+            return
         }
         try verifyUSBStageWrite(
             device: device,

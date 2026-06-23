@@ -463,10 +463,10 @@ final class AppStateEditorController {
             pollRate: editorStore.editablePollRate,
             sleepTimeout: editorStore.editableSleepTimeout,
             lowBatteryThresholdRaw: editorStore.editableLowBatteryThresholdRaw,
-            scrollMode: editorStore.editableScrollMode,
-            scrollAcceleration: editorStore.editableScrollAcceleration,
-            scrollSmartReel: editorStore.editableScrollSmartReel,
-            ledBrightness: editorStore.editableLedBrightness,
+            scrollMode: device.supportsScrollModeControls ? editorStore.editableScrollMode : nil,
+            scrollAcceleration: device.supportsScrollModeControls ? editorStore.editableScrollAcceleration : nil,
+            scrollSmartReel: device.supportsScrollModeControls ? editorStore.editableScrollSmartReel : nil,
+            ledBrightness: device.supportsLightingBrightnessControls ? editorStore.editableLedBrightness : nil,
             primaryLightingColor: primaryLightingColor,
             lightingEffect: lightingEffect,
             usbLightingZoneID: lightingZoneID,
@@ -836,7 +836,8 @@ final class AppStateEditorController {
         if let scrollSmartReel = snapshot.scrollSmartReel {
             editorStore.editableScrollSmartReel = scrollSmartReel
         }
-        if let ledBrightness = snapshot.ledBrightness {
+        if let ledBrightness = snapshot.ledBrightness,
+           device.supportsLightingBrightnessControls {
             editorStore.editableLedBrightness = ledBrightness
         }
         if let primaryColor = snapshot.primaryLightingColor {

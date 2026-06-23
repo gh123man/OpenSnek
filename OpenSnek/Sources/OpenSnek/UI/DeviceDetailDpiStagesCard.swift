@@ -86,6 +86,9 @@ private struct DpiStageCountHeader: View {
     private func increaseStageCount() {
         let next = min(maximumEditableDpiStageCount, editorStore.editableStageCount + 1)
         guard next != editorStore.editableStageCount else { return }
+        // Hidden stage values can be stale duplicates after single-slot profile restores.
+        // Seed before the auto-apply so hardware can verify the active stage unambiguously.
+        editorStore.seedNewlyEnabledDPIStage(at: next - 1)
         editorStore.editableStageCount = next
         editorStore.normalizeExpandedXYStages()
         editorStore.scheduleAutoApplyDpi()
