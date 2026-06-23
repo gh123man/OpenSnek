@@ -113,6 +113,7 @@ actor BridgeClient {
     }
     static let bluetoothPassiveHeartbeatHealthyInterval: TimeInterval = 1.5
     static let usbReconnectSettleInterval: TimeInterval = 2.0
+    static let emptyHIDManagerRefreshInterval: TimeInterval = 1.0
 
     var deviceSessions: [String: USBHIDControlSession] = [:]
     var deviceSessionCandidates: [String: [USBHIDControlSession]] = [:]
@@ -146,6 +147,7 @@ actor BridgeClient {
     let btVID = 0x068E
     private var hidManager: IOHIDManager?
     private var hidManagerOpenResult: IOReturn?
+    private var lastEmptyHIDManagerRefreshAt: Date?
 
     init(startHIDMonitoring: Bool = true) {
         hidDevicePresenceMonitor.onChange = { [weak self] event in
@@ -202,6 +204,34 @@ actor BridgeClient {
         clearManagedHIDManager()
     }
 
+    func usbDeviceIsAbsentAfterDiscoveryRefresh(device: MouseDevice, operation: String) async -> Bool {
+        guard device.transport == .usb else { return false }
+
+        // Stale IOHIDDevice handles can report telemetry failures after a dongle is pulled.
+        // Always re-run discovery before calling that a sleeping/off mouse; absence means the
+        // receiver itself is gone and the UI must leave the dongle-only state on replug.
+        clearManagedHIDManager()
+        do {
+            let devices = try await listDevices()
+            let isPresent = devices.contains { $0.id == device.id }
+            AppLog.debug(
+                "Bridge",
+                "usb discovery refresh after \(operation) device=\(device.id) " +
+                "present=\(isPresent) candidates=\(deviceSessionCandidates[device.id]?.count ?? 0)"
+            )
+            if !isPresent {
+                invalidateDiscoveryState(for: device.id, reason: "\(operation)-absent")
+            }
+            return !isPresent
+        } catch {
+            AppLog.debug(
+                "Bridge",
+                "usb discovery refresh after \(operation) failed device=\(device.id): \(error.localizedDescription)"
+            )
+            return false
+        }
+    }
+
     private func managedHIDManager() -> (manager: IOHIDManager, openResult: IOReturn) {
         if let hidManager, let hidManagerOpenResult, hidManagerOpenResult == kIOReturnSuccess {
             return (hidManager, hidManagerOpenResult)
@@ -232,6 +262,14 @@ actor BridgeClient {
         return (manager, openResult)
     }
 
+    private func currentHIDDeviceSnapshot() -> (devices: [IOHIDDevice], openResult: IOReturn) {
+        let (manager, openResult) = managedHIDManager()
+        guard let set = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice> else {
+            return ([], openResult)
+        }
+        return (Array(set), openResult)
+    }
+
     private func clearManagedHIDManager() {
         if let hidManager {
             IOHIDManagerClose(hidManager, IOOptionBits(kIOHIDOptionsTypeNone))
@@ -239,6 +277,7 @@ actor BridgeClient {
         }
         hidManagerOpenResult = nil
         managerAccessDenied = false
+        lastEmptyHIDManagerRefreshAt = nil
     }
 
     func hidAccessStatus(forceRefresh: Bool = true) -> HIDAccessStatus {
@@ -275,15 +314,37 @@ actor BridgeClient {
 
     func listDevices() async throws -> [MouseDevice] {
         let start = Date()
-        let (manager, openResult) = managedHIDManager()
+        var hidSnapshot = currentHIDDeviceSnapshot()
+        if hidSnapshot.devices.isEmpty {
+            let now = Date()
+            if Self.shouldRefreshEmptyHIDManagerSnapshot(
+                openResult: hidSnapshot.openResult,
+                lastRefreshAt: lastEmptyHIDManagerRefreshAt,
+                now: now
+            ) {
+                // macOS can show a replugged receiver in IORegistry while a previously opened
+                // IOHIDManager keeps returning an empty device set and never emits another
+                // presence callback. Reopen the manager so polling can rediscover the device.
+                clearManagedHIDManager()
+                hidSnapshot = currentHIDDeviceSnapshot()
+                if hidSnapshot.devices.isEmpty {
+                    lastEmptyHIDManagerRefreshAt = now
+                    AppLog.debug("Bridge", "listDevices refreshed empty HID manager snapshot; still empty")
+                } else {
+                    lastEmptyHIDManagerRefreshAt = nil
+                    AppLog.event(
+                        "Bridge",
+                        "listDevices recovered stale empty HID manager snapshot devices=\(hidSnapshot.devices.count)"
+                    )
+                }
+            }
+        } else {
+            lastEmptyHIDManagerRefreshAt = nil
+        }
+        let openResult = hidSnapshot.openResult
         let connectedBluetoothPeripheralNames = await btVendorClient.connectedPeripheralSummaries()?.map(\.name)
 
-        let devices: [IOHIDDevice]
-        if let set = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice> {
-            devices = Array(set)
-        } else {
-            devices = []
-        }
+        let devices = hidSnapshot.devices
 
         var modelsByID: [String: MouseDevice] = [:]
         var sessionsByID: [String: [(score: Int, session: USBHIDControlSession)]] = [:]
@@ -440,6 +501,16 @@ actor BridgeClient {
     nonisolated static func shouldDeferUSBReconnectRead(until settleDeadline: Date?, now: Date = Date()) -> Bool {
         guard let settleDeadline else { return false }
         return now < settleDeadline
+    }
+
+    nonisolated static func shouldRefreshEmptyHIDManagerSnapshot(
+        openResult: IOReturn,
+        lastRefreshAt: Date?,
+        now: Date = Date()
+    ) -> Bool {
+        guard openResult == kIOReturnSuccess else { return false }
+        guard let lastRefreshAt else { return true }
+        return now.timeIntervalSince(lastRefreshAt) >= Self.emptyHIDManagerRefreshInterval
     }
 
     private func updateUSBReconnectSettleDeadline(for event: HIDDevicePresenceEvent) {
@@ -628,6 +699,10 @@ actor BridgeClient {
 
         deviceSessions[device.id]?.invalidateCachedTransaction()
         if let firstError {
+            if Self.isUSBTelemetryUnavailableError(firstError),
+               await usbDeviceIsAbsentAfterDiscoveryRefresh(device: device, operation: "read-state") {
+                throw BridgeError.commandFailed("Device not available")
+            }
             throw firstError
         }
         throw BridgeError.commandFailed("USB device telemetry unavailable")
@@ -711,6 +786,10 @@ actor BridgeClient {
         }
 
         if let firstError {
+            if Self.isUSBTelemetryUnavailableError(firstError),
+               await usbDeviceIsAbsentAfterDiscoveryRefresh(device: device, operation: "fast-dpi-read") {
+                throw BridgeError.commandFailed("Device not available")
+            }
             throw firstError
         }
         return nil

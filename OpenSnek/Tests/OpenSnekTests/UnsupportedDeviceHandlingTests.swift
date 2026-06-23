@@ -1,4 +1,5 @@
 import XCTest
+import IOKit
 @testable import OpenSnek
 import OpenSnekCore
 import OpenSnekHardware
@@ -33,6 +34,14 @@ final class UnsupportedDeviceHandlingTests: XCTestCase {
 
         let availability = try await client.usbControlAvailability(device: device)
         XCTAssertEqual(availability, .receiverAbsent)
+    }
+
+    func testUSBHIDUnavailableOpenResultsClassifyAsDeviceUnavailable() {
+        XCTAssertTrue(USBHIDSupport.isDeviceUnavailableOpenResult(kIOReturnNoDevice))
+        XCTAssertTrue(USBHIDSupport.isDeviceUnavailableOpenResult(kIOReturnOffline))
+        XCTAssertTrue(USBHIDSupport.isDeviceUnavailableOpenResult(kIOReturnNotOpen))
+        XCTAssertFalse(USBHIDSupport.isDeviceUnavailableOpenResult(kIOReturnSuccess))
+        XCTAssertFalse(USBHIDSupport.isDeviceUnavailableOpenResult(kIOReturnNotPermitted))
     }
 
     func testUSBReconnectSettleDeadlineOnlyAppliesToUSBConnectEvents() {
@@ -90,6 +99,39 @@ final class UnsupportedDeviceHandlingTests: XCTestCase {
 
     func testUSBReconnectSettleIntervalIsTwoSeconds() {
         XCTAssertEqual(BridgeClient.usbReconnectSettleInterval, 2.0)
+    }
+
+    func testEmptyHIDManagerSnapshotRefreshRequiresSuccessfulOpenAndRateLimit() {
+        let now = Date(timeIntervalSince1970: 3000)
+
+        XCTAssertTrue(
+            BridgeClient.shouldRefreshEmptyHIDManagerSnapshot(
+                openResult: kIOReturnSuccess,
+                lastRefreshAt: nil,
+                now: now
+            )
+        )
+        XCTAssertFalse(
+            BridgeClient.shouldRefreshEmptyHIDManagerSnapshot(
+                openResult: kIOReturnNotPermitted,
+                lastRefreshAt: nil,
+                now: now
+            )
+        )
+        XCTAssertFalse(
+            BridgeClient.shouldRefreshEmptyHIDManagerSnapshot(
+                openResult: kIOReturnSuccess,
+                lastRefreshAt: now.addingTimeInterval(-0.25),
+                now: now
+            )
+        )
+        XCTAssertTrue(
+            BridgeClient.shouldRefreshEmptyHIDManagerSnapshot(
+                openResult: kIOReturnSuccess,
+                lastRefreshAt: now.addingTimeInterval(-BridgeClient.emptyHIDManagerRefreshInterval),
+                now: now
+            )
+        )
     }
 
     func testStaleSessionPermissionFlagDoesNotMasqueradeAsManagerDenial() async {

@@ -441,6 +441,121 @@ final class AppStateMultiDeviceAvailabilityTests: XCTestCase {
         XCTAssertNil(errorMessage)
     }
 
+    func testSelectedUSBDeviceNotAvailableShowsReceiverAbsentMessage() async {
+        let usbDevice = makeTestDevice(
+            id: "usb-selected-receiver-absent",
+            productName: "Alpha Mouse",
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-SELECTED-RECEIVER-ABSENT",
+                locationID: 1
+            ),
+            profile: .basiliskV3Pro
+        )
+        let backend = DeviceListUpdatingStubBackend(
+            devices: [usbDevice],
+            stateByDeviceID: [
+                usbDevice.id: makeTestState(
+                    device: usbDevice,
+                    connection: "usb",
+                    batteryPercent: 81,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+        await backend.setTransientReadFailures(["Device not available"], for: usbDevice.id)
+
+        let refreshed = await appState.deviceController.refreshState(for: usbDevice)
+        let status = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
+        let controlsEnabled = await MainActor.run { appState.deviceStore.selectedDeviceControlsEnabled }
+        let message = await MainActor.run { appState.deviceStore.selectedDeviceInteractionMessage }
+        let diagnostics = await MainActor.run { appState.deviceStore.currentDeviceStatusTooltip }
+
+        XCTAssertFalse(refreshed)
+        XCTAssertEqual(status, "Disconnected")
+        XCTAssertFalse(controlsEnabled)
+        XCTAssertEqual(message, "The USB receiver is not detected. Reconnect the dongle to continue.")
+        XCTAssertTrue(diagnostics?.contains("USB control: Receiver absent") == true)
+    }
+
+    func testPhysicalUSBReconnectClearsReceiverAbsentBackoffAndRefreshes() async throws {
+        let usbDevice = makeTestDevice(
+            id: "usb-selected-receiver-replug",
+            productName: "Alpha Mouse",
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-SELECTED-RECEIVER-REPLUG",
+                locationID: 1
+            ),
+            profile: .basiliskV3Pro
+        )
+        let initialState = makeTestState(
+            device: usbDevice,
+            connection: "usb",
+            batteryPercent: 81,
+            dpiValues: [800, 1600, 3200],
+            activeStage: 0
+        )
+        let recoveredState = makeTestState(
+            device: usbDevice,
+            connection: "usb",
+            batteryPercent: 80,
+            dpiValues: [800, 1600, 3200],
+            activeStage: 1
+        )
+        let backend = DeviceListUpdatingStubBackend(
+            devices: [usbDevice],
+            stateByDeviceID: [usbDevice.id: initialState]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+        let initialReadCount = await backend.readCount(for: usbDevice.id)
+        await backend.setTransientReadFailures(["Device not available"], for: usbDevice.id)
+
+        let failed = await appState.deviceController.refreshState(for: usbDevice)
+        let failedReadCount = await backend.readCount(for: usbDevice.id)
+        let statusAfterFailure = await MainActor.run {
+            appState.deviceStore.currentDeviceStatusIndicator.label
+        }
+
+        await backend.setState(recoveredState, for: usbDevice.id)
+        await MainActor.run {
+            appState.deviceController.applyBackendUSBControlAvailabilityUpdate(
+                deviceID: usbDevice.id,
+                availability: .unknown,
+                updatedAt: Date()
+            )
+        }
+
+        try await waitForAppStateCondition {
+            await backend.readCount(for: usbDevice.id) >= failedReadCount + 1
+        }
+
+        let statusAfterReconnect = await MainActor.run {
+            appState.deviceStore.currentDeviceStatusIndicator.label
+        }
+        let controlsEnabled = await MainActor.run { appState.deviceStore.selectedDeviceControlsEnabled }
+        let presentedDpi = await MainActor.run { appState.deviceStore.state?.dpi?.x }
+        let diagnostics = await MainActor.run { appState.deviceStore.currentDeviceStatusTooltip }
+
+        XCTAssertFalse(failed)
+        XCTAssertEqual(initialReadCount + 1, failedReadCount)
+        XCTAssertEqual(statusAfterFailure, "Disconnected")
+        XCTAssertEqual(statusAfterReconnect, "Connected")
+        XCTAssertTrue(controlsEnabled)
+        XCTAssertEqual(presentedDpi, 1600)
+        XCTAssertFalse(diagnostics?.contains("USB control: Receiver absent") == true)
+    }
+
     func testUnavailableUSBReceiverProbeRecoversSleepingHyperSpeedWithoutPresenceEvent() async throws {
         let usbDevice = MouseDevice(
             id: "usb-v3x-hyperspeed-dongle-sleep",

@@ -281,8 +281,22 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         do {
             snapshot = try await client.readDpiStagesFast(device: device)
         } catch {
-            if device.transport == .usb, BridgeClient.isUSBTelemetryUnavailableError(error) {
-                recordUSBControlAvailability(.receiverPresentMouseUnavailable, for: device.id, updatedAt: Date(), publishSnapshot: true)
+            if device.transport == .usb {
+                if BridgeClient.isUSBTelemetryUnavailableError(error) {
+                    recordUSBControlAvailability(
+                        .receiverPresentMouseUnavailable,
+                        for: device.id,
+                        updatedAt: Date(),
+                        publishSnapshot: true
+                    )
+                } else if Self.isDeviceNotAvailableError(error) {
+                    recordUSBControlAvailability(
+                        .receiverAbsent,
+                        for: device.id,
+                        updatedAt: Date(),
+                        publishSnapshot: true
+                    )
+                }
             }
             throw error
         }
@@ -637,6 +651,13 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         if event.transport == .usb {
             if event.change == .connected {
                 pendingUSBDisconnectRefreshTasks.removeValue(forKey: event.deviceID)?.cancel()
+                invalidateCachedTelemetry(for: event.deviceID)
+                recordUSBControlAvailability(
+                    .unknown,
+                    for: event.deviceID,
+                    updatedAt: event.observedAt,
+                    publishSnapshot: true
+                )
                 devicePresenceRefreshTask?.cancel()
                 devicePresenceRefreshTask = Task { [weak self] in
                     guard let self, !Task.isCancelled else { return }

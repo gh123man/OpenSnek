@@ -332,6 +332,7 @@ extension AppStateDeviceController {
         updatedAt: Date
     ) {
         guard !isTearingDown else { return }
+        let previousSourceAvailability = usbControlAvailabilityByDeviceID[deviceID]
         let didApplySourceAvailability = setBackendObservedUSBControlAvailability(
             availability,
             for: deviceID,
@@ -344,6 +345,7 @@ extension AppStateDeviceController {
         }
 
         let presentationDeviceID = presentationDevice.id
+        let previousPresentationAvailability = usbControlAvailabilityByDeviceID[presentationDeviceID]
         let didApplyPresentationAvailability = presentationDeviceID == deviceID
             ? didApplySourceAvailability
             : setBackendObservedUSBControlAvailability(
@@ -351,7 +353,12 @@ extension AppStateDeviceController {
                 for: presentationDeviceID,
                 observedAt: updatedAt
             )
-        if availability == .receiverPresentMouseReachable {
+        let clearsPhysicalAbsence = availability == .unknown &&
+            (
+                previousSourceAvailability?.blocksUSBControlInteraction == true ||
+                    previousPresentationAvailability?.blocksUSBControlInteraction == true
+            )
+        if availability == .receiverPresentMouseReachable || clearsPhysicalAbsence {
             clearConnectionFailureState(sourceDeviceID: deviceID, presentationDeviceID: presentationDeviceID)
             if deviceStore.selectedDeviceID == presentationDeviceID {
                 Task { @MainActor [weak self] in
