@@ -160,6 +160,57 @@ final class AppStateLocalProfileTests: XCTestCase {
         XCTAssertEqual(profiles.filter { $0.name == "Travel" }.count, 1)
     }
 
+    func testMappedReplacementListHidesProfileAlreadyLoadedInSelectedSlot() async throws {
+        clearSavedButtonProfiles()
+        defer { clearSavedButtonProfiles() }
+
+        let device = makeMappedProfileDevice(id: "local-profile-hide-selected-mapped")
+        let activeIdentifier = UUID()
+        let activeSnapshot = makeLocalProfileOnboardSnapshot(
+            profileID: 2,
+            identifier: activeIdentifier,
+            name: "Active Slot",
+            dpiValues: [800, 1600],
+            activeStage: 0
+        )
+        let matchingProfile = DevicePreferenceStore().upsertOpenSnekLocalProfile(
+            name: "Active Slot",
+            content: OpenSnekLocalProfileContent(
+                dpi: activeSnapshot.dpi,
+                buttonBindings: activeSnapshot.buttonBindings,
+                brightnessByLEDID: activeSnapshot.brightnessByLEDID,
+                staticColorByLEDID: activeSnapshot.staticColorByLEDID,
+                scrollMode: activeSnapshot.scrollMode,
+                scrollAcceleration: activeSnapshot.scrollAcceleration,
+                scrollSmartReel: activeSnapshot.scrollSmartReel
+            ),
+            onboardIdentifier: activeIdentifier,
+            device: device
+        )
+        let replacementProfile = DevicePreferenceStore().createOpenSnekLocalProfile(
+            name: "Travel",
+            content: singleSlotLocalProfileContent(dpiValues: [1200, 2400])
+        )
+        let backend = makeLocalProfileBackend(device: device, activeProfile: 2, dpiValues: [800, 1600])
+        await backend.setOnboardInventory(
+            makeLocalProfileInventory(activeProfile: 2, maxProfileID: 5, snapshots: [activeSnapshot]),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(activeSnapshot, forDeviceID: device.id)
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+
+        let visibleIDs = await MainActor.run {
+            Set(appState.editorStore.visibleLocalProfilesForReplacement.map(\.id))
+        }
+        XCTAssertFalse(visibleIDs.contains(matchingProfile.id))
+        XCTAssertTrue(visibleIDs.contains(replacementProfile.id))
+    }
+
     func testSingleSlotDeviceExposesPickerSlotAndHidesConnectBehaviorCard() async throws {
         clearSavedButtonProfiles()
         defer { clearSavedButtonProfiles() }
@@ -507,6 +558,33 @@ final class AppStateLocalProfileTests: XCTestCase {
         XCTAssertEqual(updated.content.dpi?.values, [1000, 2000])
         XCTAssertEqual(preferenceStore.loadSelectedLocalProfileID(device: device), replacement.id)
         XCTAssertNil(updated.syntheticSourceKey)
+    }
+
+    func testSingleSlotReplacementListHidesCurrentlyLoadedLocalProfile() async throws {
+        clearSavedButtonProfiles()
+        let device = makeSingleSlotProfileDevice(id: "local-profile-hide-selected-single-slot")
+        defer { clearRefactorPreferences(for: device) }
+
+        let activeProfile = DevicePreferenceStore().createOpenSnekLocalProfile(
+            name: "Active",
+            content: singleSlotLocalProfileContent(dpiValues: [800, 1600])
+        )
+        let replacementProfile = DevicePreferenceStore().createOpenSnekLocalProfile(
+            name: "Travel",
+            content: singleSlotLocalProfileContent(dpiValues: [1200, 2400])
+        )
+        let backend = makeLocalProfileBackend(device: device, activeProfile: 1, dpiValues: [800, 1600])
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.replaceSelectedProfile(with: activeProfile.id)
+
+        let visibleIDs = await MainActor.run {
+            Set(appState.editorStore.visibleLocalProfilesForReplacement.map(\.id))
+        }
+        XCTAssertFalse(visibleIDs.contains(activeProfile.id))
+        XCTAssertTrue(visibleIDs.contains(replacementProfile.id))
     }
 
     func testSingleSlotRestartDeletesLegacySyntheticBackupAndRepairsEmptyProfilesFromCurrentMouse() async throws {

@@ -4,6 +4,7 @@ import SwiftUI
 struct LocalProfileLibraryPanel: View {
     let editorStore: EditorStore
     let isBusy: Bool
+    let selectedSlotIsAssigned: Bool
     @Binding var newLocalProfileName: String
     @Binding var localProfileRenameNames: [UUID: String]
     @State private var isNewProfilePresented = false
@@ -22,6 +23,17 @@ struct LocalProfileLibraryPanel: View {
 
     private var canCreateFromMouse: Bool {
         editorStore.deviceStore.selectedDevice != nil
+    }
+
+    private var copySourceProfiles: [OpenSnekLocalProfile] {
+        editorStore.localProfiles.filter { profile in
+            guard editorStore.supportsProfilePicker,
+                  !editorStore.supportsOnboardProfileCRUD,
+                  profile.syntheticSourceKey != nil else {
+                return true
+            }
+            return false
+        }
     }
 
     private var localProfileListHeight: CGFloat {
@@ -68,7 +80,7 @@ struct LocalProfileLibraryPanel: View {
 
     private var localProfileSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Replace Profile")
+            Text(selectedSlotIsAssigned ? "Replace Profile" : "Load Profile")
                 .font(.system(size: 11, weight: .black, design: .rounded))
                 .foregroundStyle(.white.opacity(0.74))
 
@@ -149,13 +161,13 @@ struct LocalProfileLibraryPanel: View {
                             createNewLocalProfileFromMouse()
                         }
                     }
-                    if canCreateFromMouse && !visibleProfiles.isEmpty {
+                    if canCreateFromMouse && !copySourceProfiles.isEmpty {
                         Divider()
                     }
-                    if visibleProfiles.isEmpty {
+                    if copySourceProfiles.isEmpty {
                         Text("No profiles")
                     } else {
-                        ForEach(visibleProfiles) { profile in
+                        ForEach(copySourceProfiles) { profile in
                             Button(profile.name) {
                                 createNewLocalProfile(copying: profile.id)
                             }
@@ -165,7 +177,7 @@ struct LocalProfileLibraryPanel: View {
                     Label("Copy From", systemImage: "doc.on.doc")
                 }
                 .menuStyle(.button)
-                .disabled(newProfileNameIsEmpty || (!canCreateFromMouse && visibleProfiles.isEmpty))
+                .disabled(newProfileNameIsEmpty || (!canCreateFromMouse && copySourceProfiles.isEmpty))
                 .accessibilityIdentifier("local-profile-copy-source-picker")
             }
             .controlSize(.small)
@@ -310,7 +322,7 @@ private struct LocalProfileLibraryRow: View {
                 editorStore.deleteLocalProfile(id: profile.id)
                 isManagementPresented = false
             } label: {
-                Label("Delete", systemImage: "trash")
+                Label("Delete Profile", systemImage: "trash")
             }
             .buttonStyle(.bordered)
             .controlSize(.small)

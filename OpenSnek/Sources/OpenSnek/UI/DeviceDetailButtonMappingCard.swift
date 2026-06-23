@@ -175,7 +175,6 @@ private struct ProfilePickerPanel: View {
     let editorStore: EditorStore
 
     @State private var renameName = ""
-    @State private var copyFromProfileID = 1
     @State private var hoveredProfileID: Int?
     @State private var newLocalProfileName = ""
     @State private var localProfileRenameNames: [UUID: String] = [:]
@@ -229,21 +228,6 @@ private struct ProfilePickerPanel: View {
 
     private var selectedArrowCenterY: CGFloat {
         CGFloat(selectedProfileIndex) * (slotRowHeight + slotRowSpacing) + (slotRowHeight / 2)
-    }
-
-    private var copySourceSummaries: [OnboardProfileSummary] {
-        editorStore.onboardProfileSummaries.filter(\.isAssigned)
-    }
-
-    private var resolvedCopyFromProfileID: Int {
-        let sourceIDs = Set(copySourceSummaries.map(\.profileID))
-        if sourceIDs.contains(copyFromProfileID) {
-            return copyFromProfileID
-        }
-        if let active = copySourceSummaries.first(where: \.isActive)?.profileID {
-            return active
-        }
-        return copySourceSummaries.first?.profileID ?? 1
     }
 
     var body: some View {
@@ -361,7 +345,7 @@ private struct ProfilePickerPanel: View {
             parts.append("active")
         }
         if !profile.isAssigned {
-            parts.append("Create profile")
+            parts.append("Load profile")
         }
         return parts.joined(separator: ", ")
     }
@@ -410,13 +394,9 @@ private struct ProfilePickerPanel: View {
     private func actionPanelContent(selectedProfileID: Int, selectedSummary: OnboardProfileSummary) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             if editorStore.supportsOnboardProfileCRUD {
-                actionPanelNameField(selectedProfileID: selectedProfileID, selectedSummary: selectedSummary)
-
                 if selectedSummary.isAssigned {
+                    actionPanelNameField(selectedProfileID: selectedProfileID, selectedSummary: selectedSummary)
                     assignedActions(selectedProfileID: selectedProfileID)
-                } else {
-                    copyFromPicker
-                    createAction(selectedProfileID: selectedProfileID)
                 }
             } else {
                 singleSlotActions
@@ -429,6 +409,7 @@ private struct ProfilePickerPanel: View {
             LocalProfileLibraryPanel(
                 editorStore: editorStore,
                 isBusy: isBusy,
+                selectedSlotIsAssigned: selectedSummary.isAssigned,
                 newLocalProfileName: $newLocalProfileName,
                 localProfileRenameNames: $localProfileRenameNames
             )
@@ -509,9 +490,10 @@ private struct ProfilePickerPanel: View {
             Button {
                 Task { await editorStore.deleteSelectedOnboardProfile() }
             } label: {
-                Label("Delete", systemImage: "trash")
+                Label("Delete From Slot", systemImage: "trash")
             }
             .buttonStyle(.bordered)
+            .help("Delete this onboard slot without deleting local profile backups")
             .disabled(isBusy || selectedProfileID <= 1)
             .accessibilityIdentifier("onboard-profile-delete-button")
         }
@@ -565,62 +547,12 @@ private struct ProfilePickerPanel: View {
         .accessibilityIdentifier("single-slot-synapse-warning")
     }
 
-    @ViewBuilder
-    private var copyFromPicker: some View {
-        if !copySourceSummaries.isEmpty {
-            HStack(spacing: 12) {
-                Text("Copy From")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.68))
-                Spacer(minLength: 8)
-                Picker(
-                    "",
-                    selection: Binding(
-                        get: { resolvedCopyFromProfileID },
-                        set: { copyFromProfileID = $0 }
-                    )
-                ) {
-                    ForEach(copySourceSummaries) { profile in
-                        Text(profile.displayName).tag(profile.profileID)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(width: 180, alignment: .trailing)
-                .accessibilityIdentifier("onboard-profile-copy-from-picker")
-            }
-        }
-    }
-
-    private func createAction(selectedProfileID: Int) -> some View {
-        Button {
-            let name = renameName
-            let copyFrom = copySourceSummaries.isEmpty ? nil : resolvedCopyFromProfileID
-            Task {
-                await editorStore.createOnboardProfile(
-                    name: name,
-                    targetProfileID: selectedProfileID,
-                    copyFromProfileID: copyFrom
-                )
-            }
-        } label: {
-            Label("Create", systemImage: "plus.circle.fill")
-        }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.small)
-        .disabled(isBusy || selectedNameIsEmpty)
-        .accessibilityIdentifier("onboard-profile-create-button")
-    }
-
     private func resetNameField(forProfileID profileID: Int?) {
         guard let profileID,
               let summary = editorStore.onboardProfileSummaries.first(where: { $0.profileID == profileID }) else {
             return
         }
         renameName = summary.isAssigned ? summary.displayName : ""
-        if !summary.isAssigned {
-            copyFromProfileID = resolvedCopyFromProfileID
-        }
     }
 
     private func resetNameFieldFromSelectedProfileName(_ name: String) {
@@ -629,9 +561,6 @@ private struct ProfilePickerPanel: View {
             return
         }
         renameName = summary.isAssigned ? name : ""
-        if !summary.isAssigned {
-            copyFromProfileID = resolvedCopyFromProfileID
-        }
     }
 }
 
@@ -715,7 +644,7 @@ private struct OnboardProfileSlotRowButton: View {
                 .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(Color.white.opacity(style.plusOpacity))
                 .frame(width: 22, height: 22)
-                .accessibilityLabel("Create profile")
+                .accessibilityLabel("Load profile")
         }
     }
 

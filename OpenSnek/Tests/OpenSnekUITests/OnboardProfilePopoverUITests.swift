@@ -55,21 +55,21 @@ class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
         let renamedName = "OS Ren \(suffix)"
 
         try selectProfile(targetProfileID)
-        let createButton = try requireElement("onboard-profile-create-button", timeout: 2)
         XCTAssertTrue(
-            app.descendants(matching: .any)["onboard-profile-copy-from-picker"].waitForExistence(timeout: 2),
-            "Empty profile details should expose the copy source picker"
+            app.staticTexts["Load Profile"].waitForExistence(timeout: 2),
+            "Empty slot details should present local profiles as loadable, not replaceable"
         )
-        XCTAssertTrue(
-            waitForElementDisabled(createButton, timeout: 2),
-            "Create should be disabled until a profile name is entered"
+        XCTAssertFalse(
+            app.descendants(matching: .any)["onboard-profile-create-button"].waitForExistence(timeout: 1),
+            "Empty slot details should use the consolidated New Profile flow"
+        )
+        XCTAssertFalse(
+            app.descendants(matching: .any)["onboard-profile-name-field"].exists,
+            "Empty slot details should not show the onboard name field before a profile is loaded"
         )
 
-        try replaceProfileName(with: createdName)
-        let enabledCreateButton = try requireElement("onboard-profile-create-button", timeout: 2)
-        XCTAssertTrue(waitForElementEnabled(enabledCreateButton, timeout: 2), "Create should enable after entering a name")
+        try createLocalProfileFromCurrentEditorAndLoad(named: createdName)
         createdProfileID = targetProfileID
-        clickElement(enabledCreateButton)
         XCTAssertTrue(
             waitForProfileRow(targetProfileID, containing: createdName, timeout: actionTimeout),
             "Created profile row did not show \(createdName)"
@@ -196,9 +196,48 @@ class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
         )
         clickElement(row)
         XCTAssertTrue(
-            app.descendants(matching: .any)["onboard-profile-name-field"].waitForExistence(timeout: 2),
+            app.descendants(matching: .any)["local-profile-create-button"].waitForExistence(timeout: 2),
             "Profile details did not appear after selecting profile \(profileID)"
         )
+    }
+
+    private func createLocalProfileFromCurrentEditorAndLoad(named name: String) throws {
+        let newProfileButton = try requireElement("local-profile-create-button", timeout: 2)
+        XCTAssertTrue(waitForElementEnabled(newProfileButton, timeout: 2), "New Profile should be enabled")
+        clickElement(newProfileButton)
+
+        let nameField = try requireElement("local-profile-new-name-field", timeout: 2)
+        clickElement(nameField)
+        nameField.typeText(name)
+
+        let startFreshButton = try requireElement("local-profile-start-fresh-button", timeout: 2)
+        XCTAssertTrue(waitForElementEnabled(startFreshButton, timeout: 2), "Start Fresh should enable after naming")
+        clickElement(startFreshButton)
+
+        let localProfileButton = try localProfileReplaceButton(named: name, timeout: 2)
+        XCTAssertTrue(waitForElementEnabled(localProfileButton, timeout: 2), "Created local profile should be loadable")
+        clickElement(localProfileButton)
+    }
+
+    private func localProfileReplaceButton(
+        named name: String,
+        timeout: TimeInterval,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> XCUIElement {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if let button = app.buttons.allElementsBoundByIndex.first(where: { candidate in
+                candidate.identifier.hasPrefix("local-profile-replace-") && candidate.label == name
+            }) {
+                scrollLocalProfileListToExpose(button.identifier)
+                return button
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        } while Date() < deadline
+
+        XCTFail("Missing local profile row named \(name)", file: file, line: line)
+        return app.buttons["local-profile-replace-missing-\(name)"]
     }
 
     private func requireElement(

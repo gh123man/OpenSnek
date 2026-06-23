@@ -23,8 +23,39 @@ extension AppStateEditorController {
             return localProfiles().filter { $0.syntheticSourceKey == nil }
         }
         return localProfiles().filter { profile in
-            !shouldHideSyntheticLocalProfile(profile, for: device)
+            !shouldHideSyntheticLocalProfile(profile, for: device) &&
+                !isLocalProfileLoadedInSelectedSlot(profile, device: device)
         }
+    }
+
+    private func isLocalProfileLoadedInSelectedSlot(
+        _ profile: OpenSnekLocalProfile,
+        device: MouseDevice
+    ) -> Bool {
+        if supportsOnboardProfileCRUD(device: device) {
+            return isLocalProfileLoadedInSelectedMappedSlot(profile, device: device)
+        }
+        guard supportsProfilePicker(device: device),
+              let selected = currentSessionSingleSlotLocalProfile(device: device) else {
+            return false
+        }
+        return selected.id == profile.id
+    }
+
+    private func isLocalProfileLoadedInSelectedMappedSlot(
+        _ profile: OpenSnekLocalProfile,
+        device: MouseDevice
+    ) -> Bool {
+        guard let onboardIdentifier = profile.onboardIdentifier,
+              let selected = selectedOnboardProfileID() else {
+            return false
+        }
+        let selectedIdentifier = currentSelectedOnboardProfileSnapshot(device: device)?.metadata.identifier ??
+            onboardProfileInventoryByDeviceID[device.id]?
+            .summary(for: selected)?
+            .metadata?
+            .identifier
+        return selectedIdentifier == onboardIdentifier
     }
 
     func createLocalProfile(name: String, copying sourceID: UUID?) {
