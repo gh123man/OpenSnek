@@ -296,6 +296,9 @@ extension BridgeClient {
         }
 
         deviceSessions[device.id]?.invalidateCachedTransaction()
+        if await usbDeviceIsAbsentAfterDiscoveryRefresh(device: device, operation: "usb-control-availability") {
+            return .receiverAbsent
+        }
         if let firstError,
            !Self.isUSBTelemetryUnavailableError(firstError) {
             AppLog.debug(

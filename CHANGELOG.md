@@ -44,6 +44,7 @@ All notable changes to this project are documented in this file.
 - Selected USB devices with cached state now keep their last known presentation during temporary feature-report telemetry backoff when the mouse is still enumerated, instead of being marked disconnected.
 - Selected USB devices no longer flicker to Disconnected when a single backend reachability probe briefly reports the mouse unavailable while newer USB DPI activity still shows it is connected.
 - Remote service snapshots now clear latched transient USB unavailable presentation, and cached USB devices no longer age into Disconnected solely because passive telemetry has been idle.
+- Pulling and replugging a V3 Pro USB dongle now forces stale HID sessions and empty HID-manager snapshots through fresh discovery, shows the receiver-absent state while removed, and clears stale absence on physical reconnect so the UI can recover without restarting OpenSnek.
 - The Lighting card now hides the Advanced software-lighting tab on Basilisk V3 X HyperSpeed and Bluetooth devices that cannot stream software effects.
 
 ## [1.0.0]

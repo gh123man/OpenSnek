@@ -54,6 +54,15 @@ public enum USBHIDSupport {
         }
         return "pointer:\(UInt(bitPattern: Unmanaged.passUnretained(device).toOpaque()))"
     }
+
+    public static func isDeviceUnavailableOpenResult(_ result: IOReturn) -> Bool {
+        switch result {
+        case kIOReturnNoDevice, kIOReturnOffline, kIOReturnNotOpen:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 public final class USBHIDControlSession: @unchecked Sendable {
@@ -238,6 +247,9 @@ public final class USBHIDControlSession: @unchecked Sendable {
         guard openResult == kIOReturnSuccess else {
             if openResult == kIOReturnNotPermitted {
                 throw BridgeError.commandFailed("USB HID access denied. Grant Input Monitoring and relaunch.")
+            }
+            if USBHIDSupport.isDeviceUnavailableOpenResult(openResult) {
+                throw BridgeError.commandFailed("Device not available")
             }
             return nil
         }
