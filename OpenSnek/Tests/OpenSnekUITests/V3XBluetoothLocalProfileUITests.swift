@@ -133,6 +133,34 @@ final class V3XBluetoothLocalProfileUITests: OpenSnekHardwareUITestCase {
         try restoreAndDeleteTemporaryProfilesThrowing()
     }
 
+    func testV3XBluetoothRestoreLastProfileSelectionReflectsKnownProfile() throws {
+        _ = try XCTUnwrap(
+            launchAndWaitForScopedDevice(timeout: 15),
+            "Expected connected \(expectedScope.description)"
+        )
+        try keepMouseAwakeForUITest(timeout: actionTimeout)
+
+        try openProfilePicker()
+        try assertSingleSlotPickerSurface()
+        try deleteAllUITestProfiles()
+        originalProfileName = try selectedSingleSlotProfileName()
+
+        let suffix = String(UUID().uuidString.prefix(4))
+        let restoreName = "\(testProfileNamePrefix) Restore Toggle \(suffix)"
+
+        try createProfileFromCurrentMouse(named: restoreName)
+        let restoreProfile = try recordTemporaryProfile(named: restoreName, isRestoreProfile: true)
+        try switchToLocalProfile(restoreProfile)
+
+        try selectOnConnectOption(named: "Use Mouse Settings")
+        try assertSelectedProfile(named: "Base Profile")
+
+        try selectOnConnectOption(named: "Restore Last Profile")
+        try assertSelectedProfile(named: restoreName)
+
+        try restoreAndDeleteTemporaryProfilesThrowing()
+    }
+
     private func assertSingleSlotPickerSurface() throws {
         XCTAssertTrue(try requireElement("onboard-profiles-card", timeout: 2).exists)
         XCTAssertTrue(try requireElement("onboard-profile-row-1", timeout: 2).exists)
@@ -208,6 +236,28 @@ final class V3XBluetoothLocalProfileUITests: OpenSnekHardwareUITestCase {
             }
             let value = option.value as? String
             return value == "1" || value?.localizedCaseInsensitiveContains("selected") == true
+        }
+    }
+
+    private func selectOnConnectOption(named name: String) throws {
+        try openProfilePicker()
+        let option = try XCTUnwrap(onConnectOption(named: name), "Missing On Connect option \(name)")
+        clickElement(option)
+        XCTAssertTrue(
+            waitUntil(timeout: 3) { self.onConnectPresentationMatchesSelectedOption(name) },
+            "On Connect option \(name) did not update its visible presentation"
+        )
+    }
+
+    private func onConnectPresentationMatchesSelectedOption(_ name: String) -> Bool {
+        let warning = app.descendants(matching: .any)["single-slot-synapse-warning"]
+        switch name {
+        case "Use Mouse Settings":
+            return warning.exists
+        case "Restore Last Profile":
+            return !warning.exists
+        default:
+            return false
         }
     }
 

@@ -330,6 +330,67 @@ final class AppStateLocalProfileTests: XCTestCase {
         XCTAssertEqual(storedProfile.content.dpi?.pairs.map(\.x), [1200, 2400])
     }
 
+    func testSingleSlotSelectingRestoreLastProfileShowsKnownProfileAndPersistsEdits() async throws {
+        clearSavedButtonProfiles()
+        let device = makeSingleSlotProfileDevice(id: "local-profile-restore-toggle")
+        defer { clearRefactorPreferences(for: device) }
+
+        let preferenceStore = DevicePreferenceStore()
+        let localProfile = preferenceStore.createOpenSnekLocalProfile(
+            name: "Travel",
+            content: singleSlotLocalProfileContent(dpiValues: [1200, 2400])
+        )
+        preferenceStore.persistSelectedLocalProfileID(localProfile.id, device: device)
+        preferenceStore.persistConnectBehavior(.useMouseSettings, device: device)
+        preferenceStore.persistDeviceSettingsSnapshot(
+            singleSlotSettingsSnapshot(dpiValues: [1200, 2400]),
+            device: device
+        )
+
+        let backend = makeLocalProfileBackend(device: device, activeProfile: 1, dpiValues: [400, 800])
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+
+        let initialSummary = await MainActor.run {
+            appState.editorStore.onboardProfileSummaries.first
+        }
+        XCTAssertEqual(initialSummary?.displayName, "Base Profile")
+
+        await MainActor.run {
+            appState.editorStore.updateConnectBehavior(.restoreOpenSnekSettings)
+        }
+
+        let restoredSummary = await MainActor.run {
+            appState.editorStore.onboardProfileSummaries.first
+        }
+        XCTAssertEqual(restoredSummary?.metadata?.name, "Travel")
+
+        await MainActor.run {
+            appState.editorStore.editableStageCount = 2
+            appState.editorStore.editableStageValues = [500, 1000]
+            appState.editorStore.editableStagePairs = [
+                DpiPair(x: 500, y: 500),
+                DpiPair(x: 1000, y: 1000),
+                DpiPair(x: 3200, y: 3200),
+                DpiPair(x: 6400, y: 6400),
+                DpiPair(x: 10_000, y: 10_000)
+            ]
+            appState.editorStore.setEditableActiveStage(0, source: "test.singleSlotRestoreToggle")
+        }
+        await appState.editorStore.applyDpiStages()
+
+        try await waitForRefactorCondition {
+            await backend.recordedPatches().contains { $0.dpiStages == [500, 1000] }
+        }
+
+        let updatedProfile = try XCTUnwrap(
+            preferenceStore.loadOpenSnekLocalProfiles().first { $0.id == localProfile.id }
+        )
+        XCTAssertEqual(updatedProfile.content.dpi?.pairs.map(\.x), [500, 1000])
+    }
+
     func testSingleSlotRestoreLastProfileShowsKnownLocalProfileOnFreshLaunch() async throws {
         clearSavedButtonProfiles()
         let device = makeSingleSlotProfileDevice(id: "local-profile-restore-known")

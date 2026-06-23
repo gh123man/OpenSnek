@@ -417,6 +417,7 @@ final class AppStateEditorController {
             return
         }
         preferenceStore.persistConnectBehavior(behavior, device: selectedDevice)
+        updateSingleSlotProfilePresentationForConnectBehavior(behavior, device: selectedDevice)
         bumpConnectBehaviorRevision()
     }
 
@@ -787,6 +788,7 @@ final class AppStateEditorController {
             return false
         }
         applyPersistedSettingsSnapshotToEditor(snapshot, device: device)
+        markSingleSlotPersistedSettingsPresentedForRestore(snapshot: snapshot, device: device)
         return true
     }
 

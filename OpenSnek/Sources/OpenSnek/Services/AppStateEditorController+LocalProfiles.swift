@@ -207,6 +207,41 @@ extension AppStateEditorController {
         bumpUSBButtonProfilesRevision()
     }
 
+    func markSingleSlotPersistedSettingsPresentedForRestore(
+        snapshot: PersistedDeviceSettingsSnapshot,
+        device: MouseDevice
+    ) {
+        guard supportsProfilePicker(device: device),
+              !supportsOnboardProfileCRUD(device: device),
+              shouldRestorePersistedSettingsOnConnect(for: device),
+              let profile = selectedOrMatchingSingleSlotLocalProfile(snapshot: snapshot, device: device) else {
+            clearCurrentSessionSingleSlotProfileName(device: device)
+            return
+        }
+        setSelectedSingleSlotLocalProfile(profile, device: device)
+    }
+
+    func updateSingleSlotProfilePresentationForConnectBehavior(
+        _ behavior: DeviceConnectBehavior,
+        device: MouseDevice
+    ) {
+        guard supportsProfilePicker(device: device),
+              !supportsOnboardProfileCRUD(device: device) else {
+            return
+        }
+        switch behavior {
+        case .useMouseSettings:
+            clearCurrentSessionSingleSlotProfileName(device: device)
+        case .restoreOpenSnekSettings:
+            guard let snapshot = loadPersistedSettingsSnapshot(device: device) else {
+                clearCurrentSessionSingleSlotProfileName(device: device)
+                return
+            }
+            applyPersistedSettingsSnapshotToEditor(snapshot, device: device)
+            markSingleSlotPersistedSettingsPresentedForRestore(snapshot: snapshot, device: device)
+        }
+    }
+
     func loadSelectedSingleSlotProfileFromMouse() async {
         guard !isTearingDown,
               let device = deviceStore.selectedDevice,
@@ -586,7 +621,11 @@ extension AppStateEditorController {
 
     private func clearSelectedSingleSlotLocalProfile(device: MouseDevice) {
         preferenceStore.persistSelectedLocalProfileID(nil, device: device)
-        selectedSingleSlotProfileNameByDeviceID.removeValue(forKey: device.id)
+        clearCurrentSessionSingleSlotProfileName(device: device)
+    }
+
+    private func clearCurrentSessionSingleSlotProfileName(device: MouseDevice) {
+        guard selectedSingleSlotProfileNameByDeviceID.removeValue(forKey: device.id) != nil else { return }
         bumpOnboardProfilesRevision()
     }
 
