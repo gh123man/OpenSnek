@@ -675,6 +675,7 @@ class V3XLocalProfileUITestSupport: OpenSnekHardwareUITestCase {
         }
 
         let pill = try requireElement("onboard-profile-pill-button", timeout: 3)
+        scrollElementToVisible(pill)
         clickElement(pill)
         XCTAssertTrue(
             app.descendants(matching: .any)["onboard-profiles-card"].waitForExistence(timeout: timeout),

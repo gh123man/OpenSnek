@@ -62,9 +62,10 @@ final class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
         )
 
         try replaceProfileName(with: createdName)
-        XCTAssertTrue(waitForElementEnabled(createButton, timeout: 2), "Create should enable after entering a name")
+        let enabledCreateButton = try requireElement("onboard-profile-create-button", timeout: 2)
+        XCTAssertTrue(waitForElementEnabled(enabledCreateButton, timeout: 2), "Create should enable after entering a name")
         createdProfileID = targetProfileID
-        clickElement(createButton)
+        clickElement(enabledCreateButton)
         XCTAssertTrue(
             waitForProfileRow(targetProfileID, containing: createdName, timeout: actionTimeout),
             "Created profile row did not show \(createdName)"
@@ -138,6 +139,7 @@ final class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
         }
 
         let pill = try requireElement("onboard-profile-pill-button", timeout: 3)
+        scrollElementToVisible(pill)
         XCTAssertTrue(pill.isHittable, "Onboard profile pill was not hittable")
         clickElement(pill)
 
@@ -159,6 +161,7 @@ final class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
         guard pill.waitForExistence(timeout: timeout) else {
             return false
         }
+        scrollElementToVisible(pill)
         clickElement(pill)
         return app.descendants(matching: .any)["onboard-profiles-card"].waitForExistence(timeout: timeout)
     }
