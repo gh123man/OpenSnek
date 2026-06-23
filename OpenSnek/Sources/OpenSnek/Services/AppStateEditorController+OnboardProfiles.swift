@@ -160,14 +160,19 @@ extension AppStateEditorController {
         let priorName = onboardProfileInventoryByDeviceID[device.id]?
             .summary(for: snapshot.profileID)?
             .displayName ?? "<missing>"
+        let metadataResolvedSnapshot = snapshotPreservingKnownMetadataForCoreRead(
+            snapshot,
+            device: device,
+            source: source
+        )
         let storedSnapshot: OnboardProfileSnapshot
-        if snapshot.isMetadataOnly,
+        if metadataResolvedSnapshot.isMetadataOnly,
            let current = currentOnboardProfileSnapshotByDeviceID[device.id],
-           current.profileID == snapshot.profileID,
+           current.profileID == metadataResolvedSnapshot.profileID,
            !current.isMetadataOnly {
-            storedSnapshot = current.replacingMetadata(snapshot.metadata)
+            storedSnapshot = current.replacingMetadata(metadataResolvedSnapshot.metadata)
         } else {
-            storedSnapshot = snapshot
+            storedSnapshot = metadataResolvedSnapshot
         }
         currentOnboardProfileSnapshotByDeviceID[device.id] = storedSnapshot
         if projectMetadataForRefresh {
@@ -218,6 +223,24 @@ extension AppStateEditorController {
             "onboard profile snapshot stored source=\(source) device=\(device.id) profile=\(storedSnapshot.profileID) priorName=\"\(priorName)\" snapshotName=\"\(storedSnapshot.metadata.name)\" storedName=\"\(storedName)\" projected=\(projectMetadataForRefresh)"
                 + " dpiCount=\(storedSnapshot.dpi?.stageCount ?? 0) dpiValues=\(storedSnapshot.dpi?.values.map(String.init).joined(separator: ",") ?? "<none>")"
         )
+    }
+
+    private func snapshotPreservingKnownMetadataForCoreRead(
+        _ snapshot: OnboardProfileSnapshot,
+        device: MouseDevice,
+        source: String
+    ) -> OnboardProfileSnapshot {
+        guard source.localizedCaseInsensitiveContains("core") else { return snapshot }
+        if let metadata = onboardProfileInventoryByDeviceID[device.id]?
+            .summary(for: snapshot.profileID)?
+            .metadata {
+            return snapshot.replacingMetadata(metadata)
+        }
+        if let current = currentOnboardProfileSnapshotByDeviceID[device.id],
+           current.profileID == snapshot.profileID {
+            return snapshot.replacingMetadata(current.metadata)
+        }
+        return snapshot
     }
 
     func inventoryApplyingProjectedOnboardMetadata(

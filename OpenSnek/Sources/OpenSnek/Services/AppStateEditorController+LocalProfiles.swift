@@ -592,14 +592,11 @@ extension AppStateEditorController {
         device: MouseDevice,
         source: String
     ) -> Bool {
+        // Core reads intentionally skip metadata and button bindings for speed. They
+        // must not mint UUID-backed local backups from fallback names like "Profile 1".
+        guard !source.localizedCaseInsensitiveContains("core") else { return false }
         guard !snapshot.metadata.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
-        if !source.localizedCaseInsensitiveContains("core") {
-            return true
-        }
-        return onboardProfileInventoryByDeviceID[device.id]?
-            .summary(for: snapshot.profileID)?
-            .metadata?
-            .identifier == snapshot.metadata.identifier
+        return true
     }
 
     private func backupSelectedProfileBeforeReplacement(device: MouseDevice) async throws {

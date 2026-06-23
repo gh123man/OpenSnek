@@ -92,6 +92,43 @@ final class AppStateLocalProfileTests: XCTestCase {
         XCTAssertEqual(updates.map(\.profileID), [2])
     }
 
+    func testMappedCoreReadsDoNotCreateDuplicateFallbackLocalProfiles() async throws {
+        clearSavedButtonProfiles()
+        defer { clearSavedButtonProfiles() }
+
+        let device = makeMappedProfileDevice(id: "local-profile-core-read-no-duplicates")
+        let identifier = UUID()
+        let baseSnapshot = makeLocalProfileOnboardSnapshot(
+            profileID: 1,
+            identifier: identifier,
+            name: "Base",
+            dpiValues: [800, 1600],
+            activeStage: 0
+        )
+        let backend = makeLocalProfileBackend(device: device, activeProfile: 1, dpiValues: [800, 1600])
+        await backend.setOnboardInventory(
+            makeLocalProfileInventory(activeProfile: 1, maxProfileID: 5, snapshots: [baseSnapshot]),
+            forDeviceID: device.id
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorController.refreshOnboardProfiles(hydrateSelectedProfile: false)
+        await appState.editorStore.selectOnboardProfile(1)
+        await appState.editorStore.selectOnboardProfile(1)
+
+        let localProfiles = DevicePreferenceStore().loadOpenSnekLocalProfiles()
+        XCTAssertTrue(localProfiles.isEmpty)
+        let summaries = await MainActor.run { appState.editorStore.onboardProfileSummaries }
+        let baseSummary = try XCTUnwrap(summaries.first { $0.profileID == 1 })
+        XCTAssertEqual(baseSummary.metadata?.identifier, identifier)
+        XCTAssertEqual(baseSummary.displayName, "Base")
+        let coreReadCount = await backend.onboardCoreReadCount(deviceID: device.id, profileID: 1)
+        XCTAssertEqual(coreReadCount, 2)
+    }
+
     func testReplacingMappedAssignedSlotBacksUpThenWritesChosenLocalProfile() async throws {
         clearSavedButtonProfiles()
         defer { clearSavedButtonProfiles() }
