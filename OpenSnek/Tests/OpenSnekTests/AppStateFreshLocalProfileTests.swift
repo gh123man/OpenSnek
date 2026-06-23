@@ -5,6 +5,27 @@ import OpenSnekCore
 @testable import OpenSnek
 
 final class AppStateFreshLocalProfileTests: XCTestCase {
+    func testMappedBluetoothCreateDoesNotBackfillUnsupportedScrollFields() {
+        let bluetoothDevice = makeRefactorTestDevice(
+            id: "fresh-local-profile-bt-fill",
+            transport: .bluetooth,
+            serial: "FRESH-BT-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let usbDevice = makeRefactorTestDevice(
+            id: "fresh-local-profile-usb-fill",
+            transport: .usb,
+            serial: "FRESH-USB-\(UUID().uuidString)",
+            onboardProfileCount: 5,
+            profileID: .basiliskV3Pro
+        )
+        let mutation = makeFreshMappedProfileMutation()
+
+        XCTAssertFalse(mutation.needsMappedContentFill(for: bluetoothDevice))
+        XCTAssertTrue(mutation.needsMappedContentFill(for: usbDevice))
+    }
+
     func testFreshLocalProfileUsesDefaultsAndAssignsSelectedMappedSlot() async throws {
         clearSavedButtonProfiles()
         defer { clearSavedButtonProfiles() }
@@ -88,6 +109,27 @@ final class AppStateFreshLocalProfileTests: XCTestCase {
         XCTAssertEqual(create.mutation.scrollAcceleration, false)
         XCTAssertEqual(create.mutation.scrollSmartReel, false)
     }
+}
+
+private func makeFreshMappedProfileMutation() -> OnboardProfileMutation {
+    let dpiPairs = [800, 1600, 3200].map { DpiPair(x: $0, y: $0) }
+    let color = RGBPatch(r: 0, g: 255, b: 0)
+    return OnboardProfileMutation(
+        metadata: OnboardProfileMetadata(name: "Fresh Defaults"),
+        dpi: OnboardDPIProfileSnapshot(
+            scalar: dpiPairs.first,
+            activeStage: 0,
+            pairs: dpiPairs
+        ),
+        buttonBindings: [
+            1: ButtonBindingSupport.defaultButtonBinding(for: 1, profileID: .basiliskV3Pro),
+            2: ButtonBindingSupport.defaultButtonBinding(for: 2, profileID: .basiliskV3Pro),
+            3: ButtonBindingSupport.defaultButtonBinding(for: 3, profileID: .basiliskV3Pro),
+            4: ButtonBindingSupport.defaultButtonBinding(for: 4, profileID: .basiliskV3Pro)
+        ],
+        brightnessByLEDID: [1: 64, 4: 64, 10: 64],
+        staticColorByLEDID: [1: color, 4: color, 10: color]
+    )
 }
 
 private func makeFreshLocalProfileDevice() -> MouseDevice {

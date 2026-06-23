@@ -95,17 +95,17 @@ extension BridgeClient {
         replaceAssignedProfile: Bool
     ) async throws -> OnboardProfileSnapshot {
         let profile = try mappedOnboardProfileSupport(for: device)
-        let inventory = try await listOnboardProfiles(device: device)
-        let target = try resolveCreateTarget(
+        let target = try await resolveCreateTargetForOnboardCreate(
+            device: device,
+            profile: profile,
             requested: targetProfileID,
-            inventory: inventory,
             replaceAssignedProfile: replaceAssignedProfile
         )
         var createMutation = mutation
         if createMutation.metadata == nil {
             createMutation.metadata = OnboardProfileMetadata(name: "Profile \(target)")
         }
-        if createMutation.needsMappedContentFill {
+        if createMutation.needsMappedContentFill(for: device) {
             let activeSnapshot = try? await readOnboardProfile(device: device, profileID: 0)
             createMutation = createMutation.fillingMissingMappedContent(from: activeSnapshot)
         }
@@ -216,6 +216,27 @@ extension BridgeClient {
                 return projectedCreate
             }
         }
+    }
+
+    private func resolveCreateTargetForOnboardCreate(
+        device: MouseDevice,
+        profile: DeviceProfile,
+        requested: Int?,
+        replaceAssignedProfile: Bool
+    ) async throws -> Int {
+        if let requested, replaceAssignedProfile {
+            guard requested >= OnboardProfileLimits.minimumStoredProfileID,
+                  requested <= profile.onboardProfileCount else {
+                throw BridgeError.commandFailed("Onboard profile \(requested) is outside the assignable profile range.")
+            }
+            return requested
+        }
+        let inventory = try await listOnboardProfiles(device: device)
+        return try resolveCreateTarget(
+            requested: requested,
+            inventory: inventory,
+            replaceAssignedProfile: replaceAssignedProfile
+        )
     }
 
     func renameOnboardProfile(device: MouseDevice, profileID: Int, name: String) async throws -> OnboardProfileSnapshot {

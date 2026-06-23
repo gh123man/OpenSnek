@@ -20,14 +20,16 @@ extension OnboardProfileSnapshot {
 }
 
 extension OnboardProfileMutation {
-    var needsMappedContentFill: Bool {
+    func needsMappedContentFill(for device: MouseDevice) -> Bool {
         if dpi == nil { return true }
         if buttonBindings == nil { return true }
-        if brightnessByLEDID == nil { return true }
-        if staticColorByLEDID == nil { return true }
-        if scrollMode == nil { return true }
-        if scrollAcceleration == nil { return true }
-        if scrollSmartReel == nil { return true }
+        if device.supportsLightingBrightnessControls, brightnessByLEDID == nil { return true }
+        if device.showsLightingControls, staticColorByLEDID == nil { return true }
+        if device.supportsScrollModeControls {
+            if scrollMode == nil { return true }
+            if scrollAcceleration == nil { return true }
+            if scrollSmartReel == nil { return true }
+        }
         return false
     }
 

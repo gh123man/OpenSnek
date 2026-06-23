@@ -611,7 +611,7 @@ private struct OnboardProfileSlotRowButton: View {
     }
 
     private var mainContent: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .center, spacing: 8) {
             RoundedRectangle(cornerRadius: 2)
                 .fill(style.slotColor.opacity(profile.isAssigned || style.isSelected ? 0.95 : 0.45))
                 .frame(width: 4, height: 30)
