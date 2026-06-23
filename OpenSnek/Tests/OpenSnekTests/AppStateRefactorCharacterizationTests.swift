@@ -60,6 +60,7 @@ actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupportingBackend 
     private var onboardActivations: [(deviceID: String, profileID: Int)] = []
     private var onboardListFailureMessage: String?
     private var onboardUpdateFailureMessage: String?
+    private var padsReducedOnboardDPIReadback = false
     private var renameReturnsMetadataOnly = false
     private var onboardEvents: [String] = []
     private var heldOnboardProfileLists: Set<String> = []
@@ -352,7 +353,7 @@ actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupportingBackend 
             replaceAssignedProfile: replaceAssignedProfile,
             mutation: mutation
         ))
-        let snapshot = OnboardProfileSnapshot(
+        let requestedSnapshot = OnboardProfileSnapshot(
             profileID: target,
             metadata: mutation.metadata ?? OnboardProfileMetadata(name: "Profile \(target)"),
             dpi: mutation.dpi,
@@ -363,6 +364,7 @@ actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupportingBackend 
             scrollAcceleration: mutation.scrollAcceleration,
             scrollSmartReel: mutation.scrollSmartReel
         )
+        let snapshot = snapshotWithPaddedDPIReadbackIfNeeded(requestedSnapshot)
         onboardSnapshotsByKey[onboardSnapshotKey(deviceID: device.id, profileID: target)] = snapshot
         var summaries = inventory.profiles.filter { $0.profileID != target }
         summaries.append(OnboardProfileSummary(
@@ -450,7 +452,7 @@ actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupportingBackend 
             ])
         }
         let current = try await readOnboardProfile(device: device, profileID: profileID)
-        let updated = OnboardProfileSnapshot(
+        let requestedUpdate = OnboardProfileSnapshot(
             profileID: profileID,
             metadata: mutation.metadata ?? current.metadata,
             dpi: mutation.dpi ?? current.dpi,
@@ -461,8 +463,30 @@ actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupportingBackend 
             scrollAcceleration: mutation.scrollAcceleration ?? current.scrollAcceleration,
             scrollSmartReel: mutation.scrollSmartReel ?? current.scrollSmartReel
         )
+        let updated = snapshotWithPaddedDPIReadbackIfNeeded(requestedUpdate)
         onboardSnapshotsByKey[onboardSnapshotKey(deviceID: device.id, profileID: profileID)] = updated
         return updated
+    }
+
+    private func snapshotWithPaddedDPIReadbackIfNeeded(_ snapshot: OnboardProfileSnapshot) -> OnboardProfileSnapshot {
+        guard padsReducedOnboardDPIReadback,
+              let dpi = snapshot.dpi,
+              !dpi.pairs.isEmpty,
+              dpi.pairs.count < DeviceProfiles.maximumDpiStageCount else {
+            return snapshot
+        }
+        var pairs = dpi.pairs
+        while pairs.count < DeviceProfiles.maximumDpiStageCount {
+            pairs.append(pairs.last ?? DpiPair(x: 800, y: 800))
+        }
+        let paddedDPI = OnboardDPIProfileSnapshot(
+            scalar: dpi.scalar,
+            activeStage: dpi.activeStage,
+            pairs: pairs,
+            stageIDs: dpi.stageIDs.isEmpty ? (1...DeviceProfiles.maximumDpiStageCount).map { UInt8($0) } : dpi.stageIDs,
+            marker: dpi.marker
+        )
+        return snapshot.replacingDPI(paddedDPI)
     }
 
     func deleteOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileInventory {
@@ -740,6 +764,10 @@ actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupportingBackend 
 
     func setOnboardUpdateFailure(_ message: String?) {
         onboardUpdateFailureMessage = message
+    }
+
+    func setPadsReducedOnboardDPIReadback(_ value: Bool) {
+        padsReducedOnboardDPIReadback = value
     }
 
     func recordedOnboardCreates() -> [RecordedOnboardCreate] {

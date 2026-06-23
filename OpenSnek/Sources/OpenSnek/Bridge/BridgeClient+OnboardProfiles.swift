@@ -151,6 +151,9 @@ extension BridgeClient {
                     mutation: createMutation.withoutMetadata,
                     dpiWriteContext: dpiWriteContext
                 )
+                if let dpi = createMutation.dpi {
+                    self.rememberUSBLogicalOnboardDPI(dpi, device: device, profileID: target)
+                }
                 _ = try self.validateUSBOnboardProfileReadback(
                     device: device,
                     operation: "USB onboard profile create inventory",
@@ -401,8 +404,16 @@ extension BridgeClient {
                     mutation: mutation.withoutMetadata,
                     dpiWriteContext: dpiWriteContext
                 )
+                if let dpi = mutation.dpi {
+                    self.rememberUSBLogicalOnboardDPI(dpi, device: device, profileID: profileID)
+                }
                 if activeBeforeMutation == profileID {
                     _ = try self.usbWriteActiveOnboardProfileID(session, device, profileID: profileID)
+                    try self.usbApplyCachedLogicalDPIToActiveLayerIfNeeded(
+                        session,
+                        device,
+                        profileID: profileID
+                    )
                 }
                 return try self.usbReadOnboardProfile(session, device, profile: profile, profileID: profileID)
             }
@@ -467,6 +478,7 @@ extension BridgeClient {
                         !inventory.assignedProfileIDs.contains(profileID)
                     }
                 )
+                self.clearUSBLogicalOnboardDPI(device: device, profileID: profileID)
                 AppLog.debug(
                     "Bridge",
                     "USB onboard profile delete ok device=\(device.id) profile=\(profileID) " +
@@ -524,7 +536,9 @@ extension BridgeClient {
         switch device.transport {
         case .usb:
             activated = try await withUSBProfileSession(device: device) { session in
-                try self.usbWriteActiveOnboardProfileID(session, device, profileID: profileID)
+                let active = try self.usbWriteActiveOnboardProfileID(session, device, profileID: profileID)
+                try self.usbApplyCachedLogicalDPIToActiveLayerIfNeeded(session, device, profileID: profileID)
+                return active
             }
         case .bluetooth:
             let req = nextBTReq()

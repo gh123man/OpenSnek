@@ -134,6 +134,7 @@ actor BridgeClient {
     var btReqID: UInt8 = 0x30
     var btDpiSnapshotByDeviceID: [String: BLEVendorProtocol.DpiStageSnapshot] = [:]
     var btExpectedDpiByDeviceID: [String: BluetoothExpectedDpiState] = [:]
+    var usbLogicalOnboardDPIByDeviceID: [String: [Int: OnboardDPIProfileSnapshot]] = [:]
     let btVendorClient = BLEVendorTransportClient()
     let hidDevicePresenceMonitor = HIDDevicePresenceMonitor()
     let passiveDpiMonitor = PassiveDPIEventMonitor()
@@ -200,6 +201,7 @@ actor BridgeClient {
         passiveDpiTargetIDsByDeviceID.removeValue(forKey: deviceID)
         passiveDpiTargetsByDeviceID.removeValue(forKey: deviceID)
         passiveDpiUpgradeNotBeforeByDeviceID.removeValue(forKey: deviceID)
+        usbLogicalOnboardDPIByDeviceID.removeValue(forKey: deviceID)
         clearPassiveDpiObservation(deviceID: deviceID, reason: reason)
         clearManagedHIDManager()
     }

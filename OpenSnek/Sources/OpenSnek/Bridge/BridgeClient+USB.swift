@@ -471,6 +471,55 @@ extension BridgeClient {
         return args
     }
 
+    nonisolated static func usbLogicalDPIForActiveLayer(
+        dpi: OnboardDPIProfileSnapshot,
+        device: MouseDevice
+    ) -> OnboardDPIProfileSnapshot? {
+        var pairs = Array(dpi.pairs.prefix(DeviceProfiles.maximumDpiStageCount))
+        if pairs.isEmpty, let scalar = dpi.scalar {
+            pairs = [scalar]
+        }
+        guard !pairs.isEmpty else { return nil }
+
+        pairs = pairs.map { pair in
+            DpiPair(
+                x: DeviceProfiles.clampDPI(pair.x, device: device),
+                y: DeviceProfiles.clampDPI(pair.y, device: device)
+            )
+        }
+        let logicalCount = DeviceProfiles.clampDpiStageCount(pairs.count)
+        let activeStage = max(0, min(logicalCount - 1, dpi.activeStage ?? 0))
+        let scalar = dpi.scalar.map { pair in
+            DpiPair(
+                x: DeviceProfiles.clampDPI(pair.x, device: device),
+                y: DeviceProfiles.clampDPI(pair.y, device: device)
+            )
+        } ?? pairs[activeStage]
+        return OnboardDPIProfileSnapshot(
+            scalar: scalar,
+            activeStage: activeStage,
+            pairs: Array(pairs.prefix(logicalCount)),
+            stageIDs: dpi.stageIDs,
+            marker: dpi.marker
+        )
+    }
+
+    nonisolated static func usbActiveLayerDPIStageWriteArgs(
+        dpi: OnboardDPIProfileSnapshot,
+        device: MouseDevice
+    ) -> [UInt8]? {
+        guard let logicalDPI = usbLogicalDPIForActiveLayer(dpi: dpi, device: device) else {
+            return nil
+        }
+        return usbDPIStageWriteArgs(
+            profileID: 0x00,
+            activeStage: logicalDPI.activeStage ?? 0,
+            pairs: logicalDPI.pairs,
+            stageIDs: logicalDPI.stageIDs,
+            device: device
+        )
+    }
+
     nonisolated static func usbStoredProfileDPIWriteSnapshot(
         requested dpi: OnboardDPIProfileSnapshot,
         slotContext context: OnboardDPIProfileSnapshot?
@@ -483,8 +532,9 @@ extension BridgeClient {
 
         let rowCount = DeviceProfiles.maximumDpiStageCount
         var pairs = Array(dpi.pairs.prefix(rowCount))
+        let hiddenRowPair = pairs.last ?? context.pairs.first ?? DpiPair(x: 800, y: 800)
         while pairs.count < rowCount {
-            pairs.append(context.pairs[pairs.count])
+            pairs.append(hiddenRowPair)
         }
         let stageIDs = context.stageIDs.isEmpty ? dpi.stageIDs : context.stageIDs
         let contextActive = context.activeStage.map { max(0, min(rowCount - 1, $0)) }
@@ -494,8 +544,9 @@ extension BridgeClient {
 
         // USB create/assign gives the slot a firmware stage table before we rewrite
         // content. V3 Pro USB rejects reduced local profiles if that rewrite resets
-        // the stored active token, so keep the slot token and IDs while replacing the
-        // leading rows with the local profile's DPI values.
+        // the stored active token, so keep the slot token and IDs while replacing all
+        // physical rows. Hidden rows duplicate the last logical stage so stale slot
+        // values cannot reappear if the device cycles through the fixed stored table.
         return OnboardDPIProfileSnapshot(
             scalar: requestedScalar ?? pairs.first,
             activeStage: contextActive ?? requestedActive,

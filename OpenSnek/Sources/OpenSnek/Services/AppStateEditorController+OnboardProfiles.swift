@@ -11,7 +11,7 @@ extension AppStateEditorController {
     ) async throws -> OnboardProfileSnapshot {
         let snapshot = try await environment.backend.readOnboardProfile(device: device, profileID: profileID)
         if storeForEditing {
-            storeCurrentOnboardProfileSnapshot(snapshot, device: device, source: "readOnboardProfile")
+            return storeCurrentOnboardProfileSnapshot(snapshot, device: device, source: "readOnboardProfile")
         }
         return snapshot
     }
@@ -151,19 +151,25 @@ extension AppStateEditorController {
         }
     }
 
+    @discardableResult
     func storeCurrentOnboardProfileSnapshot(
         _ snapshot: OnboardProfileSnapshot,
         device: MouseDevice,
         source: String = "snapshot",
-        projectMetadataForRefresh: Bool = false
-    ) {
+        projectMetadataForRefresh: Bool = false,
+        expectedDPIReadback: OnboardDPIProfileSnapshot? = nil
+    ) -> OnboardProfileSnapshot {
         let priorName = onboardProfileInventoryByDeviceID[device.id]?
             .summary(for: snapshot.profileID)?
             .displayName ?? "<missing>"
-        let metadataResolvedSnapshot = snapshotPreservingKnownMetadataForCoreRead(
-            snapshot,
+        let metadataResolvedSnapshot = snapshotPreservingExistingLocalProfileDPI(
+            snapshotPreservingKnownMetadataForCoreRead(
+                snapshot,
+                device: device,
+                source: source
+            ),
             device: device,
-            source: source
+            expectedDPIReadback: expectedDPIReadback
         )
         let storedSnapshot: OnboardProfileSnapshot
         if metadataResolvedSnapshot.isMetadataOnly,
@@ -222,6 +228,69 @@ extension AppStateEditorController {
             "AppState",
             "onboard profile snapshot stored source=\(source) device=\(device.id) profile=\(storedSnapshot.profileID) priorName=\"\(priorName)\" snapshotName=\"\(storedSnapshot.metadata.name)\" storedName=\"\(storedName)\" projected=\(projectMetadataForRefresh)"
                 + " dpiCount=\(storedSnapshot.dpi?.stageCount ?? 0) dpiValues=\(storedSnapshot.dpi?.values.map(String.init).joined(separator: ",") ?? "<none>")"
+        )
+        return storedSnapshot
+    }
+
+    private func snapshotPreservingExistingLocalProfileDPI(
+        _ snapshot: OnboardProfileSnapshot,
+        device: MouseDevice,
+        expectedDPIReadback: OnboardDPIProfileSnapshot?
+    ) -> OnboardProfileSnapshot {
+        guard supportsOnboardProfileCRUD(device: device),
+              let readbackDPI = snapshot.dpi,
+              let logicalDPI = expectedDPIReadback ?? existingLocalProfileDPI(matching: snapshot),
+              shouldPreserveExistingLogicalDPI(logicalDPI, readbackDPI: readbackDPI, device: device) else {
+            return snapshot
+        }
+
+        let activeStage = readbackDPI.activeStage.map {
+            max(0, min(max(0, logicalDPI.pairs.count - 1), $0))
+        } ?? logicalDPI.activeStage
+        let scalar = activeStage.flatMap { active in
+            logicalDPI.pairs.indices.contains(active) ? logicalDPI.pairs[active] : nil
+        } ?? logicalDPI.scalar ?? logicalDPI.pairs.first
+        let preservedDPI = OnboardDPIProfileSnapshot(
+            scalar: scalar,
+            activeStage: activeStage,
+            pairs: logicalDPI.pairs,
+            stageIDs: readbackDPI.stageIDs.isEmpty ? logicalDPI.stageIDs : readbackDPI.stageIDs,
+            marker: readbackDPI.marker ?? logicalDPI.marker
+        )
+        AppLog.debug(
+            "AppState",
+            "preserved logical local-profile dpi device=\(device.id) profile=\(snapshot.profileID) " +
+                "name=\"\(snapshot.metadata.name)\" logicalCount=\(logicalDPI.stageCount) " +
+                "readbackCount=\(readbackDPI.stageCount)"
+        )
+        return snapshot.replacingDPI(preservedDPI)
+    }
+
+    private func existingLocalProfileDPI(matching snapshot: OnboardProfileSnapshot) -> OnboardDPIProfileSnapshot? {
+        preferenceStore.loadOpenSnekLocalProfiles().first {
+            $0.onboardIdentifier == snapshot.metadata.identifier
+        }?.content.dpi
+    }
+
+    private func shouldPreserveExistingLogicalDPI(
+        _ existingDPI: OnboardDPIProfileSnapshot,
+        readbackDPI: OnboardDPIProfileSnapshot,
+        device: MouseDevice
+    ) -> Bool {
+        let existingPairs = existingDPI.pairs.map { clampedDpiPair($0, device: device) }
+        let readbackPairs = readbackDPI.pairs.map { clampedDpiPair($0, device: device) }
+        guard !existingPairs.isEmpty,
+              existingPairs.count < readbackPairs.count,
+              readbackPairs.starts(with: existingPairs) else {
+            return false
+        }
+        return readbackPairs.count == DeviceProfiles.maximumDpiStageCount
+    }
+
+    private func clampedDpiPair(_ pair: DpiPair, device: MouseDevice) -> DpiPair {
+        DpiPair(
+            x: DeviceProfiles.clampDPI(pair.x, device: device),
+            y: DeviceProfiles.clampDPI(pair.y, device: device)
         )
     }
 
@@ -559,9 +628,13 @@ extension AppStateEditorController {
                 try await readLatestOnboardProfileCoreSnapshot(device: device, profileID: profileID),
                 device: device
             )
-            storeCurrentOnboardProfileSnapshot(snapshot, device: device, source: "readOnboardProfileCore")
+            let storedSnapshot = storeCurrentOnboardProfileSnapshot(
+                snapshot,
+                device: device,
+                source: "readOnboardProfileCore"
+            )
             selectedOnboardProfileIDByDeviceID[device.id] = profileID
-            hydrateEditable(from: snapshot, device: device)
+            hydrateEditable(from: storedSnapshot, device: device)
             if shouldHydrateOnboardProfileButtonsInline(device: device) {
                 await readOnboardProfileButtonBindingsForSelection(device: device, profileID: profileID)
             } else {
@@ -601,8 +674,12 @@ extension AppStateEditorController {
                 try await readLatestOnboardProfileCoreSnapshot(device: device, profileID: active),
                 device: device
             )
-            storeCurrentOnboardProfileSnapshot(snapshot, device: device, source: "activateOnboardProfileCore")
-            hydrateEditable(from: snapshot, device: device)
+            let storedSnapshot = storeCurrentOnboardProfileSnapshot(
+                snapshot,
+                device: device,
+                source: "activateOnboardProfileCore"
+            )
+            hydrateEditable(from: storedSnapshot, device: device)
             if shouldHydrateOnboardProfileButtonsInline(device: device) {
                 await readOnboardProfileButtonBindingsForSelection(device: device, profileID: active)
             } else {
@@ -646,17 +723,18 @@ extension AppStateEditorController {
                 targetProfileID: targetProfileID,
                 replaceAssignedProfile: false
             )
-            storeCurrentOnboardProfileSnapshot(
+            let storedSnapshot = storeCurrentOnboardProfileSnapshot(
                 snapshot,
                 device: device,
                 source: "createOnboardProfile",
-                projectMetadataForRefresh: true
+                projectMetadataForRefresh: true,
+                expectedDPIReadback: mutation.dpi
             )
             let state = try await environment.backend.activateOnboardProfile(device: device, profileID: snapshot.profileID)
             let active = storeActiveOnboardProfileState(state, for: device, fallbackActiveProfileID: snapshot.profileID)
             selectedOnboardProfileIDByDeviceID[device.id] = active
             if active == snapshot.profileID {
-                hydrateEditable(from: snapshot, device: device)
+                hydrateEditable(from: storedSnapshot, device: device)
             } else {
                 let activeSnapshot = try await readLatestOnboardProfileSnapshot(device: device, profileID: active)
                 hydrateEditable(from: activeSnapshot, device: device)
@@ -843,11 +921,12 @@ extension AppStateEditorController {
 #endif
                 return true
             }
-            storeCurrentOnboardProfileSnapshot(
+            let storedSnapshot = storeCurrentOnboardProfileSnapshot(
                 snapshot,
                 device: device,
                 source: "updateOnboardProfile",
-                projectMetadataForRefresh: resolvedMutation.metadata != nil
+                projectMetadataForRefresh: resolvedMutation.metadata != nil,
+                expectedDPIReadback: resolvedMutation.dpi
             )
             if selectedOnboardProfileIDByDeviceID[device.id] == selected {
                 if let bindings = resolvedMutation.buttonBindings {
@@ -858,8 +937,8 @@ extension AppStateEditorController {
                         appliedEditRevision: mutationStartedEditRevision
                     )
                 }
-                hydrateEditableLighting(from: snapshot, device: device)
-                hydrateEditableScroll(from: snapshot)
+                hydrateEditableLighting(from: storedSnapshot, device: device)
+                hydrateEditableScroll(from: storedSnapshot)
             }
             if selectedOnboardProfileIsActive() {
                 _ = try await environment.backend.refreshActiveOnboardProfile(device: device)
