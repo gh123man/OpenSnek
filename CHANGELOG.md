@@ -23,6 +23,7 @@ All notable changes to this project are documented in this file.
 - V3-family USB software lighting now streams the full 14-cell Custom Frame range so the tail LEDs are addressed directly on every shared scroll/logo/underglow profile.
 - Release automation now treats semver prerelease tags such as `v1.2.0-beta.1` as GitHub prereleases with `latest=false`, allowing beta DMGs to ship without triggering stable update banners.
 - The profile picker now hides the local profile already loaded in the selected slot, labels empty onboard slots as Load Profile, shows profile inventory loading in the profile pill instead of flashing fallback slot names, uses device defaults for Start Fresh, auto-loads newly created profiles into the selected slot, preserves USB stored-slot DPI stage tokens while assigning reduced-stage profiles to mapped onboard slots, avoids duplicate fallback `Profile 1` local backups from metadata-less reads, skips redundant create-path profile reads where the target slot is already known, and distinguishes deleting a local profile from deleting an onboard slot assignment.
+- Start Fresh local profiles now default onboard static lighting to white.
 
 ### Fixed
 - Generated Xcode `OpenSnekProbe` builds no longer pass `-parse-as-library`, allowing the probe's top-level async entrypoint to compile.
@@ -47,6 +48,7 @@ All notable changes to this project are documented in this file.
 - Pulling and replugging a V3 Pro USB dongle now forces stale HID sessions and empty HID-manager snapshots through fresh discovery, shows the receiver-absent state while removed, and clears stale absence on physical reconnect so the UI can recover without restarting OpenSnek.
 - The Lighting card now hides the Advanced software-lighting tab on Basilisk V3 X HyperSpeed and Bluetooth devices that cannot stream software effects.
 - Loading or editing a reduced-stage HyperSpeed local profile on a V3 Pro onboard slot now keeps the intended DPI stage count in the editor, overwrites hidden stored rows, and projects the logical count to the active USB profile so DPI cycling does not land on stale invisible slots.
+- Switching away from a selected single-slot local profile now preserves pending lighting color edits before loading the next profile, so returning to the first profile restores its color.
 
 ## [1.0.0]
 

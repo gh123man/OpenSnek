@@ -13,7 +13,7 @@ extension AppStateEditorController {
     private static let freshProfileDPIValues = [800, 1600, 3200]
     private static let freshProfileActiveStage = 0
     private static let freshProfileBrightness = 64
-    private static let freshProfileColor = RGBPatch(r: 0, g: 255, b: 0)
+    private static let freshProfileColor = RGBPatch(r: 255, g: 255, b: 255)
 
     func supportsProfilePicker(device: MouseDevice) -> Bool {
         device.profile_id != nil
@@ -341,6 +341,7 @@ extension AppStateEditorController {
             return
         }
         do {
+            persistPendingSingleSlotProfileEditsBeforeReplacement(device: device)
             await applyController.cancelAndDrainPendingLocalEditsForSelectionChange()
             applyController.cancelPendingPersistedSettingsRestore(for: device)
             try await backupSelectedProfileBeforeReplacement(device: device)
@@ -463,6 +464,12 @@ extension AppStateEditorController {
             return false
         }
         return true
+    }
+
+    private func persistPendingSingleSlotProfileEditsBeforeReplacement(device: MouseDevice) {
+        guard applyController.hasPendingLocalEditsAffecting(device) else { return }
+        guard supportsProfilePicker(device: device), !supportsOnboardProfileCRUD(device: device) else { return }
+        syncSelectedSingleSlotLocalProfileFromEditor(device: device)
     }
 
     private func hydrateSingleSlotProfileFromMouse(device: MouseDevice) async throws {

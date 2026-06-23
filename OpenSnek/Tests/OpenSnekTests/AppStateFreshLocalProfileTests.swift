@@ -82,7 +82,7 @@ final class AppStateFreshLocalProfileTests: XCTestCase {
             productID: device.product_id,
             transport: device.transport
         )?.buttonLayout.writableSlots)
-        let defaultColor = RGBPatch(r: 0, g: 255, b: 0)
+        let defaultColor = RGBPatch(r: 255, g: 255, b: 255)
         XCTAssertEqual(profile.content.dpi?.values, [800, 1600, 3200])
         XCTAssertEqual(profile.content.dpi?.activeStage, 0)
         XCTAssertEqual(Set(profile.content.buttonBindings.keys), Set(expectedSlots))
@@ -109,11 +109,87 @@ final class AppStateFreshLocalProfileTests: XCTestCase {
         XCTAssertEqual(create.mutation.scrollAcceleration, false)
         XCTAssertEqual(create.mutation.scrollSmartReel, false)
     }
+
+    func testFreshSingleSlotLocalProfileDefaultsLightingToWhite() async throws {
+        clearSavedButtonProfiles()
+        let device = makeFreshSingleSlotProfileDevice(id: "local-profile-fresh-white")
+        defer { clearRefactorPreferences(for: device) }
+
+        let backend = makeFreshLocalProfileBackend(device: device, activeProfile: 1, dpiValues: [800, 1600])
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+
+        let profile = await MainActor.run {
+            appState.editorStore.createFreshLocalProfile(name: "Fresh")
+        }
+
+        let white = RGBPatch(r: 255, g: 255, b: 255)
+        XCTAssertEqual(profile.content.staticColorByLEDID[1], white)
+        XCTAssertEqual(profile.content.lightingEffect?.primary, white)
+        XCTAssertEqual(profile.content.brightnessByLEDID[1], 64)
+    }
+
+    func testSingleSlotProfileSwitchPersistsPendingLightingColorEdit() async throws {
+        clearSavedButtonProfiles()
+        let device = makeFreshSingleSlotProfileDevice(id: "local-profile-switch-pending-color")
+        defer { clearRefactorPreferences(for: device) }
+
+        let preferenceStore = DevicePreferenceStore()
+        let alpha = preferenceStore.createOpenSnekLocalProfile(
+            name: "Alpha",
+            content: freshSingleSlotLocalProfileContent(dpiValues: [800, 1600])
+        )
+        let beta = preferenceStore.createOpenSnekLocalProfile(
+            name: "Beta",
+            content: freshSingleSlotLocalProfileContent(dpiValues: [1200, 2400])
+        )
+        let backend = makeFreshLocalProfileBackend(device: device, activeProfile: 1, dpiValues: [800, 1600])
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.replaceSelectedProfile(with: alpha.id)
+
+        let blue = RGBPatch(r: 0, g: 0, b: 255)
+        await MainActor.run {
+            appState.editorStore.editableColor = RGBColor(r: blue.r, g: blue.g, b: blue.b)
+            appState.editorStore.scheduleAutoApplyLedColor()
+        }
+        await appState.editorStore.replaceSelectedProfile(with: beta.id)
+
+        let updatedAlpha = try XCTUnwrap(
+            preferenceStore.loadOpenSnekLocalProfiles().first { $0.id == alpha.id }
+        )
+        XCTAssertEqual(updatedAlpha.content.staticColorByLEDID[1], blue)
+
+        let red = RGBPatch(r: 255, g: 0, b: 0)
+        await MainActor.run {
+            appState.editorStore.editableColor = RGBColor(r: red.r, g: red.g, b: red.b)
+            appState.editorStore.scheduleAutoApplyLedColor()
+        }
+        await appState.editorStore.replaceSelectedProfile(with: alpha.id)
+
+        let restoredColor = await MainActor.run {
+            appState.editorStore.editableColor
+        }
+        XCTAssertEqual(restoredColor, RGBColor(r: blue.r, g: blue.g, b: blue.b))
+        let updatedBeta = try XCTUnwrap(
+            preferenceStore.loadOpenSnekLocalProfiles().first { $0.id == beta.id }
+        )
+        XCTAssertEqual(updatedBeta.content.staticColorByLEDID[1], red)
+
+        let lightingPatches = await backend.recordedPatches().filter {
+            freshLightingPatch($0, applies: blue)
+        }
+        XCTAssertFalse(lightingPatches.isEmpty)
+    }
 }
 
 private func makeFreshMappedProfileMutation() -> OnboardProfileMutation {
     let dpiPairs = [800, 1600, 3200].map { DpiPair(x: $0, y: $0) }
-    let color = RGBPatch(r: 0, g: 255, b: 0)
+    let color = RGBPatch(r: 255, g: 255, b: 255)
     return OnboardProfileMutation(
         metadata: OnboardProfileMetadata(name: "Fresh Defaults"),
         dpi: OnboardDPIProfileSnapshot(
@@ -130,6 +206,33 @@ private func makeFreshMappedProfileMutation() -> OnboardProfileMutation {
         brightnessByLEDID: [1: 64, 4: 64, 10: 64],
         staticColorByLEDID: [1: color, 4: color, 10: color]
     )
+}
+
+private func makeFreshSingleSlotProfileDevice(id: String) -> MouseDevice {
+    makeRefactorTestDevice(
+        id: id,
+        transport: .bluetooth,
+        serial: "LOCAL-PROFILE-\(UUID().uuidString)",
+        onboardProfileCount: 1,
+        profileID: .basiliskV3XHyperspeed
+    )
+}
+
+private func freshSingleSlotLocalProfileContent(dpiValues: [Int]) -> OpenSnekLocalProfileContent {
+    let pairs = dpiValues.map { DpiPair(x: $0, y: $0) }
+    return OpenSnekLocalProfileContent(
+        dpi: OnboardDPIProfileSnapshot(
+            scalar: pairs.first,
+            activeStage: 0,
+            pairs: pairs
+        ),
+        brightnessByLEDID: [1: 64],
+        staticColorByLEDID: [1: RGBPatch(r: 0, g: 255, b: 0)]
+    )
+}
+
+private func freshLightingPatch(_ patch: DevicePatch, applies color: RGBPatch) -> Bool {
+    patch.ledRGB == color || patch.lightingEffect?.primary == color
 }
 
 private func makeFreshLocalProfileDevice() -> MouseDevice {
