@@ -601,6 +601,74 @@ extension BridgeClient {
         return values
     }
 
+    func rememberUSBLogicalOnboardDPI(
+        _ dpi: OnboardDPIProfileSnapshot,
+        device: MouseDevice,
+        profileID: Int
+    ) {
+        guard let logicalDPI = Self.usbLogicalDPIForActiveLayer(dpi: dpi, device: device) else {
+            clearUSBLogicalOnboardDPI(device: device, profileID: profileID)
+            return
+        }
+        guard logicalDPI.pairs.count < DeviceProfiles.maximumDpiStageCount else {
+            clearUSBLogicalOnboardDPI(device: device, profileID: profileID)
+            return
+        }
+
+        var profiles = usbLogicalOnboardDPIByDeviceID[device.id] ?? [:]
+        profiles[profileID] = logicalDPI
+        usbLogicalOnboardDPIByDeviceID[device.id] = profiles
+    }
+
+    func clearUSBLogicalOnboardDPI(device: MouseDevice, profileID: Int) {
+        usbLogicalOnboardDPIByDeviceID[device.id]?[profileID] = nil
+        if usbLogicalOnboardDPIByDeviceID[device.id]?.isEmpty == true {
+            usbLogicalOnboardDPIByDeviceID.removeValue(forKey: device.id)
+        }
+    }
+
+    func cachedUSBLogicalOnboardDPI(device: MouseDevice, profileID: Int) -> OnboardDPIProfileSnapshot? {
+        usbLogicalOnboardDPIByDeviceID[device.id]?[profileID]
+    }
+
+    func usbApplyCachedLogicalDPIToActiveLayerIfNeeded(
+        _ session: USBHIDControlSession,
+        _ device: MouseDevice,
+        profileID: Int
+    ) throws {
+        guard let dpi = cachedUSBLogicalOnboardDPI(device: device, profileID: profileID) else {
+            return
+        }
+        try usbWriteActiveLayerDPIStages(session, device, dpi: dpi)
+    }
+
+    func usbWriteActiveLayerDPIStages(
+        _ session: USBHIDControlSession,
+        _ device: MouseDevice,
+        dpi: OnboardDPIProfileSnapshot
+    ) throws {
+        guard let logicalDPI = Self.usbLogicalDPIForActiveLayer(dpi: dpi, device: device),
+              let args = Self.usbActiveLayerDPIStageWriteArgs(dpi: logicalDPI, device: device) else {
+            throw BridgeError.commandFailed("USB active profile DPI stage write failed.")
+        }
+        guard let response = try perform(session, device, classID: 0x04, cmdID: 0x06, size: 0x26, args: args),
+              response[0] == 0x02 else {
+            throw BridgeError.commandFailed("USB active profile DPI stage write failed.")
+        }
+
+        let active = logicalDPI.activeStage ?? 0
+        let scalar = logicalDPI.scalar ?? logicalDPI.pairs[active]
+        guard try setDPI(session, device, dpiX: scalar.x, dpiY: scalar.y, store: false) else {
+            throw BridgeError.commandFailed("USB active profile DPI scalar write failed.")
+        }
+        AppLog.debug(
+            "Bridge",
+            "usb active-layer dpi write device=\(device.id) " +
+                "count=\(logicalDPI.stageCount) active=\(active) " +
+                "values=\(logicalDPI.values.map(String.init).joined(separator: ","))"
+        )
+    }
+
     func usbApplyOnboardProfileMutation(
         _ session: USBHIDControlSession,
         _ device: MouseDevice,

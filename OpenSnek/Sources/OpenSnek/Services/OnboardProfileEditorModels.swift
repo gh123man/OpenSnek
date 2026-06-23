@@ -40,6 +40,20 @@ extension OnboardProfileSnapshot {
             scrollSmartReel: scrollSmartReel
         )
     }
+
+    func replacingDPI(_ dpi: OnboardDPIProfileSnapshot?) -> OnboardProfileSnapshot {
+        OnboardProfileSnapshot(
+            profileID: profileID,
+            metadata: metadata,
+            dpi: dpi,
+            buttonBindings: buttonBindings,
+            brightnessByLEDID: brightnessByLEDID,
+            staticColorByLEDID: staticColorByLEDID,
+            scrollMode: scrollMode,
+            scrollAcceleration: scrollAcceleration,
+            scrollSmartReel: scrollSmartReel
+        )
+    }
 }
 
 extension OnboardProfileMutation {

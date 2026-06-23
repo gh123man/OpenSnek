@@ -471,7 +471,9 @@ extension BridgeClient {
         switch device.transport {
         case .usb:
             rawActive = try await withUSBProfileSession(device: device) { session in
-                try self.usbReadActiveOnboardProfileID(session, device) ?? 1
+                let active = try self.usbReadActiveOnboardProfileID(session, device) ?? 1
+                try self.usbApplyCachedLogicalDPIToActiveLayerIfNeeded(session, device, profileID: active)
+                return active
             }
         case .bluetooth:
             rawActive = try await btReadActiveOnboardProfileID(device: device) ?? 1

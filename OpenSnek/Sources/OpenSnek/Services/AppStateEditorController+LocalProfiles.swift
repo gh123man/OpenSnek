@@ -652,17 +652,18 @@ extension AppStateEditorController {
                 replaceAssignedProfile: true
             )
         }
-        storeCurrentOnboardProfileSnapshot(
+        let storedSnapshot = storeCurrentOnboardProfileSnapshot(
             snapshot,
             device: device,
             source: "replaceOnboardProfileFromLocal",
-            projectMetadataForRefresh: true
+            projectMetadataForRefresh: true,
+            expectedDPIReadback: mutation.dpi
         )
         let state = try await environment.backend.activateOnboardProfile(device: device, profileID: snapshot.profileID)
         let active = storeActiveOnboardProfileState(state, for: device, fallbackActiveProfileID: snapshot.profileID)
         selectedOnboardProfileIDByDeviceID[device.id] = active
         if active == snapshot.profileID {
-            hydrateEditable(from: snapshot, device: device)
+            hydrateEditable(from: storedSnapshot, device: device)
         } else {
             let activeSnapshot = try await readLatestOnboardProfileSnapshot(device: device, profileID: active)
             hydrateEditable(from: activeSnapshot, device: device)

@@ -46,6 +46,7 @@ All notable changes to this project are documented in this file.
 - Remote service snapshots now clear latched transient USB unavailable presentation, and cached USB devices no longer age into Disconnected solely because passive telemetry has been idle.
 - Pulling and replugging a V3 Pro USB dongle now forces stale HID sessions and empty HID-manager snapshots through fresh discovery, shows the receiver-absent state while removed, and clears stale absence on physical reconnect so the UI can recover without restarting OpenSnek.
 - The Lighting card now hides the Advanced software-lighting tab on Basilisk V3 X HyperSpeed and Bluetooth devices that cannot stream software effects.
+- Loading or editing a reduced-stage HyperSpeed local profile on a V3 Pro onboard slot now keeps the intended DPI stage count in the editor, overwrites hidden stored rows, and projects the logical count to the active USB profile so DPI cycling does not land on stale invisible slots.
 
 ## [1.0.0]
 
