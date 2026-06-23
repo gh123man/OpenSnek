@@ -1078,6 +1078,8 @@ func clearRefactorPreferences(for device: MouseDevice) {
         "softwareLightingRequest.\(key)",
         "connectBehavior.\(key)",
         "connectBehavior.\(legacyKey)",
+        "selectedLocalProfile.\(key)",
+        "selectedLocalProfile.\(legacyKey)",
         "settingsSnapshot.\(key)",
         "settingsSnapshot.\(legacyKey)",
         "buttonBindings.\(key)",

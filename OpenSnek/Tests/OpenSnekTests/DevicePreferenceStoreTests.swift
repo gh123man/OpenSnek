@@ -380,6 +380,35 @@ final class DevicePreferenceStoreTests: XCTestCase {
         XCTAssertEqual(store.loadConnectBehavior(device: device), .restoreOpenSnekSettings)
     }
 
+    func testSelectedLocalProfileIDPersistsPerDevice() {
+        let suiteName = "DevicePreferenceStoreTests.SelectedLocalProfile.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = DevicePreferenceStore(defaults: defaults)
+        let device = MouseDevice(
+            id: "bt-selected-local-profile",
+            vendor_id: 0x1532,
+            product_id: 0x00BA,
+            product_name: "Basilisk V3 X HyperSpeed",
+            transport: .bluetooth,
+            path_b64: "",
+            serial: "SELECTED-LOCAL-PROFILE",
+            firmware: nil,
+            profile_id: .basiliskV3XHyperspeed
+        )
+        let profileID = UUID()
+
+        store.persistSelectedLocalProfileID(profileID, device: device)
+
+        XCTAssertEqual(store.loadSelectedLocalProfileID(device: device), profileID)
+
+        store.persistSelectedLocalProfileID(nil, device: device)
+
+        XCTAssertNil(store.loadSelectedLocalProfileID(device: device))
+    }
+
     func testSoftwareLightingPreferencesPersistPerDevice() {
         let suiteName = "DevicePreferenceStoreTests.SoftwareLighting.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

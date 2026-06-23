@@ -520,6 +520,10 @@ extension AppStateDeviceController {
             to: device
         )
         if restored {
+            editorController.markSingleSlotPersistedSettingsRestored(
+                snapshot: restorePlan.snapshot,
+                device: device
+            )
             let currentGeneration = pendingSettingsRestoreGenerationByDeviceID[device.id, default: 0]
             if currentGeneration == pendingGeneration {
                 pendingSettingsRestoreDeviceIDs.remove(device.id)

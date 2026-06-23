@@ -898,6 +898,8 @@ final class AppStateApplyController {
             }
             if editorController.supportsOnboardProfileCRUD(device: presentationDevice) {
                 editorController.syncSelectedMappedLocalProfileFromEditor(device: presentationDevice)
+            } else if !suppressSingleSlotProfileSync {
+                editorController.syncSelectedSingleSlotLocalProfileFromEditor(device: presentationDevice)
             }
         }
         if !suppressSingleSlotProfileSync {

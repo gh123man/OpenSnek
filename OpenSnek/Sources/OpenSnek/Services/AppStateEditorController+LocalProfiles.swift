@@ -60,12 +60,21 @@ extension AppStateEditorController {
     }
 
     func renameLocalProfile(id: UUID, name: String) {
-        _ = preferenceStore.updateOpenSnekLocalProfile(id: id, name: name)
+        let updated = preferenceStore.updateOpenSnekLocalProfile(id: id, name: name)
+        if let device = deviceStore.selectedDevice,
+           selectedSingleSlotLocalProfile(device: device)?.id == id,
+           let updated {
+            setSelectedSingleSlotProfileName(updated.name, device: device)
+        }
         bumpOnboardProfilesRevision()
         bumpUSBButtonProfilesRevision()
     }
 
     func deleteLocalProfile(id: UUID) {
+        if let device = deviceStore.selectedDevice,
+           selectedSingleSlotLocalProfile(device: device)?.id == id {
+            clearSelectedSingleSlotLocalProfile(device: device)
+        }
         preferenceStore.deleteOpenSnekLocalProfile(id: id)
         bumpOnboardProfilesRevision()
         bumpUSBButtonProfilesRevision()
@@ -156,6 +165,45 @@ extension AppStateEditorController {
 
     func syncSingleSlotLocalProfileFromPersistedSnapshot(device: MouseDevice) {
         removeSingleSlotSyntheticLocalProfile(device: device)
+    }
+
+    func syncSelectedSingleSlotLocalProfileFromEditor(device: MouseDevice) {
+        guard supportsProfilePicker(device: device),
+              !supportsOnboardProfileCRUD(device: device),
+              let profile = selectedSingleSlotLocalProfile(device: device) else {
+            return
+        }
+        guard preferenceStore.updateOpenSnekLocalProfile(
+            id: profile.id,
+            content: currentLocalProfileContent(device: device),
+            sourceDeviceProfileID: device.profile_id,
+            sourceTransport: device.transport
+        ) != nil else {
+            clearSelectedSingleSlotLocalProfile(device: device)
+            return
+        }
+        bumpOnboardProfilesRevision()
+        bumpUSBButtonProfilesRevision()
+    }
+
+    func markSingleSlotPersistedSettingsRestored(
+        snapshot: PersistedDeviceSettingsSnapshot,
+        device: MouseDevice
+    ) {
+        guard supportsProfilePicker(device: device),
+              !supportsOnboardProfileCRUD(device: device),
+              shouldRestorePersistedSettingsOnConnect(for: device),
+              let profile = selectedSingleSlotLocalProfile(device: device) else {
+            return
+        }
+        _ = preferenceStore.updateOpenSnekLocalProfile(
+            id: profile.id,
+            content: localProfileContent(from: snapshot),
+            sourceDeviceProfileID: device.profile_id,
+            sourceTransport: device.transport
+        )
+        setSelectedSingleSlotProfileName(profile.name, device: device)
+        bumpUSBButtonProfilesRevision()
     }
 
     func loadSelectedSingleSlotProfileFromMouse() async {
@@ -483,7 +531,7 @@ extension AppStateEditorController {
             throw AppStateLocalProfileError.applyFailed
         }
         applyLocalProfileContentToEditor(content, device: device)
-        setSelectedSingleSlotProfileName(localProfile.name, device: device)
+        setSelectedSingleSlotLocalProfile(localProfile, device: device)
         persistCurrentSettingsSnapshot(for: device)
         removeSingleSlotSyntheticLocalProfile(device: device)
         deviceStore.errorMessage = nil
@@ -496,6 +544,28 @@ extension AppStateEditorController {
     private func setSelectedSingleSlotProfileName(_ name: String, device: MouseDevice) {
         guard selectedSingleSlotProfileNameByDeviceID[device.id] != name else { return }
         selectedSingleSlotProfileNameByDeviceID[device.id] = name
+        bumpOnboardProfilesRevision()
+    }
+
+    private func selectedSingleSlotLocalProfile(device: MouseDevice) -> OpenSnekLocalProfile? {
+        guard let id = preferenceStore.loadSelectedLocalProfileID(device: device) else {
+            return nil
+        }
+        guard let profile = preferenceStore.loadOpenSnekLocalProfiles().first(where: { $0.id == id }) else {
+            clearSelectedSingleSlotLocalProfile(device: device)
+            return nil
+        }
+        return profile
+    }
+
+    private func setSelectedSingleSlotLocalProfile(_ profile: OpenSnekLocalProfile, device: MouseDevice) {
+        preferenceStore.persistSelectedLocalProfileID(profile.id, device: device)
+        setSelectedSingleSlotProfileName(profile.name, device: device)
+    }
+
+    private func clearSelectedSingleSlotLocalProfile(device: MouseDevice) {
+        preferenceStore.persistSelectedLocalProfileID(nil, device: device)
+        selectedSingleSlotProfileNameByDeviceID.removeValue(forKey: device.id)
         bumpOnboardProfilesRevision()
     }
 

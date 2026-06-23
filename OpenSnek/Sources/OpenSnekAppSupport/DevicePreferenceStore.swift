@@ -397,6 +397,22 @@ public final class DevicePreferenceStore: @unchecked Sendable {
         return DeviceConnectBehavior(rawValue: rawValue)
     }
 
+    public func persistSelectedLocalProfileID(_ id: UUID?, device: MouseDevice) {
+        let key = selectedLocalProfileKey(device: device)
+        if let id {
+            defaults.set(id.uuidString, forKey: key)
+        } else {
+            defaults.removeObject(forKey: key)
+            defaults.removeObject(forKey: selectedLocalProfileLegacyKey(device: device))
+        }
+    }
+
+    public func loadSelectedLocalProfileID(device: MouseDevice) -> UUID? {
+        let rawValue = defaults.string(forKey: selectedLocalProfileKey(device: device))
+            ?? defaults.string(forKey: selectedLocalProfileLegacyKey(device: device))
+        return rawValue.flatMap(UUID.init(uuidString:))
+    }
+
     public func persistDeviceSettingsSnapshot(_ snapshot: PersistedDeviceSettingsSnapshot, device: MouseDevice) {
         guard settingStorageEnabled else { return }
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
@@ -628,6 +644,14 @@ public final class DevicePreferenceStore: @unchecked Sendable {
 
     private func settingsSnapshotLegacyKey(device: MouseDevice) -> String {
         "settingsSnapshot.\(DevicePersistenceKeys.legacyKey(for: device))"
+    }
+
+    private func selectedLocalProfileKey(device: MouseDevice) -> String {
+        "selectedLocalProfile.\(DevicePersistenceKeys.key(for: device))"
+    }
+
+    private func selectedLocalProfileLegacyKey(device: MouseDevice) -> String {
+        "selectedLocalProfile.\(DevicePersistenceKeys.legacyKey(for: device))"
     }
 
     private func lightingColorKeys(device: MouseDevice, zoneID: String?) -> [String] {
