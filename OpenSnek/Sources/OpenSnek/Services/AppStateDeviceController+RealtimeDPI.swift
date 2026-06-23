@@ -206,6 +206,9 @@ extension AppStateDeviceController {
         if availability == .receiverPresentMouseReachable {
             clearUSBPhysicalConnectSettling(for: deviceID)
         }
+        if availability != .receiverPresentMouseUnavailable {
+            lastUSBReceiverRecoveryProbeAtByDeviceID.removeValue(forKey: deviceID)
+        }
         let previous = usbControlAvailabilityByDeviceID[deviceID]
         guard previous != availability else { return }
         usbControlAvailabilityByDeviceID[deviceID] = availability
@@ -298,6 +301,52 @@ extension AppStateDeviceController {
             return deviceStore.selectedDevice
         }
         return nil
+    }
+
+    func probeUnavailableUSBReceivers(now: Date = Date()) async {
+        guard !isTearingDown else { return }
+        let candidates = deviceStore.devices.filter { shouldProbeUSBReceiverRecovery(for: $0, now: now) }
+        guard !candidates.isEmpty else { return }
+
+        for device in candidates {
+            lastUSBReceiverRecoveryProbeAtByDeviceID[device.id] = now
+            await probeUSBReceiverRecovery(for: device)
+        }
+    }
+
+    func shouldProbeUSBReceiverRecovery(for device: MouseDevice, now: Date) -> Bool {
+        guard device.transport == .usb else { return false }
+        guard usbControlAvailability(for: device) == .receiverPresentMouseUnavailable else { return false }
+        guard deviceStore.devices.contains(where: { $0.id == device.id }) else { return false }
+        guard !refreshingStateDeviceIDs.contains(device.id) else { return false }
+        guard !isRestoringSettings(for: device) else { return false }
+        guard !deviceStore.isApplying else { return false }
+        guard !applyController.hasPendingLocalEditsAffecting(device) else { return false }
+        guard let lastProbeAt = lastUSBReceiverRecoveryProbeAtByDeviceID[device.id] else { return true }
+        return now.timeIntervalSince(lastProbeAt) >= Self.usbReceiverRecoveryProbeInterval
+    }
+
+    func probeUSBReceiverRecovery(for device: MouseDevice) async {
+        do {
+            let availability = try await environment.backend.usbControlAvailability(device: device)
+            guard availability != .unknown else {
+                AppLog.debug("AppState", "usb receiver recovery probe ignored unknown availability device=\(device.id)")
+                return
+            }
+            // Dongle-backed mice can keep the receiver enumerated while the mouse sleeps.
+            // HID presence will not fire when the mouse wakes, so a low-rate control probe
+            // is the generic recovery signal for V3 X HyperSpeed and future receiver devices.
+            applyBackendUSBControlAvailabilityUpdate(
+                deviceID: device.id,
+                availability: availability,
+                updatedAt: Date()
+            )
+        } catch {
+            AppLog.debug(
+                "AppState",
+                "usb receiver recovery probe failed device=\(device.id): \(error.localizedDescription)"
+            )
+        }
     }
 
     func armUSBPhysicalConnectSettling(

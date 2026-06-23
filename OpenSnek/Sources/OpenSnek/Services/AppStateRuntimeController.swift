@@ -771,6 +771,8 @@ final class AppStateRuntimeController {
                 }
             }
 
+            await deviceController.probeUnavailableUSBReceivers(now: now)
+
             if let fastInterval = effectiveFastDpiInterval(at: now),
                now.timeIntervalSince(lastFastDpiPollAt) >= fastInterval {
                 lastFastDpiPollAt = now

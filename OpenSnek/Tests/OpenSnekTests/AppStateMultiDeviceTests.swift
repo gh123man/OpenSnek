@@ -254,6 +254,8 @@ actor DeviceListUpdatingStubBackend: DeviceBackend {
     private var stateByDeviceID: [String: MouseState]
     private var usesFastDPIPolling: Bool
     private var dpiUpdateTransportStatusOverride: DpiUpdateTransportStatus?
+    private var usbControlAvailabilityByDeviceID: [String: USBControlAvailability] = [:]
+    private var usbControlAvailabilityProbeCountByDeviceID: [String: Int] = [:]
     private var hidAccessAuthorization: HIDAccessAuthorization
     private var readCountByDeviceID: [String: Int] = [:]
     private var transientReadFailuresByDeviceID: [String: [String]] = [:]
@@ -313,6 +315,11 @@ actor DeviceListUpdatingStubBackend: DeviceBackend {
         dpiUpdateTransportStatusOverride ?? (usesFastDPIPolling ? .pollingFallback : .realTimeHID)
     }
 
+    func usbControlAvailability(device: MouseDevice) async throws -> USBControlAvailability {
+        usbControlAvailabilityProbeCountByDeviceID[device.id, default: 0] += 1
+        return usbControlAvailabilityByDeviceID[device.id] ?? .unknown
+    }
+
     func hidAccessStatus() async -> HIDAccessStatus {
         HIDAccessStatus(
             authorization: hidAccessAuthorization,
@@ -368,8 +375,16 @@ actor DeviceListUpdatingStubBackend: DeviceBackend {
         dpiUpdateTransportStatusOverride = value
     }
 
+    func setUSBControlAvailability(_ value: USBControlAvailability, for deviceID: String) {
+        usbControlAvailabilityByDeviceID[deviceID] = value
+    }
+
     func readCount(for deviceID: String) -> Int {
         readCountByDeviceID[deviceID] ?? 0
+    }
+
+    func usbControlAvailabilityProbeCount(for deviceID: String) -> Int {
+        usbControlAvailabilityProbeCountByDeviceID[deviceID] ?? 0
     }
 
     func applyCount() -> Int {

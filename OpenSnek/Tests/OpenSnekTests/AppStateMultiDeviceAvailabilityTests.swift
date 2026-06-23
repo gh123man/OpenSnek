@@ -441,6 +441,78 @@ final class AppStateMultiDeviceAvailabilityTests: XCTestCase {
         XCTAssertNil(errorMessage)
     }
 
+    func testUnavailableUSBReceiverProbeRecoversSleepingHyperSpeedWithoutPresenceEvent() async throws {
+        let usbDevice = MouseDevice(
+            id: "usb-v3x-hyperspeed-dongle-sleep",
+            vendor_id: 0x1532,
+            product_id: 0x00B9,
+            product_name: "Basilisk V3 X HyperSpeed",
+            transport: .usb,
+            path_b64: "",
+            serial: "V3X-HS-DONGLE-SLEEP",
+            firmware: "1.0.0",
+            location_id: 1,
+            profile_id: .basiliskV3XHyperspeed,
+            supports_advanced_lighting_effects: true,
+            onboard_profile_count: 1
+        )
+        let initialState = makeTestState(
+            device: usbDevice,
+            connection: "usb",
+            batteryPercent: 81,
+            dpiValues: [800, 1600, 3200],
+            activeStage: 0
+        )
+        let recoveredState = makeTestState(
+            device: usbDevice,
+            connection: "usb",
+            batteryPercent: 79,
+            dpiValues: [800, 1600, 3200],
+            activeStage: 1
+        )
+        let backend = DeviceListUpdatingStubBackend(
+            devices: [usbDevice],
+            stateByDeviceID: [usbDevice.id: initialState]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        let telemetryUnavailable = "USB device telemetry unavailable. Feature-report interface did not return usable responses."
+
+        await appState.deviceStore.refreshDevices()
+        let initialReadCount = await backend.readCount(for: usbDevice.id)
+        await backend.setTransientReadFailures([telemetryUnavailable], for: usbDevice.id)
+
+        let failed = await appState.deviceController.refreshState(for: usbDevice)
+        let failedReadCount = await backend.readCount(for: usbDevice.id)
+        let statusAfterFailure = await MainActor.run {
+            appState.deviceStore.currentDeviceStatusIndicator.label
+        }
+
+        await backend.setState(recoveredState, for: usbDevice.id)
+        await backend.setUSBControlAvailability(.receiverPresentMouseReachable, for: usbDevice.id)
+        await appState.runtimeController.pollRuntimeOnce(now: Date(timeIntervalSince1970: 1_773_500_000))
+
+        try await waitForAppStateCondition {
+            await backend.readCount(for: usbDevice.id) >= failedReadCount + 1
+        }
+
+        let probeCount = await backend.usbControlAvailabilityProbeCount(for: usbDevice.id)
+        let statusAfterRecovery = await MainActor.run {
+            appState.deviceStore.currentDeviceStatusIndicator.label
+        }
+        let controlsEnabled = await MainActor.run { appState.deviceStore.selectedDeviceControlsEnabled }
+        let presentedDpi = await MainActor.run { appState.deviceStore.state?.dpi?.x }
+
+        XCTAssertFalse(failed)
+        XCTAssertEqual(initialReadCount + 1, failedReadCount)
+        XCTAssertEqual(statusAfterFailure, "Disconnected")
+        XCTAssertEqual(probeCount, 1)
+        XCTAssertEqual(statusAfterRecovery, "Connected")
+        XCTAssertTrue(controlsEnabled)
+        XCTAssertEqual(presentedDpi, 1600)
+    }
+
     func testTransientBackendUSBUnavailableDoesNotFlickerConnectedMouse() async throws {
         let usbDevice = makeTestDevice(
             id: "usb-transient-unavailable",

@@ -7,6 +7,7 @@ final class AppStateDeviceController {
     static let bluetoothPassiveHeartbeatConnectedInterval: TimeInterval = 1.5
     static let usbPassiveActivityConnectedInterval: TimeInterval = 3.5
     static let usbControlUnavailableDebounceInterval: TimeInterval = 0.35
+    static let usbReceiverRecoveryProbeInterval: TimeInterval = 2.0
     static let usbPhysicalConnectStatusGraceInterval: TimeInterval = BridgeClient.usbReconnectSettleInterval + 1.5
     static let recentDynamicDpiMutationMergeWindow: TimeInterval = 1.0
     static let usbTelemetryUnavailableMessage =
@@ -77,6 +78,7 @@ final class AppStateDeviceController {
     var stateRefreshSuppressedUntilByDeviceID: [String: Date] = [:]
     var usbTelemetryUnavailableBackoffDeviceIDs: Set<String> = []
     var usbControlAvailabilityByDeviceID: [String: USBControlAvailability] = [:]
+    var lastUSBReceiverRecoveryProbeAtByDeviceID: [String: Date] = [:]
     var pendingUSBControlUnavailableTasksByDeviceID: [String: Task<Void, Never>] = [:]
     var usbPhysicalConnectSettlingUntilByDeviceID: [String: Date] = [:]
     var usbPhysicalConnectSettleTasksByDeviceID: [String: Task<Void, Never>] = [:]
@@ -110,6 +112,7 @@ final class AppStateDeviceController {
         remoteSnapshotSoftwareLightingAutoStartKeys.removeAll()
         pendingUSBControlUnavailableTasksByDeviceID.values.forEach { $0.cancel() }
         pendingUSBControlUnavailableTasksByDeviceID.removeAll()
+        lastUSBReceiverRecoveryProbeAtByDeviceID.removeAll()
         usbPhysicalConnectSettleTasksByDeviceID.values.forEach { $0.cancel() }
         usbPhysicalConnectSettleTasksByDeviceID.removeAll()
         usbPhysicalConnectSettlingUntilByDeviceID.removeAll()
