@@ -161,6 +161,43 @@ final class V3XBluetoothLocalProfileUITests: OpenSnekHardwareUITestCase {
         try restoreAndDeleteTemporaryProfilesThrowing()
     }
 
+    func testV3XBluetoothRestoreLastProfileColdLaunchReflectsKnownProfile() throws {
+        _ = try XCTUnwrap(
+            launchAndWaitForScopedDevice(timeout: 15),
+            "Expected connected \(expectedScope.description)"
+        )
+        try keepMouseAwakeForUITest(timeout: actionTimeout)
+
+        try openProfilePicker()
+        try assertSingleSlotPickerSurface()
+        try deleteAllUITestProfiles()
+        originalProfileName = try selectedSingleSlotProfileName()
+
+        let suffix = String(UUID().uuidString.prefix(4))
+        let restoreName = "\(testProfileNamePrefix) Restore Launch \(suffix)"
+
+        try createProfileFromCurrentMouse(named: restoreName)
+        let restoreProfile = try recordTemporaryProfile(named: restoreName, isRestoreProfile: true)
+        try switchToLocalProfile(restoreProfile)
+        try selectOnConnectOption(named: "Restore Last Profile")
+
+        app.terminate()
+        _ = try XCTUnwrap(
+            launchAndWaitForScopedDevice(timeout: 15),
+            "Expected connected \(expectedScope.description) after relaunch"
+        )
+        try keepMouseAwakeForUITest(timeout: actionTimeout)
+
+        try openProfilePicker()
+        XCTAssertTrue(
+            onConnectPresentationMatchesSelectedOption("Restore Last Profile"),
+            "Restore Last Profile should still be the saved On Connect policy after relaunch"
+        )
+        try assertSelectedProfile(named: restoreName)
+
+        try restoreAndDeleteTemporaryProfilesThrowing()
+    }
+
     private func assertSingleSlotPickerSurface() throws {
         XCTAssertTrue(try requireElement("onboard-profiles-card", timeout: 2).exists)
         XCTAssertTrue(try requireElement("onboard-profile-row-1", timeout: 2).exists)
@@ -742,28 +779,13 @@ final class V3XBluetoothLocalProfileUITests: OpenSnekHardwareUITestCase {
 
     private func restoreOriginalProfileIfNeeded() throws {
         guard let originalProfileName,
-              var restoreProfile = temporaryProfiles.first(where: \.isRestoreProfile) else {
+              originalProfileName != "Base Profile" else {
             return
         }
-        if restoreProfile.name != originalProfileName {
-            try renameLocalProfile(
-                manageIdentifier: restoreProfile.manageIdentifier,
-                currentName: restoreProfile.name,
-                to: originalProfileName
-            )
-            restoreProfile.name = originalProfileName
-            if let index = temporaryProfiles.firstIndex(where: { $0.manageIdentifier == restoreProfile.manageIdentifier }) {
-                temporaryProfiles[index].name = originalProfileName
-            }
-        }
-
-        let restoreButton = try profileElement(
-            identifier: restoreProfile.replaceIdentifier,
-            fallbackName: restoreProfile.name
-        )
+        guard let restoreButton = findLocalProfileButton(named: originalProfileName, timeout: 3) else { return }
         XCTAssertTrue(
             waitForElementReady(restoreButton, timeout: actionTimeout),
-            "Restore profile \(restoreProfile.name) stayed disabled"
+            "Original profile \(originalProfileName) stayed disabled"
         )
         clickLeftSideOfCell(restoreButton)
         XCTAssertTrue(
@@ -948,6 +970,22 @@ final class V3XBluetoothLocalProfileUITests: OpenSnekHardwareUITestCase {
         } while Date() < deadline
 
         let button = app.buttons[identifier]
+        return button.exists ? button : nil
+    }
+
+    private func findLocalProfileButton(named name: String, timeout: TimeInterval) -> XCUIElement? {
+        scrollLocalProfileListToTop()
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let button = app.buttons[name]
+            if button.exists {
+                return button
+            }
+            scrollLocalProfileListDown()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        } while Date() < deadline
+
+        let button = app.buttons[name]
         return button.exists ? button : nil
     }
 

@@ -37,6 +37,8 @@ func clearSnapshotPreferences(for device: MouseDevice) {
         "connectBehavior.\(legacyKey)",
         "settingsSnapshot.\(key)",
         "settingsSnapshot.\(legacyKey)",
+        "selectedLocalProfile.\(key)",
+        "selectedLocalProfile.\(legacyKey)",
         "buttonBindings.\(key)",
         "buttonBindings.\(legacyKey)",
         "buttonBindings.\(key).profile1",

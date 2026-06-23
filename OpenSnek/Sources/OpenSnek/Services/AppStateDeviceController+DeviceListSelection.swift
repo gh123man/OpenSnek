@@ -415,9 +415,9 @@ extension AppStateDeviceController {
         applyController: AppStateApplyController,
         editorController: AppStateEditorController
     ) -> Bool {
-        guard !environment.usesRemoteServiceTransport else { return false }
         guard applyController.shouldHydrateEditable(for: device) else { return false }
         let hydratedPersistedSnapshot = editorController.hydrateConnectPresentationIfNeeded(device: device)
+        guard !environment.usesRemoteServiceTransport else { return false }
         return hydratedPersistedSnapshot && pendingSettingsRestoreDeviceIDs.contains(device.id)
     }
 
