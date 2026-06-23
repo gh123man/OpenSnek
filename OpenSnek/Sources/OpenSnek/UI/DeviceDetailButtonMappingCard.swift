@@ -66,6 +66,12 @@ struct OnboardProfilePillButton: View {
         editorStore.onboardProfileSummaries.first { $0.profileID == activeProfileID }
     }
 
+    private var isLoadingProfiles: Bool {
+        // On mapped devices the active slot id can arrive before the UUID-backed inventory.
+        // Show loading here so the pill does not flash a fallback name like Base Profile.
+        editorStore.isOnboardProfilePillLoading
+    }
+
     private var profileName: String {
         if let activeSummary {
             return activeSummary.displayName
@@ -78,11 +84,15 @@ struct OnboardProfilePillButton: View {
 
     var body: some View {
         Button(action: action) {
-            OnboardProfilePillLabel(profileID: activeProfileID, profileName: profileName)
+            OnboardProfilePillLabel(
+                profileID: activeProfileID,
+                profileName: isLoadingProfiles ? "Loading profiles" : profileName,
+                isLoading: isLoadingProfiles
+            )
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("onboard-profile-pill-button")
-        .accessibilityLabel("Onboard profile \(profileName)")
+        .accessibilityLabel(isLoadingProfiles ? "Onboard profile Loading profiles" : "Onboard profile \(profileName)")
         .help("Manage onboard profiles")
     }
 }
@@ -90,10 +100,11 @@ struct OnboardProfilePillButton: View {
 private struct OnboardProfilePillLabel: View {
     let profileID: Int
     let profileName: String
+    let isLoading: Bool
 
     var body: some View {
         HStack(spacing: 8) {
-            profileDot
+            leadingIndicator
 
             Text(profileName)
                 .font(.system(size: 11, weight: .black, design: .rounded))
@@ -115,6 +126,19 @@ private struct OnboardProfilePillLabel: View {
                 .overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1))
         )
         .contentShape(Capsule())
+    }
+
+    @ViewBuilder
+    private var leadingIndicator: some View {
+        if isLoading {
+            ProgressView()
+                .controlSize(.small)
+                .scaleEffect(0.62)
+                .frame(width: 9, height: 9)
+                .accessibilityHidden(true)
+        } else {
+            profileDot
+        }
     }
 
     private var profileDot: some View {
@@ -142,20 +166,21 @@ private func onboardProfileSlotColor(_ profileID: Int) -> Color {
     }
 }
 
-struct OnboardProfileManagerPopover: View {
+struct ProfilePickerPopover: View {
     let editorStore: EditorStore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Onboard Profiles")
+            Text("Profiles")
                 .font(.system(size: 17, weight: .black, design: .rounded))
                 .foregroundStyle(.white)
                 .accessibilityIdentifier("onboard-profiles-card")
 
-            OnboardProfileManagerPanel(editorStore: editorStore)
+            ProfilePickerPanel(editorStore: editorStore)
         }
         .padding(14)
-        .frame(width: 560, alignment: .leading)
+        .frame(width: 680, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(hex: 0x111820))
@@ -170,12 +195,13 @@ struct OnboardProfileManagerPopover: View {
     }
 }
 
-private struct OnboardProfileManagerPanel: View {
+private struct ProfilePickerPanel: View {
     let editorStore: EditorStore
 
     @State private var renameName = ""
-    @State private var copyFromProfileID = 1
     @State private var hoveredProfileID: Int?
+    @State private var newLocalProfileName = ""
+    @State private var localProfileRenameNames: [UUID: String] = [:]
     private let slotColumnWidth: CGFloat = 188
     private let connectorWidth: CGFloat = 14
     private let slotRowHeight: CGFloat = 48
@@ -191,10 +217,6 @@ private struct OnboardProfileManagerPanel: View {
         editorStore.isOnboardProfileRefreshInFlight
     }
 
-    private var statusLabel: String? {
-        editorStore.buttonProfileOperationStatusText ?? editorStore.onboardProfileLoadStatusText
-    }
-
     private var selectedProfileID: Int? {
         editorStore.selectedOnboardProfileID
     }
@@ -206,6 +228,13 @@ private struct OnboardProfileManagerPanel: View {
 
     private var selectedNameIsEmpty: Bool {
         renameName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var connectBehaviorBinding: Binding<DeviceConnectBehavior> {
+        Binding(
+            get: { editorStore.connectBehavior },
+            set: { editorStore.updateConnectBehavior($0) }
+        )
     }
 
     private var profileListHeight: CGFloat {
@@ -223,21 +252,6 @@ private struct OnboardProfileManagerPanel: View {
 
     private var selectedArrowCenterY: CGFloat {
         CGFloat(selectedProfileIndex) * (slotRowHeight + slotRowSpacing) + (slotRowHeight / 2)
-    }
-
-    private var copySourceSummaries: [OnboardProfileSummary] {
-        editorStore.onboardProfileSummaries.filter(\.isAssigned)
-    }
-
-    private var resolvedCopyFromProfileID: Int {
-        let sourceIDs = Set(copySourceSummaries.map(\.profileID))
-        if sourceIDs.contains(copyFromProfileID) {
-            return copyFromProfileID
-        }
-        if let active = copySourceSummaries.first(where: \.isActive)?.profileID {
-            return active
-        }
-        return copySourceSummaries.first?.profileID ?? 1
     }
 
     var body: some View {
@@ -290,16 +304,22 @@ private struct OnboardProfileManagerPanel: View {
     }
 
     private var profileLayout: some View {
-        HStack(alignment: .top, spacing: columnSpacing) {
-            VStack(alignment: .leading, spacing: slotRowSpacing) {
-                ForEach(editorStore.onboardProfileSummaries) { profile in
-                    profileSlotRow(profile)
-                        .frame(width: slotColumnWidth, height: slotRowHeight)
-                }
-            }
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Onboard Profiles")
+                .font(.system(size: 11, weight: .black, design: .rounded))
+                .foregroundStyle(.white.opacity(0.74))
 
-            actionPanel
-                .frame(maxWidth: .infinity, minHeight: profileListHeight, alignment: .topLeading)
+            HStack(alignment: .top, spacing: columnSpacing) {
+                VStack(alignment: .leading, spacing: slotRowSpacing) {
+                    ForEach(editorStore.onboardProfileSummaries) { profile in
+                        profileSlotRow(profile)
+                            .frame(width: slotColumnWidth, height: slotRowHeight)
+                    }
+                }
+
+                actionPanel
+                    .frame(maxWidth: .infinity, minHeight: profileListHeight, alignment: .topLeading)
+            }
         }
     }
 
@@ -349,7 +369,7 @@ private struct OnboardProfileManagerPanel: View {
             parts.append("active")
         }
         if !profile.isAssigned {
-            parts.append("Create profile")
+            parts.append("Load profile")
         }
         return parts.joined(separator: ", ")
     }
@@ -397,21 +417,26 @@ private struct OnboardProfileManagerPanel: View {
     @ViewBuilder
     private func actionPanelContent(selectedProfileID: Int, selectedSummary: OnboardProfileSummary) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            actionPanelNameField(selectedProfileID: selectedProfileID, selectedSummary: selectedSummary)
-
-            if selectedSummary.isAssigned {
-                assignedActions(selectedProfileID: selectedProfileID)
+            if editorStore.supportsOnboardProfileCRUD {
+                if selectedSummary.isAssigned {
+                    actionPanelNameField(selectedProfileID: selectedProfileID, selectedSummary: selectedSummary)
+                    assignedActions(selectedProfileID: selectedProfileID)
+                }
             } else {
-                copyFromPicker
-                createAction(selectedProfileID: selectedProfileID)
+                singleSlotActions
             }
 
-            actionPanelStatus
-
-            if selectedSummary.profileID == 1 {
-                Spacer(minLength: 4)
+            if editorStore.supportsOnboardProfileCRUD && selectedSummary.profileID == 1 {
                 baseProfileWarning
             }
+
+            LocalProfileLibraryPanel(
+                editorStore: editorStore,
+                isBusy: isBusy,
+                selectedSlotIsAssigned: selectedSummary.isAssigned,
+                newLocalProfileName: $newLocalProfileName,
+                localProfileRenameNames: $localProfileRenameNames
+            )
         }
     }
 
@@ -428,19 +453,6 @@ private struct OnboardProfileManagerPanel: View {
             .onChange(of: editorStore.selectedOnboardProfileName) { _, newValue in
                 resetNameFieldFromSelectedProfileName(newValue)
             }
-    }
-
-    @ViewBuilder
-    private var actionPanelStatus: some View {
-        if let statusLabel {
-            HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
-                Text(statusLabel)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.64))
-            }
-        }
     }
 
     private var actionPanelBackground: some View {
@@ -485,6 +497,7 @@ private struct OnboardProfileManagerPanel: View {
             RoundedRectangle(cornerRadius: 7)
                 .stroke(Color(hex: 0xFFD166).opacity(0.22), lineWidth: 1)
         )
+        .accessibilityIdentifier("base-profile-synapse-warning")
     }
 
     private func assignedActions(selectedProfileID: Int) -> some View {
@@ -501,60 +514,61 @@ private struct OnboardProfileManagerPanel: View {
             Button {
                 Task { await editorStore.deleteSelectedOnboardProfile() }
             } label: {
-                Label("Delete", systemImage: "trash")
+                Label("Delete From Slot", systemImage: "trash")
             }
             .buttonStyle(.bordered)
+            .help("Delete this onboard slot without deleting local profile backups")
             .disabled(isBusy || selectedProfileID <= 1)
             .accessibilityIdentifier("onboard-profile-delete-button")
         }
         .controlSize(.small)
     }
 
-    @ViewBuilder
-    private var copyFromPicker: some View {
-        if !copySourceSummaries.isEmpty {
-            HStack(spacing: 12) {
-                Text("Copy From")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.68))
-                Spacer(minLength: 8)
-                Picker(
-                    "",
-                    selection: Binding(
-                        get: { resolvedCopyFromProfileID },
-                        set: { copyFromProfileID = $0 }
-                    )
-                ) {
-                    ForEach(copySourceSummaries) { profile in
-                        Text(profile.displayName).tag(profile.profileID)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(width: 180, alignment: .trailing)
-                .accessibilityIdentifier("onboard-profile-copy-from-picker")
+    private var singleSlotActions: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("On Connect")
+                .font(.system(size: 11, weight: .black, design: .rounded))
+                .foregroundStyle(.white.opacity(0.74))
+
+            Picker("On Connect Behavior", selection: connectBehaviorBinding) {
+                Text("Use Mouse Settings").tag(DeviceConnectBehavior.useMouseSettings)
+                Text("Restore Last Profile").tag(DeviceConnectBehavior.restoreOpenSnekSettings)
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .disabled(isBusy)
+            .accessibilityIdentifier("profile-on-connect-picker")
+
+            if editorStore.connectBehavior == .useMouseSettings {
+                singleSlotSynapseWarning
             }
         }
     }
 
-    private func createAction(selectedProfileID: Int) -> some View {
-        Button {
-            let name = renameName
-            let copyFrom = copySourceSummaries.isEmpty ? nil : resolvedCopyFromProfileID
-            Task {
-                await editorStore.createOnboardProfile(
-                    name: name,
-                    targetProfileID: selectedProfileID,
-                    copyFromProfileID: copyFrom
-                )
-            }
-        } label: {
-            Label("Create", systemImage: "plus.circle.fill")
+    private var singleSlotSynapseWarning: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Color(hex: 0xFFD166))
+                .frame(width: 14, height: 14)
+            Text("Synapse can overwrite this profile when OpenSnek uses mouse settings on connect.")
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color(hex: 0xFFD166).opacity(0.92))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.small)
-        .disabled(isBusy || selectedNameIsEmpty)
-        .accessibilityIdentifier("onboard-profile-create-button")
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 7)
+                .fill(Color(hex: 0xFFD166).opacity(0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(Color(hex: 0xFFD166).opacity(0.22), lineWidth: 1)
+        )
+        .accessibilityIdentifier("single-slot-synapse-warning")
     }
 
     private func resetNameField(forProfileID profileID: Int?) {
@@ -563,9 +577,6 @@ private struct OnboardProfileManagerPanel: View {
             return
         }
         renameName = summary.isAssigned ? summary.displayName : ""
-        if !summary.isAssigned {
-            copyFromProfileID = resolvedCopyFromProfileID
-        }
     }
 
     private func resetNameFieldFromSelectedProfileName(_ name: String) {
@@ -574,9 +585,6 @@ private struct OnboardProfileManagerPanel: View {
             return
         }
         renameName = summary.isAssigned ? name : ""
-        if !summary.isAssigned {
-            copyFromProfileID = resolvedCopyFromProfileID
-        }
     }
 }
 
@@ -606,14 +614,12 @@ private struct OnboardProfileSlotRowButton: View {
         .disabled(isBusy)
         .accessibilityIdentifier("onboard-profile-row-\(profile.profileID)")
         .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(accessibilityLabel)
         .onHover(perform: setHovered)
     }
 
     private var rowContent: some View {
-        ZStack(alignment: .topTrailing) {
-            mainContent
-            activeBadge
-        }
+        mainContent
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 8)
@@ -629,7 +635,7 @@ private struct OnboardProfileSlotRowButton: View {
     }
 
     private var mainContent: some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .center, spacing: 8) {
             RoundedRectangle(cornerRadius: 2)
                 .fill(style.slotColor.opacity(profile.isAssigned || style.isSelected ? 0.95 : 0.45))
                 .frame(width: 4, height: 30)
@@ -643,14 +649,10 @@ private struct OnboardProfileSlotRowButton: View {
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundStyle(.white.opacity(style.subtitleOpacity))
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
             Spacer(minLength: 0)
-            if !profile.isAssigned {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(Color.white.opacity(style.plusOpacity))
-                    .frame(width: 22, height: 22)
-                    .accessibilityLabel("Create profile")
-            }
+            trailingAccessory
         }
         .padding(.leading, 8)
         .padding(.trailing, 10)
@@ -658,19 +660,29 @@ private struct OnboardProfileSlotRowButton: View {
     }
 
     @ViewBuilder
-    private var activeBadge: some View {
+    private var trailingAccessory: some View {
         if profile.isActive {
-            Text("active")
-                .font(.system(size: 9, weight: .bold, design: .rounded))
-                .foregroundStyle(Color(hex: 0x30D158))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(
-                    Capsule()
-                        .fill(Color(hex: 0x30D158).opacity(0.14))
-                )
-                .offset(x: -6, y: 5)
+            activeBadge
+        } else if !profile.isAssigned {
+            Image(systemName: "plus.circle.fill")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(Color.white.opacity(style.plusOpacity))
+                .frame(width: 22, height: 22)
+                .accessibilityLabel("Load profile")
         }
+    }
+
+    private var activeBadge: some View {
+        Text("active")
+            .font(.system(size: 9, weight: .bold, design: .rounded))
+            .foregroundStyle(Color(hex: 0x30D158))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(
+                Capsule()
+                    .fill(Color(hex: 0x30D158).opacity(0.14))
+            )
+            .accessibilityIdentifier("onboard-profile-row-\(profile.profileID)-active-badge")
     }
 
     private var rowBorder: some View {

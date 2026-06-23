@@ -1,10 +1,12 @@
 import XCTest
 
-final class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
-    private let actionTimeout: TimeInterval = 15
+class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
     private var originalActiveProfileID: Int?
     private var createdProfileID: Int?
     private var didDeleteCreatedProfile = false
+    private let temporaryLocalProfileNamePrefixes = ["OS CRUD ", "OS Ren "]
+
+    var actionTimeout: TimeInterval { 15 }
 
     override var expectedScope: HardwareDeviceScope {
         .v3ProUSB
@@ -13,6 +15,7 @@ final class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
     override func restoreHardwareStateIfNeeded() {
         deleteCreatedProfileIfNeeded()
         restoreOriginalActiveProfileIfNeeded()
+        deleteTemporaryLocalProfilesIfPossible()
     }
 
     func testProfileManagerCoversCRUDSwitchingAndRestoresActiveProfile() throws {
@@ -36,6 +39,7 @@ final class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
 
         try assertProfilePillMatchesStatusPillHeight()
         try openProfileManager()
+        deleteTemporaryLocalProfilesIfPossible()
 
         let profileIDs = visibleProfileIDs()
         XCTAssertGreaterThanOrEqual(profileIDs.count, 2, "Expected multiple onboard profile slots")
@@ -51,20 +55,21 @@ final class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
         let renamedName = "OS Ren \(suffix)"
 
         try selectProfile(targetProfileID)
-        let createButton = try requireElement("onboard-profile-create-button", timeout: 2)
         XCTAssertTrue(
-            app.descendants(matching: .any)["onboard-profile-copy-from-picker"].waitForExistence(timeout: 2),
-            "Empty profile details should expose the copy source picker"
+            app.staticTexts["Load Profile"].waitForExistence(timeout: 2),
+            "Empty slot details should present local profiles as loadable, not replaceable"
         )
-        XCTAssertTrue(
-            waitForElementDisabled(createButton, timeout: 2),
-            "Create should be disabled until a profile name is entered"
+        XCTAssertFalse(
+            app.descendants(matching: .any)["onboard-profile-create-button"].waitForExistence(timeout: 1),
+            "Empty slot details should use the consolidated New Profile flow"
+        )
+        XCTAssertFalse(
+            app.descendants(matching: .any)["onboard-profile-name-field"].exists,
+            "Empty slot details should not show the onboard name field before a profile is loaded"
         )
 
-        try replaceProfileName(with: createdName)
-        XCTAssertTrue(waitForElementEnabled(createButton, timeout: 2), "Create should enable after entering a name")
+        try createFreshLocalProfileAndWaitForAutoAssign(named: createdName)
         createdProfileID = targetProfileID
-        clickElement(createButton)
         XCTAssertTrue(
             waitForProfileRow(targetProfileID, containing: createdName, timeout: actionTimeout),
             "Created profile row did not show \(createdName)"
@@ -78,9 +83,13 @@ final class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
             "Profile pill did not reflect the created profile name"
         )
 
-        try replaceProfileName(with: renamedName)
         let renameButton = try requireElement("onboard-profile-rename-button", timeout: 2)
-        XCTAssertTrue(waitForElementEnabled(renameButton, timeout: 2), "Rename should be enabled for the created profile")
+        XCTAssertTrue(
+            waitForElementEnabled(renameButton, timeout: actionTimeout),
+            "Rename should be enabled for the created profile"
+        )
+        try replaceProfileName(with: renamedName)
+        XCTAssertTrue(waitForElementEnabled(renameButton, timeout: 2), "Rename should stay enabled after editing the name")
         clickElement(renameButton)
         XCTAssertTrue(
             waitForProfileRow(targetProfileID, containing: renamedName, timeout: actionTimeout),
@@ -138,6 +147,7 @@ final class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
         }
 
         let pill = try requireElement("onboard-profile-pill-button", timeout: 3)
+        scrollElementToVisible(pill)
         XCTAssertTrue(pill.isHittable, "Onboard profile pill was not hittable")
         clickElement(pill)
 
@@ -159,6 +169,7 @@ final class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
         guard pill.waitForExistence(timeout: timeout) else {
             return false
         }
+        scrollElementToVisible(pill)
         clickElement(pill)
         return app.descendants(matching: .any)["onboard-profiles-card"].waitForExistence(timeout: timeout)
     }
@@ -171,6 +182,10 @@ final class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
         app.descendants(matching: .any)["onboard-profile-row-\(profileID)"]
     }
 
+    private func profileRowActiveBadge(_ profileID: Int) -> XCUIElement {
+        app.descendants(matching: .any)["onboard-profile-row-\(profileID)-active-badge"]
+    }
+
     private func selectProfile(_ profileID: Int) throws {
         try openProfileManager()
         let row = profileRow(profileID)
@@ -181,9 +196,23 @@ final class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
         )
         clickElement(row)
         XCTAssertTrue(
-            app.descendants(matching: .any)["onboard-profile-name-field"].waitForExistence(timeout: 2),
+            app.descendants(matching: .any)["local-profile-create-button"].waitForExistence(timeout: 2),
             "Profile details did not appear after selecting profile \(profileID)"
         )
+    }
+
+    private func createFreshLocalProfileAndWaitForAutoAssign(named name: String) throws {
+        let newProfileButton = try requireElement("local-profile-create-button", timeout: 2)
+        XCTAssertTrue(waitForElementEnabled(newProfileButton, timeout: 2), "New Profile should be enabled")
+        clickElement(newProfileButton)
+
+        let nameField = try requireElement("local-profile-new-name-field", timeout: 2)
+        clickElement(nameField)
+        nameField.typeText(name)
+
+        let startFreshButton = try requireElement("local-profile-start-fresh-button", timeout: 2)
+        XCTAssertTrue(waitForElementEnabled(startFreshButton, timeout: 2), "Start Fresh should enable after naming")
+        clickElement(startFreshButton)
     }
 
     private func requireElement(
@@ -199,7 +228,9 @@ final class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
 
     private func replaceProfileName(with name: String) throws {
         let field = try requireElement("onboard-profile-name-field", timeout: 2)
+        XCTAssertTrue(waitForElementEnabled(field, timeout: actionTimeout), "Profile name field should be editable")
         clickElement(field)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.10))
         field.typeKey("a", modifierFlags: .command)
         field.typeText(name)
     }
@@ -209,7 +240,11 @@ final class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
     }
 
     private func profileRowText(_ profileID: Int) -> String {
-        elementText(profileRow(profileID))
+        let row = profileRow(profileID)
+        return [
+            elementText(row),
+            (row.value as? String) ?? ""
+        ].joined(separator: " ")
     }
 
     private func waitForProfileRow(
@@ -219,7 +254,7 @@ final class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
     ) -> Bool {
         waitUntil(timeout: timeout) {
             let row = profileRow(profileID)
-            return row.exists && elementText(row).contains(expectedText)
+            return row.exists && profileRowText(profileID).contains(expectedText)
         }
     }
 
@@ -227,7 +262,7 @@ final class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
         waitUntil(timeout: timeout) {
             let row = profileRow(profileID)
             guard row.exists else { return false }
-            return elementText(row).lowercased().contains("active")
+            return profileRowText(profileID).lowercased().contains("active") || profileRowActiveBadge(profileID).exists
         }
     }
 
@@ -319,4 +354,129 @@ final class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
             XCTFail("Could not restore original active profile \(originalActiveProfileID) during cleanup")
         }
     }
+
+    private func deleteTemporaryLocalProfilesIfPossible() {
+        guard openProfileManagerIfPossible() else {
+            return
+        }
+
+        // UUID-backed onboard snapshots are supposed to survive hardware slot deletion as local backups.
+        // The CRUD UI test owns only its prefixed throwaway names, so clean those library copies explicitly.
+        var deletedProfileIDs: Set<String> = []
+        while let profile = findFirstTemporaryLocalProfile() {
+            guard deletedProfileIDs.insert(profile.manageIdentifier).inserted else {
+                XCTFail("Local profile cleanup could not remove \(profile.name)")
+                return
+            }
+            deleteTemporaryLocalProfile(profile)
+        }
+    }
+
+    private func findFirstTemporaryLocalProfile() -> TemporaryLocalProfile? {
+        guard let button = firstTemporaryLocalProfileReplaceButton() else {
+            return nil
+        }
+
+        let uuid = profileUUID(fromReplaceIdentifier: button.identifier)
+        let name = elementText(button)
+        guard !uuid.isEmpty, !name.isEmpty else {
+            return nil
+        }
+        return TemporaryLocalProfile(
+            name: name,
+            replaceIdentifier: button.identifier,
+            manageIdentifier: "local-profile-manage-\(uuid)"
+        )
+    }
+
+    private func firstTemporaryLocalProfileReplaceButton() -> XCUIElement? {
+        app.buttons.allElementsBoundByIndex.first { button in
+            button.identifier.hasPrefix("local-profile-replace-") &&
+                isTemporaryLocalProfileName(button.label)
+        }
+    }
+
+    private func deleteTemporaryLocalProfile(_ profile: TemporaryLocalProfile) {
+        scrollLocalProfileListToExpose(profile.manageIdentifier)
+        let manageButton = app.buttons[profile.manageIdentifier]
+        guard manageButton.waitForExistence(timeout: 2),
+              waitForElementEnabled(manageButton, timeout: 2) else {
+            XCTFail("Missing local profile management button for \(profile.name)")
+            return
+        }
+        clickElement(manageButton)
+
+        let deleteButton = app.descendants(matching: .any)[deleteButtonIdentifier(fromManageIdentifier: profile.manageIdentifier)]
+        guard deleteButton.waitForExistence(timeout: 2),
+              waitForElementEnabled(deleteButton, timeout: 2) else {
+            XCTFail("Missing local profile delete button for \(profile.name)")
+            return
+        }
+        clickElement(deleteButton)
+
+        let removed = waitUntil(timeout: 2) {
+            !self.app.buttons[profile.replaceIdentifier].exists
+        }
+        XCTAssertTrue(removed, "Local profile \(profile.name) remained visible after cleanup")
+    }
+
+    private func isTemporaryLocalProfileName(_ name: String) -> Bool {
+        temporaryLocalProfileNamePrefixes.contains { name.hasPrefix($0) }
+    }
+
+    private func scrollLocalProfileListToTop() {
+        let list = app.scrollViews["local-profile-replace-list"]
+        guard list.exists else { return }
+        for _ in 0..<8 {
+            list.scroll(byDeltaX: 0, deltaY: 250)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.03))
+        }
+    }
+
+    private func scrollLocalProfileListDown() {
+        let list = app.scrollViews["local-profile-replace-list"]
+        guard list.exists else { return }
+        list.scroll(byDeltaX: 0, deltaY: -250)
+    }
+
+    private func scrollLocalProfileListToExpose(_ identifier: String) {
+        let target = app.buttons[identifier]
+        guard target.exists, !target.isHittable else {
+            return
+        }
+
+        scrollLocalProfileListToTop()
+        for _ in 0..<12 where !target.isHittable {
+            scrollLocalProfileListDown()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+    }
+
+    private func profileUUID(fromReplaceIdentifier identifier: String) -> String {
+        identifier.replacingOccurrences(of: "local-profile-replace-", with: "")
+    }
+
+    private func profileUUID(fromManageIdentifier identifier: String) -> String {
+        identifier.replacingOccurrences(of: "local-profile-manage-", with: "")
+    }
+
+    private func deleteButtonIdentifier(fromManageIdentifier identifier: String) -> String {
+        "local-profile-delete-\(profileUUID(fromManageIdentifier: identifier))"
+    }
+}
+
+final class V3ProBTProfilePopoverUITests: OnboardProfilePopoverUITests {
+    // Bluetooth profile create/metadata readback is serialized through the vendor transport and can
+    // exceed the USB timeout even when the hardware operation succeeds and the UI updates correctly.
+    override var actionTimeout: TimeInterval { 35 }
+
+    override var expectedScope: HardwareDeviceScope {
+        .v3ProBluetooth
+    }
+}
+
+private struct TemporaryLocalProfile {
+    let name: String
+    let replaceIdentifier: String
+    let manageIdentifier: String
 }

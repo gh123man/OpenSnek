@@ -8,6 +8,20 @@ extension AppStateEditorController {
         device: MouseDevice,
         metadata: OnboardProfileMetadata? = nil
     ) -> OnboardProfileMutation {
+        let supportsScrollModeControls = device.supportsScrollModeControls
+        return OnboardProfileMutation(
+            metadata: metadata,
+            dpi: currentOnboardDPIProfileSnapshot(device: device),
+            buttonBindings: editorStore.editableButtonBindings,
+            brightnessByLEDID: currentOnboardBrightnessByLEDID(device: device),
+            staticColorByLEDID: currentOnboardStaticColorByLEDID(device: device),
+            scrollMode: supportsScrollModeControls ? editorStore.editableScrollMode : nil,
+            scrollAcceleration: supportsScrollModeControls ? editorStore.editableScrollAcceleration : nil,
+            scrollSmartReel: supportsScrollModeControls ? editorStore.editableScrollSmartReel : nil
+        )
+    }
+
+    private func currentOnboardDPIProfileSnapshot(device: MouseDevice) -> OnboardDPIProfileSnapshot {
         let count = DeviceProfiles.clampDpiStageCount(editorStore.editableStageCount)
         let pairs = Array(editorStore.editableStagePairs.prefix(count)).map { pair in
             DpiPair(
@@ -17,36 +31,37 @@ extension AppStateEditorController {
         }
         let activeStage = max(0, min(count - 1, editorStore.editableActiveStage - 1))
         let scalar = pairs.indices.contains(activeStage) ? pairs[activeStage] : pairs.first
-        let brightness = Dictionary(
+        let selectedSnapshot = currentSelectedOnboardProfileSnapshot(device: device)
+        return OnboardDPIProfileSnapshot(
+            scalar: scalar,
+            activeStage: activeStage,
+            pairs: pairs,
+            stageIDs: selectedSnapshot?.dpi?.stageIDs ?? [],
+            marker: selectedSnapshot?.dpi?.marker
+        )
+    }
+
+    private func currentOnboardBrightnessByLEDID(device: MouseDevice) -> [Int: Int] {
+        Dictionary(
             uniqueKeysWithValues: lightingLEDIDs(for: device).map { ledID in
                 (Int(ledID), editorStore.editableLedBrightness)
             }
         )
-        let colors: [Int: RGBPatch]
-        if editorStore.editableLightingEffect == .staticColor || !device.supports_advanced_lighting_effects {
-            colors = Dictionary(
-                uniqueKeysWithValues: lightingLEDIDs(for: device).map { ledID in
-                    (Int(ledID), RGBPatch(r: editorStore.editableColor.r, g: editorStore.editableColor.g, b: editorStore.editableColor.b))
-                }
-            )
-        } else {
-            colors = [:]
+    }
+
+    private func currentOnboardStaticColorByLEDID(device: MouseDevice) -> [Int: RGBPatch]? {
+        guard editorStore.editableLightingEffect == .staticColor || !device.supports_advanced_lighting_effects else {
+            return nil
         }
-        return OnboardProfileMutation(
-            metadata: metadata,
-            dpi: OnboardDPIProfileSnapshot(
-                scalar: scalar,
-                activeStage: activeStage,
-                pairs: pairs,
-                stageIDs: currentSelectedOnboardProfileSnapshot(device: device)?.dpi?.stageIDs ?? [],
-                marker: currentSelectedOnboardProfileSnapshot(device: device)?.dpi?.marker
-            ),
-            buttonBindings: editorStore.editableButtonBindings,
-            brightnessByLEDID: brightness,
-            staticColorByLEDID: colors.isEmpty ? nil : colors,
-            scrollMode: device.transport == .usb ? editorStore.editableScrollMode : nil,
-            scrollAcceleration: device.transport == .usb ? editorStore.editableScrollAcceleration : nil,
-            scrollSmartReel: device.transport == .usb ? editorStore.editableScrollSmartReel : nil
+        let color = RGBPatch(
+            r: editorStore.editableColor.r,
+            g: editorStore.editableColor.g,
+            b: editorStore.editableColor.b
+        )
+        return Dictionary(
+            uniqueKeysWithValues: lightingLEDIDs(for: device).map { ledID in
+                (Int(ledID), color)
+            }
         )
     }
 

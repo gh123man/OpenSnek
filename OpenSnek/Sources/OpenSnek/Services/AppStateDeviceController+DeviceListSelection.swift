@@ -415,9 +415,13 @@ extension AppStateDeviceController {
         applyController: AppStateApplyController,
         editorController: AppStateEditorController
     ) -> Bool {
-        guard !environment.usesRemoteServiceTransport else { return false }
         guard applyController.shouldHydrateEditable(for: device) else { return false }
+        // Remote app clients still need this presentation hydration. Service snapshots will
+        // provide live values, but single-slot devices have no UUID to identify the hardware
+        // profile, so Restore Last Profile must mark the known local profile here or cold
+        // launch falls back to Base Profile. Keep the remote guard after this call.
         let hydratedPersistedSnapshot = editorController.hydrateConnectPresentationIfNeeded(device: device)
+        guard !environment.usesRemoteServiceTransport else { return false }
         return hydratedPersistedSnapshot && pendingSettingsRestoreDeviceIDs.contains(device.id)
     }
 

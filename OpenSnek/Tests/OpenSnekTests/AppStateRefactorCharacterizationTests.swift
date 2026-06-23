@@ -13,6 +13,7 @@ struct RecordedOnboardUpdate {
 struct RecordedOnboardCreate {
     let deviceID: String
     let targetProfileID: Int?
+    let replaceAssignedProfile: Bool
     let mutation: OnboardProfileMutation
 }
 
@@ -348,6 +349,7 @@ actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupportingBackend 
         onboardCreates.append(RecordedOnboardCreate(
             deviceID: device.id,
             targetProfileID: targetProfileID,
+            replaceAssignedProfile: replaceAssignedProfile,
             mutation: mutation
         ))
         let snapshot = OnboardProfileSnapshot(
@@ -834,6 +836,8 @@ func makeRefactorTestDevice(
     let resolvedProfileID = profileID ?? (transport == .bluetooth ? .basiliskV3XHyperspeed : .basiliskV3Pro)
     let productID: Int
     switch (transport, resolvedProfileID) {
+    case (.usb, .basiliskV3XHyperspeed):
+        productID = 0x00B9
     case (.usb, .basiliskV3):
         productID = 0x0099
     case (.usb, .basiliskV335K):
@@ -1076,6 +1080,8 @@ func clearRefactorPreferences(for device: MouseDevice) {
         "softwareLightingRequest.\(key)",
         "connectBehavior.\(key)",
         "connectBehavior.\(legacyKey)",
+        "selectedLocalProfile.\(key)",
+        "selectedLocalProfile.\(legacyKey)",
         "settingsSnapshot.\(key)",
         "settingsSnapshot.\(legacyKey)",
         "buttonBindings.\(key)",
@@ -1100,6 +1106,8 @@ func clearRefactorPreferences(for device: MouseDevice) {
 
 func clearSavedButtonProfiles() {
     UserDefaults.standard.removeObject(forKey: "openSnekButtonProfiles")
+    UserDefaults.standard.removeObject(forKey: "openSnekLocalProfiles")
+    UserDefaults.standard.removeObject(forKey: "openSnekLocalProfilesMigratedFromButtonProfiles")
 }
 
 func waitForRefactorCondition(

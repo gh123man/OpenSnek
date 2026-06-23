@@ -204,6 +204,18 @@ When writing both DPI stages and DPI scalar, write stages first and scalar
 second. A stage-table write can re-project the scalar readback to the selected
 stage value.
 
+On Basilisk V3 Pro USB, mapped stored-slot DPI stage writes must declare the
+full five-row table count. The device rejects a reduced count such as `3` even
+when the required `0x26` payload is padded to five rows. This is scoped to
+stored profile slots; live/single-slot writes can keep logical declarations
+where hardware accepts them.
+
+When assigning a reduced-stage local profile into a mapped USB slot, preserve
+the slot's firmware active stage token and stage IDs from the post-assignment
+table before writing local DPI values into the leading rows. Hardware validation
+showed V3 Pro USB rejects some reduced-profile rewrites that reset the stored
+active token.
+
 ### `deleteProfile(profile)`
 
 Delete means unassign from the firmware cycle ring:

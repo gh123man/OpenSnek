@@ -6,6 +6,8 @@ import OpenSnekCore
 @MainActor
 @Observable
 final class EditorStore {
+    private static let preferredExpandedDPIStageValues = [800, 1600, 3200, 6400, 12000]
+
     @ObservationIgnored let deviceStore: DeviceStore
     var editableStageValues: [Int] = [800, 1600, 3200, 6400, 12000] {
         didSet {
@@ -345,9 +347,36 @@ final class EditorStore {
             .supportsMappedOnboardProfileCRUD == true
     }
 
+    var supportsProfilePicker: Bool {
+        guard let selectedDevice = deviceStore.selectedDevice else { return false }
+        return editorController.supportsProfilePicker(device: selectedDevice)
+    }
+
+    var isOnboardProfilePillLoading: Bool {
+        supportsOnboardProfileCRUD && isOnboardProfileRefreshInFlight
+    }
+
     var onboardProfileSummaries: [OnboardProfileSummary] {
         _ = onboardProfilesRevision
         return editorController.onboardProfileSummaries()
+    }
+
+    var localProfiles: [OpenSnekLocalProfile] {
+        _ = onboardProfilesRevision
+        _ = usbButtonProfilesRevision
+        return editorController.localProfiles()
+    }
+
+    var visibleLocalProfilesForReplacement: [OpenSnekLocalProfile] {
+        _ = onboardProfilesRevision
+        _ = usbButtonProfilesRevision
+        return editorController.visibleLocalProfilesForReplacement()
+    }
+
+    var hasLastSyncedSingleSlotProfile: Bool {
+        _ = onboardProfilesRevision
+        guard let selectedDevice = deviceStore.selectedDevice else { return false }
+        return editorController.singleSlotLocalProfile(device: selectedDevice) != nil
     }
 
     var selectedOnboardProfileID: Int? {
@@ -422,6 +451,13 @@ final class EditorStore {
     }
 
     func refreshOnboardProfiles() async {
+        if !supportsOnboardProfileCRUD {
+            if let selectedDevice = deviceStore.selectedDevice {
+                editorController.removeSingleSlotSyntheticLocalProfile(device: selectedDevice)
+                editorController.repairEmptyLocalProfilesForSelectedDevice(device: selectedDevice)
+            }
+            return
+        }
         let ownsRefreshPresentation = !isOnboardProfileRefreshInFlight
         if ownsRefreshPresentation {
             isOnboardProfileRefreshInFlight = true
@@ -433,6 +469,9 @@ final class EditorStore {
             }
         }
         await editorController.refreshOnboardProfiles()
+        if let selectedDevice = deviceStore.selectedDevice {
+            editorController.repairEmptyLocalProfilesForSelectedDevice(device: selectedDevice)
+        }
         if ownsRefreshPresentation,
            onboardProfileSummaries.isEmpty,
            let errorMessage = deviceStore.errorMessage,
@@ -473,6 +512,84 @@ final class EditorStore {
         }
     }
 
+    @discardableResult
+    func createLocalProfile(name: String, copying sourceID: UUID?) -> OpenSnekLocalProfile {
+        editorController.createLocalProfile(name: name, copying: sourceID)
+    }
+
+    @discardableResult
+    func createFreshLocalProfile(name: String) -> OpenSnekLocalProfile {
+        editorController.createFreshLocalProfile(name: name)
+    }
+
+    @discardableResult
+    func createLocalProfileFromMouse(name: String) async -> OpenSnekLocalProfile? {
+        await withButtonProfileOperation(statusText: "Creating profile...") { [self] in
+            await self.editorController.createLocalProfileFromMouse(name: name)
+        }
+    }
+
+    func createFreshLocalProfileAndReplaceSelected(name: String) async {
+        await createLocalProfileAndReplaceSelected(statusText: "Creating profile...") { [self] in
+            self.editorController.createFreshLocalProfile(name: name)
+        }
+    }
+
+    func createCopiedLocalProfileAndReplaceSelected(name: String, copying sourceID: UUID) async {
+        await createLocalProfileAndReplaceSelected(statusText: "Creating profile...") { [self] in
+            self.editorController.createLocalProfile(name: name, copying: sourceID)
+        }
+    }
+
+    func createMouseLocalProfileAndReplaceSelected(name: String) async {
+        await createLocalProfileAndReplaceSelected(statusText: "Creating profile...") { [self] in
+            await self.editorController.createLocalProfileFromMouse(name: name)
+        }
+    }
+
+    private func createLocalProfileAndReplaceSelected(
+        statusText: String,
+        createProfile: @escaping @MainActor () async -> OpenSnekLocalProfile?
+    ) async {
+        await withButtonProfileOperation(statusText: statusText) { [self] in
+            guard let profile = await createProfile() else { return }
+            await self.editorController.replaceSelectedProfile(with: profile.id)
+        }
+    }
+
+    func renameLocalProfile(id: UUID, name: String) {
+        editorController.renameLocalProfile(id: id, name: name)
+    }
+
+    func deleteLocalProfile(id: UUID) {
+        editorController.deleteLocalProfile(id: id)
+    }
+
+    func localProfileCanApply(_ profile: OpenSnekLocalProfile) -> Bool {
+        _ = onboardProfilesRevision
+        _ = usbButtonProfilesRevision
+        guard let selectedDevice = deviceStore.selectedDevice else { return false }
+        return editorController.localProfileCanApply(profile, to: selectedDevice)
+    }
+
+    func replaceSelectedProfile(with localProfileID: UUID) async {
+        await withButtonProfileOperation(statusText: "Replacing profile...") { [self] in
+            await self.editorController.replaceSelectedProfile(with: localProfileID)
+        }
+    }
+
+    func loadSelectedSingleSlotProfileFromMouse() async {
+        await withButtonProfileOperation(statusText: "Loading from mouse...") { [self] in
+            await self.editorController.loadSelectedSingleSlotProfileFromMouse()
+        }
+    }
+
+    func applyLastSyncedSingleSlotProfile() async {
+        await withButtonProfileOperation(statusText: "Applying profile...") { [self] in
+            await self.editorController.applyLastSyncedSingleSlotProfile()
+        }
+    }
+
     var canDuplicateSelectedUSBButtonProfile: Bool {
         visibleUSBButtonProfiles.contains { $0.profile != editableUSBButtonProfile }
     }
@@ -503,6 +620,23 @@ final class EditorStore {
         let clamped = DeviceProfiles.clampDPI(value, profileID: selectedDeviceProfileID)
         editableStageValues[index] = clamped
         editableStagePairs[index] = DpiPair(x: clamped, y: clamped)
+    }
+
+    func seedNewlyEnabledDPIStage(at index: Int) {
+        guard index >= 0 && index < editableStageValues.count else { return }
+        let visibleCount = max(0, min(index, editableStageCount, editableStageValues.count))
+        let visibleValues = Set(editableStageValues.prefix(visibleCount))
+        let current = DeviceProfiles.clampDPI(editableStageValues[index], profileID: selectedDeviceProfileID)
+        guard visibleValues.contains(current) else {
+            updateStage(index, value: current)
+            return
+        }
+        guard let replacement = Self.preferredExpandedDPIStageValues
+            .map({ DeviceProfiles.clampDPI($0, profileID: selectedDeviceProfileID) })
+            .first(where: { !visibleValues.contains($0) }) else {
+            return
+        }
+        updateStage(index, value: replacement)
     }
 
     func stageValue(_ index: Int) -> Int {

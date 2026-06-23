@@ -442,6 +442,8 @@ private struct OpenSnekUITestPatchSnapshot: Encodable {
     let dpiStagePairs: [OpenSnekUITestDpiPairSnapshot]?
     let ledBrightness: Int?
     let ledRGB: OpenSnekUITestRGBSnapshot?
+    let buttonBindingSlot: Int?
+    let buttonBindingKind: String?
 
     init(_ patch: DevicePatch) {
         pollRate = patch.pollRate
@@ -455,6 +457,8 @@ private struct OpenSnekUITestPatchSnapshot: Encodable {
         dpiStagePairs = patch.dpiStagePairs?.map(OpenSnekUITestDpiPairSnapshot.init)
         ledBrightness = patch.ledBrightness
         ledRGB = patch.ledRGB.map(OpenSnekUITestRGBSnapshot.init)
+        buttonBindingSlot = patch.buttonBinding?.slot
+        buttonBindingKind = patch.buttonBinding?.kind.rawValue
     }
 }
 

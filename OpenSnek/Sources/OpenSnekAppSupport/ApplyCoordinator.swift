@@ -2,34 +2,56 @@ import Foundation
 import OpenSnekCore
 
 public final class ApplyCoordinator: @unchecked Sendable {
-    private var pendingPatch: DevicePatch?
+    public struct Entry {
+        public let patch: DevicePatch
+        public let generation: UInt64
+
+        public init(patch: DevicePatch, generation: UInt64) {
+            self.patch = patch
+            self.generation = generation
+        }
+    }
+
+    private var pendingEntry: Entry?
     public private(set) var stateRevision: UInt64 = 0
 
     public init() {}
 
     @discardableResult
     public func enqueue(_ patch: DevicePatch) -> Bool {
-        if let pendingPatch {
-            self.pendingPatch = pendingPatch.merged(with: patch)
+        enqueue(patch, generation: 0)
+    }
+
+    @discardableResult
+    public func enqueue(_ patch: DevicePatch, generation: UInt64) -> Bool {
+        if let pendingEntry, pendingEntry.generation == generation {
+            self.pendingEntry = Entry(
+                patch: pendingEntry.patch.merged(with: patch),
+                generation: generation
+            )
         } else {
-            pendingPatch = patch
+            pendingEntry = Entry(patch: patch, generation: generation)
         }
         stateRevision &+= 1
         return true
     }
 
     public func dequeue() -> DevicePatch? {
-        let patch = pendingPatch
-        pendingPatch = nil
-        return patch
+        dequeueEntry()?.patch
+    }
+
+    public func dequeueEntry() -> Entry? {
+        let entry = pendingEntry
+        pendingEntry = nil
+        return entry
     }
 
     public var hasPending: Bool {
-        pendingPatch != nil
+        pendingEntry != nil
     }
 
     public func clearPending() {
-        pendingPatch = nil
+        pendingEntry = nil
         stateRevision &+= 1
     }
 

@@ -750,6 +750,8 @@ struct UITestPatch: Decodable {
     let dpiStagePairs: [UITestDpiPair]?
     let ledBrightness: Int?
     let ledRGB: UITestRGB?
+    let buttonBindingSlot: Int?
+    let buttonBindingKind: String?
 }
 
 struct UITestOnboardProfileMutation: Decodable {

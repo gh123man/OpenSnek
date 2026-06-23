@@ -231,7 +231,7 @@ struct DeviceOverviewBar: View {
     let editorStore: EditorStore
     let selected: MouseDevice
     let state: MouseState
-    @State private var isOnboardProfileManagerPresented = false
+    @State private var isProfilePickerPresented = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -290,20 +290,20 @@ struct DeviceOverviewBar: View {
                     helpText: deviceStore.currentDeviceConnectionTooltip
                 )
 
-                if editorStore.supportsOnboardProfileCRUD {
+                if editorStore.supportsProfilePicker {
                     Spacer(minLength: 12)
                     Text("Profile")
                         .font(.system(size: 10, weight: .bold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.50))
                     OnboardProfilePillButton(editorStore: editorStore) {
-                        isOnboardProfileManagerPresented.toggle()
+                        isProfilePickerPresented.toggle()
                     }
                     .popover(
-                        isPresented: $isOnboardProfileManagerPresented,
+                        isPresented: $isProfilePickerPresented,
                         attachmentAnchor: .rect(.bounds),
                         arrowEdge: .top
                     ) {
-                        OnboardProfileManagerPopover(editorStore: editorStore)
+                        ProfilePickerPopover(editorStore: editorStore)
                     }
                 }
             }
@@ -313,11 +313,11 @@ struct DeviceOverviewBar: View {
                 .frame(height: 1)
         }
         .task(id: selected.id) {
-            guard editorStore.supportsOnboardProfileCRUD else { return }
+            guard editorStore.supportsProfilePicker else { return }
             await editorStore.refreshOnboardProfiles()
         }
         .onChange(of: selected.id) { _, _ in
-            isOnboardProfileManagerPresented = false
+            isProfilePickerPresented = false
         }
         .zIndex(6)
     }

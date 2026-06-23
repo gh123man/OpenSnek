@@ -209,13 +209,13 @@ extension AppStateEditorController {
             pollRate: snapshot.pollRate,
             sleepTimeout: snapshot.sleepTimeout,
             lowBatteryThresholdRaw: snapshot.lowBatteryThresholdRaw,
-            scrollMode: snapshot.scrollMode,
-            scrollAcceleration: snapshot.scrollAcceleration,
-            scrollSmartReel: snapshot.scrollSmartReel,
+            scrollMode: device.supportsScrollModeControls ? snapshot.scrollMode : nil,
+            scrollAcceleration: device.supportsScrollModeControls ? snapshot.scrollAcceleration : nil,
+            scrollSmartReel: device.supportsScrollModeControls ? snapshot.scrollSmartReel : nil,
             dpiStages: Array(snapshot.stageValues.prefix(snapshot.stageCount)),
             dpiStagePairs: Array(snapshot.stagePairs.prefix(snapshot.stageCount)),
             activeStage: max(0, min(snapshot.stageCount - 1, snapshot.activeStage - 1)),
-            ledBrightness: snapshot.ledBrightness,
+            ledBrightness: device.supportsLightingBrightnessControls ? snapshot.ledBrightness : nil,
             ledRGB: lightingEffect == nil
                 ? snapshot.primaryLightingColor.map { RGBPatch(r: $0.r, g: $0.g, b: $0.b) }
                 : nil,

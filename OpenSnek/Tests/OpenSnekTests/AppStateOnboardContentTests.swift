@@ -413,10 +413,11 @@ final class AppStateOnboardContentTests: XCTestCase {
             }
         }
 
-        let canHydrate = await MainActor.run {
-            appState.applyController.shouldHydrateEditable(for: device)
+        try await waitForRefactorCondition {
+            await MainActor.run {
+                appState.applyController.shouldHydrateEditable(for: device)
+            }
         }
-        XCTAssertTrue(canHydrate)
     }
 
     func testSelectedUSBOnboardProfileScrollEditUpdatesStoredProfile() async throws {

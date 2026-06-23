@@ -23,4 +23,15 @@ final class ApplyCoordinatorTests: XCTestCase {
         coordinator.bumpRevision()
         XCTAssertEqual(coordinator.stateRevision, 2)
     }
+
+    func testNewGenerationReplacesPendingPatch() {
+        let coordinator = ApplyCoordinator()
+        coordinator.enqueue(DevicePatch(pollRate: 500), generation: 1)
+        coordinator.enqueue(DevicePatch(dpiStages: [800, 1600]), generation: 2)
+
+        let entry = coordinator.dequeueEntry()
+        XCTAssertEqual(entry?.generation, 2)
+        XCTAssertNil(entry?.patch.pollRate)
+        XCTAssertEqual(entry?.patch.dpiStages ?? [], [800, 1600])
+    }
 }

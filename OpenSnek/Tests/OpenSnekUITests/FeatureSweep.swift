@@ -171,6 +171,7 @@ final class FeatureSweep {
 
     private func exerciseOnboardProfileSurface() throws {
         let pill = try requireElement("onboard-profile-pill-button", timeout: 2)
+        testCase.scrollElementToVisible(pill)
         testCase.clickElement(pill)
 
         let card = try requireElement("onboard-profiles-card", timeout: 5)
@@ -184,6 +185,8 @@ final class FeatureSweep {
             testCase.app.descendants(matching: .any)["onboard-profile-rename-button"].waitForExistence(timeout: 1),
             "Onboard profile rename action did not appear"
         )
+        // The profile picker intentionally stays open after selection; close it before the cross-feature sweep.
+        closeProfilePickerIfNeeded()
     }
 
     private func exerciseDPIStageSelection(from state: UITestState) throws {
@@ -233,14 +236,12 @@ final class FeatureSweep {
     }
 
     private func exerciseLightingBrightness(from state: UITestState) throws {
-        expandCardIfNeeded("lighting-card")
+        let slider = try revealLightingBrightnessSlider()
         guard let initialBrightness = state.ledValue else {
-            let slider = try requireElement("lighting-brightness-slider", timeout: 2)
             testCase.scrollElementToVisible(slider)
             return
         }
         let targetBrightness = initialBrightness > 128 ? 96 : 192
-        let slider = try requireElement("lighting-brightness-slider", timeout: 2)
         testCase.scrollElementToVisible(slider)
         let changedAt = Date()
         slider.adjust(toNormalizedSliderPosition: CGFloat(targetBrightness) / 255.0)
@@ -681,11 +682,52 @@ final class FeatureSweep {
             event.name == "applyEnd" && event.patch?.ledBrightness != nil
     }
 
-    private func expandCardIfNeeded(_ cardIdentifier: String) {
-        let button = testCase.app.descendants(matching: .any)["\(cardIdentifier)-expand-button"]
-        guard button.waitForExistence(timeout: 0.5) else { return }
-        testCase.scrollElementToVisible(button)
-        testCase.clickElement(button)
+    private func revealLightingBrightnessSlider() throws -> XCUIElement {
+        let slider = testCase.app.descendants(matching: .any)["lighting-brightness-slider"]
+        if slider.waitForExistence(timeout: 0.5) {
+            return slider
+        }
+
+        let tabPicker = testCase.app.descendants(matching: .any)["lighting-card-tab-picker"]
+        if !tabPicker.exists {
+            let button = try requireElement("lighting-card-expand-button", timeout: 2)
+            testCase.scrollElementToVisible(button)
+            testCase.clickElement(button)
+        }
+        // Software lighting can reopen the card on Advanced, but this sweep mutates onboard profile brightness.
+        if tabPicker.waitForExistence(timeout: 1) {
+            selectLightingSegment("Onboard", in: tabPicker, normalizedX: 0.25)
+        }
+        XCTAssertTrue(
+            slider.waitForExistence(timeout: 2),
+            "Onboard lighting brightness slider did not appear after selecting the Onboard tab"
+        )
+        return slider
+    }
+
+    private func selectLightingSegment(_ label: String, in picker: XCUIElement, normalizedX: CGFloat) {
+        if let option = testCase.firstExistingElement(
+            in: [
+                picker.descendants(matching: .button)[label],
+                testCase.app.buttons[label],
+                testCase.app.radioButtons[label],
+                testCase.app.descendants(matching: .any)[label]
+            ],
+            timeout: 0.5
+        ) {
+            testCase.clickElement(option)
+            return
+        }
+        picker.coordinate(withNormalizedOffset: CGVector(dx: normalizedX, dy: 0.5)).click()
+    }
+
+    private func closeProfilePickerIfNeeded() {
+        let card = testCase.app.descendants(matching: .any)["onboard-profiles-card"]
+        guard card.exists else { return }
+        for _ in 0..<3 where card.exists {
+            testCase.app.typeKey(.escape, modifierFlags: [])
+            RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+        }
     }
 
     private func requireElement(

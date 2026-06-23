@@ -375,6 +375,98 @@ final class RemoteServiceSnapshotHydrationTests: XCTestCase {
         XCTAssertEqual(activeStage, 3)
     }
 
+    func testRemoteServiceSnapshotRestoreLastProfileMarksKnownSingleSlotProfile() async {
+        clearSavedButtonProfiles()
+        let device = makeSnapshotDevice(
+            id: "snapshot-restore-local-profile-device",
+            productName: "Snapshot Restore Mouse",
+            identity: SnapshotDeviceIdentity(
+                transport: .bluetooth,
+                serial: "SNAPSHOT-RESTORE-LOCAL-\(UUID().uuidString)",
+                locationID: 3
+            ),
+            profile: .basiliskV3XHyperspeed
+        )
+        defer {
+            clearSnapshotPreferences(for: device)
+            clearSavedButtonProfiles()
+        }
+
+        let preferenceStore = DevicePreferenceStore()
+        let restoredProfile = preferenceStore.createOpenSnekLocalProfile(
+            name: "Travel",
+            content: OpenSnekLocalProfileContent(
+                dpi: OnboardDPIProfileSnapshot(
+                    scalar: DpiPair(x: 1200, y: 1200),
+                    activeStage: 0,
+                    pairs: [
+                        DpiPair(x: 1200, y: 1200),
+                        DpiPair(x: 2400, y: 2400)
+                    ]
+                )
+            )
+        )
+        preferenceStore.persistSelectedLocalProfileID(restoredProfile.id, device: device)
+        preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
+        preferenceStore.persistDeviceSettingsSnapshot(
+            PersistedDeviceSettingsSnapshot(
+                stageCount: 2,
+                stageValues: [1200, 2400],
+                stagePairs: [
+                    DpiPair(x: 1200, y: 1200),
+                    DpiPair(x: 2400, y: 2400)
+                ],
+                activeStage: 1,
+                pollRate: nil,
+                sleepTimeout: nil,
+                lowBatteryThresholdRaw: nil,
+                scrollMode: nil,
+                scrollAcceleration: nil,
+                scrollSmartReel: nil,
+                ledBrightness: nil,
+                primaryLightingColor: nil,
+                lightingEffect: nil,
+                usbLightingZoneID: "all",
+                buttonBindings: [:]
+            ),
+            device: device
+        )
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: SnapshotTestRemoteBackend(), autoStart: false)
+        }
+        // This models a cold-launch app client attached to the background service. The
+        // service snapshot owns live values, but the restored profile name must still come
+        // from the persisted local-profile selection instead of reverting to Base Profile.
+        let liveState = makeSnapshotState(
+            device: device,
+            connection: "bluetooth",
+            batteryPercent: 81,
+            dpiValues: [400, 800],
+            activeStage: 1
+        )
+
+        await MainActor.run {
+            appState.deviceStore.applyRemoteServiceSnapshot(
+                SharedServiceSnapshot(
+                    devices: [device],
+                    stateByDeviceID: [device.id: liveState],
+                    lastUpdatedByDeviceID: [device.id: Date(timeIntervalSince1970: 1_773_320_012)]
+                )
+            )
+        }
+
+        let summary = await MainActor.run {
+            appState.editorStore.onboardProfileSummaries.first
+        }
+        let selectedName = await MainActor.run {
+            appState.editorStore.selectedOnboardProfileName
+        }
+
+        XCTAssertEqual(summary?.metadata?.name, "Travel")
+        XCTAssertEqual(selectedName, "Travel")
+    }
+
     func testRemoteServiceSnapshotsPreservePendingLocalEditsWhileUpdatingLiveDpiPresentation() async {
         let device = makeSnapshotDevice(
             id: "snapshot-pending-live-dpi-device",

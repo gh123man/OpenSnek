@@ -95,17 +95,17 @@ extension BridgeClient {
         replaceAssignedProfile: Bool
     ) async throws -> OnboardProfileSnapshot {
         let profile = try mappedOnboardProfileSupport(for: device)
-        let inventory = try await listOnboardProfiles(device: device)
-        let target = try resolveCreateTarget(
+        let target = try await resolveCreateTargetForOnboardCreate(
+            device: device,
+            profile: profile,
             requested: targetProfileID,
-            inventory: inventory,
             replaceAssignedProfile: replaceAssignedProfile
         )
         var createMutation = mutation
         if createMutation.metadata == nil {
             createMutation.metadata = OnboardProfileMetadata(name: "Profile \(target)")
         }
-        if createMutation.needsMappedContentFill {
+        if createMutation.needsMappedContentFill(for: device) {
             let activeSnapshot = try? await readOnboardProfile(device: device, profileID: 0)
             createMutation = createMutation.fillingMissingMappedContent(from: activeSnapshot)
         }
@@ -138,12 +138,18 @@ extension BridgeClient {
                     profileID: target,
                     metadata: createdMetadata
                 )
+                let dpiWriteContext = try? self.usbReadOnboardProfileDPI(
+                    session,
+                    device,
+                    profileID: target
+                )
                 try self.usbApplyOnboardProfileMutation(
                     session,
                     device,
                     profile: profile,
                     profileID: target,
-                    mutation: createMutation.withoutMetadata
+                    mutation: createMutation.withoutMetadata,
+                    dpiWriteContext: dpiWriteContext
                 )
                 _ = try self.validateUSBOnboardProfileReadback(
                     device: device,
@@ -216,6 +222,27 @@ extension BridgeClient {
                 return projectedCreate
             }
         }
+    }
+
+    private func resolveCreateTargetForOnboardCreate(
+        device: MouseDevice,
+        profile: DeviceProfile,
+        requested: Int?,
+        replaceAssignedProfile: Bool
+    ) async throws -> Int {
+        if let requested, replaceAssignedProfile {
+            guard requested >= OnboardProfileLimits.minimumStoredProfileID,
+                  requested <= profile.onboardProfileCount else {
+                throw BridgeError.commandFailed("Onboard profile \(requested) is outside the assignable profile range.")
+            }
+            return requested
+        }
+        let inventory = try await listOnboardProfiles(device: device)
+        return try resolveCreateTarget(
+            requested: requested,
+            inventory: inventory,
+            replaceAssignedProfile: replaceAssignedProfile
+        )
     }
 
     func renameOnboardProfile(device: MouseDevice, profileID: Int, name: String) async throws -> OnboardProfileSnapshot {
@@ -361,12 +388,18 @@ extension BridgeClient {
                     )
                     try self.usbWriteOnboardProfileMetadata(session, device, profileID: profileID, metadata: metadataForWrite)
                 }
+                let dpiWriteContext = mutation.dpi == nil ? nil : try? self.usbReadOnboardProfileDPI(
+                    session,
+                    device,
+                    profileID: profileID
+                )
                 try self.usbApplyOnboardProfileMutation(
                     session,
                     device,
                     profile: profile,
                     profileID: profileID,
-                    mutation: mutation.withoutMetadata
+                    mutation: mutation.withoutMetadata,
+                    dpiWriteContext: dpiWriteContext
                 )
                 if activeBeforeMutation == profileID {
                     _ = try self.usbWriteActiveOnboardProfileID(session, device, profileID: profileID)

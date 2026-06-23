@@ -476,8 +476,10 @@ struct LightingCard: View {
             text: "Onboard lighting is stored on the device and survives restart and reconnect."
         )
 
-        brightnessControls()
-            .padding(.vertical, 2)
+        if selected.supportsLightingBrightnessControls {
+            brightnessControls()
+                .padding(.vertical, 2)
+        }
 
         onboardPresetPicker()
         onboardEffectOptions()
