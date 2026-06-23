@@ -193,16 +193,17 @@ extension AppStateEditorController {
         guard supportsProfilePicker(device: device),
               !supportsOnboardProfileCRUD(device: device),
               shouldRestorePersistedSettingsOnConnect(for: device),
-              let profile = selectedSingleSlotLocalProfile(device: device) else {
+              let profile = selectedOrMatchingSingleSlotLocalProfile(snapshot: snapshot, device: device) else {
             return
         }
-        _ = preferenceStore.updateOpenSnekLocalProfile(
+        let restoredContent = localProfileContent(from: snapshot)
+        let updatedProfile = preferenceStore.updateOpenSnekLocalProfile(
             id: profile.id,
-            content: localProfileContent(from: snapshot),
+            content: restoredContent,
             sourceDeviceProfileID: device.profile_id,
             sourceTransport: device.transport
         )
-        setSelectedSingleSlotProfileName(profile.name, device: device)
+        setSelectedSingleSlotLocalProfile(updatedProfile ?? profile, device: device)
         bumpUSBButtonProfilesRevision()
     }
 
@@ -538,7 +539,7 @@ extension AppStateEditorController {
     }
 
     private func selectedSingleSlotProfileName(device: MouseDevice) -> String? {
-        selectedSingleSlotProfileNameByDeviceID[device.id]
+        selectedSingleSlotProfileNameByDeviceID[device.id] ?? selectedSingleSlotLocalProfile(device: device)?.name
     }
 
     private func setSelectedSingleSlotProfileName(_ name: String, device: MouseDevice) {
@@ -556,6 +557,21 @@ extension AppStateEditorController {
             return nil
         }
         return profile
+    }
+
+    private func selectedOrMatchingSingleSlotLocalProfile(
+        snapshot: PersistedDeviceSettingsSnapshot,
+        device: MouseDevice
+    ) -> OpenSnekLocalProfile? {
+        if let selected = selectedSingleSlotLocalProfile(device: device) {
+            return selected
+        }
+        let restoredContent = adaptedLocalProfileContent(localProfileContent(from: snapshot), for: device)
+        let matches = preferenceStore.loadOpenSnekLocalProfiles().filter { profile in
+            guard profile.syntheticSourceKey == nil else { return false }
+            return adaptedLocalProfileContent(profile.content, for: device) == restoredContent
+        }
+        return matches.count == 1 ? matches[0] : nil
     }
 
     private func setSelectedSingleSlotLocalProfile(_ profile: OpenSnekLocalProfile, device: MouseDevice) {

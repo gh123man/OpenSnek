@@ -318,6 +318,40 @@ final class AppStateLocalProfileTests: XCTestCase {
         XCTAssertEqual(summary?.metadata?.name, "Travel")
     }
 
+    func testSingleSlotRestoreLastProfileInfersKnownLocalProfileWhenSelectionPointerIsMissing() async throws {
+        clearSavedButtonProfiles()
+        let device = makeSingleSlotProfileDevice(id: "local-profile-restore-matched")
+        defer { clearRefactorPreferences(for: device) }
+
+        let preferenceStore = DevicePreferenceStore()
+        let localProfile = preferenceStore.createOpenSnekLocalProfile(
+            name: "Travel",
+            content: singleSlotLocalProfileContent(dpiValues: [1200, 2400])
+        )
+        preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
+        preferenceStore.persistDeviceSettingsSnapshot(
+            singleSlotSettingsSnapshot(dpiValues: [1200, 2400]),
+            device: device
+        )
+        XCTAssertNil(preferenceStore.loadSelectedLocalProfileID(device: device))
+
+        let backend = makeLocalProfileBackend(device: device, activeProfile: 1, dpiValues: [400, 800])
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+
+        try await waitForRefactorCondition {
+            let restored = await backend.recordedPatches().contains { $0.dpiStages == [1200, 2400] }
+            let profileName = await MainActor.run {
+                appState.editorStore.onboardProfileSummaries.first?.metadata?.name
+            }
+            return restored &&
+                profileName == "Travel" &&
+                preferenceStore.loadSelectedLocalProfileID(device: device) == localProfile.id
+        }
+    }
+
     func testSingleSlotKnownLocalProfileEditsPersistAfterReplacement() async throws {
         clearSavedButtonProfiles()
         let device = makeSingleSlotProfileDevice(id: "local-profile-edit-known")
@@ -717,6 +751,27 @@ private func singleSlotLocalProfileContent(dpiValues: [Int]) -> OpenSnekLocalPro
         ),
         brightnessByLEDID: [1: 64],
         staticColorByLEDID: [1: RGBPatch(r: 0, g: 255, b: 0)]
+    )
+}
+
+private func singleSlotSettingsSnapshot(dpiValues: [Int]) -> PersistedDeviceSettingsSnapshot {
+    let pairs = dpiValues.map { DpiPair(x: $0, y: $0) }
+    return PersistedDeviceSettingsSnapshot(
+        stageCount: pairs.count,
+        stageValues: dpiValues,
+        stagePairs: pairs,
+        activeStage: 1,
+        pollRate: nil,
+        sleepTimeout: nil,
+        lowBatteryThresholdRaw: nil,
+        scrollMode: nil,
+        scrollAcceleration: nil,
+        scrollSmartReel: nil,
+        ledBrightness: 64,
+        primaryLightingColor: RGBColor(r: 0, g: 255, b: 0),
+        lightingEffect: nil,
+        usbLightingZoneID: "all",
+        buttonBindings: [:]
     )
 }
 
