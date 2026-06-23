@@ -253,8 +253,8 @@ private struct LocalProfileLibraryRow: View {
         Button {
             isManagementPresented = true
         } label: {
-            Image(systemName: "pencil")
-                .font(.system(size: 12, weight: .bold))
+            Image(systemName: "ellipsis")
+                .font(.system(size: 15, weight: .bold))
                 .frame(width: 34, height: 34)
                 .contentShape(Rectangle())
         }

@@ -62,7 +62,7 @@ extension AppStateEditorController {
     func renameLocalProfile(id: UUID, name: String) {
         let updated = preferenceStore.updateOpenSnekLocalProfile(id: id, name: name)
         if let device = deviceStore.selectedDevice,
-           selectedSingleSlotLocalProfile(device: device)?.id == id,
+           currentSessionSingleSlotLocalProfile(device: device)?.id == id,
            let updated {
             setSelectedSingleSlotProfileName(updated.name, device: device)
         }
@@ -170,7 +170,7 @@ extension AppStateEditorController {
     func syncSelectedSingleSlotLocalProfileFromEditor(device: MouseDevice) {
         guard supportsProfilePicker(device: device),
               !supportsOnboardProfileCRUD(device: device),
-              let profile = selectedSingleSlotLocalProfile(device: device) else {
+              let profile = currentSessionSingleSlotLocalProfile(device: device) else {
             return
         }
         guard preferenceStore.updateOpenSnekLocalProfile(
@@ -539,7 +539,7 @@ extension AppStateEditorController {
     }
 
     private func selectedSingleSlotProfileName(device: MouseDevice) -> String? {
-        selectedSingleSlotProfileNameByDeviceID[device.id] ?? selectedSingleSlotLocalProfile(device: device)?.name
+        selectedSingleSlotProfileNameByDeviceID[device.id]
     }
 
     private func setSelectedSingleSlotProfileName(_ name: String, device: MouseDevice) {
@@ -557,6 +557,11 @@ extension AppStateEditorController {
             return nil
         }
         return profile
+    }
+
+    private func currentSessionSingleSlotLocalProfile(device: MouseDevice) -> OpenSnekLocalProfile? {
+        guard selectedSingleSlotProfileNameByDeviceID[device.id] != nil else { return nil }
+        return selectedSingleSlotLocalProfile(device: device)
     }
 
     private func selectedOrMatchingSingleSlotLocalProfile(

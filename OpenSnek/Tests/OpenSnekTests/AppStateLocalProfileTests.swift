@@ -275,6 +275,61 @@ final class AppStateLocalProfileTests: XCTestCase {
         XCTAssertTrue(profilePresentation.1.isEmpty)
     }
 
+    func testSingleSlotUseMouseSettingsColdLaunchShowsBaseProfileAndDoesNotPersistToKnownProfile() async throws {
+        clearSavedButtonProfiles()
+        let device = makeSingleSlotProfileDevice(id: "local-profile-use-mouse-cold")
+        defer { clearRefactorPreferences(for: device) }
+
+        let preferenceStore = DevicePreferenceStore()
+        let localProfile = preferenceStore.createOpenSnekLocalProfile(
+            name: "Travel",
+            content: singleSlotLocalProfileContent(dpiValues: [1200, 2400])
+        )
+        preferenceStore.persistSelectedLocalProfileID(localProfile.id, device: device)
+        preferenceStore.persistConnectBehavior(.useMouseSettings, device: device)
+        preferenceStore.persistDeviceSettingsSnapshot(
+            singleSlotSettingsSnapshot(dpiValues: [1200, 2400]),
+            device: device
+        )
+
+        let backend = makeLocalProfileBackend(device: device, activeProfile: 1, dpiValues: [400, 800])
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+
+        let summary = await MainActor.run {
+            appState.editorStore.onboardProfileSummaries.first
+        }
+        XCTAssertEqual(summary?.displayName, "Base Profile")
+        XCTAssertNil(summary?.metadata)
+        let initialPatches = await backend.recordedPatches()
+        XCTAssertTrue(initialPatches.isEmpty)
+
+        await MainActor.run {
+            appState.editorStore.editableStageCount = 2
+            appState.editorStore.editableStageValues = [500, 1000]
+            appState.editorStore.editableStagePairs = [
+                DpiPair(x: 500, y: 500),
+                DpiPair(x: 1000, y: 1000),
+                DpiPair(x: 3200, y: 3200),
+                DpiPair(x: 6400, y: 6400),
+                DpiPair(x: 10_000, y: 10_000)
+            ]
+            appState.editorStore.setEditableActiveStage(0, source: "test.singleSlotUseMouseSettingsColdLaunch")
+        }
+        await appState.editorStore.applyDpiStages()
+
+        try await waitForRefactorCondition {
+            await backend.recordedPatches().contains { $0.dpiStages == [500, 1000] }
+        }
+
+        let storedProfile = try XCTUnwrap(
+            preferenceStore.loadOpenSnekLocalProfiles().first { $0.id == localProfile.id }
+        )
+        XCTAssertEqual(storedProfile.content.dpi?.pairs.map(\.x), [1200, 2400])
+    }
+
     func testSingleSlotRestoreLastProfileShowsKnownLocalProfileOnFreshLaunch() async throws {
         clearSavedButtonProfiles()
         let device = makeSingleSlotProfileDevice(id: "local-profile-restore-known")
