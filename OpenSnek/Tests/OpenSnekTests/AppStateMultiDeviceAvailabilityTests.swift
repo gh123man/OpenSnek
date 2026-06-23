@@ -441,6 +441,127 @@ final class AppStateMultiDeviceAvailabilityTests: XCTestCase {
         XCTAssertNil(errorMessage)
     }
 
+    func testTransientBackendUSBUnavailableDoesNotFlickerConnectedMouse() async throws {
+        let usbDevice = makeTestDevice(
+            id: "usb-transient-unavailable",
+            productName: "Alpha Mouse",
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-TRANSIENT-UNAVAILABLE",
+                locationID: 1
+            ),
+            profile: .basiliskV3Pro
+        )
+        let backend = DeviceListUpdatingStubBackend(
+            devices: [usbDevice],
+            stateByDeviceID: [
+                usbDevice.id: makeTestState(
+                    device: usbDevice,
+                    connection: "usb",
+                    batteryPercent: 81,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+        await MainActor.run {
+            let observedAt = Date()
+            appState.deviceController.applyBackendDpiTransportStatusUpdate(
+                deviceID: usbDevice.id,
+                status: .streamActive,
+                updatedAt: observedAt
+            )
+            appState.deviceController.applyBackendUSBControlAvailabilityUpdate(
+                deviceID: usbDevice.id,
+                availability: .receiverPresentMouseUnavailable,
+                updatedAt: observedAt.addingTimeInterval(0.01)
+            )
+            appState.deviceController.applyBackendUSBControlAvailabilityUpdate(
+                deviceID: usbDevice.id,
+                availability: .receiverPresentMouseReachable,
+                updatedAt: observedAt.addingTimeInterval(0.15)
+            )
+        }
+
+        try await Task.sleep(
+            nanoseconds: UInt64((AppStateDeviceController.usbControlUnavailableDebounceInterval + 0.15) * 1_000_000_000)
+        )
+
+        let status = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
+        let controlsEnabled = await MainActor.run { appState.deviceStore.selectedDeviceControlsEnabled }
+        let message = await MainActor.run { appState.deviceStore.selectedDeviceInteractionMessage }
+
+        XCTAssertEqual(status, "Connected")
+        XCTAssertTrue(controlsEnabled)
+        XCTAssertNil(message)
+    }
+
+    func testBackendUSBUnavailableAppliesAfterDebounceWhenNotRecovered() async throws {
+        let usbDevice = makeTestDevice(
+            id: "usb-unavailable-debounced",
+            productName: "Alpha Mouse",
+            identity: MultiDeviceTestIdentity(
+                transport: .usb,
+                serial: "USB-UNAVAILABLE-DEBOUNCED",
+                locationID: 1
+            ),
+            profile: .basiliskV3Pro
+        )
+        let backend = DeviceListUpdatingStubBackend(
+            devices: [usbDevice],
+            stateByDeviceID: [
+                usbDevice.id: makeTestState(
+                    device: usbDevice,
+                    connection: "usb",
+                    batteryPercent: 81,
+                    dpiValues: [800, 1600, 3200],
+                    activeStage: 0
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+        await MainActor.run {
+            let observedAt = Date()
+            appState.deviceController.applyBackendDpiTransportStatusUpdate(
+                deviceID: usbDevice.id,
+                status: .streamActive,
+                updatedAt: observedAt
+            )
+            appState.deviceController.applyBackendUSBControlAvailabilityUpdate(
+                deviceID: usbDevice.id,
+                availability: .receiverPresentMouseUnavailable,
+                updatedAt: observedAt.addingTimeInterval(0.01)
+            )
+        }
+
+        let immediateStatus = await MainActor.run { appState.deviceStore.currentDeviceStatusIndicator.label }
+        XCTAssertEqual(immediateStatus, "Connected")
+
+        try await waitUntil(timeout: 1.0) {
+            await MainActor.run {
+                appState.deviceStore.currentDeviceStatusIndicator.label == "Disconnected"
+            }
+        }
+
+        let controlsEnabled = await MainActor.run { appState.deviceStore.selectedDeviceControlsEnabled }
+        let message = await MainActor.run { appState.deviceStore.selectedDeviceInteractionMessage }
+
+        XCTAssertFalse(controlsEnabled)
+        XCTAssertEqual(
+            message,
+            "The USB dongle is connected, but the mouse is not responding. Wake or power on the mouse to reconnect."
+        )
+    }
+
     func testNewUSBInsertUnavailableReadStaysReconnectingDuringConnectGrace() async {
         let usbDevice = makeTestDevice(
             id: "usb-new-insert-connect-grace",

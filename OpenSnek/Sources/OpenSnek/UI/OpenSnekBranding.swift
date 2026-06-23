@@ -1,12 +1,15 @@
 import AppKit
 
 enum OpenSnekBranding {
+    private static let menuTemplateResourceName = "snek-menu-template"
+    private static let menuTemplateResourceExtension = "png"
+
     static var menuBarIconSide: CGFloat {
         max(16, floor(NSStatusBar.system.thickness))
     }
 
     static var menuIcon: NSImage? {
-        makeSizedSourceIcon(size: NSSize(width: menuBarIconSide, height: menuBarIconSide))
+        bundledMenuTemplateIcon(size: NSSize(width: menuBarIconSide, height: menuBarIconSide))
     }
 
     static func menuBarDpiBadge(dpi: Int) -> NSImage {
@@ -18,12 +21,12 @@ enum OpenSnekBranding {
 
         let labelAttributes: [NSAttributedString.Key: Any] = [
             .font: labelFont,
-            .foregroundColor: NSColor.labelColor,
+            .foregroundColor: NSColor.black,
             .paragraphStyle: paragraph
         ]
         let valueAttributes: [NSAttributedString.Key: Any] = [
             .font: valueFont,
-            .foregroundColor: NSColor.labelColor,
+            .foregroundColor: NSColor.black,
             .paragraphStyle: paragraph
         ]
 
@@ -56,7 +59,7 @@ enum OpenSnekBranding {
             withAttributes: valueAttributes
         )
         image.unlockFocus()
-        image.isTemplate = false
+        image.isTemplate = true
         return image
     }
 
@@ -85,7 +88,7 @@ enum OpenSnekBranding {
             rect.fill(using: .sourceAtop)
         }
         image.unlockFocus()
-        image.isTemplate = false
+        image.isTemplate = color == nil
         return image
     }
 
@@ -93,22 +96,24 @@ enum OpenSnekBranding {
         menuBarSymbolIcon(symbolName: symbolName)?.size.width ?? menuBarIconSide
     }
 
-    private static func loadSourceIcon() -> NSImage? {
-        guard let url = Bundle.main.url(forResource: "snek-menu", withExtension: "png"),
-              let image = NSImage(contentsOf: url) else {
-            return nil
-        }
-        image.isTemplate = false
-        return image
-    }
-
-    private static func makeSizedSourceIcon(size: NSSize) -> NSImage? {
-        guard let source = loadSourceIcon(),
+    static func menuTemplateIcon(from url: URL, size: NSSize) -> NSImage? {
+        guard let source = NSImage(contentsOf: url),
               let sized = source.copy() as? NSImage else {
             return nil
         }
+
         sized.size = size
-        sized.isTemplate = false
+        sized.isTemplate = true
         return sized
+    }
+
+    private static func bundledMenuTemplateIcon(size: NSSize) -> NSImage? {
+        guard let url = Bundle.main.url(
+            forResource: menuTemplateResourceName,
+            withExtension: menuTemplateResourceExtension
+        ) else {
+            return nil
+        }
+        return menuTemplateIcon(from: url, size: size)
     }
 }

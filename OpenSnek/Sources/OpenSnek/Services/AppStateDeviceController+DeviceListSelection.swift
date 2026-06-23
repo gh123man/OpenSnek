@@ -130,6 +130,7 @@ extension AppStateDeviceController {
                 stateRefreshSuppressedUntilByDeviceID[id] = nil
                 usbTelemetryUnavailableBackoffDeviceIDs.remove(id)
                 usbControlAvailabilityByDeviceID.removeValue(forKey: id)
+                cancelPendingUSBControlUnavailable(for: id)
                 clearUSBPhysicalConnectSettling(for: id)
                 unavailableDeviceIDs.remove(id)
                 setDpiUpdateTransportStatus(nil, for: id)

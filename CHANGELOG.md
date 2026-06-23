@@ -15,6 +15,7 @@ All notable changes to this project are documented in this file.
 - The Connect a Device screen now opens supported devices in a centered, searchable profile-backed table instead of showing the growing list inline.
 - The keybinding picker now has fuzzy search and supports building modifier chords such as Command + Tab by choosing a modifier, then an action key.
 - OpenSnek now pins its SwiftUI and AppKit surfaces to the dark appearance so system fields, controls, dynamic colors, and window chrome render consistently even when macOS is set to Light Mode.
+- The menu bar status item now uses simplified template artwork so macOS can tint and dim it with native menu bar icons.
 - The Polling Rate control now uses the same segmented picker styling as other fixed-choice device controls.
 - Advanced lighting animations now expose a persisted brightness slider alongside speed and palette controls.
 - Active Advanced software-lighting effects are now reasserted after onboard profile switches so the volatile frame stream keeps driving the device.
@@ -39,6 +40,7 @@ All notable changes to this project are documented in this file.
 - Reconnect and disconnect recovery no longer shows yellow USB telemetry notices for expected temporary telemetry gaps while the device is settling.
 - USB telemetry-unavailable and availability backoff now survive newly visible dongle subscription updates, preventing the dongle-only state from falling back into an immediate reconnect retry loop.
 - Selected USB devices with cached state now keep their last known presentation during temporary feature-report telemetry backoff when the mouse is still enumerated, instead of being marked disconnected.
+- Selected USB devices no longer flicker to Disconnected when a single backend reachability probe briefly reports the mouse unavailable while newer USB DPI activity still shows it is connected.
 - Remote service snapshots now clear latched transient USB unavailable presentation, and cached USB devices no longer age into Disconnected solely because passive telemetry has been idle.
 - The Lighting card now hides the Advanced software-lighting tab on Basilisk V3 X HyperSpeed and Bluetooth devices that cannot stream software effects.
 
