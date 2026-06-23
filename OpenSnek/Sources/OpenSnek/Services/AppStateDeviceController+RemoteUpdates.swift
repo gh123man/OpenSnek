@@ -62,6 +62,9 @@ extension AppStateDeviceController {
         lastUpdatedByDeviceID = lastUpdatedByDeviceID.filter { liveIDs.contains($0.key) }
         lastStateMutationAtByDeviceID = lastStateMutationAtByDeviceID.filter { liveIDs.contains($0.key) }
         usbControlAvailabilityByDeviceID = usbControlAvailabilityByDeviceID.filter { liveIDs.contains($0.key) }
+        for deviceID in Array(pendingUSBControlUnavailableTasksByDeviceID.keys) where !liveIDs.contains(deviceID) {
+            cancelPendingUSBControlUnavailable(for: deviceID)
+        }
         pruneUSBPhysicalConnectSettling(liveIDs: liveIDs)
     }
 
@@ -88,10 +91,19 @@ extension AppStateDeviceController {
         liveIDs: Set<String>
     ) {
         for (deviceID, availability) in snapshot.usbControlAvailabilityByDeviceID where liveIDs.contains(deviceID) {
+            let observedAt = snapshot.observedAtByDeviceID[deviceID] ?? Date()
+            if shouldDropStaleUSBControlUnavailable(availability, for: deviceID, observedAt: observedAt) {
+                AppLog.debug(
+                    "AppState",
+                    "remoteSnapshot usbControlAvailability stale-drop device=\(deviceID) " +
+                    "availability=\(availability.rawValue)"
+                )
+                continue
+            }
             setUSBControlAvailability(
                 availability,
                 for: deviceID,
-                observedAt: snapshot.observedAtByDeviceID[deviceID] ?? Date()
+                observedAt: observedAt
             )
         }
     }
@@ -320,7 +332,11 @@ extension AppStateDeviceController {
         updatedAt: Date
     ) {
         guard !isTearingDown else { return }
-        setUSBControlAvailability(availability, for: deviceID, observedAt: updatedAt)
+        let didApplySourceAvailability = setBackendObservedUSBControlAvailability(
+            availability,
+            for: deviceID,
+            observedAt: updatedAt
+        )
 
         guard let sourceDevice = deviceStore.devices.first(where: { $0.id == deviceID }),
               let presentationDevice = presentationDevice(for: sourceDevice) else {
@@ -328,7 +344,13 @@ extension AppStateDeviceController {
         }
 
         let presentationDeviceID = presentationDevice.id
-        setUSBControlAvailability(availability, for: presentationDeviceID, observedAt: updatedAt)
+        let didApplyPresentationAvailability = presentationDeviceID == deviceID
+            ? didApplySourceAvailability
+            : setBackendObservedUSBControlAvailability(
+                availability,
+                for: presentationDeviceID,
+                observedAt: updatedAt
+            )
         if availability == .receiverPresentMouseReachable {
             clearConnectionFailureState(sourceDeviceID: deviceID, presentationDeviceID: presentationDeviceID)
             if deviceStore.selectedDeviceID == presentationDeviceID {
@@ -337,6 +359,7 @@ extension AppStateDeviceController {
                 }
             }
         } else if availability.blocksUSBControlInteraction,
+                  didApplyPresentationAvailability,
                   deviceStore.selectedDeviceID == presentationDeviceID {
             deviceStore.errorMessage = nil
             deviceStore.warningMessage = nil
