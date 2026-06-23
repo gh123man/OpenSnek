@@ -435,6 +435,9 @@ final class RemoteServiceSnapshotHydrationTests: XCTestCase {
         let appState = await MainActor.run {
             AppState(launchRole: .app, backend: SnapshotTestRemoteBackend(), autoStart: false)
         }
+        // This models a cold-launch app client attached to the background service. The
+        // service snapshot owns live values, but the restored profile name must still come
+        // from the persisted local-profile selection instead of reverting to Base Profile.
         let liveState = makeSnapshotState(
             device: device,
             connection: "bluetooth",

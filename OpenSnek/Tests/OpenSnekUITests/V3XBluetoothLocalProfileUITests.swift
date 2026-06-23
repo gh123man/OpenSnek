@@ -189,6 +189,8 @@ final class V3XBluetoothLocalProfileUITests: OpenSnekHardwareUITestCase {
         try keepMouseAwakeForUITest(timeout: actionTimeout)
 
         try openProfilePicker()
+        // The real single-slot Bluetooth path used to relaunch with Restore Last Profile
+        // selected but present Base Profile. Keep this assertion on the visible UI state.
         XCTAssertTrue(
             onConnectPresentationMatchesSelectedOption("Restore Last Profile"),
             "Restore Last Profile should still be the saved On Connect policy after relaunch"

@@ -211,6 +211,11 @@ extension AppStateEditorController {
         snapshot: PersistedDeviceSettingsSnapshot,
         device: MouseDevice
     ) {
+        // Single-slot/non-CRUD devices cannot prove which local profile is currently on
+        // the mouse. Only Restore Last Profile is allowed to present a known local profile:
+        // either the user's saved selection, or a unique local profile whose adapted
+        // content matches the restored snapshot. Use Mouse Settings clears the session
+        // name so the UI presents Base Profile instead of inventing an active mapping.
         guard supportsProfilePicker(device: device),
               !supportsOnboardProfileCRUD(device: device),
               shouldRestorePersistedSettingsOnConnect(for: device),
@@ -231,6 +236,8 @@ extension AppStateEditorController {
         }
         switch behavior {
         case .useMouseSettings:
+            // Loading from hardware is intentionally not a local-profile restore. Even if
+            // values happen to match a saved profile, the UI should return to Base Profile.
             clearCurrentSessionSingleSlotProfileName(device: device)
         case .restoreOpenSnekSettings:
             guard let snapshot = loadPersistedSettingsSnapshot(device: device) else {
