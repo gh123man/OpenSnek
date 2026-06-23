@@ -30,6 +30,8 @@ final class AppStateEditorController {
     var currentOnboardProfileSnapshotByDeviceID: [String: OnboardProfileSnapshot] = [:]
     var onboardProfileLightingColorsByDeviceID: [String: [String: RGBColor]] = [:]
     var selectedOnboardProfileIDByDeviceID: [String: Int] = [:]
+    var selectedSingleSlotProfileNameByDeviceID: [String: String] = [:]
+    var singleSlotProfileApplySyncSuppressedDeviceIDs: Set<String> = []
     var lastHardwareActiveOnboardProfileIDByDeviceID: [String: Int] = [:]
     var onboardProfileReloadRequiredDeviceIDs: Set<String> = []
     var onboardProfileRefreshInFlightDeviceIDs: Set<String> = []
@@ -75,6 +77,7 @@ final class AppStateEditorController {
         onboardProfileButtonHydrationTasksByDeviceID.removeAll()
         onboardProfileButtonHydrationTokensByDeviceID.removeAll()
         manualOnboardProfileActivationTargetByDeviceID.removeAll()
+        singleSlotProfileApplySyncSuppressedDeviceIDs.removeAll()
     }
 
     func bind(applyController: AppStateApplyController) {
@@ -310,6 +313,9 @@ final class AppStateEditorController {
         selectedOnboardProfileIDByDeviceID = selectedOnboardProfileIDByDeviceID.filter { key, _ in
             !removedDeviceIDs.contains(key)
         }
+        selectedSingleSlotProfileNameByDeviceID = selectedSingleSlotProfileNameByDeviceID.filter { key, _ in
+            !removedDeviceIDs.contains(key)
+        }
         lastHardwareActiveOnboardProfileIDByDeviceID = lastHardwareActiveOnboardProfileIDByDeviceID.filter { key, _ in
             !removedDeviceIDs.contains(key)
         }
@@ -363,6 +369,9 @@ final class AppStateEditorController {
         selectedOnboardProfileIDByDeviceID = selectedOnboardProfileIDByDeviceID.filter { key, _ in
             !deviceIDs.contains(key)
         }
+        selectedSingleSlotProfileNameByDeviceID = selectedSingleSlotProfileNameByDeviceID.filter { key, _ in
+            !deviceIDs.contains(key)
+        }
         lastHardwareActiveOnboardProfileIDByDeviceID = lastHardwareActiveOnboardProfileIDByDeviceID.filter { key, _ in
             !deviceIDs.contains(key)
         }
@@ -385,23 +394,28 @@ final class AppStateEditorController {
     }
 
     func connectBehavior(for device: MouseDevice) -> DeviceConnectBehavior {
-        if forcesRestoreOpenSnekSettingsOnConnect(for: device) {
-            return .restoreOpenSnekSettings
-        }
         if hasOnboardProfileStorage(device) {
             return .useMouseSettings
+        }
+        if forcesRestoreOpenSnekSettingsOnConnect(for: device), !supportsProfilePicker(device: device) {
+            return .restoreOpenSnekSettings
         }
         return preferenceStore.loadConnectBehavior(device: device) ?? .useMouseSettings
     }
 
     func showsConnectBehaviorCard(for device: MouseDevice) -> Bool {
-        !forcesRestoreOpenSnekSettingsOnConnect(for: device) && !hasOnboardProfileStorage(device)
+        !supportsProfilePicker(device: device) &&
+            !forcesRestoreOpenSnekSettingsOnConnect(for: device) &&
+            !hasOnboardProfileStorage(device)
     }
 
     func updateConnectBehavior(_ behavior: DeviceConnectBehavior) {
         guard let selectedDevice = deviceStore.selectedDevice else { return }
-        guard !forcesRestoreOpenSnekSettingsOnConnect(for: selectedDevice) else { return }
         guard !hasOnboardProfileStorage(selectedDevice) else { return }
+        guard !forcesRestoreOpenSnekSettingsOnConnect(for: selectedDevice) ||
+            supportsProfilePicker(device: selectedDevice) else {
+            return
+        }
         preferenceStore.persistConnectBehavior(behavior, device: selectedDevice)
         bumpConnectBehaviorRevision()
     }

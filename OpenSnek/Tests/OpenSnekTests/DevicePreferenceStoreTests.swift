@@ -35,6 +35,249 @@ final class DevicePreferenceStoreTests: XCTestCase {
         XCTAssertTrue(store.loadOpenSnekButtonProfiles().isEmpty)
     }
 
+    func testOpenSnekLocalProfileLibrarySupportsCreateCopyRenameAndDelete() {
+        let suiteName = "DevicePreferenceStoreTests.LocalLibrary.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = DevicePreferenceStore(defaults: defaults)
+        let content = OpenSnekLocalProfileContent(
+            dpi: OnboardDPIProfileSnapshot(
+                scalar: DpiPair(x: 800, y: 800),
+                activeStage: 0,
+                pairs: [DpiPair(x: 800, y: 800), DpiPair(x: 1600, y: 1600)]
+            ),
+            buttonBindings: [
+                4: ButtonBindingDraft(kind: .mouseForward, hidKey: 4, turboEnabled: false, turboRate: 0x8E)
+            ],
+            brightnessByLEDID: [1: 72],
+            staticColorByLEDID: [1: RGBPatch(r: 10, g: 20, b: 30)],
+            scrollMode: 1,
+            scrollAcceleration: true,
+            scrollSmartReel: false
+        )
+
+        let saved = store.createOpenSnekLocalProfile(name: " Travel ", content: content)
+        let copied = store.createOpenSnekLocalProfile(name: "Copy", copying: saved.id)
+
+        XCTAssertEqual(store.loadOpenSnekLocalProfiles().map(\.name), ["Copy", "Travel"])
+        XCTAssertEqual(copied.content, content)
+
+        let renamed = store.updateOpenSnekLocalProfile(id: saved.id, name: "Travel 2")
+
+        XCTAssertEqual(renamed?.name, "Travel 2")
+        XCTAssertEqual(store.loadOpenSnekLocalProfiles().first(where: { $0.id == saved.id })?.name, "Travel 2")
+
+        store.deleteOpenSnekLocalProfile(id: saved.id)
+
+        XCTAssertEqual(store.loadOpenSnekLocalProfiles().map(\.id), [copied.id])
+    }
+
+    func testOpenSnekLocalProfileLibraryMigratesButtonOnlyProfilesOnce() {
+        let suiteName = "DevicePreferenceStoreTests.LocalMigration.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = DevicePreferenceStore(defaults: defaults)
+        let legacy = store.saveOpenSnekButtonProfile(
+            name: "Legacy Buttons",
+            bindings: [
+                5: ButtonBindingDraft(kind: .keyboardSimple, hidKey: 80, turboEnabled: false, turboRate: 0x8E)
+            ]
+        )
+
+        let migrated = store.loadOpenSnekLocalProfiles()
+        let loadedAgain = store.loadOpenSnekLocalProfiles()
+
+        XCTAssertEqual(migrated.count, 1)
+        XCTAssertEqual(migrated.first?.id, legacy.id)
+        XCTAssertEqual(migrated.first?.name, "Legacy Buttons")
+        XCTAssertEqual(migrated.first?.content.buttonBindings[5]?.hidKey, 80)
+        XCTAssertNil(migrated.first?.content.dpi)
+        XCTAssertEqual(loadedAgain.count, 1)
+    }
+
+    func testOpenSnekLocalProfileUpsertByOnboardUUIDPreservesLocalRecordID() {
+        let suiteName = "DevicePreferenceStoreTests.UUIDUpsert.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = DevicePreferenceStore(defaults: defaults)
+        let device = MouseDevice(
+            id: "usb-local-uuid-upsert",
+            vendor_id: 0x1532,
+            product_id: 0x00AB,
+            product_name: "Basilisk V3 Pro",
+            transport: .usb,
+            path_b64: "",
+            serial: "LOCAL-UUID-UPSERT",
+            firmware: nil,
+            profile_id: .basiliskV3Pro
+        )
+        let onboardIdentifier = UUID()
+        let firstSnapshot = OnboardProfileSnapshot(
+            profileID: 2,
+            metadata: OnboardProfileMetadata(identifier: onboardIdentifier, name: "Desk"),
+            dpi: OnboardDPIProfileSnapshot(
+                scalar: DpiPair(x: 800, y: 800),
+                activeStage: 0,
+                pairs: [DpiPair(x: 800, y: 800)]
+            ),
+            buttonBindings: [
+                4: ButtonBindingDraft(kind: .mouseForward, hidKey: 4, turboEnabled: false, turboRate: 0x8E)
+            ],
+            brightnessByLEDID: [1: 64],
+            staticColorByLEDID: [1: RGBPatch(r: 1, g: 2, b: 3)],
+            scrollMode: 0,
+            scrollAcceleration: false,
+            scrollSmartReel: true
+        )
+        let updatedSnapshot = OnboardProfileSnapshot(
+            profileID: 2,
+            metadata: OnboardProfileMetadata(identifier: onboardIdentifier, name: "Desk Edited"),
+            dpi: OnboardDPIProfileSnapshot(
+                scalar: DpiPair(x: 1600, y: 1600),
+                activeStage: 1,
+                pairs: [DpiPair(x: 800, y: 800), DpiPair(x: 1600, y: 1600)]
+            ),
+            buttonBindings: [
+                4: ButtonBindingDraft(kind: .keyboardSimple, hidKey: 80, turboEnabled: true, turboRate: 75)
+            ],
+            brightnessByLEDID: [1: 128],
+            staticColorByLEDID: [1: RGBPatch(r: 9, g: 8, b: 7)],
+            scrollMode: 1,
+            scrollAcceleration: true,
+            scrollSmartReel: false
+        )
+
+        let first = store.upsertOpenSnekLocalProfile(from: firstSnapshot, device: device)
+        let updated = store.upsertOpenSnekLocalProfile(from: updatedSnapshot, device: device)
+        let profiles = store.loadOpenSnekLocalProfiles()
+
+        XCTAssertEqual(first.id, updated.id)
+        XCTAssertEqual(profiles.count, 1)
+        XCTAssertEqual(profiles.first?.onboardIdentifier, onboardIdentifier)
+        XCTAssertEqual(profiles.first?.sourceDeviceProfileID, .basiliskV3Pro)
+        XCTAssertEqual(profiles.first?.sourceTransport, .usb)
+        XCTAssertEqual(profiles.first?.name, "Desk Edited")
+        XCTAssertEqual(profiles.first?.content.dpi?.values, [800, 1600])
+        XCTAssertEqual(profiles.first?.content.buttonBindings[4]?.hidKey, 80)
+        XCTAssertEqual(profiles.first?.content.brightnessByLEDID[1], 128)
+        XCTAssertEqual(profiles.first?.content.staticColorByLEDID[1], RGBPatch(r: 9, g: 8, b: 7))
+        XCTAssertEqual(profiles.first?.content.scrollMode, 1)
+    }
+
+    func testOpenSnekLocalProfileUpsertBySyntheticSlotKeyPreservesLocalRecordID() {
+        let suiteName = "DevicePreferenceStoreTests.SyntheticUpsert.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = DevicePreferenceStore(defaults: defaults)
+        let device = MouseDevice(
+            id: "bt-local-synthetic-upsert",
+            vendor_id: 0x068E,
+            product_id: 0x00BA,
+            product_name: "Basilisk V3 X HyperSpeed",
+            transport: .bluetooth,
+            path_b64: "",
+            serial: "LOCAL-SYNTHETIC-UPSERT",
+            firmware: nil,
+            profile_id: .basiliskV3XHyperspeed
+        )
+        let sourceKey = DevicePreferenceStore.localProfileSyntheticSourceKey(device: device, slot: 1)
+        let first = store.upsertOpenSnekLocalProfile(
+            name: "This Mouse",
+            content: OpenSnekLocalProfileContent(
+                dpi: OnboardDPIProfileSnapshot(
+                    scalar: DpiPair(x: 800, y: 800),
+                    activeStage: 0,
+                    pairs: [DpiPair(x: 800, y: 800)]
+                ),
+                brightnessByLEDID: [1: 999],
+                scrollMode: 7
+            ),
+            syntheticSourceKey: sourceKey,
+            device: device
+        )
+        let updated = store.upsertOpenSnekLocalProfile(
+            name: "This Mouse Edited",
+            content: OpenSnekLocalProfileContent(
+                dpi: OnboardDPIProfileSnapshot(
+                    scalar: DpiPair(x: 1200, y: 1200),
+                    activeStage: 0,
+                    pairs: [DpiPair(x: 1200, y: 1200)]
+                ),
+                buttonBindings: [
+                    5: ButtonBindingDraft(kind: .mouseBack, hidKey: 4, turboEnabled: false, turboRate: 0x8E)
+                ]
+            ),
+            syntheticSourceKey: sourceKey,
+            device: device
+        )
+        let profiles = store.loadOpenSnekLocalProfiles()
+
+        XCTAssertEqual(first.id, updated.id)
+        XCTAssertEqual(profiles.count, 1)
+        XCTAssertNil(profiles.first?.onboardIdentifier)
+        XCTAssertEqual(profiles.first?.syntheticSourceKey, sourceKey)
+        XCTAssertEqual(profiles.first?.name, "This Mouse Edited")
+        XCTAssertEqual(profiles.first?.sourceDeviceProfileID, .basiliskV3XHyperspeed)
+        XCTAssertEqual(profiles.first?.sourceTransport, .bluetooth)
+        XCTAssertEqual(first.content.brightnessByLEDID[1], 255)
+        XCTAssertEqual(first.content.scrollMode, 1)
+        XCTAssertEqual(profiles.first?.content.dpi?.values, [1200])
+        XCTAssertEqual(profiles.first?.content.buttonBindings[5]?.kind, .mouseBack)
+    }
+
+    func testHyperspeedSyntheticLocalProfileKeySurvivesSerialChanges() {
+        let suiteName = "DevicePreferenceStoreTests.HyperspeedSyntheticKey.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = DevicePreferenceStore(defaults: defaults)
+        let firstDevice = makeHyperspeedLocalProfileDevice(serial: "HYPER-A")
+        let reconnectedDevice = makeHyperspeedLocalProfileDevice(serial: "HYPER-B")
+        let firstKey = DevicePreferenceStore.localProfileSyntheticSourceKey(device: firstDevice, slot: 1)
+        let reconnectedKey = DevicePreferenceStore.localProfileSyntheticSourceKey(device: reconnectedDevice, slot: 1)
+
+        XCTAssertEqual(firstKey, reconnectedKey)
+
+        let first = store.upsertOpenSnekLocalProfile(
+            name: "This Mouse",
+            content: OpenSnekLocalProfileContent(
+                dpi: OnboardDPIProfileSnapshot(
+                    scalar: DpiPair(x: 800, y: 800),
+                    activeStage: 0,
+                    pairs: [DpiPair(x: 800, y: 800)]
+                )
+            ),
+            syntheticSourceKey: firstKey,
+            device: firstDevice
+        )
+        let updated = store.upsertOpenSnekLocalProfile(
+            name: "This Mouse",
+            content: OpenSnekLocalProfileContent(
+                dpi: OnboardDPIProfileSnapshot(
+                    scalar: DpiPair(x: 1200, y: 1200),
+                    activeStage: 0,
+                    pairs: [DpiPair(x: 1200, y: 1200)]
+                )
+            ),
+            syntheticSourceKey: reconnectedKey,
+            device: reconnectedDevice
+        )
+        let profiles = store.loadOpenSnekLocalProfiles()
+
+        XCTAssertEqual(first.id, updated.id)
+        XCTAssertEqual(profiles.count, 1)
+        XCTAssertEqual(profiles.first?.content.dpi?.values, [1200])
+    }
+
     func testButtonBindingPersistencePreservesNonTextKeyboardHidKeys() {
         let suiteName = "DevicePreferenceStoreTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -324,4 +567,18 @@ final class DevicePreferenceStoreTests: XCTestCase {
         XCTAssertEqual(store.loadPersistedSoftwareLightingRequest(device: device), storedSoftwareLightingRequest)
         XCTAssertEqual(store.loadPersistedButtonBindings(device: device, profile: 1)[5]?.kind, .keyboardSimple)
     }
+}
+
+private func makeHyperspeedLocalProfileDevice(serial: String) -> MouseDevice {
+    MouseDevice(
+        id: "bt-local-synthetic-\(serial)",
+        vendor_id: 0x068E,
+        product_id: 0x00BA,
+        product_name: "Basilisk V3 X HyperSpeed",
+        transport: .bluetooth,
+        path_b64: "",
+        serial: serial,
+        firmware: nil,
+        profile_id: .basiliskV3XHyperspeed
+    )
 }

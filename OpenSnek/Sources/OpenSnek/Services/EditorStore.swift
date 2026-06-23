@@ -345,9 +345,32 @@ final class EditorStore {
             .supportsMappedOnboardProfileCRUD == true
     }
 
+    var supportsProfilePicker: Bool {
+        guard let selectedDevice = deviceStore.selectedDevice else { return false }
+        return editorController.supportsProfilePicker(device: selectedDevice)
+    }
+
     var onboardProfileSummaries: [OnboardProfileSummary] {
         _ = onboardProfilesRevision
         return editorController.onboardProfileSummaries()
+    }
+
+    var localProfiles: [OpenSnekLocalProfile] {
+        _ = onboardProfilesRevision
+        _ = usbButtonProfilesRevision
+        return editorController.localProfiles()
+    }
+
+    var visibleLocalProfilesForReplacement: [OpenSnekLocalProfile] {
+        _ = onboardProfilesRevision
+        _ = usbButtonProfilesRevision
+        return editorController.visibleLocalProfilesForReplacement()
+    }
+
+    var hasLastSyncedSingleSlotProfile: Bool {
+        _ = onboardProfilesRevision
+        guard let selectedDevice = deviceStore.selectedDevice else { return false }
+        return editorController.singleSlotLocalProfile(device: selectedDevice) != nil
     }
 
     var selectedOnboardProfileID: Int? {
@@ -422,6 +445,13 @@ final class EditorStore {
     }
 
     func refreshOnboardProfiles() async {
+        if !supportsOnboardProfileCRUD {
+            if let selectedDevice = deviceStore.selectedDevice {
+                editorController.removeSingleSlotSyntheticLocalProfile(device: selectedDevice)
+                editorController.repairEmptyLocalProfilesForSelectedDevice(device: selectedDevice)
+            }
+            return
+        }
         let ownsRefreshPresentation = !isOnboardProfileRefreshInFlight
         if ownsRefreshPresentation {
             isOnboardProfileRefreshInFlight = true
@@ -433,6 +463,9 @@ final class EditorStore {
             }
         }
         await editorController.refreshOnboardProfiles()
+        if let selectedDevice = deviceStore.selectedDevice {
+            editorController.repairEmptyLocalProfilesForSelectedDevice(device: selectedDevice)
+        }
         if ownsRefreshPresentation,
            onboardProfileSummaries.isEmpty,
            let errorMessage = deviceStore.errorMessage,
@@ -470,6 +503,49 @@ final class EditorStore {
     func deleteSelectedOnboardProfile() async {
         await withButtonProfileOperation(statusText: "Deleting profile...") { [self] in
             await self.editorController.deleteSelectedOnboardProfile()
+        }
+    }
+
+    func createLocalProfile(name: String, copying sourceID: UUID?) {
+        editorController.createLocalProfile(name: name, copying: sourceID)
+    }
+
+    func createLocalProfileFromMouse(name: String) async {
+        await withButtonProfileOperation(statusText: "Creating profile...") { [self] in
+            await self.editorController.createLocalProfileFromMouse(name: name)
+        }
+    }
+
+    func renameLocalProfile(id: UUID, name: String) {
+        editorController.renameLocalProfile(id: id, name: name)
+    }
+
+    func deleteLocalProfile(id: UUID) {
+        editorController.deleteLocalProfile(id: id)
+    }
+
+    func localProfileCanApply(_ profile: OpenSnekLocalProfile) -> Bool {
+        _ = onboardProfilesRevision
+        _ = usbButtonProfilesRevision
+        guard let selectedDevice = deviceStore.selectedDevice else { return false }
+        return editorController.localProfileCanApply(profile, to: selectedDevice)
+    }
+
+    func replaceSelectedProfile(with localProfileID: UUID) async {
+        await withButtonProfileOperation(statusText: "Replacing profile...") { [self] in
+            await self.editorController.replaceSelectedProfile(with: localProfileID)
+        }
+    }
+
+    func loadSelectedSingleSlotProfileFromMouse() async {
+        await withButtonProfileOperation(statusText: "Loading from mouse...") { [self] in
+            await self.editorController.loadSelectedSingleSlotProfileFromMouse()
+        }
+    }
+
+    func applyLastSyncedSingleSlotProfile() async {
+        await withButtonProfileOperation(statusText: "Applying profile...") { [self] in
+            await self.editorController.applyLastSyncedSingleSlotProfile()
         }
     }
 

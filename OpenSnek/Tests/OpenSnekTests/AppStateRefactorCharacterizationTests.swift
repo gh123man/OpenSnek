@@ -13,6 +13,7 @@ struct RecordedOnboardUpdate {
 struct RecordedOnboardCreate {
     let deviceID: String
     let targetProfileID: Int?
+    let replaceAssignedProfile: Bool
     let mutation: OnboardProfileMutation
 }
 
@@ -348,6 +349,7 @@ actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupportingBackend 
         onboardCreates.append(RecordedOnboardCreate(
             deviceID: device.id,
             targetProfileID: targetProfileID,
+            replaceAssignedProfile: replaceAssignedProfile,
             mutation: mutation
         ))
         let snapshot = OnboardProfileSnapshot(
@@ -1100,6 +1102,8 @@ func clearRefactorPreferences(for device: MouseDevice) {
 
 func clearSavedButtonProfiles() {
     UserDefaults.standard.removeObject(forKey: "openSnekButtonProfiles")
+    UserDefaults.standard.removeObject(forKey: "openSnekLocalProfiles")
+    UserDefaults.standard.removeObject(forKey: "openSnekLocalProfilesMigratedFromButtonProfiles")
 }
 
 func waitForRefactorCondition(

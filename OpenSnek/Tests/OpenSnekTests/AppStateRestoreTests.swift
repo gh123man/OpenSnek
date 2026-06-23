@@ -14,6 +14,7 @@ final class AppStateRestoreTests: XCTestCase {
         )
         let persistedColor = RGBColor(r: 10, g: 20, b: 30)
         let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
         preferenceStore.persistDeviceSettingsSnapshot(
             makeRefactorSettingsSnapshot(
                 color: persistedColor,
@@ -327,7 +328,7 @@ final class AppStateRestoreTests: XCTestCase {
         }
     }
 
-    func testHyperspeedForcesRestoreBehaviorAndHidesConnectBehaviorCard() async throws {
+    func testProfiledHyperspeedUsesEditableConnectBehaviorInProfilePicker() async throws {
         let device = makeRefactorTestDevice(
             id: "bt-hyperspeed-connect-behavior",
             transport: .bluetooth,
@@ -356,9 +357,16 @@ final class AppStateRestoreTests: XCTestCase {
 
         await appState.deviceStore.refreshDevices()
 
-        let connectBehavior = await MainActor.run { appState.editorStore.connectBehavior }
+        let initialBehavior = await MainActor.run { appState.editorStore.connectBehavior }
+        XCTAssertEqual(initialBehavior, .useMouseSettings)
+
+        await MainActor.run {
+            appState.editorStore.updateConnectBehavior(.restoreOpenSnekSettings)
+        }
+
+        let updatedBehavior = await MainActor.run { appState.editorStore.connectBehavior }
         let showsCard = await MainActor.run { appState.editorStore.showsConnectBehaviorCard }
-        XCTAssertEqual(connectBehavior, .restoreOpenSnekSettings)
+        XCTAssertEqual(updatedBehavior, .restoreOpenSnekSettings)
         XCTAssertFalse(showsCard)
     }
 
@@ -409,7 +417,7 @@ final class AppStateRestoreTests: XCTestCase {
         XCTAssertEqual(applyCount, 0)
     }
 
-    func testUSBHyperspeedDoesNotForceRestoreBehavior() async throws {
+    func testUSBHyperspeedUsesProfilePickerInsteadOfOnConnectCard() async throws {
         let device = makeRefactorTestDevice(
             id: "usb-hyperspeed-connect-behavior",
             transport: .usb,
@@ -440,9 +448,11 @@ final class AppStateRestoreTests: XCTestCase {
         await appState.deviceStore.refreshDevices()
 
         let connectBehavior = await MainActor.run { appState.editorStore.connectBehavior }
+        let supportsProfilePicker = await MainActor.run { appState.editorStore.supportsProfilePicker }
         let showsCard = await MainActor.run { appState.editorStore.showsConnectBehaviorCard }
         XCTAssertEqual(connectBehavior, .useMouseSettings)
-        XCTAssertTrue(showsCard)
+        XCTAssertTrue(supportsProfilePicker)
+        XCTAssertFalse(showsCard)
     }
 
     func testDisabledSettingStorageKeepsReconnectRehydrationSourceAtLastStoredSnapshot() async throws {

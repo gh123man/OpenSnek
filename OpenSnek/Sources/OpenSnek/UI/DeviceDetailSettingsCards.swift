@@ -19,7 +19,7 @@ struct OnConnectBehaviorCard: View {
         case .useMouseSettings:
             return "OpenSnek reads the current settings from the mouse when it connects and does not rewrite them automatically."
         case .restoreOpenSnekSettings:
-            return "OpenSnek reapplies the last settings you changed here when this mouse connects."
+            return "OpenSnek reapplies the last profile you changed here when this mouse connects."
         }
     }
 
@@ -28,7 +28,7 @@ struct OnConnectBehaviorCard: View {
             VStack(alignment: .leading, spacing: 12) {
                 Picker("On Connect Behavior", selection: connectBehaviorBinding) {
                     Text("Use Mouse Settings").tag(DeviceConnectBehavior.useMouseSettings)
-                    Text("Restore OpenSnek Settings").tag(DeviceConnectBehavior.restoreOpenSnekSettings)
+                    Text("Restore Last Profile").tag(DeviceConnectBehavior.restoreOpenSnekSettings)
                 }
                 .labelsHidden()
                 .pickerStyle(.segmented)
@@ -52,7 +52,7 @@ struct OnConnectBehaviorCard: View {
                 }
 
                 if showsExpandedInfo {
-                    Text("Choose Use OpenSnek Settings if you use this mouse with another computer or with Synapse. Vendor software can overwrite the live settings on reconnect, and this restores your OpenSnek setup.")
+                    Text("Choose Restore Last Profile if you use this mouse with another computer or with Synapse. Vendor software can overwrite the live settings on reconnect, and this restores your OpenSnek setup.")
                         .hintTextStyle()
                 }
             }

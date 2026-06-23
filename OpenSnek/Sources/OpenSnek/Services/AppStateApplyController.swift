@@ -42,6 +42,29 @@ final class AppStateApplyController {
         let persistLightingZoneID: String
         let clearLocalEditsOnSuccess: Bool
         let backendApplyOptions: ApplyOptions
+
+        let validLocalEditGeneration: UInt64?
+        let validSettingsRestoreRevision: Int?
+
+        init(
+            markApplyingState: Bool,
+            shouldFocusOnActivity: Bool,
+            shouldSurfaceApplyFailure: Bool,
+            persistLightingZoneID: String,
+            clearLocalEditsOnSuccess: Bool,
+            backendApplyOptions: ApplyOptions,
+            validLocalEditGeneration: UInt64? = nil,
+            validSettingsRestoreRevision: Int? = nil
+        ) {
+            self.markApplyingState = markApplyingState
+            self.shouldFocusOnActivity = shouldFocusOnActivity
+            self.shouldSurfaceApplyFailure = shouldSurfaceApplyFailure
+            self.persistLightingZoneID = persistLightingZoneID
+            self.clearLocalEditsOnSuccess = clearLocalEditsOnSuccess
+            self.backendApplyOptions = backendApplyOptions
+            self.validLocalEditGeneration = validLocalEditGeneration
+            self.validSettingsRestoreRevision = validSettingsRestoreRevision
+        }
     }
 
     private struct SuccessfulApplyContext {
@@ -56,6 +79,9 @@ final class AppStateApplyController {
     private var applyTasks: [ApplyTaskKey: Task<Void, Never>] = [:]
     var hasPendingLocalEdits = false
     private var applyDrainTask: Task<Void, Never>?
+    private var localEditGeneration: UInt64 = 0
+    private var hardwareApplyInFlight = false
+    private var hardwareApplyWaiters: [CheckedContinuation<Void, Never>] = []
     var lastLocalEditAt: Date?
     var localEditDeviceIdentityKey: String?
     var pendingActiveStageSelectionByDeviceIdentityKey: [String: Int] = [:]
@@ -404,6 +430,7 @@ final class AppStateApplyController {
     ) {
         guard !editorController.isHydrating else { return }
         markLocalEditsPending()
+        let generation = localEditGeneration
         applyTasks[key]?.cancel()
         applyTasks[key] = Task {
             do {
@@ -412,8 +439,17 @@ final class AppStateApplyController {
                 return
             }
             guard !Task.isCancelled else { return }
-            await action()
+            await runScheduledApplyIfCurrent(generation: generation, action)
         }
+    }
+
+    private func runScheduledApplyIfCurrent(
+        generation: UInt64,
+        _ action: @escaping @MainActor () async -> Void
+    ) async {
+        guard !Task.isCancelled else { return }
+        guard generation == localEditGeneration else { return }
+        await action()
     }
 
     private func cancelScheduledApply(for key: ApplyTaskKey) {
@@ -460,6 +496,16 @@ final class AppStateApplyController {
     }
 
     func cancelPendingLocalEditsForSelectionChange() {
+        _ = cancelPendingLocalEditsForSelectionChangeReturningDrainTask()
+    }
+
+    func cancelAndDrainPendingLocalEditsForSelectionChange() async {
+        let drainTask = cancelPendingLocalEditsForSelectionChangeReturningDrainTask()
+        await drainTask?.value
+    }
+
+    private func cancelPendingLocalEditsForSelectionChangeReturningDrainTask() -> Task<Void, Never>? {
+        localEditGeneration &+= 1
         for task in applyTasks.values {
             task.cancel()
         }
@@ -469,10 +515,15 @@ final class AppStateApplyController {
         lastLocalEditAt = nil
         localEditDeviceIdentityKey = nil
         pendingActiveStageSelectionByDeviceIdentityKey.removeAll()
+        return applyDrainTask
+    }
+
+    func cancelPendingPersistedSettingsRestore(for device: MouseDevice) {
+        deviceController.cancelPendingSettingsRestore(for: device)
     }
 
     func enqueueApply(_ patch: DevicePatch) {
-        _ = applyCoordinator.enqueue(patch)
+        _ = applyCoordinator.enqueue(patch, generation: localEditGeneration)
         markLocalEditsPending()
 
         if applyDrainTask == nil {
@@ -487,6 +538,11 @@ final class AppStateApplyController {
         _ plan: AppStateEditorController.PersistedSettingsRestorePlan,
         to device: MouseDevice
     ) async -> Bool {
+        if editorController.singleSlotProfileApplySyncSuppressedDeviceIDs.contains(device.id) {
+            AppLog.debug("AppState", "restore skipped during single-slot profile replacement device=\(device.id)")
+            return true
+        }
+        let restoreRevision = deviceController.settingsRestoreRevision(for: device)
         let selectedIdentity = deviceStore.selectedDevice.map(deviceController.deviceIdentityKey)
         let targetIdentity = deviceController.deviceIdentityKey(device)
         let targetsSelectedDevice = selectedIdentity == targetIdentity
@@ -505,7 +561,8 @@ final class AppStateApplyController {
                     shouldSurfaceApplyFailure: targetsSelectedDevice,
                     persistLightingZoneID: persistLightingZoneID,
                     clearLocalEditsOnSuccess: false,
-                    backendApplyOptions: ApplyOptions()
+                    backendApplyOptions: ApplyOptions(),
+                    validSettingsRestoreRevision: restoreRevision
                 )
             )
             guard restoredState else { return false }
@@ -534,7 +591,8 @@ final class AppStateApplyController {
                     shouldSurfaceApplyFailure: targetsSelectedDevice,
                     persistLightingZoneID: persistLightingZoneID,
                     clearLocalEditsOnSuccess: false,
-                    backendApplyOptions: restoreButtonApplyOptions
+                    backendApplyOptions: restoreButtonApplyOptions,
+                    validSettingsRestoreRevision: restoreRevision
                 )
             )
             guard restoredButton else { return false }
@@ -555,8 +613,12 @@ final class AppStateApplyController {
     }
 
     private func drainApplyQueue() async {
-        while let patch = applyCoordinator.dequeue() {
-            await applySelectedPatch(patch)
+        while let entry = applyCoordinator.dequeueEntry() {
+            guard entry.generation == localEditGeneration else {
+                hasPendingLocalEdits = applyCoordinator.hasPending
+                continue
+            }
+            await applySelectedPatch(entry.patch, generation: entry.generation)
             hasPendingLocalEdits = applyCoordinator.hasPending
         }
         hasPendingLocalEdits = false
@@ -564,7 +626,8 @@ final class AppStateApplyController {
         applyDrainTask = nil
     }
 
-    private func applySelectedPatch(_ patch: DevicePatch) async {
+    private func applySelectedPatch(_ patch: DevicePatch, generation: UInt64) async {
+        guard generation == localEditGeneration else { return }
         guard let selectedDevice = deviceStore.selectedDevice else {
             AppLog.warning("AppState", "apply skipped with no selected device patch=\(patch.describe)")
             deviceStore.errorMessage = "No device selected"
@@ -579,7 +642,8 @@ final class AppStateApplyController {
                 shouldSurfaceApplyFailure: true,
                 persistLightingZoneID: editorStore.editableUSBLightingZoneID,
                 clearLocalEditsOnSuccess: true,
-                backendApplyOptions: ApplyOptions()
+                backendApplyOptions: ApplyOptions(),
+                validLocalEditGeneration: generation
             )
         )
     }
@@ -605,8 +669,12 @@ final class AppStateApplyController {
         let applyDeviceID = targetDevice.id
 
         await stopSoftwareLightingIfNormalLightingPatch(patch, device: targetDevice)
+        guard applyIsStillCurrent(behavior: behavior, targetDevice: targetDevice, patch: patch) else { return false }
 
         do {
+            await enterHardwareApplyGate()
+            defer { leaveHardwareApplyGate() }
+            guard applyIsStillCurrent(behavior: behavior, targetDevice: targetDevice, patch: patch) else { return false }
             let next = try await applyBackendState(
                 device: targetDevice,
                 patch: patch,
@@ -632,6 +700,61 @@ final class AppStateApplyController {
             )
             return false
         }
+    }
+
+    private func applyIsStillCurrent(
+        behavior: ApplyBehavior,
+        targetDevice: MouseDevice,
+        patch: DevicePatch
+    ) -> Bool {
+        if shouldSuppressApplyDuringSingleSlotReplacement(behavior: behavior, targetDevice: targetDevice) {
+            AppLog.debug(
+                "AppState",
+                "apply skipped during single-slot profile replacement device=\(targetDevice.id) patch=\(patch.describe)"
+            )
+            return false
+        }
+        if let generation = behavior.validLocalEditGeneration, generation != localEditGeneration {
+            AppLog.debug("AppState", "local edit apply skipped after invalidation device=\(targetDevice.id) patch=\(patch.describe)")
+            return false
+        }
+        if let revision = behavior.validSettingsRestoreRevision,
+           revision != deviceController.settingsRestoreRevision(for: targetDevice) {
+            AppLog.debug(
+                "AppState",
+                "settings restore apply skipped after invalidation device=\(targetDevice.id) patch=\(patch.describe)"
+            )
+            return false
+        }
+        return true
+    }
+
+    private func shouldSuppressApplyDuringSingleSlotReplacement(
+        behavior: ApplyBehavior,
+        targetDevice: MouseDevice
+    ) -> Bool {
+        guard behavior.validLocalEditGeneration != nil || behavior.validSettingsRestoreRevision != nil else {
+            return false
+        }
+        return editorController.singleSlotProfileApplySyncSuppressedDeviceIDs.contains(targetDevice.id)
+    }
+
+    private func enterHardwareApplyGate() async {
+        if !hardwareApplyInFlight {
+            hardwareApplyInFlight = true
+            return
+        }
+        await withCheckedContinuation { continuation in
+            hardwareApplyWaiters.append(continuation)
+        }
+    }
+
+    private func leaveHardwareApplyGate() {
+        guard !hardwareApplyWaiters.isEmpty else {
+            hardwareApplyInFlight = false
+            return
+        }
+        hardwareApplyWaiters.removeFirst().resume()
     }
 
     private func applyBackendState(
@@ -763,18 +886,27 @@ final class AppStateApplyController {
             device: presentationDevice,
             defaultZoneID: persistLightingZoneID
         )
+        let suppressSingleSlotProfileSync = editorController.singleSlotProfileApplySyncSuppressedDeviceIDs
+            .contains(presentationDeviceID)
         if deviceStore.selectedDeviceID == presentationDeviceID {
-            editorController.persistCurrentSettingsSnapshot(
-                for: presentationDevice,
-                preservingStoredLighting: preserveStoredLighting,
-                lightingZoneOverride: snapshotLightingZoneOverride
+            if !suppressSingleSlotProfileSync {
+                editorController.persistCurrentSettingsSnapshot(
+                    for: presentationDevice,
+                    preservingStoredLighting: preserveStoredLighting,
+                    lightingZoneOverride: snapshotLightingZoneOverride
+                )
+            }
+            if editorController.supportsOnboardProfileCRUD(device: presentationDevice) {
+                editorController.syncSelectedMappedLocalProfileFromEditor(device: presentationDevice)
+            }
+        }
+        if !suppressSingleSlotProfileSync {
+            editorController.persistSuccessfulPatchFieldsInSettingsSnapshot(
+                patch: patch,
+                device: presentationDevice,
+                lightingZoneID: snapshotLightingZoneOverride ?? persistLightingZoneID
             )
         }
-        editorController.persistSuccessfulPatchFieldsInSettingsSnapshot(
-            patch: patch,
-            device: presentationDevice,
-            lightingZoneID: snapshotLightingZoneOverride ?? persistLightingZoneID
-        )
 
         if deviceStore.selectedDeviceID == presentationDeviceID {
             deviceStore.errorMessage = nil

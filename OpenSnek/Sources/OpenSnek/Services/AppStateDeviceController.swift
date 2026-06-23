@@ -168,6 +168,14 @@ final class AppStateDeviceController {
         }
     }
 
+    func cancelPendingSettingsRestore(for device: MouseDevice) {
+        for deviceID in deviceIDsSharingIdentity(with: device) {
+            pendingSettingsRestoreDeviceIDs.remove(deviceID)
+            pendingSettingsRestoreGenerationByDeviceID[deviceID, default: 0] += 1
+            settingsRestoreRevisionByDeviceID[deviceID, default: 0] += 1
+        }
+    }
+
     func storeState(_ state: MouseState, for deviceID: String, updatedAt: Date) {
         stateCacheByDeviceID[deviceID] = state
         lastUpdatedByDeviceID[deviceID] = updatedAt

@@ -212,6 +212,7 @@ extension AppStateEditorController {
         let storedName = onboardProfileInventoryByDeviceID[device.id]?
             .summary(for: storedSnapshot.profileID)?
             .displayName ?? "<missing>"
+        syncLocalProfile(from: storedSnapshot, device: device, source: source)
         AppLog.debug(
             "AppState",
             "onboard profile snapshot stored source=\(source) device=\(device.id) profile=\(storedSnapshot.profileID) priorName=\"\(priorName)\" snapshotName=\"\(storedSnapshot.metadata.name)\" storedName=\"\(storedName)\" projected=\(projectMetadataForRefresh)"
@@ -374,7 +375,10 @@ extension AppStateEditorController {
     }
 
     func onboardProfileSummaries() -> [OnboardProfileSummary] {
-        guard let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return [] }
+        guard let device = deviceStore.selectedDevice else { return [] }
+        guard supportsOnboardProfileCRUD(device: device) else {
+            return supportsProfilePicker(device: device) ? [singleSlotProfileSummary(device: device)] : []
+        }
         if let inventory = onboardProfileInventoryByDeviceID[device.id] {
             return synthesizedOnboardProfileSummaries(from: inventory)
         }
@@ -382,7 +386,10 @@ extension AppStateEditorController {
     }
 
     func selectedOnboardProfileID() -> Int? {
-        guard let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return nil }
+        guard let device = deviceStore.selectedDevice else { return nil }
+        guard supportsOnboardProfileCRUD(device: device) else {
+            return supportsProfilePicker(device: device) ? 1 : nil
+        }
         return selectedOnboardProfileIDByDeviceID[device.id] ?? deviceStore.state?.active_onboard_profile
     }
 
@@ -405,6 +412,9 @@ extension AppStateEditorController {
     func selectedOnboardProfileIsActive() -> Bool {
         guard let device = deviceStore.selectedDevice,
               let selected = selectedOnboardProfileID() else { return false }
+        guard supportsOnboardProfileCRUD(device: device) else {
+            return supportsProfilePicker(device: device) && selected == 1
+        }
         return isOnboardProfileActive(deviceID: device.id, profileID: selected)
     }
 
@@ -481,7 +491,14 @@ extension AppStateEditorController {
     }
 
     func selectOnboardProfile(_ profileID: Int) async {
-        guard !isTearingDown, let device = deviceStore.selectedDevice, supportsOnboardProfileCRUD(device: device) else { return }
+        guard !isTearingDown, let device = deviceStore.selectedDevice else { return }
+        guard supportsOnboardProfileCRUD(device: device) else {
+            guard supportsProfilePicker(device: device), profileID == 1 else { return }
+            selectedOnboardProfileIDByDeviceID[device.id] = 1
+            deviceStore.errorMessage = nil
+            bumpOnboardProfilesRevision()
+            return
+        }
         applyController.cancelPendingLocalEditsForSelectionChange()
         clearButtonWorkspaceEditMarkers(deviceID: device.id)
         cancelSelectedMouseSlotHydration(deviceID: device.id)
