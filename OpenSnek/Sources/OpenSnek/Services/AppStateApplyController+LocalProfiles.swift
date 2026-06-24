@@ -134,8 +134,10 @@ extension AppStateApplyController {
         guard device.showsLightingControls else {
             return LocalProfileLightingPatch(rgb: nil, effect: nil, ledIDs: nil)
         }
-        if let effect = content.lightingEffect,
-           device.supports_advanced_lighting_effects {
+        if let effect = content.lightingEffect, effect.kind == .staticColor {
+            return LocalProfileLightingPatch(rgb: effect.primary, effect: nil, ledIDs: nil)
+        }
+        if let effect = content.lightingEffect, device.supports_advanced_lighting_effects {
             return LocalProfileLightingPatch(rgb: nil, effect: effect, ledIDs: nil)
         }
         let rgb = content.staticColorByLEDID.sorted(by: { $0.key < $1.key }).first?.value

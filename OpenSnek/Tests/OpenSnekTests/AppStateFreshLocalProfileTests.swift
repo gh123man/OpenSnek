@@ -185,6 +185,62 @@ final class AppStateFreshLocalProfileTests: XCTestCase {
         }
         XCTAssertFalse(lightingPatches.isEmpty)
     }
+
+    func testUSBSingleSlotProfileSwitchPersistsPendingLightingColorEdit() async throws {
+        clearSavedButtonProfiles()
+        let device = makeFreshSingleSlotUSBProfileDevice(id: "local-profile-switch-pending-usb-color")
+        defer { clearRefactorPreferences(for: device) }
+
+        let preferenceStore = DevicePreferenceStore()
+        let alpha = preferenceStore.createOpenSnekLocalProfile(
+            name: "Alpha",
+            content: freshSingleSlotLocalProfileContent(dpiValues: [800, 1600])
+        )
+        let beta = preferenceStore.createOpenSnekLocalProfile(
+            name: "Beta",
+            content: freshSingleSlotLocalProfileContent(dpiValues: [1200, 2400])
+        )
+        let backend = makeFreshLocalProfileBackend(device: device, activeProfile: 1, dpiValues: [800, 1600])
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.replaceSelectedProfile(with: alpha.id)
+
+        let blue = RGBPatch(r: 0, g: 0, b: 255)
+        await MainActor.run {
+            appState.editorStore.editableColor = RGBColor(r: blue.r, g: blue.g, b: blue.b)
+            appState.editorStore.scheduleAutoApplyLightingEffect()
+        }
+        await appState.editorStore.replaceSelectedProfile(with: beta.id)
+
+        let updatedAlpha = try XCTUnwrap(
+            preferenceStore.loadOpenSnekLocalProfiles().first { $0.id == alpha.id }
+        )
+        XCTAssertEqual(updatedAlpha.content.staticColorByLEDID[1], blue)
+
+        let red = RGBPatch(r: 255, g: 0, b: 0)
+        await MainActor.run {
+            appState.editorStore.editableColor = RGBColor(r: red.r, g: red.g, b: red.b)
+            appState.editorStore.scheduleAutoApplyLightingEffect()
+        }
+        await appState.editorStore.replaceSelectedProfile(with: alpha.id)
+
+        let restoredColor = await MainActor.run {
+            appState.editorStore.editableColor
+        }
+        XCTAssertEqual(restoredColor, RGBColor(r: blue.r, g: blue.g, b: blue.b))
+        let updatedBeta = try XCTUnwrap(
+            preferenceStore.loadOpenSnekLocalProfiles().first { $0.id == beta.id }
+        )
+        XCTAssertEqual(updatedBeta.content.staticColorByLEDID[1], red)
+
+        let lightingPatches = await backend.recordedPatches().filter {
+            $0.ledRGB == blue
+        }
+        XCTAssertFalse(lightingPatches.isEmpty)
+        XCTAssertTrue(lightingPatches.allSatisfy { $0.lightingEffect == nil })
+    }
 }
 
 private func makeFreshMappedProfileMutation() -> OnboardProfileMutation {
@@ -212,6 +268,16 @@ private func makeFreshSingleSlotProfileDevice(id: String) -> MouseDevice {
     makeRefactorTestDevice(
         id: id,
         transport: .bluetooth,
+        serial: "LOCAL-PROFILE-\(UUID().uuidString)",
+        onboardProfileCount: 1,
+        profileID: .basiliskV3XHyperspeed
+    )
+}
+
+private func makeFreshSingleSlotUSBProfileDevice(id: String) -> MouseDevice {
+    makeRefactorTestDevice(
+        id: id,
+        transport: .usb,
         serial: "LOCAL-PROFILE-\(UUID().uuidString)",
         onboardProfileCount: 1,
         profileID: .basiliskV3XHyperspeed

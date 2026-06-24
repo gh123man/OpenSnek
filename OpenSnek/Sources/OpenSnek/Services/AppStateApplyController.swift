@@ -350,7 +350,7 @@ final class AppStateApplyController {
         }
         enqueueApply(
             DevicePatch(
-                ledRGB: RGBPatch(r: editorStore.editableColor.r, g: editorStore.editableColor.g, b: editorStore.editableColor.b),
+                ledRGB: currentStaticLightingRGBPatch(),
                 usbLightingZoneLEDIDs: editorController.currentUSBLightingZoneLEDIDs()
             )
         )
@@ -371,12 +371,20 @@ final class AppStateApplyController {
                 _ = await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice)
                 return
             }
-            enqueueApply(DevicePatch(ledRGB: RGBPatch(r: editorStore.editableColor.r, g: editorStore.editableColor.g, b: editorStore.editableColor.b)))
+            enqueueApply(DevicePatch(ledRGB: currentStaticLightingRGBPatch()))
             return
         }
-        if editorStore.editableLightingEffect == .staticColor,
-           supportsOnboardProfileLightingEditorWrites(device: selectedDevice) {
-            _ = await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice)
+        if editorStore.editableLightingEffect == .staticColor {
+            if supportsOnboardProfileLightingEditorWrites(device: selectedDevice) {
+                _ = await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice)
+                return
+            }
+            enqueueApply(
+                DevicePatch(
+                    ledRGB: currentStaticLightingRGBPatch(),
+                    usbLightingZoneLEDIDs: editorController.currentUSBLightingZoneLEDIDs()
+                )
+            )
             return
         }
         enqueueApply(
@@ -384,6 +392,14 @@ final class AppStateApplyController {
                 lightingEffect: editorController.currentLightingEffectPatch(),
                 usbLightingZoneLEDIDs: editorController.currentUSBLightingZoneLEDIDs()
             )
+        )
+    }
+
+    private func currentStaticLightingRGBPatch() -> RGBPatch {
+        RGBPatch(
+            r: editorStore.editableColor.r,
+            g: editorStore.editableColor.g,
+            b: editorStore.editableColor.b
         )
     }
 

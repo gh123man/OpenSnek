@@ -5,6 +5,48 @@ import OpenSnekCore
 @testable import OpenSnek
 
 final class AppStateLightingCharacterizationTests: XCTestCase {
+    func testUSBHyperSpeedStaticEffectApplyUsesRGBPatch() async throws {
+        let device = makeRefactorUSBLightingRestoreDevice(
+            id: "usb-hyperspeed-static-rgb-device",
+            serial: "USB-HS-STATIC-\(UUID().uuidString)"
+        )
+        defer { clearRefactorPreferences(for: device) }
+
+        let backend = AppStateRefactorStubBackend(
+            devices: [device],
+            stateByDeviceID: [
+                device.id: makeRefactorTestState(
+                    device: device,
+                    telemetry: RefactorTestStateTelemetry(
+                        connection: "usb",
+                        batteryPercent: 81,
+                        dpiValues: [800, 1600],
+                        activeStage: 0
+                    )
+                )
+            ]
+        )
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+
+        await appState.deviceStore.refreshDevices()
+        await MainActor.run {
+            appState.editorStore.editableLightingEffect = .staticColor
+            appState.editorStore.editableColor = RGBColor(r: 0, g: 128, b: 255)
+            appState.editorStore.scheduleAutoApplyLightingEffect()
+        }
+
+        try await waitForRefactorCondition {
+            await backend.applyCount() == 1
+        }
+
+        let patches = await backend.recordedPatches()
+        let patch = try XCTUnwrap(patches.first)
+        XCTAssertEqual(patch.ledRGB, RGBPatch(r: 0, g: 128, b: 255))
+        XCTAssertNil(patch.lightingEffect)
+    }
+
     func testUSBLightingZoneSwitchLoadsPersistedZoneSpecificColor() async throws {
         let device = makeRefactorMultiZoneUSBLightingDevice(
             id: "usb-zone-switch-lighting-device",

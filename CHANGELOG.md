@@ -49,6 +49,7 @@ All notable changes to this project are documented in this file.
 - The Lighting card now hides the Advanced software-lighting tab on Basilisk V3 X HyperSpeed and Bluetooth devices that cannot stream software effects.
 - Loading or editing a reduced-stage HyperSpeed local profile on a V3 Pro onboard slot now keeps the intended DPI stage count in the editor, overwrites hidden stored rows, and projects the logical count to the active USB profile so DPI cycling does not land on stale invisible slots.
 - Switching away from a selected single-slot local profile now preserves pending lighting color edits before loading the next profile, so returning to the first profile restores its color.
+- Basilisk V3 X HyperSpeed USB static-color edits and single-slot local-profile restores now stay on the RGB color path instead of being treated as lighting-effect changes, keeping saved profile colors consistent.
 
 ## [1.0.0]
 
