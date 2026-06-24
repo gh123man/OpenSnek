@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="OpenSnek is a free, open source macOS app for configuring supported Razer mice without Synapse."
+    >
+    <title>OpenSnek - macOS Razer Mouse Control</title>
+    <link rel="stylesheet" href="./landing.css">
+  </head>
+  <body>
+    <header class="hero">
+      <nav class="site-nav" aria-label="Primary navigation">
+        <a class="brand-link" href="https://github.com/gh123man/OpenSnek" aria-label="OpenSnek on GitHub">
+          <img src="./media/app-icon.png" alt="" class="brand-mark">
+          <span>OpenSnek</span>
+        </a>
+        <div class="nav-actions">
+          <a href="https://github.com/gh123man/OpenSnek/releases">Download</a>
+          <a href="https://github.com/gh123man/OpenSnek">GitHub</a>
+          <a href="https://github.com/gh123man/OpenSnek/blob/main/docs/DEVICE_SUPPORT.md">Device support</a>
+        </div>
+      </nav>
+
+      <div class="hero-copy">
+        <p class="eyebrow">Native macOS control for supported Razer mice</p>
+        <h1>OpenSnek</h1>
+        <p>A lightweight macOS alternative to Razer Synapse for supported mice.</p>
+        <div class="button-row">
+          <a class="button button-primary" href="https://github.com/gh123man/OpenSnek/releases">Download DMG</a>
+          <a class="button button-secondary" href="https://github.com/gh123man/OpenSnek">View on GitHub</a>
+        </div>
+        <div class="open-source-note">OpenSnek is 100% free and open source software.</div>
+      </div>
+    </header>
+
+    <main>
+      <section class="stat-strip" aria-label="Project highlights">
+        <div>
+          <strong>macOS Native</strong>
+          <span>Native Swift app with low idle overhead and no extra runtime bloat.</span>
+        </div>
+        <div>
+          <strong>USB + Bluetooth</strong>
+          <span>Supports compatible mice over both USB and Bluetooth, depending on the device.</span>
+        </div>
+        <div>
+          <strong>Onboard profiles</strong>
+          <span>Supports Synapse-compatible onboard profiles over USB and Bluetooth where the device allows it.</span>
+        </div>
+        <div>
+          <strong>V3 X HyperSpeed</strong>
+          <span>Razer Synapse does not support it on macOS; OpenSnek is the only native macOS configuration path for it.</span>
+        </div>
+      </section>
+
+      <section class="band split-band">
+        <div class="section-copy">
+          <div class="app-identity-lockup">
+            <img src="./media/app-icon.png" alt="OpenSnek app icon">
+            <div>
+              <h2>Customize your device without compromises.</h2>
+            </div>
+          </div>
+          <p>
+            OpenSnek surfaces the hardware settings mouse owners actually reach for: DPI stages,
+            active stage, lighting, power, poll rate where available, and button remaps.
+          </p>
+          <div class="app-meta-row" aria-label="OpenSnek app details">
+            <span>macOS 14+</span>
+            <span>Native Swift</span>
+            <span>Apache 2.0</span>
+          </div>
+        </div>
+        <figure class="media-frame large-frame">
+          <img src="./media/screenshot.png" alt="OpenSnek macOS app showing device controls">
+        </figure>
+      </section>
+
+      <section class="band quiet-band">
+        <div class="section-heading">
+          <p class="eyebrow">Core controls</p>
+          <h2>DPI, profiles, and button remaps.</h2>
+        </div>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <img src="./media/menu-icon.png" alt="OpenSnek menu bar DPI control">
+            <h3>Menu bar DPI control</h3>
+            <p>Quick stage changes stay available without keeping the full window in the way.</p>
+          </article>
+          <article class="feature-card">
+            <img src="./media/profiles.png" alt="OpenSnek onboard profile editor">
+            <h3>Onboard profiles</h3>
+            <p>Manage hardware profiles on supported devices and keep settings on the mouse.</p>
+          </article>
+          <article class="feature-card">
+            <img src="./media/bindings.png" alt="OpenSnek button binding editor">
+            <h3>Button remaps</h3>
+            <p>Rebind supported mouse buttons, including keyboard actions and turbo mappings.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="band support-band">
+        <div class="section-heading">
+          <h2>Device support</h2>
+        </div>
+        <div class="support-table" role="table" aria-label="Supported OpenSnek devices">
+          <div role="row">
+            <span role="columnheader">Device</span>
+            <span role="columnheader">USB</span>
+            <span role="columnheader">Bluetooth</span>
+          </div>
+          <div role="row">
+            <span role="cell" data-label="Device">Basilisk V3 X HyperSpeed</span>
+            <span role="cell" data-label="USB"><span class="support-mark support-yes" aria-label="Supported">✓</span></span>
+            <span role="cell" data-label="Bluetooth"><span class="support-mark support-yes" aria-label="Supported">✓</span></span>
+          </div>
+          <div role="row">
+            <span role="cell" data-label="Device">Basilisk V3 Pro</span>
+            <span role="cell" data-label="USB"><span class="support-mark support-yes" aria-label="Supported">✓</span></span>
+            <span role="cell" data-label="Bluetooth"><span class="support-mark support-yes" aria-label="Supported">✓</span></span>
+          </div>
+          <div role="row">
+            <span role="cell" data-label="Device">Basilisk V3 35K</span>
+            <span role="cell" data-label="USB"><span class="support-mark support-yes" aria-label="Supported">✓</span></span>
+            <span role="cell" data-label="Bluetooth"><span class="support-mark support-no" aria-label="Not supported">-</span></span>
+          </div>
+          <div role="row">
+            <span role="cell" data-label="Device">Orochi V2</span>
+            <span role="cell" data-label="USB"><span class="support-mark support-no" aria-label="Not supported">-</span></span>
+            <span role="cell" data-label="Bluetooth"><span class="support-mark support-yes" aria-label="Supported">✓</span></span>
+          </div>
+        </div>
+        <a class="text-link" href="https://github.com/gh123man/OpenSnek/blob/main/docs/DEVICE_SUPPORT.md">
+          Read the full device support matrix
+        </a>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>Apache 2.0</span>
+      <a href="https://github.com/gh123man/OpenSnek/blob/main/CONTRIBUTING.md">Contribute device support</a>
+      <a href="https://github.com/gh123man/OpenSnek/blob/main/docs/protocol/PROTOCOL.md">Protocol docs</a>
+    </footer>
+  </body>
+</html>
