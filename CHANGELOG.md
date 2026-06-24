@@ -12,6 +12,7 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 - Fixed Basilisk V3 Pro USB and Bluetooth button maps so the shared V3-family DPI button slot is editable like the rest of the V3-family layout.
+- Fixed Basilisk V3 Pro profile switches and reconnect hydration so reduced DPI stage tables keep driving live DPI-cycle UI updates.
 - Fixed reduced-stage HyperSpeed local profiles loaded onto V3 Pro onboard slots so the intended stage count is preserved and DPI cycling does not land on stale hidden stages.
 - Fixed USB Custom Frame lighting issues that could spill or rotate colors, and stopped duplicate software-lighting writers during app/service handoff.
 - Fixed several dongle-only and sleeping-mouse states that could show stale loading screens, duplicate errors, transient telemetry warnings, disconnected flicker, or delayed recovery during expected USB reconnect paths.

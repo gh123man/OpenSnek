@@ -468,6 +468,10 @@ extension BridgeClient {
     }
 
     func refreshActiveOnboardProfile(device: MouseDevice, profile: DeviceProfile) async throws -> MouseState {
+        AppLog.warning(
+            "DPITrace",
+            "bridge refreshActiveOnboardProfile start device=\(device.id) transport=\(device.transport.rawValue)"
+        )
         let rawActive: Int
         switch device.transport {
         case .usb:
@@ -480,11 +484,16 @@ extension BridgeClient {
             rawActive = try await btReadActiveOnboardProfileID(device: device) ?? 1
         }
         let active = max(1, min(profile.onboardProfileCount, rawActive))
-        return storeProjectedActiveOnboardProfileState(
+        let state = storeProjectedActiveOnboardProfileState(
             device: device,
             profile: profile,
             activeProfileID: active
         )
+        AppLog.warning(
+            "DPITrace",
+            "bridge refreshActiveOnboardProfile end device=\(device.id) rawActive=\(rawActive) active=\(active) state={\(AppStateEditorController.diagnosticDPIState(state))}"
+        )
+        return state
     }
 
     func storeProjectedActiveOnboardProfileState(

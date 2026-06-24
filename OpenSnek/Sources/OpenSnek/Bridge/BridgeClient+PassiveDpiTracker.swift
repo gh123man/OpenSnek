@@ -85,6 +85,10 @@ extension BridgeClient {
     func handlePassiveDpiEvent(_ event: PassiveDPIEvent) {
         guard DeveloperRuntimeOptions.passiveHIDUpdatesEnabled() else { return }
         guard passiveDpiArmedDeviceIDs.contains(event.deviceID) else { return }
+        AppLog.warning(
+            "DPITrace",
+            "bridge passiveDpi event device=\(event.deviceID) dpi=\(event.dpiX)x\(event.dpiY) observedAt=\(event.observedAt.timeIntervalSince1970)"
+        )
         passiveDpiUpgradeNotBeforeByDeviceID.removeValue(forKey: event.deviceID)
         passiveDpiLastObservedAtByDeviceID[event.deviceID] = event.observedAt
         if Self.isBluetoothDeviceID(event.deviceID) {
@@ -117,6 +121,10 @@ extension BridgeClient {
     func handlePassiveProfileSwitch(_ event: PassiveProfileSwitchEvent) {
         guard DeveloperRuntimeOptions.passiveHIDUpdatesEnabled() else { return }
         guard passiveDpiArmedDeviceIDs.contains(event.deviceID) else { return }
+        AppLog.warning(
+            "DPITrace",
+            "bridge passiveProfileSwitch event device=\(event.deviceID) observedAt=\(event.observedAt.timeIntervalSince1970)"
+        )
         passiveProfileSwitchEvents.yield(event)
     }
 

@@ -119,6 +119,15 @@ private actor BackgroundServiceRequestHandler {
                     mutation: onboardRequest.mutation
                 )
             )
+        case .projectOnboardProfileDPIToActiveLayer:
+            let onboardRequest = try decodePayload(OnboardProfileDPIProjectionRequest.self, from: request.payload)
+            payload = try BackendCodec.encode(
+                try await backend.projectOnboardProfileDPIToActiveLayer(
+                    device: onboardRequest.device,
+                    profileID: onboardRequest.profileID,
+                    dpi: onboardRequest.dpi
+                )
+            )
         case .deleteOnboardProfile:
             let onboardRequest = try decodePayload(OnboardProfileIDRequest.self, from: request.payload)
             payload = try BackendCodec.encode(

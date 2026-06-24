@@ -438,6 +438,42 @@ extension BridgeClient {
         }
     }
 
+    func projectOnboardProfileDPIToActiveLayer(
+        device: MouseDevice,
+        profileID: Int,
+        dpi: OnboardDPIProfileSnapshot
+    ) async throws -> Bool {
+        let profile = try mappedOnboardProfileSupport(for: device)
+        guard device.transport == .usb,
+              profile.supportsMappedOnboardProfileCRUD,
+              profileID > 0 else {
+            return false
+        }
+
+        return try await withUSBProfileSession(device: device) { session in
+            self.rememberUSBLogicalOnboardDPI(dpi, device: device, profileID: profileID)
+            guard self.cachedUSBLogicalOnboardDPI(device: device, profileID: profileID) != nil else {
+                return false
+            }
+            let active = try self.usbReadActiveOnboardProfileID(session, device) ?? 1
+            guard active == profileID else {
+                AppLog.debug(
+                    "Bridge",
+                    "usb active-layer dpi projection skipped inactive profile device=\(device.id) " +
+                        "requested=\(profileID) active=\(active)"
+                )
+                return false
+            }
+            try self.usbApplyCachedLogicalDPIToActiveLayerIfNeeded(session, device, profileID: profileID)
+            AppLog.warning(
+                "DPITrace",
+                "bridge projected logical onboard dpi to active layer device=\(device.id) " +
+                    "profile=\(profileID) count=\(dpi.stageCount) values=\(dpi.values.map(String.init).joined(separator: ","))"
+            )
+            return true
+        }
+    }
+
     func deleteOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileInventory {
         let profile = try mappedOnboardProfileSupport(for: device)
         guard profileID >= 2 else {

@@ -178,6 +178,12 @@ extension AppStateEditorController {
         return adaptedLocalProfileContent(storedProfile.content, for: device).hasApplicableFields
     }
 
+    func existingLocalProfile(matching snapshot: OnboardProfileSnapshot) -> OpenSnekLocalProfile? {
+        preferenceStore.loadOpenSnekLocalProfiles().first {
+            $0.onboardIdentifier == snapshot.metadata.identifier
+        }
+    }
+
     func repairEmptyLocalProfilesForSelectedDevice(device: MouseDevice) {
         let profiles = preferenceStore.loadOpenSnekLocalProfiles()
         var repairedAny = false

@@ -483,6 +483,10 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         try await client.updateOnboardProfile(device: device, profileID: profileID, mutation: mutation)
     }
 
+    func projectOnboardProfileDPIToActiveLayer(device: MouseDevice, profileID: Int, dpi: OnboardDPIProfileSnapshot) async throws -> Bool {
+        try await client.projectOnboardProfileDPIToActiveLayer(device: device, profileID: profileID, dpi: dpi)
+    }
+
     func deleteOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileInventory {
         try await client.deleteOnboardProfile(device: device, profileID: profileID)
     }
@@ -490,7 +494,6 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     func activateOnboardProfile(device: MouseDevice, profileID: Int) async throws -> MouseState {
         let state = try await client.activateOnboardProfile(device: device, profileID: profileID)
         let merged = cacheAndPublishState(state, for: device.id, updatedAt: Date())
-        await reassertSoftwareLightingAfterProfileChange(device: device, state: merged)
         return merged
     }
 
@@ -841,8 +844,16 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
             previous: previousState,
             event: event
         ) else {
+            AppLog.warning(
+                "DPITrace",
+                "backend passiveDpi ignored device=\(event.deviceID) dpi=\(event.dpiX)x\(event.dpiY) previous={\(AppStateEditorController.diagnosticDPIState(previousState))}"
+            )
             return
         }
+        AppLog.warning(
+            "DPITrace",
+            "backend passiveDpi merged device=\(event.deviceID) dpi=\(event.dpiX)x\(event.dpiY) previous={\(AppStateEditorController.diagnosticDPIState(previousState))} updated={\(AppStateEditorController.diagnosticDPIState(updated))}"
+        )
 
         cachedStateByDeviceID[event.deviceID] = updated
         cachedStateAtByDeviceID[event.deviceID] = event.observedAt
@@ -884,6 +895,10 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
                         )
                     }
                     if let precise = updateCachedStateFromFastSnapshot(fast, for: event.deviceID) {
+                        AppLog.warning(
+                            "DPITrace",
+                            "backend passiveDpi precise-read device=\(event.deviceID) fastActive=\(fast.active + 1) fastValues=\(fast.values.map(String.init).joined(separator: ",")) precise={\(AppStateEditorController.diagnosticDPIState(precise))}"
+                        )
                         publishStateUpdate(.deviceState(deviceID: event.deviceID, state: precise, updatedAt: readAt))
                         publishSnapshotIfService()
                         return
@@ -922,9 +937,20 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     private func handlePassiveProfileSwitch(_ event: PassiveProfileSwitchEvent) async {
         guard let device = cachedDevices.first(where: { $0.id == event.deviceID }) else { return }
         do {
+            AppLog.warning(
+                "DPITrace",
+                "backend passiveProfileSwitch refresh start device=\(event.deviceID)"
+            )
             let state = try await client.refreshActiveOnboardProfile(device: device)
+            AppLog.warning(
+                "DPITrace",
+                "backend passiveProfileSwitch refresh read device=\(event.deviceID) state={\(AppStateEditorController.diagnosticDPIState(state))}"
+            )
             let merged = cacheAndPublishState(state, for: event.deviceID, updatedAt: event.observedAt)
-            await reassertSoftwareLightingAfterProfileChange(device: device, state: merged)
+            AppLog.warning(
+                "DPITrace",
+                "backend passiveProfileSwitch published device=\(event.deviceID) merged={\(AppStateEditorController.diagnosticDPIState(merged))}"
+            )
         } catch {
             AppLog.warning(
                 "Backend",
@@ -947,30 +973,6 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
 
     private func shouldServeCachedTelemetryDuringSoftwareLighting(deviceID: String) -> Bool {
         softwareLightingStatusByDeviceID[deviceID]?.state == .running
-    }
-
-    private func reassertSoftwareLightingAfterProfileChange(device: MouseDevice, state: MouseState) async {
-        do {
-            guard let status = try await softwareLightingEngine.reassertIfRunning(
-                device: device,
-                batteryPercent: state.battery_percent
-            ) else {
-                return
-            }
-            handleSoftwareLightingStatus(status)
-            let presetText = status.request?.presetID.rawValue ?? "<none>"
-            let profileText = state.active_onboard_profile.map(String.init) ?? "<nil>"
-            AppLog.debug(
-                "Backend",
-                "software lighting reasserted after profile change device=\(device.id) " +
-                    "profile=\(profileText) preset=\(presetText)"
-            )
-        } catch {
-            AppLog.warning(
-                "Backend",
-                "software lighting reassert failed after profile change device=\(device.id): \(error.localizedDescription)"
-            )
-        }
     }
 
     private func verifyUSBReachabilityDuringSoftwareLightingIfNeeded(device: MouseDevice, now: Date) async throws {

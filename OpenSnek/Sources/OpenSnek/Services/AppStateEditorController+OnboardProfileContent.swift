@@ -2,6 +2,12 @@ import Foundation
 import OpenSnekAppSupport
 import OpenSnekCore
 
+/// Stores projected onboard DPI presentation state.
+private struct ProjectedOnboardDPIState {
+    let dpi: DpiPair?
+    let stages: DpiStages
+}
+
 /// Adds onboard profile content behavior to `AppStateEditorController`.
 @MainActor
 extension AppStateEditorController {
@@ -405,6 +411,174 @@ extension AppStateEditorController {
         editorStore.noteLightingGradientColorsChanged()
     }
 
+    func projectSelectedActiveOnboardProfileState(
+        from snapshot: OnboardProfileSnapshot,
+        device: MouseDevice,
+        source: String
+    ) {
+        guard deviceStore.selectedDeviceID == device.id,
+              isOnboardProfileActive(deviceID: device.id, profileID: snapshot.profileID) else {
+            return
+        }
+        let previous = deviceStore.state
+        let projectedDPI = projectedOnboardDPIState(from: snapshot, previous: previous)
+        logDPITrace(
+            "projectSelectedActiveOnboardProfileState start",
+            device: device,
+            state: previous,
+            snapshot: snapshot,
+            extra: "source=\(source) projectedDPI=\(Self.diagnosticDpiPair(projectedDPI.dpi)) projectedStages=\(projectedDPI.stages.values?.map(String.init).joined(separator: ",") ?? "nil") projectedActive=\(projectedDPI.stages.active_stage.map { String($0 + 1) } ?? "nil")"
+        )
+        let projected = MouseState(
+            device: previous?.device ?? DeviceSummary(
+                id: device.id,
+                product_name: device.product_name,
+                serial: device.serial,
+                transport: device.transport,
+                firmware: device.firmware
+            ),
+            connection: previous?.connection ?? device.connectionLabel,
+            battery_percent: previous?.battery_percent,
+            charging: previous?.charging,
+            dpi: projectedDPI.dpi,
+            dpi_stages: projectedDPI.stages,
+            poll_rate: previous?.poll_rate,
+            sleep_timeout: previous?.sleep_timeout,
+            device_mode: previous?.device_mode,
+            low_battery_threshold_raw: previous?.low_battery_threshold_raw,
+            scroll_mode: snapshot.scrollMode ?? previous?.scroll_mode,
+            scroll_acceleration: snapshot.scrollAcceleration ?? previous?.scroll_acceleration,
+            scroll_smart_reel: snapshot.scrollSmartReel ?? previous?.scroll_smart_reel,
+            active_onboard_profile: snapshot.profileID,
+            onboard_profile_count: previous?.onboard_profile_count ?? device.onboard_profile_count,
+            led_value: snapshot.brightnessByLEDID.values.max() ?? previous?.led_value,
+            capabilities: previous?.capabilities ?? Capabilities(
+                dpi_stages: true,
+                poll_rate: device.transport == .usb,
+                power_management: true,
+                button_remap: device.button_layout != nil,
+                lighting: device.showsLightingControls
+            )
+        )
+        guard previous != projected else { return }
+        deviceStore.state = projected
+        deviceStore.lastUpdated = Date()
+        logDPITrace(
+            "projectSelectedActiveOnboardProfileState end",
+            device: device,
+            state: projected,
+            snapshot: snapshot,
+            extra: "source=\(source)"
+        )
+        AppLog.debug(
+            "AppState",
+            "projected active onboard profile state source=\(source) device=\(device.id) " +
+                "profile=\(snapshot.profileID) dpiValues=\(projectedDPI.stages.values?.map(String.init).joined(separator: ",") ?? "<none>")"
+        )
+    }
+
+    private func projectedOnboardDPIState(
+        from snapshot: OnboardProfileSnapshot,
+        previous: MouseState?
+    ) -> ProjectedOnboardDPIState {
+        guard let dpi = snapshot.dpi else {
+            return ProjectedOnboardDPIState(
+                dpi: previous?.dpi,
+                stages: previous?.dpi_stages ?? DpiStages(active_stage: nil, values: nil)
+            )
+        }
+        let sourcePairs = !dpi.pairs.isEmpty
+            ? dpi.pairs
+            : dpi.scalar.map { [$0] } ?? []
+        guard !sourcePairs.isEmpty else {
+            return ProjectedOnboardDPIState(
+                dpi: previous?.dpi,
+                stages: previous?.dpi_stages ?? DpiStages(active_stage: nil, values: nil)
+            )
+        }
+        let count = DeviceProfiles.clampDpiStageCount(sourcePairs.count)
+        let pairs = Array(sourcePairs.prefix(count))
+        let active = max(0, min(count - 1, dpi.activeStage ?? previous?.dpi_stages.active_stage ?? 0))
+        let scalar = pairs.indices.contains(active) ? pairs[active] : dpi.scalar ?? previous?.dpi
+        return ProjectedOnboardDPIState(
+            dpi: scalar,
+            stages: DpiStages(active_stage: active, values: pairs.map(\.x), pairs: pairs)
+        )
+    }
+
+    func scheduleActiveOnboardDPIProjectionIfNeeded(
+        from snapshot: OnboardProfileSnapshot,
+        device: MouseDevice,
+        source: String
+    ) {
+        guard environment.launchRole == .app,
+              device.transport == .usb,
+              snapshot.profileID > 0,
+              isOnboardProfileActive(deviceID: device.id, profileID: snapshot.profileID),
+              let dpi = snapshot.dpi,
+              !dpi.pairs.isEmpty,
+              dpi.pairs.count < DeviceProfiles.maximumDpiStageCount else {
+            return
+        }
+        let signature = activeOnboardDPIProjectionSignature(profileID: snapshot.profileID, dpi: dpi)
+        guard lastProjectedActiveOnboardDPISignatureByDeviceID[device.id] != signature else {
+            return
+        }
+        lastProjectedActiveOnboardDPISignatureByDeviceID[device.id] = signature
+
+        activeOnboardDPIProjectionTasksByDeviceID[device.id]?.cancel()
+        let token = UUID()
+        activeOnboardDPIProjectionTokensByDeviceID[device.id] = token
+        logDPITrace(
+            "activeProfile dpi projection scheduled",
+            device: device,
+            snapshot: snapshot,
+            extra: "source=\(source) signature=\(signature)"
+        )
+        activeOnboardDPIProjectionTasksByDeviceID[device.id] = Task { @MainActor [weak self] in
+            guard let self, !Task.isCancelled else { return }
+            defer {
+                if self.activeOnboardDPIProjectionTokensByDeviceID[device.id] == token {
+                    self.activeOnboardDPIProjectionTasksByDeviceID.removeValue(forKey: device.id)
+                    self.activeOnboardDPIProjectionTokensByDeviceID.removeValue(forKey: device.id)
+                }
+            }
+            do {
+                let projected = try await self.environment.backend.projectOnboardProfileDPIToActiveLayer(
+                    device: device,
+                    profileID: snapshot.profileID,
+                    dpi: dpi
+                )
+                guard !Task.isCancelled else { return }
+                if !projected,
+                   self.lastProjectedActiveOnboardDPISignatureByDeviceID[device.id] == signature {
+                    self.lastProjectedActiveOnboardDPISignatureByDeviceID.removeValue(forKey: device.id)
+                }
+                self.logDPITrace(
+                    "activeProfile dpi projection finished",
+                    device: device,
+                    snapshot: snapshot,
+                    extra: "source=\(source) projected=\(projected)"
+                )
+            } catch {
+                if self.lastProjectedActiveOnboardDPISignatureByDeviceID[device.id] == signature {
+                    self.lastProjectedActiveOnboardDPISignatureByDeviceID.removeValue(forKey: device.id)
+                }
+                AppLog.warning(
+                    "AppState",
+                    "active onboard dpi projection failed source=\(source) device=\(device.id) " +
+                        "profile=\(snapshot.profileID): \(error.localizedDescription)"
+                )
+            }
+        }
+    }
+
+    private func activeOnboardDPIProjectionSignature(profileID: Int, dpi: OnboardDPIProfileSnapshot) -> String {
+        let pairs = dpi.pairs.map { "\($0.x)x\($0.y)" }.joined(separator: ",")
+        let stageIDs = dpi.stageIDs.map { String(format: "%02X", $0) }.joined(separator: ",")
+        return "profile=\(profileID)|active=\(dpi.activeStage.map(String.init) ?? "nil")|pairs=\(pairs)|ids=\(stageIDs)"
+    }
+
     func hydrateEditableScroll(from snapshot: OnboardProfileSnapshot) {
         AppLog.debug(
             "AppState",
@@ -443,11 +617,13 @@ extension AppStateEditorController {
         }
         hydrateEditableLighting(from: snapshot, device: device)
         hydrateEditableScroll(from: snapshot)
-        editorStore.editableButtonBindings = snapshot.buttonBindings
         let hydrationKey = buttonBindingsHydrationKey(device: device, profile: max(1, snapshot.profileID))
         buttonBindingsCacheByHydrationKey[hydrationKey] = snapshot.buttonBindings
         buttonBindingsReadbackAttemptedKeys.insert(hydrationKey)
-        hydratedButtonBindingsKey = hydrationKey
+        if !shouldPreserveLocalButtonWorkspace(device: device) {
+            editorStore.editableButtonBindings = snapshot.buttonBindings
+            hydratedButtonBindingsKey = hydrationKey
+        }
         bumpUSBButtonProfilesRevision()
     }
 
