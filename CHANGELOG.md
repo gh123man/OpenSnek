@@ -2,51 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
-## [1.1.0]
+## [1.2.0]
 
-### Added
-- Added strict SwiftLint enforcement to SwiftPM, CI, and generated Xcode builds using the default SwiftLint ruleset.
-- Added repo-local SourceKit-LSP configuration plus a Codex MCP setup script and development guide for semantic Swift navigation, references, hover, and diagnostics.
-- Added a Night Rider advanced lighting preset for V3-family USB devices that sweeps one customizable scanner color across the underglow light bar while the logo and scroll wheel slowly pulse the same color. The preset defaults to red.
-- Added a Basilisk V3 Pro USB Battery Meter advanced lighting preset that keeps the logo and scroll wheel white while using the underglow strip as a battery progress bar. Lit strip cells are white at 30% and up, yellow from 15-29%, red below 15%, and the red low-battery bar flashes while preserving the same fractional boundary-cell color. Cells turn off from the tail as charge drops. Battery Meter clears the prior light-bar frame before rendering and uses a battery icon instead of palette swatches in the collapsed Lighting summary.
-- Added a unified local profile library and profile picker for all supported devices, including single-slot devices. UUID-backed onboard profile reads and writes now auto-sync local backups, single-slot profile pickers use the same exclusive On Connect behavior as the main settings UI with a Restore Last Profile option, restored single-slot profiles retain or infer their selected local profile identity for display and future edits, non-UUID devices such as HyperSpeed only add local profiles when explicitly created, local profiles can rename/delete/copy/create entries, and the picker can replace the selected device slot with supported DPI, button, lighting, and USB wheel-mode fields adapted to the target device.
-
-### Changed
-- The Connect a Device screen now opens supported devices in a centered, searchable profile-backed table instead of showing the growing list inline.
-- The keybinding picker now has fuzzy search and supports building modifier chords such as Command + Tab by choosing a modifier, then an action key.
-- OpenSnek now pins its SwiftUI and AppKit surfaces to the dark appearance so system fields, controls, dynamic colors, and window chrome render consistently even when macOS is set to Light Mode.
-- The menu bar status item now uses simplified template artwork so macOS can tint and dim it with native menu bar icons.
-- The Polling Rate control now uses the same segmented picker styling as other fixed-choice device controls.
-- Advanced lighting animations now expose a persisted brightness slider alongside speed and palette controls.
-- Active Advanced software-lighting effects are now reasserted after onboard profile switches so the volatile frame stream keeps driving the device.
-- Battery Meter progress is now visually calibrated so 50% lands at four-and-a-half underglow cells instead of filling half the physical cell count.
-- V3-family USB software lighting now streams the full 14-cell Custom Frame range so the tail LEDs are addressed directly on every shared scroll/logo/underglow profile.
-- Release automation now treats semver prerelease tags such as `v1.2.0-beta.1` as GitHub prereleases with `latest=false`, allowing beta DMGs to ship without triggering stable update banners.
-- The profile picker now hides the local profile already loaded in the selected slot, labels empty onboard slots as Load Profile, shows profile inventory loading in the profile pill instead of flashing fallback slot names, uses device defaults for Start Fresh, auto-loads newly created profiles into the selected slot, preserves USB stored-slot DPI stage tokens while assigning reduced-stage profiles to mapped onboard slots, avoids duplicate fallback `Profile 1` local backups from metadata-less reads, skips redundant create-path profile reads where the target slot is already known, and distinguishes deleting a local profile from deleting an onboard slot assignment.
+### Highlights
+- Added a unified local profile library and profile picker for all supported devices, including single-slot devices. Local profiles can now be created, renamed, copied, deleted, restored on connect, and loaded into compatible onboard slots with supported DPI, button, lighting, and USB wheel-mode settings adapted to the target device.
+- Added Night Rider and Basilisk V3 Pro USB Battery Meter advanced lighting presets. Advanced effects now support persisted brightness, resume cleanly after onboard profile switches, and stream the full V3-family USB light-bar range.
+- Improved setup and editing workflows with a searchable supported-device table, a fuzzy keybinding picker, modifier chord support, clearer profile-picker loading states, and automatic loading for newly created local profiles.
+- Improved USB dongle, sleeping-mouse, and reconnect recovery so receiver-backed devices stay visible when appropriate and recover after wake or replug without restarting OpenSnek.
 
 ### Fixed
-- Generated Xcode `OpenSnekProbe` builds no longer pass `-parse-as-library`, allowing the probe's top-level async entrypoint to compile.
-- USB Custom Frame lighting now includes the required reserved byte after `END_COL`, preventing mixed/dim software-effect cells from spilling color channels into adjacent LEDs.
-- USB Custom Frame lighting now sends post-pad color triplets as RGB, fixing Advanced effects that appeared color-rotated after the frame alignment fix.
-- Advanced software lighting now stops outgoing backend-owned frame streams during app/service handoff so a device cannot be driven by duplicate effect writers.
-- Basilisk V3 Pro USB and Bluetooth button maps now include the shared V3-family DPI button slot and use the same editable slot list as Basilisk V3 and Basilisk V3 35K.
-- The main UI window no longer rehydrates selected-device state and diagnostics for unchanged remote service snapshots, reducing idle CPU while the background service is active.
-- USB receiver presence is now tracked separately from mouse control reachability, so a connected dongle with a sleeping/off mouse stays listed but shows disconnected controls until feature-report telemetry responds again.
-- USB reconnect handling now refreshes HID discovery after the post-connect settle window, preventing early partial HID enumeration from leaving a replugged mouse unusable until OpenSnek restarts.
-- V3 Pro USB dongle-only states now back off gracefully when the mouse is powered off or telemetry is temporarily unavailable, avoiding repeated full-state reads and transient error banners while waiting for live telemetry to return.
-- Dongle-backed USB devices now probe receiver reachability while the dongle stays enumerated, allowing Basilisk V3 X HyperSpeed and future receiver devices to recover when the mouse wakes without a USB add event.
-- `OpenSnekProbe` Bluetooth profile create/button write commands now reject targets outside the documented stored-profile range instead of accepting any target above the live profile.
-- USB dongle-only and sleeping-mouse states now switch to the disconnected presentation instead of staying on the loading/reconnecting screen when the dongle is visible but the mouse does not answer telemetry.
-- USB sleeping-mouse detection now depends on concrete unavailable/no-state telemetry results instead of aging out passive USB liveness observations.
-- Disconnect and reconnect detail screens no longer show a duplicate red global error notice over the same connection-state UI.
-- Reconnect and disconnect recovery no longer shows yellow USB telemetry notices for expected temporary telemetry gaps while the device is settling.
-- USB telemetry-unavailable and availability backoff now survive newly visible dongle subscription updates, preventing the dongle-only state from falling back into an immediate reconnect retry loop.
-- Selected USB devices with cached state now keep their last known presentation during temporary feature-report telemetry backoff when the mouse is still enumerated, instead of being marked disconnected.
-- Selected USB devices no longer flicker to Disconnected when a single backend reachability probe briefly reports the mouse unavailable while newer USB DPI activity still shows it is connected.
-- Remote service snapshots now clear latched transient USB unavailable presentation, and cached USB devices no longer age into Disconnected solely because passive telemetry has been idle.
-- Pulling and replugging a V3 Pro USB dongle now forces stale HID sessions and empty HID-manager snapshots through fresh discovery, shows the receiver-absent state while removed, and clears stale absence on physical reconnect so the UI can recover without restarting OpenSnek.
-- The Lighting card now hides the Advanced software-lighting tab on Basilisk V3 X HyperSpeed and Bluetooth devices that cannot stream software effects.
-- Loading or editing a reduced-stage HyperSpeed local profile on a V3 Pro onboard slot now keeps the intended DPI stage count in the editor, overwrites hidden stored rows, and projects the logical count to the active USB profile so DPI cycling does not land on stale invisible slots.
+- Fixed Basilisk V3 Pro USB and Bluetooth button maps so the shared V3-family DPI button slot is editable like the rest of the V3-family layout.
+- Fixed reduced-stage HyperSpeed local profiles loaded onto V3 Pro onboard slots so the intended stage count is preserved and DPI cycling does not land on stale hidden stages.
+- Fixed USB Custom Frame lighting issues that could spill or rotate colors, and stopped duplicate software-lighting writers during app/service handoff.
+- Fixed several dongle-only and sleeping-mouse states that could show stale loading screens, duplicate errors, transient telemetry warnings, disconnected flicker, or delayed recovery during expected USB reconnect paths.
+- Hid Advanced software-lighting controls on Basilisk V3 X HyperSpeed and Bluetooth devices that cannot stream software effects.
 
 ## [1.0.0]
 

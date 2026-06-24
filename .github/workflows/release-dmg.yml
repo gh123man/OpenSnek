@@ -71,7 +71,7 @@ jobs:
         run: |
           set -euo pipefail
           RELEASE_NOTES_PATH="$RUNNER_TEMP/release-notes.md"
-          python3 OpenSnek/scripts/extract_release_notes.py CHANGELOG.md > "$RELEASE_NOTES_PATH"
+          python3 OpenSnek/scripts/extract_release_notes.py CHANGELOG.md --version "$RELEASE_REF_NAME" > "$RELEASE_NOTES_PATH"
           echo "RELEASE_NOTES_PATH=$RELEASE_NOTES_PATH" >> "$GITHUB_ENV"
 
       - name: Decode signing assets
