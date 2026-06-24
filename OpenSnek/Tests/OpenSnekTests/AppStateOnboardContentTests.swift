@@ -4,6 +4,7 @@ import OpenSnekAppSupport
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises app state onboard content behavior.
 final class AppStateOnboardContentTests: XCTestCase {
     func testBluetoothOnboardStaleButtonEditDoesNotOverwriteNewSelectedProfile() async throws {
         let device = makeRefactorTestDevice(

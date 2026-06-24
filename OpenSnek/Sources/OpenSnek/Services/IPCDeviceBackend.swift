@@ -3,6 +3,7 @@ import Network
 import OpenSnekCore
 import OpenSnekHardware
 
+/// Serializes IPC device backend state and operations.
 final actor IPCDeviceBackend: HIDAccessRefreshControllingBackend, ApplyOptionsSupportingBackend {
     private let host: NWEndpoint.Host = .ipv4(.loopback)
     private let port: NWEndpoint.Port
@@ -300,6 +301,7 @@ final actor IPCDeviceBackend: HIDAccessRefreshControllingBackend, ApplyOptionsSu
     }
 }
 
+/// Serializes background service client subscription state and operations.
 private actor BackgroundServiceClientSubscription {
     private let host: NWEndpoint.Host
     private let port: NWEndpoint.Port

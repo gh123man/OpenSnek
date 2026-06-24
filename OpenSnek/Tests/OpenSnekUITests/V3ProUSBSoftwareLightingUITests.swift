@@ -1,5 +1,6 @@
 import XCTest
 
+/// Exercises V3 pro USB software lighting UI behavior.
 final class V3ProUSBSoftwareLightingUITests: OpenSnekHardwareUITestCase {
     override var expectedScope: HardwareDeviceScope {
         .v3ProUSB

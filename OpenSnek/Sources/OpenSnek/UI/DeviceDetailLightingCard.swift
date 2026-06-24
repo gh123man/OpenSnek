@@ -3,6 +3,7 @@ import OpenSnekAppSupport
 import SwiftUI
 import OpenSnekCore
 
+/// Stores lighting swatch data.
 struct LightingSwatch: Identifiable, Hashable {
     let hex: UInt32
     let rgb: OpenSnekCore.RGBColor
@@ -19,6 +20,7 @@ struct LightingSwatch: Identifiable, Hashable {
     var id: UInt32 { hex }
 }
 
+/// Renders the lighting card UI.
 struct LightingCard: View {
     let editorStore: EditorStore
     let selected: MouseDevice
@@ -785,6 +787,7 @@ struct LightingCard: View {
     }
 }
 
+/// Defines lighting card tab values.
 private enum LightingCardTab: String, CaseIterable, Identifiable {
     case onboard
     case advanced
@@ -801,6 +804,7 @@ private enum LightingCardTab: String, CaseIterable, Identifiable {
     }
 }
 
+/// Stores lighting summary presentation data.
 struct LightingSummaryPresentation: Equatable {
     let title: String
     let swatches: [RGBColor]
@@ -866,6 +870,7 @@ struct LightingSummaryPresentation: Equatable {
     }
 }
 
+/// Stores lighting summary input data.
 struct LightingSummaryInput {
     let supportsSoftwareLightingEffects: Bool
     let softwareLightingStatus: SoftwareLightingEngineStatus?
@@ -877,6 +882,7 @@ struct LightingSummaryInput {
     let batteryState: MouseState?
 }
 
+/// Defines lighting zone edit mode values.
 private enum LightingZoneEditMode: String, CaseIterable, Identifiable {
     case allZones
     case individualZones

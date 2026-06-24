@@ -1,6 +1,7 @@
 import XCTest
 @testable import OpenSnek
 
+/// Exercises release update checker behavior.
 final class ReleaseUpdateCheckerTests: XCTestCase {
     func testReleaseVersionParsesLeadingVPrefix() {
         XCTAssertEqual(ReleaseVersion.parse("v1.2.3"), ReleaseVersion(components: [1, 2, 3], preRelease: []))
@@ -47,6 +48,7 @@ final class ReleaseUpdateCheckerTests: XCTestCase {
     }
 }
 
+/// Stores release update checker test bundle test data.
 private final class ReleaseUpdateCheckerTestBundle: Bundle, @unchecked Sendable {
     private let testInfoDictionary: [String: Any]
 

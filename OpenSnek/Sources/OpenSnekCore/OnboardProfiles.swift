@@ -1,5 +1,6 @@
 import Foundation
 
+/// Groups onboard profile support helpers.
 public enum OnboardProfileSupport: String, Codable, Hashable, Sendable {
     case unavailable
     case mappedCore
@@ -14,6 +15,7 @@ public enum OnboardProfileSupport: String, Codable, Hashable, Sendable {
     }
 }
 
+/// Defines onboard profile limits values.
 public enum OnboardProfileLimits {
     public static let minimumPersistentProfileID = 1
     public static let maximumPersistentProfileID = 5
@@ -67,6 +69,7 @@ public enum OnboardProfileLimits {
     }
 }
 
+/// Stores onboard profile metadata.
 public struct OnboardProfileMetadata: Codable, Hashable, Sendable {
     public static let synapseCompatibleFallbackOwner = "31933b5452df5708882d4fb55d0b2905f16d829500fe936c56f98d5cd0241a76"
 
@@ -132,6 +135,7 @@ public struct OnboardProfileMetadata: Codable, Hashable, Sendable {
     }
 }
 
+/// Stores onboard profile summary data.
 public struct OnboardProfileSummary: Codable, Identifiable, Hashable, Sendable {
     public let profileID: Int
     public let metadata: OnboardProfileMetadata?
@@ -166,6 +170,7 @@ public struct OnboardProfileSummary: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
+/// Captures onboard DPI profile state.
 public struct OnboardDPIProfileSnapshot: Codable, Hashable, Sendable {
     public let scalar: DpiPair?
     public let activeStage: Int?
@@ -196,6 +201,7 @@ public struct OnboardDPIProfileSnapshot: Codable, Hashable, Sendable {
     }
 }
 
+/// Captures onboard profile state.
 public struct OnboardProfileSnapshot: Codable, Hashable, Sendable {
     public let profileID: Int
     public let metadata: OnboardProfileMetadata
@@ -240,6 +246,7 @@ public struct OnboardProfileSnapshot: Codable, Hashable, Sendable {
     }
 }
 
+/// Stores onboard profile mutation data.
 public struct OnboardProfileMutation: Codable, Hashable, Sendable {
     public var metadata: OnboardProfileMetadata?
     public var dpi: OnboardDPIProfileSnapshot?
@@ -296,6 +303,7 @@ public struct OnboardProfileMutation: Codable, Hashable, Sendable {
     }
 }
 
+/// Stores onboard profile inventory data.
 public struct OnboardProfileInventory: Codable, Hashable, Sendable {
     public let activeProfileID: Int
     public let maxProfileID: Int

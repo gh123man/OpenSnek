@@ -1,6 +1,8 @@
 import XCTest
 
+/// Stores feature sweep test data.
 final class FeatureSweep {
+    /// Defines feature test values.
     enum Feature: Hashable {
         case onboardProfiles
         case dpiStageSelection
@@ -13,6 +15,7 @@ final class FeatureSweep {
         case buttonMapping
     }
 
+    /// Stores configuration test data.
     struct Configuration {
         let appReadyDeadline: TimeInterval
         let actionDeadline: TimeInterval
@@ -24,6 +27,7 @@ final class FeatureSweep {
         let buttonTurboCandidateSlots: [Int]
     }
 
+    /// Defines changed feature test values.
     private enum ChangedFeature: Hashable {
         case dpiStage
         case dpiValue
@@ -37,6 +41,7 @@ final class FeatureSweep {
         case buttonTurbo
     }
 
+    /// Stores original state test data.
     private struct OriginalState {
         let dpiStageIndex: Int
         let dpi: Int?
@@ -917,6 +922,7 @@ final class FeatureSweep {
     }
 }
 
+/// Adds scoped helpers for `FeatureSweep.Configuration`.
 extension FeatureSweep.Configuration {
     static let v3XUSB = FeatureSweep.Configuration(
         appReadyDeadline: 10,

@@ -2,6 +2,7 @@ import Foundation
 import XCTest
 @testable import OpenSnek
 
+/// Exercises app update check behavior.
 final class AppUpdateCheckTests: XCTestCase {
     func testPeriodicUpdateCheckIsDueAfterFullDay() {
         let start = Date(timeIntervalSince1970: 1_774_000_000)
@@ -71,6 +72,7 @@ final class AppUpdateCheckTests: XCTestCase {
     }
 }
 
+/// Provides a mock release update checker test double.
 private actor MockReleaseUpdateChecker: ReleaseUpdateChecking {
     private var versions: [String] = []
 

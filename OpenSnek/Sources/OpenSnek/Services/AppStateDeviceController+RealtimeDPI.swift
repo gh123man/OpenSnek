@@ -2,6 +2,7 @@ import Foundation
 import OpenSnekCore
 import OpenSnekHardware
 
+/// Adds realtime DPI behavior to `AppStateDeviceController`.
 @MainActor
 extension AppStateDeviceController {
     func refreshDpiFast() async {

@@ -5,6 +5,7 @@ import OpenSnekCore
 import OpenSnekHardware
 @testable import OpenSnek
 
+/// Provides a multi device stub backend test double.
 actor MultiDeviceStubBackend: DeviceBackend {
     nonisolated var usesRemoteServiceTransport: Bool { false }
 
@@ -100,6 +101,7 @@ actor MultiDeviceStubBackend: DeviceBackend {
     }
 }
 
+/// Provides a partially failing multi device stub backend test double.
 actor PartiallyFailingMultiDeviceStubBackend: DeviceBackend {
     nonisolated var usesRemoteServiceTransport: Bool { false }
 
@@ -175,6 +177,7 @@ actor PartiallyFailingMultiDeviceStubBackend: DeviceBackend {
     }
 }
 
+/// Provides a disconnecting multi device stub backend test double.
 actor DisconnectingMultiDeviceStubBackend: DeviceBackend {
     nonisolated var usesRemoteServiceTransport: Bool { false }
 
@@ -247,6 +250,7 @@ actor DisconnectingMultiDeviceStubBackend: DeviceBackend {
     }
 }
 
+/// Provides a device list updating stub backend test double.
 actor DeviceListUpdatingStubBackend: DeviceBackend {
     nonisolated var usesRemoteServiceTransport: Bool { false }
 
@@ -433,6 +437,7 @@ actor DeviceListUpdatingStubBackend: DeviceBackend {
     }
 }
 
+/// Stores multi device test identity test data.
 struct MultiDeviceTestIdentity {
     let transport: DeviceTransportKind
     let serial: String

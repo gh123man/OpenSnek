@@ -3,6 +3,7 @@ import OpenSnekAppSupport
 import SwiftUI
 import OpenSnekCore
 
+/// Renders the on connect behavior card UI.
 struct OnConnectBehaviorCard: View {
     let editorStore: EditorStore
     @State private var showsExpandedInfo = false
@@ -60,6 +61,7 @@ struct OnConnectBehaviorCard: View {
     }
 }
 
+/// Renders the poll rate card UI.
 struct PollRateCard: View {
     let editorStore: EditorStore
     private let pollRates = [125, 500, 1000]
@@ -93,6 +95,7 @@ struct PollRateCard: View {
     }
 }
 
+/// Renders the sleep timeout card UI.
 struct SleepTimeoutCard: View {
     let editorStore: EditorStore
 
@@ -131,6 +134,7 @@ struct SleepTimeoutCard: View {
     }
 }
 
+/// Renders the low battery threshold card UI.
 struct LowBatteryThresholdCard: View {
     let editorStore: EditorStore
 
@@ -169,6 +173,7 @@ struct LowBatteryThresholdCard: View {
     }
 }
 
+/// Renders the scroll controls card UI.
 struct ScrollControlsCard: View {
     let editorStore: EditorStore
     let state: MouseState

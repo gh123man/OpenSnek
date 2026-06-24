@@ -1,7 +1,9 @@
 import Foundation
 import OpenSnekCore
 
+/// Coordinates apply coordinator behavior.
 public final class ApplyCoordinator: @unchecked Sendable {
+    /// Stores apply coordinator entry data.
     public struct Entry {
         public let patch: DevicePatch
         public let generation: UInt64

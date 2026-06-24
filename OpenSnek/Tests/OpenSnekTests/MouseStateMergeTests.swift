@@ -1,6 +1,7 @@
 import XCTest
 import OpenSnekCore
 
+/// Exercises mouse state merge behavior.
 final class MouseStateMergeTests: XCTestCase {
     func testMergeKeepsPreviousOptionalsWhenIncomingMissing() {
         let previous = MouseState(

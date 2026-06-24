@@ -1,6 +1,7 @@
 import AppKit
 import XCTest
 
+/// Stores OpenSnek hardware UI test case test data.
 class OpenSnekHardwareUITestCase: XCTestCase {
     private static let targetBundleIdentifier = "io.opensnek.OpenSnek"
     private let uiTestSleepTimeout = 900
@@ -604,6 +605,7 @@ class OpenSnekHardwareUITestCase: XCTestCase {
     }
 }
 
+/// Stores hardware device scope test data.
 struct HardwareDeviceScope: Equatable {
     let protocolName: String
     let transport: String
@@ -697,6 +699,7 @@ struct HardwareDeviceScope: Equatable {
     }
 }
 
+/// Stores UI test event test data.
 struct UITestEvent: Decodable {
     let timestamp: TimeInterval
     let runID: String
@@ -718,6 +721,7 @@ struct UITestEvent: Decodable {
     let error: String?
 }
 
+/// Stores UI test scope test data.
 struct UITestScope: Decodable {
     let protocolName: String
     let transport: String
@@ -727,6 +731,7 @@ struct UITestScope: Decodable {
     let profileID: String
 }
 
+/// Stores UI test device test data.
 struct UITestDevice: Decodable {
     let id: String
     let protocolName: String
@@ -738,6 +743,7 @@ struct UITestDevice: Decodable {
     let serial: String?
 }
 
+/// Stores UI test patch test data.
 struct UITestPatch: Decodable {
     let pollRate: Int?
     let sleepTimeout: Int?
@@ -754,6 +760,7 @@ struct UITestPatch: Decodable {
     let buttonBindingKind: String?
 }
 
+/// Stores UI test onboard profile mutation test data.
 struct UITestOnboardProfileMutation: Decodable {
     let metadataName: String?
     let dpiActiveStage: Int?
@@ -769,6 +776,7 @@ struct UITestOnboardProfileMutation: Decodable {
     let scrollSmartReel: Bool?
 }
 
+/// Stores UI test USB command test data.
 struct UITestUSBCommand: Decodable {
     let name: String
     let protocolName: String
@@ -778,6 +786,7 @@ struct UITestUSBCommand: Decodable {
     let args: [Int]
 }
 
+/// Stores UI test state test data.
 struct UITestState: Decodable {
     let connection: String
     let pollRate: Int?
@@ -794,17 +803,20 @@ struct UITestState: Decodable {
     let ledValue: Int?
 }
 
+/// Stores UI test DPI pair test data.
 struct UITestDpiPair: Decodable, Equatable {
     let x: Int
     let y: Int
 }
 
+/// Stores UI test RGB test data.
 struct UITestRGB: Decodable, Equatable {
     let r: Int
     let g: Int
     let b: Int
 }
 
+/// Stores UI test HID access status test data.
 struct UITestHIDAccessStatus: Decodable {
     let authorization: String
     let hostLabel: String

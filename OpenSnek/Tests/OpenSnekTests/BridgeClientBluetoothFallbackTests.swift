@@ -4,6 +4,7 @@ import OpenSnekCore
 import OpenSnekHardware
 import OpenSnekProtocols
 
+/// Exercises bridge client Bluetooth fallback behavior.
 final class BridgeClientBluetoothFallbackTests: XCTestCase {
     private func makeBluetoothDevice(
         productID: Int,

@@ -4,6 +4,7 @@ import OpenSnekCore
 import OpenSnekHardware
 import OpenSnekProtocols
 
+/// Describes probe failures.
 enum ProbeError: LocalizedError {
   case usage(String)
   case protocolError(String)
@@ -18,6 +19,7 @@ enum ProbeError: LocalizedError {
   }
 }
 
+/// Captures DPI state.
 struct DpiSnapshot: Equatable {
   let active: Int
   let count: Int
@@ -28,22 +30,26 @@ struct DpiSnapshot: Equatable {
   var values: [Int] { Array(slots.prefix(count)) }
 }
 
+/// Stores USB lighting read result data.
 struct USBLightingReadResult: Sendable {
   let target: USBLightingTargetDescriptor
   let brightness: Int?
 }
 
+/// Stores USB lighting write result data.
 struct USBLightingWriteResult: Sendable {
   let target: USBLightingTargetDescriptor
   let args: [UInt8]
   let succeeded: Bool
 }
 
+/// Stores USB lighting custom frame result data.
 struct USBLightingCustomFrameResult: Sendable {
   let args: [UInt8]
   let succeeded: Bool
 }
 
+/// Stores USB lighting concurrency operation stats data.
 struct USBLightingConcurrencyOperationStats: Sendable {
   let attempts: Int
   let successes: Int
@@ -52,6 +58,7 @@ struct USBLightingConcurrencyOperationStats: Sendable {
   let maxMs: Double
 }
 
+/// Stores USB lighting concurrency probe result data.
 struct USBLightingConcurrencyProbeResult: Sendable {
   let mode: String
   let elapsedMs: Double
@@ -60,18 +67,21 @@ struct USBLightingConcurrencyProbeResult: Sendable {
   let commandWriteStats: USBLightingConcurrencyOperationStats
 }
 
+/// Stores USB battery read result data.
 struct USBBatteryReadResult: Sendable {
   let charging: Bool
   let rawLevel: UInt8
   let percent: Int
 }
 
+/// Stores BT lighting read result data.
 struct BTLightingReadResult: Sendable {
   let target: USBLightingTargetDescriptor
   let brightness: Int?
   let color: RGBPatch?
 }
 
+/// Stores BT lighting write result data.
 struct BTLightingWriteResult: Sendable {
   let target: USBLightingTargetDescriptor
   let key: [UInt8]
@@ -79,6 +89,7 @@ struct BTLightingWriteResult: Sendable {
   let succeeded: Bool
 }
 
+/// Stores USB probe device candidate data.
 struct USBProbeDeviceCandidate: @unchecked Sendable {
   let index: Int
   let device: IOHIDDevice
@@ -115,6 +126,7 @@ struct USBProbeDeviceCandidate: @unchecked Sendable {
   }
 }
 
+/// Stores BT HID probe device candidate data.
 struct BTHIDProbeDeviceCandidate: @unchecked Sendable {
   let index: Int
   let device: IOHIDDevice
@@ -156,6 +168,7 @@ struct BTHIDProbeDeviceCandidate: @unchecked Sendable {
   }
 }
 
+/// Stores USB probe candidate seed data.
 private struct USBProbeCandidateSeed: @unchecked Sendable {
   let device: IOHIDDevice
   let deviceID: String
@@ -170,6 +183,7 @@ private struct USBProbeCandidateSeed: @unchecked Sendable {
   let passiveDescriptor: PassiveDPIInputDescriptor?
 }
 
+/// Stores BT HID probe candidate seed data.
 private struct BTHIDProbeCandidateSeed: @unchecked Sendable {
   let device: IOHIDDevice
   let deviceID: String
@@ -186,6 +200,7 @@ private struct BTHIDProbeCandidateSeed: @unchecked Sendable {
   let passiveDescriptor: PassiveDPIInputDescriptor?
 }
 
+/// Stores USB profile DPI stages read result data.
 struct USBProfileDPIStagesReadResult {
   let raw: [UInt8]
   let activeToken: UInt8
@@ -193,24 +208,28 @@ struct USBProfileDPIStagesReadResult {
   let stageIDs: [UInt8]
 }
 
+/// Stores USB profile metadata read result data.
 struct USBProfileMetadataReadResult {
   let chunks: [USBHIDProtocol.OnboardProfileMetadataChunk]
   let bytes: [UInt8]
   let metadata: USBHIDProtocol.OnboardProfileMetadata
 }
 
+/// Stores BT raw read result data.
 struct BTRawReadResult {
   let req: UInt8
   let notifies: [Data]
   let payload: Data?
 }
 
+/// Stores BT raw write result data.
 struct BTRawWriteResult {
   let req: UInt8
   let notifies: [Data]
   let ack: BLEVendorProtocol.NotifyHeader?
 }
 
+/// Carries USB raw command request data.
 struct USBRawCommandRequest {
   let classID: UInt8
   let cmdID: UInt8
@@ -221,6 +240,7 @@ struct USBRawCommandRequest {
   let responseDelayUs: useconds_t
 }
 
+/// Carries USB button binding write request data.
 struct USBButtonBindingWriteRequest {
   let profiles: [UInt8]
   let slot: Int

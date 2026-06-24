@@ -4,6 +4,7 @@ import OpenSnekAppSupport
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises app state lighting characterization behavior.
 final class AppStateLightingCharacterizationTests: XCTestCase {
     func testUSBLightingZoneSwitchLoadsPersistedZoneSpecificColor() async throws {
         let device = makeRefactorMultiZoneUSBLightingDevice(

@@ -1,7 +1,9 @@
 import Foundation
 import OpenSnekCore
 
+/// Defines USB HID protocol values.
 public enum USBHIDProtocol {
+    /// Stores onboard profile metadata.
     public struct OnboardProfileMetadata: Equatable, Sendable {
         public let identifier: UUID?
         public let name: String?
@@ -14,6 +16,7 @@ public enum USBHIDProtocol {
         }
     }
 
+    /// Stores onboard profile metadata chunk data.
     public struct OnboardProfileMetadataChunk: Equatable, Sendable {
         public let slot: UInt8
         public let offset: Int
@@ -28,6 +31,7 @@ public enum USBHIDProtocol {
         }
     }
 
+    /// Stores onboard profile inventory data.
     public struct OnboardProfileInventory: Equatable, Sendable {
         public let maxProfileID: UInt8
         public let assignedProfiles: [UInt8]
@@ -38,6 +42,7 @@ public enum USBHIDProtocol {
         }
     }
 
+    /// Stores lighting effect state.
     public struct LightingEffectState: Equatable, Sendable {
         public let storageEcho: UInt8
         public let ledID: UInt8

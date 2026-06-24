@@ -4,6 +4,7 @@ import OpenSnekCore
 import OpenSnekHardware
 import OpenSnekProtocols
 
+/// Serializes probe bridge state and operations.
 actor ProbeBridge {
   private let vendor = BLEVendorTransportClient()
   private var reqID: UInt8 = 0x30

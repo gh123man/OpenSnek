@@ -22,4 +22,13 @@ file_length:
   warning: 1200
   error: 1800
 
+custom_rules:
+  declaration_doc_comment:
+    name: "Declaration Doc Comment"
+    regex: "(?m)(?:\\A|^(?![ \\t]*(?:///|/\\*\\*|@))[^\\n]*\\n)((?:[ \\t]*@\\w+(?:\\([^\\n]*\\))?[ \\t]*\\n)*[ \\t]*(?:(?:(?:public|internal|fileprivate|private|package|open|final|indirect|nonisolated|static)\\b|@\\w+(?:\\([^\\n]*\\))?)[ \\t]+)*(?:class|struct|enum|protocol|actor|extension)\\b)"
+    capture_group: 1
+    execution_mode: sourcekit
+    message: "Add a doc comment immediately before this declaration."
+    severity: error
+
 strict: true

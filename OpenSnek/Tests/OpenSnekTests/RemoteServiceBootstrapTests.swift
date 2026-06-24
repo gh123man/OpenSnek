@@ -5,6 +5,7 @@ import OpenSnekCore
 import OpenSnekHardware
 @testable import OpenSnek
 
+/// Exercises remote service bootstrap behavior.
 final class RemoteServiceBootstrapTests: XCTestCase {
     func testRemoteServiceStartBootstrapsSelectedStateBeforeFirstSnapshot() async throws {
         let suiteName = "RemoteServiceSnapshotTests.\(UUID().uuidString)"

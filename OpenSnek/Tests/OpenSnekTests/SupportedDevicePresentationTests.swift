@@ -1,6 +1,7 @@
 import XCTest
 import OpenSnekCore
 
+/// Exercises supported device presentation behavior.
 final class SupportedDevicePresentationTests: XCTestCase {
     func testSupportedDeviceCatalogProfilesHavePresentationInputs() {
         let profiles = DeviceProfiles.all

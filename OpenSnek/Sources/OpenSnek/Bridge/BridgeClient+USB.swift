@@ -4,12 +4,15 @@ import OpenSnekCore
 import OpenSnekHardware
 import OpenSnekProtocols
 
+/// Adds USB behavior to `BridgeClient`.
 extension BridgeClient {
+    /// Defines usbdpi stage declared count mode values.
     enum USBDPIStageDeclaredCountMode {
         case logical
         case fixedRowCount
     }
 
+    /// Stores USB raw button binding write data.
     struct USBRawButtonBindingWrite {
         let profile: UInt8
         let slot: UInt8
@@ -17,6 +20,7 @@ extension BridgeClient {
         let functionBlock: [UInt8]
     }
 
+    /// Stores USB button binding write data.
     struct USBButtonBindingWrite {
         let slot: Int
         let kind: String

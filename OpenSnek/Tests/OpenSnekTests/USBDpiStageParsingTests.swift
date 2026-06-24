@@ -2,6 +2,7 @@ import XCTest
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises USB DPI stage parsing behavior.
 final class USBDpiStageParsingTests: XCTestCase {
     func testUSBStageSnapshotParsingUsesCorrectResponseOffsets() async {
         let client = BridgeClient(startHIDMonitoring: false)

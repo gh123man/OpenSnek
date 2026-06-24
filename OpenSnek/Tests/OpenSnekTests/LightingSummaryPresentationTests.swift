@@ -2,6 +2,7 @@ import XCTest
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises lighting summary presentation behavior.
 final class LightingSummaryPresentationTests: XCTestCase {
     func testBatteryMeterSummaryUsesBatteryIconInsteadOfPaletteSwatches() {
         let presentation = LightingSummaryPresentation.make(

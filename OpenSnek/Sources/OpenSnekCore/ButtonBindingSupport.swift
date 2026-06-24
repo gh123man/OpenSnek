@@ -1,5 +1,6 @@
 import Foundation
 
+/// Groups button binding support helpers.
 public enum ButtonBindingSupport {
     public static let defaultBasiliskDPIClutchDPI = 400
     public static let defaultTurboRate = 0x8E

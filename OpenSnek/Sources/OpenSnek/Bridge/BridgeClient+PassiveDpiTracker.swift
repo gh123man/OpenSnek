@@ -5,6 +5,7 @@ import OpenSnekCore
 import OpenSnekHardware
 import OpenSnekProtocols
 
+/// Adds passive DPI tracker behavior to `BridgeClient`.
 extension BridgeClient {
     func passiveDpiEventStream() -> AsyncStream<PassiveDPIEvent> {
         passiveDpiEvents.makeStream()
@@ -307,6 +308,7 @@ extension BridgeClient {
         deviceID.hasSuffix(":\(DeviceTransportKind.bluetooth.rawValue)")
     }
 
+    /// Carries Bluetooth passive observation reset context.
     struct BluetoothPassiveObservationResetContext {
         let previousState: MouseState?
         let active: Int

@@ -2,6 +2,7 @@ import Foundation
 import OpenSnekAppSupport
 import OpenSnekCore
 
+/// Adds button profiles behavior to `AppStateEditorController`.
 @MainActor
 extension AppStateEditorController {
     func hydrateButtonBindingsIfNeeded(device: MouseDevice) async {

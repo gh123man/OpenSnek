@@ -5,6 +5,7 @@ import OpenSnekCore
 import OpenSnekHardware
 @testable import OpenSnek
 
+/// Exercises app state multi device selection behavior.
 final class AppStateMultiDeviceSelectionTests: XCTestCase {
     func testSelectingVisibleDeviceWithoutCachedStateStartsImmediateRefresh() async throws {
         let alphaDevice = makeTestDevice(

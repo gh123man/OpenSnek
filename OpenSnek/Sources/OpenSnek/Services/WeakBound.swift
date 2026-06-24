@@ -1,5 +1,6 @@
 import Foundation
 
+/// Stores weak bound data.
 @propertyWrapper
 struct WeakBound<Value: AnyObject> {
     private weak var storage: Value?

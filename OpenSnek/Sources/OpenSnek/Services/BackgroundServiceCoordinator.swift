@@ -3,6 +3,7 @@ import Darwin
 import Foundation
 import Network
 
+/// Coordinates background service coordinator behavior.
 @MainActor
 final class BackgroundServiceCoordinator {
     static let shared = BackgroundServiceCoordinator()
@@ -15,6 +16,7 @@ final class BackgroundServiceCoordinator {
     nonisolated static let endpointDefaultsKey = "backgroundServiceEndpoint"
     nonisolated static let portDefaultsKey = "backgroundServicePort"
     nonisolated static let pidDefaultsKey = "backgroundServicePID"
+    /// Captures running app state.
     struct RunningAppSnapshot: Equatable {
         let processIdentifier: pid_t
         let activationPolicy: NSApplication.ActivationPolicy

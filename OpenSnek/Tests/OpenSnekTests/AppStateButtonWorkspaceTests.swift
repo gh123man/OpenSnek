@@ -4,6 +4,7 @@ import OpenSnekAppSupport
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises app state button workspace behavior.
 final class AppStateButtonWorkspaceTests: XCTestCase {
     func testProjectSelectedUSBButtonProfileToDirectLayerEnqueuesProjectAction() async throws {
         let device = makeRefactorTestDevice(

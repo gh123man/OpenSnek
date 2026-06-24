@@ -2,12 +2,15 @@ import XCTest
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises hardware DPI reliability behavior.
 final class HardwareDpiReliabilityTests: XCTestCase {
+    /// Stores step test data.
     private struct Step {
         let values: [Int]
         let active: Int // 0-indexed
     }
 
+    /// Stores stable DPI expectation test data.
     private struct StableDpiExpectation {
         let values: [Int]
         let active: Int

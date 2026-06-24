@@ -1,5 +1,6 @@
 import Foundation
 
+/// Coordinates app environment behavior.
 @MainActor
 final class AppEnvironment {
     let launchRole: OpenSnekProcessRole

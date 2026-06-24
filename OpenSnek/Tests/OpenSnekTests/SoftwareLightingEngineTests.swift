@@ -3,6 +3,7 @@ import XCTest
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises software lighting engine behavior.
 final class SoftwareLightingEngineTests: XCTestCase {
     func testStartWritesFramesAndPublishesRunningStatus() async throws {
         let writer = RecordingSoftwareLightingFrameWriter()
@@ -457,6 +458,7 @@ final class SoftwareLightingEngineTests: XCTestCase {
     }
 }
 
+/// Provides a recording software lighting frame writer test double.
 private actor RecordingSoftwareLightingFrameWriter: SoftwareLightingFrameWriting {
     private let delayNanoseconds: UInt64
     private let failAllWrites: Bool

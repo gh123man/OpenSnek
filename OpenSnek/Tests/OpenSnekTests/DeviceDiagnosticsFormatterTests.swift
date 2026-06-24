@@ -1,6 +1,7 @@
 import XCTest
 import OpenSnekCore
 
+/// Exercises device diagnostics formatter behavior.
 final class DeviceDiagnosticsFormatterTests: XCTestCase {
     func testSupportedDeviceDumpIncludesProfileLayoutAndState() {
         let device = MouseDevice(

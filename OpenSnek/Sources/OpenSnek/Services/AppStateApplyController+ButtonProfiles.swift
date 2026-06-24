@@ -2,6 +2,7 @@ import Foundation
 import OpenSnekAppSupport
 import OpenSnekCore
 
+/// Adds button profiles behavior to `AppStateApplyController`.
 @MainActor
 extension AppStateApplyController {
     func makeButtonBindingPatch(

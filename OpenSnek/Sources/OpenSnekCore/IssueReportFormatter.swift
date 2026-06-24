@@ -1,5 +1,6 @@
 import Foundation
 
+/// Stores issue report device entry data.
 public struct IssueReportDeviceEntry: Hashable, Sendable {
     public let title: String
     public let summary: String
@@ -12,6 +13,7 @@ public struct IssueReportDeviceEntry: Hashable, Sendable {
     }
 }
 
+/// Stores issue report app info data.
 public struct IssueReportAppInfo: Hashable, Sendable {
     public let appVersion: String
     public let build: String
@@ -26,6 +28,7 @@ public struct IssueReportAppInfo: Hashable, Sendable {
     }
 }
 
+/// Stores issue report status data.
 public struct IssueReportStatus: Hashable, Sendable {
     public let selectedDevice: String?
     public let warning: String?
@@ -40,6 +43,7 @@ public struct IssueReportStatus: Hashable, Sendable {
     }
 }
 
+/// Carries issue report context.
 public struct IssueReportContext: Hashable, Sendable {
     public let appInfo: IssueReportAppInfo
     public let status: IssueReportStatus
@@ -56,6 +60,7 @@ public struct IssueReportContext: Hashable, Sendable {
     }
 }
 
+/// Stores issue report formatter data.
 public struct IssueReportFormatter {
     public static func format(_ context: IssueReportContext) -> String {
         var lines: [String] = []

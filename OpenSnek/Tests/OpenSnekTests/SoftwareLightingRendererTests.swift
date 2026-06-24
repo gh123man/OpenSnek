@@ -1,6 +1,7 @@
 import XCTest
 import OpenSnekCore
 
+/// Exercises software lighting renderer behavior.
 final class SoftwareLightingRendererTests: XCTestCase {
     func testBasiliskV3FamilyLayoutMatchesValidatedCellMap() {
         let layout = SoftwareLightingFrameLayout.basiliskV3ProUSB

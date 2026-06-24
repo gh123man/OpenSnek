@@ -5,6 +5,7 @@ import OpenSnekProtocols
 @testable import OpenSnekHardware
 @testable import OpenSnek
 
+/// Exercises USB passive DPI bridge behavior behavior.
 final class USBPassiveDPIBridgeBehaviorTests: XCTestCase {
     func testPassiveUSBMonitorReplaceTargetsReturnsForEmptyList() async throws {
         let monitor = PassiveDPIEventMonitor()

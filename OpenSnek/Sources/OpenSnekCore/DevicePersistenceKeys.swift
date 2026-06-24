@@ -1,5 +1,6 @@
 import Foundation
 
+/// Defines device persistence keys values.
 public enum DevicePersistenceKeys {
     public static func normalizedStableSerial(_ rawValue: String?) -> String? {
         guard let trimmed = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),

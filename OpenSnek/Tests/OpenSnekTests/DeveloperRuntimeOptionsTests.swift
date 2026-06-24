@@ -2,6 +2,7 @@ import Foundation
 import XCTest
 import OpenSnekAppSupport
 
+/// Exercises developer runtime options behavior.
 final class DeveloperRuntimeOptionsTests: XCTestCase {
     func testDeveloperRuntimeOptionsDefaultToEnabled() {
         let suiteName = UUID().uuidString

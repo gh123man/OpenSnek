@@ -3,6 +3,7 @@ import Network
 import OpenSnekCore
 import OpenSnekHardware
 
+/// Defines OpenSnek process role values.
 enum OpenSnekProcessRole: String, Sendable {
     case app
     case service
@@ -16,6 +17,7 @@ enum OpenSnekProcessRole: String, Sendable {
     }
 }
 
+/// Defines the device backend contract.
 protocol DeviceBackend: AnyObject, Sendable {
     var usesRemoteServiceTransport: Bool { get }
     func listDevices() async throws -> [MouseDevice]
@@ -59,16 +61,19 @@ protocol DeviceBackend: AnyObject, Sendable {
     func debugUSBReadButtonBinding(device: MouseDevice, slot: Int, profile: Int) async throws -> [UInt8]?
 }
 
+/// Defines the HID access refresh controlling backend contract.
 protocol HIDAccessRefreshControllingBackend: DeviceBackend {
     func hidAccessStatus(forceRefresh: Bool) async -> HIDAccessStatus
 }
 
+/// Adds scoped helpers for `ApplyOptionsSupportingBackend`.
 extension ApplyOptionsSupportingBackend {
     func apply(device: MouseDevice, patch: DevicePatch) async throws -> MouseState {
         try await apply(device: device, patch: patch, options: ApplyOptions())
     }
 }
 
+/// Serializes bootstrap pending backend state and operations.
 final actor BootstrapPendingBackend: DeviceBackend {
     nonisolated static let shared = BootstrapPendingBackend()
 
@@ -167,6 +172,7 @@ final actor BootstrapPendingBackend: DeviceBackend {
     func debugUSBReadButtonBinding(device _: MouseDevice, slot _: Int, profile _: Int) async throws -> [UInt8]? { nil }
 }
 
+/// Adds scoped helpers for `DeviceBackend`.
 extension DeviceBackend {
     func usbControlAvailability(device _: MouseDevice) async throws -> USBControlAvailability {
         .unknown
@@ -253,11 +259,13 @@ extension DeviceBackend {
     }
 }
 
+/// Captures DPI fast state.
 struct DpiFastSnapshot: Codable, Hashable, Sendable {
     let active: Int
     let values: [Int]
 }
 
+/// Defines HID access authorization values.
 enum HIDAccessAuthorization: String, Codable, Sendable {
     case unknown
     case granted
@@ -265,6 +273,7 @@ enum HIDAccessAuthorization: String, Codable, Sendable {
     case unavailable
 }
 
+/// Stores HID access status data.
 struct HIDAccessStatus: Codable, Equatable, Sendable {
     let authorization: HIDAccessAuthorization
     let hostLabel: String
@@ -307,6 +316,7 @@ struct HIDAccessStatus: Codable, Equatable, Sendable {
     }
 }
 
+/// Captures shared service state.
 struct SharedServiceSnapshot: Codable, Sendable {
     let devices: [MouseDevice]
     let stateByDeviceID: [String: MouseState]
@@ -331,6 +341,7 @@ struct SharedServiceSnapshot: Codable, Sendable {
         self.usbControlAvailabilityByDeviceID = usbControlAvailabilityByDeviceID
     }
 
+    /// Defines coding keys for serialized data.
     private enum CodingKeys: String, CodingKey {
         case devices
         case stateByDeviceID
@@ -358,11 +369,13 @@ struct SharedServiceSnapshot: Codable, Sendable {
     }
 }
 
+/// Stores cross process client presence data.
 struct CrossProcessClientPresence: Codable, Sendable {
     let sourceProcessID: Int32
     let selectedDeviceID: String?
 }
 
+/// Defines backend state update values.
 enum BackendStateUpdate: Codable, Sendable {
     case deviceList([MouseDevice], updatedAt: Date)
     case deviceState(deviceID: String, state: MouseState, updatedAt: Date)

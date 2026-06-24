@@ -1,6 +1,7 @@
 import XCTest
 @testable import OpenSnekHardware
 
+/// Exercises USB HID control session behavior.
 final class USBHIDControlSessionTests: XCTestCase {
     func testInterprocessLockFileNameSanitizesDeviceID() {
         XCTAssertEqual(

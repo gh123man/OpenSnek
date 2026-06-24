@@ -4,6 +4,7 @@ import OpenSnekAppSupport
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises app state restore behavior.
 final class AppStateRestoreTests: XCTestCase {
     func testBluetoothPersistedSettingsSnapshotReappliesOnFirstHydration() async throws {
         let device = makeRefactorTestDevice(

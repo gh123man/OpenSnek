@@ -3,6 +3,7 @@ import XCTest
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises service mode behavior.
 final class ServiceModeTests: XCTestCase {
     func testPollingProfileIntervalsMatchExpectedCadence() {
         XCTAssertEqual(PollingProfile.foreground.refreshStateInterval, 2.0)
@@ -539,6 +540,7 @@ final class ServiceModeTests: XCTestCase {
 
 }
 
+/// Stores service mode transport backend test data.
 private actor ServiceModeTransportBackend: DeviceBackend {
     nonisolated var usesRemoteServiceTransport: Bool { false }
 
@@ -597,6 +599,7 @@ private actor ServiceModeTransportBackend: DeviceBackend {
     }
 }
 
+/// Provides a HID access refresh recording backend test double.
 private actor HIDAccessRefreshRecordingBackend: HIDAccessRefreshControllingBackend {
     nonisolated var usesRemoteServiceTransport: Bool { false }
 
@@ -662,6 +665,7 @@ private actor HIDAccessRefreshRecordingBackend: HIDAccessRefreshControllingBacke
     }
 }
 
+/// Stores sequenced service mode transport backend test data.
 private actor SequencedServiceModeTransportBackend: DeviceBackend {
     nonisolated var usesRemoteServiceTransport: Bool { false }
 

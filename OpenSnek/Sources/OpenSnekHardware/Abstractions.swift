@@ -1,6 +1,7 @@
 import Foundation
 import OpenSnekCore
 
+/// Defines the device driver contract.
 public protocol DeviceDriver: Sendable {
     func readState(device: MouseDevice) async throws -> MouseState
     func apply(device: MouseDevice, patch: DevicePatch) async throws -> MouseState
@@ -8,6 +9,7 @@ public protocol DeviceDriver: Sendable {
     func readLightingColor(device: MouseDevice) async throws -> RGBPatch?
 }
 
+/// Defines the device repository contract.
 public protocol DeviceRepository: Sendable {
     func listDevices() async throws -> [MouseDevice]
     func readState(device: MouseDevice) async throws -> MouseState
@@ -16,6 +18,7 @@ public protocol DeviceRepository: Sendable {
     func readLightingColor(device: MouseDevice) async throws -> RGBPatch?
 }
 
+/// Defines USB control availability values.
 public enum USBControlAvailability: String, Codable, Hashable, Sendable {
     case unknown
     case receiverPresentMouseReachable
@@ -45,6 +48,7 @@ public enum USBControlAvailability: String, Codable, Hashable, Sendable {
     }
 }
 
+/// Describes bridge failures.
 public enum BridgeError: LocalizedError, Sendable {
     case commandFailed(String)
     case usbMouseUnavailable

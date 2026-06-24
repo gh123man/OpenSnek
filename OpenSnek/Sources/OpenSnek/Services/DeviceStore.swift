@@ -4,6 +4,7 @@ import OpenSnekCore
 import OpenSnekHardware
 import SwiftUI
 
+/// Coordinates persisted device state.
 @MainActor
 @Observable
 final class DeviceStore {

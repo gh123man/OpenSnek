@@ -4,12 +4,14 @@ import OpenSnekAppSupport
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Stores recorded onboard update test data.
 struct RecordedOnboardUpdate {
     let deviceID: String
     let profileID: Int
     let mutation: OnboardProfileMutation
 }
 
+/// Stores recorded onboard create test data.
 struct RecordedOnboardCreate {
     let deviceID: String
     let targetProfileID: Int?
@@ -17,12 +19,14 @@ struct RecordedOnboardCreate {
     let mutation: OnboardProfileMutation
 }
 
+/// Stores recorded onboard rename test data.
 struct RecordedOnboardRename {
     let deviceID: String
     let profileID: Int
     let name: String
 }
 
+/// Provides a app state refactor stub backend test double.
 actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupportingBackend {
     nonisolated var usesRemoteServiceTransport: Bool { false }
 
@@ -979,6 +983,7 @@ func makeRefactorOnboardProfileSnapshot(
     )
 }
 
+/// Stores refactor test state telemetry test data.
 struct RefactorTestStateTelemetry {
     let connection: String
     let batteryPercent: Int
@@ -1001,6 +1006,7 @@ struct RefactorTestStateTelemetry {
     }
 }
 
+/// Stores refactor test state options test data.
 struct RefactorTestStateOptions {
     let activeOnboardProfile: Int?
     let onboardProfileCount: Int?

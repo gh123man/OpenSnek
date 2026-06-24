@@ -3,8 +3,10 @@ import Foundation
 import OpenSnekAppSupport
 import OpenSnekCore
 
+/// Coordinates app state runtime behavior.
 @MainActor
 final class AppStateRuntimeController {
+    /// Defines power state values.
     private enum PowerState {
         case active
         case sleeping

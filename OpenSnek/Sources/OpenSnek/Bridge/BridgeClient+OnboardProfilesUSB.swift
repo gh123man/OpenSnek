@@ -3,11 +3,13 @@ import OpenSnekCore
 import OpenSnekHardware
 import OpenSnekProtocols
 
+/// Stores USB onboard profile metadata read data.
 struct USBOnboardProfileMetadataRead {
     let parsed: USBHIDProtocol.OnboardProfileMetadata
     let metadata: OnboardProfileMetadata?
 }
 
+/// Adds onboard profiles USB behavior to `BridgeClient`.
 extension BridgeClient {
     func mappedOnboardProfileSupport(for device: MouseDevice) throws -> DeviceProfile {
         guard let profile = DeviceProfiles.resolve(

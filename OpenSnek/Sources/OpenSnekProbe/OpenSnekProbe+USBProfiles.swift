@@ -2,7 +2,9 @@ import Foundation
 import OpenSnekCore
 import OpenSnekProtocols
 
+/// Adds USB profiles behavior to `OpenSnekProbe`.
 extension OpenSnekProbe {
+  /// Stores USB profile read record data.
   private struct USBProfileReadRecord {
     let profile: UInt8
     var scalar: DpiPair?
@@ -13,12 +15,14 @@ extension OpenSnekProbe {
     var buttonBySlot: [UInt8: [UInt8]] = [:]
   }
 
+  /// Stores USB profile brightness record data.
   private struct USBProfileBrightnessRecord {
     let target: USBLightingTargetDescriptor
     let value: Int
     let raw: [UInt8]
   }
 
+  /// Captures USB profile writable state.
   private struct USBProfileWritableSnapshot {
     let profile: UInt8
     let scalar: DpiPair
@@ -29,6 +33,7 @@ extension OpenSnekProbe {
     let brightness: [USBProfileBrightnessRecord]
   }
 
+  /// Carries USB profile clone request data.
   struct USBProfileCloneRequest {
     let usb: USBProbeClient
     let sourceProfile: UInt8

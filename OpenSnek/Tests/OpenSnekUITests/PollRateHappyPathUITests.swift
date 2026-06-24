@@ -1,5 +1,6 @@
 import XCTest
 
+/// Exercises poll rate happy path UI behavior.
 final class PollRateHappyPathUITests: OpenSnekHardwareUITestCase {
     private var pollRateToRestore: Int?
 

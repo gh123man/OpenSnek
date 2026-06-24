@@ -3,6 +3,7 @@ import OpenSnekCore
 import OpenSnekHardware
 import OpenSnekProtocols
 
+/// Adds onboard profiles Bluetooth behavior to `BridgeClient`.
 extension BridgeClient {
     func btReadPayload(
         device: MouseDevice,

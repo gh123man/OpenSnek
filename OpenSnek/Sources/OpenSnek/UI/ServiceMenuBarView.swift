@@ -2,7 +2,9 @@ import AppKit
 import OpenSnekCore
 import SwiftUI
 
+/// Stores battery icon presentation data.
 struct BatteryIconPresentation: Equatable {
+    /// Defines accent values.
     enum Accent: Equatable {
         case normal
         case low
@@ -13,6 +15,7 @@ struct BatteryIconPresentation: Equatable {
     let accent: Accent
 }
 
+/// Defines battery presentation values.
 enum BatteryPresentation {
     static let lowBatteryNSColor = NSColor(calibratedRed: 1.0, green: 0.36, blue: 0.39, alpha: 1.0)
     static let lowBatteryColor = Color(nsColor: lowBatteryNSColor)
@@ -81,7 +84,9 @@ enum BatteryPresentation {
     }
 }
 
+/// Defines service menu bar presentation values.
 enum ServiceMenuBarPresentation {
+    /// Defines compact DPI control mode values.
     enum CompactDpiControlMode: Equatable {
         case scalar(Int)
         case split(DpiPair)
@@ -131,6 +136,7 @@ enum ServiceMenuBarPresentation {
     }
 }
 
+/// Renders the service menu bar view UI.
 struct ServiceMenuBarView: View {
     private static let menuActionRowHeight: CGFloat = 34
 
@@ -521,6 +527,7 @@ struct ServiceMenuBarView: View {
     }
 }
 
+/// Renders the compact stage picker button UI.
 private struct CompactStagePickerButton: View {
     let title: String
     let isSelected: Bool
@@ -556,6 +563,7 @@ private struct CompactStagePickerButton: View {
     }
 }
 
+/// Stores service menu bar status item label data.
 struct ServiceMenuBarStatusItemLabel: View {
     let deviceStore: DeviceStore
     let editorStore: EditorStore
@@ -614,6 +622,7 @@ struct ServiceMenuBarStatusItemLabel: View {
     }
 }
 
+/// Stores service menu bar status DPI badge data.
 private struct ServiceMenuBarStatusDpiBadge: View {
     let dpi: Int
 
@@ -646,6 +655,7 @@ private struct SpuriousStatusItemSuppressor: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSView, context: Context) {}
 
+    /// Coordinates suppressor view behavior.
     final class SuppressorView: NSView {
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
@@ -672,6 +682,7 @@ private struct SpuriousStatusItemSuppressor: NSViewRepresentable {
     }
 }
 
+/// Stores service menu bar status glyph data.
 private struct ServiceMenuBarStatusGlyph: View {
     let isConnected: Bool
     let batteryPresentation: BatteryIconPresentation?

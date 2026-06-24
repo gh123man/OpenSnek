@@ -5,6 +5,7 @@ import OpenSnekCore
 import OpenSnekHardware
 @testable import OpenSnek
 
+/// Exercises remote service snapshot connectivity behavior.
 final class RemoteServiceSnapshotConnectivityTests: XCTestCase {
     func testApplyingLaterSnapshotKeepsExistingLocalSelection() async {
         let appState = await MainActor.run {

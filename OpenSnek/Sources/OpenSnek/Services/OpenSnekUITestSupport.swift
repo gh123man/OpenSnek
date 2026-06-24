@@ -2,6 +2,7 @@
 import Foundation
 import OpenSnekCore
 
+/// Describes UI test apply event data.
 struct UITestApplyEvent {
     let device: MouseDevice
     let patch: DevicePatch
@@ -13,6 +14,7 @@ struct UITestApplyEvent {
     let error: Error?
 }
 
+/// Describes UI test profile mutation event data.
 struct UITestProfileMutationEvent {
     let device: MouseDevice
     let profileID: Int
@@ -23,6 +25,7 @@ struct UITestProfileMutationEvent {
     let error: Error?
 }
 
+/// Groups OpenSnek UI test support helpers.
 enum OpenSnekUITestSupport {
     private static let eventsPathEnvironmentKey = "OPEN_SNEK_UITEST_EVENTS_PATH"
     private static let runIDEnvironmentKey = "OPEN_SNEK_UITEST_RUN_ID"
@@ -283,6 +286,7 @@ enum OpenSnekUITestSupport {
     }
 }
 
+/// Coordinates OpenSnek UI test event recorder behavior.
 private final class OpenSnekUITestEventRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private let encoder = JSONEncoder()
@@ -369,6 +373,7 @@ private final class OpenSnekUITestEventRecorder: @unchecked Sendable {
     }
 }
 
+/// Describes OpenSnek UI test event data.
 private struct OpenSnekUITestEvent: Encodable {
     let timestamp: TimeInterval
     let runID: String
@@ -390,6 +395,7 @@ private struct OpenSnekUITestEvent: Encodable {
     let error: String?
 }
 
+/// Captures OpenSnek UI test scope state.
 private struct OpenSnekUITestScopeSnapshot: Encodable {
     let protocolName: String
     let transport: String
@@ -408,6 +414,7 @@ private struct OpenSnekUITestScopeSnapshot: Encodable {
     }
 }
 
+/// Captures OpenSnek UI test device state.
 private struct OpenSnekUITestDeviceSnapshot: Encodable {
     let id: String
     let protocolName: String
@@ -430,6 +437,7 @@ private struct OpenSnekUITestDeviceSnapshot: Encodable {
     }
 }
 
+/// Captures OpenSnek UI test patch state.
 private struct OpenSnekUITestPatchSnapshot: Encodable {
     let pollRate: Int?
     let sleepTimeout: Int?
@@ -462,6 +470,7 @@ private struct OpenSnekUITestPatchSnapshot: Encodable {
     }
 }
 
+/// Captures UI test profile mutation state.
 private struct UITestProfileMutationSnapshot: Encodable {
     let metadataName: String?
     let dpiActiveStage: Int?
@@ -500,6 +509,7 @@ private struct UITestProfileMutationSnapshot: Encodable {
     }
 }
 
+/// Captures OpenSnek UI test USB command state.
 private struct OpenSnekUITestUSBCommandSnapshot: Encodable {
     let name: String
     let protocolName: String
@@ -509,6 +519,7 @@ private struct OpenSnekUITestUSBCommandSnapshot: Encodable {
     let args: [Int]
 }
 
+/// Captures OpenSnek UI test state state.
 private struct OpenSnekUITestStateSnapshot: Encodable {
     let connection: String
     let pollRate: Int?
@@ -541,6 +552,7 @@ private struct OpenSnekUITestStateSnapshot: Encodable {
     }
 }
 
+/// Captures OpenSnek UI test DPI pair state.
 private struct OpenSnekUITestDpiPairSnapshot: Encodable {
     let x: Int
     let y: Int
@@ -551,6 +563,7 @@ private struct OpenSnekUITestDpiPairSnapshot: Encodable {
     }
 }
 
+/// Captures OpenSnek UI test RGB state.
 private struct OpenSnekUITestRGBSnapshot: Encodable {
     let r: Int
     let g: Int
@@ -563,6 +576,7 @@ private struct OpenSnekUITestRGBSnapshot: Encodable {
     }
 }
 
+/// Captures OpenSnek UI test HID access state.
 private struct OpenSnekUITestHIDAccessSnapshot: Encodable {
     let authorization: String
     let hostLabel: String

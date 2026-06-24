@@ -1,6 +1,7 @@
 import Foundation
 import Network
 
+/// Describes background service transport failures.
 enum BackgroundServiceTransportError: LocalizedError {
     case connectionClosed
     case invalidLength
@@ -21,6 +22,7 @@ enum BackgroundServiceTransportError: LocalizedError {
     }
 }
 
+/// Coordinates background service resume gate behavior.
 final class BackgroundServiceResumeGate: @unchecked Sendable {
     private let lock = NSLock()
     private var hasResumed = false
@@ -34,6 +36,7 @@ final class BackgroundServiceResumeGate: @unchecked Sendable {
     }
 }
 
+/// Defines background service transport values.
 enum BackgroundServiceTransport {
     static func listenerParameters() -> NWParameters {
         let parameters = NWParameters.tcp

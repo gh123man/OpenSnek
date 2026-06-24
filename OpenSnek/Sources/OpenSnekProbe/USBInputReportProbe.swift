@@ -4,6 +4,7 @@ import OpenSnekCore
 import OpenSnekHardware
 import OpenSnekProtocols
 
+/// Describes USB input report event data.
 struct USBInputReportEvent: Sendable {
   let candidateIndex: Int
   let usagePage: Int
@@ -19,7 +20,9 @@ struct USBInputReportEvent: Sendable {
   }
 }
 
+/// Coordinates USB input report probe behavior.
 final class USBInputReportProbe: @unchecked Sendable {
+  /// Coordinates callback context behavior.
   private final class CallbackContext {
     let emit: @Sendable ([UInt8]) -> Void
 
@@ -28,6 +31,7 @@ final class USBInputReportProbe: @unchecked Sendable {
     }
   }
 
+  /// Stores registration data.
   private struct Registration {
     let device: IOHIDDevice
     let buffer: UnsafeMutablePointer<UInt8>

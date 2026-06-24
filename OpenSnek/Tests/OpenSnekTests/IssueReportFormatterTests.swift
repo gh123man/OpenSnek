@@ -1,6 +1,7 @@
 import XCTest
 import OpenSnekCore
 
+/// Exercises issue report formatter behavior.
 final class IssueReportFormatterTests: XCTestCase {
     func testIssueReportFormatterIncludesDeviceSummariesAndDumps() {
         let payload = IssueReportFormatter.format(

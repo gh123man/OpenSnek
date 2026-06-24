@@ -4,6 +4,7 @@ import OpenSnekAppSupport
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises app state local profile behavior.
 final class AppStateLocalProfileTests: XCTestCase {
     func testReadingMappedOnboardProfileAutoSyncsLocalProfileByUUID() async throws {
         clearSavedButtonProfiles()

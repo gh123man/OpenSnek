@@ -2,6 +2,7 @@ import Foundation
 import OpenSnekCore
 import OpenSnekProtocols
 
+/// Adds parse USB behavior to `OpenSnekProbe`.
 extension OpenSnekProbe {
   static func parseSetArgs(_ args: [String]) throws -> (values: [Int], active: Int) {
     let flags = parseFlags(args)

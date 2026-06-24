@@ -2,11 +2,13 @@
 import IOKit.hid
 import OpenSnekCore
 
+/// Defines HID device presence change kind values.
 public enum HIDDevicePresenceChangeKind: String, Hashable, Sendable {
     case connected
     case disconnected
 }
 
+/// Describes HID device presence event data.
 public struct HIDDevicePresenceEvent: Hashable, Sendable {
     public let deviceID: String
     public let vendorID: Int
@@ -35,6 +37,7 @@ public struct HIDDevicePresenceEvent: Hashable, Sendable {
     }
 }
 
+/// Stores HID device presence accumulator data.
 public struct HIDDevicePresenceAccumulator: Sendable {
     private var activeInterfaceTokensByDeviceID: [String: Set<String>] = [:]
 
@@ -65,7 +68,9 @@ public struct HIDDevicePresenceAccumulator: Sendable {
     }
 }
 
+/// Monitors HID device presence changes.
 public final class HIDDevicePresenceMonitor: @unchecked Sendable {
+    /// Coordinates callback context behavior.
     private final class CallbackContext {
         weak var monitor: HIDDevicePresenceMonitor?
         let change: HIDDevicePresenceChangeKind

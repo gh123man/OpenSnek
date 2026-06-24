@@ -2,6 +2,7 @@ import AppKit
 import XCTest
 @testable import OpenSnek
 
+/// Exercises background service coordinator behavior.
 final class BackgroundServiceCoordinatorTests: XCTestCase {
     func testFreshInstallDefaultsEnableMenuBarIcon() async {
         let suiteName = UUID().uuidString

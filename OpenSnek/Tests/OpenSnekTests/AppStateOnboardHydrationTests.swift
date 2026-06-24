@@ -4,6 +4,7 @@ import OpenSnekAppSupport
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises app state onboard hydration behavior.
 final class AppStateOnboardHydrationTests: XCTestCase {
     func testOnboardProfileSelectionActivatesAndHardwareProfileChangesHydrateUI() async throws {
         let device = makeRefactorTestDevice(

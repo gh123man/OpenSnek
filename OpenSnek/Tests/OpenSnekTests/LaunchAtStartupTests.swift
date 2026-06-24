@@ -1,6 +1,7 @@
 import XCTest
 @testable import OpenSnek
 
+/// Exercises launch at startup behavior.
 final class LaunchAtStartupTests: XCTestCase {
     func testLaunchAgentPropertyListTargetsServiceModeAtNextLogin() {
         let plist = BackgroundServiceCoordinator.launchAgentPropertyList(

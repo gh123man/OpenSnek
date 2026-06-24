@@ -2,6 +2,7 @@ import Foundation
 import OpenSnekCore
 import OpenSnekProtocols
 
+/// Adds commands behavior to `OpenSnekProbe`.
 extension OpenSnekProbe {
   static func runBluetoothCommand(_ command: String, commandArgs: [String]) async throws {
     switch command {

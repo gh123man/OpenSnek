@@ -5,6 +5,7 @@ import OpenSnekProtocols
 @testable import OpenSnekHardware
 @testable import OpenSnek
 
+/// Exercises USB passive DPI parser merge behavior.
 final class USBPassiveDPIParserMergeTests: XCTestCase {
     func testPassiveDPIParserAcceptsObservedUSBAndBluetoothFrames() throws {
         let v3XUSBDescriptor = try XCTUnwrap(

@@ -2,6 +2,7 @@ import XCTest
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises hardware USB button remap behavior.
 final class HardwareUSBButtonRemapTests: XCTestCase {
     private func requireHardwareRunEnabled() throws {
         let env = ProcessInfo.processInfo.environment

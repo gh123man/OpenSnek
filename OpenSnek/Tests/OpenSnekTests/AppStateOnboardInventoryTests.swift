@@ -4,6 +4,7 @@ import OpenSnekAppSupport
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises app state onboard inventory behavior.
 final class AppStateOnboardInventoryTests: XCTestCase {
     func testOnboardProfileSummariesGetterDoesNotStartRefresh() async throws {
         let device = makeRefactorTestDevice(

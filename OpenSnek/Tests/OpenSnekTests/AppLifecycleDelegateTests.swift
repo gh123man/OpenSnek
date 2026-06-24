@@ -1,6 +1,7 @@
 import XCTest
 @testable import OpenSnek
 
+/// Exercises app lifecycle delegate behavior.
 final class AppLifecycleDelegateTests: XCTestCase {
     func testServiceLaunchUsesAccessoryActivationPolicy() {
         XCTAssertEqual(

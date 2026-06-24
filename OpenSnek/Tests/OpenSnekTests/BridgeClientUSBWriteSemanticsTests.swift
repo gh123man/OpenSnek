@@ -2,6 +2,7 @@ import XCTest
 @testable import OpenSnek
 import OpenSnekCore
 
+/// Exercises bridge client USB write semantics behavior.
 final class BridgeClientUSBWriteSemanticsTests: XCTestCase {
     func testUSBButtonWriteFailsWhenPersistentLayerFails() {
         XCTAssertFalse(

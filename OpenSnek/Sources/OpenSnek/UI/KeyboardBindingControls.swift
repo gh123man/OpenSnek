@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 
+/// Stores keyboard binding editor data.
 struct KeyboardBindingEditor: View {
     let hidKey: Int
     let hidModifiers: Int
@@ -35,6 +36,7 @@ struct KeyboardBindingEditor: View {
     }
 }
 
+/// Renders the keyboard binding current key button UI.
 private struct KeyboardBindingCurrentKeyButton: View {
     let label: String
     let isEditable: Bool
@@ -66,11 +68,13 @@ private struct KeyboardBindingCurrentKeyButton: View {
     }
 }
 
+/// Stores keyboard binding selection data.
 struct KeyboardBindingSelection: Equatable {
     let hidKey: Int
     let hidModifiers: Int
 }
 
+/// Renders the keyboard binding recorder popover UI.
 private struct KeyboardBindingRecorderPopover: View {
     let currentHidKey: Int
     let currentHidModifiers: Int
@@ -162,6 +166,7 @@ private struct KeyboardBindingRecorderPopover: View {
 
 }
 
+/// Renders the keyboard binding searchable key picker UI.
 private struct KeyboardBindingSearchableKeyPicker: View {
     let currentHidKey: Int
     let currentHidModifiers: Int
@@ -432,6 +437,7 @@ private struct KeyboardBindingSearchableKeyPicker: View {
     }
 }
 
+/// Renders the keyboard binding pending modifier row UI.
 private struct KeyboardBindingPendingModifierRow: View {
     let option: KeyboardBindingOption
     let width: CGFloat
@@ -495,6 +501,7 @@ private struct KeyboardBindingPendingModifierRow: View {
     }
 }
 
+/// Defines keyboard binding picker icons values.
 private enum KeyboardBindingPickerIcons {
     static func modifierSystemImageName(for hidKey: Int) -> String {
         switch hidKey {
@@ -512,6 +519,7 @@ private enum KeyboardBindingPickerIcons {
     }
 }
 
+/// Renders the keyboard binding capture field UI.
 private struct KeyboardBindingCaptureField: NSViewRepresentable {
     let supportsModifierChords: Bool
     let onCapture: (KeyboardBindingSelection) -> Void
@@ -529,6 +537,7 @@ private struct KeyboardBindingCaptureField: NSViewRepresentable {
     }
 }
 
+/// Coordinates keyboard binding capture view behavior.
 private final class KeyboardBindingCaptureView: NSView {
     var supportsModifierChords = false
     var onCapture: ((KeyboardBindingSelection) -> Void)?
@@ -581,6 +590,7 @@ private final class KeyboardBindingCaptureView: NSView {
     }
 }
 
+/// Groups keyboard binding capture support helpers.
 private enum KeyboardBindingCaptureSupport {
     // macOS keyCode values are hardware key positions, so special/modifier keys need an explicit translation table.
     private static let hidKeyByModifierKeyCode: [UInt16: Int] = [

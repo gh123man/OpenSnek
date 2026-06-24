@@ -52,6 +52,7 @@ func clearSnapshotPreferences(for device: MouseDevice) {
     }
 }
 
+/// Stores snapshot device identity test data.
 struct SnapshotDeviceIdentity {
     let transport: DeviceTransportKind
     let serial: String
@@ -114,6 +115,7 @@ func makeSnapshotState(
     )
 }
 
+/// Stores snapshot software lighting remote backend test data.
 actor SnapshotSoftwareLightingRemoteBackend: DeviceBackend {
     nonisolated var usesRemoteServiceTransport: Bool { true }
 
@@ -173,6 +175,7 @@ actor SnapshotSoftwareLightingRemoteBackend: DeviceBackend {
     }
 }
 
+/// Stores snapshot test remote backend test data.
 final class SnapshotTestRemoteBackend: DeviceBackend {
     var usesRemoteServiceTransport: Bool { true }
 
@@ -212,6 +215,7 @@ final class SnapshotTestRemoteBackend: DeviceBackend {
     func debugUSBReadButtonBinding(device _: MouseDevice, slot _: Int, profile _: Int) async throws -> [UInt8]? { nil }
 }
 
+/// Stores snapshot diagnostic counter test data.
 actor SnapshotDiagnosticCounter {
     private var value = 0
 
@@ -224,6 +228,7 @@ actor SnapshotDiagnosticCounter {
     }
 }
 
+/// Stores snapshot unavailable remote backend test data.
 final class SnapshotUnavailableRemoteBackend: DeviceBackend {
     var usesRemoteServiceTransport: Bool { true }
 
@@ -255,6 +260,7 @@ final class SnapshotUnavailableRemoteBackend: DeviceBackend {
     func debugUSBReadButtonBinding(device _: MouseDevice, slot _: Int, profile _: Int) async throws -> [UInt8]? { nil }
 }
 
+/// Stores snapshot readback remote backend test data.
 actor SnapshotReadbackRemoteBackend: DeviceBackend {
     nonisolated var usesRemoteServiceTransport: Bool { true }
 
@@ -299,6 +305,7 @@ actor SnapshotReadbackRemoteBackend: DeviceBackend {
     }
 }
 
+/// Provides a snapshot recording remote backend test double.
 actor SnapshotRecordingRemoteBackend: DeviceBackend {
     nonisolated var usesRemoteServiceTransport: Bool { true }
 
@@ -340,6 +347,7 @@ actor SnapshotRecordingRemoteBackend: DeviceBackend {
     }
 }
 
+/// Stores remote bootstrap service backend test data.
 actor RemoteBootstrapServiceBackend: DeviceBackend {
     nonisolated var usesRemoteServiceTransport: Bool { false }
 
@@ -418,6 +426,7 @@ actor RemoteBootstrapServiceBackend: DeviceBackend {
     func debugUSBReadButtonBinding(device _: MouseDevice, slot _: Int, profile _: Int) async throws -> [UInt8]? { nil }
 }
 
+/// Defines snapshot backend error test values.
 enum SnapshotBackendError: Error {
     case unimplemented
 }

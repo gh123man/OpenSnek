@@ -1,5 +1,6 @@
 import AppKit
 
+/// Defines OpenSnek branding values.
 enum OpenSnekBranding {
     private static let menuTemplateResourceName = "snek-menu-template"
     private static let menuTemplateResourceExtension = "png"

@@ -1,5 +1,6 @@
 import Foundation
 
+/// Stores button slot descriptor data.
 public struct ButtonSlotDescriptor: Identifiable, Hashable, Codable, Sendable {
     public let slot: Int
     public let friendlyName: String
@@ -25,6 +26,7 @@ public struct ButtonSlotDescriptor: Identifiable, Hashable, Codable, Sendable {
     ]
 }
 
+/// Defines button slot access values.
 public enum ButtonSlotAccess: String, Codable, Hashable, Sendable {
     case editable
     case protocolReadOnly
@@ -42,6 +44,7 @@ public enum ButtonSlotAccess: String, Codable, Hashable, Sendable {
     }
 }
 
+/// Stores documented button slot data.
 public struct DocumentedButtonSlot: Identifiable, Hashable, Codable, Sendable {
     public let descriptor: ButtonSlotDescriptor
     public let access: ButtonSlotAccess
@@ -57,6 +60,7 @@ public struct DocumentedButtonSlot: Identifiable, Hashable, Codable, Sendable {
     public var slot: Int { descriptor.slot }
 }
 
+/// Stores button slot layout data.
 public struct ButtonSlotLayout: Codable, Hashable, Sendable {
     public let visibleSlots: [ButtonSlotDescriptor]
     public let writableSlots: [Int]
@@ -105,6 +109,7 @@ public struct ButtonSlotLayout: Codable, Hashable, Sendable {
     }
 }
 
+/// Stores USB lighting zone descriptor data.
 public struct USBLightingZoneDescriptor: Identifiable, Hashable, Codable, Sendable {
     public let id: String
     public let label: String
@@ -117,6 +122,7 @@ public struct USBLightingZoneDescriptor: Identifiable, Hashable, Codable, Sendab
     }
 }
 
+/// Stores USB lighting target descriptor data.
 public struct USBLightingTargetDescriptor: Identifiable, Hashable, Codable, Sendable {
     public let zoneID: String
     public let zoneLabel: String
@@ -133,6 +139,7 @@ public struct USBLightingTargetDescriptor: Identifiable, Hashable, Codable, Send
     }
 }
 
+/// Stores passive DPI input descriptor data.
 public struct PassiveDPIInputDescriptor: Hashable, Codable, Sendable {
     public let usagePage: Int
     public let usage: Int
@@ -169,6 +176,7 @@ public struct PassiveDPIInputDescriptor: Hashable, Codable, Sendable {
         self.maximumDPI = max(100, maximumDPI)
     }
 
+    /// Defines coding keys for serialized data.
     private enum CodingKeys: String, CodingKey {
         case usagePage
         case usage
@@ -213,6 +221,7 @@ public struct PassiveDPIInputDescriptor: Hashable, Codable, Sendable {
     }
 }
 
+/// Stores button binding draft data.
 public struct ButtonBindingDraft: Hashable, Codable, Sendable {
     public var kind: ButtonBindingKind
     public var hidKey: Int
@@ -237,6 +246,7 @@ public struct ButtonBindingDraft: Hashable, Codable, Sendable {
         self.clutchDPI = clutchDPI.map { max(100, min(30_000, $0)) }
     }
 
+    /// Defines coding keys for serialized data.
     private enum CodingKeys: String, CodingKey {
         case kind
         case hidKey
@@ -269,6 +279,7 @@ public struct ButtonBindingDraft: Hashable, Codable, Sendable {
     }
 }
 
+/// Stores device profile data.
 public struct DeviceProfile: Hashable, Sendable {
     public let id: DeviceProfileID
     public let productName: String
@@ -387,6 +398,7 @@ public struct DeviceProfile: Hashable, Sendable {
     }
 }
 
+/// Adds scoped helpers for `MouseDevice`.
 public extension MouseDevice {
     private var resolvedProfile: DeviceProfile? {
         DeviceProfiles.resolve(vendorID: vendor_id, productID: product_id, transport: transport)
@@ -434,6 +446,7 @@ public extension MouseDevice {
     }
 }
 
+/// Defines device profiles values.
 public enum DeviceProfiles {
     public static let minimumDPI = 100
     public static let defaultMaximumDPI = 30_000
@@ -968,6 +981,7 @@ public enum DeviceProfiles {
         return segments
     }
 
+    /// Stores DPI slider segment data.
     private struct DpiSliderSegment {
         let positionRange: ClosedRange<Double>
         let dpiRange: ClosedRange<Int>

@@ -1,6 +1,7 @@
 import XCTest
 import OpenSnekCore
 
+/// Exercises USB button hydration behavior.
 final class USBButtonHydrationTests: XCTestCase {
     func testDefaultBlockMapsToDefaultKind() {
         let block: [UInt8] = [0x01, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00]

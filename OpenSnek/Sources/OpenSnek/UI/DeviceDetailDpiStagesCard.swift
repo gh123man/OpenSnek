@@ -5,6 +5,7 @@ import OpenSnekCore
 
 private let maximumEditableDpiStageCount = DeviceProfiles.maximumDpiStageCount
 
+/// Renders the DPI stages card UI.
 struct DpiStagesCard: View {
     let editorStore: EditorStore
 
@@ -29,6 +30,7 @@ struct DpiStagesCard: View {
     }
 }
 
+/// Renders the DPI stage count header UI.
 private struct DpiStageCountHeader: View {
     let editorStore: EditorStore
 
@@ -95,6 +97,7 @@ private struct DpiStageCountHeader: View {
     }
 }
 
+/// Renders the DPI stage row UI.
 private struct DpiStageRow: View {
     let editorStore: EditorStore
     let index: Int
@@ -237,6 +240,7 @@ private struct DpiStageRow: View {
     }
 }
 
+/// Renders the DPI stage axis text field UI.
 private struct DpiStageAxisTextField: View {
     let label: String
     let value: Int
@@ -260,6 +264,7 @@ private struct DpiStageAxisTextField: View {
     }
 }
 
+/// Renders the DPI stage xy toggle button UI.
 private struct DpiStageXYToggleButton: View {
     let isExpanded: Bool
     let tint: Color
@@ -285,6 +290,7 @@ private struct DpiStageXYToggleButton: View {
     }
 }
 
+/// Stores DPI stage axis slider data.
 private struct DpiStageAxisSlider: View {
     let editorStore: EditorStore
     let label: String
@@ -324,6 +330,7 @@ private struct DpiStageAxisSlider: View {
     }
 }
 
+/// Stores DPI stage single slider data.
 private struct DpiStageSingleSlider: View {
     let editorStore: EditorStore
     let index: Int
@@ -362,6 +369,7 @@ private struct DpiStageSingleSlider: View {
     }
 }
 
+/// Renders the DPI stage header UI.
 private struct DpiStageHeader: View {
     let editorStore: EditorStore
     let index: Int
@@ -383,6 +391,7 @@ private struct DpiStageHeader: View {
     }
 }
 
+/// Renders the DPI single stage header UI.
 private struct DpiSingleStageHeader: View {
     let stageColor: Color
 
@@ -392,6 +401,7 @@ private struct DpiSingleStageHeader: View {
     }
 }
 
+/// Renders the DPI selectable stage header UI.
 private struct DpiSelectableStageHeader: View {
     let editorStore: EditorStore
     let index: Int
@@ -421,6 +431,7 @@ private struct DpiSelectableStageHeader: View {
     }
 }
 
+/// Stores DPI selectable stage header label data.
 private struct DpiSelectableStageHeaderLabel: View {
     let stageNumber: Int
     let systemImage: String
@@ -472,6 +483,7 @@ private func dpiStageAccent(for index: Int, isSelected: Bool) -> Color {
     }
 }
 
+/// Renders the DPI value field UI.
 struct DpiValueField: View {
     let placeholder: String
     let value: Int

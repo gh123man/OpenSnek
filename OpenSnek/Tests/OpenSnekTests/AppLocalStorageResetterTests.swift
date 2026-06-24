@@ -3,6 +3,7 @@ import OpenSnekAppSupport
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises app local storage resetter behavior.
 final class AppLocalStorageResetterTests: XCTestCase {
     func testResetClearsDefaultsLaunchAgentAndLogs() async throws {
         let suiteName = "AppLocalStorageResetterTests.\(UUID().uuidString)"

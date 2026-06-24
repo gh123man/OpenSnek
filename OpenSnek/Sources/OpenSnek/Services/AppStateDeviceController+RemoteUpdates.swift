@@ -2,6 +2,7 @@ import Foundation
 import OpenSnekCore
 import OpenSnekHardware
 
+/// Adds remote updates behavior to `AppStateDeviceController`.
 @MainActor
 extension AppStateDeviceController {
     func handleBackendDeviceListUpdate(_ listed: [MouseDevice], updatedAt: Date = Date()) async {

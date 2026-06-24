@@ -2,6 +2,7 @@ import AppKit
 import OpenSnekAppSupport
 import SwiftUI
 
+/// Stores window chrome configurator data.
 struct WindowChromeConfigurator: NSViewRepresentable {
     nonisolated static let mainWindowFrameAutosaveName = "OpenSnekMainWindow"
     nonisolated static let framePersistenceKeyPrefix = "windowFrame."
@@ -154,6 +155,7 @@ struct WindowChromeConfigurator: NSViewRepresentable {
         NSScreen.screens.map(\.visibleFrame)
     }
 
+    /// Coordinates coordinator behavior.
     final class Coordinator: @unchecked Sendable {
         private weak var window: NSWindow?
         private var observerTokens: [NSObjectProtocol] = []
@@ -284,6 +286,7 @@ struct WindowChromeConfigurator: NSViewRepresentable {
         }
     }
 
+    /// Coordinates tracking view behavior.
     final class TrackingView: NSView {
         weak var coordinator: Coordinator?
 

@@ -3,6 +3,7 @@ import Network
 import OpenSnekCore
 import OpenSnekHardware
 
+/// Serializes background service request handler state and operations.
 private actor BackgroundServiceRequestHandler {
     private let backend: any DeviceBackend
 
@@ -184,6 +185,7 @@ private actor BackgroundServiceRequestHandler {
     }
 }
 
+/// Serializes background service subscriber session state and operations.
 private actor BackgroundServiceSubscriberSession {
     nonisolated let id = UUID()
 
@@ -281,6 +283,7 @@ private actor BackgroundServiceSubscriberSession {
     }
 }
 
+/// Serializes background service subscriber registry state and operations.
 private actor BackgroundServiceSubscriberRegistry {
     private var sessions: [UUID: BackgroundServiceSubscriberSession] = [:]
 
@@ -326,6 +329,7 @@ private actor BackgroundServiceSubscriberRegistry {
     }
 }
 
+/// Coordinates background service host behavior.
 final class BackgroundServiceHost: @unchecked Sendable {
     private let defaults: UserDefaults
     private let pid = ProcessInfo.processInfo.processIdentifier

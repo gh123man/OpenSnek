@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import OpenSnekCore
 
+/// Stores pill data.
 struct Pill: View {
     let text: String
     let color: Color
@@ -27,6 +28,7 @@ struct Pill: View {
     }
 }
 
+/// Renders the card UI.
 struct Card<Content: View>: View {
     let title: String
     let accessibilityIdentifier: String?
@@ -61,6 +63,7 @@ struct Card<Content: View>: View {
     }
 }
 
+/// Renders the color swatch button UI.
 struct ColorSwatchButton: View {
     let color: Color
     let isSelected: Bool
@@ -80,6 +83,7 @@ struct ColorSwatchButton: View {
     }
 }
 
+/// Adds scoped helpers for `View`.
 extension View {
     @ViewBuilder
     func optionalAccessibilityIdentifier(_ identifier: String?) -> some View {
@@ -115,6 +119,7 @@ extension View {
     }
 }
 
+/// Stores window drag blocker data.
 struct WindowDragBlocker: NSViewRepresentable {
     func makeNSView(context: Context) -> WindowDragBlockingView {
         WindowDragBlockingView(frame: .zero)
@@ -123,6 +128,7 @@ struct WindowDragBlocker: NSViewRepresentable {
     func updateNSView(_ nsView: WindowDragBlockingView, context: Context) {}
 }
 
+/// Coordinates window drag blocking view behavior.
 final class WindowDragBlockingView: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
     override var acceptsFirstResponder: Bool { false }
@@ -146,6 +152,7 @@ final class WindowDragBlockingView: NSView {
     override func otherMouseDown(with event: NSEvent) {}
 }
 
+/// Stores hint text modifier data.
 private struct HintTextModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
@@ -154,6 +161,7 @@ private struct HintTextModifier: ViewModifier {
     }
 }
 
+/// Stores loading scrim modifier data.
 private struct LoadingScrimModifier: ViewModifier {
     let isPresented: Bool
     let label: String?
@@ -171,6 +179,7 @@ private struct LoadingScrimModifier: ViewModifier {
     }
 }
 
+/// Stores loading scrim overlay data.
 private struct LoadingScrimOverlay: View {
     let label: String
 
@@ -212,6 +221,7 @@ private struct LoadingScrimOverlay: View {
     }
 }
 
+/// Stores hover tooltip modifier data.
 private struct HoverTooltipModifier: ViewModifier {
     let helpText: String?
     let xOffset: CGFloat
@@ -242,6 +252,7 @@ private struct HoverTooltipModifier: ViewModifier {
     }
 }
 
+/// Stores hover tooltip bubble data.
 private struct HoverTooltipBubble: View {
     let text: String
     let maxWidth: CGFloat
@@ -268,6 +279,7 @@ private struct HoverTooltipBubble: View {
     }
 }
 
+/// Adds scoped helpers for `Color`.
 extension Color {
     init(hex: UInt32) {
         let r = Double((hex >> 16) & 0xFF) / 255.0
@@ -285,6 +297,7 @@ extension Color {
     }
 }
 
+/// Adds scoped helpers for `OpenSnekCore.RGBColor`.
 extension OpenSnekCore.RGBColor {
     mutating func assign(color: Color) {
         #if os(macOS)
@@ -303,6 +316,7 @@ extension OpenSnekCore.RGBColor {
     }
 }
 
+/// Stores DPI slider scale markers data.
 struct DpiSliderScaleMarkers: View {
     let profileID: DeviceProfileID?
     var markerColor: Color
@@ -355,6 +369,7 @@ struct DpiSliderScaleMarkers: View {
     }
 }
 
+/// Stores DPI slider scale marker data.
 private struct DpiSliderScaleMarker: Identifiable {
     let value: Int
 

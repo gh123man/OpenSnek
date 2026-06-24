@@ -2,6 +2,7 @@ import Foundation
 import OpenSnekAppSupport
 import OpenSnekCore
 
+/// Adds scoped helpers for `OnboardProfileSnapshot`.
 extension OnboardProfileSnapshot {
     var isMetadataOnly: Bool {
         dpi == nil &&
@@ -56,6 +57,7 @@ extension OnboardProfileSnapshot {
     }
 }
 
+/// Adds scoped helpers for `OnboardProfileMutation`.
 extension OnboardProfileMutation {
     func preservingDpiIdentity(from snapshot: OnboardProfileSnapshot?) -> OnboardProfileMutation {
         guard let dpi, let previousDPI = snapshot?.dpi else { return self }

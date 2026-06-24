@@ -5,6 +5,7 @@ import OpenSnekProtocols
 @testable import OpenSnekHardware
 @testable import OpenSnek
 
+/// Stores async timeout error test data.
 struct AsyncTimeoutError: Error {}
 
 func withAsyncTimeout<T: Sendable>(
@@ -26,6 +27,7 @@ func withAsyncTimeout<T: Sendable>(
     }
 }
 
+/// Provides a passive update stub backend test double.
 actor PassiveUpdateStubBackend: DeviceBackend {
     nonisolated var usesRemoteServiceTransport: Bool { false }
 
@@ -125,6 +127,7 @@ actor PassiveUpdateStubBackend: DeviceBackend {
     }
 }
 
+/// Provides a racing passive update stub backend test double.
 actor RacingPassiveUpdateStubBackend: DeviceBackend {
     nonisolated var usesRemoteServiceTransport: Bool { false }
 

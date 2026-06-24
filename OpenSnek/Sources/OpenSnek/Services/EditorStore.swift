@@ -3,6 +3,7 @@ import Observation
 import OpenSnekAppSupport
 import OpenSnekCore
 
+/// Coordinates persisted editor state.
 @MainActor
 @Observable
 final class EditorStore {

@@ -1,6 +1,7 @@
 import OpenSnekAppSupport
 import SwiftUI
 
+/// Renders the local profile library panel UI.
 struct LocalProfileLibraryPanel: View {
     let editorStore: EditorStore
     let isBusy: Bool
@@ -233,6 +234,7 @@ struct LocalProfileLibraryPanel: View {
     }
 }
 
+/// Renders the local profile library row UI.
 private struct LocalProfileLibraryRow: View {
     let editorStore: EditorStore
     let profile: OpenSnekLocalProfile

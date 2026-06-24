@@ -2,6 +2,7 @@ import XCTest
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises content notice presentation behavior.
 final class ContentNoticePresentationTests: XCTestCase {
     func testTelemetryNoticeIsSuppressedDuringReconnectRecovery() {
         XCTAssertTrue(

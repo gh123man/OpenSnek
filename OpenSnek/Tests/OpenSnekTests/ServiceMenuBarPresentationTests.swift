@@ -2,6 +2,7 @@ import XCTest
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises service menu bar presentation behavior.
 final class ServiceMenuBarPresentationTests: XCTestCase {
     func testCompactDpiTextFormatsCommonValues() {
         XCTAssertNil(ServiceMenuBarPresentation.compactDpiText(for: nil))

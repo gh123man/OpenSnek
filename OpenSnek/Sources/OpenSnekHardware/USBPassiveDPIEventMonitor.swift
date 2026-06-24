@@ -2,6 +2,7 @@
 import IOKit.hid
 import OpenSnekCore
 
+/// Stores passive DPI reading data.
 public struct PassiveDPIReading: Hashable, Codable, Sendable {
     public let dpiX: Int
     public let dpiY: Int
@@ -12,6 +13,7 @@ public struct PassiveDPIReading: Hashable, Codable, Sendable {
     }
 }
 
+/// Describes passive DPI event data.
 public struct PassiveDPIEvent: Hashable, Sendable {
     public let deviceID: String
     public let dpiX: Int
@@ -26,6 +28,7 @@ public struct PassiveDPIEvent: Hashable, Sendable {
     }
 }
 
+/// Describes passive DPI heartbeat event data.
 public struct PassiveDPIHeartbeatEvent: Sendable {
     public let deviceID: String
     public let observedAt: Date
@@ -39,6 +42,7 @@ public struct PassiveDPIHeartbeatEvent: Sendable {
     }
 }
 
+/// Describes passive profile switch event data.
 public struct PassiveProfileSwitchEvent: Sendable {
     public let deviceID: String
     public let observedAt: Date
@@ -52,6 +56,7 @@ public struct PassiveProfileSwitchEvent: Sendable {
     }
 }
 
+/// Defines passive DPI input classification values.
 public enum PassiveDPIInputClassification: Hashable, Sendable {
     case dpi(PassiveDPIReading)
     case heartbeat
@@ -59,6 +64,7 @@ public enum PassiveDPIInputClassification: Hashable, Sendable {
     case other
 }
 
+/// Defines passive DPI parser values.
 public enum PassiveDPIParser {
     public static func classify(
         report: [UInt8],
@@ -162,7 +168,9 @@ public enum PassiveDPIParser {
     }
 }
 
+/// Monitors passive DPI event changes.
 public final class PassiveDPIEventMonitor: @unchecked Sendable {
+    /// Stores watch target data.
     public struct WatchTarget: @unchecked Sendable {
         public let deviceID: String
         public let targetID: String
@@ -185,6 +193,7 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         }
     }
 
+    /// Coordinates callback context behavior.
     private final class CallbackContext {
         let deviceID: String
         let descriptor: PassiveDPIInputDescriptor
@@ -219,6 +228,7 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         }
     }
 
+    /// Identifies registration values.
     private struct RegistrationKey: Hashable {
         let deviceID: String
         let targetID: String
@@ -233,6 +243,7 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         }
     }
 
+    /// Stores registration data.
     private struct Registration {
         let device: IOHIDDevice
         let deviceIdentityToken: String

@@ -1,5 +1,6 @@
 import Foundation
 
+/// Coordinates broadcast stream behavior.
 final class BroadcastStream<Element: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
     private var continuations: [UUID: AsyncStream<Element>.Continuation] = [:]

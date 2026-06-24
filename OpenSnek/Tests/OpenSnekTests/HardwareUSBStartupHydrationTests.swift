@@ -2,7 +2,9 @@ import XCTest
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises hardware USB startup hydration behavior.
 final class HardwareUSBStartupHydrationTests: XCTestCase {
+    /// Stores persisted binding test data.
     private struct PersistedBinding: Codable {
         let kindRaw: String
         let hidKey: Int

@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 
+/// Defines OpenSnek appearance values.
 enum OpenSnekAppearance {
     static let appKitName = NSAppearance.Name.darkAqua
     static let colorScheme = ColorScheme.dark
@@ -16,6 +17,7 @@ enum OpenSnekAppearance {
     }
 }
 
+/// Adds scoped helpers for `View`.
 extension View {
     func openSnekFixedAppearance() -> some View {
         preferredColorScheme(OpenSnekAppearance.colorScheme)
