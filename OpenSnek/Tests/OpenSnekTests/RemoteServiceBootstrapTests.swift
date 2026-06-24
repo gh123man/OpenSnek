@@ -18,16 +18,10 @@ final class RemoteServiceBootstrapTests: XCTestCase {
         try await host.start()
         defer { host.stop() }
 
-        let coordinator = await MainActor.run {
-            BackgroundServiceCoordinator(defaults: UserDefaults(suiteName: suiteName)!)
-        }
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, serviceCoordinator: coordinator, autoStart: false)
-        }
+        let coordinator = await MainActor.run { BackgroundServiceCoordinator(defaults: UserDefaults(suiteName: suiteName)!) }
+        let appState = await MainActor.run { AppState(launchRole: .app, serviceCoordinator: coordinator, autoStart: false) }
 
-        await MainActor.run {
-            appState.environment.lastReleaseUpdateCheckAt = Date()
-        }
+        await MainActor.run { appState.environment.lastReleaseUpdateCheckAt = Date() }
         await appState.runtimeStore.start()
 
         let selectedDeviceID = await MainActor.run { appState.deviceStore.selectedDeviceID }
@@ -50,42 +44,17 @@ final class RemoteServiceBootstrapTests: XCTestCase {
         try await host.start()
         defer { host.stop() }
 
-        let coordinator = await MainActor.run {
-            BackgroundServiceCoordinator(defaults: UserDefaults(suiteName: suiteName)!)
-        }
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, serviceCoordinator: coordinator, autoStart: false)
-        }
+        let coordinator = await MainActor.run { BackgroundServiceCoordinator(defaults: UserDefaults(suiteName: suiteName)!) }
+        let appState = await MainActor.run { AppState(launchRole: .app, serviceCoordinator: coordinator, autoStart: false) }
 
-        await MainActor.run {
-            appState.environment.lastReleaseUpdateCheckAt = Date()
-        }
+        await MainActor.run { appState.environment.lastReleaseUpdateCheckAt = Date() }
         await appState.runtimeStore.start()
 
         let snapshotUpdatedAt = Date().addingTimeInterval(1)
-        let updatedState = makeSnapshotState(
-            device: RemoteBootstrapServiceBackend.device,
-            connection: "bluetooth",
-            batteryPercent: 79,
-            dpiValues: [1000, 2000, 3000],
-            activeStage: 2
-        )
-        await backend.emit(
-            .snapshot(
-                SharedServiceSnapshot(
-                    devices: [RemoteBootstrapServiceBackend.device],
-                    stateByDeviceID: [RemoteBootstrapServiceBackend.device.id: updatedState],
-                    lastUpdatedByDeviceID: [RemoteBootstrapServiceBackend.device.id: snapshotUpdatedAt]
-                )
-            )
-        )
+        let updatedState = makeSnapshotState(device: RemoteBootstrapServiceBackend.device, connection: "bluetooth", batteryPercent: 79, dpiValues: [1000, 2000, 3000], activeStage: 2)
+        await backend.emit(.snapshot(SharedServiceSnapshot(devices: [RemoteBootstrapServiceBackend.device], stateByDeviceID: [RemoteBootstrapServiceBackend.device.id: updatedState], lastUpdatedByDeviceID: [RemoteBootstrapServiceBackend.device.id: snapshotUpdatedAt])))
 
-        try await waitUntil {
-            await MainActor.run {
-                appState.deviceStore.state?.dpi?.x == 3000 &&
-                    appState.deviceStore.state?.battery_percent == 79
-            }
-        }
+        try await waitUntil { await MainActor.run { appState.deviceStore.state?.dpi?.x == 3000 && appState.deviceStore.state?.battery_percent == 79 } }
 
         let selectedDpi = await MainActor.run { appState.deviceStore.state?.dpi?.x }
         let selectedBattery = await MainActor.run { appState.deviceStore.state?.battery_percent }
@@ -93,16 +62,10 @@ final class RemoteServiceBootstrapTests: XCTestCase {
         XCTAssertEqual(selectedBattery, 79)
     }
 
-    private func waitUntil(
-        timeout: TimeInterval = 2.0,
-        pollInterval: UInt64 = 20_000_000,
-        condition: @escaping @Sendable () async -> Bool
-    ) async throws {
+    private func waitUntil(timeout: TimeInterval = 2.0, pollInterval: UInt64 = 20_000_000, condition: @escaping @Sendable () async -> Bool) async throws {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if await condition() {
-                return
-            }
+            if await condition() { return }
             try await Task.sleep(nanoseconds: pollInterval)
         }
         XCTFail("Timed out waiting for condition")

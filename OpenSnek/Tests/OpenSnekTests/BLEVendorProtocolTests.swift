@@ -16,11 +16,7 @@ final class BLEVendorProtocolTests: XCTestCase {
 
     func testWriteFramesChunkLargePayloads() {
         let payload = Data((0..<0x4C).map(UInt8.init))
-        let frames = BLEVendorProtocol.buildWriteFrames(
-            req: 0x44,
-            key: .profileMetadataSet(target: 0x02),
-            payload: payload
-        )
+        let frames = BLEVendorProtocol.buildWriteFrames(req: 0x44, key: .profileMetadataSet(target: 0x02), payload: payload)
 
         XCTAssertEqual(Array(frames[0]), [0x44, 0x4C, 0x00, 0x00, 0x03, 0x04, 0x02, 0x00])
         XCTAssertEqual(frames.map(\.count), [8, 20, 20, 20, 16])
@@ -64,60 +60,20 @@ final class BLEVendorProtocolTests: XCTestCase {
     }
 
     func testBluetoothButtonReadPrefersAuthoritativeEvenLaneOverDefaultOddLane() {
-        let payload = Data([
-            0x09, 0x00,
-            0x01, 0x01,
-            0x01, 0x01,
-            0x0A, 0x09,
-            0x00, 0x00,
-            0x00, 0x00,
-            0x00, 0x00,
-            0x00, 0x00
-        ])
+        let payload = Data([0x09, 0x00, 0x01, 0x01, 0x01, 0x01, 0x0A, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
 
-        let block = BLEVendorProtocol.extractBluetoothFunctionBlock(
-            payload: payload,
-            target: 0x02,
-            slot: 0x09,
-            profileID: .basiliskV3Pro
-        )
-        let draft = block.flatMap {
-            ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
-                slot: 9,
-                functionBlock: $0,
-                profileID: .basiliskV3Pro
-            )
-        }
+        let block = BLEVendorProtocol.extractBluetoothFunctionBlock(payload: payload, target: 0x02, slot: 0x09, profileID: .basiliskV3Pro)
+        let draft = block.flatMap { ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 9, functionBlock: $0, profileID: .basiliskV3Pro) }
 
         XCTAssertEqual(block, [0x01, 0x01, 0x0A, 0x00, 0x00, 0x00, 0x00])
         XCTAssertEqual(draft?.kind, .scrollDown)
     }
 
     func testBluetoothButtonReadTreatsShortWheelTiltBlockAsSlotDefault() {
-        let payload = Data([
-            0x34, 0x00,
-            0x0E, 0x0E,
-            0x01, 0x01,
-            0x68, 0x68,
-            0x00, 0x00,
-            0x14, 0x14,
-            0x00, 0x00,
-            0x00, 0x00
-        ])
+        let payload = Data([0x34, 0x00, 0x0E, 0x0E, 0x01, 0x01, 0x68, 0x68, 0x00, 0x00, 0x14, 0x14, 0x00, 0x00, 0x00, 0x00])
 
-        let block = BLEVendorProtocol.extractBluetoothFunctionBlock(
-            payload: payload,
-            target: 0x02,
-            slot: 0x34,
-            profileID: .basiliskV3Pro
-        )
-        let draft = block.flatMap {
-            ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
-                slot: 52,
-                functionBlock: $0,
-                profileID: .basiliskV3Pro
-            )
-        }
+        let block = BLEVendorProtocol.extractBluetoothFunctionBlock(payload: payload, target: 0x02, slot: 0x34, profileID: .basiliskV3Pro)
+        let draft = block.flatMap { ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 52, functionBlock: $0, profileID: .basiliskV3Pro) }
 
         XCTAssertEqual(block, [0x0E, 0x01, 0x68, 0x00, 0x14, 0x00, 0x00])
         XCTAssertEqual(draft?.kind, .default)
@@ -132,25 +88,13 @@ final class BLEVendorProtocolTests: XCTestCase {
 
     func testParsePayloadFramesSupportsEightByteHeaderAndShortFinalFrame() {
         let header = Data([0x30, 0x24, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02])
-        let firstPayload = Data([
-            0x03, 0x05, 0x01, 0x20, 0x03, 0x20, 0x03, 0x00, 0x00, 0x02,
-            0x84, 0x03, 0x84, 0x03, 0x00, 0x00, 0x03, 0xD0, 0x07, 0xD0
-        ])
-        let finalPayload = Data([
-            0x07, 0x00, 0x00, 0x04, 0x4C, 0x04, 0x4C, 0x04,
-            0x00, 0x00, 0x05, 0xB0, 0x04, 0xB0, 0x04, 0x00
-        ])
+        let firstPayload = Data([0x03, 0x05, 0x01, 0x20, 0x03, 0x20, 0x03, 0x00, 0x00, 0x02, 0x84, 0x03, 0x84, 0x03, 0x00, 0x00, 0x03, 0xD0, 0x07, 0xD0])
+        let finalPayload = Data([0x07, 0x00, 0x00, 0x04, 0x4C, 0x04, 0x4C, 0x04, 0x00, 0x00, 0x05, 0xB0, 0x04, 0xB0, 0x04, 0x00])
 
-        let parsed = BLEVendorProtocol.parsePayloadFrames(
-            notifies: [header, firstPayload, finalPayload],
-            req: 0x30
-        )
+        let parsed = BLEVendorProtocol.parsePayloadFrames(notifies: [header, firstPayload, finalPayload], req: 0x30)
 
         XCTAssertEqual(parsed?.count, 0x24)
-        XCTAssertEqual(
-            parsed,
-            firstPayload + finalPayload
-        )
+        XCTAssertEqual(parsed, firstPayload + finalPayload)
     }
 
     func testParsePayloadFramesSupportsEightByteHeaderScalarPayload() {
@@ -185,31 +129,14 @@ final class BLEVendorProtocolTests: XCTestCase {
     }
 
     func testParseFlatDpiPairListFromProfileTargetPayload() {
-        let payload = Data([
-            0x20, 0x03, 0x20, 0x03, 0x00, 0x00,
-            0x84, 0x03, 0x84, 0x03, 0x00, 0x00,
-            0xD0, 0x07, 0xD0, 0x07, 0x00, 0x00
-        ])
+        let payload = Data([0x20, 0x03, 0x20, 0x03, 0x00, 0x00, 0x84, 0x03, 0x84, 0x03, 0x00, 0x00, 0xD0, 0x07, 0xD0, 0x07, 0x00, 0x00])
 
-        XCTAssertEqual(
-            BLEVendorProtocol.parseDpiPairList(blob: payload),
-            [
-                DpiPair(x: 800, y: 800),
-                DpiPair(x: 900, y: 900),
-                DpiPair(x: 2000, y: 2000)
-            ]
-        )
+        XCTAssertEqual(BLEVendorProtocol.parseDpiPairList(blob: payload), [DpiPair(x: 800, y: 800), DpiPair(x: 900, y: 900), DpiPair(x: 2000, y: 2000)])
         XCTAssertEqual(BLEVendorProtocol.parseDpiScalarPair(blob: payload), DpiPair(x: 800, y: 800))
     }
 
     func testBuildDpiStagesRoundTripPreservesIndependentXYPairs() {
-        let payload = BLEVendorProtocol.buildDpiStagePayload(
-            active: 1,
-            count: 2,
-            pairs: [DpiPair(x: 1600, y: 2000), DpiPair(x: 3200, y: 3600)],
-            marker: 0x03,
-            stageIDs: [0x07, 0x09]
-        )
+        let payload = BLEVendorProtocol.buildDpiStagePayload(active: 1, count: 2, pairs: [DpiPair(x: 1600, y: 2000), DpiPair(x: 3200, y: 3600)], marker: 0x03, stageIDs: [0x07, 0x09])
         let parsed = BLEVendorProtocol.parseDpiStages(blob: payload)
         XCTAssertEqual(parsed?.active, 1)
         XCTAssertEqual(parsed?.values, [1600, 3200])
@@ -217,20 +144,12 @@ final class BLEVendorProtocolTests: XCTestCase {
     }
 
     func testMergedStageSlotsSingleModeMirrors() {
-        let merged = BLEVendorProtocol.mergedStageSlots(
-            currentSlots: [400, 800, 1600, 3200, 6400],
-            requestedCount: 1,
-            requestedValues: [1800]
-        )
+        let merged = BLEVendorProtocol.mergedStageSlots(currentSlots: [400, 800, 1600, 3200, 6400], requestedCount: 1, requestedValues: [1800])
         XCTAssertEqual(merged, [1800, 1800, 1800, 1800, 1800])
     }
 
     func testMergedStageSlotsMultiModePreservesTail() {
-        let merged = BLEVendorProtocol.mergedStageSlots(
-            currentSlots: [400, 800, 1600, 3200, 6400],
-            requestedCount: 3,
-            requestedValues: [500, 900, 1700]
-        )
+        let merged = BLEVendorProtocol.mergedStageSlots(currentSlots: [400, 800, 1600, 3200, 6400], requestedCount: 3, requestedValues: [500, 900, 1700])
         XCTAssertEqual(merged, [500, 900, 1700, 3200, 6400])
     }
 
@@ -276,47 +195,21 @@ final class BLEVendorProtocolTests: XCTestCase {
             interleaved.append(previousBlock[index])
         }
 
-        XCTAssertEqual(
-            BLEVendorProtocol.extractBluetoothFunctionBlock(
-                payload: Data(interleaved),
-                target: 0x02,
-                slot: 0x05,
-                profileID: .basiliskV3Pro
-            ),
-            functionBlock
-        )
+        XCTAssertEqual(BLEVendorProtocol.extractBluetoothFunctionBlock(payload: Data(interleaved), target: 0x02, slot: 0x05, profileID: .basiliskV3Pro), functionBlock)
     }
 
     func testButtonPayloadKeyboardShortcutIncludesModifiers() {
-        let payload = BLEVendorProtocol.buildButtonPayload(
-            slot: 0x02,
-            kind: .keyboardSimple,
-            hidKey: 0x2F,
-            hidModifiers: 0x08
-        )
+        let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x02, kind: .keyboardSimple, hidKey: 0x2F, hidModifiers: 0x08)
         XCTAssertEqual(Array(payload), [0x01, 0x02, 0x00, 0x02, 0x02, 0x08, 0x2F, 0x00, 0x00, 0x00])
     }
 
     func testButtonPayloadKeyboardTurbo() {
-        let payload = BLEVendorProtocol.buildButtonPayload(
-            slot: 0x03,
-            kind: .keyboardSimple,
-            hidKey: 0x08,
-            turboEnabled: true,
-            turboRate: 0x008E
-        )
+        let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x03, kind: .keyboardSimple, hidKey: 0x08, turboEnabled: true, turboRate: 0x008E)
         XCTAssertEqual(Array(payload), [0x01, 0x03, 0x00, 0x0D, 0x04, 0x00, 0x08, 0x00, 0x8E, 0x00])
     }
 
     func testButtonPayloadKeyboardTurboShortcutIncludesModifiers() {
-        let payload = BLEVendorProtocol.buildButtonPayload(
-            slot: 0x03,
-            kind: .keyboardSimple,
-            hidKey: 0x2F,
-            hidModifiers: 0x08,
-            turboEnabled: true,
-            turboRate: 0x008E
-        )
+        let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x03, kind: .keyboardSimple, hidKey: 0x2F, hidModifiers: 0x08, turboEnabled: true, turboRate: 0x008E)
         XCTAssertEqual(Array(payload), [0x01, 0x03, 0x00, 0x0D, 0x04, 0x08, 0x2F, 0x00, 0x8E, 0x00])
     }
 
@@ -356,13 +249,7 @@ final class BLEVendorProtocolTests: XCTestCase {
     }
 
     func testButtonPayloadRightClickTurbo() {
-        let payload = BLEVendorProtocol.buildButtonPayload(
-            slot: 0x02,
-            kind: .rightClick,
-            hidKey: nil,
-            turboEnabled: true,
-            turboRate: 0x003E
-        )
+        let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x02, kind: .rightClick, hidKey: nil, turboEnabled: true, turboRate: 0x003E)
         XCTAssertEqual(Array(payload), [0x01, 0x02, 0x00, 0x0E, 0x03, 0x01, 0x3E, 0x00, 0x00, 0x00])
     }
 
@@ -389,13 +276,7 @@ final class BLEVendorProtocolTests: XCTestCase {
     }
 
     func testButtonPayloadTurboHorizontalScrollUsesRawTurboForm() {
-        let payload = BLEVendorProtocol.buildButtonPayload(
-            slot: 0x34,
-            kind: .scrollLeft,
-            hidKey: nil,
-            turboEnabled: true,
-            turboRate: 0x0032
-        )
+        let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x34, kind: .scrollLeft, hidKey: nil, turboEnabled: true, turboRate: 0x0032)
 
         XCTAssertEqual(Array(payload), [0x01, 0x34, 0x00, 0x0E, 0x03, 0x68, 0x00, 0x32, 0x00, 0x00])
     }
@@ -416,41 +297,20 @@ final class BLEVendorProtocolTests: XCTestCase {
     }
 
     func testButtonPayloadDPIClutchUsesBigEndianConfiguredDPI() {
-        let payload = BLEVendorProtocol.buildButtonPayload(
-            slot: 0x0F,
-            kind: .dpiClutch,
-            hidKey: nil,
-            clutchDPI: 800
-        )
+        let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x0F, kind: .dpiClutch, hidKey: nil, clutchDPI: 800)
         XCTAssertEqual(Array(payload), [0x01, 0x0F, 0x00, 0x06, 0x05, 0x05, 0x03, 0x20, 0x03, 0x20])
     }
 
     func testButtonPayloadDPIClutchRetargetsToStoredProfile() {
-        let livePayload = BLEVendorProtocol.buildButtonPayload(
-            slot: 0x0F,
-            kind: .dpiClutch,
-            hidKey: nil,
-            clutchDPI: 800
-        )
+        let livePayload = BLEVendorProtocol.buildButtonPayload(slot: 0x0F, kind: .dpiClutch, hidKey: nil, clutchDPI: 800)
         let storedPayload = BLEVendorProtocol.retargetButtonPayload(livePayload, target: 0x04, slot: 0x0F)
         XCTAssertEqual(Array(storedPayload), [0x04, 0x0F, 0x00, 0x06, 0x05, 0x05, 0x03, 0x20, 0x03, 0x20])
     }
 
     func testBluetoothClutchReadbackPreservesConfiguredDPI() {
         let payload = Data([0x0F, 0x00, 0x06, 0x06, 0x05, 0x05, 0x05, 0x05, 0x03, 0x03, 0x20, 0x20, 0x03, 0x03, 0x20, 0x20])
-        let block = BLEVendorProtocol.extractBluetoothFunctionBlock(
-            payload: payload,
-            target: 0x01,
-            slot: 0x0F,
-            profileID: .basiliskV3Pro
-        )
-        let draft = block.flatMap {
-            ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(
-                slot: 15,
-                functionBlock: $0,
-                profileID: .basiliskV3Pro
-            )
-        }
+        let block = BLEVendorProtocol.extractBluetoothFunctionBlock(payload: payload, target: 0x01, slot: 0x0F, profileID: .basiliskV3Pro)
+        let draft = block.flatMap { ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 15, functionBlock: $0, profileID: .basiliskV3Pro) }
 
         XCTAssertEqual(block, [0x06, 0x05, 0x05, 0x03, 0x20, 0x03, 0x20])
         XCTAssertEqual(draft?.kind, .dpiClutch)
@@ -458,85 +318,49 @@ final class BLEVendorProtocolTests: XCTestCase {
     }
 
     func testScrollLEDEffectStaticArgs() {
-        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(
-            effect: LightingEffectPatch(
-                kind: .staticColor,
-                primary: RGBPatch(r: 0x12, g: 0x34, b: 0x56)
-            )
-        )
+        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(effect: LightingEffectPatch(kind: .staticColor, primary: RGBPatch(r: 0x12, g: 0x34, b: 0x56)))
         XCTAssertEqual(args, [0x01, 0x01, 0x01, 0x00, 0x00, 0x01, 0x12, 0x34, 0x56])
     }
 
     func testScrollLEDEffectOffArgs() {
-        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(
-            effect: LightingEffectPatch(kind: .off)
-        )
+        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(effect: LightingEffectPatch(kind: .off))
         XCTAssertEqual(args, [0x01, 0x01, 0x00, 0x00, 0x00, 0x00])
     }
 
     func testScrollLEDEffectSpectrumArgs() {
-        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(
-            effect: LightingEffectPatch(kind: .spectrum)
-        )
+        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(effect: LightingEffectPatch(kind: .spectrum))
         XCTAssertEqual(args, [0x01, 0x01, 0x03, 0x00, 0x00, 0x00])
     }
 
     func testScrollLEDEffectWaveArgs() {
-        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(
-            effect: LightingEffectPatch(
-                kind: .wave,
-                waveDirection: .right
-            )
-        )
+        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(effect: LightingEffectPatch(kind: .wave, waveDirection: .right))
         XCTAssertEqual(args, [0x01, 0x01, 0x04, 0x02, 0x28, 0x00])
     }
 
     func testScrollLEDEffectReactiveArgsClampSpeed() {
-        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(
-            effect: LightingEffectPatch(
-                kind: .reactive,
-                primary: RGBPatch(r: 0xAA, g: 0xBB, b: 0xCC),
-                reactiveSpeed: 9
-            )
-        )
+        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(effect: LightingEffectPatch(kind: .reactive, primary: RGBPatch(r: 0xAA, g: 0xBB, b: 0xCC), reactiveSpeed: 9))
         XCTAssertEqual(args, [0x01, 0x01, 0x05, 0x00, 0x04, 0x01, 0xAA, 0xBB, 0xCC])
     }
 
     func testScrollLEDEffectPulseRandomArgs() {
-        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(
-            effect: LightingEffectPatch(kind: .pulseRandom)
-        )
+        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(effect: LightingEffectPatch(kind: .pulseRandom))
         XCTAssertEqual(args, [0x01, 0x01, 0x02, 0x00, 0x00, 0x00])
     }
 
     func testScrollLEDEffectPulseSingleArgs() {
-        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(
-            effect: LightingEffectPatch(
-                kind: .pulseSingle,
-                primary: RGBPatch(r: 0x11, g: 0x22, b: 0x33)
-            )
-        )
+        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(effect: LightingEffectPatch(kind: .pulseSingle, primary: RGBPatch(r: 0x11, g: 0x22, b: 0x33)))
         XCTAssertEqual(args, [0x01, 0x01, 0x02, 0x01, 0x00, 0x01, 0x11, 0x22, 0x33])
     }
 
     func testScrollLEDEffectPulseDualArgs() {
-        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(
-            effect: LightingEffectPatch(
-                kind: .pulseDual,
-                primary: RGBPatch(r: 0x01, g: 0x02, b: 0x03),
-                secondary: RGBPatch(r: 0x10, g: 0x20, b: 0x30)
-            )
-        )
+        let args = BLEVendorProtocol.buildScrollLEDEffectArgs(effect: LightingEffectPatch(kind: .pulseDual, primary: RGBPatch(r: 0x01, g: 0x02, b: 0x03), secondary: RGBPatch(r: 0x10, g: 0x20, b: 0x30)))
         XCTAssertEqual(args, [0x01, 0x01, 0x02, 0x02, 0x00, 0x02, 0x01, 0x02, 0x03, 0x10, 0x20, 0x30])
     }
 
     func testV3ProLightingZoneStatePayloadRoundTrip() {
         let payload = BLEVendorProtocol.buildV3ProLightingZoneStatePayload(r: 0xFF, g: 0x40, b: 0x00)
         XCTAssertEqual(Array(payload), [0x01, 0x00, 0x00, 0x01, 0xFF, 0x40, 0x00, 0x00, 0x00, 0x00])
-        XCTAssertEqual(
-            BLEVendorProtocol.parseV3ProLightingZoneStatePayload(payload),
-            RGBPatch(r: 0xFF, g: 0x40, b: 0x00)
-        )
+        XCTAssertEqual(BLEVendorProtocol.parseV3ProLightingZoneStatePayload(payload), RGBPatch(r: 0xFF, g: 0x40, b: 0x00))
     }
 
     func testParseVariableLengthDpiBlob() {
@@ -555,12 +379,7 @@ final class BLEVendorProtocolTests: XCTestCase {
         // [active=1][count=3]
         // entries are intentionally out of order by stage id:
         // stage2 -> 3200, stage0 -> 800, stage1 -> 1600
-        let blob = Data([
-            0x01, 0x03,
-            0x02, 0x80, 0x0C, 0x80, 0x0C, 0x00, 0x00,
-            0x00, 0x20, 0x03, 0x20, 0x03, 0x00, 0x00,
-            0x01, 0x40, 0x06, 0x40, 0x06, 0x00, 0x03
-        ])
+        let blob = Data([0x01, 0x03, 0x02, 0x80, 0x0C, 0x80, 0x0C, 0x00, 0x00, 0x00, 0x20, 0x03, 0x20, 0x03, 0x00, 0x00, 0x01, 0x40, 0x06, 0x40, 0x06, 0x00, 0x03])
         let parsed = BLEVendorProtocol.parseDpiStages(blob: blob)
         XCTAssertNotNil(parsed)
         XCTAssertEqual(parsed?.active, 2)
@@ -572,11 +391,7 @@ final class BLEVendorProtocolTests: XCTestCase {
         // [active=2][count=3]
         // stage entries present: 800 then 3200.
         // Parser should preserve wire order and pad the missing trailing entry.
-        let blob = Data([
-            0x02, 0x03,
-            0x00, 0x20, 0x03, 0x20, 0x03, 0x00, 0x00,
-            0x02, 0x80, 0x0C, 0x80, 0x0C, 0x00, 0x03
-        ])
+        let blob = Data([0x02, 0x03, 0x00, 0x20, 0x03, 0x20, 0x03, 0x00, 0x00, 0x02, 0x80, 0x0C, 0x80, 0x0C, 0x00, 0x03])
         let parsed = BLEVendorProtocol.parseDpiStages(blob: blob)
         XCTAssertNotNil(parsed)
         XCTAssertEqual(parsed?.count, 3)
@@ -587,11 +402,7 @@ final class BLEVendorProtocolTests: XCTestCase {
     func testParseDpiBlobLengthShortByOneStillParsesTwoStages() {
         // Some capture-backed read headers report payload length one byte short.
         // Here count=2 with second entry marker omitted (15 bytes total).
-        let blob = Data([
-            0x01, 0x02,
-            0x01, 0x20, 0x03, 0x20, 0x03, 0x00, 0x00,
-            0x02, 0x00, 0x19, 0x00, 0x19, 0x00
-        ])
+        let blob = Data([0x01, 0x02, 0x01, 0x20, 0x03, 0x20, 0x03, 0x00, 0x00, 0x02, 0x00, 0x19, 0x00, 0x19, 0x00])
         let parsed = BLEVendorProtocol.parseDpiStages(blob: blob)
         XCTAssertNotNil(parsed)
         XCTAssertEqual(parsed?.active, 0)
@@ -601,12 +412,7 @@ final class BLEVendorProtocolTests: XCTestCase {
 
     func testParseDpiBlobLengthShortByOneStillParsesThreeStages() {
         // count=3 with final entry marker omitted (22 bytes total).
-        let blob = Data([
-            0x02, 0x03,
-            0x01, 0x20, 0x03, 0x20, 0x03, 0x00, 0x00,
-            0x02, 0x40, 0x06, 0x40, 0x06, 0x00, 0x00,
-            0x03, 0x80, 0x0C, 0x80, 0x0C, 0x00
-        ])
+        let blob = Data([0x02, 0x03, 0x01, 0x20, 0x03, 0x20, 0x03, 0x00, 0x00, 0x02, 0x40, 0x06, 0x40, 0x06, 0x00, 0x00, 0x03, 0x80, 0x0C, 0x80, 0x0C, 0x00])
         let parsed = BLEVendorProtocol.parseDpiStages(blob: blob)
         XCTAssertNotNil(parsed)
         XCTAssertEqual(parsed?.active, 1)
@@ -615,21 +421,12 @@ final class BLEVendorProtocolTests: XCTestCase {
     }
 
     func testParseStoredProfileProjectionUsesDeclaredCount() {
-        let blob = Data([
-            0x03, 0x03,
-            0x01, 0x90, 0x01, 0x90, 0x01, 0x00, 0x00,
-            0x02, 0xB0, 0x04, 0xB0, 0x04, 0x00, 0x00,
-            0x03, 0x14, 0x05, 0x14, 0x05, 0x00
-        ])
+        let blob = Data([0x03, 0x03, 0x01, 0x90, 0x01, 0x90, 0x01, 0x00, 0x00, 0x02, 0xB0, 0x04, 0xB0, 0x04, 0x00, 0x00, 0x03, 0x14, 0x05, 0x14, 0x05, 0x00])
         let parsed = BLEVendorProtocol.parseDpiStages(blob: blob)
 
         XCTAssertEqual(parsed?.count, 3)
         XCTAssertEqual(parsed?.values, [400, 1200, 1300])
-        XCTAssertEqual(parsed?.pairs, [
-            DpiPair(x: 400, y: 400),
-            DpiPair(x: 1200, y: 1200),
-            DpiPair(x: 1300, y: 1300)
-        ])
+        XCTAssertEqual(parsed?.pairs, [DpiPair(x: 400, y: 400), DpiPair(x: 1200, y: 1200), DpiPair(x: 1300, y: 1300)])
         XCTAssertEqual(parsed?.active, 2)
     }
 }

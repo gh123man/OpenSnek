@@ -1,17 +1,12 @@
 import Foundation
 
 /// Stores app local storage resetter data.
-@MainActor
-struct AppLocalStorageResetter {
+@MainActor struct AppLocalStorageResetter {
     private let backgroundServiceCoordinator: BackgroundServiceCoordinator
     private let fileManager: FileManager
     private let logsDirectoryURL: URL
 
-    init(
-        backgroundServiceCoordinator: BackgroundServiceCoordinator,
-        fileManager: FileManager = .default,
-        logsDirectoryURL: URL = AppLog.logsDirectoryURL
-    ) {
+    init(backgroundServiceCoordinator: BackgroundServiceCoordinator, fileManager: FileManager = .default, logsDirectoryURL: URL = AppLog.logsDirectoryURL) {
         self.backgroundServiceCoordinator = backgroundServiceCoordinator
         self.fileManager = fileManager
         self.logsDirectoryURL = logsDirectoryURL
@@ -19,9 +14,6 @@ struct AppLocalStorageResetter {
 
     func reset() throws {
         try backgroundServiceCoordinator.resetPersistentState()
-        try AppLog.clearAllFiles(
-            fileManager: fileManager,
-            logsDirectoryURL: logsDirectoryURL
-        )
+        try AppLog.clearAllFiles(fileManager: fileManager, logsDirectoryURL: logsDirectoryURL)
     }
 }

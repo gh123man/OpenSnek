@@ -18,35 +18,23 @@ enum DeviceConnectionState: Equatable {
 
     var indicator: DeviceStatusIndicator {
         switch self {
-        case .disconnected:
-            DeviceStatusIndicator(label: "Disconnected", color: Color(hex: 0xFF453A))
-        case .reconnecting:
-            DeviceStatusIndicator(label: "Reconnecting", color: Color(hex: 0xFFD60A))
-        case .connected:
-            DeviceStatusIndicator(label: "Connected", color: Color(hex: 0x30D158))
-        case .unsupported:
-            DeviceStatusIndicator(label: "Unsupported", color: Color(hex: 0xFFD60A))
-        case .error:
-            DeviceStatusIndicator(label: "Error", color: Color(hex: 0xFF453A))
+        case .disconnected: DeviceStatusIndicator(label: "Disconnected", color: Color(hex: 0xFF453A))
+        case .reconnecting: DeviceStatusIndicator(label: "Reconnecting", color: Color(hex: 0xFFD60A))
+        case .connected: DeviceStatusIndicator(label: "Connected", color: Color(hex: 0x30D158))
+        case .unsupported: DeviceStatusIndicator(label: "Unsupported", color: Color(hex: 0xFFD60A))
+        case .error: DeviceStatusIndicator(label: "Error", color: Color(hex: 0xFF453A))
         }
     }
 
-    var allowsInteraction: Bool {
-        self == .connected
-    }
+    var allowsInteraction: Bool { self == .connected }
 
     var diagnosticsLabel: String {
         switch self {
-        case .disconnected:
-            "Disconnected"
-        case .reconnecting:
-            "Reconnecting to live telemetry"
-        case .connected:
-            "Live"
-        case .unsupported:
-            "Unsupported"
-        case .error:
-            "Error"
+        case .disconnected: "Disconnected"
+        case .reconnecting: "Reconnecting to live telemetry"
+        case .connected: "Live"
+        case .unsupported: "Unsupported"
+        case .error: "Error"
         }
     }
 }
@@ -62,18 +50,12 @@ enum DpiUpdateTransportStatus: String, Codable, Equatable, Sendable {
 
     var diagnosticsLabel: String {
         switch self {
-        case .unknown:
-            "Checking"
-        case .listening:
-            "Listening for first HID event"
-        case .streamActive:
-            "HID stream active"
-        case .pollingFallback:
-            "Polling fallback active"
-        case .realTimeHID:
-            "Real-time HID active"
-        case .unsupported:
-            "Unsupported"
+        case .unknown: "Checking"
+        case .listening: "Listening for first HID event"
+        case .streamActive: "HID stream active"
+        case .pollingFallback: "Polling fallback active"
+        case .realTimeHID: "Real-time HID active"
+        case .unsupported: "Unsupported"
         }
     }
 }
@@ -91,10 +73,8 @@ enum ButtonProfileSource: Hashable, Codable, Identifiable {
 
     var id: String {
         switch self {
-        case .openSnekProfile(let id):
-            return "openSnek:\(id.uuidString)"
-        case .mouseSlot(let slot):
-            return "mouseSlot:\(slot)"
+        case .openSnekProfile(let id): return "openSnek:\(id.uuidString)"
+        case .mouseSlot(let slot): return "mouseSlot:\(slot)"
         }
     }
 }
@@ -117,30 +97,23 @@ enum PollingProfile: Equatable {
 
     var refreshStateInterval: TimeInterval {
         switch self {
-        case .foreground, .serviceInteractive:
-            2.0
-        case .serviceIdle:
-            8.0
+        case .foreground, .serviceInteractive: 2.0
+        case .serviceIdle: 8.0
         }
     }
 
     var devicePresenceInterval: TimeInterval {
         switch self {
-        case .foreground, .serviceInteractive:
-            1.2
-        case .serviceIdle:
-            4.0
+        case .foreground, .serviceInteractive: 1.2
+        case .serviceIdle: 4.0
         }
     }
 
     var fastDpiInterval: TimeInterval? {
         switch self {
-        case .foreground:
-            0.20
-        case .serviceInteractive:
-            0.25
-        case .serviceIdle:
-            nil
+        case .foreground: 0.20
+        case .serviceInteractive: 0.25
+        case .serviceIdle: nil
         }
     }
 }
@@ -176,18 +149,12 @@ enum RuntimeWakeSchedule {
             let refreshStateInterval = context.refreshStateIntervalOverride ?? context.profile.refreshStateInterval
             intervals.append(max(0, devicePresenceInterval - context.now.timeIntervalSince(context.lastDevicePresencePollAt)))
             intervals.append(max(0, refreshStateInterval - context.now.timeIntervalSince(context.lastRefreshStatePollAt)))
-            if let fastInterval = context.fastDpiInterval {
-                intervals.append(max(0, fastInterval - context.now.timeIntervalSince(context.lastFastDpiPollAt)))
-            }
+            if let fastInterval = context.fastDpiInterval { intervals.append(max(0, fastInterval - context.now.timeIntervalSince(context.lastFastDpiPollAt))) }
         }
 
-        if let transientStatusUntil = context.transientStatusUntil {
-            intervals.append(max(0, transientStatusUntil.timeIntervalSince(context.now)))
-        }
+        if let transientStatusUntil = context.transientStatusUntil { intervals.append(max(0, transientStatusUntil.timeIntervalSince(context.now))) }
 
-        if let nextRemoteClientPresenceExpiry = context.nextRemoteClientPresenceExpiry {
-            intervals.append(max(0, nextRemoteClientPresenceExpiry.timeIntervalSince(context.now)))
-        }
+        if let nextRemoteClientPresenceExpiry = context.nextRemoteClientPresenceExpiry { intervals.append(max(0, nextRemoteClientPresenceExpiry.timeIntervalSince(context.now))) }
 
         let nextDue = intervals.filter { $0.isFinite && $0 >= 0 }.min() ?? 1.0
         return max(minimumSleepInterval, nextDue)
@@ -230,36 +197,22 @@ extension DevicePatch {
         if let ledRGB { parts.append("rgb=(\(ledRGB.r),\(ledRGB.g),\(ledRGB.b))") }
         if let lightingEffect {
             var detail = "fx=\(lightingEffect.kind.rawValue)"
-            if lightingEffect.kind.usesWaveDirection {
-                detail += ",dir=\(lightingEffect.waveDirection.rawValue)"
-            }
-            if lightingEffect.kind.usesReactiveSpeed {
-                detail += ",speed=\(lightingEffect.reactiveSpeed)"
-            }
-            if lightingEffect.kind.usesPrimaryColor {
-                detail += ",p=(\(lightingEffect.primary.r),\(lightingEffect.primary.g),\(lightingEffect.primary.b))"
-            }
-            if lightingEffect.kind.usesSecondaryColor {
-                detail += ",s=(\(lightingEffect.secondary.r),\(lightingEffect.secondary.g),\(lightingEffect.secondary.b))"
-            }
+            if lightingEffect.kind.usesWaveDirection { detail += ",dir=\(lightingEffect.waveDirection.rawValue)" }
+            if lightingEffect.kind.usesReactiveSpeed { detail += ",speed=\(lightingEffect.reactiveSpeed)" }
+            if lightingEffect.kind.usesPrimaryColor { detail += ",p=(\(lightingEffect.primary.r),\(lightingEffect.primary.g),\(lightingEffect.primary.b))" }
+            if lightingEffect.kind.usesSecondaryColor { detail += ",s=(\(lightingEffect.secondary.r),\(lightingEffect.secondary.g),\(lightingEffect.secondary.b))" }
             parts.append(detail)
         }
         if let buttonBinding {
             var detail = "button(slot=\(buttonBinding.slot),kind=\(buttonBinding.kind.rawValue)"
-            if buttonBinding.turboEnabled {
-                detail += ",turbo=on,rate=\(buttonBinding.turboRate ?? ButtonBindingSupport.defaultTurboRate)"
-            }
-            if buttonBinding.kind == .dpiClutch {
-                detail += ",dpi=\(buttonBinding.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI)"
-            }
+            if buttonBinding.turboEnabled { detail += ",turbo=on,rate=\(buttonBinding.turboRate ?? ButtonBindingSupport.defaultTurboRate)" }
+            if buttonBinding.kind == .dpiClutch { detail += ",dpi=\(buttonBinding.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI)" }
             detail += ")"
             parts.append(detail)
         }
         if let usbButtonProfileAction {
             var detail = "usbProfileAction(kind=\(usbButtonProfileAction.kind.rawValue),target=\(usbButtonProfileAction.targetProfile)"
-            if let sourceProfile = usbButtonProfileAction.sourceProfile {
-                detail += ",source=\(sourceProfile)"
-            }
+            if let sourceProfile = usbButtonProfileAction.sourceProfile { detail += ",source=\(sourceProfile)" }
             detail += ")"
             parts.append(detail)
         }

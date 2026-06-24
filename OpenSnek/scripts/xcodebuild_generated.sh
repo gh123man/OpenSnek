@@ -18,6 +18,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+"$SCRIPT_DIR/check_swift_format.sh"
 "$SCRIPT_DIR/generate_xcodeproj.sh"
 exec xcodebuild \
   -skipPackagePluginValidation \

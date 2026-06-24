@@ -14,18 +14,11 @@ public enum ButtonBindingSupport {
     private static let horizontalScrollRightButtonID: UInt8 = 0x69
     private static let basiliskV3FamilyHorizontalScrollTurboRate = 0x14
 
-    public static func clampTurboRate(_ turboRate: Int) -> Int {
-        max(minimumTurboRate, min(maximumTurboRate, turboRate))
-    }
+    public static func clampTurboRate(_ turboRate: Int) -> Int { max(minimumTurboRate, min(maximumTurboRate, turboRate)) }
 
-    public static func clampTurboPressesPerSecond(_ pressesPerSecond: Int) -> Int {
-        max(minimumTurboPressesPerSecond, min(maximumTurboPressesPerSecond, pressesPerSecond))
-    }
+    public static func clampTurboPressesPerSecond(_ pressesPerSecond: Int) -> Int { max(minimumTurboPressesPerSecond, min(maximumTurboPressesPerSecond, pressesPerSecond)) }
 
-    private static func basiliskDPIClutchBlock(
-        dpi: Int = defaultBasiliskDPIClutchDPI,
-        profileID: DeviceProfileID = .basiliskV3Pro
-    ) -> [UInt8] {
+    private static func basiliskDPIClutchBlock(dpi: Int = defaultBasiliskDPIClutchDPI, profileID: DeviceProfileID = .basiliskV3Pro) -> [UInt8] {
         let clamped = UInt16(DeviceProfiles.clampDPI(dpi, profileID: profileID))
         let hi = UInt8((clamped >> 8) & 0xFF)
         let lo = UInt8(clamped & 0xFF)
@@ -34,69 +27,48 @@ public enum ButtonBindingSupport {
     }
 
     private static func basiliskDPIClutchDPI(from functionBlock: [UInt8], profileID: DeviceProfileID) -> Int? {
-        guard functionBlock.count == 7,
-              functionBlock[0] == 0x06,
-              functionBlock[1] == 0x05,
-              functionBlock[2] == 0x05
-        else {
-            return nil
-        }
+        guard functionBlock.count == 7, functionBlock[0] == 0x06, functionBlock[1] == 0x05, functionBlock[2] == 0x05 else { return nil }
         let dpiX = (Int(functionBlock[3]) << 8) | Int(functionBlock[4])
         let dpiY = (Int(functionBlock[5]) << 8) | Int(functionBlock[6])
         guard dpiX == dpiY else { return nil }
         return DeviceProfiles.clampDPI(dpiX, profileID: profileID)
     }
 
-    private static func basiliskV3FamilyHorizontalScrollBlock(
-        buttonID: UInt8,
-        turboRate: Int = basiliskV3FamilyHorizontalScrollTurboRate
-    ) -> [UInt8] {
+    private static func basiliskV3FamilyHorizontalScrollBlock(buttonID: UInt8, turboRate: Int = basiliskV3FamilyHorizontalScrollTurboRate) -> [UInt8] {
         let turbo = UInt16(clampTurboRate(turboRate))
         let turboHi = UInt8((turbo >> 8) & 0xFF)
         let turboLo = UInt8(turbo & 0xFF)
         return [0x0E, 0x03, buttonID, turboHi, turboLo, 0x00, 0x00]
     }
 
-    private static func basiliskV3FamilyShortHorizontalScrollBlock(
-        buttonID: UInt8,
-        turboRate: Int = basiliskV3FamilyHorizontalScrollTurboRate
-    ) -> [UInt8] {
+    private static func basiliskV3FamilyShortHorizontalScrollBlock(buttonID: UInt8, turboRate: Int = basiliskV3FamilyHorizontalScrollTurboRate) -> [UInt8] {
         let turbo = UInt16(clampTurboRate(turboRate))
         let turboHi = UInt8((turbo >> 8) & 0xFF)
         let turboLo = UInt8(turbo & 0xFF)
         return [0x0E, 0x01, buttonID, turboHi, turboLo, 0x00, 0x00]
     }
 
-    private static func usesBasiliskV3FamilyHorizontalScrollBlock(_ profileID: DeviceProfileID?) -> Bool {
-        isBasiliskV3Family(profileID)
-    }
+    private static func usesBasiliskV3FamilyHorizontalScrollBlock(_ profileID: DeviceProfileID?) -> Bool { isBasiliskV3Family(profileID) }
 
     private static func isBasiliskV3Family(_ profileID: DeviceProfileID?) -> Bool {
         switch profileID {
-        case .basiliskV3, .basiliskV3Pro, .basiliskV335K:
-            return true
-        case .basiliskV3XHyperspeed, .orochiV2, .none:
-            return false
+        case .basiliskV3, .basiliskV3Pro, .basiliskV335K: return true
+        case .basiliskV3XHyperspeed, .orochiV2, .none: return false
         }
     }
 
     private static func defaultHorizontalScrollButtonID(forSlot slot: UInt8) -> UInt8? {
         switch slot {
-        case 0x34:
-            return horizontalScrollLeftButtonID
-        case 0x35:
-            return horizontalScrollRightButtonID
-        default:
-            return nil
+        case 0x34: return horizontalScrollLeftButtonID
+        case 0x35: return horizontalScrollRightButtonID
+        default: return nil
         }
     }
 
     public static func defaultDPIClutchDPI(for profileID: DeviceProfileID?) -> Int? {
         switch profileID {
-        case .basiliskV3, .basiliskV3Pro, .basiliskV335K:
-            return defaultBasiliskDPIClutchDPI
-        case .basiliskV3XHyperspeed, .orochiV2, .none:
-            return nil
+        case .basiliskV3, .basiliskV3Pro, .basiliskV335K: return defaultBasiliskDPIClutchDPI
+        case .basiliskV3XHyperspeed, .orochiV2, .none: return nil
         }
     }
 
@@ -107,75 +79,38 @@ public enum ButtonBindingSupport {
         return fallback
     }
 
-    public static func semanticDefaultButtonBinding(
-        for slot: Int,
-        profileID: DeviceProfileID? = nil
-    ) -> ButtonBindingDraft? {
+    public static func semanticDefaultButtonBinding(for slot: Int, profileID: DeviceProfileID? = nil) -> ButtonBindingDraft? {
         switch slot {
-        case 15 where isBasiliskV3Family(profileID):
-            return ButtonBindingDraft(
-                kind: .dpiClutch,
-                hidKey: 4,
-                turboEnabled: false,
-                turboRate: defaultTurboRate,
-                clutchDPI: defaultDPIClutchDPI(for: profileID)
-            )
-        case 52 where isBasiliskV3Family(profileID):
-            return ButtonBindingDraft(kind: .scrollLeft, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
-        case 53 where isBasiliskV3Family(profileID):
-            return ButtonBindingDraft(kind: .scrollRight, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
+        case 15 where isBasiliskV3Family(profileID): return ButtonBindingDraft(kind: .dpiClutch, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate, clutchDPI: defaultDPIClutchDPI(for: profileID))
+        case 52 where isBasiliskV3Family(profileID): return ButtonBindingDraft(kind: .scrollLeft, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
+        case 53 where isBasiliskV3Family(profileID): return ButtonBindingDraft(kind: .scrollRight, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
         case 96:
             switch profileID {
-            case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3XHyperspeed, .orochiV2, .none:
-                return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
+            case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3XHyperspeed, .orochiV2, .none: return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
             }
-        default:
-            return nil
+        default: return nil
         }
     }
 
-    public static func normalizedDefaultRepresentation(
-        for slot: Int,
-        draft: ButtonBindingDraft,
-        profileID: DeviceProfileID? = nil
-    ) -> ButtonBindingDraft {
-        guard let semanticDefault = semanticDefaultButtonBinding(for: slot, profileID: profileID) else {
-            return draft
-        }
-        guard draft == semanticDefault || draft.kind == .default else {
-            return draft
-        }
+    public static func normalizedDefaultRepresentation(for slot: Int, draft: ButtonBindingDraft, profileID: DeviceProfileID? = nil) -> ButtonBindingDraft {
+        guard let semanticDefault = semanticDefaultButtonBinding(for: slot, profileID: profileID) else { return draft }
+        guard draft == semanticDefault || draft.kind == .default else { return draft }
         return defaultButtonBinding(for: slot, profileID: profileID)
     }
 
-    public static func buttonBindingDraftFromUSBFunctionBlock(
-        slot: Int,
-        functionBlock: [UInt8],
-        profileID: DeviceProfileID? = nil
-    ) -> ButtonBindingDraft? {
+    public static func buttonBindingDraftFromUSBFunctionBlock(slot: Int, functionBlock: [UInt8], profileID: DeviceProfileID? = nil) -> ButtonBindingDraft? {
         guard functionBlock.count == 7 else { return nil }
 
-        if let defaultBlock = defaultUSBFunctionBlock(for: slot, profileID: profileID), functionBlock == defaultBlock {
-            return defaultButtonBinding(for: slot, profileID: profileID)
-        }
+        if let defaultBlock = defaultUSBFunctionBlock(for: slot, profileID: profileID), functionBlock == defaultBlock { return defaultButtonBinding(for: slot, profileID: profileID) }
 
         if let semanticDefault = semanticDefaultButtonBinding(for: slot, profileID: profileID),
-           functionBlock == buildUSBFunctionBlock(
-               slot: slot,
-               kind: semanticDefault.kind,
-               hidKey: semanticDefault.hidKey,
-               hidModifiers: semanticDefault.hidModifiers,
-               turboEnabled: semanticDefault.turboEnabled,
-               turboRate: semanticDefault.turboRate,
-               clutchDPI: semanticDefault.clutchDPI,
-               profileID: profileID
-           ) {
+            functionBlock
+                == buildUSBFunctionBlock(slot: slot, kind: semanticDefault.kind, hidKey: semanticDefault.hidKey, hidModifiers: semanticDefault.hidModifiers, turboEnabled: semanticDefault.turboEnabled, turboRate: semanticDefault.turboRate, clutchDPI: semanticDefault.clutchDPI, profileID: profileID)
+        {
             return defaultButtonBinding(for: slot, profileID: profileID)
         }
 
-        if usesBasiliskV3FamilyHorizontalScrollBlock(profileID),
-           let defaultButtonID = defaultHorizontalScrollButtonID(forSlot: UInt8(max(0, min(255, slot)))),
-           functionBlock == basiliskV3FamilyShortHorizontalScrollBlock(buttonID: defaultButtonID) {
+        if usesBasiliskV3FamilyHorizontalScrollBlock(profileID), let defaultButtonID = defaultHorizontalScrollButtonID(forSlot: UInt8(max(0, min(255, slot)))), functionBlock == basiliskV3FamilyShortHorizontalScrollBlock(buttonID: defaultButtonID) {
             return defaultButtonBinding(for: slot, profileID: profileID)
         }
 
@@ -188,112 +123,49 @@ public enum ButtonBindingSupport {
             guard functionBlock == [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] else { return nil }
             return ButtonBindingDraft(kind: .clearLayer, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
         case 0x04:
-            if slot == 96, functionBlock == [0x04, 0x02, 0x0F, 0x7B, 0x00, 0x00, 0x00] {
-                return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
-            }
+            if slot == 96, functionBlock == [0x04, 0x02, 0x0F, 0x7B, 0x00, 0x00, 0x00] { return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate) }
             return nil
         case 0x06:
-            if functionBlock == [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00] {
-                return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
-            }
-            if let profileID,
-               isBasiliskV3Family(profileID),
-               let dpi = basiliskDPIClutchDPI(from: functionBlock, profileID: profileID) {
-                return ButtonBindingDraft(
-                    kind: .dpiClutch,
-                    hidKey: 4,
-                    turboEnabled: false,
-                    turboRate: defaultTurboRate,
-                    clutchDPI: DeviceProfiles.clampDPI(dpi, profileID: profileID)
-                )
+            if functionBlock == [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00] { return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate) }
+            if let profileID, isBasiliskV3Family(profileID), let dpi = basiliskDPIClutchDPI(from: functionBlock, profileID: profileID) {
+                return ButtonBindingDraft(kind: .dpiClutch, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate, clutchDPI: DeviceProfiles.clampDPI(dpi, profileID: profileID))
             }
             return nil
         case 0x01:
-            guard let mouseButton = data.first,
-                  let kind = buttonKindFromUSBMouseButton(mouseButton)
-            else { return nil }
+            guard let mouseButton = data.first, let kind = buttonKindFromUSBMouseButton(mouseButton) else { return nil }
             return ButtonBindingDraft(kind: kind, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
         case 0x02:
             guard !data.isEmpty else { return nil }
             let hidModifiers = data.count >= 2 ? Int(data[0]) : 0
             let hidKey = data.count >= 2 ? Int(data[1]) : Int(data[0])
-            return ButtonBindingDraft(
-                kind: .keyboardSimple,
-                hidKey: max(4, min(231, hidKey)),
-                hidModifiers: max(0, min(255, hidModifiers)),
-                turboEnabled: false,
-                turboRate: defaultTurboRate
-            )
+            return ButtonBindingDraft(kind: .keyboardSimple, hidKey: max(4, min(231, hidKey)), hidModifiers: max(0, min(255, hidModifiers)), turboEnabled: false, turboRate: defaultTurboRate)
         case 0x0D:
             guard data.count >= 4 else { return nil }
             let hidModifiers = Int(data[0])
             let hidKey = Int(data[1])
             let rawRate = (Int(data[2]) << 8) | Int(data[3])
-            return ButtonBindingDraft(
-                kind: .keyboardSimple,
-                hidKey: max(4, min(231, hidKey)),
-                hidModifiers: max(0, min(255, hidModifiers)),
-                turboEnabled: true,
-                turboRate: clampTurboRate(rawRate)
-            )
+            return ButtonBindingDraft(kind: .keyboardSimple, hidKey: max(4, min(231, hidKey)), hidModifiers: max(0, min(255, hidModifiers)), turboEnabled: true, turboRate: clampTurboRate(rawRate))
         case 0x0E:
-            guard let buttonID = data.first,
-                  let kind = buttonKindFromUSBMouseButton(buttonID)
-            else { return nil }
-            guard data.count >= 3 else {
-                return ButtonBindingDraft(
-                    kind: kind,
-                    hidKey: 4,
-                    turboEnabled: false,
-                    turboRate: defaultTurboRate
-                )
-            }
+            guard let buttonID = data.first, let kind = buttonKindFromUSBMouseButton(buttonID) else { return nil }
+            guard data.count >= 3 else { return ButtonBindingDraft(kind: kind, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate) }
             let rawRate = (Int(data[1]) << 8) | Int(data[2])
-            return ButtonBindingDraft(
-                kind: kind,
-                hidKey: 4,
-                turboEnabled: true,
-                turboRate: clampTurboRate(rawRate)
-            )
-        default:
-            return nil
+            return ButtonBindingDraft(kind: kind, hidKey: 4, turboEnabled: true, turboRate: clampTurboRate(rawRate))
+        default: return nil
         }
     }
 
-    public static func extractUSBFunctionBlock(
-        response: [UInt8],
-        profile: UInt8,
-        slot: UInt8,
-        hypershift: UInt8,
-        profileID: DeviceProfileID? = nil
-    ) -> [UInt8]? {
-        guard response.count >= 18,
-              response[8] == profile,
-              response[9] == slot
-        else {
-            return nil
-        }
+    public static func extractUSBFunctionBlock(response: [UInt8], profile: UInt8, slot: UInt8, hypershift: UInt8, profileID: DeviceProfileID? = nil) -> [UInt8]? {
+        guard response.count >= 18, response[8] == profile, response[9] == slot else { return nil }
 
-        if usesExtendedBasiliskUSBReadLayout(profileID) {
-            return Array(response[11..<18])
-        }
+        if usesExtendedBasiliskUSBReadLayout(profileID) { return Array(response[11..<18]) }
 
         var candidates: [[UInt8]] = []
-        if response[10] == hypershift {
-            candidates.append(Array(response[11..<18]))
-        }
+        if response[10] == hypershift { candidates.append(Array(response[11..<18])) }
         candidates.append(Array(response[10..<17]))
 
-        if let defaultBlock = defaultUSBFunctionBlock(for: Int(slot), profileID: profileID),
-           let matchedDefault = candidates.first(where: { $0 == defaultBlock }) {
-            return matchedDefault
-        }
+        if let defaultBlock = defaultUSBFunctionBlock(for: Int(slot), profileID: profileID), let matchedDefault = candidates.first(where: { $0 == defaultBlock }) { return matchedDefault }
 
-        if let parsed = candidates.first(where: {
-            buttonBindingDraftFromUSBFunctionBlock(slot: Int(slot), functionBlock: $0, profileID: profileID) != nil
-        }) {
-            return parsed
-        }
+        if let parsed = candidates.first(where: { buttonBindingDraftFromUSBFunctionBlock(slot: Int(slot), functionBlock: $0, profileID: profileID) != nil }) { return parsed }
 
         return candidates.first
     }
@@ -344,16 +216,7 @@ public enum ButtonBindingSupport {
         }
     }
 
-    public static func buildUSBFunctionBlock(
-        slot: Int,
-        kind: ButtonBindingKind,
-        hidKey: Int,
-        hidModifiers: Int = 0,
-        turboEnabled: Bool,
-        turboRate: Int,
-        clutchDPI: Int? = nil,
-        profileID: DeviceProfileID? = nil
-    ) -> [UInt8] {
+    public static func buildUSBFunctionBlock(slot: Int, kind: ButtonBindingKind, hidKey: Int, hidModifiers: Int = 0, turboEnabled: Bool, turboRate: Int, clutchDPI: Int? = nil, profileID: DeviceProfileID? = nil) -> [UInt8] {
         let clampedKey = UInt8(max(0, min(255, hidKey)))
         let clampedModifiers = UInt8(max(0, min(255, hidModifiers)))
         let turbo = UInt16(clampTurboRate(turboRate))
@@ -361,33 +224,17 @@ public enum ButtonBindingSupport {
         let turboLo = UInt8(turbo & 0xFF)
 
         switch kind {
-        case .default:
-            return defaultUSBFunctionBlock(for: slot, profileID: profileID) ?? [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
-        case .dpiCycle:
-            return [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
-        case .dpiClutch:
-            return basiliskDPIClutchBlock(
-                dpi: clutchDPI ?? defaultBasiliskDPIClutchDPI,
-                profileID: profileID ?? .basiliskV3Pro
-            )
-        case .clearLayer:
-            return [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        case .default: return defaultUSBFunctionBlock(for: slot, profileID: profileID) ?? [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        case .dpiCycle: return [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
+        case .dpiClutch: return basiliskDPIClutchBlock(dpi: clutchDPI ?? defaultBasiliskDPIClutchDPI, profileID: profileID ?? .basiliskV3Pro)
+        case .clearLayer: return [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
         case .keyboardSimple:
-            if turboEnabled {
-                return [0x0D, 0x04, clampedModifiers, clampedKey, turboHi, turboLo, 0x00]
-            }
+            if turboEnabled { return [0x0D, 0x04, clampedModifiers, clampedKey, turboHi, turboLo, 0x00] }
             return [0x02, 0x02, clampedModifiers, clampedKey, 0x00, 0x00, 0x00]
         default:
             if let buttonID = usbMouseButtonID(for: kind) {
-                if usesBasiliskV3FamilyHorizontalScrollBlock(profileID), kind == .scrollLeft || kind == .scrollRight {
-                    return basiliskV3FamilyHorizontalScrollBlock(
-                        buttonID: buttonID,
-                        turboRate: turboEnabled ? turboRate : basiliskV3FamilyHorizontalScrollTurboRate
-                    )
-                }
-                if turboEnabled {
-                    return [0x0E, 0x03, buttonID, turboHi, turboLo, 0x00, 0x00]
-                }
+                if usesBasiliskV3FamilyHorizontalScrollBlock(profileID), kind == .scrollLeft || kind == .scrollRight { return basiliskV3FamilyHorizontalScrollBlock(buttonID: buttonID, turboRate: turboEnabled ? turboRate : basiliskV3FamilyHorizontalScrollTurboRate) }
+                if turboEnabled { return [0x0E, 0x03, buttonID, turboHi, turboLo, 0x00, 0x00] }
                 return [0x01, 0x01, buttonID, 0x00, 0x00, 0x00, 0x00]
             }
             return [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
@@ -396,27 +243,18 @@ public enum ButtonBindingSupport {
 
     public static func defaultUSBFunctionBlock(for slot: Int, profileID: DeviceProfileID? = nil) -> [UInt8]? {
         switch slot {
-        case 15 where profileID == .basiliskV3:
-            return [0x06, 0x01, 0x05, 0x01, 0x90, 0x01, 0x90]
-        case 15 where profileID == .basiliskV335K:
-            return [0x06, 0x01, 0x05, 0x01, 0x90, 0x01, 0x90]
-        case 15 where profileID == .basiliskV3Pro:
-            return basiliskDPIClutchBlock(profileID: .basiliskV3Pro)
-        case 52 where usesExtendedBasiliskUSBReadLayout(profileID):
-            return basiliskV3FamilyHorizontalScrollBlock(buttonID: horizontalScrollLeftButtonID)
-        case 53 where usesExtendedBasiliskUSBReadLayout(profileID):
-            return basiliskV3FamilyHorizontalScrollBlock(buttonID: horizontalScrollRightButtonID)
+        case 15 where profileID == .basiliskV3: return [0x06, 0x01, 0x05, 0x01, 0x90, 0x01, 0x90]
+        case 15 where profileID == .basiliskV335K: return [0x06, 0x01, 0x05, 0x01, 0x90, 0x01, 0x90]
+        case 15 where profileID == .basiliskV3Pro: return basiliskDPIClutchBlock(profileID: .basiliskV3Pro)
+        case 52 where usesExtendedBasiliskUSBReadLayout(profileID): return basiliskV3FamilyHorizontalScrollBlock(buttonID: horizontalScrollLeftButtonID)
+        case 53 where usesExtendedBasiliskUSBReadLayout(profileID): return basiliskV3FamilyHorizontalScrollBlock(buttonID: horizontalScrollRightButtonID)
         case 96:
             switch profileID {
-            case .basiliskV3, .basiliskV335K:
-                return [0x04, 0x02, 0x0F, 0x7B, 0x00, 0x00, 0x00]
-            case .basiliskV3Pro:
-                return [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
-            case .basiliskV3XHyperspeed, .orochiV2, .none:
-                return [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
+            case .basiliskV3, .basiliskV335K: return [0x04, 0x02, 0x0F, 0x7B, 0x00, 0x00, 0x00]
+            case .basiliskV3Pro: return [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
+            case .basiliskV3XHyperspeed, .orochiV2, .none: return [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
             }
-        default:
-            break
+        default: break
         }
         switch slot {
         case 1: return [0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00]
@@ -438,35 +276,26 @@ public enum ButtonBindingSupport {
         let length = Int(min(5, block[1]))
         let data = Array(block[2..<(2 + length)])
         let dataHex = data.map { String(format: "%02x", $0) }.joined()
-        if let clutchDPI = basiliskDPIClutchDPI(from: block, profileID: .basiliskV3Pro) {
-            return "block=\(hex) class=0x\(String(format: "%02x", classID)) len=\(length) data=\(dataHex) dpi_clutch=\(clutchDPI)"
-        }
+        if let clutchDPI = basiliskDPIClutchDPI(from: block, profileID: .basiliskV3Pro) { return "block=\(hex) class=0x\(String(format: "%02x", classID)) len=\(length) data=\(dataHex) dpi_clutch=\(clutchDPI)" }
         return "block=\(hex) class=0x\(String(format: "%02x", classID)) len=\(length) data=\(dataHex)"
     }
 
     public static func availableButtonBindingKinds(profileID: DeviceProfileID?) -> [ButtonBindingKind] {
         ButtonBindingKind.allCases.filter { kind in
             switch kind {
-            case .dpiClutch:
-                return isBasiliskV3Family(profileID)
-            default:
-                return true
+            case .dpiClutch: return isBasiliskV3Family(profileID)
+            default: return true
             }
         }
     }
 
     private static func buttonSlotDescriptors(for profileID: DeviceProfileID?) -> [ButtonSlotDescriptor] {
         switch profileID {
-        case .basiliskV3, .basiliskV3Pro, .basiliskV335K:
-            return DeviceProfiles.basiliskV3FamilyButtonSlots
-        case .basiliskV3XHyperspeed, .none:
-            return DeviceProfiles.basiliskV3XButtonSlots
-        case .orochiV2:
-            return DeviceProfiles.orochiV2BluetoothButtonSlots
+        case .basiliskV3, .basiliskV3Pro, .basiliskV335K: return DeviceProfiles.basiliskV3FamilyButtonSlots
+        case .basiliskV3XHyperspeed, .none: return DeviceProfiles.basiliskV3XButtonSlots
+        case .orochiV2: return DeviceProfiles.orochiV2BluetoothButtonSlots
         }
     }
 
-    private static func usesExtendedBasiliskUSBReadLayout(_ profileID: DeviceProfileID?) -> Bool {
-        isBasiliskV3Family(profileID)
-    }
+    private static func usesExtendedBasiliskUSBReadLayout(_ profileID: DeviceProfileID?) -> Bool { isBasiliskV3Family(profileID) }
 }

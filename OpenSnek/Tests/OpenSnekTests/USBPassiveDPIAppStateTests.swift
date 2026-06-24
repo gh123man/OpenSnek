@@ -9,33 +9,12 @@ import OpenSnekProtocols
 final class USBPassiveDPIAppStateTests: XCTestCase {
     func testAppStateAppliesBackendStateUpdatesWithoutWaitingForPolling() async {
         let device = makePassiveTestDevice(id: "usb-passive-live", transport: .usb)
-        let backend = PassiveUpdateStubBackend(
-            devices: [device],
-            stateByDeviceID: [
-                device.id: makePassiveTestState(
-                    device: device,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800
-                )
-            ],
-            shouldUseFastPolling: false
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let backend = PassiveUpdateStubBackend(devices: [device], stateByDeviceID: [device.id: makePassiveTestState(device: device, dpiValues: [800, 1600, 3200], activeStage: 0, dpiValue: 800)], shouldUseFastPolling: false)
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await Task.yield()
         await appState.deviceStore.refreshDevices()
-        await backend.emitStateUpdate(
-            deviceID: device.id,
-            state: makePassiveTestState(
-                device: device,
-                dpiValues: [800, 1600, 3200],
-                activeStage: 2,
-                dpiValue: 3200
-            )
-        )
+        await backend.emitStateUpdate(deviceID: device.id, state: makePassiveTestState(device: device, dpiValues: [800, 1600, 3200], activeStage: 2, dpiValue: 3200))
         try? await Task.sleep(nanoseconds: 50_000_000)
 
         let liveDpi = await MainActor.run { appState.deviceStore.state?.dpi?.x }
@@ -47,47 +26,19 @@ final class USBPassiveDPIAppStateTests: XCTestCase {
 
     func testServiceAppStateShowsTransientStatusItemDpiAfterLiveUpdate() async {
         let device = makePassiveTestDevice(id: "usb-passive-service-badge", transport: .usb)
-        let backend = PassiveUpdateStubBackend(
-            devices: [device],
-            stateByDeviceID: [
-                device.id: makePassiveTestState(
-                    device: device,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 0,
-                    dpiValue: 800
-                )
-            ],
-            shouldUseFastPolling: false
-        )
-        let appState = await MainActor.run {
-            AppState(
-                launchRole: .service,
-                backend: backend,
-                autoStart: false,
-                statusItemDpiDisplayDuration: 0.05
-            )
-        }
+        let backend = PassiveUpdateStubBackend(devices: [device], stateByDeviceID: [device.id: makePassiveTestState(device: device, dpiValues: [800, 1600, 3200], activeStage: 0, dpiValue: 800)], shouldUseFastPolling: false)
+        let appState = await MainActor.run { AppState(launchRole: .service, backend: backend, autoStart: false, statusItemDpiDisplayDuration: 0.05) }
 
         await Task.yield()
         await appState.deviceStore.refreshDevices()
         let initialTransientDpi = await MainActor.run { appState.runtimeStore.statusItemTransientDpi }
         XCTAssertNil(initialTransientDpi)
 
-        await backend.emitStateUpdate(
-            deviceID: device.id,
-            state: makePassiveTestState(
-                device: device,
-                dpiValues: [800, 1600, 3200],
-                activeStage: 2,
-                dpiValue: 3200
-            )
-        )
+        await backend.emitStateUpdate(deviceID: device.id, state: makePassiveTestState(device: device, dpiValues: [800, 1600, 3200], activeStage: 2, dpiValue: 3200))
         let transientDpi = try? await withAsyncTimeout(seconds: 1.0) {
             while true {
                 let transientDpi = await MainActor.run { appState.runtimeStore.statusItemTransientDpi }
-                if transientDpi == 3200 {
-                    return transientDpi
-                }
+                if transientDpi == 3200 { return transientDpi }
                 try? await Task.sleep(nanoseconds: 10_000_000)
             }
         }
@@ -96,9 +47,7 @@ final class USBPassiveDPIAppStateTests: XCTestCase {
         let clearedTransientDpi = try? await withAsyncTimeout(seconds: 1.0) {
             while true {
                 let transientDpi = await MainActor.run { appState.runtimeStore.statusItemTransientDpi }
-                if transientDpi == nil {
-                    return transientDpi
-                }
+                if transientDpi == nil { return transientDpi }
                 try? await Task.sleep(nanoseconds: 10_000_000)
             }
         }
@@ -107,21 +56,8 @@ final class USBPassiveDPIAppStateTests: XCTestCase {
 
     func testAppStateKeepsLowRateCorrectionPollingWhenPassiveUSBUpdatesAreAvailable() async {
         let device = makePassiveTestDevice(id: "usb-passive-correct", transport: .usb)
-        let backend = PassiveUpdateStubBackend(
-            devices: [device],
-            stateByDeviceID: [
-                device.id: makePassiveTestState(
-                    device: device,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600
-                )
-            ],
-            shouldUseFastPolling: false
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let backend = PassiveUpdateStubBackend(devices: [device], stateByDeviceID: [device.id: makePassiveTestState(device: device, dpiValues: [800, 1600, 3200], activeStage: 1, dpiValue: 1600)], shouldUseFastPolling: false)
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await Task.yield()
         await appState.deviceStore.refreshDevices()
@@ -133,21 +69,8 @@ final class USBPassiveDPIAppStateTests: XCTestCase {
 
     func testAppStateDefersBluetoothFullStateRefreshWhileRealtimeHeartbeatIsFresh() async {
         let device = makePassiveTestDevice(id: "bt-passive-defer-state", transport: .bluetooth)
-        let backend = PassiveUpdateStubBackend(
-            devices: [device],
-            stateByDeviceID: [
-                device.id: makePassiveTestState(
-                    device: device,
-                    dpiValues: [800, 900, 1000, 1100, 1200],
-                    activeStage: 1,
-                    dpiValue: 900
-                )
-            ],
-            shouldUseFastPolling: false
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let backend = PassiveUpdateStubBackend(devices: [device], stateByDeviceID: [device.id: makePassiveTestState(device: device, dpiValues: [800, 900, 1000, 1100, 1200], activeStage: 1, dpiValue: 900)], shouldUseFastPolling: false)
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await Task.yield()
         await appState.deviceStore.refreshDevices()
@@ -164,21 +87,8 @@ final class USBPassiveDPIAppStateTests: XCTestCase {
 
     func testAppStateFallsBackToFastPollingWhenPassiveUSBUpdatesAreUnavailable() async {
         let device = makePassiveTestDevice(id: "usb-passive-fallback", transport: .usb)
-        let backend = PassiveUpdateStubBackend(
-            devices: [device],
-            stateByDeviceID: [
-                device.id: makePassiveTestState(
-                    device: device,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600
-                )
-            ],
-            shouldUseFastPolling: true
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let backend = PassiveUpdateStubBackend(devices: [device], stateByDeviceID: [device.id: makePassiveTestState(device: device, dpiValues: [800, 1600, 3200], activeStage: 1, dpiValue: 1600)], shouldUseFastPolling: true)
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await Task.yield()
         await appState.deviceStore.refreshDevices()
@@ -190,21 +100,8 @@ final class USBPassiveDPIAppStateTests: XCTestCase {
 
     func testRefreshDpiFastPreservesLastStableUpdateTimestamp() async {
         let device = makePassiveTestDevice(id: "usb-fast-last-updated", transport: .usb)
-        let backend = PassiveUpdateStubBackend(
-            devices: [device],
-            stateByDeviceID: [
-                device.id: makePassiveTestState(
-                    device: device,
-                    dpiValues: [800, 1600, 3200],
-                    activeStage: 1,
-                    dpiValue: 1600
-                )
-            ],
-            shouldUseFastPolling: true
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let backend = PassiveUpdateStubBackend(devices: [device], stateByDeviceID: [device.id: makePassiveTestState(device: device, dpiValues: [800, 1600, 3200], activeStage: 1, dpiValue: 1600)], shouldUseFastPolling: true)
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await Task.yield()
         await appState.deviceStore.refreshDevices()
@@ -233,38 +130,17 @@ final class USBPassiveDPIAppStateTests: XCTestCase {
 
     func testRefreshStateDoesNotOverwriteNewerPassiveBluetoothUpdateWithStaleRead() async {
         let device = makePassiveTestDevice(id: "bt-passive-race", transport: .bluetooth)
-        let staleState = makePassiveTestState(
-            device: device,
-            dpiValues: [800, 900, 1000, 1100, 1200],
-            activeStage: 1,
-            dpiValue: 900
-        )
-        let passiveState = makePassiveTestState(
-            device: device,
-            dpiValues: [800, 900, 1000, 1100, 1200],
-            activeStage: 4,
-            dpiValue: 1200
-        )
-        let backend = RacingPassiveUpdateStubBackend(
-            devices: [device],
-            staleStateByDeviceID: [device.id: staleState]
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let staleState = makePassiveTestState(device: device, dpiValues: [800, 900, 1000, 1100, 1200], activeStage: 1, dpiValue: 900)
+        let passiveState = makePassiveTestState(device: device, dpiValues: [800, 900, 1000, 1100, 1200], activeStage: 4, dpiValue: 1200)
+        let backend = RacingPassiveUpdateStubBackend(devices: [device], staleStateByDeviceID: [device.id: staleState])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         try? await Task.sleep(nanoseconds: 50_000_000)
-        let refreshTask = Task {
-            await appState.deviceStore.refreshDevices()
-        }
+        let refreshTask = Task { await appState.deviceStore.refreshDevices() }
 
         await backend.waitForReadStateStart()
         let passiveObservedAt = Date()
-        await backend.emitStateUpdate(
-            deviceID: device.id,
-            state: passiveState,
-            updatedAt: passiveObservedAt
-        )
+        await backend.emitStateUpdate(deviceID: device.id, state: passiveState, updatedAt: passiveObservedAt)
         try? await Task.sleep(nanoseconds: 50_000_000)
         await backend.resumeReadState()
         await refreshTask.value
@@ -281,28 +157,12 @@ final class USBPassiveDPIAppStateTests: XCTestCase {
 
     func testRefreshStateDoesNotOverwriteNewerFastDpiUpdateWithStaleRead() async {
         let device = makePassiveTestDevice(id: "usb-fast-race", transport: .usb)
-        let staleState = makePassiveTestState(
-            device: device,
-            dpiValues: [800, 900, 1000, 1100, 1200],
-            activeStage: 4,
-            dpiValue: 1200
-        )
-        let backend = RacingPassiveUpdateStubBackend(
-            devices: [device],
-            staleStateByDeviceID: [device.id: staleState],
-            fastSnapshotByDeviceID: [device.id: DpiFastSnapshot(active: 4, values: [800, 900, 1000, 1100, 1200])],
-            shouldUseFastPolling: true,
-            blockReadState: false
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let staleState = makePassiveTestState(device: device, dpiValues: [800, 900, 1000, 1100, 1200], activeStage: 4, dpiValue: 1200)
+        let backend = RacingPassiveUpdateStubBackend(devices: [device], staleStateByDeviceID: [device.id: staleState], fastSnapshotByDeviceID: [device.id: DpiFastSnapshot(active: 4, values: [800, 900, 1000, 1100, 1200])], shouldUseFastPolling: true, blockReadState: false)
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await appState.deviceStore.refreshDevices()
-        await backend.setFastSnapshot(
-            DpiFastSnapshot(active: 2, values: [800, 900, 1000, 1100, 1200]),
-            for: device.id
-        )
+        await backend.setFastSnapshot(DpiFastSnapshot(active: 2, values: [800, 900, 1000, 1100, 1200]), for: device.id)
         await appState.deviceStore.refreshDpiFast()
         await appState.deviceStore.refreshState()
 

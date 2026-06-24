@@ -8,9 +8,7 @@ final class BackgroundServiceCoordinatorTests: XCTestCase {
         let suiteName = UUID().uuidString
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
-        let coordinator = await MainActor.run {
-            BackgroundServiceCoordinator(defaults: UserDefaults(suiteName: suiteName)!)
-        }
+        let coordinator = await MainActor.run { BackgroundServiceCoordinator(defaults: UserDefaults(suiteName: suiteName)!) }
 
         let backgroundServiceEnabled = await MainActor.run { coordinator.backgroundServiceEnabled }
         let launchAtStartupEnabled = await MainActor.run { coordinator.launchAtStartupEnabled }
@@ -25,9 +23,7 @@ final class BackgroundServiceCoordinatorTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
         defaults.set(false, forKey: BackgroundServiceCoordinator.backgroundServiceEnabledDefaultsKey)
 
-        let coordinator = await MainActor.run {
-            BackgroundServiceCoordinator(defaults: UserDefaults(suiteName: suiteName)!)
-        }
+        let coordinator = await MainActor.run { BackgroundServiceCoordinator(defaults: UserDefaults(suiteName: suiteName)!) }
 
         let backgroundServiceEnabled = await MainActor.run { coordinator.backgroundServiceEnabled }
         XCTAssertFalse(backgroundServiceEnabled)
@@ -39,9 +35,7 @@ final class BackgroundServiceCoordinatorTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
         defaults.set(true, forKey: BackgroundServiceCoordinator.backgroundServiceEnabledDefaultsKey)
 
-        let coordinator = await MainActor.run {
-            BackgroundServiceCoordinator(defaults: UserDefaults(suiteName: suiteName)!)
-        }
+        let coordinator = await MainActor.run { BackgroundServiceCoordinator(defaults: UserDefaults(suiteName: suiteName)!) }
 
         let backgroundServiceEnabled = await MainActor.run { coordinator.backgroundServiceEnabled }
         XCTAssertTrue(backgroundServiceEnabled)
@@ -54,16 +48,10 @@ final class BackgroundServiceCoordinatorTests: XCTestCase {
         defaults.set(true, forKey: BackgroundServiceCoordinator.backgroundServiceEnabledDefaultsKey)
         defaults.set(true, forKey: BackgroundServiceCoordinator.launchAtStartupDefaultsKey)
 
-        let coordinator = await MainActor.run {
-            BackgroundServiceCoordinator(defaults: UserDefaults(suiteName: suiteName)!)
-        }
-        let appState = await MainActor.run {
-            AppState(launchRole: .service, serviceCoordinator: coordinator, autoStart: false)
-        }
+        let coordinator = await MainActor.run { BackgroundServiceCoordinator(defaults: UserDefaults(suiteName: suiteName)!) }
+        let appState = await MainActor.run { AppState(launchRole: .service, serviceCoordinator: coordinator, autoStart: false) }
 
-        await MainActor.run {
-            appState.runtimeStore.prepareForCurrentServiceProcessTermination()
-        }
+        await MainActor.run { appState.runtimeStore.prepareForCurrentServiceProcessTermination() }
 
         let backgroundServiceEnabled = await MainActor.run { coordinator.backgroundServiceEnabled }
         let launchAtStartupEnabled = await MainActor.run { coordinator.launchAtStartupEnabled }
@@ -74,12 +62,9 @@ final class BackgroundServiceCoordinatorTests: XCTestCase {
     func testPreferredReusableApplicationPrefersActiveRegularApp() {
         let selected = BackgroundServiceCoordinator.preferredReusableApplication(
             in: [
-                .init(processIdentifier: 101, activationPolicy: .accessory, isActive: true, isTerminated: false),
-                .init(processIdentifier: 102, activationPolicy: .regular, isActive: false, isTerminated: false),
+                .init(processIdentifier: 101, activationPolicy: .accessory, isActive: true, isTerminated: false), .init(processIdentifier: 102, activationPolicy: .regular, isActive: false, isTerminated: false),
                 .init(processIdentifier: 103, activationPolicy: .regular, isActive: true, isTerminated: false)
-            ],
-            excluding: 101
-        )
+            ], excluding: 101)
 
         XCTAssertEqual(selected?.processIdentifier, 103)
     }
@@ -87,12 +72,9 @@ final class BackgroundServiceCoordinatorTests: XCTestCase {
     func testPreferredReusableApplicationExcludesCurrentAndTerminatedProcesses() {
         let selected = BackgroundServiceCoordinator.preferredReusableApplication(
             in: [
-                .init(processIdentifier: 201, activationPolicy: .regular, isActive: true, isTerminated: false),
-                .init(processIdentifier: 202, activationPolicy: .regular, isActive: false, isTerminated: true),
+                .init(processIdentifier: 201, activationPolicy: .regular, isActive: true, isTerminated: false), .init(processIdentifier: 202, activationPolicy: .regular, isActive: false, isTerminated: true),
                 .init(processIdentifier: 203, activationPolicy: .accessory, isActive: false, isTerminated: false)
-            ],
-            excluding: 201
-        )
+            ], excluding: 201)
 
         XCTAssertNil(selected)
     }
@@ -100,13 +82,9 @@ final class BackgroundServiceCoordinatorTests: XCTestCase {
     func testOtherRunningApplicationsToTerminateIncludesAllOtherLiveInstances() {
         let targets = BackgroundServiceCoordinator.otherRunningApplicationsToTerminate(
             in: [
-                .init(processIdentifier: 301, activationPolicy: .accessory, isActive: true, isTerminated: false),
-                .init(processIdentifier: 302, activationPolicy: .regular, isActive: true, isTerminated: false),
-                .init(processIdentifier: 303, activationPolicy: .accessory, isActive: false, isTerminated: false),
-                .init(processIdentifier: 304, activationPolicy: .regular, isActive: false, isTerminated: true)
-            ],
-            excluding: 301
-        )
+                .init(processIdentifier: 301, activationPolicy: .accessory, isActive: true, isTerminated: false), .init(processIdentifier: 302, activationPolicy: .regular, isActive: true, isTerminated: false),
+                .init(processIdentifier: 303, activationPolicy: .accessory, isActive: false, isTerminated: false), .init(processIdentifier: 304, activationPolicy: .regular, isActive: false, isTerminated: true)
+            ], excluding: 301)
 
         XCTAssertEqual(targets.map(\.processIdentifier), [302, 303])
     }
@@ -117,49 +95,21 @@ final class BackgroundServiceCoordinatorTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
         defaults.set(true, forKey: BackgroundServiceCoordinator.launchAtStartupDefaultsKey)
 
-        let launchAgentsDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(
-            at: launchAgentsDirectory,
-            withIntermediateDirectories: true
-        )
+        let launchAgentsDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: launchAgentsDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: launchAgentsDirectory) }
 
         let launchAgentURL = launchAgentsDirectory.appendingPathComponent("io.opensnek.OpenSnek.service.plist")
-        let legacyPlist = BackgroundServiceCoordinator.launchAgentPropertyList(
-            executablePath: "/Applications/Open Snek.app/Contents/MacOS/OpenSnek",
-            workingDirectoryPath: "/Applications/Open Snek.app/Contents/MacOS"
-        )
-        let legacyData = try PropertyListSerialization.data(
-            fromPropertyList: legacyPlist,
-            format: .xml,
-            options: 0
-        )
+        let legacyPlist = BackgroundServiceCoordinator.launchAgentPropertyList(executablePath: "/Applications/Open Snek.app/Contents/MacOS/OpenSnek", workingDirectoryPath: "/Applications/Open Snek.app/Contents/MacOS")
+        let legacyData = try PropertyListSerialization.data(fromPropertyList: legacyPlist, format: .xml, options: 0)
         try legacyData.write(to: launchAgentURL, options: .atomic)
 
-        let coordinator = await MainActor.run {
-            BackgroundServiceCoordinator(
-                defaults: UserDefaults(suiteName: suiteName)!,
-                launchAgentsDirectoryURL: launchAgentsDirectory
-            )
-        }
+        let coordinator = await MainActor.run { BackgroundServiceCoordinator(defaults: UserDefaults(suiteName: suiteName)!, launchAgentsDirectoryURL: launchAgentsDirectory) }
 
-        try await MainActor.run {
-            try coordinator.synchronizeLaunchAgentIfNeeded(
-                executablePath: "/Applications/OpenSnek.app/Contents/MacOS/OpenSnek",
-                workingDirectoryPath: "/Applications/OpenSnek.app/Contents/MacOS"
-            )
-        }
+        try await MainActor.run { try coordinator.synchronizeLaunchAgentIfNeeded(executablePath: "/Applications/OpenSnek.app/Contents/MacOS/OpenSnek", workingDirectoryPath: "/Applications/OpenSnek.app/Contents/MacOS") }
 
         let plist = try XCTUnwrap(NSDictionary(contentsOf: launchAgentURL) as? [String: Any])
-        XCTAssertEqual(
-            plist["ProgramArguments"] as? [String],
-            [
-                "/Applications/OpenSnek.app/Contents/MacOS/OpenSnek",
-                "--service-mode",
-                "--login-start"
-            ]
-        )
+        XCTAssertEqual(plist["ProgramArguments"] as? [String], ["/Applications/OpenSnek.app/Contents/MacOS/OpenSnek", "--service-mode", "--login-start"])
         XCTAssertEqual(plist["WorkingDirectory"] as? String, "/Applications/OpenSnek.app/Contents/MacOS")
     }
 }

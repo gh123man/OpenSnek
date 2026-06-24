@@ -49,11 +49,7 @@ public struct IssueReportContext: Hashable, Sendable {
     public let status: IssueReportStatus
     public let devices: [IssueReportDeviceEntry]
 
-    public init(
-        appInfo: IssueReportAppInfo,
-        status: IssueReportStatus,
-        devices: [IssueReportDeviceEntry]
-    ) {
+    public init(appInfo: IssueReportAppInfo, status: IssueReportStatus, devices: [IssueReportDeviceEntry]) {
         self.appInfo = appInfo
         self.status = status
         self.devices = devices
@@ -77,11 +73,7 @@ public struct IssueReportFormatter {
         lines.append("")
 
         lines.append("### Connected Devices")
-        if context.devices.isEmpty {
-            lines.append("_No devices were connected when this payload was generated._")
-        } else {
-            lines.append(contentsOf: context.devices.map { "- \($0.summary)" })
-        }
+        if context.devices.isEmpty { lines.append("_No devices were connected when this payload was generated._") } else { lines.append(contentsOf: context.devices.map { "- \($0.summary)" }) }
         lines.append("")
 
         for entry in context.devices {

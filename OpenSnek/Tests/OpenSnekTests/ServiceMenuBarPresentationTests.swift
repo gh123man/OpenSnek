@@ -13,31 +13,11 @@ final class ServiceMenuBarPresentationTests: XCTestCase {
     }
 
     func testCompactDpiControlModeUsesSingleSliderForScalarStages() {
-        XCTAssertEqual(
-            ServiceMenuBarPresentation.compactDpiControlMode(
-                for: DpiPair(x: 1600, y: 1600),
-                supportsIndependentXYDPI: true
-            ),
-            .scalar(1600)
-        )
-        XCTAssertEqual(
-            ServiceMenuBarPresentation.compactDpiControlMode(
-                for: DpiPair(x: 1600, y: 2000),
-                supportsIndependentXYDPI: false
-            ),
-            .scalar(1600)
-        )
+        XCTAssertEqual(ServiceMenuBarPresentation.compactDpiControlMode(for: DpiPair(x: 1600, y: 1600), supportsIndependentXYDPI: true), .scalar(1600))
+        XCTAssertEqual(ServiceMenuBarPresentation.compactDpiControlMode(for: DpiPair(x: 1600, y: 2000), supportsIndependentXYDPI: false), .scalar(1600))
     }
 
-    func testCompactDpiControlModeUsesSplitSlidersForSplitStages() {
-        XCTAssertEqual(
-            ServiceMenuBarPresentation.compactDpiControlMode(
-                for: DpiPair(x: 1600, y: 2000),
-                supportsIndependentXYDPI: true
-            ),
-            .split(DpiPair(x: 1600, y: 2000))
-        )
-    }
+    func testCompactDpiControlModeUsesSplitSlidersForSplitStages() { XCTAssertEqual(ServiceMenuBarPresentation.compactDpiControlMode(for: DpiPair(x: 1600, y: 2000), supportsIndependentXYDPI: true), .split(DpiPair(x: 1600, y: 2000))) }
 
     func testBatteryIconUsesAdaptiveSymbolAndSharedPresentation() {
         let shared = BatteryPresentation.icon(percent: 33, charging: true)
@@ -88,28 +68,7 @@ final class ServiceMenuBarPresentationTests: XCTestCase {
 
     private func makeBatteryState(percent: Int) -> MouseState {
         MouseState(
-            device: DeviceSummary(
-                id: "dev",
-                product_name: "Basilisk V3 Pro",
-                serial: "ABC123",
-                transport: .usb,
-                firmware: "1.0"
-            ),
-            connection: "USB",
-            battery_percent: percent,
-            charging: false,
-            dpi: DpiPair(x: 1600, y: 1600),
-            dpi_stages: DpiStages(active_stage: 0, values: [1600]),
-            poll_rate: 1000,
-            device_mode: DeviceMode(mode: 0x00, param: 0x00),
-            low_battery_threshold_raw: 0x3F,
-            led_value: 64,
-            capabilities: Capabilities(
-                dpi_stages: true,
-                poll_rate: true,
-                button_remap: true,
-                lighting: true
-            )
-        )
+            device: DeviceSummary(id: "dev", product_name: "Basilisk V3 Pro", serial: "ABC123", transport: .usb, firmware: "1.0"), connection: "USB", battery_percent: percent, charging: false, dpi: DpiPair(x: 1600, y: 1600), dpi_stages: DpiStages(active_stage: 0, values: [1600]), poll_rate: 1000,
+            device_mode: DeviceMode(mode: 0x00, param: 0x00), low_battery_threshold_raw: 0x3F, led_value: 64, capabilities: Capabilities(dpi_stages: true, poll_rate: true, button_remap: true, lighting: true))
     }
 }

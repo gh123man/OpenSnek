@@ -26,6 +26,9 @@ jobs:
           swift --version
           xcodegen --version
 
+      - name: Run Swift format
+        run: ./OpenSnek/scripts/check_swift_format.sh
+
       - name: Run SwiftLint
         run: swift package --package-path OpenSnek plugin --allow-writing-to-package-directory swiftlint
 

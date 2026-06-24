@@ -3,32 +3,18 @@ import XCTest
 
 /// Exercises release update checker behavior.
 final class ReleaseUpdateCheckerTests: XCTestCase {
-    func testReleaseVersionParsesLeadingVPrefix() {
-        XCTAssertEqual(ReleaseVersion.parse("v1.2.3"), ReleaseVersion(components: [1, 2, 3], preRelease: []))
-    }
+    func testReleaseVersionParsesLeadingVPrefix() { XCTAssertEqual(ReleaseVersion.parse("v1.2.3"), ReleaseVersion(components: [1, 2, 3], preRelease: [])) }
 
-    func testReleaseVersionParsesPreReleaseSuffix() {
-        XCTAssertEqual(
-            ReleaseVersion.parse("0.0.0-alpha.5"),
-            ReleaseVersion(
-                components: [0, 0, 0],
-                preRelease: [.textual("alpha"), .numeric(5)]
-            )
-        )
-    }
+    func testReleaseVersionParsesPreReleaseSuffix() { XCTAssertEqual(ReleaseVersion.parse("0.0.0-alpha.5"), ReleaseVersion(components: [0, 0, 0], preRelease: [.textual("alpha"), .numeric(5)])) }
 
     func testReleaseVersionComparesDifferentComponentLengths() {
         XCTAssertTrue(ReleaseVersion.parse("1.2.1")! > ReleaseVersion.parse("1.2")!)
         XCTAssertTrue(ReleaseVersion.parse("1.2")! == ReleaseVersion.parse("1.2.0")!)
     }
 
-    func testReleaseVersionComparesPreReleaseIterations() {
-        XCTAssertTrue(ReleaseVersion.parse("0.1.0-alpha.3")! > ReleaseVersion.parse("0.1.0-alpha.1")!)
-    }
+    func testReleaseVersionComparesPreReleaseIterations() { XCTAssertTrue(ReleaseVersion.parse("0.1.0-alpha.3")! > ReleaseVersion.parse("0.1.0-alpha.1")!) }
 
-    func testStableReleaseBeatsPreReleaseOfSameCoreVersion() {
-        XCTAssertTrue(ReleaseVersion.parse("0.1.0")! > ReleaseVersion.parse("0.1.0-alpha.3")!)
-    }
+    func testStableReleaseBeatsPreReleaseOfSameCoreVersion() { XCTAssertTrue(ReleaseVersion.parse("0.1.0")! > ReleaseVersion.parse("0.1.0-alpha.3")!) }
 
     func testReleaseVersionRejectsNonNumericValues() {
         XCTAssertNil(ReleaseVersion.parse("main"))
@@ -57,11 +43,7 @@ private final class ReleaseUpdateCheckerTestBundle: Bundle, @unchecked Sendable 
         super.init()
     }
 
-    override func object(forInfoDictionaryKey key: String) -> Any? {
-        testInfoDictionary[key]
-    }
+    override func object(forInfoDictionaryKey key: String) -> Any? { testInfoDictionary[key] }
 }
 
-private func bundleWithInfoDictionary(_ infoDictionary: [String: Any]) -> Bundle {
-    ReleaseUpdateCheckerTestBundle(infoDictionary: infoDictionary)
-}
+private func bundleWithInfoDictionary(_ infoDictionary: [String: Any]) -> Bundle { ReleaseUpdateCheckerTestBundle(infoDictionary: infoDictionary) }

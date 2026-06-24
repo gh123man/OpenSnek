@@ -22,16 +22,9 @@ final class KeyboardBindingSupportTests: XCTestCase {
         XCTAssertEqual(AppStateKeyboardSupport.hidKey(fromKeyboardText: "numpad enter"), 88)
     }
 
-    func testDisplayLabelFallsBackForUnknownHidKey() {
-        XCTAssertEqual(AppStateKeyboardSupport.keyboardDisplayLabel(forHidKey: 200), "HID 0xC8")
-    }
+    func testDisplayLabelFallsBackForUnknownHidKey() { XCTAssertEqual(AppStateKeyboardSupport.keyboardDisplayLabel(forHidKey: 200), "HID 0xC8") }
 
-    func testDisplayLabelIncludesKeyboardModifiers() {
-        XCTAssertEqual(
-            AppStateKeyboardSupport.keyboardDisplayLabel(forHidKey: 47, hidModifiers: 0x08),
-            "Command + ["
-        )
-    }
+    func testDisplayLabelIncludesKeyboardModifiers() { XCTAssertEqual(AppStateKeyboardSupport.keyboardDisplayLabel(forHidKey: 47, hidModifiers: 0x08), "Command + [") }
 
     func testFuzzySearchMatchesAliasesAndSubsequences() {
         XCTAssertEqual(AppStateKeyboardSupport.filteredKeyOptions(matching: "pgdn").first?.label, "Page Down")

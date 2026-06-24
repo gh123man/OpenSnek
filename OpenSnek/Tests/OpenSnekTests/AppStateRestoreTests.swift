@@ -7,55 +7,19 @@ import OpenSnekCore
 /// Exercises app state restore behavior.
 final class AppStateRestoreTests: XCTestCase {
     func testBluetoothPersistedSettingsSnapshotReappliesOnFirstHydration() async throws {
-        let device = makeRefactorTestDevice(
-            id: "bt-lighting-device",
-            transport: .bluetooth,
-            serial: "BT-LIGHT-\(UUID().uuidString)",
-            onboardProfileCount: 1
-        )
+        let device = makeRefactorTestDevice(id: "bt-lighting-device", transport: .bluetooth, serial: "BT-LIGHT-\(UUID().uuidString)", onboardProfileCount: 1)
         let persistedColor = RGBColor(r: 10, g: 20, b: 30)
         let preferenceStore = DevicePreferenceStore()
         preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
-        preferenceStore.persistDeviceSettingsSnapshot(
-            makeRefactorSettingsSnapshot(
-                color: persistedColor,
-                buttonBindings: [
-                    5: ButtonBindingDraft(
-                        kind: .keyboardSimple,
-                        hidKey: 80,
-                        turboEnabled: false,
-                        turboRate: 0x8E,
-                        clutchDPI: nil
-                    )
-                ]
-            ),
-            device: device
-        )
+        preferenceStore.persistDeviceSettingsSnapshot(makeRefactorSettingsSnapshot(color: persistedColor, buttonBindings: [5: ButtonBindingDraft(kind: .keyboardSimple, hidKey: 80, turboEnabled: false, turboRate: 0x8E, clutchDPI: nil)]), device: device)
         defer { clearRefactorPreferences(for: device) }
 
-        let backend = AppStateRefactorStubBackend(
-            devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "bluetooth",
-                        batteryPercent: 68,
-                        dpiValues: [1200, 2400, 3600],
-                        activeStage: 1
-                    )
-                )
-            ]
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let backend = AppStateRefactorStubBackend(devices: [device], stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "bluetooth", batteryPercent: 68, dpiValues: [1200, 2400, 3600], activeStage: 1))])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await appState.deviceStore.refreshDevices()
 
-        try await waitForRefactorCondition {
-            await backend.applyCount() >= 2
-        }
+        try await waitForRefactorCondition { await backend.applyCount() >= 2 }
 
         let patches = await backend.recordedPatches()
         let patch = try XCTUnwrap(patches.first)
@@ -81,30 +45,16 @@ final class AppStateRestoreTests: XCTestCase {
     }
 
     func testUSBHyperSpeedPersistedSettingsRestoreOmitsUnsupportedScrollAndBrightnessFields() async throws {
-        let device = makeRefactorUSBLightingRestoreDevice(
-            id: "usb-hyperspeed-filter-restore-device",
-            serial: "USB-HS-FILTER-\(UUID().uuidString)"
-        )
+        let device = makeRefactorUSBLightingRestoreDevice(id: "usb-hyperspeed-filter-restore-device", serial: "USB-HS-FILTER-\(UUID().uuidString)")
         let persistedColor = RGBColor(r: 91, g: 102, b: 113)
         let preferenceStore = DevicePreferenceStore()
         preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
-        preferenceStore.persistDeviceSettingsSnapshot(
-            makeRefactorSettingsSnapshot(color: persistedColor, zoneID: "scroll_wheel"),
-            device: device
-        )
+        preferenceStore.persistDeviceSettingsSnapshot(makeRefactorSettingsSnapshot(color: persistedColor, zoneID: "scroll_wheel"), device: device)
         defer { clearRefactorPreferences(for: device) }
 
-        let appState = await MainActor.run {
-            AppState(
-                launchRole: .app,
-                backend: AppStateRefactorStubBackend(devices: [], stateByDeviceID: [:]),
-                autoStart: false
-            )
-        }
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: AppStateRefactorStubBackend(devices: [], stateByDeviceID: [:]), autoStart: false) }
 
-        let plan = await MainActor.run {
-            appState.editorController.persistedSettingsRestorePlan(device: device)
-        }
+        let plan = await MainActor.run { appState.editorController.persistedSettingsRestorePlan(device: device) }
         let patch = try XCTUnwrap(plan?.patch)
         XCTAssertNil(patch.scrollMode)
         XCTAssertNil(patch.scrollAcceleration)
@@ -114,56 +64,26 @@ final class AppStateRestoreTests: XCTestCase {
     }
 
     func testBluetoothHyperspeedLightingApplyPersistsSnapshotFromAppliedPatch() async throws {
-        let device = makeRefactorTestDevice(
-            id: "bt-hyperspeed-lighting-snapshot",
-            transport: .bluetooth,
-            serial: "BT-HS-LIGHT-\(UUID().uuidString)",
-            onboardProfileCount: 1
-        )
+        let device = makeRefactorTestDevice(id: "bt-hyperspeed-lighting-snapshot", transport: .bluetooth, serial: "BT-HS-LIGHT-\(UUID().uuidString)", onboardProfileCount: 1)
         defer { clearRefactorPreferences(for: device) }
 
-        let backend = AppStateRefactorStubBackend(
-            devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "bluetooth",
-                        batteryPercent: 67,
-                        dpiValues: [800, 1600, 3200],
-                        activeStage: 1
-                    )
-                )
-            ],
-            holdFirstApply: true
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let backend = AppStateRefactorStubBackend(devices: [device], stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "bluetooth", batteryPercent: 67, dpiValues: [800, 1600, 3200], activeStage: 1))], holdFirstApply: true)
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await appState.deviceStore.refreshDevices()
 
         let appliedColor = RGBColor(r: 12, g: 34, b: 56)
         let staleEditorColor = RGBColor(r: 200, g: 210, b: 220)
-        await MainActor.run {
-            appState.editorStore.editableColor = appliedColor
-        }
+        await MainActor.run { appState.editorStore.editableColor = appliedColor }
 
-        await MainActor.run {
-            appState.editorStore.scheduleAutoApplyLedColor()
-        }
+        await MainActor.run { appState.editorStore.scheduleAutoApplyLedColor() }
         await backend.waitForFirstApplyToStart()
 
-        await MainActor.run {
-            appState.editorStore.editableColor = staleEditorColor
-        }
+        await MainActor.run { appState.editorStore.editableColor = staleEditorColor }
         await backend.releaseFirstApply()
 
         let preferenceStore = DevicePreferenceStore()
-        try await waitForRefactorCondition {
-            await backend.applyCount() == 1 &&
-                preferenceStore.loadPersistedDeviceSettingsSnapshot(device: device) != nil
-        }
+        try await waitForRefactorCondition { await backend.applyCount() == 1 && preferenceStore.loadPersistedDeviceSettingsSnapshot(device: device) != nil }
 
         let patches = await backend.recordedPatches()
         let patch = try XCTUnwrap(patches.first)
@@ -178,43 +98,14 @@ final class AppStateRestoreTests: XCTestCase {
 
     func testUseMouseConnectBehaviorDoesNotAutoRestorePersistedSettingsSnapshot() async throws {
         let device = MouseDevice(
-            id: "bt-v3-pro-lighting-zone",
-            vendor_id: 0x068E,
-            product_id: 0x00AC,
-            product_name: "Basilisk V3 Pro",
-            transport: .bluetooth,
-            path_b64: "",
-            serial: "BT-V3PRO-LIGHT-\(UUID().uuidString)",
-            firmware: "1.0.0",
-            location_id: 1,
-            profile_id: .basiliskV3Pro,
-            supports_advanced_lighting_effects: false,
-            onboard_profile_count: 3
-        )
+            id: "bt-v3-pro-lighting-zone", vendor_id: 0x068E, product_id: 0x00AC, product_name: "Basilisk V3 Pro", transport: .bluetooth, path_b64: "", serial: "BT-V3PRO-LIGHT-\(UUID().uuidString)", firmware: "1.0.0", location_id: 1, profile_id: .basiliskV3Pro,
+            supports_advanced_lighting_effects: false, onboard_profile_count: 3)
         let preferenceStore = DevicePreferenceStore()
-        preferenceStore.persistDeviceSettingsSnapshot(
-            makeRefactorSettingsSnapshot(color: RGBColor(r: 10, g: 20, b: 30)),
-            device: device
-        )
+        preferenceStore.persistDeviceSettingsSnapshot(makeRefactorSettingsSnapshot(color: RGBColor(r: 10, g: 20, b: 30)), device: device)
         defer { clearRefactorPreferences(for: device) }
 
-        let backend = AppStateRefactorStubBackend(
-            devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "bluetooth",
-                        batteryPercent: 68,
-                        dpiValues: [1200, 2400, 3600],
-                        activeStage: 1
-                    )
-                )
-            ]
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let backend = AppStateRefactorStubBackend(devices: [device], stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "bluetooth", batteryPercent: 68, dpiValues: [1200, 2400, 3600], activeStage: 1))])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await appState.deviceStore.refreshDevices()
 
@@ -229,24 +120,11 @@ final class AppStateRestoreTests: XCTestCase {
     }
 
     func testRestoreInProgressSkipsAdditionalRefreshReadsForSameDevice() async throws {
-        let alphaDevice = makeRefactorTestDevice(
-            id: "restore-refresh-selected-device",
-            transport: .usb,
-            serial: "RESTORE-REFRESH-SELECTED-\(UUID().uuidString)",
-            onboardProfileCount: 1
-        )
-        let betaDevice = makeRefactorTestDevice(
-            id: "restore-refresh-target-device",
-            transport: .usb,
-            serial: "RESTORE-REFRESH-TARGET-\(UUID().uuidString)",
-            onboardProfileCount: 1
-        )
+        let alphaDevice = makeRefactorTestDevice(id: "restore-refresh-selected-device", transport: .usb, serial: "RESTORE-REFRESH-SELECTED-\(UUID().uuidString)", onboardProfileCount: 1)
+        let betaDevice = makeRefactorTestDevice(id: "restore-refresh-target-device", transport: .usb, serial: "RESTORE-REFRESH-TARGET-\(UUID().uuidString)", onboardProfileCount: 1)
         let preferenceStore = DevicePreferenceStore()
         preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: betaDevice)
-        preferenceStore.persistDeviceSettingsSnapshot(
-            makeRefactorSettingsSnapshot(color: RGBColor(r: 10, g: 20, b: 30)),
-            device: betaDevice
-        )
+        preferenceStore.persistDeviceSettingsSnapshot(makeRefactorSettingsSnapshot(color: RGBColor(r: 10, g: 20, b: 30)), device: betaDevice)
         defer {
             clearRefactorPreferences(for: alphaDevice)
             clearRefactorPreferences(for: betaDevice)
@@ -255,35 +133,12 @@ final class AppStateRestoreTests: XCTestCase {
         let backend = AppStateRefactorStubBackend(
             devices: [alphaDevice, betaDevice],
             stateByDeviceID: [
-                alphaDevice.id: makeRefactorTestState(
-                    device: alphaDevice,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "usb",
-                        batteryPercent: 81,
-                        dpiValues: [800, 1600, 3200],
-                        activeStage: 0
-                    )
-                ),
-                betaDevice.id: makeRefactorTestState(
-                    device: betaDevice,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "usb",
-                        batteryPercent: 74,
-                        dpiValues: [1000, 2000, 3000],
-                        activeStage: 1
-                    )
-                )
-            ],
-            shouldUseFastPolling: true,
-            holdFirstApply: true
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+                alphaDevice.id: makeRefactorTestState(device: alphaDevice, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 81, dpiValues: [800, 1600, 3200], activeStage: 0)),
+                betaDevice.id: makeRefactorTestState(device: betaDevice, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 74, dpiValues: [1000, 2000, 3000], activeStage: 1))
+            ], shouldUseFastPolling: true, holdFirstApply: true)
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
-        let refreshTask = Task {
-            await appState.deviceStore.refreshDevices()
-        }
+        let refreshTask = Task { await appState.deviceStore.refreshDevices() }
 
         await backend.waitForFirstApplyToStart()
 
@@ -305,52 +160,18 @@ final class AppStateRestoreTests: XCTestCase {
     }
 
     func testRestoreButtonReplayDefersIntermediateReadbacksAndVerifiesOnceAtEnd() async throws {
-        let device = makeRefactorUSBLightingRestoreDevice(
-            id: "usb-restore-button-readback-device",
-            serial: "USB-RESTORE-BUTTON-READBACK-\(UUID().uuidString)"
-        )
+        let device = makeRefactorUSBLightingRestoreDevice(id: "usb-restore-button-readback-device", serial: "USB-RESTORE-BUTTON-READBACK-\(UUID().uuidString)")
         let preferenceStore = DevicePreferenceStore()
         preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
-        preferenceStore.persistDeviceSettingsSnapshot(
-            makeRefactorSettingsSnapshot(
-                color: RGBColor(r: 10, g: 20, b: 30),
-                buttonBindings: [
-                    4: ButtonBindingDraft(
-                        kind: .mouseForward,
-                        hidKey: 4,
-                        turboEnabled: false,
-                        turboRate: 0x8E,
-                        clutchDPI: nil
-                    )
-                ]
-            ),
-            device: device
-        )
+        preferenceStore.persistDeviceSettingsSnapshot(makeRefactorSettingsSnapshot(color: RGBColor(r: 10, g: 20, b: 30), buttonBindings: [4: ButtonBindingDraft(kind: .mouseForward, hidKey: 4, turboEnabled: false, turboRate: 0x8E, clutchDPI: nil)]), device: device)
         defer { clearRefactorPreferences(for: device) }
 
-        let backend = AppStateRefactorStubBackend(
-            devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "usb",
-                        batteryPercent: 81,
-                        dpiValues: [1200, 2400, 3600],
-                        activeStage: 1
-                    )
-                )
-            ]
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let backend = AppStateRefactorStubBackend(devices: [device], stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 81, dpiValues: [1200, 2400, 3600], activeStage: 1))])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await appState.deviceStore.refreshDevices()
 
-        try await waitForRefactorCondition {
-            await backend.applyCount() >= 2
-        }
+        try await waitForRefactorCondition { await backend.applyCount() >= 2 }
 
         let readCount = await backend.readCount(for: device.id)
         let policies = await backend.recordedApplyReadbackPolicies()
@@ -363,40 +184,18 @@ final class AppStateRestoreTests: XCTestCase {
     }
 
     func testProfiledHyperspeedUsesEditableConnectBehaviorInProfilePicker() async throws {
-        let device = makeRefactorTestDevice(
-            id: "bt-hyperspeed-connect-behavior",
-            transport: .bluetooth,
-            serial: "BT-CONNECT-BEHAVIOR-\(UUID().uuidString)",
-            onboardProfileCount: 1
-        )
+        let device = makeRefactorTestDevice(id: "bt-hyperspeed-connect-behavior", transport: .bluetooth, serial: "BT-CONNECT-BEHAVIOR-\(UUID().uuidString)", onboardProfileCount: 1)
         defer { clearRefactorPreferences(for: device) }
 
-        let backend = AppStateRefactorStubBackend(
-            devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "bluetooth",
-                        batteryPercent: 71,
-                        dpiValues: [800, 1600, 3200],
-                        activeStage: 1
-                    )
-                )
-            ]
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let backend = AppStateRefactorStubBackend(devices: [device], stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "bluetooth", batteryPercent: 71, dpiValues: [800, 1600, 3200], activeStage: 1))])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await appState.deviceStore.refreshDevices()
 
         let initialBehavior = await MainActor.run { appState.editorStore.connectBehavior }
         XCTAssertEqual(initialBehavior, .useMouseSettings)
 
-        await MainActor.run {
-            appState.editorStore.updateConnectBehavior(.restoreOpenSnekSettings)
-        }
+        await MainActor.run { appState.editorStore.updateConnectBehavior(.restoreOpenSnekSettings) }
 
         let updatedBehavior = await MainActor.run { appState.editorStore.connectBehavior }
         let showsCard = await MainActor.run { appState.editorStore.showsConnectBehaviorCard }
@@ -405,43 +204,17 @@ final class AppStateRestoreTests: XCTestCase {
     }
 
     func testOnboardStorageHidesConnectBehaviorAndIgnoresRestorePreference() async throws {
-        let device = makeRefactorTestDevice(
-            id: "onboard-storage-connect-behavior",
-            transport: .usb,
-            serial: "ONBOARD-CONNECT-BEHAVIOR-\(UUID().uuidString)",
-            onboardProfileCount: 5,
-            profileID: .basiliskV3Pro
-        )
+        let device = makeRefactorTestDevice(id: "onboard-storage-connect-behavior", transport: .usb, serial: "ONBOARD-CONNECT-BEHAVIOR-\(UUID().uuidString)", onboardProfileCount: 5, profileID: .basiliskV3Pro)
         let preferenceStore = DevicePreferenceStore()
         preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
-        preferenceStore.persistDeviceSettingsSnapshot(
-            makeRefactorSettingsSnapshot(color: RGBColor(r: 10, g: 20, b: 30)),
-            device: device
-        )
+        preferenceStore.persistDeviceSettingsSnapshot(makeRefactorSettingsSnapshot(color: RGBColor(r: 10, g: 20, b: 30)), device: device)
         defer { clearRefactorPreferences(for: device) }
 
-        let backend = AppStateRefactorStubBackend(
-            devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "usb",
-                        batteryPercent: 71,
-                        dpiValues: [800, 1600, 3200],
-                        activeStage: 1
-                    )
-                )
-            ]
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let backend = AppStateRefactorStubBackend(devices: [device], stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 71, dpiValues: [800, 1600, 3200], activeStage: 1))])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await appState.deviceStore.refreshDevices()
-        await MainActor.run {
-            appState.editorStore.updateConnectBehavior(.restoreOpenSnekSettings)
-        }
+        await MainActor.run { appState.editorStore.updateConnectBehavior(.restoreOpenSnekSettings) }
 
         let connectBehavior = await MainActor.run { appState.editorStore.connectBehavior }
         let showsCard = await MainActor.run { appState.editorStore.showsConnectBehaviorCard }
@@ -452,32 +225,11 @@ final class AppStateRestoreTests: XCTestCase {
     }
 
     func testUSBHyperspeedUsesProfilePickerInsteadOfOnConnectCard() async throws {
-        let device = makeRefactorTestDevice(
-            id: "usb-hyperspeed-connect-behavior",
-            transport: .usb,
-            serial: "USB-CONNECT-BEHAVIOR-\(UUID().uuidString)",
-            onboardProfileCount: 1,
-            profileID: .basiliskV3XHyperspeed
-        )
+        let device = makeRefactorTestDevice(id: "usb-hyperspeed-connect-behavior", transport: .usb, serial: "USB-CONNECT-BEHAVIOR-\(UUID().uuidString)", onboardProfileCount: 1, profileID: .basiliskV3XHyperspeed)
         defer { clearRefactorPreferences(for: device) }
 
-        let backend = AppStateRefactorStubBackend(
-            devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "usb",
-                        batteryPercent: 71,
-                        dpiValues: [800, 1600, 3200],
-                        activeStage: 1
-                    )
-                )
-            ]
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let backend = AppStateRefactorStubBackend(devices: [device], stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 71, dpiValues: [800, 1600, 3200], activeStage: 1))])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await appState.deviceStore.refreshDevices()
 
@@ -490,17 +242,8 @@ final class AppStateRestoreTests: XCTestCase {
     }
 
     func testDisabledSettingStorageKeepsReconnectRehydrationSourceAtLastStoredSnapshot() async throws {
-        let device = makeRefactorTestDevice(
-            id: "usb-storage-gated-restore-device",
-            transport: .usb,
-            serial: "USB-STORAGE-GATED-RESTORE-\(UUID().uuidString)",
-            onboardProfileCount: 1,
-            profileID: .basiliskV3Pro
-        )
-        let storedSnapshot = makeRefactorSettingsSnapshot(
-            color: RGBColor(r: 20, g: 30, b: 40),
-            zoneID: "scroll_wheel"
-        )
+        let device = makeRefactorTestDevice(id: "usb-storage-gated-restore-device", transport: .usb, serial: "USB-STORAGE-GATED-RESTORE-\(UUID().uuidString)", onboardProfileCount: 1, profileID: .basiliskV3Pro)
+        let storedSnapshot = makeRefactorSettingsSnapshot(color: RGBColor(r: 20, g: 30, b: 40), zoneID: "scroll_wheel")
         let preferenceStore = DevicePreferenceStore()
         preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
         preferenceStore.persistDeviceSettingsSnapshot(storedSnapshot, device: device)
@@ -510,23 +253,8 @@ final class AppStateRestoreTests: XCTestCase {
             clearRefactorPreferences(for: device)
         }
 
-        let backend = AppStateRefactorStubBackend(
-            devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "usb",
-                        batteryPercent: 71,
-                        dpiValues: [800, 1600, 3200],
-                        activeStage: 1
-                    )
-                )
-            ]
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let backend = AppStateRefactorStubBackend(devices: [device], stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 71, dpiValues: [800, 1600, 3200], activeStage: 1))])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await MainActor.run {
             appState.deviceStore.devices = [device]
@@ -534,19 +262,13 @@ final class AppStateRestoreTests: XCTestCase {
             appState.deviceController.syncSelectedDevicePresentation(deviceID: device.id)
         }
 
-        await MainActor.run {
-            appState.editorStore.editableActiveStage = 1
-        }
+        await MainActor.run { appState.editorStore.editableActiveStage = 1 }
         await appState.editorStore.applyDpiStages()
-        try await waitForRefactorCondition {
-            await backend.applyCount() >= 1
-        }
+        try await waitForRefactorCondition { await backend.applyCount() >= 1 }
 
         let snapshotAfterUnstoredEdit = preferenceStore.loadPersistedDeviceSettingsSnapshot(device: device)
         XCTAssertEqual(snapshotAfterUnstoredEdit, storedSnapshot)
-        let rehydrationAppState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let rehydrationAppState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
         await MainActor.run {
             rehydrationAppState.deviceStore.devices = [device]
             rehydrationAppState.deviceStore.selectedDeviceID = device.id
@@ -558,36 +280,15 @@ final class AppStateRestoreTests: XCTestCase {
     }
 
     func testNonLightingApplyDoesNotOverwriteStoredSnapshotLightingFromStaleEditorState() async throws {
-        let device = makeRefactorUSBLightingRestoreDevice(
-            id: "usb-stale-lighting-snapshot-device",
-            serial: "USB-STALE-LIGHT-\(UUID().uuidString)"
-        )
-        let storedSnapshot = makeRefactorSettingsSnapshot(
-            color: RGBColor(r: 255, g: 255, b: 255),
-            zoneID: "scroll_wheel"
-        )
+        let device = makeRefactorUSBLightingRestoreDevice(id: "usb-stale-lighting-snapshot-device", serial: "USB-STALE-LIGHT-\(UUID().uuidString)")
+        let storedSnapshot = makeRefactorSettingsSnapshot(color: RGBColor(r: 255, g: 255, b: 255), zoneID: "scroll_wheel")
         let preferenceStore = DevicePreferenceStore()
         preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
         preferenceStore.persistDeviceSettingsSnapshot(storedSnapshot, device: device)
         defer { clearRefactorPreferences(for: device) }
 
-        let backend = AppStateRefactorStubBackend(
-            devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "usb",
-                        batteryPercent: 73,
-                        dpiValues: [800, 1600, 3200],
-                        activeStage: 1
-                    )
-                )
-            ]
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let backend = AppStateRefactorStubBackend(devices: [device], stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 73, dpiValues: [800, 1600, 3200], activeStage: 1))])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await MainActor.run {
             appState.deviceStore.devices = [device]
@@ -599,69 +300,32 @@ final class AppStateRestoreTests: XCTestCase {
         }
 
         await appState.editorStore.applyDpiStages()
-        try await waitForRefactorCondition {
-            await backend.applyCount() >= 1
-        }
+        try await waitForRefactorCondition { await backend.applyCount() >= 1 }
 
-        let snapshotAfterApply = try XCTUnwrap(
-            preferenceStore.loadPersistedDeviceSettingsSnapshot(device: device)
-        )
+        let snapshotAfterApply = try XCTUnwrap(preferenceStore.loadPersistedDeviceSettingsSnapshot(device: device))
         XCTAssertEqual(snapshotAfterApply.primaryLightingColor, storedSnapshot.primaryLightingColor)
         XCTAssertEqual(snapshotAfterApply.usbLightingZoneID, storedSnapshot.usbLightingZoneID)
         XCTAssertEqual(snapshotAfterApply.lightingEffect, storedSnapshot.lightingEffect)
 
-        let rehydrationAppState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let rehydrationAppState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
         await rehydrationAppState.deviceStore.refreshDevices()
         try await waitForRefactorCondition {
-            await backend.recordedPatches().contains(where: { patch in
-                patch.ledRGB?.r == storedSnapshot.primaryLightingColor?.r &&
-                    patch.ledRGB?.g == storedSnapshot.primaryLightingColor?.g &&
-                    patch.ledRGB?.b == storedSnapshot.primaryLightingColor?.b &&
-                    patch.usbLightingZoneLEDIDs == [0x01]
-            })
+            await backend.recordedPatches().contains(where: { patch in patch.ledRGB?.r == storedSnapshot.primaryLightingColor?.r && patch.ledRGB?.g == storedSnapshot.primaryLightingColor?.g && patch.ledRGB?.b == storedSnapshot.primaryLightingColor?.b && patch.usbLightingZoneLEDIDs == [0x01] })
         }
     }
 
     func testUSBV3ProUsesRememberedLightingStateWithoutAutoApply() async throws {
         let device = MouseDevice(
-            id: "usb-v3-pro-lighting-zone",
-            vendor_id: 0x1532,
-            product_id: 0x00AB,
-            product_name: "Basilisk V3 Pro",
-            transport: .usb,
-            path_b64: "",
-            serial: "USB-V3PRO-LIGHT-\(UUID().uuidString)",
-            firmware: "1.0.0",
-            location_id: 1,
-            profile_id: .basiliskV3Pro,
-            supports_advanced_lighting_effects: false,
-            onboard_profile_count: 5
-        )
+            id: "usb-v3-pro-lighting-zone", vendor_id: 0x1532, product_id: 0x00AB, product_name: "Basilisk V3 Pro", transport: .usb, path_b64: "", serial: "USB-V3PRO-LIGHT-\(UUID().uuidString)", firmware: "1.0.0", location_id: 1, profile_id: .basiliskV3Pro, supports_advanced_lighting_effects: false,
+            onboard_profile_count: 5)
         let persistedColor = RGBColor(r: 11, g: 22, b: 33)
         let preferenceStore = DevicePreferenceStore()
         preferenceStore.persistLightingColor(persistedColor, device: device, zoneID: "logo")
         preferenceStore.persistLightingZoneID("logo", device: device)
         defer { clearRefactorPreferences(for: device) }
 
-        let backend = AppStateRefactorStubBackend(
-            devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "usb",
-                        batteryPercent: 68,
-                        dpiValues: [1200, 2400, 3600],
-                        activeStage: 1
-                    )
-                )
-            ]
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let backend = AppStateRefactorStubBackend(devices: [device], stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 68, dpiValues: [1200, 2400, 3600], activeStage: 1))])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await appState.deviceStore.refreshDevices()
 
@@ -675,42 +339,19 @@ final class AppStateRestoreTests: XCTestCase {
     }
 
     func testUSBPersistedSettingsSnapshotReappliesOnFirstHydrationUsingSavedZone() async throws {
-        let device = makeRefactorUSBLightingRestoreDevice(
-            id: "usb-lighting-device",
-            serial: "USB-LIGHT-\(UUID().uuidString)"
-        )
+        let device = makeRefactorUSBLightingRestoreDevice(id: "usb-lighting-device", serial: "USB-LIGHT-\(UUID().uuidString)")
         let persistedColor = RGBColor(r: 40, g: 50, b: 60)
         let preferenceStore = DevicePreferenceStore()
         preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
-        preferenceStore.persistDeviceSettingsSnapshot(
-            makeRefactorSettingsSnapshot(color: persistedColor, zoneID: "scroll_wheel"),
-            device: device
-        )
+        preferenceStore.persistDeviceSettingsSnapshot(makeRefactorSettingsSnapshot(color: persistedColor, zoneID: "scroll_wheel"), device: device)
         defer { clearRefactorPreferences(for: device) }
 
-        let backend = AppStateRefactorStubBackend(
-            devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "usb",
-                        batteryPercent: 73,
-                        dpiValues: [800, 1600, 3200],
-                        activeStage: 1
-                    )
-                )
-            ]
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let backend = AppStateRefactorStubBackend(devices: [device], stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 73, dpiValues: [800, 1600, 3200], activeStage: 1))])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await appState.deviceStore.refreshDevices()
 
-        try await waitForRefactorCondition {
-            await backend.applyCount() >= 1
-        }
+        try await waitForRefactorCondition { await backend.applyCount() >= 1 }
 
         let patches = await backend.recordedPatches()
         let patch = try XCTUnwrap(patches.first)
@@ -727,27 +368,17 @@ final class AppStateRestoreTests: XCTestCase {
     }
 
     func testSelectedDevicePresentationHydratesPersistedSettingsSnapshotBeforeStateRefresh() async throws {
-        let device = makeRefactorUSBLightingRestoreDevice(
-            id: "usb-selected-lighting-device",
-            serial: "USB-SELECTED-LIGHT-\(UUID().uuidString)"
-        )
+        let device = makeRefactorUSBLightingRestoreDevice(id: "usb-selected-lighting-device", serial: "USB-SELECTED-LIGHT-\(UUID().uuidString)")
         let persistedColor = RGBColor(r: 91, g: 102, b: 113)
         let preferenceStore = DevicePreferenceStore()
         preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
-        preferenceStore.persistDeviceSettingsSnapshot(
-            makeRefactorSettingsSnapshot(color: persistedColor, zoneID: "scroll_wheel"),
-            device: device
-        )
+        preferenceStore.persistDeviceSettingsSnapshot(makeRefactorSettingsSnapshot(color: persistedColor, zoneID: "scroll_wheel"), device: device)
         defer { clearRefactorPreferences(for: device) }
 
         let backend = AppStateRefactorStubBackend(devices: [], stateByDeviceID: [:])
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
-        await MainActor.run {
-            _ = appState.deviceController.applyDeviceList([device], source: "refresh")
-        }
+        await MainActor.run { _ = appState.deviceController.applyDeviceList([device], source: "refresh") }
 
         let selectedDeviceID = await MainActor.run { appState.deviceStore.selectedDeviceID }
         let editableColor = await MainActor.run { appState.editorStore.editableColor }
@@ -763,123 +394,44 @@ final class AppStateRestoreTests: XCTestCase {
     }
 
     func testSelectedDeviceLiveDpiStillHydratesWhilePersistedConnectPresentationIsHeld() async throws {
-        let device = makeRefactorUSBLightingRestoreDevice(
-            id: "usb-selected-live-dpi-device",
-            serial: "USB-SELECTED-LIVE-DPI-\(UUID().uuidString)"
-        )
+        let device = makeRefactorUSBLightingRestoreDevice(id: "usb-selected-live-dpi-device", serial: "USB-SELECTED-LIVE-DPI-\(UUID().uuidString)")
         let preferenceStore = DevicePreferenceStore()
         preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: device)
         preferenceStore.persistDeviceSettingsSnapshot(
             PersistedDeviceSettingsSnapshot(
-                stageCount: 5,
-                stageValues: [600, 900, 1000, 1200, 1400],
-                stagePairs: [
-                    DpiPair(x: 600, y: 600),
-                    DpiPair(x: 900, y: 900),
-                    DpiPair(x: 1000, y: 1000),
-                    DpiPair(x: 1200, y: 1200),
-                    DpiPair(x: 1400, y: 1400)
-                ],
-                activeStage: 3,
-                pollRate: 500,
-                sleepTimeout: 420,
-                lowBatteryThresholdRaw: 0x20,
-                scrollMode: 1,
-                scrollAcceleration: true,
-                scrollSmartReel: false,
-                ledBrightness: 77,
-                primaryLightingColor: RGBColor(r: 91, g: 102, b: 113),
-                lightingEffect: nil,
-                usbLightingZoneID: "scroll_wheel",
-                buttonBindings: [:]
-            ),
-            device: device
-        )
+                stageCount: 5, stageValues: [600, 900, 1000, 1200, 1400], stagePairs: [DpiPair(x: 600, y: 600), DpiPair(x: 900, y: 900), DpiPair(x: 1000, y: 1000), DpiPair(x: 1200, y: 1200), DpiPair(x: 1400, y: 1400)], activeStage: 3, pollRate: 500, sleepTimeout: 420, lowBatteryThresholdRaw: 0x20,
+                scrollMode: 1, scrollAcceleration: true, scrollSmartReel: false, ledBrightness: 77, primaryLightingColor: RGBColor(r: 91, g: 102, b: 113), lightingEffect: nil, usbLightingZoneID: "scroll_wheel", buttonBindings: [:]), device: device)
         defer { clearRefactorPreferences(for: device) }
 
         let backend = AppStateRefactorStubBackend(devices: [], stateByDeviceID: [:])
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
-        await MainActor.run {
-            _ = appState.deviceController.applyDeviceList([device], source: "refresh")
-        }
+        await MainActor.run { _ = appState.deviceController.applyDeviceList([device], source: "refresh") }
 
         let persistedActiveStage = await MainActor.run { appState.editorStore.editableActiveStage }
         XCTAssertEqual(persistedActiveStage, 3)
 
-        let liveState = makeRefactorTestState(
-            device: device,
-            telemetry: RefactorTestStateTelemetry(
-                connection: "usb",
-                batteryPercent: 81,
-                dpiValues: [600, 900, 1000, 1200, 1400],
-                activeStage: 0
-            )
-        )
+        let liveState = makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 81, dpiValues: [600, 900, 1000, 1200, 1400], activeStage: 0))
 
-        await MainActor.run {
-            appState.deviceController.applyBackendDeviceStateUpdate(
-                deviceID: device.id,
-                state: liveState,
-                updatedAt: Date(timeIntervalSince1970: 1_777_909_776)
-            )
-        }
+        await MainActor.run { appState.deviceController.applyBackendDeviceStateUpdate(deviceID: device.id, state: liveState, updatedAt: Date(timeIntervalSince1970: 1_777_909_776)) }
 
         let liveActiveStage = await MainActor.run { appState.editorStore.editableActiveStage }
         XCTAssertEqual(liveActiveStage, 1)
     }
 
     func testSelectedDeviceBackendStateUpdatePreservesPendingLocalEditsWhileUpdatingLiveDpiPresentation() async {
-        let device = makeRefactorTestDevice(
-            id: "backend-state-pending-live-dpi-device",
-            transport: .usb,
-            serial: "BACKEND-STATE-PENDING-LIVE-DPI-\(UUID().uuidString)",
-            onboardProfileCount: 1,
-            profileID: .basiliskV3Pro
-        )
-        let appState = await MainActor.run {
-            AppState(
-                launchRole: .app,
-                backend: AppStateRefactorStubBackend(devices: [], stateByDeviceID: [:]),
-                autoStart: false
-            )
-        }
+        let device = makeRefactorTestDevice(id: "backend-state-pending-live-dpi-device", transport: .usb, serial: "BACKEND-STATE-PENDING-LIVE-DPI-\(UUID().uuidString)", onboardProfileCount: 1, profileID: .basiliskV3Pro)
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: AppStateRefactorStubBackend(devices: [], stateByDeviceID: [:]), autoStart: false) }
 
-        let initialState = makeRefactorTestState(
-            device: device,
-            telemetry: RefactorTestStateTelemetry(
-                connection: "usb",
-                batteryPercent: 81,
-                dpiValues: [600, 900, 1000, 1200, 1400],
-                activeStage: 1
-            )
-        )
-        let liveState = makeRefactorTestState(
-            device: device,
-            telemetry: RefactorTestStateTelemetry(
-                connection: "usb",
-                batteryPercent: 81,
-                dpiValues: [600, 900, 1000, 1200, 1400],
-                activeStage: 3
-            )
-        )
+        let initialState = makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 81, dpiValues: [600, 900, 1000, 1200, 1400], activeStage: 1))
+        let liveState = makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 81, dpiValues: [600, 900, 1000, 1200, 1400], activeStage: 3))
 
         await MainActor.run {
             _ = appState.deviceController.applyDeviceList([device], source: "refresh")
-            appState.deviceController.applyBackendDeviceStateUpdate(
-                deviceID: device.id,
-                state: initialState,
-                updatedAt: Date(timeIntervalSince1970: 1_777_909_780)
-            )
+            appState.deviceController.applyBackendDeviceStateUpdate(deviceID: device.id, state: initialState, updatedAt: Date(timeIntervalSince1970: 1_777_909_780))
             appState.editorStore.editablePollRate = 500
             appState.applyController.markLocalEditsPending()
-            appState.deviceController.applyBackendDeviceStateUpdate(
-                deviceID: device.id,
-                state: liveState,
-                updatedAt: Date(timeIntervalSince1970: 1_777_909_781)
-            )
+            appState.deviceController.applyBackendDeviceStateUpdate(deviceID: device.id, state: liveState, updatedAt: Date(timeIntervalSince1970: 1_777_909_781))
         }
 
         let liveActiveStage = await MainActor.run { appState.editorStore.editableActiveStage }

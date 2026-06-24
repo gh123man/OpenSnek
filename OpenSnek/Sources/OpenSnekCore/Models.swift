@@ -23,8 +23,7 @@ public enum DeviceTransportKind: String, CaseIterable, Codable, Hashable, Sendab
     // transport does not inherit USB/Bluetooth behavior by falling through.
     public var supportsHIDBackedControls: Bool {
         switch self {
-        case .usb, .bluetooth:
-            return true
+        case .usb, .bluetooth: return true
         }
     }
 }
@@ -70,19 +69,8 @@ public struct MouseDevice: Codable, Identifiable, Hashable, Sendable {
     public let onboard_profile_count: Int
 
     public init(
-        id: String,
-        vendor_id: Int,
-        product_id: Int,
-        product_name: String,
-        transport: DeviceTransportKind,
-        path_b64: String,
-        serial: String?,
-        firmware: String?,
-        location_id: Int = 0,
-        profile_id: DeviceProfileID? = nil,
-        button_layout: ButtonSlotLayout? = nil,
-        supports_advanced_lighting_effects: Bool = false,
-        onboard_profile_count: Int = 1
+        id: String, vendor_id: Int, product_id: Int, product_name: String, transport: DeviceTransportKind, path_b64: String, serial: String?, firmware: String?, location_id: Int = 0, profile_id: DeviceProfileID? = nil, button_layout: ButtonSlotLayout? = nil,
+        supports_advanced_lighting_effects: Bool = false, onboard_profile_count: Int = 1
     ) {
         self.id = id
         self.vendor_id = vendor_id
@@ -99,30 +87,15 @@ public struct MouseDevice: Codable, Identifiable, Hashable, Sendable {
         self.onboard_profile_count = max(1, onboard_profile_count)
     }
 
-    public var connectionLabel: String {
-        transport.connectionLabel
-    }
+    public var connectionLabel: String { transport.connectionLabel }
 
     public var showsLightingControls: Bool {
-        let profile = DeviceProfiles.resolve(
-            vendorID: vendor_id,
-            productID: product_id,
-            transport: transport
-        )
+        let profile = DeviceProfiles.resolve(vendorID: vendor_id, productID: product_id, transport: transport)
         guard let profile else { return true }
-        return !profile.supportedLightingEffects.isEmpty ||
-            !profile.usbLightingZones.isEmpty ||
-            !profile.usbLightingLEDIDs.isEmpty
+        return !profile.supportedLightingEffects.isEmpty || !profile.usbLightingZones.isEmpty || !profile.usbLightingLEDIDs.isEmpty
     }
 
-    public var identity: DeviceIdentity {
-        DeviceIdentity(
-            vendorID: vendor_id,
-            productID: product_id,
-            locationID: location_id,
-            transport: transport
-        )
-    }
+    public var identity: DeviceIdentity { DeviceIdentity(vendorID: vendor_id, productID: product_id, locationID: location_id, transport: transport) }
 }
 
 /// Stores DPI pair data.
@@ -198,23 +171,8 @@ public struct MouseState: Codable, Hashable, Sendable {
     public let capabilities: Capabilities
 
     public init(
-        device: DeviceSummary,
-        connection: String,
-        battery_percent: Int?,
-        charging: Bool?,
-        dpi: DpiPair?,
-        dpi_stages: DpiStages,
-        poll_rate: Int?,
-        sleep_timeout: Int? = nil,
-        device_mode: DeviceMode?,
-        low_battery_threshold_raw: Int? = nil,
-        scroll_mode: Int? = nil,
-        scroll_acceleration: Bool? = nil,
-        scroll_smart_reel: Bool? = nil,
-        active_onboard_profile: Int? = nil,
-        onboard_profile_count: Int? = nil,
-        led_value: Int?,
-        capabilities: Capabilities
+        device: DeviceSummary, connection: String, battery_percent: Int?, charging: Bool?, dpi: DpiPair?, dpi_stages: DpiStages, poll_rate: Int?, sleep_timeout: Int? = nil, device_mode: DeviceMode?, low_battery_threshold_raw: Int? = nil, scroll_mode: Int? = nil, scroll_acceleration: Bool? = nil,
+        scroll_smart_reel: Bool? = nil, active_onboard_profile: Int? = nil, onboard_profile_count: Int? = nil, led_value: Int?, capabilities: Capabilities
     ) {
         self.device = device
         self.connection = connection
@@ -242,132 +200,56 @@ public extension MouseState {
         guard let previous else { return self }
         let mergedBatteryPercent = battery_percent ?? previous.battery_percent
         let mergedCharging: Bool?
-        if battery_percent != nil {
-            mergedCharging = charging
-        } else {
-            mergedCharging = charging ?? previous.charging
-        }
+        if battery_percent != nil { mergedCharging = charging } else { mergedCharging = charging ?? previous.charging }
         return MouseState(
-            device: device.merged(with: previous.device),
-            connection: connection,
-            battery_percent: mergedBatteryPercent,
-            charging: mergedCharging,
-            dpi: dpi ?? previous.dpi,
+            device: device.merged(with: previous.device), connection: connection, battery_percent: mergedBatteryPercent, charging: mergedCharging, dpi: dpi ?? previous.dpi,
             dpi_stages: DpiStages(
-                active_stage: dpi_stages.active_stage ?? previous.dpi_stages.active_stage,
-                values: dpi_stages.values ?? previous.dpi_stages.values,
+                active_stage: dpi_stages.active_stage ?? previous.dpi_stages.active_stage, values: dpi_stages.values ?? previous.dpi_stages.values,
                 pairs: {
-                    if let pairs = dpi_stages.pairs {
-                        return pairs
-                    }
+                    if let pairs = dpi_stages.pairs { return pairs }
                     if let values = dpi_stages.values {
-                        if let previousPairs = previous.dpi_stages.pairs,
-                           previousPairs.count == values.count {
-                            return zip(values, previousPairs).map { value, previousPair in
-                                DpiPair(x: value, y: previousPair.y)
-                            }
-                        }
+                        if let previousPairs = previous.dpi_stages.pairs, previousPairs.count == values.count { return zip(values, previousPairs).map { value, previousPair in DpiPair(x: value, y: previousPair.y) } }
                         return values.map { DpiPair(x: $0, y: $0) }
                     }
                     return previous.dpi_stages.pairs
-                }()
-            ),
-            poll_rate: poll_rate ?? previous.poll_rate,
-            sleep_timeout: sleep_timeout ?? previous.sleep_timeout,
-            device_mode: device_mode ?? previous.device_mode,
-            low_battery_threshold_raw: low_battery_threshold_raw ?? previous.low_battery_threshold_raw,
-            scroll_mode: scroll_mode ?? previous.scroll_mode,
-            scroll_acceleration: scroll_acceleration ?? previous.scroll_acceleration,
-            scroll_smart_reel: scroll_smart_reel ?? previous.scroll_smart_reel,
-            active_onboard_profile: active_onboard_profile ?? previous.active_onboard_profile,
-            onboard_profile_count: onboard_profile_count ?? previous.onboard_profile_count,
-            led_value: led_value ?? previous.led_value,
+                }()), poll_rate: poll_rate ?? previous.poll_rate, sleep_timeout: sleep_timeout ?? previous.sleep_timeout, device_mode: device_mode ?? previous.device_mode, low_battery_threshold_raw: low_battery_threshold_raw ?? previous.low_battery_threshold_raw,
+            scroll_mode: scroll_mode ?? previous.scroll_mode, scroll_acceleration: scroll_acceleration ?? previous.scroll_acceleration, scroll_smart_reel: scroll_smart_reel ?? previous.scroll_smart_reel, active_onboard_profile: active_onboard_profile ?? previous.active_onboard_profile,
+            onboard_profile_count: onboard_profile_count ?? previous.onboard_profile_count, led_value: led_value ?? previous.led_value,
             capabilities: Capabilities(
-                dpi_stages: capabilities.dpi_stages || previous.capabilities.dpi_stages,
-                poll_rate: capabilities.poll_rate || previous.capabilities.poll_rate,
-                power_management: capabilities.power_management || previous.capabilities.power_management,
-                button_remap: capabilities.button_remap || previous.capabilities.button_remap,
-                lighting: capabilities.lighting || previous.capabilities.lighting
-            )
-        )
+                dpi_stages: capabilities.dpi_stages || previous.capabilities.dpi_stages, poll_rate: capabilities.poll_rate || previous.capabilities.poll_rate, power_management: capabilities.power_management || previous.capabilities.power_management,
+                button_remap: capabilities.button_remap || previous.capabilities.button_remap, lighting: capabilities.lighting || previous.capabilities.lighting))
     }
 
     var hasStableTelemetryData: Bool {
-        battery_percent != nil ||
-            charging != nil ||
-            poll_rate != nil ||
-            sleep_timeout != nil ||
-            device_mode != nil ||
-            low_battery_threshold_raw != nil ||
-            scroll_mode != nil ||
-            scroll_acceleration != nil ||
-            scroll_smart_reel != nil ||
-            active_onboard_profile != nil ||
-            onboard_profile_count != nil ||
-            led_value != nil
+        battery_percent != nil || charging != nil || poll_rate != nil || sleep_timeout != nil || device_mode != nil || low_battery_threshold_raw != nil || scroll_mode != nil || scroll_acceleration != nil || scroll_smart_reel != nil || active_onboard_profile != nil || onboard_profile_count != nil
+            || led_value != nil
     }
 
     func differsOnlyInDynamicDpiState(from previous: MouseState?) -> Bool {
-        guard let previous else {
-            return !hasStableTelemetryData
-        }
+        guard let previous else { return !hasStableTelemetryData }
 
         let identityMatches = device == previous.device && connection == previous.connection
         let batteryMatches = battery_percent == previous.battery_percent && charging == previous.charging
-        let baseSettingsMatch = poll_rate == previous.poll_rate &&
-            sleep_timeout == previous.sleep_timeout &&
-            device_mode == previous.device_mode &&
-            low_battery_threshold_raw == previous.low_battery_threshold_raw
-        let scrollSettingsMatch = scroll_mode == previous.scroll_mode &&
-            scroll_acceleration == previous.scroll_acceleration &&
-            scroll_smart_reel == previous.scroll_smart_reel
-        let profileStateMatches = active_onboard_profile == previous.active_onboard_profile &&
-            onboard_profile_count == previous.onboard_profile_count
+        let baseSettingsMatch = poll_rate == previous.poll_rate && sleep_timeout == previous.sleep_timeout && device_mode == previous.device_mode && low_battery_threshold_raw == previous.low_battery_threshold_raw
+        let scrollSettingsMatch = scroll_mode == previous.scroll_mode && scroll_acceleration == previous.scroll_acceleration && scroll_smart_reel == previous.scroll_smart_reel
+        let profileStateMatches = active_onboard_profile == previous.active_onboard_profile && onboard_profile_count == previous.onboard_profile_count
         let lightingMatches = led_value == previous.led_value
 
-        return identityMatches &&
-            batteryMatches &&
-            baseSettingsMatch &&
-            scrollSettingsMatch &&
-            profileStateMatches &&
-            lightingMatches &&
-            capabilities == previous.capabilities
+        return identityMatches && batteryMatches && baseSettingsMatch && scrollSettingsMatch && profileStateMatches && lightingMatches && capabilities == previous.capabilities
     }
 
     func mergedWithStableReadTelemetry(from read: MouseState) -> MouseState {
         let mergedBatteryPercent = read.battery_percent ?? battery_percent
         let mergedCharging: Bool?
-        if read.battery_percent != nil {
-            mergedCharging = read.charging
-        } else {
-            mergedCharging = read.charging ?? charging
-        }
+        if read.battery_percent != nil { mergedCharging = read.charging } else { mergedCharging = read.charging ?? charging }
 
         return MouseState(
-            device: device.merged(with: read.device),
-            connection: connection,
-            battery_percent: mergedBatteryPercent,
-            charging: mergedCharging,
-            dpi: dpi,
-            dpi_stages: dpi_stages,
-            poll_rate: read.poll_rate ?? poll_rate,
-            sleep_timeout: read.sleep_timeout ?? sleep_timeout,
-            device_mode: read.device_mode ?? device_mode,
-            low_battery_threshold_raw: read.low_battery_threshold_raw ?? low_battery_threshold_raw,
-            scroll_mode: read.scroll_mode ?? scroll_mode,
-            scroll_acceleration: read.scroll_acceleration ?? scroll_acceleration,
-            scroll_smart_reel: read.scroll_smart_reel ?? scroll_smart_reel,
-            active_onboard_profile: read.active_onboard_profile ?? active_onboard_profile,
-            onboard_profile_count: read.onboard_profile_count ?? onboard_profile_count,
-            led_value: read.led_value ?? led_value,
+            device: device.merged(with: read.device), connection: connection, battery_percent: mergedBatteryPercent, charging: mergedCharging, dpi: dpi, dpi_stages: dpi_stages, poll_rate: read.poll_rate ?? poll_rate, sleep_timeout: read.sleep_timeout ?? sleep_timeout,
+            device_mode: read.device_mode ?? device_mode, low_battery_threshold_raw: read.low_battery_threshold_raw ?? low_battery_threshold_raw, scroll_mode: read.scroll_mode ?? scroll_mode, scroll_acceleration: read.scroll_acceleration ?? scroll_acceleration,
+            scroll_smart_reel: read.scroll_smart_reel ?? scroll_smart_reel, active_onboard_profile: read.active_onboard_profile ?? active_onboard_profile, onboard_profile_count: read.onboard_profile_count ?? onboard_profile_count, led_value: read.led_value ?? led_value,
             capabilities: Capabilities(
-                dpi_stages: capabilities.dpi_stages || read.capabilities.dpi_stages,
-                poll_rate: capabilities.poll_rate || read.capabilities.poll_rate,
-                power_management: capabilities.power_management || read.capabilities.power_management,
-                button_remap: capabilities.button_remap || read.capabilities.button_remap,
-                lighting: capabilities.lighting || read.capabilities.lighting
-            )
-        )
+                dpi_stages: capabilities.dpi_stages || read.capabilities.dpi_stages, poll_rate: capabilities.poll_rate || read.capabilities.poll_rate, power_management: capabilities.power_management || read.capabilities.power_management,
+                button_remap: capabilities.button_remap || read.capabilities.button_remap, lighting: capabilities.lighting || read.capabilities.lighting))
     }
 }
 
@@ -390,15 +272,7 @@ public struct DeviceSummary: Codable, Hashable, Sendable {
 
 /// Adds scoped helpers for `DeviceSummary`.
 public extension DeviceSummary {
-    func merged(with previous: DeviceSummary) -> DeviceSummary {
-        DeviceSummary(
-            id: id ?? previous.id,
-            product_name: product_name ?? previous.product_name,
-            serial: serial ?? previous.serial,
-            transport: transport ?? previous.transport,
-            firmware: firmware ?? previous.firmware
-        )
-    }
+    func merged(with previous: DeviceSummary) -> DeviceSummary { DeviceSummary(id: id ?? previous.id, product_name: product_name ?? previous.product_name, serial: serial ?? previous.serial, transport: transport ?? previous.transport, firmware: firmware ?? previous.firmware) }
 }
 
 /// Wraps bridge payload data.
@@ -474,24 +348,16 @@ public enum LightingEffectKind: String, CaseIterable, Identifiable, Codable, Sen
 
     public var usesPrimaryColor: Bool {
         switch self {
-        case .staticColor, .reactive, .pulseSingle, .pulseDual:
-            return true
-        case .off, .spectrum, .wave, .pulseRandom:
-            return false
+        case .staticColor, .reactive, .pulseSingle, .pulseDual: return true
+        case .off, .spectrum, .wave, .pulseRandom: return false
         }
     }
 
-    public var usesSecondaryColor: Bool {
-        self == .pulseDual
-    }
+    public var usesSecondaryColor: Bool { self == .pulseDual }
 
-    public var usesWaveDirection: Bool {
-        self == .wave
-    }
+    public var usesWaveDirection: Bool { self == .wave }
 
-    public var usesReactiveSpeed: Bool {
-        self == .reactive
-    }
+    public var usesReactiveSpeed: Bool { self == .reactive }
 }
 
 /// Defines lighting wave direction values.
@@ -517,13 +383,7 @@ public struct LightingEffectPatch: Sendable, Hashable, Codable {
     public let waveDirection: LightingWaveDirection
     public let reactiveSpeed: Int
 
-    public init(
-        kind: LightingEffectKind,
-        primary: RGBPatch = RGBPatch(r: 0, g: 255, b: 0),
-        secondary: RGBPatch = RGBPatch(r: 0, g: 170, b: 255),
-        waveDirection: LightingWaveDirection = .left,
-        reactiveSpeed: Int = 2
-    ) {
+    public init(kind: LightingEffectKind, primary: RGBPatch = RGBPatch(r: 0, g: 255, b: 0), secondary: RGBPatch = RGBPatch(r: 0, g: 170, b: 255), waveDirection: LightingWaveDirection = .left, reactiveSpeed: Int = 2) {
         self.kind = kind
         self.primary = primary
         self.secondary = secondary
@@ -545,18 +405,7 @@ public struct ButtonBindingPatch: Sendable, Hashable, Codable {
     public let writePersistentLayer: Bool
     public let writeDirectLayer: Bool
 
-    public init(
-        slot: Int,
-        kind: ButtonBindingKind,
-        hidKey: Int?,
-        hidModifiers: Int? = nil,
-        turboEnabled: Bool = false,
-        turboRate: Int? = nil,
-        clutchDPI: Int? = nil,
-        persistentProfile: Int = 1,
-        writePersistentLayer: Bool = true,
-        writeDirectLayer: Bool = true
-    ) {
+    public init(slot: Int, kind: ButtonBindingKind, hidKey: Int?, hidModifiers: Int? = nil, turboEnabled: Bool = false, turboRate: Int? = nil, clutchDPI: Int? = nil, persistentProfile: Int = 1, writePersistentLayer: Bool = true, writeDirectLayer: Bool = true) {
         self.slot = slot
         self.kind = kind
         self.hidKey = hidKey
@@ -583,11 +432,7 @@ public struct USBButtonProfileActionPatch: Sendable, Hashable, Codable {
     public let sourceProfile: Int?
     public let targetProfile: Int
 
-    public init(
-        kind: USBButtonProfileActionKind,
-        sourceProfile: Int? = nil,
-        targetProfile: Int
-    ) {
+    public init(kind: USBButtonProfileActionKind, sourceProfile: Int? = nil, targetProfile: Int) {
         self.kind = kind
         self.sourceProfile = sourceProfile.map(OnboardProfileLimits.clampPersistentProfileID)
         self.targetProfile = OnboardProfileLimits.clampPersistentProfileID(targetProfile)
@@ -614,22 +459,8 @@ public struct DevicePatch: Sendable, Hashable, Codable {
     public var usbButtonProfileAction: USBButtonProfileActionPatch?
 
     public init(
-        pollRate: Int? = nil,
-        sleepTimeout: Int? = nil,
-        deviceMode: DeviceMode? = nil,
-        lowBatteryThresholdRaw: Int? = nil,
-        scrollMode: Int? = nil,
-        scrollAcceleration: Bool? = nil,
-        scrollSmartReel: Bool? = nil,
-        dpiStages: [Int]? = nil,
-        dpiStagePairs: [DpiPair]? = nil,
-        activeStage: Int? = nil,
-        ledBrightness: Int? = nil,
-        ledRGB: RGBPatch? = nil,
-        lightingEffect: LightingEffectPatch? = nil,
-        usbLightingZoneLEDIDs: [UInt8]? = nil,
-        buttonBinding: ButtonBindingPatch? = nil,
-        usbButtonProfileAction: USBButtonProfileActionPatch? = nil
+        pollRate: Int? = nil, sleepTimeout: Int? = nil, deviceMode: DeviceMode? = nil, lowBatteryThresholdRaw: Int? = nil, scrollMode: Int? = nil, scrollAcceleration: Bool? = nil, scrollSmartReel: Bool? = nil, dpiStages: [Int]? = nil, dpiStagePairs: [DpiPair]? = nil, activeStage: Int? = nil,
+        ledBrightness: Int? = nil, ledRGB: RGBPatch? = nil, lightingEffect: LightingEffectPatch? = nil, usbLightingZoneLEDIDs: [UInt8]? = nil, buttonBinding: ButtonBindingPatch? = nil, usbButtonProfileAction: USBButtonProfileActionPatch? = nil
     ) {
         self.pollRate = pollRate
         self.sleepTimeout = sleepTimeout
@@ -654,36 +485,19 @@ public struct DevicePatch: Sendable, Hashable, Codable {
 public extension DevicePatch {
     func merged(with newer: DevicePatch) -> DevicePatch {
         DevicePatch(
-            pollRate: newer.pollRate ?? pollRate,
-            sleepTimeout: newer.sleepTimeout ?? sleepTimeout,
-            deviceMode: newer.deviceMode ?? deviceMode,
-            lowBatteryThresholdRaw: newer.lowBatteryThresholdRaw ?? lowBatteryThresholdRaw,
-            scrollMode: newer.scrollMode ?? scrollMode,
-            scrollAcceleration: newer.scrollAcceleration ?? scrollAcceleration,
-            scrollSmartReel: newer.scrollSmartReel ?? scrollSmartReel,
-            dpiStages: newer.dpiStages ?? dpiStages,
-            dpiStagePairs: newer.dpiStagePairs ?? dpiStagePairs,
-            activeStage: newer.activeStage ?? activeStage,
-            ledBrightness: newer.ledBrightness ?? ledBrightness,
-            ledRGB: newer.ledRGB ?? ledRGB,
-            lightingEffect: newer.lightingEffect ?? lightingEffect,
-            usbLightingZoneLEDIDs: newer.usbLightingZoneLEDIDs ?? usbLightingZoneLEDIDs,
-            buttonBinding: newer.buttonBinding ?? buttonBinding,
-            usbButtonProfileAction: newer.usbButtonProfileAction ?? usbButtonProfileAction
-        )
+            pollRate: newer.pollRate ?? pollRate, sleepTimeout: newer.sleepTimeout ?? sleepTimeout, deviceMode: newer.deviceMode ?? deviceMode, lowBatteryThresholdRaw: newer.lowBatteryThresholdRaw ?? lowBatteryThresholdRaw, scrollMode: newer.scrollMode ?? scrollMode,
+            scrollAcceleration: newer.scrollAcceleration ?? scrollAcceleration, scrollSmartReel: newer.scrollSmartReel ?? scrollSmartReel, dpiStages: newer.dpiStages ?? dpiStages, dpiStagePairs: newer.dpiStagePairs ?? dpiStagePairs, activeStage: newer.activeStage ?? activeStage,
+            ledBrightness: newer.ledBrightness ?? ledBrightness, ledRGB: newer.ledRGB ?? ledRGB, lightingEffect: newer.lightingEffect ?? lightingEffect, usbLightingZoneLEDIDs: newer.usbLightingZoneLEDIDs ?? usbLightingZoneLEDIDs, buttonBinding: newer.buttonBinding ?? buttonBinding,
+            usbButtonProfileAction: newer.usbButtonProfileAction ?? usbButtonProfileAction)
     }
 }
 
 /// Adds scoped helpers for `DevicePatch`.
 public extension DevicePatch {
-    var affectsDpiStages: Bool {
-        dpiStages != nil || dpiStagePairs != nil || activeStage != nil
-    }
+    var affectsDpiStages: Bool { dpiStages != nil || dpiStagePairs != nil || activeStage != nil }
 
     var resolvedDpiStagePairs: [DpiPair]? {
-        if let dpiStagePairs {
-            return dpiStagePairs
-        }
+        if let dpiStagePairs { return dpiStagePairs }
         return dpiStages?.map { DpiPair(x: $0, y: $0) }
     }
 }
@@ -728,10 +542,8 @@ public enum ButtonBindingKind: String, CaseIterable, Identifiable, Codable, Send
 
     public var supportsTurbo: Bool {
         switch self {
-        case .leftClick, .rightClick, .middleClick, .scrollUp, .scrollDown, .scrollLeft, .scrollRight, .mouseBack, .mouseForward, .keyboardSimple:
-            return true
-        case .default, .dpiCycle, .dpiClutch, .clearLayer:
-            return false
+        case .leftClick, .rightClick, .middleClick, .scrollUp, .scrollDown, .scrollLeft, .scrollRight, .mouseBack, .mouseForward, .keyboardSimple: return true
+        case .default, .dpiCycle, .dpiClutch, .clearLayer: return false
         }
     }
 }

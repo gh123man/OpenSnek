@@ -4,15 +4,12 @@ import Foundation
 import Network
 
 /// Coordinates background service coordinator behavior.
-@MainActor
-final class BackgroundServiceCoordinator {
+@MainActor final class BackgroundServiceCoordinator {
     static let shared = BackgroundServiceCoordinator()
 
     nonisolated static let backgroundServiceEnabledDefaultsKey = "backgroundServiceEnabled"
     nonisolated static let launchAtStartupDefaultsKey = "launchServiceAtStartup"
-    nonisolated static let launchAtStartupDidChangeNotification = Notification.Name(
-        "io.opensnek.OpenSnek.launchAtStartupDidChange"
-    )
+    nonisolated static let launchAtStartupDidChangeNotification = Notification.Name("io.opensnek.OpenSnek.launchAtStartupDidChange")
     nonisolated static let endpointDefaultsKey = "backgroundServiceEndpoint"
     nonisolated static let portDefaultsKey = "backgroundServicePort"
     nonisolated static let pidDefaultsKey = "backgroundServicePID"
@@ -31,35 +28,20 @@ final class BackgroundServiceCoordinator {
     private let launchAgentsDirectoryURL: URL?
     private var serviceHost: BackgroundServiceHost?
 
-    init(
-        defaults: UserDefaults = .standard,
-        defaultsDomainName: String? = Bundle.main.bundleIdentifier,
-        preferencesNotificationCenter: NotificationCenter = DistributedNotificationCenter.default(),
-        fileManager: FileManager = .default,
-        launchAgentsDirectoryURL: URL? = nil
-    ) {
+    init(defaults: UserDefaults = .standard, defaultsDomainName: String? = Bundle.main.bundleIdentifier, preferencesNotificationCenter: NotificationCenter = DistributedNotificationCenter.default(), fileManager: FileManager = .default, launchAgentsDirectoryURL: URL? = nil) {
         self.defaults = defaults
         self.defaultsDomainName = defaultsDomainName
         self.preferencesNotificationCenter = preferencesNotificationCenter
         self.fileManager = fileManager
         self.launchAgentsDirectoryURL = launchAgentsDirectoryURL
-        self.defaults.register(defaults: [
-            Self.backgroundServiceEnabledDefaultsKey: true,
-            Self.launchAtStartupDefaultsKey: false
-        ])
+        self.defaults.register(defaults: [Self.backgroundServiceEnabledDefaultsKey: true, Self.launchAtStartupDefaultsKey: false])
     }
 
-    var backgroundServiceEnabled: Bool {
-        defaults.bool(forKey: Self.backgroundServiceEnabledDefaultsKey)
-    }
+    var backgroundServiceEnabled: Bool { defaults.bool(forKey: Self.backgroundServiceEnabledDefaultsKey) }
 
-    var launchAtStartupEnabled: Bool {
-        defaults.bool(forKey: Self.launchAtStartupDefaultsKey)
-    }
+    var launchAtStartupEnabled: Bool { defaults.bool(forKey: Self.launchAtStartupDefaultsKey) }
 
-    var isCurrentProcessService: Bool {
-        OpenSnekProcessRole.current.isService
-    }
+    var isCurrentProcessService: Bool { OpenSnekProcessRole.current.isService }
 
     var serviceProcessIdentifier: Int32? {
         let pid = defaults.integer(forKey: Self.pidDefaultsKey)
@@ -67,19 +49,10 @@ final class BackgroundServiceCoordinator {
         return Int32(pid)
     }
 
-    func registerServiceHostIfNeeded(
-        backend: LocalBridgeBackend,
-        remoteClientPresenceHandler: @escaping @Sendable (CrossProcessClientPresence) async -> Void,
-        remoteClientDisconnectHandler: @escaping @Sendable (Int32) async -> Void
-    ) async throws {
+    func registerServiceHostIfNeeded(backend: LocalBridgeBackend, remoteClientPresenceHandler: @escaping @Sendable (CrossProcessClientPresence) async -> Void, remoteClientDisconnectHandler: @escaping @Sendable (Int32) async -> Void) async throws {
         guard isCurrentProcessService else { return }
         guard serviceHost == nil else { return }
-        let host = try BackgroundServiceHost(
-            backend: backend,
-            defaults: defaults,
-            remoteClientPresenceHandler: remoteClientPresenceHandler,
-            remoteClientDisconnectHandler: remoteClientDisconnectHandler
-        )
+        let host = try BackgroundServiceHost(backend: backend, defaults: defaults, remoteClientPresenceHandler: remoteClientPresenceHandler, remoteClientDisconnectHandler: remoteClientDisconnectHandler)
         try await host.start()
         serviceHost = host
     }
@@ -94,64 +67,31 @@ final class BackgroundServiceCoordinator {
         return await serviceHost.requestOpenSettingsForConnectedClients()
     }
 
-    func setBackgroundServiceEnabled(_ enabled: Bool) {
-        defaults.set(enabled, forKey: Self.backgroundServiceEnabledDefaultsKey)
-    }
+    func setBackgroundServiceEnabled(_ enabled: Bool) { defaults.set(enabled, forKey: Self.backgroundServiceEnabledDefaultsKey) }
 
     func setLaunchAtStartupEnabled(_ enabled: Bool) throws {
         defaults.set(enabled, forKey: Self.launchAtStartupDefaultsKey)
-        if enabled {
-            try installLaunchAgent()
-        } else {
-            try removeLaunchAgent()
-        }
+        if enabled { try installLaunchAgent() } else { try removeLaunchAgent() }
         postLaunchAtStartupDidChangeNotification()
     }
 
-    func addLaunchAtStartupObserver(_ handler: @escaping @MainActor () -> Void) -> NSObjectProtocol {
-        preferencesNotificationCenter.addObserver(
-            forName: Self.launchAtStartupDidChangeNotification,
-            object: nil,
-            queue: .main
-        ) { _ in
-            MainActor.assumeIsolated {
-                handler()
-            }
-        }
-    }
+    func addLaunchAtStartupObserver(_ handler: @escaping @MainActor () -> Void) -> NSObjectProtocol { preferencesNotificationCenter.addObserver(forName: Self.launchAtStartupDidChangeNotification, object: nil, queue: .main) { _ in MainActor.assumeIsolated { handler() } } }
 
-    func removePreferencesObserver(_ observer: NSObjectProtocol) {
-        preferencesNotificationCenter.removeObserver(observer)
-    }
+    func removePreferencesObserver(_ observer: NSObjectProtocol) { preferencesNotificationCenter.removeObserver(observer) }
 
     func synchronizeLaunchAgentIfNeeded() throws {
         guard launchAtStartupEnabled else { return }
         guard Bundle.main.bundleURL.pathExtension == "app" else { return }
-        try synchronizeLaunchAgentIfNeeded(
-            executablePath: executableURL.path,
-            workingDirectoryPath: Bundle.main.bundleURL.deletingLastPathComponent().path
-        )
+        try synchronizeLaunchAgentIfNeeded(executablePath: executableURL.path, workingDirectoryPath: Bundle.main.bundleURL.deletingLastPathComponent().path)
     }
 
-    func synchronizeLaunchAgentIfNeeded(
-        executablePath: String,
-        workingDirectoryPath: String
-    ) throws {
+    func synchronizeLaunchAgentIfNeeded(executablePath: String, workingDirectoryPath: String) throws {
         guard launchAtStartupEnabled else { return }
 
-        let expectedPlist = Self.launchAgentPropertyList(
-            executablePath: executablePath,
-            workingDirectoryPath: workingDirectoryPath
-        )
-        if let currentPlist = currentLaunchAgentPropertyList(),
-           NSDictionary(dictionary: currentPlist).isEqual(to: expectedPlist) {
-            return
-        }
+        let expectedPlist = Self.launchAgentPropertyList(executablePath: executablePath, workingDirectoryPath: workingDirectoryPath)
+        if let currentPlist = currentLaunchAgentPropertyList(), NSDictionary(dictionary: currentPlist).isEqual(to: expectedPlist) { return }
 
-        try installLaunchAgent(
-            executablePath: executablePath,
-            workingDirectoryPath: workingDirectoryPath
-        )
+        try installLaunchAgent(executablePath: executablePath, workingDirectoryPath: workingDirectoryPath)
     }
 
     func makeBackendForCurrentMode() async throws -> any DeviceBackend {
@@ -172,20 +112,14 @@ final class BackgroundServiceCoordinator {
     }
 
     func connectOrLaunchService() async throws -> any DeviceBackend {
-        if let backend = try await connectToRunningService() {
-            return backend
-        }
+        if let backend = try await connectToRunningService() { return backend }
         try launchServiceProcess()
         let deadline = Date().addingTimeInterval(5.0)
         while Date() < deadline {
-            if let backend = try await connectToRunningService() {
-                return backend
-            }
+            if let backend = try await connectToRunningService() { return backend }
             try? await Task.sleep(nanoseconds: 150_000_000)
         }
-        throw NSError(domain: "OpenSnek.Service", code: 1, userInfo: [
-            NSLocalizedDescriptionKey: "Background service did not start in time"
-        ])
+        throw NSError(domain: "OpenSnek.Service", code: 1, userInfo: [NSLocalizedDescriptionKey: "Background service did not start in time"])
     }
 
     func connectToRunningService() async throws -> IPCDeviceBackend? {
@@ -196,9 +130,7 @@ final class BackgroundServiceCoordinator {
             return nil
         }
         let portValue = defaults.integer(forKey: Self.portDefaultsKey)
-        guard let port = NWEndpoint.Port(rawValue: UInt16(portValue)), portValue > 0 else {
-            return nil
-        }
+        guard let port = NWEndpoint.Port(rawValue: UInt16(portValue)), portValue > 0 else { return nil }
         let backend = IPCDeviceBackend(port: port)
         guard await backend.ping() else {
             AppLog.warning("Service", "background service ping failed pid=\(serviceProcessIdentifier ?? 0) port=\(portValue)")
@@ -210,9 +142,7 @@ final class BackgroundServiceCoordinator {
 
     func launchServiceProcess() throws {
         guard !isCurrentProcessService else { return }
-        if isServiceProcessAlive {
-            return
-        }
+        if isServiceProcessAlive { return }
 
         let process = Process()
         process.executableURL = executableURL
@@ -234,11 +164,7 @@ final class BackgroundServiceCoordinator {
             configuration.activates = true
             configuration.createsNewApplicationInstance = true
             configuration.arguments = arguments
-            NSWorkspace.shared.openApplication(at: bundleURL, configuration: configuration) { _, error in
-                if let error {
-                    AppLog.error("Service", "launchFullAppProcess failed: \(error.localizedDescription)")
-                }
-            }
+            NSWorkspace.shared.openApplication(at: bundleURL, configuration: configuration) { _, error in if let error { AppLog.error("Service", "launchFullAppProcess failed: \(error.localizedDescription)") } }
             return
         }
 
@@ -246,32 +172,17 @@ final class BackgroundServiceCoordinator {
         process.executableURL = executableURL
         process.arguments = arguments
         process.currentDirectoryURL = Bundle.main.bundleURL.deletingLastPathComponent()
-        do {
-            try process.run()
-        } catch {
-            AppLog.error("Service", "launchFullAppProcess failed: \(error.localizedDescription)")
-        }
+        do { try process.run() } catch { AppLog.error("Service", "launchFullAppProcess failed: \(error.localizedDescription)") }
     }
 
     func terminateOtherRunningApplicationInstances() {
         guard let bundleIdentifier = Bundle.main.bundleIdentifier else { return }
         let runningApplications = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
         let targets = Self.otherRunningApplicationsToTerminate(
-            in: runningApplications.map {
-                RunningAppSnapshot(
-                    processIdentifier: $0.processIdentifier,
-                    activationPolicy: $0.activationPolicy,
-                    isActive: $0.isActive,
-                    isTerminated: $0.isTerminated
-                )
-            },
-            excluding: ProcessInfo.processInfo.processIdentifier
-        )
+            in: runningApplications.map { RunningAppSnapshot(processIdentifier: $0.processIdentifier, activationPolicy: $0.activationPolicy, isActive: $0.isActive, isTerminated: $0.isTerminated) }, excluding: ProcessInfo.processInfo.processIdentifier)
 
         for target in targets {
-            guard let application = runningApplications.first(where: { $0.processIdentifier == target.processIdentifier }) else {
-                continue
-            }
+            guard let application = runningApplications.first(where: { $0.processIdentifier == target.processIdentifier }) else { continue }
             if !application.terminate() {
                 AppLog.warning("Service", "terminate() declined by pid=\(application.processIdentifier); force terminating")
                 _ = application.forceTerminate()
@@ -299,13 +210,7 @@ final class BackgroundServiceCoordinator {
 
         try removeLaunchAgent()
 
-        if let defaultsDomainName, !defaultsDomainName.isEmpty {
-            defaults.removePersistentDomain(forName: defaultsDomainName)
-        } else {
-            for key in defaults.dictionaryRepresentation().keys {
-                defaults.removeObject(forKey: key)
-            }
-        }
+        if let defaultsDomainName, !defaultsDomainName.isEmpty { defaults.removePersistentDomain(forName: defaultsDomainName) } else { for key in defaults.dictionaryRepresentation().keys { defaults.removeObject(forKey: key) } }
         defaults.synchronize()
     }
 
@@ -314,18 +219,11 @@ final class BackgroundServiceCoordinator {
         return kill(pid, 0) == 0
     }
 
-    private var executableURL: URL {
-        URL(fileURLWithPath: ProcessInfo.processInfo.arguments[0]).resolvingSymlinksInPath()
-    }
+    private var executableURL: URL { URL(fileURLWithPath: ProcessInfo.processInfo.arguments[0]).resolvingSymlinksInPath() }
 
     private func postLaunchAtStartupDidChangeNotification() {
         if let distributedCenter = preferencesNotificationCenter as? DistributedNotificationCenter {
-            distributedCenter.postNotificationName(
-                Self.launchAtStartupDidChangeNotification,
-                object: defaultsDomainName,
-                userInfo: nil,
-                deliverImmediately: true
-            )
+            distributedCenter.postNotificationName(Self.launchAtStartupDidChangeNotification, object: defaultsDomainName, userInfo: nil, deliverImmediately: true)
             return
         }
 
@@ -335,86 +233,40 @@ final class BackgroundServiceCoordinator {
     private func existingForegroundAppInstance() -> NSRunningApplication? {
         guard let bundleIdentifier = Bundle.main.bundleIdentifier else { return nil }
         let runningApplications = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
-        guard let preferred = Self.preferredReusableApplication(
-            in: runningApplications.map {
-                RunningAppSnapshot(
-                    processIdentifier: $0.processIdentifier,
-                    activationPolicy: $0.activationPolicy,
-                    isActive: $0.isActive,
-                    isTerminated: $0.isTerminated
-                )
-            },
-            excluding: ProcessInfo.processInfo.processIdentifier
-        ) else {
-            return nil
-        }
+        guard
+            let preferred = Self.preferredReusableApplication(
+                in: runningApplications.map { RunningAppSnapshot(processIdentifier: $0.processIdentifier, activationPolicy: $0.activationPolicy, isActive: $0.isActive, isTerminated: $0.isTerminated) }, excluding: ProcessInfo.processInfo.processIdentifier)
+        else { return nil }
         return runningApplications.first { $0.processIdentifier == preferred.processIdentifier }
     }
 
-    nonisolated static func preferredReusableApplication(
-        in runningApplications: [RunningAppSnapshot],
-        excluding currentProcessIdentifier: pid_t
-    ) -> RunningAppSnapshot? {
-        runningApplications
-            .filter {
-                $0.processIdentifier != currentProcessIdentifier &&
-                    !$0.isTerminated &&
-                    $0.activationPolicy == .regular
-            }
-            .sorted { lhs, rhs in
-                if lhs.isActive != rhs.isActive {
-                    return lhs.isActive && !rhs.isActive
-                }
-                return lhs.processIdentifier < rhs.processIdentifier
-            }
-            .first
+    nonisolated static func preferredReusableApplication(in runningApplications: [RunningAppSnapshot], excluding currentProcessIdentifier: pid_t) -> RunningAppSnapshot? {
+        runningApplications.filter { $0.processIdentifier != currentProcessIdentifier && !$0.isTerminated && $0.activationPolicy == .regular }.sorted { lhs, rhs in
+            if lhs.isActive != rhs.isActive { return lhs.isActive && !rhs.isActive }
+            return lhs.processIdentifier < rhs.processIdentifier
+        }.first
     }
 
-    nonisolated static func otherRunningApplicationsToTerminate(
-        in runningApplications: [RunningAppSnapshot],
-        excluding currentProcessIdentifier: pid_t
-    ) -> [RunningAppSnapshot] {
-        runningApplications
-            .filter {
-                $0.processIdentifier != currentProcessIdentifier &&
-                    !$0.isTerminated
-            }
-            .sorted { lhs, rhs in
-                if lhs.isActive != rhs.isActive {
-                    return lhs.isActive && !rhs.isActive
-                }
-                if lhs.activationPolicy != rhs.activationPolicy {
-                    return lhs.activationPolicy == .regular && rhs.activationPolicy != .regular
-                }
-                return lhs.processIdentifier < rhs.processIdentifier
-            }
+    nonisolated static func otherRunningApplicationsToTerminate(in runningApplications: [RunningAppSnapshot], excluding currentProcessIdentifier: pid_t) -> [RunningAppSnapshot] {
+        runningApplications.filter { $0.processIdentifier != currentProcessIdentifier && !$0.isTerminated }.sorted { lhs, rhs in
+            if lhs.isActive != rhs.isActive { return lhs.isActive && !rhs.isActive }
+            if lhs.activationPolicy != rhs.activationPolicy { return lhs.activationPolicy == .regular && rhs.activationPolicy != .regular }
+            return lhs.processIdentifier < rhs.processIdentifier
+        }
     }
 
     private var launchAgentURL: URL {
-        let libraryURL = launchAgentsDirectoryURL ?? fileManager.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("LaunchAgents", isDirectory: true)
+        let libraryURL = launchAgentsDirectoryURL ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Library", isDirectory: true).appendingPathComponent("LaunchAgents", isDirectory: true)
         return libraryURL.appendingPathComponent("io.opensnek.OpenSnek.service.plist")
     }
 
-    private func installLaunchAgent() throws {
-        try installLaunchAgent(
-            executablePath: executableURL.path,
-            workingDirectoryPath: Bundle.main.bundleURL.deletingLastPathComponent().path
-        )
-    }
+    private func installLaunchAgent() throws { try installLaunchAgent(executablePath: executableURL.path, workingDirectoryPath: Bundle.main.bundleURL.deletingLastPathComponent().path) }
 
-    private func installLaunchAgent(
-        executablePath: String,
-        workingDirectoryPath: String
-    ) throws {
+    private func installLaunchAgent(executablePath: String, workingDirectoryPath: String) throws {
         let launchAgentsDirectory = launchAgentURL.deletingLastPathComponent()
         try fileManager.createDirectory(at: launchAgentsDirectory, withIntermediateDirectories: true, attributes: nil)
 
-        let plist = Self.launchAgentPropertyList(
-            executablePath: executablePath,
-            workingDirectoryPath: workingDirectoryPath
-        )
+        let plist = Self.launchAgentPropertyList(executablePath: executablePath, workingDirectoryPath: workingDirectoryPath)
         let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
         try data.write(to: launchAgentURL, options: .atomic)
     }
@@ -422,30 +274,16 @@ final class BackgroundServiceCoordinator {
     private func currentLaunchAgentPropertyList() -> [String: Any]? {
         guard fileManager.fileExists(atPath: launchAgentURL.path) else { return nil }
         guard let data = try? Data(contentsOf: launchAgentURL) else { return nil }
-        guard let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
-            return nil
-        }
+        guard let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else { return nil }
         return plist
     }
 
-    private func removeLaunchAgent() throws {
-        if fileManager.fileExists(atPath: launchAgentURL.path) {
-            try fileManager.removeItem(at: launchAgentURL)
-        }
-    }
+    private func removeLaunchAgent() throws { if fileManager.fileExists(atPath: launchAgentURL.path) { try fileManager.removeItem(at: launchAgentURL) } }
 
-    nonisolated static func launchAgentPropertyList(
-        executablePath: String,
-        workingDirectoryPath: String
-    ) -> [String: Any] {
+    nonisolated static func launchAgentPropertyList(executablePath: String, workingDirectoryPath: String) -> [String: Any] {
         [
-            "Label": "io.opensnek.OpenSnek.service",
-            "ProgramArguments": [executablePath, "--service-mode", "--login-start"],
-            "RunAtLoad": true,
-            "KeepAlive": false,
-            "WorkingDirectory": workingDirectoryPath,
-            "StandardOutPath": ("~/Library/Logs/OpenSnek/service.stdout.log" as NSString).expandingTildeInPath,
-            "StandardErrorPath": ("~/Library/Logs/OpenSnek/service.stderr.log" as NSString).expandingTildeInPath
+            "Label": "io.opensnek.OpenSnek.service", "ProgramArguments": [executablePath, "--service-mode", "--login-start"], "RunAtLoad": true, "KeepAlive": false, "WorkingDirectory": workingDirectoryPath,
+            "StandardOutPath": ("~/Library/Logs/OpenSnek/service.stdout.log" as NSString).expandingTildeInPath, "StandardErrorPath": ("~/Library/Logs/OpenSnek/service.stderr.log" as NSString).expandingTildeInPath
         ]
     }
 }

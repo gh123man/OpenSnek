@@ -7,26 +7,16 @@ import OpenSnekHardware
 final class HardwareUSBStateSmokeTests: XCTestCase {
     private func requireHardwareRunEnabled() throws {
         let env = ProcessInfo.processInfo.environment
-        guard env["OPEN_SNEK_HW"] == "1" else {
-            throw XCTSkip("Set OPEN_SNEK_HW=1 to run hardware USB smoke tests.")
-        }
-        guard env["OPEN_SNEK_USB"] == "1" else {
-            throw XCTSkip("Set OPEN_SNEK_USB=1 to run USB-specific smoke tests.")
-        }
+        guard env["OPEN_SNEK_HW"] == "1" else { throw XCTSkip("Set OPEN_SNEK_HW=1 to run hardware USB smoke tests.") }
+        guard env["OPEN_SNEK_USB"] == "1" else { throw XCTSkip("Set OPEN_SNEK_USB=1 to run USB-specific smoke tests.") }
     }
 
     private func readStateWithRetry(client: BridgeClient, device: MouseDevice, attempts: Int = 4) async throws -> MouseState {
         var firstError: Error?
         for attempt in 0..<max(1, attempts) {
-            do {
-                return try await client.readState(device: device)
-            } catch {
-                if firstError == nil {
-                    firstError = error
-                }
-                if attempt + 1 < attempts {
-                    try? await Task.sleep(nanoseconds: 140_000_000)
-                }
+            do { return try await client.readState(device: device) } catch {
+                if firstError == nil { firstError = error }
+                if attempt + 1 < attempts { try? await Task.sleep(nanoseconds: 140_000_000) }
             }
         }
         throw firstError ?? BridgeError.commandFailed("USB state read failed")
@@ -37,9 +27,7 @@ final class HardwareUSBStateSmokeTests: XCTestCase {
 
         let client = BridgeClient()
         let devices = try await client.listDevices()
-        guard let usb = devices.first(where: { $0.transport == .usb }) else {
-            throw XCTSkip("No USB device found for USB smoke test.")
-        }
+        guard let usb = devices.first(where: { $0.transport == .usb }) else { throw XCTSkip("No USB device found for USB smoke test.") }
 
         let state = try await readStateWithRetry(client: client, device: usb)
         print(usbStateSummary(device: usb, state: state))
@@ -62,33 +50,21 @@ final class HardwareUSBStateSmokeTests: XCTestCase {
 
         let client = BridgeClient()
         let devices = try await client.listDevices()
-        guard let usb = devices.first(where: { $0.transport == .usb }) else {
-            throw XCTSkip("No USB device found for USB smoke test.")
-        }
+        guard let usb = devices.first(where: { $0.transport == .usb }) else { throw XCTSkip("No USB device found for USB smoke test.") }
 
         let before = try await readStateWithRetry(client: client, device: usb)
-        guard let stages = before.dpi_stages.values, !stages.isEmpty else {
-            throw XCTSkip("USB device did not return DPI stage telemetry.")
-        }
+        guard let stages = before.dpi_stages.values, !stages.isEmpty else { throw XCTSkip("USB device did not return DPI stage telemetry.") }
 
         var patch = DevicePatch()
         patch.dpiStages = stages
         patch.activeStage = before.dpi_stages.active_stage ?? 0
-        if let poll = before.poll_rate {
-            patch.pollRate = poll
-        }
+        if let poll = before.poll_rate { patch.pollRate = poll }
         _ = try await client.apply(device: usb, patch: patch)
         let after = try await readStateWithRetry(client: client, device: usb)
 
         XCTAssertEqual(after.dpi_stages.values ?? [], stages, "USB DPI stages should round-trip on apply")
-        XCTAssertEqual(
-            after.dpi_stages.active_stage ?? 0,
-            before.dpi_stages.active_stage ?? 0,
-            "USB active DPI stage should round-trip on apply"
-        )
-        if let poll = before.poll_rate {
-            XCTAssertEqual(after.poll_rate, poll, "USB poll rate should round-trip on apply")
-        }
+        XCTAssertEqual(after.dpi_stages.active_stage ?? 0, before.dpi_stages.active_stage ?? 0, "USB active DPI stage should round-trip on apply")
+        if let poll = before.poll_rate { XCTAssertEqual(after.poll_rate, poll, "USB poll rate should round-trip on apply") }
     }
 
     func testUSBApplySingleStageDpiChangePersists() async throws {
@@ -96,14 +72,10 @@ final class HardwareUSBStateSmokeTests: XCTestCase {
 
         let client = BridgeClient()
         let devices = try await client.listDevices()
-        guard let usb = devices.first(where: { $0.transport == .usb }) else {
-            throw XCTSkip("No USB device found for USB smoke test.")
-        }
+        guard let usb = devices.first(where: { $0.transport == .usb }) else { throw XCTSkip("No USB device found for USB smoke test.") }
 
         let before = try await readStateWithRetry(client: client, device: usb)
-        guard let beforeStages = before.dpi_stages.values, !beforeStages.isEmpty else {
-            throw XCTSkip("USB device did not return DPI stage telemetry.")
-        }
+        guard let beforeStages = before.dpi_stages.values, !beforeStages.isEmpty else { throw XCTSkip("USB device did not return DPI stage telemetry.") }
         print("before dpi=\(before.dpi?.x ?? -1) active=\(before.dpi_stages.active_stage ?? -1) stages=\(beforeStages)")
 
         let originalActive = before.dpi_stages.active_stage ?? 0
@@ -140,24 +112,16 @@ final class HardwareUSBStateSmokeTests: XCTestCase {
 
         let client = BridgeClient()
         let devices = try await client.listDevices()
-        guard let usb = devices.first(where: { $0.transport == .usb }) else {
-            throw XCTSkip("No USB device found for USB smoke test.")
-        }
+        guard let usb = devices.first(where: { $0.transport == .usb }) else { throw XCTSkip("No USB device found for USB smoke test.") }
 
         let before = try await readStateWithRetry(client: client, device: usb)
-        guard let beforeStages = before.dpi_stages.values, !beforeStages.isEmpty else {
-            throw XCTSkip("USB device did not return DPI stage telemetry.")
-        }
+        guard let beforeStages = before.dpi_stages.values, !beforeStages.isEmpty else { throw XCTSkip("USB device did not return DPI stage telemetry.") }
 
         let originalActive = before.dpi_stages.active_stage ?? 0
         let originalStages = beforeStages
 
         let base = max(800, min(24_000, before.dpi?.x ?? beforeStages[0]))
-        let targets = [
-            max(100, min(30_000, base)),
-            max(100, min(30_000, base + 800)),
-            max(100, min(30_000, base + 1_600))
-        ]
+        let targets = [max(100, min(30_000, base)), max(100, min(30_000, base + 800)), max(100, min(30_000, base + 1_600))]
         for targetActive in [2, 0] {
             var writePatch = DevicePatch()
             writePatch.dpiStages = targets

@@ -12,19 +12,8 @@ struct Pill: View {
     var verticalPadding: CGFloat = 5
 
     var body: some View {
-        Text(text)
-            .font(.system(size: fontSize, weight: .bold, design: .rounded))
-            .foregroundStyle(Color.black.opacity(0.78))
-            .padding(.horizontal, horizontalPadding)
-            .padding(.vertical, verticalPadding)
-            .background(color, in: Capsule())
-            .contentShape(Capsule())
-            .hoverTooltip(
-                helpText,
-                xOffset: 6,
-                yOffset: fontSize + (verticalPadding * 2) + 10,
-                maxWidth: 360
-            )
+        Text(text).font(.system(size: fontSize, weight: .bold, design: .rounded)).foregroundStyle(Color.black.opacity(0.78)).padding(.horizontal, horizontalPadding).padding(.vertical, verticalPadding).background(color, in: Capsule()).contentShape(Capsule()).hoverTooltip(
+            helpText, xOffset: 6, yOffset: fontSize + (verticalPadding * 2) + 10, maxWidth: 360)
     }
 }
 
@@ -34,11 +23,7 @@ struct Card<Content: View>: View {
     let accessibilityIdentifier: String?
     @ViewBuilder let content: () -> Content
 
-    init(
-        title: String,
-        accessibilityIdentifier: String? = nil,
-        @ViewBuilder content: @escaping () -> Content
-    ) {
+    init(title: String, accessibilityIdentifier: String? = nil, @ViewBuilder content: @escaping () -> Content) {
         self.title = title
         self.accessibilityIdentifier = accessibilityIdentifier
         self.content = content
@@ -46,20 +31,9 @@ struct Card<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.system(size: 17, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
-                .optionalAccessibilityIdentifier(accessibilityIdentifier)
+            Text(title).font(.system(size: 17, weight: .black, design: .rounded)).foregroundStyle(.white).optionalAccessibilityIdentifier(accessibilityIdentifier)
             content()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color.white.opacity(0.07))
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.18), lineWidth: 1))
-        )
-        .contentShape(RoundedRectangle(cornerRadius: 14))
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(14).background(RoundedRectangle(cornerRadius: 14).fill(Color.white.opacity(0.07)).overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.18), lineWidth: 1))).contentShape(RoundedRectangle(cornerRadius: 14))
     }
 }
 
@@ -69,61 +43,23 @@ struct ColorSwatchButton: View {
     let isSelected: Bool
     let action: () -> Void
 
-    var body: some View {
-        Button(action: action) {
-            Circle()
-                .fill(color)
-                .frame(width: 22, height: 22)
-                .overlay(
-                    Circle()
-                        .stroke(Color.white.opacity(isSelected ? 0.95 : 0.35), lineWidth: isSelected ? 2 : 1)
-                )
-        }
-        .buttonStyle(.plain)
-    }
+    var body: some View { Button(action: action) { Circle().fill(color).frame(width: 22, height: 22).overlay(Circle().stroke(Color.white.opacity(isSelected ? 0.95 : 0.35), lineWidth: isSelected ? 2 : 1)) }.buttonStyle(.plain) }
 }
 
 /// Adds scoped helpers for `View`.
 extension View {
-    @ViewBuilder
-    func optionalAccessibilityIdentifier(_ identifier: String?) -> some View {
-        if let identifier {
-            accessibilityIdentifier(identifier)
-        } else {
-            self
-        }
-    }
+    @ViewBuilder func optionalAccessibilityIdentifier(_ identifier: String?) -> some View { if let identifier { accessibilityIdentifier(identifier) } else { self } }
 
-    func hintTextStyle() -> some View {
-        modifier(HintTextModifier())
-    }
+    func hintTextStyle() -> some View { modifier(HintTextModifier()) }
 
-    func loadingScrim(isPresented: Bool, label: String?) -> some View {
-        modifier(LoadingScrimModifier(isPresented: isPresented, label: label))
-    }
+    func loadingScrim(isPresented: Bool, label: String?) -> some View { modifier(LoadingScrimModifier(isPresented: isPresented, label: label)) }
 
-    func hoverTooltip(
-        _ helpText: String?,
-        xOffset: CGFloat = 6,
-        yOffset: CGFloat = 34,
-        maxWidth: CGFloat = 360
-    ) -> some View {
-        modifier(
-            HoverTooltipModifier(
-                helpText: helpText,
-                xOffset: xOffset,
-                yOffset: yOffset,
-                maxWidth: maxWidth
-            )
-        )
-    }
+    func hoverTooltip(_ helpText: String?, xOffset: CGFloat = 6, yOffset: CGFloat = 34, maxWidth: CGFloat = 360) -> some View { modifier(HoverTooltipModifier(helpText: helpText, xOffset: xOffset, yOffset: yOffset, maxWidth: maxWidth)) }
 }
 
 /// Stores window drag blocker data.
 struct WindowDragBlocker: NSViewRepresentable {
-    func makeNSView(context: Context) -> WindowDragBlockingView {
-        WindowDragBlockingView(frame: .zero)
-    }
+    func makeNSView(context: Context) -> WindowDragBlockingView { WindowDragBlockingView(frame: .zero) }
 
     func updateNSView(_ nsView: WindowDragBlockingView, context: Context) {}
 }
@@ -133,18 +69,11 @@ final class WindowDragBlockingView: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
     override var acceptsFirstResponder: Bool { false }
 
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-    }
+    override init(frame frameRect: NSRect) { super.init(frame: frameRect) }
 
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        self
-    }
+    override func hitTest(_ point: NSPoint) -> NSView? { self }
 
     override func mouseDown(with event: NSEvent) {}
     override func mouseDragged(with event: NSEvent) {}
@@ -153,30 +82,14 @@ final class WindowDragBlockingView: NSView {
 }
 
 /// Stores hint text modifier data.
-private struct HintTextModifier: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .font(.system(size: 12, weight: .semibold, design: .rounded))
-            .foregroundStyle(.white.opacity(0.58))
-    }
-}
+private struct HintTextModifier: ViewModifier { func body(content: Content) -> some View { content.font(.system(size: 12, weight: .semibold, design: .rounded)).foregroundStyle(.white.opacity(0.58)) } }
 
 /// Stores loading scrim modifier data.
 private struct LoadingScrimModifier: ViewModifier {
     let isPresented: Bool
     let label: String?
 
-    func body(content: Content) -> some View {
-        content
-            .disabled(isPresented)
-            .overlay {
-                if isPresented {
-                    LoadingScrimOverlay(label: label ?? "Loading")
-                        .transition(.opacity)
-                }
-            }
-            .animation(.easeInOut(duration: 0.14), value: isPresented)
-    }
+    func body(content: Content) -> some View { content.disabled(isPresented).overlay { if isPresented { LoadingScrimOverlay(label: label ?? "Loading").transition(.opacity) } }.animation(.easeInOut(duration: 0.14), value: isPresented) }
 }
 
 /// Stores loading scrim overlay data.
@@ -190,34 +103,13 @@ private struct LoadingScrimOverlay: View {
         }
     }
 
-    private var scrimBackground: some View {
-        RoundedRectangle(cornerRadius: 16)
-            .fill(Color.black.opacity(0.46))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
-            )
-    }
+    private var scrimBackground: some View { RoundedRectangle(cornerRadius: 16).fill(Color.black.opacity(0.46)).overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.14), lineWidth: 1)) }
 
     private var loadingBadge: some View {
         HStack(spacing: 10) {
-            ProgressView()
-                .controlSize(.small)
-                .tint(.white.opacity(0.90))
-            Text(label)
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.82))
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(
-            Capsule()
-                .fill(Color.white.opacity(0.11))
-                .overlay(
-                    Capsule()
-                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                )
-        )
+            ProgressView().controlSize(.small).tint(.white.opacity(0.90))
+            Text(label).font(.system(size: 12, weight: .bold, design: .rounded)).foregroundStyle(.white.opacity(0.82))
+        }.padding(.horizontal, 14).padding(.vertical, 10).background(Capsule().fill(Color.white.opacity(0.11)).overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1)))
     }
 }
 
@@ -230,25 +122,15 @@ private struct HoverTooltipModifier: ViewModifier {
     @State private var isHovering = false
 
     func body(content: Content) -> some View {
-        content
-            .overlay(alignment: .topLeading) {
-                if let helpText, !helpText.isEmpty, isHovering {
-                    HoverTooltipBubble(text: helpText, maxWidth: maxWidth)
-                        .offset(x: xOffset, y: yOffset)
-                        .allowsHitTesting(false)
-                        .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading)))
-                }
+        content.overlay(alignment: .topLeading) { if let helpText, !helpText.isEmpty, isHovering { HoverTooltipBubble(text: helpText, maxWidth: maxWidth).offset(x: xOffset, y: yOffset).allowsHitTesting(false).transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading))) } }.zIndex(
+            isHovering ? 8 : 0
+        ).onHover { hovering in
+            guard let helpText, !helpText.isEmpty else {
+                isHovering = false
+                return
             }
-            .zIndex(isHovering ? 8 : 0)
-            .onHover { hovering in
-                guard let helpText, !helpText.isEmpty else {
-                    isHovering = false
-                    return
-                }
-                withAnimation(.easeOut(duration: 0.12)) {
-                    isHovering = hovering
-                }
-            }
+            withAnimation(.easeOut(duration: 0.12)) { isHovering = hovering }
+        }
     }
 }
 
@@ -258,24 +140,9 @@ private struct HoverTooltipBubble: View {
     let maxWidth: CGFloat
 
     var body: some View {
-        Text(text)
-            .font(.system(size: 11, weight: .semibold, design: .rounded))
-            .foregroundStyle(.white.opacity(0.92))
-            .lineSpacing(2)
-            .multilineTextAlignment(.leading)
-            .frame(minWidth: 220, idealWidth: min(320, maxWidth), maxWidth: maxWidth, alignment: .leading)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.black.opacity(0.86))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.white.opacity(0.14), lineWidth: 1)
-                    )
-                    .shadow(color: .black.opacity(0.24), radius: 14, y: 6)
-            )
-            .fixedSize(horizontal: false, vertical: true)
+        Text(text).font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundStyle(.white.opacity(0.92)).lineSpacing(2).multilineTextAlignment(.leading).frame(minWidth: 220, idealWidth: min(320, maxWidth), maxWidth: maxWidth, alignment: .leading).padding(.horizontal, 12).padding(
+            .vertical, 9
+        ).background(RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.86)).overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.14), lineWidth: 1)).shadow(color: .black.opacity(0.24), radius: 14, y: 6)).fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -288,13 +155,7 @@ extension Color {
         self.init(red: r, green: g, blue: b)
     }
 
-    init(rgb: OpenSnekCore.RGBColor) {
-        self.init(
-            red: Double(max(0, min(255, rgb.r))) / 255.0,
-            green: Double(max(0, min(255, rgb.g))) / 255.0,
-            blue: Double(max(0, min(255, rgb.b))) / 255.0
-        )
-    }
+    init(rgb: OpenSnekCore.RGBColor) { self.init(red: Double(max(0, min(255, rgb.r))) / 255.0, green: Double(max(0, min(255, rgb.g))) / 255.0, blue: Double(max(0, min(255, rgb.b))) / 255.0) }
 }
 
 /// Adds scoped helpers for `OpenSnekCore.RGBColor`.
@@ -324,9 +185,7 @@ struct DpiSliderScaleMarkers: View {
 
     private var markers: [DpiSliderScaleMarker] {
         let values = DeviceProfiles.sliderScaleMarkerValues(for: profileID)
-        guard !values.isEmpty else {
-            return [DpiSliderScaleMarker(value: DeviceProfiles.minimumDPI)]
-        }
+        guard !values.isEmpty else { return [DpiSliderScaleMarker(value: DeviceProfiles.minimumDPI)] }
         return values.map { DpiSliderScaleMarker(value: $0) }
     }
 
@@ -336,19 +195,12 @@ struct DpiSliderScaleMarkers: View {
                 ForEach(markers) { marker in
                     let x = markerX(for: marker.value, width: proxy.size.width)
                     VStack(spacing: compact ? 1 : 2) {
-                        Capsule()
-                            .fill(markerColor)
-                            .frame(width: 1.5, height: compact ? 5 : 7)
-                        Text(shortLabel(for: marker.value))
-                            .font(.system(size: compact ? 9 : 10, weight: .bold, design: .monospaced))
-                            .foregroundStyle(markerColor)
-                    }
-                    .position(x: x, y: compact ? 8 : 10)
+                        Capsule().fill(markerColor).frame(width: 1.5, height: compact ? 5 : 7)
+                        Text(shortLabel(for: marker.value)).font(.system(size: compact ? 9 : 10, weight: .bold, design: .monospaced)).foregroundStyle(markerColor)
+                    }.position(x: x, y: compact ? 8 : 10)
                 }
             }
-        }
-        .frame(height: compact ? 18 : 22)
-        .allowsHitTesting(false)
+        }.frame(height: compact ? 18 : 22).allowsHitTesting(false)
     }
 
     private func markerX(for value: Int, width: CGFloat) -> CGFloat {
@@ -359,12 +211,8 @@ struct DpiSliderScaleMarkers: View {
     }
 
     private func shortLabel(for value: Int) -> String {
-        if value >= 1_000, value.isMultiple(of: 1_000) {
-            return "\(value / 1_000)K"
-        }
-        if value >= 1_000, value.isMultiple(of: 500) {
-            return String(format: "%.1fK", Double(value) / 1_000.0)
-        }
+        if value >= 1_000, value.isMultiple(of: 1_000) { return "\(value / 1_000)K" }
+        if value >= 1_000, value.isMultiple(of: 500) { return String(format: "%.1fK", Double(value) / 1_000.0) }
         return "\(value)"
     }
 }
@@ -373,7 +221,5 @@ struct DpiSliderScaleMarkers: View {
 private struct DpiSliderScaleMarker: Identifiable {
     let value: Int
 
-    var id: String {
-        "\(value)"
-    }
+    var id: String { "\(value)" }
 }

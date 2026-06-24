@@ -1,8 +1,7 @@
 import Foundation
 
 /// Coordinates app environment behavior.
-@MainActor
-final class AppEnvironment {
+@MainActor final class AppEnvironment {
     let launchRole: OpenSnekProcessRole
     let serviceCoordinator: BackgroundServiceCoordinator
     let releaseUpdateChecker: any ReleaseUpdateChecking
@@ -12,11 +11,7 @@ final class AppEnvironment {
     var lastReleaseUpdateCheckAt: Date?
 
     init(
-        launchRole: OpenSnekProcessRole,
-        releaseUpdateChecker: any ReleaseUpdateChecking = ReleaseUpdateChecker(),
-        currentAppVersion: String? = ReleaseUpdateChecker.currentAppVersion(),
-        shouldCheckForReleaseUpdates: Bool = ReleaseUpdateChecker.shouldCheckForUpdates(),
-        backend: any DeviceBackend,
+        launchRole: OpenSnekProcessRole, releaseUpdateChecker: any ReleaseUpdateChecking = ReleaseUpdateChecker(), currentAppVersion: String? = ReleaseUpdateChecker.currentAppVersion(), shouldCheckForReleaseUpdates: Bool = ReleaseUpdateChecker.shouldCheckForUpdates(), backend: any DeviceBackend,
         serviceCoordinator: BackgroundServiceCoordinator
     ) {
         self.launchRole = launchRole
@@ -27,7 +22,5 @@ final class AppEnvironment {
         self.serviceCoordinator = serviceCoordinator
     }
 
-    var usesRemoteServiceTransport: Bool {
-        !launchRole.isService && backend.usesRemoteServiceTransport
-    }
+    var usesRemoteServiceTransport: Bool { !launchRole.isService && backend.usesRemoteServiceTransport }
 }

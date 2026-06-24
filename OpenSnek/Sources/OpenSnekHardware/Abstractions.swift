@@ -27,23 +27,17 @@ public enum USBControlAvailability: String, Codable, Hashable, Sendable {
 
     public var diagnosticsLabel: String {
         switch self {
-        case .unknown:
-            return "Unknown"
-        case .receiverPresentMouseReachable:
-            return "Mouse responding"
-        case .receiverPresentMouseUnavailable:
-            return "Receiver present, mouse unavailable"
-        case .receiverAbsent:
-            return "Receiver absent"
+        case .unknown: return "Unknown"
+        case .receiverPresentMouseReachable: return "Mouse responding"
+        case .receiverPresentMouseUnavailable: return "Receiver present, mouse unavailable"
+        case .receiverAbsent: return "Receiver absent"
         }
     }
 
     public var blocksUSBControlInteraction: Bool {
         switch self {
-        case .receiverPresentMouseUnavailable, .receiverAbsent:
-            return true
-        case .unknown, .receiverPresentMouseReachable:
-            return false
+        case .receiverPresentMouseUnavailable, .receiverAbsent: return true
+        case .unknown, .receiverPresentMouseReachable: return false
         }
     }
 }
@@ -56,8 +50,7 @@ public enum BridgeError: LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .commandFailed(let msg): return msg
-        case .usbMouseUnavailable:
-            return "USB device telemetry unavailable. Feature-report interface did not return usable responses."
+        case .usbMouseUnavailable: return "USB device telemetry unavailable. Feature-report interface did not return usable responses."
         }
     }
 }

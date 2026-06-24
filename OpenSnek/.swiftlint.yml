@@ -3,6 +3,7 @@ included:
   - Sources
   - Tests
   - scripts
+  - Plugins
 
 excluded:
   - .build
@@ -21,6 +22,10 @@ disabled_rules:
 file_length:
   warning: 1200
   error: 1800
+
+opening_brace:
+  ignore_multiline_function_signatures: true
+  ignore_multiline_statement_conditions: true
 
 custom_rules:
   declaration_doc_comment:
