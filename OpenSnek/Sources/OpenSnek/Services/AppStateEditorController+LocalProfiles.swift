@@ -200,7 +200,13 @@ extension AppStateEditorController {
     func syncLocalProfile(from snapshot: OnboardProfileSnapshot, device: MouseDevice, source: String) {
         guard supportsOnboardProfileCRUD(device: device) else { return }
         guard shouldSyncOnboardSnapshotToLocalProfile(snapshot, device: device, source: source) else { return }
-        _ = preferenceStore.upsertOpenSnekLocalProfile(from: snapshot, device: device)
+        let existingProfile = existingLocalProfile(matching: snapshot)
+        _ = preferenceStore.upsertOpenSnekLocalProfile(
+            name: snapshot.metadata.name,
+            content: localProfileContent(from: snapshot, existingProfile: existingProfile, device: device),
+            onboardIdentifier: snapshot.metadata.identifier,
+            device: device
+        )
         bumpOnboardProfilesRevision()
         bumpUSBButtonProfilesRevision()
     }
@@ -555,6 +561,35 @@ extension AppStateEditorController {
             scrollAcceleration: snapshot.scrollAcceleration,
             scrollSmartReel: snapshot.scrollSmartReel
         )
+    }
+
+    private func localProfileContent(
+        from snapshot: OnboardProfileSnapshot,
+        existingProfile: OpenSnekLocalProfile?,
+        device: MouseDevice
+    ) -> OpenSnekLocalProfileContent {
+        OpenSnekLocalProfileContent(
+            dpi: snapshot.dpi,
+            buttonBindings: snapshot.buttonBindings,
+            brightnessByLEDID: snapshot.brightnessByLEDID,
+            staticColorByLEDID: snapshot.staticColorByLEDID,
+            lightingEffect: preservedLightingEffect(from: existingProfile, device: device),
+            scrollMode: snapshot.scrollMode,
+            scrollAcceleration: snapshot.scrollAcceleration,
+            scrollSmartReel: snapshot.scrollSmartReel
+        )
+    }
+
+    private func preservedLightingEffect(
+        from existingProfile: OpenSnekLocalProfile?,
+        device: MouseDevice
+    ) -> LightingEffectPatch? {
+        guard device.supports_advanced_lighting_effects,
+              let effect = existingProfile?.content.lightingEffect else {
+            return nil
+        }
+        let supportedEffects = resolvedDeviceProfile(for: device)?.supportedLightingEffects ?? LightingEffectKind.allCases
+        return supportedEffects.contains(effect.kind) ? effect : nil
     }
 
     func adaptedLocalProfileContent(

@@ -23,8 +23,9 @@ extension AppStateDeviceController {
         guard environment.usesRemoteServiceTransport else { return }
 
         let liveIDs = Set(snapshot.devices.map(\.id))
+        let now = Date()
         pruneRemoteSnapshotCaches(liveIDs: liveIDs, devices: snapshot.devices)
-        var didApplySnapshotChange = applyRemoteSoftwareLightingStatuses(snapshot, liveIDs: liveIDs)
+        var didApplySnapshotChange = applyRemoteSoftwareLightingStatuses(snapshot, liveIDs: liveIDs, now: now)
         applyRemoteUSBControlAvailability(snapshot, liveIDs: liveIDs)
         if applyRemoteStateCache(snapshot, liveIDs: liveIDs) {
             didApplySnapshotChange = true
@@ -43,7 +44,7 @@ extension AppStateDeviceController {
             snapshot.usbControlAvailabilityByDeviceID[deviceID]?.blocksUSBControlInteraction != true {
             clearUSBPhysicalConnectSettling(for: deviceID)
         }
-        scheduleRemoteSnapshotSoftwareLightingAutoStart(for: snapshot.devices)
+        scheduleRemoteSnapshotSoftwareLightingAutoStart(for: snapshot.devices, now: now)
 
         if applySelectedRemoteSnapshotPresentation(deviceListChanged: deviceListChanged) {
             didApplySnapshotChange = true
@@ -58,7 +59,10 @@ extension AppStateDeviceController {
 
     func pruneRemoteSnapshotCaches(liveIDs: Set<String>, devices: [MouseDevice]) {
         let liveSoftwareLightingAutoStartKeys = Set(devices.map { DevicePersistenceKeys.key(for: $0) })
-        remoteSnapshotSoftwareLightingAutoStartKeys.formIntersection(liveSoftwareLightingAutoStartKeys)
+        remoteSnapshotSoftwareLightingAutoStartAttemptAtByDeviceKey =
+            remoteSnapshotSoftwareLightingAutoStartAttemptAtByDeviceKey.filter {
+                liveSoftwareLightingAutoStartKeys.contains($0.key)
+            }
         stateCacheByDeviceID = stateCacheByDeviceID.filter { liveIDs.contains($0.key) }
         lastUpdatedByDeviceID = lastUpdatedByDeviceID.filter { liveIDs.contains($0.key) }
         lastStateMutationAtByDeviceID = lastStateMutationAtByDeviceID.filter { liveIDs.contains($0.key) }
@@ -71,19 +75,57 @@ extension AppStateDeviceController {
 
     func applyRemoteSoftwareLightingStatuses(
         _ snapshot: SharedServiceSnapshot,
-        liveIDs: Set<String>
+        liveIDs: Set<String>,
+        now: Date = Date()
     ) -> Bool {
         let previousStatuses = deviceStore.softwareLightingStatusByDeviceID
         var nextStatuses = snapshot.softwareLightingStatusByDeviceID.filter { liveIDs.contains($0.key) }
         for (deviceID, previousStatus) in previousStatuses where liveIDs.contains(deviceID) {
-            guard previousStatus.state == .running else { continue }
-            if let snapshotStatus = nextStatuses[deviceID], previousStatus.updatedAt <= snapshotStatus.updatedAt {
+            guard shouldPreserveLocalSoftwareLightingStatus(
+                deviceID: deviceID,
+                previousStatus: previousStatus,
+                snapshotStatus: nextStatuses[deviceID],
+                now: now
+            ) else {
                 continue
             }
             nextStatuses[deviceID] = previousStatus
         }
         guard previousStatuses != nextStatuses else { return false }
         deviceStore.softwareLightingStatusByDeviceID = nextStatuses
+        return true
+    }
+
+    func shouldPreserveLocalSoftwareLightingStatus(
+        deviceID: String,
+        previousStatus: SoftwareLightingEngineStatus,
+        snapshotStatus: SoftwareLightingEngineStatus?,
+        now: Date
+    ) -> Bool {
+        guard previousStatus.state == .running else { return false }
+        if let snapshotStatus, previousStatus.updatedAt <= snapshotStatus.updatedAt {
+            return false
+        }
+
+        let age = now.timeIntervalSince(previousStatus.updatedAt)
+        guard age <= Self.remoteSnapshotSoftwareLightingStatusGraceInterval else {
+            AppLog.event(
+                "LightingTrace",
+                "remote snapshot stale local software lighting status device=\(deviceID) " +
+                    "age=\(SoftwareLightingDiagnostics.seconds(age)) " +
+                    "local=\(SoftwareLightingDiagnostics.statusSummary(previousStatus)) " +
+                    "snapshot=\(SoftwareLightingDiagnostics.statusSummary(snapshotStatus))"
+            )
+            return false
+        }
+
+        AppLog.debug(
+            "LightingTrace",
+            "remote snapshot preserving recent local software lighting status device=\(deviceID) " +
+                "age=\(SoftwareLightingDiagnostics.seconds(age)) " +
+                "local=\(SoftwareLightingDiagnostics.statusSummary(previousStatus)) " +
+                "snapshot=\(SoftwareLightingDiagnostics.statusSummary(snapshotStatus))"
+        )
         return true
     }
 
@@ -294,25 +336,101 @@ extension AppStateDeviceController {
         return didApplySnapshotChange
     }
 
-    func scheduleRemoteSnapshotSoftwareLightingAutoStart(for devices: [MouseDevice]) {
-        let supportedDevices = devices.filter { device in
-            guard device.supportsSoftwareLightingEffects else { return false }
-            return !remoteSnapshotSoftwareLightingAutoStartKeys.contains(DevicePersistenceKeys.key(for: device))
+    func scheduleRemoteSnapshotSoftwareLightingAutoStart(
+        for devices: [MouseDevice],
+        now: Date = Date()
+    ) {
+        guard let editorController = optionalEditorController else { return }
+        let candidates = devices.compactMap { device in
+            remoteSnapshotSoftwareLightingAutoStartCandidate(
+                for: device,
+                editorController: editorController,
+                now: now
+            )
         }
-        guard !supportedDevices.isEmpty else { return }
-        for device in supportedDevices {
-            remoteSnapshotSoftwareLightingAutoStartKeys.insert(DevicePersistenceKeys.key(for: device))
-        }
-        Task { [weak self] in
+        guard !candidates.isEmpty else { return }
+        Task { [weak self, weak editorController] in
             guard let self,
+                  let editorController,
                   !self.isTearingDown,
-                  let editorController = self.optionalEditorController else {
+                  !Task.isCancelled else {
                 return
             }
-            for device in supportedDevices {
-                await editorController.startPersistedSoftwareLightingOnConnectIfNeeded(for: device)
+            for candidate in candidates {
+                let didStart = await editorController.startPersistedSoftwareLightingOnConnectIfNeeded(
+                    for: candidate.device,
+                    reassertRunning: true
+                )
+                AppLog.debug(
+                    "LightingTrace",
+                    "remote software lighting reconcile finished device=\(candidate.device.id) " +
+                        "key=\(candidate.deviceKey) didStart=\(didStart) " +
+                        "priorStatus=\(SoftwareLightingDiagnostics.statusSummary(candidate.previousStatus))"
+                )
             }
         }
+    }
+
+    func remoteSnapshotSoftwareLightingAutoStartCandidate(
+        for device: MouseDevice,
+        editorController: AppStateEditorController,
+        now: Date
+    ) -> RemoteLightingAutoStartCandidate? {
+        guard device.supportsSoftwareLightingEffects else { return nil }
+
+        let deviceKey = DevicePersistenceKeys.key(for: device)
+        let status = deviceStore.softwareLightingStatusByDeviceID[device.id]
+        if status?.state == .running {
+            remoteSnapshotSoftwareLightingAutoStartAttemptAtByDeviceKey.removeValue(forKey: deviceKey)
+            return nil
+        }
+        if let status {
+            remoteSnapshotSoftwareLightingAutoStartAttemptAtByDeviceKey.removeValue(forKey: deviceKey)
+            AppLog.debug(
+                "LightingTrace",
+                "remote software lighting reconcile skipped device=\(device.id) " +
+                    "key=\(deviceKey) reason=authoritativeNonRunning " +
+                    "status=\(SoftwareLightingDiagnostics.statusSummary(status))"
+            )
+            return nil
+        }
+
+        guard editorController.preferenceStore.loadSoftwareLightingApplyOnConnect(device: device) else {
+            remoteSnapshotSoftwareLightingAutoStartAttemptAtByDeviceKey.removeValue(forKey: deviceKey)
+            AppLog.debug(
+                "LightingTrace",
+                "remote software lighting reconcile skipped device=\(device.id) " +
+                    "key=\(deviceKey) applyOnConnect=false " +
+                    "status=\(SoftwareLightingDiagnostics.statusSummary(status))"
+            )
+            return nil
+        }
+
+        if let lastAttemptAt = remoteSnapshotSoftwareLightingAutoStartAttemptAtByDeviceKey[deviceKey] {
+            let elapsed = now.timeIntervalSince(lastAttemptAt)
+            if elapsed < Self.remoteSnapshotSoftwareLightingAutoStartRetryInterval {
+                AppLog.debug(
+                    "LightingTrace",
+                    "remote software lighting reconcile debounced device=\(device.id) " +
+                        "key=\(deviceKey) elapsed=\(SoftwareLightingDiagnostics.seconds(elapsed)) " +
+                        "status=\(SoftwareLightingDiagnostics.statusSummary(status))"
+                )
+                return nil
+            }
+        }
+
+        remoteSnapshotSoftwareLightingAutoStartAttemptAtByDeviceKey[deviceKey] = now
+        AppLog.event(
+            "LightingTrace",
+            "remote software lighting reconcile queued device=\(device.id) " +
+                "key=\(deviceKey) applyOnConnect=true " +
+                "status=\(SoftwareLightingDiagnostics.statusSummary(status))"
+        )
+        return RemoteLightingAutoStartCandidate(
+            device: device,
+            deviceKey: deviceKey,
+            previousStatus: status
+        )
     }
 
     func applyBackendSoftwareLightingStatusUpdate(

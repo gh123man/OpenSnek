@@ -148,6 +148,59 @@ final class AppStateProfileSwitchRegressionTests: XCTestCase {
         XCTAssertEqual(dpiProjections.first?.dpi.values, [600, 30_000])
     }
 
+    func testMappedProfileSwitchPreservesKnownAdvancedLightingEffect() async throws {
+        clearSavedButtonProfiles()
+        defer { clearSavedButtonProfiles() }
+
+        let device = makeProfileSwitchDevice(id: "profile-switch-lighting-effect")
+        let travelProfile = makeProfileSwitchTravelProfile(sourceDevice: device)
+        let travelIdentifier = try XCTUnwrap(travelProfile.onboardIdentifier)
+        let baseSnapshot = makeProfileSwitchSnapshot(
+            profileID: 1,
+            identifier: UUID(),
+            name: "Base",
+            dpiValues: [800, 1600, 3200],
+            activeStage: 0
+        )
+        let travelSnapshot = makeProfileSwitchSnapshot(
+            profileID: 2,
+            identifier: travelIdentifier,
+            name: "V3 Pro Travel",
+            dpiValues: [600, 30_000],
+            activeStage: 1
+        )
+        let backend = makeProfileSwitchBackend(device: device, activeProfile: 1, dpiValues: [800, 1600, 3200])
+        await backend.setOnboardInventory(
+            makeProfileSwitchInventory(activeProfile: 1, maxProfileID: 5, snapshots: [baseSnapshot, travelSnapshot]),
+            forDeviceID: device.id
+        )
+        await backend.setOnboardSnapshot(baseSnapshot, forDeviceID: device.id)
+        await backend.setOnboardSnapshot(travelSnapshot, forDeviceID: device.id)
+
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+
+        await appState.editorStore.selectOnboardProfile(2)
+
+        let lightingState = await MainActor.run {
+            (
+                appState.editorStore.editableLightingEffect,
+                appState.editorStore.editableLightingWaveDirection,
+                DevicePreferenceStore()
+                    .loadOpenSnekLocalProfiles()
+                    .first { $0.onboardIdentifier == travelIdentifier }?
+                    .content
+                    .lightingEffect
+            )
+        }
+        XCTAssertEqual(lightingState.0, .wave)
+        XCTAssertEqual(lightingState.1, .right)
+        XCTAssertEqual(lightingState.2?.kind, .wave)
+        XCTAssertEqual(lightingState.2?.waveDirection, .right)
+    }
 }
 
 private func makeProfileSwitchDevice(id: String) -> MouseDevice {
@@ -255,6 +308,11 @@ private func makeProfileSwitchTravelProfile(sourceDevice: MouseDevice) -> OpenSn
             ],
             brightnessByLEDID: [1: 42, 4: 96, 10: 128],
             staticColorByLEDID: [4: RGBPatch(r: 11, g: 22, b: 33)],
+            lightingEffect: LightingEffectPatch(
+                kind: .wave,
+                primary: RGBPatch(r: 11, g: 22, b: 33),
+                waveDirection: .right
+            ),
             scrollMode: 1,
             scrollAcceleration: true,
             scrollSmartReel: true

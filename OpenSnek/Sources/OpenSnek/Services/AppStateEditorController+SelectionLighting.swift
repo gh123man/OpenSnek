@@ -113,21 +113,59 @@ extension AppStateEditorController {
     }
 
     @discardableResult
-    func startPersistedSoftwareLightingOnConnectIfNeeded(for device: MouseDevice) async -> Bool {
-        guard !isTearingDown else { return false }
-        guard device.supportsSoftwareLightingEffects else { return false }
-        guard preferenceStore.loadSoftwareLightingApplyOnConnect(device: device) else { return false }
-
+    func startPersistedSoftwareLightingOnConnectIfNeeded(
+        for device: MouseDevice,
+        reassertRunning: Bool = false
+    ) async -> Bool {
         let autoStartKey = DevicePersistenceKeys.key(for: device)
-        guard !softwareLightingAutoStartInFlightKeys.contains(autoStartKey) else { return false }
+        guard !isTearingDown else {
+            AppLog.debug(
+                "LightingTrace",
+                "software lighting persisted start skipped reason=tearingDown " +
+                    "device=\(device.id) key=\(autoStartKey)"
+            )
+            return false
+        }
+        guard device.supportsSoftwareLightingEffects else {
+            AppLog.debug(
+                "LightingTrace",
+                "software lighting persisted start skipped reason=unsupported " +
+                    "device=\(device.id) key=\(autoStartKey)"
+            )
+            return false
+        }
+        guard preferenceStore.loadSoftwareLightingApplyOnConnect(device: device) else {
+            AppLog.debug(
+                "LightingTrace",
+                "software lighting persisted start skipped reason=applyOnConnectDisabled " +
+                    "device=\(device.id) key=\(autoStartKey)"
+            )
+            return false
+        }
+        guard !softwareLightingAutoStartInFlightKeys.contains(autoStartKey) else {
+            AppLog.debug(
+                "LightingTrace",
+                "software lighting persisted start skipped reason=inFlight " +
+                    "device=\(device.id) key=\(autoStartKey)"
+            )
+            return false
+        }
 
         let request = supportedSoftwareLightingRequest(
             preferenceStore.loadPersistedSoftwareLightingRequest(device: device)
                 ?? SoftwareLightingEffectRequest(presetID: .flame),
             for: device
         )
-        if deviceStore.softwareLightingStatusByDeviceID[device.id]?.state == .running,
-           deviceStore.softwareLightingStatusByDeviceID[device.id]?.request == request {
+        let previousStatus = deviceStore.softwareLightingStatusByDeviceID[device.id]
+        if !reassertRunning,
+           previousStatus?.state == .running,
+           previousStatus?.request == request {
+            AppLog.debug(
+                "LightingTrace",
+                "software lighting persisted start skipped reason=alreadyRunning " +
+                    "device=\(device.id) key=\(autoStartKey) " +
+                    "status=\(SoftwareLightingDiagnostics.statusSummary(previousStatus))"
+            )
             return false
         }
 
@@ -136,6 +174,13 @@ extension AppStateEditorController {
             softwareLightingAutoStartInFlightKeys.remove(autoStartKey)
         }
 
+        AppLog.event(
+            "LightingTrace",
+            "software lighting persisted start requested device=\(device.id) " +
+                "key=\(autoStartKey) reassertRunning=\(reassertRunning) " +
+                "request=\(SoftwareLightingDiagnostics.requestSummary(request)) " +
+                "previousStatus=\(SoftwareLightingDiagnostics.statusSummary(previousStatus))"
+        )
         do {
             let status = try await environment.backend.startSoftwareLighting(
                 device: device,
@@ -148,14 +193,17 @@ extension AppStateEditorController {
                 deviceStore.errorMessage = nil
             }
             AppLog.event(
-                "AppState",
-                "software lighting auto-started on connect id=\(device.id) preset=\(request.presetID.rawValue)"
+                "LightingTrace",
+                "software lighting \(reassertRunning ? "reasserted" : "auto-started") on connect " +
+                    "device=\(device.id) key=\(autoStartKey) " +
+                    "status=\(SoftwareLightingDiagnostics.statusSummary(status))"
             )
             return true
         } catch {
             AppLog.warning(
-                "AppState",
-                "software lighting auto-start failed id=\(device.id): \(error.localizedDescription)"
+                "LightingTrace",
+                "software lighting auto-start failed device=\(device.id) " +
+                    "key=\(autoStartKey): \(error.localizedDescription)"
             )
             if deviceStore.selectedDeviceID == device.id {
                 deviceStore.errorMessage = error.localizedDescription

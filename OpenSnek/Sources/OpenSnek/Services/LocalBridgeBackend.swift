@@ -8,24 +8,27 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     static let shared = LocalBridgeBackend()
     private static let usbDisconnectDebounceInterval: TimeInterval = 0.75
     private static let softwareLightingUSBReachabilityProbeInterval: TimeInterval = 1.0
+    static let softwareLightingReconnectReassertInterval: TimeInterval = 1.0
 
     private let client = BridgeClient()
-    private let softwareLightingEngine: SoftwareLightingEngine
+    let softwareLightingEngine: SoftwareLightingEngine
     private var cachedDevices: [MouseDevice] = []
     private var cachedDevicesAt: Date?
-    private var cachedStateByDeviceID: [String: MouseState] = [:]
+    var cachedStateByDeviceID: [String: MouseState] = [:]
     private var cachedStateAtByDeviceID: [String: Date] = [:]
     private var softwareLightingStatusByDeviceID: [String: SoftwareLightingEngineStatus] = [:]
     private var usbControlAvailabilityByDeviceID: [String: USBControlAvailability] = [:]
     private var cachedFastByDeviceID: [String: DpiFastSnapshot] = [:]
     private var cachedFastAtByDeviceID: [String: Date] = [:]
     private var softwareLightingUSBReachabilityProbeAtByDeviceID: [String: Date] = [:]
-    private var reconnectSeedStateByDeviceID: [String: MouseState] = [:]
+    var reconnectSeedStateByDeviceID: [String: MouseState] = [:]
     private var bluetoothControlReadyDeviceIDs: Set<String> = []
     private let stateUpdatesStream = BroadcastStream<BackendStateUpdate>()
     private var devicePresenceRefreshTask: Task<Void, Never>?
     private var pendingUSBDisconnectRefreshTasks: [String: Task<Void, Never>] = [:]
     private var activeBluetoothWarmupKeys: Set<String> = []
+    var softwareLightingReconnectReassertAtByDeviceKey: [String: Date] = [:]
+    var softwareLightingReconnectReassertInFlightKeys: Set<String> = []
     private var activeApplyCount = 0
     private var maxConcurrentApplyCount = 0
 
@@ -494,6 +497,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     func activateOnboardProfile(device: MouseDevice, profileID: Int) async throws -> MouseState {
         let state = try await client.activateOnboardProfile(device: device, profileID: profileID)
         let merged = cacheAndPublishState(state, for: device.id, updatedAt: Date())
+        await reassertSoftwareLightingAfterProfileChange(device: device, state: merged)
         return merged
     }
 
@@ -951,6 +955,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
                 "DPITrace",
                 "backend passiveProfileSwitch published device=\(event.deviceID) merged={\(AppStateEditorController.diagnosticDPIState(merged))}"
             )
+            await reassertSoftwareLightingAfterProfileChange(device: device, state: merged)
         } catch {
             AppLog.warning(
                 "Backend",
@@ -959,8 +964,17 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         }
     }
 
-    private func handleSoftwareLightingStatus(_ status: SoftwareLightingEngineStatus) {
+    func handleSoftwareLightingStatus(_ status: SoftwareLightingEngineStatus) {
+        let previousStatus = softwareLightingStatusByDeviceID[status.deviceID]
         softwareLightingStatusByDeviceID[status.deviceID] = status
+        if previousStatus != status {
+            AppLog.event(
+                "LightingTrace",
+                "backend software lighting status device=\(status.deviceID) " +
+                    "previous=\(SoftwareLightingDiagnostics.statusSummary(previousStatus)) " +
+                    "next=\(SoftwareLightingDiagnostics.statusSummary(status))"
+            )
+        }
         publishStateUpdate(
             .softwareLightingStatus(
                 deviceID: status.deviceID,
@@ -984,11 +998,20 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         }
 
         let availability = try await client.usbControlAvailability(device: device)
+        let previousAvailability = usbControlAvailabilityByDeviceID[device.id]
         softwareLightingUSBReachabilityProbeAtByDeviceID[device.id] = now
         recordUSBControlAvailability(availability, for: device.id, updatedAt: now, publishSnapshot: true)
 
         switch availability {
-        case .receiverPresentMouseReachable, .unknown:
+        case .receiverPresentMouseReachable:
+            if previousAvailability != .receiverPresentMouseReachable {
+                await reassertRunningSoftwareLightingAfterReconnect(
+                    device: device,
+                    reason: "usbReachability"
+                )
+            }
+            return
+        case .unknown:
             return
         case .receiverPresentMouseUnavailable:
             throw BridgeError.usbMouseUnavailable
@@ -1075,6 +1098,12 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
             scheduleBluetoothWarmups(for: bluetoothDevicesToWarm)
             for device in bluetoothDevicesToWarm {
                 promoteReconnectSeedIfAvailable(deviceID: device.id, updatedAt: observedAt)
+            }
+            if event?.change == .connected {
+                await reassertRunningSoftwareLightingAfterPresenceReconnect(
+                    event: event,
+                    devices: devices
+                )
             }
             publishSnapshotIfService()
         } catch {

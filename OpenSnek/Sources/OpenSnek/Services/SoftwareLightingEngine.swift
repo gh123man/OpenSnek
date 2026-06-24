@@ -97,6 +97,11 @@ actor SoftwareLightingEngine {
             batteryPercentByDeviceKey[deviceKey] = Self.clampedBatteryPercent(batteryPercent)
         }
         let generation = nextGeneration(for: deviceKey)
+        AppLog.event(
+            "LightingTrace",
+            "engine software lighting start device=\(device.id) key=\(deviceKey) " +
+                "generation=\(generation) request=\(SoftwareLightingDiagnostics.requestSummary(request))"
+        )
         if let previousTask = tasksByDeviceKey[deviceKey] {
             previousTask.cancel()
             await previousTask.value
@@ -170,6 +175,10 @@ actor SoftwareLightingEngine {
             state: .stopped,
             request: nil,
             message: nil
+        )
+        AppLog.event(
+            "LightingTrace",
+            "engine software lighting stopped device=\(statusDeviceID) key=\(deviceKey)"
         )
         statusByDeviceID[deviceID] = status
         statusByDeviceID[statusDeviceID] = status
@@ -295,6 +304,7 @@ actor SoftwareLightingEngine {
         let frameInterval = context.frameInterval
         let startedAt = Date()
         var consecutiveFailures = 0
+        var writtenFrameCount = 0
         var lastWrittenFrame: USBLightingFramePatch?
 
         if request.presetID == .batteryMeter {
@@ -308,10 +318,22 @@ actor SoftwareLightingEngine {
                 try await frameWriter.writeSoftwareLightingFrame(device: device, frame: clearFrame)
                 guard isCurrent(deviceKey: deviceKey, generation: generation) else { return }
                 lastWrittenFrame = clearFrame
+                writtenFrameCount += 1
+                logFirstFrameWriteIfNeeded(
+                    writtenFrameCount: writtenFrameCount,
+                    context: context,
+                    elapsed: 0.0,
+                    frame: clearFrame
+                )
             } catch {
                 guard !Task.isCancelled else { return }
                 guard isCurrent(deviceKey: deviceKey, generation: generation) else { return }
                 consecutiveFailures += 1
+                logFrameWriteFailure(
+                    context: context,
+                    consecutiveFailures: consecutiveFailures,
+                    error: error
+                )
                 if consecutiveFailures >= failureLimit {
                     fail(
                         deviceID: device.id,
@@ -351,10 +373,22 @@ actor SoftwareLightingEngine {
                 guard isCurrent(deviceKey: deviceKey, generation: generation) else { return }
                 lastWrittenFrame = frame
                 consecutiveFailures = 0
+                writtenFrameCount += 1
+                logFirstFrameWriteIfNeeded(
+                    writtenFrameCount: writtenFrameCount,
+                    context: context,
+                    elapsed: elapsed,
+                    frame: frame
+                )
             } catch {
                 guard !Task.isCancelled else { return }
                 guard isCurrent(deviceKey: deviceKey, generation: generation) else { return }
                 consecutiveFailures += 1
+                logFrameWriteFailure(
+                    context: context,
+                    consecutiveFailures: consecutiveFailures,
+                    error: error
+                )
                 if consecutiveFailures >= failureLimit {
                     fail(
                         deviceID: device.id,
@@ -397,7 +431,42 @@ actor SoftwareLightingEngine {
             request: request,
             message: message
         )
+        AppLog.warning(
+            "LightingTrace",
+            "engine software lighting failed device=\(deviceID) key=\(deviceKey) " +
+                "generation=\(generation) request=\(SoftwareLightingDiagnostics.requestSummary(request)) " +
+                "message=\(message)"
+        )
         publish(status, deviceKey: deviceKey)
+    }
+
+    private func logFirstFrameWriteIfNeeded(
+        writtenFrameCount: Int,
+        context: RenderLoopContext,
+        elapsed: TimeInterval,
+        frame: USBLightingFramePatch
+    ) {
+        guard writtenFrameCount == 1 else { return }
+        AppLog.event(
+            "LightingTrace",
+            "engine software lighting frame write ok device=\(context.device.id) " +
+                "key=\(context.deviceKey) generation=\(context.generation) " +
+                "elapsed=\(SoftwareLightingDiagnostics.seconds(elapsed)) colors=\(frame.colors.count) " +
+                "request=\(SoftwareLightingDiagnostics.requestSummary(context.request))"
+        )
+    }
+
+    private func logFrameWriteFailure(
+        context: RenderLoopContext,
+        consecutiveFailures: Int,
+        error: Error
+    ) {
+        AppLog.warning(
+            "LightingTrace",
+            "engine software lighting frame write failed device=\(context.device.id) " +
+                "key=\(context.deviceKey) generation=\(context.generation) " +
+                "failure=\(consecutiveFailures)/\(failureLimit): \(error.localizedDescription)"
+        )
     }
 
     private func publish(_ status: SoftwareLightingEngineStatus, deviceKey: String) {

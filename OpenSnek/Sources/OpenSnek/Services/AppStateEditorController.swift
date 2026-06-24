@@ -818,20 +818,26 @@ final class AppStateEditorController {
             "inventoryActive=\(active.map(String.init) ?? "nil")",
             "editorCount=\(count)",
             "editorActive=\(editorStore.editableActiveStage)",
-            "editorPairs=\(Self.diagnosticDpiPairs(pairs))"
+            "editorPairs=\(Self.diagnosticDpiPairs(pairs))",
+            "lighting=\(editorStore.editableLightingEffect.rawValue)",
+            "zone=\(editorStore.editableUSBLightingZoneID)"
         ].joined(separator: " ")
     }
 
     func diagnosticDPISnapshot(_ snapshot: OnboardProfileSnapshot?, device: MouseDevice?) -> String {
         guard let snapshot else { return "nil" }
         let dpi = snapshot.dpi
+        let logicalEffect = device.flatMap { _ in existingLocalProfile(matching: snapshot)?.content.lightingEffect }
+        let staticLEDs = snapshot.staticColorByLEDID.keys.sorted().map(String.init).joined(separator: ",")
         return [
             "profile=\(snapshot.profileID)",
             "name=\(snapshot.metadata.name)",
             "dpiCount=\(dpi?.stageCount ?? 0)",
             "dpiActive=\(dpi?.activeStage.map { String($0 + 1) } ?? "nil")",
             "dpiPairs=\(Self.diagnosticDpiPairs(dpi?.pairs ?? []))",
-            "stageIDs=\(Self.diagnosticByteValues(dpi?.stageIDs ?? []))"
+            "stageIDs=\(Self.diagnosticByteValues(dpi?.stageIDs ?? []))",
+            "lighting=\(logicalEffect?.kind.rawValue ?? "onboard-static-or-unknown")",
+            "staticLEDs=\(staticLEDs.isEmpty ? "none" : staticLEDs)"
         ].joined(separator: " ")
     }
 
@@ -839,16 +845,18 @@ final class AppStateEditorController {
         guard let state else { return "nil" }
         let activeProfile = state.active_onboard_profile.map(String.init) ?? "nil"
         let profileCount = state.onboard_profile_count.map(String.init) ?? "nil"
-        let activeStage = state.dpi_stages.active_stage.map { String($0 + 1) } ?? "nil"
+        let stageActive = state.dpi_stages.active_stage.map { String($0 + 1) } ?? "nil"
         let values = state.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil"
         let pairs = diagnosticDpiPairs(state.dpi_stages.pairs ?? [])
+        let lightingBrightness = state.led_value.map(String.init) ?? "nil"
         return [
             "activeProfile=\(activeProfile)",
             "profileCount=\(profileCount)",
             "liveDPI=\(diagnosticDpiPair(state.dpi))",
-            "stageActive=\(activeStage)",
+            "stageActive=\(stageActive)",
             "values=\(values)",
-            "pairs=\(pairs)"
+            "pairs=\(pairs)",
+            "lightingBrightness=\(lightingBrightness)"
         ].joined(separator: " ")
     }
 

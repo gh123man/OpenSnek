@@ -11,6 +11,8 @@ final class AppStateDeviceController {
     static let usbReceiverRecoveryProbeInterval: TimeInterval = 2.0
     static let usbPhysicalConnectStatusGraceInterval: TimeInterval = BridgeClient.usbReconnectSettleInterval + 1.5
     static let recentDynamicDpiMutationMergeWindow: TimeInterval = 1.0
+    static let remoteSnapshotSoftwareLightingStatusGraceInterval: TimeInterval = 5.0
+    static let remoteSnapshotSoftwareLightingAutoStartRetryInterval: TimeInterval = 5.0
     static let usbTelemetryUnavailableMessage =
         "USB device telemetry unavailable. Feature-report interface did not return usable responses."
 
@@ -44,6 +46,13 @@ final class AppStateDeviceController {
         let presentationDevice: MouseDevice
         let sourceDeviceID: String
         let start: Date
+    }
+
+    /// Carries remote snapshot software lighting recovery data.
+    struct RemoteLightingAutoStartCandidate {
+        let device: MouseDevice
+        let deviceKey: String
+        let previousStatus: SoftwareLightingEngineStatus?
     }
 
     /// Carries successful refresh context.
@@ -98,7 +107,7 @@ final class AppStateDeviceController {
     var selectedRecoveryRefreshDeviceID: String?
     var selectedEditorHydrationTasksByDeviceID: [String: Task<Void, Never>] = [:]
     var selectedEditorHydrationTokensByDeviceID: [String: UUID] = [:]
-    var remoteSnapshotSoftwareLightingAutoStartKeys: Set<String> = []
+    var remoteSnapshotSoftwareLightingAutoStartAttemptAtByDeviceKey: [String: Date] = [:]
     var isTearingDown = false
 
     init(environment: AppEnvironment, deviceStore: DeviceStore) {
@@ -114,7 +123,7 @@ final class AppStateDeviceController {
         selectedEditorHydrationTasksByDeviceID.values.forEach { $0.cancel() }
         selectedEditorHydrationTasksByDeviceID.removeAll()
         selectedEditorHydrationTokensByDeviceID.removeAll()
-        remoteSnapshotSoftwareLightingAutoStartKeys.removeAll()
+        remoteSnapshotSoftwareLightingAutoStartAttemptAtByDeviceKey.removeAll()
         pendingUSBControlUnavailableTasksByDeviceID.values.forEach { $0.cancel() }
         pendingUSBControlUnavailableTasksByDeviceID.removeAll()
         lastUSBReceiverRecoveryProbeAtByDeviceID.removeAll()

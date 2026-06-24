@@ -367,6 +367,60 @@ final class AppStateLightingCharacterizationTests: XCTestCase {
         )
     }
 
+    func testSoftwareLightingApplyOnConnectReassertsStaleRunningStatusWhenRequested() async throws {
+        let device = makeRefactorMultiZoneUSBLightingDevice(
+            id: "usb-software-lighting-reassert-connect-device",
+            serial: "USB-SOFTWARE-LIGHTING-REASSERT-\(UUID().uuidString)"
+        )
+        clearRefactorPreferences(for: device)
+        defer { clearRefactorPreferences(for: device) }
+
+        let persistedRequest = SoftwareLightingEffectRequest(
+            presetID: .cometChase,
+            framesPerSecond: 24,
+            intensity: 0.7,
+            speed: 1.2,
+            palette: [
+                RGBPatch(r: 12, g: 34, b: 56),
+                RGBPatch(r: 78, g: 90, b: 123)
+            ]
+        )
+        let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistSoftwareLightingApplyOnConnect(true, device: device)
+        preferenceStore.persistSoftwareLightingRequest(persistedRequest, device: device)
+
+        let staleRunningStatus = SoftwareLightingEngineStatus(
+            deviceID: device.id,
+            state: .running,
+            request: persistedRequest
+        )
+        let backend = AppStateRefactorStubBackend(devices: [device], stateByDeviceID: [:])
+        await backend.setSoftwareLightingStatus(staleRunningStatus)
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        await MainActor.run {
+            appState.deviceController.applyDeviceList([device], source: "refresh")
+            appState.deviceStore.softwareLightingStatusByDeviceID[device.id] = staleRunningStatus
+        }
+
+        let skipped = await appState.editorController.startPersistedSoftwareLightingOnConnectIfNeeded(for: device)
+        let reasserted = await appState.editorController.startPersistedSoftwareLightingOnConnectIfNeeded(
+            for: device,
+            reassertRunning: true
+        )
+
+        try await waitForRefactorCondition {
+            await backend.softwareLightingStartCount(for: device.id) == 1
+        }
+        let status = await backend.softwareLightingStatus(deviceID: device.id)
+
+        XCTAssertFalse(skipped)
+        XCTAssertTrue(reasserted)
+        XCTAssertEqual(status?.state, .running)
+        XCTAssertEqual(status?.request, persistedRequest)
+    }
+
     func testSoftwareLightingApplyPersistsRequestDetails() async throws {
         let device = makeRefactorMultiZoneUSBLightingDevice(
             id: "usb-software-lighting-persist-request-device",

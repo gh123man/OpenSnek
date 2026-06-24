@@ -377,6 +377,7 @@ extension AppStateEditorController {
     }
 
     func hydrateEditableLighting(from snapshot: OnboardProfileSnapshot, device: MouseDevice) {
+        let logicalEffect = knownLogicalLightingEffect(matching: snapshot, device: device)
         if let brightness = snapshot.brightnessByLEDID.values.max() {
             editorStore.editableLedBrightness = brightness
             editorStore.noteLightingGradientColorsChanged()
@@ -384,6 +385,11 @@ extension AppStateEditorController {
 
         let zoneColors = onboardProfileLightingZoneColors(from: snapshot, device: device)
         guard !zoneColors.isEmpty else {
+            if let logicalEffect {
+                hydrateEditableLightingEffect(logicalEffect)
+                editorStore.noteLightingGradientColorsChanged()
+                return
+            }
             if onboardProfileLightingColorsByDeviceID.removeValue(forKey: device.id) != nil {
                 editorStore.noteLightingGradientColorsChanged()
             }
@@ -391,7 +397,11 @@ extension AppStateEditorController {
         }
 
         onboardProfileLightingColorsByDeviceID[device.id] = zoneColors
-        editorStore.editableLightingEffect = .staticColor
+        if let logicalEffect {
+            hydrateEditableLightingEffect(logicalEffect)
+        } else {
+            editorStore.editableLightingEffect = .staticColor
+        }
 
         let visibleZoneIDs = editorStore.visibleUSBLightingZones.map(\.id)
         let currentZoneID = normalizedLightingZoneID(for: device, preferredZoneID: editorStore.editableUSBLightingZoneID)
@@ -405,10 +415,41 @@ extension AppStateEditorController {
         }
 
         editorStore.editableUSBLightingZoneID = resolvedZoneID
-        if let color = zoneColors[resolvedZoneID] ?? zoneColors["all"] ?? zoneColors.sorted(by: { $0.key < $1.key }).first?.value {
+        if logicalEffect == nil || logicalEffect?.kind == .staticColor,
+           let color = zoneColors[resolvedZoneID] ?? zoneColors["all"] ?? zoneColors.sorted(by: { $0.key < $1.key }).first?.value {
             editorStore.editableColor = color
         }
         editorStore.noteLightingGradientColorsChanged()
+    }
+
+    private func knownLogicalLightingEffect(
+        matching snapshot: OnboardProfileSnapshot,
+        device: MouseDevice
+    ) -> LightingEffectPatch? {
+        guard device.supports_advanced_lighting_effects,
+              let effect = existingLocalProfile(matching: snapshot)?.content.lightingEffect else {
+            return nil
+        }
+        let supportedEffects = resolvedDeviceProfile(for: device)?.supportedLightingEffects ?? LightingEffectKind.allCases
+        return supportedEffects.contains(effect.kind) ? effect : nil
+    }
+
+    private func hydrateEditableLightingEffect(_ effect: LightingEffectPatch) {
+        editorStore.editableLightingEffect = effect.kind
+        editorStore.editableLightingWaveDirection = effect.waveDirection
+        editorStore.editableLightingReactiveSpeed = effect.reactiveSpeed
+        editorStore.editableSecondaryColor = RGBColor(
+            r: effect.secondary.r,
+            g: effect.secondary.g,
+            b: effect.secondary.b
+        )
+        if effect.kind.usesPrimaryColor || effect.kind == .staticColor {
+            editorStore.editableColor = RGBColor(
+                r: effect.primary.r,
+                g: effect.primary.g,
+                b: effect.primary.b
+            )
+        }
     }
 
     func projectSelectedActiveOnboardProfileState(

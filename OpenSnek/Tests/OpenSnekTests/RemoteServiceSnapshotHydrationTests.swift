@@ -241,6 +241,127 @@ final class RemoteServiceSnapshotHydrationTests: XCTestCase {
         XCTAssertEqual(storedStatus?.request, request)
     }
 
+    func testRemoteServiceSnapshotRestartsPersistedSoftwareLightingWhenServiceStatusIsMissing() async throws {
+        let device = makeSnapshotDevice(
+            id: "snapshot-software-lighting-reconcile",
+            productName: "Basilisk V3 Pro",
+            identity: SnapshotDeviceIdentity(
+                transport: .usb,
+                serial: "SNAPSHOT-SOFTWARE-LIGHTING-RECONCILE-\(UUID().uuidString)",
+                locationID: 0x0115_0000
+            ),
+            profile: .basiliskV3Pro
+        )
+        clearSnapshotPreferences(for: device)
+        defer { clearSnapshotPreferences(for: device) }
+
+        let request = SoftwareLightingEffectRequest(
+            presetID: .aurora,
+            framesPerSecond: 24,
+            speed: 1.5
+        )
+        let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistSoftwareLightingApplyOnConnect(true, device: device)
+        preferenceStore.persistSoftwareLightingRequest(request, device: device)
+
+        let backend = SnapshotSoftwareLightingRemoteBackend()
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        let staleRunningStatus = SoftwareLightingEngineStatus(
+            deviceID: device.id,
+            state: .running,
+            request: request,
+            updatedAt: Date(timeIntervalSince1970: 1_773_320_000)
+        )
+        let state = makeSnapshotState(
+            device: device,
+            connection: "usb",
+            batteryPercent: 81,
+            dpiValues: [800, 2400, 6400],
+            activeStage: 1
+        )
+        let snapshot = SharedServiceSnapshot(
+            devices: [device],
+            stateByDeviceID: [device.id: state],
+            lastUpdatedByDeviceID: [device.id: Date()]
+        )
+
+        await MainActor.run {
+            appState.deviceStore.softwareLightingStatusByDeviceID[device.id] = staleRunningStatus
+            appState.deviceStore.applyRemoteServiceSnapshot(snapshot)
+        }
+
+        try await waitUntil {
+            await backend.softwareLightingStartCount(for: device.id) == 1
+        }
+
+        let startedRequest = await backend.softwareLightingRequest(for: device.id)
+        let storedStatus = await MainActor.run {
+            appState.deviceStore.softwareLightingStatusByDeviceID[device.id]
+        }
+
+        XCTAssertEqual(startedRequest, request)
+        XCTAssertEqual(storedStatus?.state, .running)
+        XCTAssertEqual(storedStatus?.request, request)
+    }
+
+    func testRemoteServiceSnapshotDoesNotRestartAuthoritativeStoppedSoftwareLightingStatus() async throws {
+        let device = makeSnapshotDevice(
+            id: "snapshot-software-lighting-stopped",
+            productName: "Basilisk V3 Pro",
+            identity: SnapshotDeviceIdentity(
+                transport: .usb,
+                serial: "SNAPSHOT-SOFTWARE-LIGHTING-STOPPED-\(UUID().uuidString)",
+                locationID: 0x0116_0000
+            ),
+            profile: .basiliskV3Pro
+        )
+        clearSnapshotPreferences(for: device)
+        defer { clearSnapshotPreferences(for: device) }
+
+        let request = SoftwareLightingEffectRequest(presetID: .cometChase)
+        let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistSoftwareLightingApplyOnConnect(true, device: device)
+        preferenceStore.persistSoftwareLightingRequest(request, device: device)
+
+        let backend = SnapshotSoftwareLightingRemoteBackend()
+        let appState = await MainActor.run {
+            AppState(launchRole: .app, backend: backend, autoStart: false)
+        }
+        let state = makeSnapshotState(
+            device: device,
+            connection: "usb",
+            batteryPercent: 81,
+            dpiValues: [800, 2400, 6400],
+            activeStage: 1
+        )
+        let stoppedStatus = SoftwareLightingEngineStatus(
+            deviceID: device.id,
+            state: .stopped,
+            request: nil
+        )
+        let snapshot = SharedServiceSnapshot(
+            devices: [device],
+            stateByDeviceID: [device.id: state],
+            lastUpdatedByDeviceID: [device.id: Date()],
+            softwareLightingStatusByDeviceID: [device.id: stoppedStatus]
+        )
+
+        await MainActor.run {
+            appState.deviceStore.applyRemoteServiceSnapshot(snapshot)
+        }
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let startCount = await backend.softwareLightingStartCount(for: device.id)
+        let storedStatus = await MainActor.run {
+            appState.deviceStore.softwareLightingStatusByDeviceID[device.id]
+        }
+
+        XCTAssertEqual(startCount, 0)
+        XCTAssertEqual(storedStatus?.state, .stopped)
+    }
+
     func testRemoteServiceSnapshotClearsLatchedUSBUnavailablePresentation() async {
         let appState = await MainActor.run {
             AppState(launchRole: .app, backend: SnapshotUnavailableRemoteBackend(), autoStart: false)
