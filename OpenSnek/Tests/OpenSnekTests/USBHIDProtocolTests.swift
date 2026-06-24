@@ -3,6 +3,7 @@ import Foundation
 import OpenSnekCore
 import OpenSnekProtocols
 
+/// Exercises USB HID protocol behavior.
 final class USBHIDProtocolTests: XCTestCase {
     func testIsValidResponseAcceptsMatchingTransactionID() {
         var response = USBHIDProtocol.createReport(txn: 0x1F, classID: 0x07, cmdID: 0x80, size: 0x02, args: [0x01, 0xF0])

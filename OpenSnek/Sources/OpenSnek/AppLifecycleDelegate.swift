@@ -1,7 +1,9 @@
 import AppKit
 
+/// Coordinates app lifecycle delegate behavior.
 @MainActor
 final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
+    /// Defines reopen behavior values.
     enum ReopenBehavior: Equatable {
         case launchFullApp
         case reopenWindows

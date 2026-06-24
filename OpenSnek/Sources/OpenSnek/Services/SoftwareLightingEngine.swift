@@ -1,6 +1,7 @@
 import Foundation
 import OpenSnekCore
 
+/// Describes software lighting engine failures.
 enum SoftwareLightingEngineError: LocalizedError, Sendable {
     case unsupportedDevice
     case unsupportedPreset(SoftwareLightingPresetID)
@@ -15,10 +16,12 @@ enum SoftwareLightingEngineError: LocalizedError, Sendable {
     }
 }
 
+/// Defines the software lighting frame writing contract.
 protocol SoftwareLightingFrameWriting: Sendable {
     func writeSoftwareLightingFrame(device: MouseDevice, frame: USBLightingFramePatch) async throws
 }
 
+/// Stores bridge software lighting frame writer data.
 struct BridgeSoftwareLightingFrameWriter: SoftwareLightingFrameWriting {
     let client: BridgeClient
 
@@ -27,7 +30,9 @@ struct BridgeSoftwareLightingFrameWriter: SoftwareLightingFrameWriting {
     }
 }
 
+/// Serializes software lighting engine state and operations.
 actor SoftwareLightingEngine {
+    /// Carries render loop context.
     private struct RenderLoopContext {
         let device: MouseDevice
         let deviceKey: String

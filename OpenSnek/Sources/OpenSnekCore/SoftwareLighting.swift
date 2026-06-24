@@ -1,5 +1,6 @@
 import Foundation
 
+/// Defines software lighting preset ID values.
 public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
     case flame
     case scrollingRainbow = "scrolling_rainbow"
@@ -145,6 +146,7 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
     }
 }
 
+/// Carries software lighting effect request data.
 public struct SoftwareLightingEffectRequest: Codable, Hashable, Sendable {
     public static let maximumPaletteColorCount = 8
 
@@ -189,6 +191,7 @@ public struct SoftwareLightingEffectRequest: Codable, Hashable, Sendable {
     }
 }
 
+/// Defines software lighting engine run state values.
 public enum SoftwareLightingEngineRunState: String, Codable, Hashable, Sendable {
     case running
     case stopped
@@ -196,6 +199,7 @@ public enum SoftwareLightingEngineRunState: String, Codable, Hashable, Sendable 
     case failed
 }
 
+/// Stores software lighting engine status data.
 public struct SoftwareLightingEngineStatus: Codable, Hashable, Sendable {
     public let deviceID: String
     public let state: SoftwareLightingEngineRunState
@@ -222,6 +226,7 @@ public struct SoftwareLightingEngineStatus: Codable, Hashable, Sendable {
     }
 }
 
+/// Stores software lighting frame cell data.
 public struct SoftwareLightingFrameCell: Codable, Hashable, Sendable {
     public let index: Int
     public let id: String
@@ -234,6 +239,7 @@ public struct SoftwareLightingFrameCell: Codable, Hashable, Sendable {
     }
 }
 
+/// Stores software lighting frame layout data.
 public struct SoftwareLightingFrameLayout: Codable, Hashable, Sendable {
     public let id: String
     public let label: String
@@ -273,6 +279,7 @@ public struct SoftwareLightingFrameLayout: Codable, Hashable, Sendable {
     )
 }
 
+/// Stores USB lighting frame patch data.
 public struct USBLightingFramePatch: Codable, Hashable, Sendable {
     public let storage: UInt8
     public let row: UInt8
@@ -300,7 +307,9 @@ public struct USBLightingFramePatch: Codable, Hashable, Sendable {
     }
 }
 
+/// Defines software lighting renderer values.
 public enum SoftwareLightingRenderer {
+    /// Stores battery meter progress anchor data.
     private struct BatteryMeterProgressAnchor {
         let chargeFraction: Double
         let fillFraction: Double
@@ -317,6 +326,7 @@ public enum SoftwareLightingRenderer {
         BatteryMeterProgressAnchor(chargeFraction: 1.0, fillFraction: 1.0)
     ]
 
+    /// Stores render sample data.
     private struct RenderSample {
         let preset: SoftwareLightingPresetID
         let palette: [RGBPatch]

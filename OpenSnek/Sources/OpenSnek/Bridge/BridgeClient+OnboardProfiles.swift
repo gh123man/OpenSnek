@@ -3,6 +3,7 @@ import OpenSnekCore
 import OpenSnekHardware
 import OpenSnekProtocols
 
+/// Adds onboard profiles behavior to `BridgeClient`.
 extension BridgeClient {
     func listOnboardProfiles(device: MouseDevice) async throws -> OnboardProfileInventory {
         let profile = try mappedOnboardProfileSupport(for: device)

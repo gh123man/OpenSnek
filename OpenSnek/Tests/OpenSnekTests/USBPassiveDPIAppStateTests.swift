@@ -5,6 +5,7 @@ import OpenSnekProtocols
 @testable import OpenSnekHardware
 @testable import OpenSnek
 
+/// Exercises USB passive DPI app state behavior.
 final class USBPassiveDPIAppStateTests: XCTestCase {
     func testAppStateAppliesBackendStateUpdatesWithoutWaitingForPolling() async {
         let device = makePassiveTestDevice(id: "usb-passive-live", transport: .usb)

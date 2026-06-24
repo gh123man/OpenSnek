@@ -2,6 +2,7 @@ import Foundation
 import OpenSnekCore
 import OpenSnekProtocols
 
+/// Adds parse common behavior to `OpenSnekProbe`.
 extension OpenSnekProbe {
   static func parseUSBLightingZoneArgs(_ args: [String]) throws -> (
     zoneID: String?, productID: Int?

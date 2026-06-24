@@ -2,6 +2,7 @@ import Foundation
 import OpenSnekAppSupport
 import OpenSnekCore
 
+/// Coordinates app state editor behavior.
 @MainActor
 final class AppStateEditorController {
     let environment: AppEnvironment
@@ -270,12 +271,14 @@ final class AppStateEditorController {
         return "\(first.name) +\(matches.count - 1)"
     }
 
+    /// Stores persisted lighting restore plan data.
     struct PersistedLightingRestorePlan {
         let primaryColor: RGBColor?
         let lightingEffect: LightingEffectPatch?
         let usbLightingZoneID: String
     }
 
+    /// Stores persisted settings restore plan data.
     struct PersistedSettingsRestorePlan {
         let snapshot: PersistedDeviceSettingsSnapshot
         let patch: DevicePatch

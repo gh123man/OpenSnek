@@ -2,6 +2,7 @@ import XCTest
 import OpenSnekAppSupport
 @testable import OpenSnek
 
+/// Exercises window chrome configurator behavior.
 @MainActor
 final class WindowChromeConfiguratorTests: XCTestCase {
     func testOpenSnekAppearancePinsApplicationToFixedDarkAppearance() {

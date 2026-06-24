@@ -3,6 +3,7 @@ import OpenSnekCore
 import OpenSnekHardware
 @testable import OpenSnek
 
+/// Exercises hardware USB state smoke behavior.
 final class HardwareUSBStateSmokeTests: XCTestCase {
     private func requireHardwareRunEnabled() throws {
         let env = ProcessInfo.processInfo.environment

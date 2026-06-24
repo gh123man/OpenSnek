@@ -3,7 +3,9 @@ import CoreBluetooth
 import OpenSnekCore
 import OpenSnekProtocols
 
+/// Coordinates BLE vendor transport client operations.
 public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
+    /// Stores connected peripheral summary data.
     public struct ConnectedPeripheralSummary: Sendable {
         public let name: String?
         public let identifier: UUID
@@ -194,6 +196,7 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
     }
 }
 
+/// Adds scoped helpers for `BLEVendorTransportClient`.
 extension BLEVendorTransportClient: CBCentralManagerDelegate, CBPeripheralDelegate {
     public func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {

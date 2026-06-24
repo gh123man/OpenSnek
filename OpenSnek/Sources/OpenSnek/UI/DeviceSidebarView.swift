@@ -1,6 +1,7 @@
 import SwiftUI
 import OpenSnekCore
 
+/// Renders the device sidebar view UI.
 struct DeviceSidebarView: View {
     let deviceStore: DeviceStore
 
@@ -100,6 +101,7 @@ struct DeviceSidebarView: View {
     }
 }
 
+/// Renders the dev build sidebar footer UI.
 private struct DevBuildSidebarFooter: View {
     var body: some View {
         SidebarFooterShell(strokeColor: Color(hex: 0xF4C65D)) {
@@ -115,6 +117,7 @@ private struct DevBuildSidebarFooter: View {
     }
 }
 
+/// Renders the update available sidebar footer UI.
 private struct UpdateAvailableSidebarFooter: View {
     let availableUpdate: ReleaseAvailability
 
@@ -141,6 +144,7 @@ private struct UpdateAvailableSidebarFooter: View {
     }
 }
 
+/// Renders the sidebar footer shell UI.
 private struct SidebarFooterShell<Content: View>: View {
     let strokeColor: Color
     @ViewBuilder let content: () -> Content
@@ -163,6 +167,7 @@ private struct SidebarFooterShell<Content: View>: View {
     }
 }
 
+/// Stores sidebar footer text data.
 private struct SidebarFooterText: View {
     let title: String
     let subtitle: String
@@ -180,6 +185,7 @@ private struct SidebarFooterText: View {
     }
 }
 
+/// Renders the device row UI.
 struct DeviceRow: View {
     let device: MouseDevice
     let isSelected: Bool

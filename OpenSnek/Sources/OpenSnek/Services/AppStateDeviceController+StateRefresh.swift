@@ -2,6 +2,7 @@ import Foundation
 import OpenSnekCore
 import OpenSnekHardware
 
+/// Adds state refresh behavior to `AppStateDeviceController`.
 @MainActor
 extension AppStateDeviceController {
     func stateRefreshBackoffInterval(for device: MouseDevice, failures: Int, error: any Error) -> TimeInterval {
@@ -427,6 +428,7 @@ extension AppStateDeviceController {
         setTelemetryWarning(editorController.telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)
     }
 
+    /// Carries refresh failure context.
     struct RefreshFailureContext {
         let presentationDeviceID: String
         let failures: Int

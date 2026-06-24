@@ -2,6 +2,7 @@ import AppKit
 import OpenSnekAppSupport
 import SwiftUI
 
+/// Renders the settings view UI.
 struct SettingsView: View {
     let deviceStore: DeviceStore
     let runtimeStore: RuntimeStore
@@ -239,6 +240,7 @@ struct SettingsView: View {
     }
 }
 
+/// Renders the issue diagnostics sheet UI.
 private struct IssueDiagnosticsSheet: View {
     let payload: String
     @Environment(\.dismiss) private var dismiss

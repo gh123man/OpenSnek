@@ -3,6 +3,7 @@ import OpenSnekAppSupport
 import SwiftUI
 import OpenSnekCore
 
+/// Renders the button mapping table card UI.
 struct ButtonMappingTableCard: View {
     let deviceStore: DeviceStore
     let editorStore: EditorStore
@@ -54,6 +55,7 @@ struct ButtonMappingTableCard: View {
     }
 }
 
+/// Renders the onboard profile pill button UI.
 struct OnboardProfilePillButton: View {
     let editorStore: EditorStore
     let action: () -> Void
@@ -97,6 +99,7 @@ struct OnboardProfilePillButton: View {
     }
 }
 
+/// Stores onboard profile pill label data.
 private struct OnboardProfilePillLabel: View {
     let profileID: Int
     let profileName: String
@@ -166,6 +169,7 @@ private func onboardProfileSlotColor(_ profileID: Int) -> Color {
     }
 }
 
+/// Renders the profile picker popover UI.
 struct ProfilePickerPopover: View {
     let editorStore: EditorStore
 
@@ -195,6 +199,7 @@ struct ProfilePickerPopover: View {
     }
 }
 
+/// Renders the profile picker panel UI.
 private struct ProfilePickerPanel: View {
     let editorStore: EditorStore
 
@@ -588,6 +593,7 @@ private struct ProfilePickerPanel: View {
     }
 }
 
+/// Stores onboard profile slot row style data.
 private struct OnboardProfileSlotRowStyle {
     let slotColor: Color
     let titleOpacity: Double
@@ -598,6 +604,7 @@ private struct OnboardProfileSlotRowStyle {
     let isSelected: Bool
 }
 
+/// Renders the onboard profile slot row button UI.
 private struct OnboardProfileSlotRowButton: View {
     let profile: OnboardProfileSummary
     let style: OnboardProfileSlotRowStyle
@@ -696,6 +703,7 @@ private struct OnboardProfileSlotRowButton: View {
     }
 }
 
+/// Stores profile action panel shape data.
 private struct ProfileActionPanelShape: Shape {
     let arrowCenterY: CGFloat
     let arrowWidth: CGFloat
@@ -740,6 +748,7 @@ private struct ProfileActionPanelShape: Shape {
     }
 }
 
+/// Stores unsupported buttons footnote data.
 private struct UnsupportedButtonsFootnote: View {
     let entries: [DocumentedButtonSlot]
 
@@ -787,6 +796,7 @@ private struct UnsupportedButtonsFootnote: View {
     }
 }
 
+/// Renders the unsupported button footnote row UI.
 private struct UnsupportedButtonFootnoteRow: View {
     let entry: DocumentedButtonSlot
 
@@ -798,6 +808,7 @@ private struct UnsupportedButtonFootnoteRow: View {
     }
 }
 
+/// Renders the labeled control row UI.
 struct LabeledControlRow<Control: View>: View {
     let title: String
     @ViewBuilder let control: () -> Control
@@ -817,6 +828,7 @@ struct LabeledControlRow<Control: View>: View {
     }
 }
 
+/// Stores button binding row model data.
 private struct ButtonBindingRowModel: Identifiable, Equatable {
     let slot: Int
     let friendlyName: String
@@ -834,6 +846,7 @@ private struct ButtonBindingRowModel: Identifiable, Equatable {
     var id: Int { slot }
 }
 
+/// Renders the button binding row UI.
 private struct ButtonBindingRow: View {
     let editorStore: EditorStore
     let row: ButtonBindingRowModel
@@ -889,6 +902,7 @@ private struct ButtonBindingRow: View {
     }
 }
 
+/// Renders the button binding header row UI.
 private struct ButtonBindingHeaderRow: View {
     let editorStore: EditorStore
     let row: ButtonBindingRowModel
@@ -923,6 +937,7 @@ private struct ButtonBindingHeaderRow: View {
     }
 }
 
+/// Renders the button binding keyboard controls UI.
 private struct ButtonBindingKeyboardControls: View {
     let editorStore: EditorStore
     let row: ButtonBindingRowModel
@@ -946,6 +961,7 @@ private struct ButtonBindingKeyboardControls: View {
     }
 }
 
+/// Renders the button binding DPI clutch controls UI.
 private struct ButtonBindingDpiClutchControls: View {
     let editorStore: EditorStore
     let row: ButtonBindingRowModel
@@ -1038,6 +1054,7 @@ private struct ButtonBindingDpiClutchControls: View {
     }
 }
 
+/// Renders the button binding turbo controls UI.
 private struct ButtonBindingTurboControls: View {
     let editorStore: EditorStore
     let row: ButtonBindingRowModel
@@ -1101,6 +1118,7 @@ private struct ButtonBindingTurboControls: View {
     }
 }
 
+/// Renders the button binding notice row UI.
 private struct ButtonBindingNoticeRow: View {
     let notice: String
 

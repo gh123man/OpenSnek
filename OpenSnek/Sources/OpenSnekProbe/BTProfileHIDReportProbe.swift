@@ -4,6 +4,7 @@ import OpenSnekCore
 import OpenSnekHardware
 import OpenSnekProtocols
 
+/// Defines BT profile HID classification values.
 enum BTProfileHIDClassification: Equatable, Sendable {
   case profileCyclePrelude
   case profileCycleFollowUp
@@ -36,6 +37,7 @@ enum BTProfileHIDClassification: Equatable, Sendable {
   }
 }
 
+/// Describes BT profile HID report event data.
 struct BTProfileHIDReportEvent: Sendable {
   let candidateIndex: Int
   let deviceID: String
@@ -54,7 +56,9 @@ struct BTProfileHIDReportEvent: Sendable {
   }
 }
 
+/// Coordinates BT profile HID report probe behavior.
 final class BTProfileHIDReportProbe: @unchecked Sendable {
+  /// Coordinates callback context behavior.
   private final class CallbackContext {
     let candidate: BTHIDProbeDeviceCandidate
     let captureStartedAt: Date
@@ -71,6 +75,7 @@ final class BTProfileHIDReportProbe: @unchecked Sendable {
     }
   }
 
+  /// Stores registration data.
   private struct Registration {
     let device: IOHIDDevice
     let buffer: UnsafeMutablePointer<UInt8>

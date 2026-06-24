@@ -2,8 +2,10 @@ import Foundation
 import OpenSnekAppSupport
 import OpenSnekCore
 
+/// Adds local profiles behavior to `AppStateEditorController`.
 @MainActor
 extension AppStateEditorController {
+    /// Stores adapted lighting content data.
     private struct AdaptedLightingContent {
         let brightness: [Int: Int]
         let staticColors: [Int: RGBPatch]
@@ -871,6 +873,7 @@ extension AppStateEditorController {
     }
 }
 
+/// Describes app state local profile failures.
 enum AppStateLocalProfileError: LocalizedError {
     case noSelectedProfile
     case applyFailed

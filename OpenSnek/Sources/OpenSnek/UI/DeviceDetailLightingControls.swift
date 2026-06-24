@@ -3,6 +3,7 @@ import OpenSnekAppSupport
 import SwiftUI
 import OpenSnekCore
 
+/// Renders the lighting color orb row UI.
 struct LightingColorOrbRow: View {
     let title: String
     let identifierPrefix: String
@@ -30,6 +31,7 @@ struct LightingColorOrbRow: View {
     }
 }
 
+/// Renders the lighting color orb picker UI.
 struct LightingColorOrbPicker: View {
     let title: String
     let identifierPrefix: String
@@ -89,6 +91,7 @@ struct LightingColorOrbPicker: View {
     }
 }
 
+/// Stores lighting color popover editor data.
 struct LightingColorPopoverEditor: View {
     let title: String
     let identifierPrefix: String
@@ -180,6 +183,7 @@ struct LightingColorPopoverEditor: View {
 
 }
 
+/// Stores software lighting palette editor data.
 struct SoftwareLightingPaletteEditor: View {
     let preset: SoftwareLightingPresetID
     @Binding var palette: [RGBColor]
@@ -295,6 +299,7 @@ struct SoftwareLightingPaletteEditor: View {
     }
 }
 
+/// Renders the palette remove color button UI.
 private struct PaletteRemoveColorButton: View {
     let index: Int
     let canRemove: Bool
@@ -325,6 +330,7 @@ private struct PaletteRemoveColorButton: View {
     }
 }
 
+/// Stores palette remove color icon data.
 private struct PaletteRemoveColorIcon: View {
     var body: some View {
         Image(systemName: "xmark.circle.fill")
@@ -332,6 +338,7 @@ private struct PaletteRemoveColorIcon: View {
     }
 }
 
+/// Stores palette remove color placeholder data.
 private struct PaletteRemoveColorPlaceholder: View {
     var body: some View {
         Color.clear
@@ -339,6 +346,7 @@ private struct PaletteRemoveColorPlaceholder: View {
     }
 }
 
+/// Renders the RGB slider row UI.
 struct RGBSliderRow: View {
     let label: String
     var accessibilityIdentifier: String?

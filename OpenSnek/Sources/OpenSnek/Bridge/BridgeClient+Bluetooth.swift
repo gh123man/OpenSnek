@@ -3,7 +3,9 @@ import OpenSnekCore
 import OpenSnekHardware
 import OpenSnekProtocols
 
+/// Adds Bluetooth behavior to `BridgeClient`.
 extension BridgeClient {
+    /// Stores Bluetooth battery state.
     struct BluetoothBatteryState: Equatable {
         let percent: Int?
         let charging: Bool?
@@ -655,6 +657,7 @@ extension BridgeClient {
         return nil
     }
 
+    /// Stores Bluetooth button binding write data.
     struct BluetoothButtonBindingWrite {
         let device: MouseDevice
         let slot: UInt8

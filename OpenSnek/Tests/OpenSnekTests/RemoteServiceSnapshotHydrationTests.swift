@@ -5,6 +5,7 @@ import OpenSnekCore
 import OpenSnekHardware
 @testable import OpenSnek
 
+/// Exercises remote service snapshot hydration behavior.
 final class RemoteServiceSnapshotHydrationTests: XCTestCase {
     func testLocalBridgeMergedApplyStatePreservesBatteryAcrossBluetoothDelta() {
         let previous = makeSnapshotState(

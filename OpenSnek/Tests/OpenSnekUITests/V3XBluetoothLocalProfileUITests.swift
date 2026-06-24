@@ -1,5 +1,6 @@
 import XCTest
 
+/// Exercises V3 X Bluetooth local profile UI behavior.
 final class V3XBluetoothLocalProfileUITests: V3XLocalProfileUITestSupport {
     override var expectedScope: HardwareDeviceScope {
         .v3XBluetooth
@@ -22,6 +23,7 @@ final class V3XBluetoothLocalProfileUITests: V3XLocalProfileUITestSupport {
     }
 }
 
+/// Exercises V3 X USB local profile UI behavior.
 final class V3XUSBLocalProfileUITests: V3XLocalProfileUITestSupport {
     override var expectedScope: HardwareDeviceScope {
         .v3XUSB
@@ -44,7 +46,9 @@ final class V3XUSBLocalProfileUITests: V3XLocalProfileUITestSupport {
     }
 }
 
+/// Stores V3 X local profile UI test support test data.
 class V3XLocalProfileUITestSupport: OpenSnekHardwareUITestCase {
+    /// Stores temporary local profile test data.
     private struct TemporaryLocalProfile: Equatable {
         var name: String
         let replaceIdentifier: String
@@ -52,6 +56,7 @@ class V3XLocalProfileUITestSupport: OpenSnekHardwareUITestCase {
         let isRestoreProfile: Bool
     }
 
+    /// Stores profile switch settings test data.
     private struct ProfileSwitchSettings {
         let dpiStages: [Int]
         let buttonSlot: Int

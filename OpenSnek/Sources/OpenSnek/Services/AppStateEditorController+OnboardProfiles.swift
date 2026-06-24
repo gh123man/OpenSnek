@@ -2,6 +2,7 @@ import Foundation
 import OpenSnekAppSupport
 import OpenSnekCore
 
+/// Adds onboard profiles behavior to `AppStateEditorController`.
 @MainActor
 extension AppStateEditorController {
     func readLatestOnboardProfileSnapshot(

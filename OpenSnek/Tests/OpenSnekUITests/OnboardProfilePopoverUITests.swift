@@ -1,5 +1,6 @@
 import XCTest
 
+/// Exercises onboard profile popover UI behavior.
 class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
     private var originalActiveProfileID: Int?
     private var createdProfileID: Int?
@@ -465,6 +466,7 @@ class OnboardProfilePopoverUITests: OpenSnekHardwareUITestCase {
     }
 }
 
+/// Exercises V3 pro BT profile popover UI behavior.
 final class V3ProBTProfilePopoverUITests: OnboardProfilePopoverUITests {
     // Bluetooth profile create/metadata readback is serialized through the vendor transport and can
     // exceed the USB timeout even when the hardware operation succeeds and the UI updates correctly.
@@ -475,6 +477,7 @@ final class V3ProBTProfilePopoverUITests: OnboardProfilePopoverUITests {
     }
 }
 
+/// Stores temporary local profile test data.
 private struct TemporaryLocalProfile {
     let name: String
     let replaceIdentifier: String

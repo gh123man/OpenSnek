@@ -2,11 +2,13 @@ import Foundation
 import OpenSnekCore
 import SwiftUI
 
+/// Stores device status indicator data.
 struct DeviceStatusIndicator {
     let label: String
     let color: Color
 }
 
+/// Defines device connection state values.
 enum DeviceConnectionState: Equatable {
     case disconnected
     case reconnecting
@@ -49,6 +51,7 @@ enum DeviceConnectionState: Equatable {
     }
 }
 
+/// Defines DPI update transport status values.
 enum DpiUpdateTransportStatus: String, Codable, Equatable, Sendable {
     case unknown
     case listening
@@ -75,11 +78,13 @@ enum DpiUpdateTransportStatus: String, Codable, Equatable, Sendable {
     }
 }
 
+/// Stores remote client presence state.
 struct RemoteClientPresenceState {
     let expiresAt: Date
     let selectedDeviceID: String?
 }
 
+/// Defines button profile source values.
 enum ButtonProfileSource: Hashable, Codable, Identifiable {
     case openSnekProfile(UUID)
     case mouseSlot(Int)
@@ -94,6 +99,7 @@ enum ButtonProfileSource: Hashable, Codable, Identifiable {
     }
 }
 
+/// Stores USB button profile summary data.
 struct USBButtonProfileSummary: Identifiable, Hashable {
     let profile: Int
     let isHardwareActive: Bool
@@ -103,6 +109,7 @@ struct USBButtonProfileSummary: Identifiable, Hashable {
     var id: Int { profile }
 }
 
+/// Defines polling profile values.
 enum PollingProfile: Equatable {
     case foreground
     case serviceIdle
@@ -138,7 +145,9 @@ enum PollingProfile: Equatable {
     }
 }
 
+/// Defines runtime wake schedule values.
 enum RuntimeWakeSchedule {
+    /// Carries app state types context.
     struct Context {
         let now: Date
         let profile: PollingProfile
@@ -185,6 +194,7 @@ enum RuntimeWakeSchedule {
     }
 }
 
+/// Adds scoped helpers for `DevicePatch`.
 extension DevicePatch {
     var isEmpty: Bool {
         if pollRate != nil { return false }

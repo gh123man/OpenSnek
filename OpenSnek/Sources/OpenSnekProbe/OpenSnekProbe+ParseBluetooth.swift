@@ -2,6 +2,7 @@ import Foundation
 import OpenSnekCore
 import OpenSnekProtocols
 
+/// Adds parse Bluetooth behavior to `OpenSnekProbe`.
 extension OpenSnekProbe {
   static func parseBTRawReadArgs(_ args: [String]) throws -> ProbeBTRawReadArgs {
     let flags = parseFlags(args)

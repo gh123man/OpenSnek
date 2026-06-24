@@ -4,6 +4,7 @@ import IOKit
 import OpenSnekCore
 import OpenSnekHardware
 
+/// Exercises unsupported device handling behavior.
 final class UnsupportedDeviceHandlingTests: XCTestCase {
     func testUSBTelemetryUnavailableErrorClassification() {
         let unavailable = BridgeError.commandFailed(
@@ -214,6 +215,7 @@ final class UnsupportedDeviceHandlingTests: XCTestCase {
     }
 }
 
+/// Adds scoped helpers for `BridgeClient`.
 private extension BridgeClient {
     func testConfigureUSBAccessFlags(hidAccessDenied: Bool, managerAccessDenied: Bool) {
         self.hidAccessDenied = hidAccessDenied

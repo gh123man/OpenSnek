@@ -4,7 +4,9 @@ import OpenSnekCore
 import OpenSnekHardware
 import OpenSnekProtocols
 
+/// Serializes bridge client state and operations.
 actor BridgeClient {
+    /// Captures USB DPI stage state.
     struct USBDpiStageSnapshot: Equatable, Sendable {
         let active: Int
         let values: [Int]
@@ -12,6 +14,7 @@ actor BridgeClient {
         let stageIDs: [UInt8]
     }
 
+    /// Stores Bluetooth expected DPI state.
     struct BluetoothExpectedDpiState: Equatable, Sendable {
         let active: Int
         let values: [Int]
@@ -23,12 +26,14 @@ actor BridgeClient {
         var remainingMasks: Int
     }
 
+    /// Stores Bluetooth resolved DPI stage write data.
     struct BluetoothResolvedDpiStageWrite: Equatable, Sendable {
         let active: Int
         let stages: [Int]
         let pairs: [DpiPair]
     }
 
+    /// Carries USB DPI apply log context.
     struct USBDpiApplyLogContext {
         let device: MouseDevice
         let patch: DevicePatch
@@ -39,6 +44,7 @@ actor BridgeClient {
         let stages: [Int]
     }
 
+    /// Carries USB active DPI only apply context.
     struct USBActiveDpiOnlyApplyContext {
         let device: MouseDevice
         let patch: DevicePatch
@@ -47,6 +53,7 @@ actor BridgeClient {
         let livePair: DpiPair
     }
 
+    /// Carries USB resolved DPI stages apply context.
     struct USBResolvedDpiStagesApplyContext {
         let device: MouseDevice
         let stages: [Int]

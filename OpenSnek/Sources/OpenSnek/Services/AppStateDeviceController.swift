@@ -2,6 +2,7 @@ import Foundation
 import OpenSnekCore
 import OpenSnekHardware
 
+/// Coordinates app state device behavior.
 @MainActor
 final class AppStateDeviceController {
     static let bluetoothPassiveHeartbeatConnectedInterval: TimeInterval = 1.5
@@ -13,6 +14,7 @@ final class AppStateDeviceController {
     static let usbTelemetryUnavailableMessage =
         "USB device telemetry unavailable. Feature-report interface did not return usable responses."
 
+    /// Carries Bluetooth realtime refresh delay context.
     struct BluetoothRealtimeRefreshDelayContext {
         let transport: DeviceTransportKind
         let transportStatus: DpiUpdateTransportStatus?
@@ -22,6 +24,7 @@ final class AppStateDeviceController {
         let now: Date
     }
 
+    /// Carries editor presentation hydration request data.
     struct EditorPresentationHydrationRequest {
         let state: MouseState
         let device: MouseDevice
@@ -31,6 +34,7 @@ final class AppStateDeviceController {
         let scheduleButtonHydration: Bool
     }
 
+    /// Carries recent dynamic DPI refresh context.
     struct RecentDynamicDpiRefreshContext {
         let fetched: MouseState
         let latestCachedState: MouseState?
@@ -42,6 +46,7 @@ final class AppStateDeviceController {
         let start: Date
     }
 
+    /// Carries successful refresh context.
     struct SuccessfulRefreshContext {
         let merged: MouseState
         let sourceDevice: MouseDevice

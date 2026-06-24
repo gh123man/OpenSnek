@@ -1,6 +1,7 @@
 import XCTest
 import OpenSnekCore
 
+/// Exercises device patch merge behavior.
 final class DevicePatchMergeTests: XCTestCase {
     func testMergedUsesNewestFieldValues() {
         let older = DevicePatch(

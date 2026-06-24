@@ -4,6 +4,7 @@ import OpenSnekAppSupport
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises app state button hydration behavior.
 final class AppStateButtonHydrationTests: XCTestCase {
     func testUSBRefreshDoesNotApplyPersistedButtonBindingsWithoutUserAction() async throws {
         let device = makeRefactorTestDevice(
@@ -226,6 +227,7 @@ final class AppStateButtonHydrationTests: XCTestCase {
     }
 
     func testUSBButtonHydrationIgnoresPlaceholderSerialCacheWhenReadbackIsUnavailable() async throws {
+        /// Stores legacy persisted binding test data.
         struct LegacyPersistedBinding: Codable {
             let kindRaw: String
             let hidKey: Int

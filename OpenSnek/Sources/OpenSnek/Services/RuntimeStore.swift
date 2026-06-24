@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 
+/// Coordinates persisted runtime state.
 @MainActor
 @Observable
 final class RuntimeStore {

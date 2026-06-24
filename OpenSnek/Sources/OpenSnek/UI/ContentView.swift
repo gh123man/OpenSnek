@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import OpenSnekCore
 
+/// Renders the content view UI.
 struct ContentView: View {
     let deviceStore: DeviceStore
     let editorStore: EditorStore
@@ -408,6 +409,7 @@ struct ContentView: View {
     }
 }
 
+/// Stores empty device state.
 private struct EmptyDeviceState: View {
     let rows: [SupportedDeviceRow]
     @State private var showsWaitingState = true
@@ -452,6 +454,7 @@ private struct EmptyDeviceState: View {
     }
 }
 
+/// Renders the empty device state panel UI.
 private struct EmptyDeviceStatePanel: View {
     let showsWaitingState: Bool
     let supportedFamilyCount: Int
@@ -516,6 +519,7 @@ private struct EmptyDeviceStatePanel: View {
     }
 }
 
+/// Renders the supported devices table sheet UI.
 private struct SupportedDevicesTableSheet: View {
     let rows: [SupportedDeviceRow]
     @Environment(\.dismiss) private var dismiss
@@ -565,6 +569,7 @@ private struct SupportedDevicesTableSheet: View {
     }
 }
 
+/// Renders the supported device row UI.
 private struct SupportedDeviceRow: Identifiable {
     let id: String
     let familyID: String
@@ -586,6 +591,7 @@ private struct SupportedDeviceRow: Identifiable {
     }
 }
 
+/// Renders the supported devices table UI.
 private struct SupportedDevicesTable: View {
     let rows: [SupportedDeviceRow]
 
@@ -603,6 +609,7 @@ private struct SupportedDevicesTable: View {
     }
 }
 
+/// Renders the supported devices table content UI.
 private struct SupportedDevicesTableContent: View {
     let rows: [SupportedDeviceRow]
 
@@ -638,6 +645,7 @@ private struct SupportedDevicesTableContent: View {
     }
 }
 
+/// Renders the supported devices table header UI.
 private struct SupportedDevicesTableHeader: View {
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
@@ -664,6 +672,7 @@ private struct SupportedDevicesTableHeader: View {
     }
 }
 
+/// Renders the supported devices table row UI.
 private struct SupportedDevicesTableRow: View {
     let row: SupportedDeviceRow
 
@@ -702,6 +711,7 @@ private struct SupportedDevicesTableRow: View {
     }
 }
 
+/// Stores notice item data.
 private struct NoticeItem {
     let title: String
     let message: String
@@ -710,6 +720,7 @@ private struct NoticeItem {
     var actions: [NoticeAction] = []
 }
 
+/// Defines content notice presentation values.
 enum ContentNoticePresentation {
     static func shouldSuppressTelemetryNoticeDuringConnectionRecovery(
         connectionState: DeviceConnectionState,
@@ -734,12 +745,14 @@ enum ContentNoticePresentation {
     }
 }
 
+/// Stores notice action data.
 private struct NoticeAction {
     let title: String
     var isProminent: Bool = false
     let handler: () -> Void
 }
 
+/// Defines status notice tone values.
 private enum StatusNoticeTone {
     case error
     case warning
@@ -768,6 +781,7 @@ private enum StatusNoticeTone {
     }
 }
 
+/// Renders the status notice card UI.
 private struct StatusNoticeCard: View {
     let title: String
     let message: String

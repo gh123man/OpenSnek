@@ -2,6 +2,7 @@ import XCTest
 import OpenSnekAppSupport
 import OpenSnekCore
 
+/// Exercises device preference store behavior.
 final class DevicePreferenceStoreTests: XCTestCase {
     func testOpenSnekButtonProfileLibrarySupportsSaveUpdateAndDelete() {
         let suiteName = "DevicePreferenceStoreTests.Library.\(UUID().uuidString)"

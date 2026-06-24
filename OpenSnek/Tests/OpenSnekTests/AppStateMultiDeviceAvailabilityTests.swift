@@ -5,6 +5,7 @@ import OpenSnekCore
 import OpenSnekHardware
 @testable import OpenSnek
 
+/// Exercises app state multi device availability behavior.
 final class AppStateMultiDeviceAvailabilityTests: XCTestCase {
     func testMappedOnboardProfileDevicesHideProfileButtonFromUnsupportedFootnote() async {
         let device = makeTestDevice(

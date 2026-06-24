@@ -3,6 +3,7 @@ import Network
 import OpenSnekCore
 import OpenSnekHardware
 
+/// Adds scoped helpers for `LocalBridgeBackend`.
 extension LocalBridgeBackend {
     nonisolated static func mergedApplyState(_ state: MouseState, previous: MouseState?) -> MouseState {
         state.merged(with: previous)

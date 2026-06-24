@@ -1,6 +1,7 @@
 import Foundation
 import OSLog
 
+/// Defines app log level values.
 enum AppLogLevel: String, CaseIterable, Identifiable, Comparable {
     case debug
     case info
@@ -53,6 +54,7 @@ enum AppLogLevel: String, CaseIterable, Identifiable, Comparable {
     }
 }
 
+/// Coordinates app log behavior.
 final class AppLog: @unchecked Sendable {
     static let shared = AppLog()
     static let levelDefaultsKey = "openSnek.logLevel"

@@ -2,6 +2,7 @@ import Foundation
 import OpenSnekCore
 import OpenSnekProtocols
 
+/// Adds usage behavior to `OpenSnekProbe`.
 extension OpenSnekProbe {
   static var usageText: String {
     """

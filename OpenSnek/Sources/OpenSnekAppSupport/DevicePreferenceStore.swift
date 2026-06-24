@@ -1,6 +1,7 @@
 import Foundation
 import OpenSnekCore
 
+/// Stores OpenSnek button profile data.
 public struct OpenSnekButtonProfile: Identifiable, Codable, Hashable, Sendable {
     public let id: UUID
     public var name: String
@@ -13,6 +14,7 @@ public struct OpenSnekButtonProfile: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
+/// Stores OpenSnek local profile content data.
 public struct OpenSnekLocalProfileContent: Codable, Hashable, Sendable {
     public var dpi: OnboardDPIProfileSnapshot?
     public var buttonBindings: [Int: ButtonBindingDraft]
@@ -56,6 +58,7 @@ public struct OpenSnekLocalProfileContent: Codable, Hashable, Sendable {
     }
 }
 
+/// Stores OpenSnek local profile data.
 public struct OpenSnekLocalProfile: Identifiable, Codable, Hashable, Sendable {
     public let id: UUID
     public var name: String
@@ -98,6 +101,7 @@ public struct OpenSnekLocalProfile: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
+/// Defines device connect behavior values.
 public enum DeviceConnectBehavior: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
     case useMouseSettings = "use_mouse_settings"
     case restoreOpenSnekSettings = "restore_open_snek_settings"
@@ -105,6 +109,7 @@ public enum DeviceConnectBehavior: String, CaseIterable, Codable, Hashable, Iden
     public var id: String { rawValue }
 }
 
+/// Stores persisted lighting effect preference data.
 public struct PersistedLightingEffectPreference: Hashable, Sendable {
     public let kind: LightingEffectKind
     public let waveDirection: LightingWaveDirection
@@ -124,6 +129,7 @@ public struct PersistedLightingEffectPreference: Hashable, Sendable {
     }
 }
 
+/// Captures persisted device settings state.
 public struct PersistedDeviceSettingsSnapshot: Codable, Hashable, Sendable {
     public var stageCount: Int
     public var stageValues: [Int]
@@ -186,6 +192,7 @@ public struct PersistedDeviceSettingsSnapshot: Codable, Hashable, Sendable {
     }
 }
 
+/// Coordinates persisted device preference state.
 public final class DevicePreferenceStore: @unchecked Sendable {
     private let defaults: UserDefaults
     private let openSnekButtonProfilesKey = "openSnekButtonProfiles"
@@ -778,6 +785,7 @@ public final class DevicePreferenceStore: @unchecked Sendable {
     }
 }
 
+/// Stores persisted button binding data.
 private struct PersistedButtonBinding: Codable {
     let kindRaw: String
     let hidKey: Int
@@ -787,6 +795,7 @@ private struct PersistedButtonBinding: Codable {
     let clutchDPI: Int?
 }
 
+/// Stores persisted lighting effect data.
 private struct PersistedLightingEffect: Codable {
     let kindRaw: String
     let waveDirectionRaw: Int

@@ -4,6 +4,7 @@ import IOKit
 import IOKit.hid
 import OpenSnekProtocols
 
+/// Groups USB HID support helpers.
 public enum USBHIDSupport {
     public static func intProperty(_ device: IOHIDDevice, key: CFString) -> Int? {
         guard let value = IOHIDDeviceGetProperty(device, key) else { return nil }
@@ -65,7 +66,9 @@ public enum USBHIDSupport {
     }
 }
 
+/// Coordinates USB HID control session behavior.
 public final class USBHIDControlSession: @unchecked Sendable {
+    /// Stores interprocess device lock data.
     private struct InterprocessDeviceLock {
         let fd: Int32
 
@@ -75,6 +78,7 @@ public final class USBHIDControlSession: @unchecked Sendable {
         }
     }
 
+    /// Coordinates device lock registry behavior.
     private final class DeviceLockRegistry: @unchecked Sendable {
         private let registryLock = NSLock()
         private var deviceLocks: [String: NSRecursiveLock] = [:]

@@ -1,5 +1,6 @@
 import Foundation
 
+/// Defines Bluetooth name matcher values.
 public enum BluetoothNameMatcher {
     public static func normalized(_ value: String?) -> String? {
         guard let value else { return nil }

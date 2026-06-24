@@ -1,5 +1,6 @@
 import Foundation
 
+/// Stores app local storage resetter data.
 @MainActor
 struct AppLocalStorageResetter {
     private let backgroundServiceCoordinator: BackgroundServiceCoordinator

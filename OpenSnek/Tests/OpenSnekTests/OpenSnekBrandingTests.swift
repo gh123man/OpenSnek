@@ -2,6 +2,7 @@ import AppKit
 import XCTest
 @testable import OpenSnek
 
+/// Exercises OpenSnek branding behavior.
 final class OpenSnekBrandingTests: XCTestCase {
     func testMenuIconUsesTemplateRendering() throws {
         let icon = try XCTUnwrap(

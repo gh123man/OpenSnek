@@ -2,6 +2,7 @@ import Foundation
 import OpenSnekCore
 import OpenSnekHardware
 
+/// Adds device list selection behavior to `AppStateDeviceController`.
 @MainActor
 extension AppStateDeviceController {
     func refreshDevices() async {

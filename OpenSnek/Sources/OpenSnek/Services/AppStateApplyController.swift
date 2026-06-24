@@ -2,6 +2,7 @@ import Foundation
 import OpenSnekAppSupport
 import OpenSnekCore
 
+/// Coordinates app state apply behavior.
 @MainActor
 final class AppStateApplyController {
     private static let fastDpiApplySuppressionDuration: TimeInterval = 0.9
@@ -20,6 +21,7 @@ final class AppStateApplyController {
     private var runtimeController: AppStateRuntimeController
 
     let applyCoordinator = ApplyCoordinator()
+    /// Defines apply task key values.
     enum ApplyTaskKey: Hashable {
         case dpi
         case pollRate
@@ -35,6 +37,7 @@ final class AppStateApplyController {
         case activeStage
     }
 
+    /// Stores apply behavior data.
     struct ApplyBehavior {
         let markApplyingState: Bool
         let shouldFocusOnActivity: Bool
@@ -67,6 +70,7 @@ final class AppStateApplyController {
         }
     }
 
+    /// Carries successful apply context.
     private struct SuccessfulApplyContext {
         let next: MouseState
         let targetDevice: MouseDevice

@@ -1,6 +1,7 @@
 import XCTest
 import OpenSnekCore
 
+/// Exercises turbo rate mapping behavior.
 @MainActor
 final class TurboRateMappingTests: XCTestCase {
     func testTurboRawToPressesPerSecondExtremes() {

@@ -4,6 +4,7 @@ import OpenSnekCore
 import OpenSnekHardware
 import OpenSnekProtocols
 
+/// Adds apply behavior to `BridgeClient`.
 extension BridgeClient {
     func apply(device: MouseDevice, patch: DevicePatch, options: ApplyOptions = ApplyOptions()) async throws -> MouseState {
         if device.transport == .bluetooth {
@@ -718,6 +719,7 @@ extension BridgeClient {
     }
 }
 
+/// Adds apply behavior to `DevicePatch`.
 private extension DevicePatch {
     var isActiveStageOnly: Bool {
         guard activeStage != nil else { return false }

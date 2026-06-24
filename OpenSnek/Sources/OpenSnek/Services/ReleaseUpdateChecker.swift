@@ -1,15 +1,19 @@
 import Foundation
 
+/// Defines the release update checking contract.
 protocol ReleaseUpdateChecking: Sendable {
     func checkForUpdate(currentVersion: String) async throws -> ReleaseAvailability?
 }
 
+/// Defines app build channel values.
 enum AppBuildChannel: String, Equatable {
     case dev
     case release
 }
 
+/// Stores release version data.
 struct ReleaseVersion: Comparable, Equatable {
+    /// Defines pre release identifier values.
     enum PreReleaseIdentifier: Comparable, Equatable {
         case numeric(Int)
         case textual(String)
@@ -109,12 +113,15 @@ struct ReleaseVersion: Comparable, Equatable {
     }
 }
 
+/// Stores release availability data.
 struct ReleaseAvailability: Equatable {
     let latestVersion: String
     let releaseURL: URL
 }
 
+/// Stores release update checker data.
 struct ReleaseUpdateChecker: ReleaseUpdateChecking, Sendable {
+    /// Carries latest release response data.
     private struct LatestReleaseResponse: Decodable {
         let tag_name: String
         let html_url: String?

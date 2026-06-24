@@ -4,6 +4,7 @@ import OpenSnekAppSupport
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises app state local profile cross device behavior.
 final class AppStateLocalProfileCrossDeviceTests: XCTestCase {
     func testHyperSpeedLocalProfileKeepsLogicalDPIStagesOnV3ProPaddedReadback() async throws {
         clearSavedButtonProfiles()

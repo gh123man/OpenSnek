@@ -1,5 +1,6 @@
 import XCTest
 
+/// Exercises V3 pro Bluetooth feature sweep UI behavior.
 final class V3ProBluetoothFeatureSweepUITests: OpenSnekHardwareUITestCase {
     private lazy var sweep = FeatureSweep(testCase: self, configuration: .v3ProBluetooth)
     private var pendingClutchRestoreDPI: Int?

@@ -2,6 +2,7 @@ import Foundation
 import OpenSnekCore
 import OpenSnekProtocols
 
+/// Adds lighting descriptions behavior to `OpenSnekProbe`.
 extension OpenSnekProbe {
   static func invalidUSBLightingZone(zoneID: String?, usb: USBProbeClient) -> ProbeError {
     let requested = zoneID ?? "all"

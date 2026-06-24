@@ -4,6 +4,7 @@ import OpenSnekAppSupport
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises app state fresh local profile behavior.
 final class AppStateFreshLocalProfileTests: XCTestCase {
     func testMappedBluetoothCreateDoesNotBackfillUnsupportedScrollFields() {
         let bluetoothDevice = makeRefactorTestDevice(

@@ -1,5 +1,6 @@
 import Foundation
 
+/// Defines keyboard binding group values.
 enum KeyboardBindingGroup: String, CaseIterable, Identifiable {
     case letters
     case numbers
@@ -28,6 +29,7 @@ enum KeyboardBindingGroup: String, CaseIterable, Identifiable {
     }
 }
 
+/// Stores keyboard binding option data.
 struct KeyboardBindingOption: Identifiable, Hashable {
     let hidKey: Int
     let label: String
@@ -37,6 +39,7 @@ struct KeyboardBindingOption: Identifiable, Hashable {
     var id: Int { hidKey }
 }
 
+/// Groups app state keyboard support helpers.
 enum AppStateKeyboardSupport {
     static let keyOptions: [KeyboardBindingOption] = {
         var options: [KeyboardBindingOption] = []
@@ -245,6 +248,7 @@ enum AppStateKeyboardSupport {
         KeyboardBindingOption(hidKey: hidKey, label: label, aliases: aliases, group: group)
     }
 
+    /// Stores search match data.
     private struct SearchMatch {
         let option: KeyboardBindingOption
         let score: Int

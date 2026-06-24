@@ -3,6 +3,7 @@
 import AppKit
 import Foundation
 
+/// Stores render dmg background options.
 struct Options {
     var outputPath: String = ""
     var width: Int = 780
@@ -11,6 +12,7 @@ struct Options {
     var iconPath: String = ""
 }
 
+/// Describes render failures.
 enum RenderError: Error, CustomStringConvertible {
     case usage(String)
     case help(String)

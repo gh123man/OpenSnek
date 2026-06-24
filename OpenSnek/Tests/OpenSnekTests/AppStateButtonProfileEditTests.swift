@@ -4,6 +4,7 @@ import OpenSnekAppSupport
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises app state button profile edit behavior.
 final class AppStateButtonProfileEditTests: XCTestCase {
     func testDefaultDPIButtonAppliesAsDPICycleOn35K() async throws {
         let device = MouseDevice(

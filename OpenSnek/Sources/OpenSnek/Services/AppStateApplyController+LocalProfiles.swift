@@ -2,8 +2,10 @@ import Foundation
 import OpenSnekAppSupport
 import OpenSnekCore
 
+/// Adds local profiles behavior to `AppStateApplyController`.
 @MainActor
 extension AppStateApplyController {
+    /// Stores local profile lighting patch data.
     private struct LocalProfileLightingPatch {
         let rgb: RGBPatch?
         let effect: LightingEffectPatch?

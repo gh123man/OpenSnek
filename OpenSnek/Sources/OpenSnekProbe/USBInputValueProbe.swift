@@ -4,6 +4,7 @@ import OpenSnekCore
 import OpenSnekHardware
 import OpenSnekProtocols
 
+/// Describes USB input value event data.
 struct USBInputValueEvent: Sendable {
   let candidateIndex: Int
   let deviceUsagePage: Int
@@ -23,7 +24,9 @@ struct USBInputValueEvent: Sendable {
   }
 }
 
+/// Coordinates USB input value probe behavior.
 final class USBInputValueProbe: @unchecked Sendable {
+  /// Coordinates callback context behavior.
   private final class CallbackContext {
     let emit: @Sendable (IOHIDValue, UInt?) -> Void
 

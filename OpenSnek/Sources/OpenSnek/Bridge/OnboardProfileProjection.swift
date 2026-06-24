@@ -3,6 +3,7 @@ import OpenSnekCore
 import OpenSnekHardware
 import OpenSnekProtocols
 
+/// Adds scoped helpers for `OnboardProfileSnapshot`.
 extension OnboardProfileSnapshot {
     func renamed(_ metadata: OnboardProfileMetadata) -> OnboardProfileSnapshot {
         OnboardProfileSnapshot(
@@ -19,6 +20,7 @@ extension OnboardProfileSnapshot {
     }
 }
 
+/// Adds scoped helpers for `OnboardProfileMutation`.
 extension OnboardProfileMutation {
     func needsMappedContentFill(for device: MouseDevice) -> Bool {
         if dpi == nil { return true }

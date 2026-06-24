@@ -4,6 +4,7 @@ import OpenSnekAppSupport
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises app state apply and DPI characterization behavior.
 final class AppStateApplyAndDPICharacterizationTests: XCTestCase {
     func testNewlyEnabledDPIStageSeedsDistinctValueBeforeApply() async {
         let appState = await MainActor.run {

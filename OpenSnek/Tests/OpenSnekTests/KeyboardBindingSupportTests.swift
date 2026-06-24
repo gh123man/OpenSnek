@@ -1,6 +1,7 @@
 import XCTest
 @testable import OpenSnek
 
+/// Exercises keyboard binding support behavior.
 final class KeyboardBindingSupportTests: XCTestCase {
     func testCatalogIncludesModifiersNavigationAndFunctionKeys() {
         let labelsByHidKey = Dictionary(uniqueKeysWithValues: AppStateKeyboardSupport.keyOptions.map { ($0.hidKey, $0.label) })

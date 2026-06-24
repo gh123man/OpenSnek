@@ -2,6 +2,7 @@ import XCTest
 import OpenSnekAppSupport
 import OpenSnekCore
 
+/// Exercises apply coordinator behavior.
 final class ApplyCoordinatorTests: XCTestCase {
     func testEnqueueMergesNewestValues() {
         let coordinator = ApplyCoordinator()

@@ -2,6 +2,7 @@ import XCTest
 import OpenSnekCore
 import OpenSnekProtocols
 
+/// Exercises BLE vendor protocol behavior.
 final class BLEVendorProtocolTests: XCTestCase {
     func testReadHeaderEncoding() {
         let data = BLEVendorProtocol.buildReadHeader(req: 0x34, key: .dpiStagesGet)

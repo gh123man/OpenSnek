@@ -1,5 +1,6 @@
 import Foundation
 
+/// Defines developer runtime options values.
 public enum DeveloperRuntimeOptions {
     public static let pollingEnabledDefaultsKey = "developer.runtimePollingEnabled"
     public static let passiveHIDUpdatesEnabledDefaultsKey = "developer.passiveHIDUpdatesEnabled"

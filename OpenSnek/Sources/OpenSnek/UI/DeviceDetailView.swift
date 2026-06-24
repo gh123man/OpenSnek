@@ -3,6 +3,7 @@ import OpenSnekAppSupport
 import SwiftUI
 import OpenSnekCore
 
+/// Renders the device detail view UI.
 struct DeviceDetailView: View {
     let deviceStore: DeviceStore
     let editorStore: EditorStore
@@ -127,6 +128,7 @@ struct DeviceDetailView: View {
     }
 }
 
+/// Defines detail section values.
 private enum DetailSection: Hashable {
     case dpiStages
     case onConnect
@@ -138,14 +140,17 @@ private enum DetailSection: Hashable {
     case buttonRemap
 }
 
+/// Identifies preferred detail column layout values.
 private struct PreferredDetailColumnLayoutKey: LayoutValueKey {
     static let defaultValue = -1
 }
 
+/// Identifies detail card max width layout values.
 private struct DetailCardMaxWidthLayoutKey: LayoutValueKey {
     static let defaultValue: CGFloat = .greatestFiniteMagnitude
 }
 
+/// Stores detail columns layout data.
 private struct DetailColumnsLayout: Layout {
     let minTwoColumnCardWidth: CGFloat
     let twoColumnBreakpointPadding: CGFloat
@@ -226,6 +231,7 @@ private struct DetailColumnsLayout: Layout {
     }
 }
 
+/// Stores device overview bar data.
 struct DeviceOverviewBar: View {
     let deviceStore: DeviceStore
     let editorStore: EditorStore
@@ -327,6 +333,7 @@ struct DeviceOverviewBar: View {
     }
 }
 
+/// Renders the generic device detail view UI.
 struct GenericDeviceDetailView: View {
     let deviceStore: DeviceStore
     let selected: MouseDevice
@@ -401,6 +408,7 @@ struct GenericDeviceDetailView: View {
     }
 }
 
+/// Renders the device unavailable detail view UI.
 struct DeviceUnavailableDetailView: View {
     let deviceStore: DeviceStore
     let selected: MouseDevice
@@ -445,6 +453,7 @@ struct DeviceUnavailableDetailView: View {
     }
 }
 
+/// Renders the device connecting detail view UI.
 struct DeviceConnectingDetailView: View {
     let deviceStore: DeviceStore
     let selected: MouseDevice
@@ -489,6 +498,7 @@ struct DeviceConnectingDetailView: View {
     }
 }
 
+/// Renders the device connection loading card UI.
 private struct DeviceConnectionLoadingCard: View {
     let headline: String
     let subtitle: String
@@ -502,6 +512,7 @@ private struct DeviceConnectionLoadingCard: View {
     }
 }
 
+/// Renders the device connection loading content UI.
 private struct DeviceConnectionLoadingContent: View {
     let headline: String
     let subtitle: String
@@ -527,6 +538,7 @@ private struct DeviceConnectionLoadingContent: View {
     }
 }
 
+/// Stores device connection loading background data.
 private struct DeviceConnectionLoadingBackground: View {
     var body: some View {
         RoundedRectangle(cornerRadius: 28)
@@ -538,6 +550,7 @@ private struct DeviceConnectionLoadingBackground: View {
     }
 }
 
+/// Stores generic device overview bar data.
 struct GenericDeviceOverviewBar: View {
     let deviceStore: DeviceStore
     let selected: MouseDevice
@@ -585,6 +598,7 @@ struct GenericDeviceOverviewBar: View {
     }
 }
 
+/// Stores unsupported USB inline banner data.
 private struct UnsupportedUSBInlineBanner: View {
     var body: some View {
         HStack(spacing: 8) {
@@ -610,6 +624,7 @@ private struct UnsupportedUSBInlineBanner: View {
     }
 }
 
+/// Renders the diagnostics footer UI.
 struct DiagnosticsFooter: View {
     let deviceStore: DeviceStore
     let device: MouseDevice
@@ -626,6 +641,7 @@ struct DiagnosticsFooter: View {
     }
 }
 
+/// Stores device status badge data.
 struct DeviceStatusBadge: View {
     let indicator: DeviceStatusIndicator
     var helpText: String?
@@ -650,6 +666,7 @@ struct DeviceStatusBadge: View {
     }
 }
 
+/// Renders the device status badge content UI.
 private struct DeviceStatusBadgeContent: View {
     let indicator: DeviceStatusIndicator
 
@@ -669,6 +686,7 @@ private struct DeviceStatusBadgeContent: View {
     }
 }
 
+/// Renders the device diagnostics button UI.
 struct DeviceDiagnosticsButton: View {
     let deviceStore: DeviceStore
     let device: MouseDevice
@@ -691,6 +709,7 @@ struct DeviceDiagnosticsButton: View {
     }
 }
 
+/// Renders the device diagnostics sheet UI.
 struct DeviceDiagnosticsSheet: View {
     let deviceStore: DeviceStore
     let device: MouseDevice
@@ -725,6 +744,7 @@ struct DeviceDiagnosticsSheet: View {
     }
 }
 
+/// Renders the device diagnostics sheet header UI.
 private struct DeviceDiagnosticsSheetHeader: View {
     let deviceName: String
     let copy: () -> Void
@@ -751,6 +771,7 @@ private struct DeviceDiagnosticsSheetHeader: View {
     }
 }
 
+/// Renders the device diagnostics connection panel UI.
 private struct DeviceDiagnosticsConnectionPanel: View {
     let lines: [String]
 
@@ -777,6 +798,7 @@ private struct DeviceDiagnosticsConnectionPanel: View {
     }
 }
 
+/// Renders the device diagnostics text panel UI.
 private struct DeviceDiagnosticsTextPanel: View {
     let text: String
 

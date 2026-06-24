@@ -3,6 +3,7 @@ import Network
 import OpenSnekCore
 import OpenSnekHardware
 
+/// Serializes local bridge backend state and operations.
 final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptionsSupportingBackend {
     static let shared = LocalBridgeBackend()
     private static let usbDisconnectDebounceInterval: TimeInterval = 0.75

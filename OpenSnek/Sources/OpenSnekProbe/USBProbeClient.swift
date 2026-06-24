@@ -4,6 +4,7 @@ import OpenSnekCore
 import OpenSnekHardware
 import OpenSnekProtocols
 
+/// Coordinates USB probe client operations.
 final class USBProbeClient: @unchecked Sendable {
   private let manager: IOHIDManager
   private let session: USBHIDControlSession

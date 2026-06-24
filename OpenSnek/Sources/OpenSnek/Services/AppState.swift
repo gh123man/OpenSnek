@@ -1,6 +1,7 @@
 import Foundation
 import OpenSnekCore
 
+/// Coordinates app state behavior.
 @MainActor
 final class AppState {
     let environment: AppEnvironment

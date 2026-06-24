@@ -4,6 +4,7 @@ import OpenSnekAppSupport
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises app state onboard mutation behavior.
 final class AppStateOnboardMutationTests: XCTestCase {
     func testCreatingOnboardProfileCanCopyExistingSlot() async throws {
         let device = makeRefactorTestDevice(

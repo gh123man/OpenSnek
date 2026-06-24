@@ -1,5 +1,6 @@
 import Foundation
 
+/// Defines device transport kind values.
 public enum DeviceTransportKind: String, CaseIterable, Codable, Hashable, Sendable {
     case usb
     case bluetooth
@@ -28,6 +29,7 @@ public enum DeviceTransportKind: String, CaseIterable, Codable, Hashable, Sendab
     }
 }
 
+/// Defines device profile ID values.
 public enum DeviceProfileID: String, Codable, Hashable, Sendable {
     case basiliskV3XHyperspeed = "basilisk_v3_x_hyperspeed"
     case basiliskV3 = "basilisk_v3"
@@ -36,6 +38,7 @@ public enum DeviceProfileID: String, Codable, Hashable, Sendable {
     case orochiV2 = "orochi_v2"
 }
 
+/// Stores device identity data.
 public struct DeviceIdentity: Codable, Hashable, Sendable {
     public let vendorID: Int
     public let productID: Int
@@ -50,6 +53,7 @@ public struct DeviceIdentity: Codable, Hashable, Sendable {
     }
 }
 
+/// Stores mouse device data.
 public struct MouseDevice: Codable, Identifiable, Hashable, Sendable {
     public let id: String
     public let vendor_id: Int
@@ -121,6 +125,7 @@ public struct MouseDevice: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
+/// Stores DPI pair data.
 public struct DpiPair: Codable, Hashable, Sendable {
     public let x: Int
     public let y: Int
@@ -131,6 +136,7 @@ public struct DpiPair: Codable, Hashable, Sendable {
     }
 }
 
+/// Stores DPI stages data.
 public struct DpiStages: Codable, Hashable, Sendable {
     public let active_stage: Int?
     public let values: [Int]?
@@ -143,6 +149,7 @@ public struct DpiStages: Codable, Hashable, Sendable {
     }
 }
 
+/// Stores device mode data.
 public struct DeviceMode: Codable, Hashable, Sendable {
     public let mode: Int
     public let param: Int
@@ -153,6 +160,7 @@ public struct DeviceMode: Codable, Hashable, Sendable {
     }
 }
 
+/// Stores capabilities data.
 public struct Capabilities: Codable, Hashable, Sendable {
     public let dpi_stages: Bool
     public let poll_rate: Bool
@@ -169,6 +177,7 @@ public struct Capabilities: Codable, Hashable, Sendable {
     }
 }
 
+/// Stores mouse state.
 public struct MouseState: Codable, Hashable, Sendable {
     public let device: DeviceSummary
     public let connection: String
@@ -227,6 +236,7 @@ public struct MouseState: Codable, Hashable, Sendable {
     }
 }
 
+/// Adds scoped helpers for `MouseState`.
 public extension MouseState {
     func merged(with previous: MouseState?) -> MouseState {
         guard let previous else { return self }
@@ -361,6 +371,7 @@ public extension MouseState {
     }
 }
 
+/// Stores device summary data.
 public struct DeviceSummary: Codable, Hashable, Sendable {
     public let id: String?
     public let product_name: String?
@@ -377,6 +388,7 @@ public struct DeviceSummary: Codable, Hashable, Sendable {
     }
 }
 
+/// Adds scoped helpers for `DeviceSummary`.
 public extension DeviceSummary {
     func merged(with previous: DeviceSummary) -> DeviceSummary {
         DeviceSummary(
@@ -389,6 +401,7 @@ public extension DeviceSummary {
     }
 }
 
+/// Wraps bridge payload data.
 public struct BridgeEnvelope: Codable, Sendable {
     public let ok: Bool
     public let error: String?
@@ -407,6 +420,7 @@ public struct BridgeEnvelope: Codable, Sendable {
     }
 }
 
+/// Stores RGB patch data.
 public struct RGBPatch: Sendable, Hashable, Codable {
     public let r: Int
     public let g: Int
@@ -419,6 +433,7 @@ public struct RGBPatch: Sendable, Hashable, Codable {
     }
 }
 
+/// Stores RGB color data.
 public struct RGBColor: Equatable, Hashable, Codable, Sendable {
     public var r: Int
     public var g: Int
@@ -431,6 +446,7 @@ public struct RGBColor: Equatable, Hashable, Codable, Sendable {
     }
 }
 
+/// Defines lighting effect kind values.
 public enum LightingEffectKind: String, CaseIterable, Identifiable, Codable, Sendable {
     case off
     case staticColor = "static"
@@ -478,6 +494,7 @@ public enum LightingEffectKind: String, CaseIterable, Identifiable, Codable, Sen
     }
 }
 
+/// Defines lighting wave direction values.
 public enum LightingWaveDirection: Int, CaseIterable, Identifiable, Codable, Sendable {
     case left = 1
     case right = 2
@@ -492,6 +509,7 @@ public enum LightingWaveDirection: Int, CaseIterable, Identifiable, Codable, Sen
     }
 }
 
+/// Stores lighting effect patch data.
 public struct LightingEffectPatch: Sendable, Hashable, Codable {
     public let kind: LightingEffectKind
     public let primary: RGBPatch
@@ -514,6 +532,7 @@ public struct LightingEffectPatch: Sendable, Hashable, Codable {
     }
 }
 
+/// Stores button binding patch data.
 public struct ButtonBindingPatch: Sendable, Hashable, Codable {
     public let slot: Int
     public let kind: ButtonBindingKind
@@ -551,12 +570,14 @@ public struct ButtonBindingPatch: Sendable, Hashable, Codable {
     }
 }
 
+/// Defines USB button profile action kind values.
 public enum USBButtonProfileActionKind: String, Codable, Hashable, Sendable {
     case projectToDirectLayer = "project_to_direct_layer"
     case duplicateToPersistentSlot = "duplicate_to_persistent_slot"
     case resetPersistentSlot = "reset_persistent_slot"
 }
 
+/// Stores USB button profile action patch data.
 public struct USBButtonProfileActionPatch: Sendable, Hashable, Codable {
     public let kind: USBButtonProfileActionKind
     public let sourceProfile: Int?
@@ -573,6 +594,7 @@ public struct USBButtonProfileActionPatch: Sendable, Hashable, Codable {
     }
 }
 
+/// Stores device patch data.
 public struct DevicePatch: Sendable, Hashable, Codable {
     public var pollRate: Int?
     public var sleepTimeout: Int?
@@ -628,6 +650,7 @@ public struct DevicePatch: Sendable, Hashable, Codable {
     }
 }
 
+/// Adds scoped helpers for `DevicePatch`.
 public extension DevicePatch {
     func merged(with newer: DevicePatch) -> DevicePatch {
         DevicePatch(
@@ -651,6 +674,7 @@ public extension DevicePatch {
     }
 }
 
+/// Adds scoped helpers for `DevicePatch`.
 public extension DevicePatch {
     var affectsDpiStages: Bool {
         dpiStages != nil || dpiStagePairs != nil || activeStage != nil
@@ -664,6 +688,7 @@ public extension DevicePatch {
     }
 }
 
+/// Defines button binding kind values.
 public enum ButtonBindingKind: String, CaseIterable, Identifiable, Codable, Sendable {
     case `default`
     case dpiCycle = "dpi_cycle"

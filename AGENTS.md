@@ -77,6 +77,8 @@ intentional, documented, and narrower than the next-best refactor.
 - Keep line wrapping readable even while `line_length` is temporarily disabled. Break long argument
   lists, arrays, dictionaries, chained calls, and assertions across lines with trailing commas
   omitted.
+- Add a doc comment immediately before every class, struct, enum, protocol, actor, and extension
+  declaration. Functions are intentionally outside this requirement for now.
 - Let Swift format conventions carry simple control flow: no unnecessary parentheses around `if`,
   `guard`, `while`, or `switch` conditions.
 - Before pushing Swift changes, run

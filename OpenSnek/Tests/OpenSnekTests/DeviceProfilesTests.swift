@@ -1,6 +1,7 @@
 import XCTest
 import OpenSnekCore
 
+/// Exercises device profiles behavior.
 final class DeviceProfilesTests: XCTestCase {
     func testResolveUSBProfileForBasiliskV3X() {
         let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00B9, transport: .usb)

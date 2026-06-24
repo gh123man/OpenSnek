@@ -3,6 +3,7 @@ import XCTest
 import OpenSnekCore
 @testable import OpenSnek
 
+/// Exercises background service transport behavior.
 final class BackgroundServiceTransportTests: XCTestCase {
     func testCoordinatorConnectsToPublishedServiceAndRoutesRequests() async throws {
         let suiteName = "BackgroundServiceTransportTests.\(UUID().uuidString)"
@@ -271,6 +272,7 @@ final class BackgroundServiceTransportTests: XCTestCase {
     }
 }
 
+/// Provides a stub service backend test double.
 private actor StubServiceBackend: HIDAccessRefreshControllingBackend {
     nonisolated var usesRemoteServiceTransport: Bool { false }
 
@@ -464,6 +466,7 @@ private actor StubServiceBackend: HIDAccessRefreshControllingBackend {
     }
 }
 
+/// Stores remote presence recorder test data.
 private actor RemotePresenceRecorder {
     private var latestPresenceByProcessID: [Int32: CrossProcessClientPresence] = [:]
     private var disconnectedProcessIDs: Set<Int32> = []

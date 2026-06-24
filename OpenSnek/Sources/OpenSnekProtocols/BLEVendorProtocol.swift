@@ -1,6 +1,7 @@
 import Foundation
 import OpenSnekCore
 
+/// Defines BLE vendor protocol values.
 public enum BLEVendorProtocol {
     public static let serviceUUID = UUID(uuidString: "52401523-F97C-7F90-0E7F-6C6F4E36DB1C")!
     public static let writeUUID = UUID(uuidString: "52401524-F97C-7F90-0E7F-6C6F4E36DB1C")!
@@ -16,6 +17,7 @@ public enum BLEVendorProtocol {
     )
     private static let basiliskV3FamilyHorizontalScrollTurboRate: UInt8 = 0x14
 
+    /// Stores profile metadata chunk data.
     public struct ProfileMetadataChunk: Equatable, Sendable {
         public let offset: Int
         public let data: [UInt8]
@@ -26,6 +28,7 @@ public enum BLEVendorProtocol {
         }
     }
 
+    /// Captures DPI stage state.
     public struct DpiStageSnapshot: Equatable, Sendable {
         public let active: Int
         public let count: Int
@@ -51,6 +54,7 @@ public enum BLEVendorProtocol {
         }
     }
 
+    /// Stores DPI stages read data.
     public struct DpiStagesRead: Equatable, Sendable {
         public let active: Int
         public let count: Int
@@ -67,6 +71,7 @@ public enum BLEVendorProtocol {
         }
     }
 
+    /// Identifies BLE vendor protocol values.
     public struct Key: Equatable, Sendable {
         public let b0: UInt8
         public let b1: UInt8
@@ -208,6 +213,7 @@ public enum BLEVendorProtocol {
         }
     }
 
+    /// Stores notify header data.
     public struct NotifyHeader: Equatable, Sendable {
         public let req: UInt8
         public let payloadLength: Int

@@ -2,6 +2,7 @@ import XCTest
 import OpenSnekCore
 import OpenSnekHardware
 
+/// Exercises HID device presence accumulator behavior.
 final class HIDDevicePresenceAccumulatorTests: XCTestCase {
     func testCompositeDeviceDisconnectEmitsOnlyAfterLastInterfaceLeaves() {
         var accumulator = HIDDevicePresenceAccumulator()

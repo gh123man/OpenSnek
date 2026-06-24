@@ -1,3 +1,4 @@
+/// Exercises V3 pro USB feature sweep UI behavior.
 final class V3ProUSBFeatureSweepUITests: OpenSnekHardwareUITestCase {
     private lazy var sweep = FeatureSweep(testCase: self, configuration: .v3ProUSB)
 

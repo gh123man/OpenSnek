@@ -5,6 +5,7 @@ import OpenSnekCore
 import OpenSnekHardware
 @testable import OpenSnek
 
+/// Exercises app state multi device service selection behavior.
 final class AppStateMultiDeviceServiceSelectionTests: XCTestCase {
     func testBackendDeviceListUpdateRecoversSelectionToMatchingBluetoothTransportWhenUSBHasNoTelemetry() async throws {
         let usbDevice = makeTestDevice(

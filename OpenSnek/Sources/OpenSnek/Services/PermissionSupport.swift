@@ -1,10 +1,12 @@
 import AppKit
 import Foundation
 
+/// Stores permission reset result data.
 struct PermissionResetResult: Equatable, Sendable {
     let bundleIdentifier: String
 }
 
+/// Describes permission support failures.
 enum PermissionSupportError: LocalizedError {
     case resetFailed(String)
 
@@ -16,6 +18,7 @@ enum PermissionSupportError: LocalizedError {
     }
 }
 
+/// Groups permission support helpers.
 enum PermissionSupport {
     static let defaultBundleIdentifier = "io.opensnek.OpenSnek"
 

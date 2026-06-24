@@ -1,5 +1,6 @@
 import Foundation
 
+/// Stores device diagnostics formatter data.
 public struct DeviceDiagnosticsFormatter {
     public static func format(
         device: MouseDevice,

@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Stores OpenSnek app data.
 @main
 struct OpenSnekApp: App {
     private static let minimumMainWindowWidth: CGFloat = 900
@@ -84,6 +85,7 @@ struct OpenSnekApp: App {
     }
 }
 
+/// Stores service window suppressor view data.
 private struct ServiceWindowSuppressorView: NSViewRepresentable {
     func makeNSView(context: Context) -> SuppressorView {
         SuppressorView()
@@ -91,6 +93,7 @@ private struct ServiceWindowSuppressorView: NSViewRepresentable {
 
     func updateNSView(_ nsView: SuppressorView, context: Context) {}
 
+    /// Coordinates suppressor view behavior.
     final class SuppressorView: NSView {
         private weak var suppressedWindow: NSWindow?
 
@@ -127,6 +130,7 @@ private struct ServiceWindowSuppressorView: NSViewRepresentable {
     }
 }
 
+/// Stores settings open bridge view data.
 private struct SettingsOpenBridgeView: View {
     let runtimeStore: RuntimeStore
 

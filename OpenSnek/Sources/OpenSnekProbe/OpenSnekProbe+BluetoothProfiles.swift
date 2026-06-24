@@ -2,7 +2,9 @@ import Foundation
 import OpenSnekCore
 import OpenSnekProtocols
 
+/// Adds Bluetooth profiles behavior to `OpenSnekProbe`.
 extension OpenSnekProbe {
+  /// Stores BT profile DPI read data.
   private struct BTProfileDPIRead {
     let target: UInt8
     let scalarRaw: Data?
@@ -12,6 +14,7 @@ extension OpenSnekProbe {
     let tokenRaw: Data?
   }
 
+  /// Stores BT profile lighting read data.
   private struct BTProfileLightingRead {
     let target: UInt8
     let ledID: UInt8
@@ -21,12 +24,14 @@ extension OpenSnekProbe {
     let color: RGBPatch?
   }
 
+  /// Stores BT profile probe session data.
   struct BTProfileProbeSession {
     let bridge: ProbeBridge
     let preferredPeripheralName: String?
     let timeoutSeconds: TimeInterval
   }
 
+  /// Carries BT profile read sweep request data.
   struct BTProfileReadSweepRequest {
     let session: BTProfileProbeSession
     let targets: [UInt8]
@@ -34,6 +39,7 @@ extension OpenSnekProbe {
     let includeLiveButtons: Bool
   }
 
+  /// Carries BT profile create request data.
   struct BTProfileCreateRequest {
     let session: BTProfileProbeSession
     let target: UInt8
@@ -45,6 +51,7 @@ extension OpenSnekProbe {
     let brightness: UInt8
   }
 
+  /// Stores BT profile write step data.
   struct BTProfileWriteStep {
     let session: BTProfileProbeSession
     let label: String
@@ -517,6 +524,7 @@ extension OpenSnekProbe {
     return nil
   }
 
+  /// Stores BT button read function block data.
   private struct BTButtonReadFunctionBlock {
     let label: String
     let block: [UInt8]
@@ -584,6 +592,7 @@ extension OpenSnekProbe {
     ]
   }
 
+  /// Captures BT profile watch state.
   struct BTProfileWatchSnapshot: Equatable {
     let buttonPayloadHex: String
     let buttonDescription: String

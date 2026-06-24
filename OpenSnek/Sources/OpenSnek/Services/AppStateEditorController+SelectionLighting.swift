@@ -2,6 +2,7 @@ import Foundation
 import OpenSnekAppSupport
 import OpenSnekCore
 
+/// Adds selection lighting behavior to `AppStateEditorController`.
 @MainActor
 extension AppStateEditorController {
     func liveUSBButtonProfile(for device: MouseDevice) -> Int {
