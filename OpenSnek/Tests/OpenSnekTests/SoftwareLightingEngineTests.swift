@@ -233,16 +233,18 @@ final class SoftwareLightingEngineTests: XCTestCase {
         await engine.stop(deviceID: device.id)
     }
 
-    func testStableFrameReassertsAfterQuietInterval() async throws {
+    func testStableFrameDoesNotPeriodicallyRewriteWithoutStateChange() async throws {
         let writer = RecordingSoftwareLightingFrameWriter()
-        let engine = SoftwareLightingEngine(frameWriter: writer, minimumFrameInterval: 0.005, frameReassertInterval: 0.05, failureLimit: 3)
+        let engine = SoftwareLightingEngine(frameWriter: writer, minimumFrameInterval: 0.005, failureLimit: 3)
         let device = makeSoftwareLightingTestDevice()
 
         _ = try await engine.start(device: device, request: SoftwareLightingEffectRequest(presetID: .batteryMeter, framesPerSecond: 30), batteryPercent: 74)
         try await waitUntil { await writer.frameCount() >= 2 }
         let stableFrameCount = await writer.frameCount()
+        try await Task.sleep(nanoseconds: 150_000_000)
+        let frameCountAfterStableDelay = await writer.frameCount()
 
-        try await waitUntil(timeout: 1.0) { await writer.frameCount() > stableFrameCount }
+        XCTAssertEqual(frameCountAfterStableDelay, stableFrameCount)
         await engine.stop(deviceID: device.id)
     }
 

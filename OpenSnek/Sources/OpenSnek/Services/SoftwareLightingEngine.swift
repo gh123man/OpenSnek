@@ -61,7 +61,6 @@ actor SoftwareLightingEngine {
 
     private let frameWriter: any SoftwareLightingFrameWriting
     private let minimumFrameInterval: TimeInterval
-    private let frameReassertInterval: TimeInterval
     private let failureLimit: Int
     private let statusUpdates = BroadcastStream<SoftwareLightingEngineStatus>()
 
@@ -75,10 +74,9 @@ actor SoftwareLightingEngine {
     private var generationByDeviceKey: [String: UInt64] = [:]
     private var batteryPercentByDeviceKey: [String: Int] = [:]
 
-    init(frameWriter: any SoftwareLightingFrameWriting, minimumFrameInterval: TimeInterval = 1.0 / 30.0, frameReassertInterval: TimeInterval = 3.0, failureLimit: Int = 3) {
+    init(frameWriter: any SoftwareLightingFrameWriting, minimumFrameInterval: TimeInterval = 1.0 / 30.0, failureLimit: Int = 3) {
         self.frameWriter = frameWriter
         self.minimumFrameInterval = max(0.001, minimumFrameInterval)
-        self.frameReassertInterval = max(0.05, frameReassertInterval)
         self.failureLimit = max(1, failureLimit)
     }
 
@@ -232,7 +230,6 @@ actor SoftwareLightingEngine {
         let startedAt = Date()
         var consecutiveFailures = 0
         var lastWrittenFrame: USBLightingFramePatch?
-        var lastWriteCompletedAt: Date?
 
         if request.presetID == .batteryMeter {
             let clearFrame = SoftwareLightingRenderer.render(request: request, layout: layout, elapsedTime: 0.0, batteryPercent: nil)
@@ -240,7 +237,6 @@ actor SoftwareLightingEngine {
                 try await frameWriter.writeSoftwareLightingFrame(device: device, frame: clearFrame)
                 guard isCurrent(deviceKey: deviceKey, generation: generation) else { return }
                 lastWrittenFrame = clearFrame
-                lastWriteCompletedAt = Date()
             } catch {
                 guard !Task.isCancelled else { return }
                 guard isCurrent(deviceKey: deviceKey, generation: generation) else { return }
@@ -258,7 +254,7 @@ actor SoftwareLightingEngine {
             let frameStartedAt = Date()
             let elapsed = frameStartedAt.timeIntervalSince(startedAt)
             let frame = SoftwareLightingRenderer.render(request: request, layout: layout, elapsedTime: elapsed, batteryPercent: batteryPercentByDeviceKey[deviceKey])
-            guard shouldWriteFrame(frame, lastWrittenFrame: lastWrittenFrame, lastWriteCompletedAt: lastWriteCompletedAt, now: frameStartedAt) else {
+            guard frame != lastWrittenFrame else {
                 let elapsedThisFrame = Date().timeIntervalSince(frameStartedAt)
                 let sleepInterval = max(0.0, frameInterval - elapsedThisFrame)
                 do { try await Task.sleep(nanoseconds: UInt64(sleepInterval * 1_000_000_000)) } catch { return }
@@ -269,7 +265,6 @@ actor SoftwareLightingEngine {
                 try await frameWriter.writeSoftwareLightingFrame(device: device, frame: frame)
                 guard isCurrent(deviceKey: deviceKey, generation: generation) else { return }
                 lastWrittenFrame = frame
-                lastWriteCompletedAt = Date()
                 consecutiveFailures = 0
             } catch {
                 guard !Task.isCancelled else { return }
@@ -286,12 +281,6 @@ actor SoftwareLightingEngine {
             let sleepInterval = max(0.0, frameInterval - elapsedThisFrame)
             do { try await Task.sleep(nanoseconds: UInt64(sleepInterval * 1_000_000_000)) } catch { return }
         }
-    }
-
-    private func shouldWriteFrame(_ frame: USBLightingFramePatch, lastWrittenFrame: USBLightingFramePatch?, lastWriteCompletedAt: Date?, now: Date) -> Bool {
-        guard frame == lastWrittenFrame else { return true }
-        guard let lastWriteCompletedAt else { return true }
-        return now.timeIntervalSince(lastWriteCompletedAt) >= frameReassertInterval
     }
 
     private func suspendForRecoverableFrameFailure(_ error: any Error, deviceID: String, deviceKey: String, generation: UInt64, request: SoftwareLightingEffectRequest) -> Bool {

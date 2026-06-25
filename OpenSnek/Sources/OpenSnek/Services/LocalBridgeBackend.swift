@@ -8,6 +8,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     static let shared = LocalBridgeBackend()
     private static let usbDisconnectDebounceInterval: TimeInterval = 0.75
     private static let softwareLightingUSBReachabilityProbeInterval: TimeInterval = 1.0
+    private static let softwareLightingUSBHeartbeatInterval: TimeInterval = 2.0
 
     private let client = BridgeClient()
     private let softwareLightingEngine: SoftwareLightingEngine
@@ -20,6 +21,8 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     private var cachedFastByDeviceID: [String: DpiFastSnapshot] = [:]
     private var cachedFastAtByDeviceID: [String: Date] = [:]
     private var softwareLightingUSBReachabilityProbeAtByDeviceID: [String: Date] = [:]
+    private var softwareLightingUSBHeartbeatTasksByDeviceID: [String: Task<Void, Never>] = [:]
+    private var softwareLightingUSBHeartbeatTokensByDeviceID: [String: UUID] = [:]
     private var reconnectSeedStateByDeviceID: [String: MouseState] = [:]
     private var bluetoothControlReadyDeviceIDs: Set<String> = []
     private let stateUpdatesStream = BroadcastStream<BackendStateUpdate>()
@@ -567,6 +570,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     private func handleSoftwareLightingStatus(_ status: SoftwareLightingEngineStatus) {
         softwareLightingStatusByDeviceID[status.deviceID] = status
         publishStateUpdate(.softwareLightingStatus(deviceID: status.deviceID, status: status, updatedAt: status.updatedAt))
+        updateSoftwareLightingUSBHeartbeat(for: status)
         publishSnapshotIfService()
     }
 
@@ -585,6 +589,71 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         case .receiverPresentMouseUnavailable: throw BridgeError.usbMouseUnavailable
         case .receiverAbsent: throw BridgeError.commandFailed("Device not available")
         }
+    }
+
+    private func updateSoftwareLightingUSBHeartbeat(for status: SoftwareLightingEngineStatus) {
+        switch status.state {
+        case .running, .suspended: ensureSoftwareLightingUSBHeartbeat(for: status.deviceID)
+        case .stopped, .failed: cancelSoftwareLightingUSBHeartbeat(for: status.deviceID)
+        }
+    }
+
+    private func ensureSoftwareLightingUSBHeartbeat(for deviceID: String) {
+        guard softwareLightingUSBHeartbeatTasksByDeviceID[deviceID] == nil else { return }
+        guard cachedDevices.first(where: { $0.id == deviceID })?.transport == .usb else { return }
+        let token = UUID()
+        softwareLightingUSBHeartbeatTokensByDeviceID[deviceID] = token
+        softwareLightingUSBHeartbeatTasksByDeviceID[deviceID] = Task { [weak self] in await self?.runSoftwareLightingUSBHeartbeat(deviceID: deviceID, token: token) }
+    }
+
+    private func cancelSoftwareLightingUSBHeartbeat(for deviceID: String) {
+        softwareLightingUSBHeartbeatTokensByDeviceID.removeValue(forKey: deviceID)
+        softwareLightingUSBHeartbeatTasksByDeviceID.removeValue(forKey: deviceID)?.cancel()
+    }
+
+    private func runSoftwareLightingUSBHeartbeat(deviceID: String, token: UUID) async {
+        defer { finishSoftwareLightingUSBHeartbeat(deviceID: deviceID, token: token) }
+        while !Task.isCancelled {
+            do { try await Task.sleep(nanoseconds: UInt64(Self.softwareLightingUSBHeartbeatInterval * 1_000_000_000)) } catch { return }
+            guard shouldContinueSoftwareLightingUSBHeartbeat(deviceID: deviceID, token: token) else { return }
+            guard let device = cachedDevices.first(where: { $0.id == deviceID }), device.transport == .usb else { return }
+            await probeSoftwareLightingUSBHeartbeat(device: device)
+        }
+    }
+
+    private func finishSoftwareLightingUSBHeartbeat(deviceID: String, token: UUID) {
+        guard softwareLightingUSBHeartbeatTokensByDeviceID[deviceID] == token else { return }
+        softwareLightingUSBHeartbeatTokensByDeviceID.removeValue(forKey: deviceID)
+        softwareLightingUSBHeartbeatTasksByDeviceID.removeValue(forKey: deviceID)
+    }
+
+    private func shouldContinueSoftwareLightingUSBHeartbeat(deviceID: String, token: UUID) -> Bool {
+        guard softwareLightingUSBHeartbeatTokensByDeviceID[deviceID] == token else { return false }
+        guard let status = softwareLightingStatusByDeviceID[deviceID] else { return false }
+        return status.state == .running || status.state == .suspended
+    }
+
+    private func probeSoftwareLightingUSBHeartbeat(device: MouseDevice) async {
+        let observedAt = Date()
+        do {
+            let availability = try await client.usbControlAvailability(device: device)
+            softwareLightingUSBReachabilityProbeAtByDeviceID[device.id] = observedAt
+            recordUSBControlAvailability(availability, for: device.id, updatedAt: observedAt, publishSnapshot: true)
+            if availability.blocksUSBControlInteraction { await suspendSoftwareLightingForUSBHeartbeat(deviceID: device.id, availability: availability) }
+        } catch {
+            recordUSBControlAvailability(for: device, error: error)
+            if usbControlAvailabilityByDeviceID[device.id]?.blocksUSBControlInteraction == true {
+                await suspendSoftwareLightingForUSBHeartbeat(deviceID: device.id, availability: usbControlAvailabilityByDeviceID[device.id] ?? .unknown)
+            } else {
+                AppLog.debug("Backend", "software lighting USB heartbeat failed device=\(device.id): \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func suspendSoftwareLightingForUSBHeartbeat(deviceID: String, availability: USBControlAvailability) async {
+        guard softwareLightingStatusByDeviceID[deviceID]?.state == .running else { return }
+        let message = availability == .receiverAbsent ? "Device not available" : BridgeError.usbMouseUnavailable.localizedDescription
+        if let status = await softwareLightingEngine.suspend(deviceID: deviceID, message: message) { handleSoftwareLightingStatus(status) }
     }
 
     @discardableResult private func cacheAndPublishState(_ state: MouseState, for deviceID: String, updatedAt: Date) -> MouseState {
@@ -683,6 +752,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
             cachedFastByDeviceID.removeValue(forKey: deviceID)
             cachedFastAtByDeviceID.removeValue(forKey: deviceID)
             softwareLightingUSBReachabilityProbeAtByDeviceID.removeValue(forKey: deviceID)
+            cancelSoftwareLightingUSBHeartbeat(for: deviceID)
             usbControlAvailabilityByDeviceID.removeValue(forKey: deviceID)
             Task { [softwareLightingEngine] in _ = await softwareLightingEngine.suspend(deviceID: deviceID, message: "Device disconnected") }
         }
