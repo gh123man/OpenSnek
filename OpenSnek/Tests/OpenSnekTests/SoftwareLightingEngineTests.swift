@@ -168,6 +168,30 @@ final class SoftwareLightingEngineTests: XCTestCase {
         XCTAssertNotNil(status?.message)
     }
 
+    func testRecoverableFrameFailureSuspendsAndResumeRestartsDesiredPreset() async throws {
+        let writer = RecordingSoftwareLightingFrameWriter(failRecoverably: true)
+        let engine = SoftwareLightingEngine(frameWriter: writer, minimumFrameInterval: 0.001, failureLimit: 2)
+        let device = makeSoftwareLightingTestDevice()
+
+        _ = try await engine.start(device: device, request: SoftwareLightingEffectRequest(presetID: .scrollingRainbow, framesPerSecond: 30))
+
+        try await waitUntil(timeout: 1.0) {
+            let status = await engine.status(deviceID: device.id)
+            return status?.state == .suspended
+        }
+        let suspended = await engine.status(deviceID: device.id)
+        XCTAssertEqual(suspended?.request?.presetID, .scrollingRainbow)
+        XCTAssertNotNil(suspended?.message)
+
+        await writer.setFailRecoverably(false)
+        let resumed = try await engine.resumeIfNeeded(device: device)
+
+        XCTAssertEqual(resumed?.state, .running)
+        XCTAssertEqual(resumed?.request?.presetID, .scrollingRainbow)
+        try await waitUntil(timeout: 1.0) { await writer.frameCount() >= 1 }
+        await engine.stop(deviceID: device.id)
+    }
+
     func testBatteryMeterUsesSeededBatteryPercent() async throws {
         let writer = RecordingSoftwareLightingFrameWriter()
         let engine = SoftwareLightingEngine(frameWriter: writer, minimumFrameInterval: 0.005, failureLimit: 3)
@@ -206,6 +230,19 @@ final class SoftwareLightingEngineTests: XCTestCase {
         await engine.updateBatteryPercent(deviceID: device.id, batteryPercent: 20)
 
         try await waitUntil { await writer.recordedFrames().contains { $0.colors[2] == RGBPatch(r: 255, g: 255, b: 0) } }
+        await engine.stop(deviceID: device.id)
+    }
+
+    func testStableFrameReassertsAfterQuietInterval() async throws {
+        let writer = RecordingSoftwareLightingFrameWriter()
+        let engine = SoftwareLightingEngine(frameWriter: writer, minimumFrameInterval: 0.005, frameReassertInterval: 0.05, failureLimit: 3)
+        let device = makeSoftwareLightingTestDevice()
+
+        _ = try await engine.start(device: device, request: SoftwareLightingEffectRequest(presetID: .batteryMeter, framesPerSecond: 30), batteryPercent: 74)
+        try await waitUntil { await writer.frameCount() >= 2 }
+        let stableFrameCount = await writer.frameCount()
+
+        try await waitUntil(timeout: 1.0) { await writer.frameCount() > stableFrameCount }
         await engine.stop(deviceID: device.id)
     }
 
@@ -282,15 +319,17 @@ final class SoftwareLightingEngineTests: XCTestCase {
 /// Provides a recording software lighting frame writer test double.
 private actor RecordingSoftwareLightingFrameWriter: SoftwareLightingFrameWriting {
     private let delayNanoseconds: UInt64
-    private let failAllWrites: Bool
+    private var failAllWrites: Bool
+    private var failRecoverably: Bool
     private var frames: [USBLightingFramePatch] = []
     private var frameDeviceIDs: [String] = []
     private var activeWrites = 0
     private var maxActiveWrites = 0
 
-    init(delayNanoseconds: UInt64 = 0, failAllWrites: Bool = false) {
+    init(delayNanoseconds: UInt64 = 0, failAllWrites: Bool = false, failRecoverably: Bool = false) {
         self.delayNanoseconds = delayNanoseconds
         self.failAllWrites = failAllWrites
+        self.failRecoverably = failRecoverably
     }
 
     func writeSoftwareLightingFrame(device: MouseDevice, frame: USBLightingFramePatch) async throws {
@@ -299,10 +338,13 @@ private actor RecordingSoftwareLightingFrameWriter: SoftwareLightingFrameWriting
         defer { activeWrites -= 1 }
 
         if delayNanoseconds > 0 { try await Task.sleep(nanoseconds: delayNanoseconds) }
+        if failRecoverably { throw SoftwareLightingFrameWriteFailure.deviceUnavailable("Injected device unavailable") }
         if failAllWrites { throw NSError(domain: "SoftwareLightingEngineTests", code: 1, userInfo: [NSLocalizedDescriptionKey: "Injected frame failure"]) }
         frames.append(frame)
         frameDeviceIDs.append(device.id)
     }
+
+    func setFailRecoverably(_ enabled: Bool) { failRecoverably = enabled }
 
     func frameCount() -> Int { frames.count }
 

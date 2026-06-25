@@ -606,6 +606,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     private func updateSoftwareLightingBatteryPercent(deviceID: String, from state: MouseState) { Task { [softwareLightingEngine, batteryPercent = state.battery_percent] in await softwareLightingEngine.updateBatteryPercent(deviceID: deviceID, batteryPercent: batteryPercent) } }
 
     private func recordUSBControlAvailability(_ availability: USBControlAvailability, for deviceID: String, updatedAt: Date, publishSnapshot: Bool) {
+        let previousAvailability = usbControlAvailabilityByDeviceID[deviceID]
         guard usbControlAvailabilityByDeviceID[deviceID] != availability else {
             if publishSnapshot { publishSnapshotIfService() }
             return
@@ -613,7 +614,29 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         usbControlAvailabilityByDeviceID[deviceID] = availability
         AppLog.debug("Backend", "usbControlAvailability device=\(deviceID) availability=\(availability.rawValue)")
         publishStateUpdate(.usbControlAvailability(deviceID: deviceID, availability: availability, updatedAt: updatedAt))
+        if previousAvailability != .receiverPresentMouseReachable, availability == .receiverPresentMouseReachable { scheduleSoftwareLightingUSBRecovery(for: deviceID) }
         if publishSnapshot { publishSnapshotIfService() }
+    }
+
+    private func scheduleSoftwareLightingUSBRecovery(for deviceID: String) {
+        guard let status = softwareLightingStatusByDeviceID[deviceID], status.state == .running || status.state == .suspended else { return }
+        Task { [weak self] in await self?.recoverSoftwareLightingAfterUSBReachable(deviceID: deviceID) }
+    }
+
+    private func recoverSoftwareLightingAfterUSBReachable(deviceID: String) async {
+        guard let device = cachedDevices.first(where: { $0.id == deviceID }), device.transport == .usb else { return }
+        let batteryPercent = cachedStateByDeviceID[deviceID]?.battery_percent ?? reconnectSeedStateByDeviceID[deviceID]?.battery_percent
+
+        do {
+            let resumedStatus = try await softwareLightingEngine.resumeIfNeeded(device: device, batteryPercent: batteryPercent)
+            let status: SoftwareLightingEngineStatus?
+            if let resumedStatus {
+                status = resumedStatus
+            } else {
+                status = try await softwareLightingEngine.reassertIfRunning(device: device, batteryPercent: batteryPercent)
+            }
+            if let status { handleSoftwareLightingStatus(status) }
+        } catch { AppLog.warning("Backend", "software lighting USB recovery failed device=\(deviceID): \(error.localizedDescription)") }
     }
 
     private func publishStateUpdate(_ update: BackendStateUpdate) { stateUpdatesStream.yield(update) }
@@ -671,7 +694,8 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
 
     private func resumeSuspendedSoftwareLighting(for devices: [MouseDevice]) {
         guard !devices.isEmpty else { return }
-        Task { [softwareLightingEngine] in for device in devices { _ = try? await softwareLightingEngine.resumeIfNeeded(device: device) } }
+        let recoveryInputs = devices.map { device in (device: device, batteryPercent: cachedStateByDeviceID[device.id]?.battery_percent ?? reconnectSeedStateByDeviceID[device.id]?.battery_percent) }
+        Task { [softwareLightingEngine] in for input in recoveryInputs { _ = try? await softwareLightingEngine.resumeIfNeeded(device: input.device, batteryPercent: input.batteryPercent) } }
     }
 
     private func publishSnapshotIfService() {
