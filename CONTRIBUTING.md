@@ -132,6 +132,19 @@ Use this loop:
 
 ## Validation Commands
 
+Install the local pre-push hook once per checkout so formatting, lint, and unit tests run before
+`git push`:
+
+```bash
+./OpenSnek/scripts/install_git_hooks.sh
+```
+
+Run the same guard manually before publishing a branch:
+
+```bash
+./OpenSnek/scripts/pre_push_checks.sh
+```
+
 Core package tests:
 
 ```bash

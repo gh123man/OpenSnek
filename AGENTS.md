@@ -42,7 +42,7 @@ Protocol behavior changes require docs, tests, and `CHANGELOG.md` updates in the
 10. Treat `OpenSnek/project.yml` as the Xcode source of truth; generate `OpenSnek/OpenSnek.xcodeproj` on demand and do not commit it.
 11. Use `Validated` only for maintainer/local OpenSnek hardware validation. For device support validated by an outside contributor but not by maintainers, use `Contributor validated` and credit the contributor source in docs.
 12. Before creating a new topic branch, fetch `origin` and branch from an up-to-date `origin/main`. Before opening or updating a PR, check whether the branch is behind `origin/main`; if it is, merge or rebase `origin/main`, resolve conflicts, rerun validation, and push the updated branch.
-13. Before saying work is done or pushing code, run the complete unit test suite with `swift test --package-path OpenSnek` and ensure it passes locally.
+13. Before saying work is done or pushing code, run `./OpenSnek/scripts/pre_push_checks.sh` and ensure it passes locally. This catches Swift format warnings, SwiftLint violations, and the complete unit test suite. Install the tracked pre-push hook with `./OpenSnek/scripts/install_git_hooks.sh` in local checkouts so the same guard runs automatically before `git push`.
 14. For Windows Synapse/BTVS reverse engineering, prefer automated captures over manual Wireshark work. Use `tools/windows/capture-btvs.ps1`, let it choose a fresh port unless intentionally passing `-ReuseBtvs`, take a same-session idle baseline when background traffic is ambiguous, then start analysis from `synapse-events.md`, `correlation.md`, and `summary.md` before opening the raw `.pcapng`.
 15. When asked to run the app, use `./run.sh` from the repository root unless the user explicitly asks for a different launch path.
 16. Use code comments strategically. If a change has unclear but important UI/UX effects, leave a concise comment that explains the constraint so future changes do not regress it.
@@ -81,10 +81,8 @@ intentional, documented, and narrower than the next-best refactor.
   declaration. Functions are intentionally outside this requirement for now.
 - Let Swift format conventions carry simple control flow: no unnecessary parentheses around `if`,
   `guard`, `while`, or `switch` conditions.
-- Before pushing Swift changes, run
-  `swift package --package-path OpenSnek plugin --allow-writing-to-package-directory swiftlint`
-  plus the focused tests for the touched area; run `swift test --package-path OpenSnek` before
-  declaring the branch ready.
+- Before pushing Swift changes, run `./OpenSnek/scripts/pre_push_checks.sh` plus the focused tests
+  for the touched area. The pre-push check runs Swift format, SwiftLint, and the full unit suite.
 
 ## Quick Commands
 

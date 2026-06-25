@@ -17,6 +17,23 @@ Prefer the smallest useful command first. Expand only when the change crosses bo
 
 Avoid `swift test --package-path OpenSnek` unless the change is broad or the user explicitly wants a full package run.
 
+## Pre-Push Guard
+
+Install the tracked git hook once per checkout:
+
+```bash
+./OpenSnek/scripts/install_git_hooks.sh
+```
+
+The hook runs the same command expected before publishing code:
+
+```bash
+./OpenSnek/scripts/pre_push_checks.sh
+```
+
+That guard runs Swift format, SwiftLint, and `swift test --package-path OpenSnek`, which catches
+SwiftFormat warnings such as `RemoveLine` before a branch is pushed.
+
 ## Protocol Implementation Guardrails
 
 Protocol transactions should encode the device contract directly rather than

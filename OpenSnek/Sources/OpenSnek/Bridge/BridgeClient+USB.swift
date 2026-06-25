@@ -536,10 +536,39 @@ extension BridgeClient {
             throw BridgeError.commandFailed("Device not available")
         }
 
-        let session = orderedSessions[0]
-        let succeeded = try session.withExclusiveDeviceAccess { try setUSBLightingCustomFrame(session, device, frame: frame) }
-        guard succeeded else { throw BridgeError.commandFailed("Failed to write software lighting frame") }
-        deviceSessions[device.id] = session
+        var firstError: Error?
+        var sawRejectedWrite = false
+        for (index, session) in orderedSessions.enumerated() {
+            do {
+                let succeeded = try session.withExclusiveDeviceAccess { try setUSBLightingCustomFrame(session, device, frame: frame) }
+                guard succeeded else {
+                    sawRejectedWrite = true
+                    session.invalidateCachedTransaction()
+                    continue
+                }
+                if index > 0 { AppLog.debug("Bridge", "software lighting switched to alternate USB session index=\(index) device=\(device.id)") }
+                deviceSessions[device.id] = session
+                return
+            } catch {
+                if firstError == nil { firstError = error }
+                AppLog.debug("Bridge", "software lighting USB session failed device=\(device.id): \(error.localizedDescription)")
+            }
+        }
+
+        deviceSessions[device.id]?.invalidateCachedTransaction()
+        if let firstError {
+            if Self.isUSBTelemetryUnavailableError(firstError), await usbDeviceIsAbsentAfterDiscoveryRefresh(device: device, operation: "software-lighting-frame") { throw BridgeError.commandFailed("Device not available") }
+            throw firstError
+        }
+        if sawRejectedWrite {
+            let availability = try await usbControlAvailability(device: device)
+            switch availability {
+            case .receiverPresentMouseReachable, .unknown: break
+            case .receiverPresentMouseUnavailable: throw BridgeError.usbMouseUnavailable
+            case .receiverAbsent: throw BridgeError.commandFailed("Device not available")
+            }
+        }
+        throw BridgeError.commandFailed("Failed to write software lighting frame")
     }
 
     func writableUSBButtonSlots(for device: MouseDevice) -> [UInt8] {
