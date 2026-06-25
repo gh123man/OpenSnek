@@ -89,6 +89,12 @@ extension AppStateDeviceController {
             let previous = stateCacheByDeviceID[presentationDeviceID] ?? stateCacheByDeviceID[device.id] ?? deviceStore.state
             guard let previous else { return }
             let active = max(0, min(fast.values.count - 1, fast.active))
+            editorController.logDPITrace(
+                "refreshDpiFast received",
+                device: presentationDevice,
+                state: previous,
+                extra: "source=\(device.id) fastActive=\(active + 1) fastValues=\(fast.values.map(String.init).joined(separator: ",")) correctionOnly=\(correctionOnly)"
+            )
             let currentStagePairs = BridgeClient.resolveDpiStagePairs(
                 values: fast.values,
                 pairs: nil,
@@ -117,6 +123,12 @@ extension AppStateDeviceController {
                 onboard_profile_count: previous.onboard_profile_count,
                 led_value: previous.led_value,
                 capabilities: previous.capabilities
+            )
+            editorController.logDPITrace(
+                "refreshDpiFast merged",
+                device: presentationDevice,
+                state: updated,
+                extra: "source=\(device.id) previous={\(AppStateEditorController.diagnosticDPIState(previous))}"
             )
 
             let shouldFocusOnActivity = shouldFocusServiceSelectionOnActivity(previous: previous, next: updated)
@@ -170,6 +182,12 @@ extension AppStateDeviceController {
                         editorController: editorController,
                         scheduleButtonHydration: false
                     )
+                )
+                editorController.logDPITrace(
+                    "refreshDpiFast selected applied",
+                    device: presentationDevice,
+                    state: updated,
+                    extra: "source=\(device.id)"
                 )
             }
             AppLog.debug(

@@ -187,6 +187,20 @@ final actor IPCDeviceBackend: HIDAccessRefreshControllingBackend, ApplyOptionsSu
         )
     }
 
+    func projectOnboardProfileDPIToActiveLayer(
+        device: MouseDevice,
+        profileID: Int,
+        dpi: OnboardDPIProfileSnapshot
+    ) async throws -> Bool {
+        try await request(
+            method: .projectOnboardProfileDPIToActiveLayer,
+            payload: try BackendCodec.encode(
+                OnboardProfileDPIProjectionRequest(device: device, profileID: profileID, dpi: dpi)
+            ),
+            responseType: Bool.self
+        )
+    }
+
     func deleteOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileInventory {
         try await request(
             method: .deleteOnboardProfile,

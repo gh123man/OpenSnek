@@ -41,6 +41,9 @@ final class AppStateEditorController {
     var activeOnboardProfileLoadTasksByDeviceID: [String: Task<Void, Never>] = [:]
     var activeOnboardProfileLoadTokensByDeviceID: [String: UUID] = [:]
     var activeOnboardProfileLoadOperationIDsByDeviceID: [String: UUID] = [:]
+    var activeOnboardDPIProjectionTasksByDeviceID: [String: Task<Void, Never>] = [:]
+    var activeOnboardDPIProjectionTokensByDeviceID: [String: UUID] = [:]
+    var lastProjectedActiveOnboardDPISignatureByDeviceID: [String: String] = [:]
     var onboardProfileButtonHydrationTasksByDeviceID: [String: Task<Void, Never>] = [:]
     var onboardProfileButtonHydrationTokensByDeviceID: [String: UUID] = [:]
     var manualOnboardProfileActivationTargetByDeviceID: [String: Int] = [:]
@@ -48,6 +51,7 @@ final class AppStateEditorController {
     var activeOnboardProfileMutationCount = 0
     var maxConcurrentOnboardProfileMutationCount = 0
     var buttonWorkspaceEditRevision: UInt64 = 0
+    var lastDPITraceLineByAction: [String: String] = [:]
     var isTearingDown = false
 
     init(
@@ -74,11 +78,16 @@ final class AppStateEditorController {
             editorStore.endOnboardProfileLoad($0)
         }
         activeOnboardProfileLoadOperationIDsByDeviceID.removeAll()
+        activeOnboardDPIProjectionTasksByDeviceID.values.forEach { $0.cancel() }
+        activeOnboardDPIProjectionTasksByDeviceID.removeAll()
+        activeOnboardDPIProjectionTokensByDeviceID.removeAll()
+        lastProjectedActiveOnboardDPISignatureByDeviceID.removeAll()
         onboardProfileButtonHydrationTasksByDeviceID.values.forEach { $0.cancel() }
         onboardProfileButtonHydrationTasksByDeviceID.removeAll()
         onboardProfileButtonHydrationTokensByDeviceID.removeAll()
         manualOnboardProfileActivationTargetByDeviceID.removeAll()
         singleSlotProfileApplySyncSuppressedDeviceIDs.removeAll()
+        lastDPITraceLineByAction.removeAll()
     }
 
     func bind(applyController: AppStateApplyController) {
@@ -545,11 +554,20 @@ final class AppStateEditorController {
         handleActiveOnboardProfilePresentation(from: state)
 
         let activeOnboardSnapshot = currentActiveOnboardProfileSnapshot(for: state)
+        let shouldHydrateRawDPI = shouldHydrateDPIFromRawStateWithoutActiveOnboardSnapshot(for: state)
+        logDPITrace(
+            "hydrateEditable start",
+            state: state,
+            snapshot: activeOnboardSnapshot,
+            extra: "activeSnapshot=\(activeOnboardSnapshot.map { String($0.profileID) } ?? "nil") rawAllowed=\(shouldHydrateRawDPI)"
+        )
         if let snapshot = activeOnboardSnapshot,
            let dpi = snapshot.dpi,
            let device = deviceStore.selectedDevice {
             hydrateEditableDPI(from: dpi, device: device, liveDPI: state.dpi, source: "hydrateEditable.snapshot")
-        } else if let pairs = state.dpi_stages.pairs, !pairs.isEmpty {
+        } else if shouldHydrateRawDPI,
+                  let pairs = state.dpi_stages.pairs,
+                  !pairs.isEmpty {
             editorStore.editableStageCount = DeviceProfiles.clampDpiStageCount(pairs.count)
             let profileID = deviceStore.selectedDevice?.profile_id
             for index in 0..<editorStore.editableStagePairs.count where index < pairs.count {
@@ -558,13 +576,16 @@ final class AppStateEditorController {
                     y: DeviceProfiles.clampDPI(pairs[index].y, profileID: profileID)
                 )
             }
-        } else if let values = state.dpi_stages.values, !values.isEmpty {
+        } else if shouldHydrateRawDPI,
+                  let values = state.dpi_stages.values,
+                  !values.isEmpty {
             editorStore.editableStageCount = DeviceProfiles.clampDpiStageCount(values.count)
             let profileID = deviceStore.selectedDevice?.profile_id
             for index in 0..<editorStore.editableStageValues.count where index < values.count {
                 editorStore.editableStageValues[index] = DeviceProfiles.clampDPI(values[index], profileID: profileID)
             }
-        } else if let dpi = state.dpi?.x {
+        } else if shouldHydrateRawDPI,
+                  let dpi = state.dpi?.x {
             editorStore.editableStageCount = 1
             let clampedX = DeviceProfiles.clampDPI(dpi, profileID: deviceStore.selectedDevice?.profile_id)
             let clampedY = DeviceProfiles.clampDPI(state.dpi?.y ?? dpi, profileID: deviceStore.selectedDevice?.profile_id)
@@ -623,6 +644,22 @@ final class AppStateEditorController {
         }
 
         syncUSBButtonProfileSelection(from: state)
+        logDPITrace(
+            "hydrateEditable end",
+            state: state,
+            snapshot: activeOnboardSnapshot,
+            extra: "rawAllowed=\(shouldHydrateRawDPI)"
+        )
+    }
+
+    private func shouldHydrateDPIFromRawStateWithoutActiveOnboardSnapshot(for state: MouseState) -> Bool {
+        guard let device = deviceStore.selectedDevice else { return true }
+        guard supportsOnboardProfileCRUD(device: device) else { return true }
+        let hasProfileScopedDPI = device.onboard_profile_count > 1 ||
+            state.active_onboard_profile != nil ||
+            deviceStore.state?.active_onboard_profile != nil ||
+            selectedOnboardProfileIDByDeviceID[device.id] != nil
+        return !hasProfileScopedDPI
     }
 
     func hydrateLiveDpiPresentation(from state: MouseState) {
@@ -636,7 +673,14 @@ final class AppStateEditorController {
         handleActiveOnboardProfilePresentation(from: state)
 
         let pendingActiveStage = applyController.pendingActiveStageSelection(for: deviceStore.selectedDevice)
-        if let snapshot = currentActiveOnboardProfileSnapshot(for: state),
+        let activeSnapshot = currentActiveOnboardProfileSnapshot(for: state)
+        logDPITrace(
+            "hydrateLiveDpi start",
+            state: state,
+            snapshot: activeSnapshot,
+            extra: "pendingActive=\(pendingActiveStage.map(String.init) ?? "nil") shouldHydrateEditable=\(deviceStore.selectedDevice.map { applyController.shouldHydrateEditable(for: $0) } ?? false)"
+        )
+        if let snapshot = activeSnapshot,
            let dpi = snapshot.dpi,
            let device = deviceStore.selectedDevice {
             if applyController.shouldHydrateEditable(for: device) {
@@ -685,6 +729,12 @@ final class AppStateEditorController {
         }
 
         editorStore.normalizeExpandedXYStages()
+        logDPITrace(
+            "hydrateLiveDpi end",
+            state: state,
+            snapshot: activeSnapshot,
+            extra: "pendingActive=\(pendingActiveStage.map(String.init) ?? "nil")"
+        )
     }
 
     func hydrateLiveDpiActiveStageOnly(
@@ -714,6 +764,11 @@ final class AppStateEditorController {
             clampedStage,
             source: hydrationSource
         )
+        logDPITrace(
+            "hydrateLiveDpi active-stage-only",
+            state: state,
+            extra: "source=\(source) pending=\(pendingDescription) liveMatched=\(liveMatchedDescription) snapshot=\(snapshotDescription) state=\(stateDescription) chosen=\(clampedStage)"
+        )
     }
 
     func liveMatchedEditableStage(from state: MouseState, maxStage: Int) -> Int? {
@@ -723,6 +778,93 @@ final class AppStateEditorController {
         }
         let visiblePairs = Array(editorStore.editableStagePairs.prefix(maxStage))
         return Self.uniqueDPIStageIndex(matching: liveDPI, in: visiblePairs).map { $0 + 1 }
+    }
+
+    func logDPITrace(
+        _ action: String,
+        device: MouseDevice? = nil,
+        state: MouseState? = nil,
+        snapshot: OnboardProfileSnapshot? = nil,
+        extra: String = ""
+    ) {
+        let resolvedDevice = device ?? deviceStore.selectedDevice
+        let loadedSnapshot = snapshot ?? resolvedDevice.flatMap { currentOnboardProfileSnapshotByDeviceID[$0.id] }
+        let extraSuffix = extra.isEmpty ? "" : " \(extra)"
+        let processContext = "role=\(environment.launchRole.rawValue) pid=\(ProcessInfo.processInfo.processIdentifier)"
+        let line = "\(action) \(processContext) device=\(resolvedDevice?.id ?? "nil") " +
+            "state={\(Self.diagnosticDPIState(state ?? deviceStore.state))} " +
+            "snapshot={\(diagnosticDPISnapshot(loadedSnapshot, device: resolvedDevice))} " +
+            "visible={\(diagnosticDPIVisible(device: resolvedDevice))}" +
+            extraSuffix
+        guard lastDPITraceLineByAction[action] != line else { return }
+        lastDPITraceLineByAction[action] = line
+        AppLog.warning(
+            "DPITrace",
+            line
+        )
+    }
+
+    func diagnosticDPIVisible(device: MouseDevice?) -> String {
+        let deviceID = device?.id
+        let selected = deviceID.flatMap { selectedOnboardProfileIDByDeviceID[$0] }
+        let inventory = deviceID.flatMap { onboardProfileInventoryByDeviceID[$0] }
+        let active = inventory?.activeProfileID ?? deviceStore.state?.active_onboard_profile
+        let selectedName = selected.flatMap { inventory?.summary(for: $0)?.displayName } ?? "nil"
+        let count = DeviceProfiles.clampDpiStageCount(editorStore.editableStageCount)
+        let pairs = Array(editorStore.editableStagePairs.prefix(count))
+        return [
+            "selectedProfile=\(selected.map(String.init) ?? "nil")",
+            "selectedName=\(selectedName)",
+            "inventoryActive=\(active.map(String.init) ?? "nil")",
+            "editorCount=\(count)",
+            "editorActive=\(editorStore.editableActiveStage)",
+            "editorPairs=\(Self.diagnosticDpiPairs(pairs))"
+        ].joined(separator: " ")
+    }
+
+    func diagnosticDPISnapshot(_ snapshot: OnboardProfileSnapshot?, device: MouseDevice?) -> String {
+        guard let snapshot else { return "nil" }
+        let dpi = snapshot.dpi
+        return [
+            "profile=\(snapshot.profileID)",
+            "name=\(snapshot.metadata.name)",
+            "dpiCount=\(dpi?.stageCount ?? 0)",
+            "dpiActive=\(dpi?.activeStage.map { String($0 + 1) } ?? "nil")",
+            "dpiPairs=\(Self.diagnosticDpiPairs(dpi?.pairs ?? []))",
+            "stageIDs=\(Self.diagnosticByteValues(dpi?.stageIDs ?? []))"
+        ].joined(separator: " ")
+    }
+
+    nonisolated static func diagnosticDPIState(_ state: MouseState?) -> String {
+        guard let state else { return "nil" }
+        let activeProfile = state.active_onboard_profile.map(String.init) ?? "nil"
+        let profileCount = state.onboard_profile_count.map(String.init) ?? "nil"
+        let activeStage = state.dpi_stages.active_stage.map { String($0 + 1) } ?? "nil"
+        let values = state.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil"
+        let pairs = diagnosticDpiPairs(state.dpi_stages.pairs ?? [])
+        return [
+            "activeProfile=\(activeProfile)",
+            "profileCount=\(profileCount)",
+            "liveDPI=\(diagnosticDpiPair(state.dpi))",
+            "stageActive=\(activeStage)",
+            "values=\(values)",
+            "pairs=\(pairs)"
+        ].joined(separator: " ")
+    }
+
+    nonisolated static func diagnosticDpiPair(_ pair: DpiPair?) -> String {
+        guard let pair else { return "nil" }
+        return pair.x == pair.y ? String(pair.x) : "\(pair.x)x\(pair.y)"
+    }
+
+    nonisolated static func diagnosticDpiPairs(_ pairs: [DpiPair]) -> String {
+        guard !pairs.isEmpty else { return "nil" }
+        return pairs.map(diagnosticDpiPair).joined(separator: ",")
+    }
+
+    nonisolated static func diagnosticByteValues(_ values: [UInt8]) -> String {
+        guard !values.isEmpty else { return "nil" }
+        return values.map { String(format: "%02X", $0) }.joined(separator: ",")
     }
 
     func hydrateLightingStateIfNeeded(device: MouseDevice) async {

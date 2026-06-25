@@ -26,6 +26,13 @@ struct RecordedOnboardRename {
     let name: String
 }
 
+/// Stores recorded onboard DPI projection test data.
+struct RecordedOnboardDPIProjection {
+    let deviceID: String
+    let profileID: Int
+    let dpi: OnboardDPIProfileSnapshot
+}
+
 /// Provides a app state refactor stub backend test double.
 actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupportingBackend {
     nonisolated var usesRemoteServiceTransport: Bool { false }
@@ -60,6 +67,7 @@ actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupportingBackend 
     private var onboardUpdates: [RecordedOnboardUpdate] = []
     private var onboardCreates: [RecordedOnboardCreate] = []
     private var onboardRenames: [RecordedOnboardRename] = []
+    private var onboardDPIProjections: [RecordedOnboardDPIProjection] = []
     private var onboardDeletes: [(deviceID: String, profileID: Int)] = []
     private var onboardActivations: [(deviceID: String, profileID: Int)] = []
     private var onboardListFailureMessage: String?
@@ -472,6 +480,19 @@ actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupportingBackend 
         return updated
     }
 
+    func projectOnboardProfileDPIToActiveLayer(
+        device: MouseDevice,
+        profileID: Int,
+        dpi: OnboardDPIProfileSnapshot
+    ) async throws -> Bool {
+        onboardDPIProjections.append(RecordedOnboardDPIProjection(
+            deviceID: device.id,
+            profileID: profileID,
+            dpi: dpi
+        ))
+        return stateByDeviceID[device.id]?.active_onboard_profile == profileID
+    }
+
     private func snapshotWithPaddedDPIReadbackIfNeeded(_ snapshot: OnboardProfileSnapshot) -> OnboardProfileSnapshot {
         guard padsReducedOnboardDPIReadback,
               let dpi = snapshot.dpi,
@@ -780,6 +801,10 @@ actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupportingBackend 
 
     func recordedOnboardRenames() -> [RecordedOnboardRename] {
         onboardRenames
+    }
+
+    func recordedOnboardDPIProjections() -> [RecordedOnboardDPIProjection] {
+        onboardDPIProjections
     }
 
     func recordedOnboardDeletes() -> [(deviceID: String, profileID: Int)] {

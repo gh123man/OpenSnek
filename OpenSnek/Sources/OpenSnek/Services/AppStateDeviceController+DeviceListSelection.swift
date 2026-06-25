@@ -432,12 +432,30 @@ extension AppStateDeviceController {
         let device = request.device
         let applyController = request.applyController
         let editorController = request.editorController
+        editorController.logDPITrace(
+            "hydrateSelectedEditorPresentation start",
+            device: device,
+            state: state,
+            extra: "holdsPersisted=\(request.holdsPersistedConnectPresentation) shouldHydrateEditable=\(applyController.shouldHydrateEditable(for: device)) scheduleButtons=\(request.scheduleButtonHydration) pendingLocal=\(applyController.hasPendingLocalEdits)"
+        )
         guard applyController.shouldHydrateEditable(for: device) else {
             editorController.hydrateLiveDpiPresentation(from: state)
+            editorController.logDPITrace(
+                "hydrateSelectedEditorPresentation end",
+                device: device,
+                state: state,
+                extra: "mode=liveDpiOnly"
+            )
             return false
         }
         if request.holdsPersistedConnectPresentation {
             editorController.hydrateLiveDpiPresentation(from: state)
+            editorController.logDPITrace(
+                "hydrateSelectedEditorPresentation end",
+                device: device,
+                state: state,
+                extra: "mode=persistedConnectLiveDpiOnly"
+            )
             return false
         }
 
@@ -445,6 +463,12 @@ extension AppStateDeviceController {
         if request.scheduleButtonHydration {
             scheduleSelectedDeviceButtonBindingHydration(device: device)
         }
+        editorController.logDPITrace(
+            "hydrateSelectedEditorPresentation end",
+            device: device,
+            state: state,
+            extra: "mode=fullEditable"
+        )
         return true
     }
 

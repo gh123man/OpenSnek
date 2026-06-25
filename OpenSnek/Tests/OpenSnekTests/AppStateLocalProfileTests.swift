@@ -474,6 +474,12 @@ final class AppStateLocalProfileTests: XCTestCase {
             await backend.recordedPatches().contains { $0.dpiStages == [500, 1000] }
         }
 
+        try await waitForRefactorCondition {
+            preferenceStore.loadOpenSnekLocalProfiles()
+                .first { $0.id == localProfile.id }?
+                .content.dpi?.pairs.map(\.x) == [500, 1000]
+        }
+
         let updatedProfile = try XCTUnwrap(
             preferenceStore.loadOpenSnekLocalProfiles().first { $0.id == localProfile.id }
         )

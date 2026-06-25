@@ -46,6 +46,11 @@ protocol DeviceBackend: AnyObject, Sendable {
         profileID: Int,
         mutation: OnboardProfileMutation
     ) async throws -> OnboardProfileSnapshot
+    func projectOnboardProfileDPIToActiveLayer(
+        device: MouseDevice,
+        profileID: Int,
+        dpi: OnboardDPIProfileSnapshot
+    ) async throws -> Bool
     func deleteOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileInventory
     func activateOnboardProfile(device: MouseDevice, profileID: Int) async throws -> MouseState
     func refreshActiveOnboardProfile(device: MouseDevice) async throws -> MouseState
@@ -144,6 +149,14 @@ final actor BootstrapPendingBackend: DeviceBackend {
         throw BridgeError.commandFailed("Backend is still starting")
     }
 
+    func projectOnboardProfileDPIToActiveLayer(
+        device _: MouseDevice,
+        profileID _: Int,
+        dpi _: OnboardDPIProfileSnapshot
+    ) async throws -> Bool {
+        throw BridgeError.commandFailed("Backend is still starting")
+    }
+
     func deleteOnboardProfile(device _: MouseDevice, profileID _: Int) async throws -> OnboardProfileInventory {
         throw BridgeError.commandFailed("Backend is still starting")
     }
@@ -221,6 +234,14 @@ extension DeviceBackend {
         mutation _: OnboardProfileMutation
     ) async throws -> OnboardProfileSnapshot {
         throw BridgeError.commandFailed("Onboard profile CRUD is not supported by this backend.")
+    }
+
+    func projectOnboardProfileDPIToActiveLayer(
+        device _: MouseDevice,
+        profileID _: Int,
+        dpi _: OnboardDPIProfileSnapshot
+    ) async throws -> Bool {
+        false
     }
 
     func deleteOnboardProfile(device _: MouseDevice, profileID _: Int) async throws -> OnboardProfileInventory {

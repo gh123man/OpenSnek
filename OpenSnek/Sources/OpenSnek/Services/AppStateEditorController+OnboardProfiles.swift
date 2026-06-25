@@ -85,7 +85,22 @@ extension AppStateEditorController {
         let selected = selectedOnboardProfileIDByDeviceID[device.id]
         let activeChanged = previousActive != nil && active != previousActive
         let reloadRequired = onboardProfileReloadRequiredDeviceIDs.contains(device.id)
+        let currentSnapshot = currentOnboardProfileSnapshotByDeviceID[device.id]
+        let missingActiveSnapshot = currentSnapshot?.profileID != active || currentSnapshot?.isMetadataOnly == true
+        let reportedCanonicalProfileCount = resolvedDeviceProfile(for: device)?.onboardProfileCount == device.onboard_profile_count
+        let rawDPIStageCount = state.dpi_stages.pairs?.count ?? state.dpi_stages.values?.count ?? 0
+        let hasFullRawDPIStageReadback = rawDPIStageCount >= DeviceProfiles.maximumDpiStageCount
+        let shouldLoadMissingActiveSnapshot = device.transport == .usb &&
+            reportedCanonicalProfileCount &&
+            hasFullRawDPIStageReadback &&
+            missingActiveSnapshot
         let shouldFollowActive = selected == nil || selected == previousActive || activeChanged
+        logDPITrace(
+            "activeProfile presentation",
+            device: device,
+            state: state,
+            extra: "incomingActive=\(active) previousActive=\(previousActive.map(String.init) ?? "nil") selectedBefore=\(selected.map(String.init) ?? "nil") activeChanged=\(activeChanged) reloadRequired=\(reloadRequired) missingActiveSnapshot=\(missingActiveSnapshot) rawDPIStageCount=\(rawDPIStageCount) loadMissingSnapshot=\(shouldLoadMissingActiveSnapshot) shouldFollow=\(shouldFollowActive)"
+        )
         if shouldFollowActive {
             selectedOnboardProfileIDByDeviceID[device.id] = active
         }
@@ -106,15 +121,26 @@ extension AppStateEditorController {
             )
             return
         }
-        guard shouldFollowActive, activeChanged || reloadRequired else { return }
+        guard shouldFollowActive, activeChanged || reloadRequired || shouldLoadMissingActiveSnapshot else { return }
         onboardProfileReloadRequiredDeviceIDs.remove(device.id)
 
         applyController.cancelPendingLocalEditsForSelectionChange()
+        logDPITrace(
+            "activeProfile scheduling load",
+            device: device,
+            state: state,
+            extra: "profile=\(active)"
+        )
         scheduleActiveOnboardProfileLoad(device: device, profileID: active)
     }
 
     func scheduleActiveOnboardProfileLoad(device: MouseDevice, profileID: Int) {
         cancelActiveOnboardProfileLoad(deviceID: device.id)
+        logDPITrace(
+            "activeProfile load scheduled",
+            device: device,
+            extra: "profile=\(profileID)"
+        )
         let token = UUID()
         activeOnboardProfileLoadTokensByDeviceID[device.id] = token
         activeOnboardProfileLoadTasksByDeviceID[device.id] = Task(priority: .userInitiated) { @MainActor [weak self, editorStore] in
@@ -125,6 +151,11 @@ extension AppStateEditorController {
                 }
             }
             guard let self, !Task.isCancelled else { return }
+            self.logDPITrace(
+                "activeProfile load task start",
+                device: device,
+                extra: "profile=\(profileID)"
+            )
             let operationID = editorStore.beginOnboardProfileLoad(statusText: "Loading profile...")
             self.activeOnboardProfileLoadOperationIDsByDeviceID[device.id] = operationID
             defer {
@@ -134,6 +165,11 @@ extension AppStateEditorController {
                 }
             }
             await self.selectOnboardProfile(profileID)
+            self.logDPITrace(
+                "activeProfile load task end",
+                device: device,
+                extra: "profile=\(profileID)"
+            )
         }
     }
 
@@ -221,6 +257,22 @@ extension AppStateEditorController {
             source: source,
             confirmMatchingProjections: false
         )
+        logDPITrace(
+            "storeCurrentOnboardProfileSnapshot",
+            device: device,
+            snapshot: storedSnapshot,
+            extra: "source=\(source)"
+        )
+        projectSelectedActiveOnboardProfileState(
+            from: storedSnapshot,
+            device: device,
+            source: source
+        )
+        scheduleActiveOnboardDPIProjectionIfNeeded(
+            from: storedSnapshot,
+            device: device,
+            source: source
+        )
         let storedName = onboardProfileInventoryByDeviceID[device.id]?
             .summary(for: storedSnapshot.profileID)?
             .displayName ?? "<missing>"
@@ -240,7 +292,7 @@ extension AppStateEditorController {
     ) -> OnboardProfileSnapshot {
         guard supportsOnboardProfileCRUD(device: device),
               let readbackDPI = snapshot.dpi,
-              let logicalDPI = expectedDPIReadback ?? existingLocalProfileDPI(matching: snapshot),
+              let logicalDPI = expectedDPIReadback ?? existingLocalProfile(matching: snapshot)?.content.dpi,
               shouldPreserveExistingLogicalDPI(logicalDPI, readbackDPI: readbackDPI, device: device) else {
             return snapshot
         }
@@ -265,12 +317,6 @@ extension AppStateEditorController {
                 "readbackCount=\(readbackDPI.stageCount)"
         )
         return snapshot.replacingDPI(preservedDPI)
-    }
-
-    private func existingLocalProfileDPI(matching snapshot: OnboardProfileSnapshot) -> OnboardDPIProfileSnapshot? {
-        preferenceStore.loadOpenSnekLocalProfiles().first {
-            $0.onboardIdentifier == snapshot.metadata.identifier
-        }?.content.dpi
     }
 
     private func shouldPreserveExistingLogicalDPI(
@@ -525,7 +571,17 @@ extension AppStateEditorController {
                 "AppState",
                 "refresh onboard profiles start device=\(device.id) selected=\(selectedOnboardProfileIDByDeviceID[device.id].map(String.init) ?? "<nil>") pendingMetadataProfiles=\((projectedOnboardProfileMetadataByDeviceID[device.id]?.keys.sorted() ?? []).map(String.init).joined(separator: ","))"
             )
+            logDPITrace(
+                "refreshOnboardProfiles start",
+                device: device,
+                extra: "hydrateSelected=\(hydrateSelectedProfile)"
+            )
             let inventory = try await environment.backend.listOnboardProfiles(device: device)
+            logDPITrace(
+                "refreshOnboardProfiles inventory",
+                device: device,
+                extra: "active=\(inventory.activeProfileID) assigned=\(inventory.assignedProfileIDs.map(String.init).joined(separator: ",")) summaries=\(inventory.profiles.map { "\($0.profileID):\($0.displayName):active=\($0.isActive)" }.joined(separator: "|"))"
+            )
             let priorNames = onboardProfileInventoryByDeviceID[device.id]?.profiles.reduce(into: [Int: String]()) { partialResult, summary in
                 partialResult[summary.profileID] = summary.displayName
             } ?? [:]
@@ -548,7 +604,18 @@ extension AppStateEditorController {
                selectedAfterRefresh == projectedInventory.activeProfileID,
                projectedInventory.assignedProfileIDs.contains(selectedAfterRefresh),
                currentOnboardProfileSnapshotByDeviceID[device.id]?.profileID != selectedAfterRefresh {
+                logDPITrace(
+                    "refreshOnboardProfiles read selected snapshot",
+                    device: device,
+                    extra: "profile=\(selectedAfterRefresh)"
+                )
                 let snapshot = try await readLatestOnboardProfileSnapshot(device: device, profileID: selectedAfterRefresh)
+                logDPITrace(
+                    "refreshOnboardProfiles selected snapshot read",
+                    device: device,
+                    snapshot: snapshot,
+                    extra: "profile=\(selectedAfterRefresh) shouldHydrateEditable=\(applyController.shouldHydrateEditable(for: device))"
+                )
                 if applyController.shouldHydrateEditable(for: device) {
                     hydrateEditable(from: snapshot, device: device)
                 } else {
@@ -575,6 +642,11 @@ extension AppStateEditorController {
                 "AppState",
                 "refresh onboard profiles ok device=\(device.id) active=\(visibleInventory.activeProfileID) assigned=\(visibleInventory.assignedProfileIDs.map(String.init).joined(separator: ",")) selected=\(selectedOnboardProfileIDByDeviceID[device.id].map(String.init) ?? "<nil>") changedNames=\(changedNames.isEmpty ? "<none>" : changedNames)"
             )
+            logDPITrace(
+                "refreshOnboardProfiles end",
+                device: device,
+                extra: "active=\(visibleInventory.activeProfileID) selected=\(selectedOnboardProfileIDByDeviceID[device.id].map(String.init) ?? "nil") changedNames=\(changedNames.isEmpty ? "none" : changedNames)"
+            )
             editorStore.onboardProfileRefreshErrorMessage = nil
             bumpOnboardProfilesRevision()
         } catch {
@@ -599,6 +671,7 @@ extension AppStateEditorController {
         let start = Date()
         do {
             AppLog.debug("AppState", "select onboard profile start device=\(device.id) profile=\(profileID)")
+            logDPITrace("selectOnboardProfile start", device: device, extra: "requested=\(profileID)")
             if onboardProfileInventoryByDeviceID[device.id] == nil {
                 await refreshOnboardProfiles(hydrateSelectedProfile: false)
             }
@@ -619,9 +692,11 @@ extension AppStateEditorController {
                 currentOnboardProfileSnapshotByDeviceID.removeValue(forKey: device.id)
                 deviceStore.errorMessage = nil
                 bumpOnboardProfilesRevision()
+                logDPITrace("selectOnboardProfile unassigned", device: device, extra: "profile=\(profileID)")
                 return
             }
             guard isOnboardProfileActive(deviceID: device.id, profileID: profileID) else {
+                logDPITrace("selectOnboardProfile activating", device: device, extra: "profile=\(profileID)")
                 await activateOnboardProfile(profileID)
                 return
             }
@@ -635,6 +710,12 @@ extension AppStateEditorController {
                 source: "readOnboardProfileCore"
             )
             selectedOnboardProfileIDByDeviceID[device.id] = profileID
+            logDPITrace(
+                "selectOnboardProfile snapshot stored",
+                device: device,
+                snapshot: storedSnapshot,
+                extra: "profile=\(profileID)"
+            )
             hydrateEditable(from: storedSnapshot, device: device)
             if shouldHydrateOnboardProfileButtonsInline(device: device) {
                 await readOnboardProfileButtonBindingsForSelection(device: device, profileID: profileID)
@@ -646,6 +727,11 @@ extension AppStateEditorController {
             AppLog.debug(
                 "AppState",
                 "select onboard profile ok device=\(device.id) profile=\(profileID) elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
+            )
+            logDPITrace(
+                "selectOnboardProfile end",
+                device: device,
+                extra: "profile=\(profileID) elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
             )
         } catch {
             AppLog.error("AppState", "select onboard profile failed profile=\(profileID): \(error.localizedDescription)")
@@ -668,9 +754,16 @@ extension AppStateEditorController {
         }
         do {
             AppLog.debug("AppState", "activate onboard profile start device=\(device.id) profile=\(profileID)")
+            logDPITrace("activateOnboardProfile start", device: device, extra: "requested=\(profileID)")
             let state = try await environment.backend.activateOnboardProfile(device: device, profileID: profileID)
             let active = storeActiveOnboardProfileState(state, for: device, fallbackActiveProfileID: profileID)
             selectedOnboardProfileIDByDeviceID[device.id] = active
+            logDPITrace(
+                "activateOnboardProfile state readback",
+                device: device,
+                state: state,
+                extra: "requested=\(profileID) active=\(active)"
+            )
             let snapshot = snapshotWithCachedButtonBindings(
                 try await readLatestOnboardProfileCoreSnapshot(device: device, profileID: active),
                 device: device
@@ -679,6 +772,13 @@ extension AppStateEditorController {
                 snapshot,
                 device: device,
                 source: "activateOnboardProfileCore"
+            )
+            logDPITrace(
+                "activateOnboardProfile snapshot stored",
+                device: device,
+                state: state,
+                snapshot: storedSnapshot,
+                extra: "requested=\(profileID) active=\(active)"
             )
             hydrateEditable(from: storedSnapshot, device: device)
             if shouldHydrateOnboardProfileButtonsInline(device: device) {
@@ -691,6 +791,11 @@ extension AppStateEditorController {
             AppLog.debug(
                 "AppState",
                 "activate onboard profile ok device=\(device.id) requested=\(profileID) active=\(active) elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
+            )
+            logDPITrace(
+                "activateOnboardProfile end",
+                device: device,
+                extra: "requested=\(profileID) active=\(active) elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
             )
         } catch {
             AppLog.error("AppState", "activate onboard profile failed profile=\(profileID): \(error.localizedDescription)")

@@ -79,6 +79,13 @@ struct OnboardProfileUpdateRequest: Codable, Sendable {
     let mutation: OnboardProfileMutation
 }
 
+/// Carries onboard profile DPI projection request data.
+struct OnboardProfileDPIProjectionRequest: Codable, Sendable {
+    let device: MouseDevice
+    let profileID: Int
+    let dpi: OnboardDPIProfileSnapshot
+}
+
 /// Carries stream subscription request data.
 struct StreamSubscriptionRequest: Codable, Sendable {
     let sourceProcessID: Int32
@@ -140,6 +147,7 @@ enum BackgroundServiceMethod: String, Codable, Sendable {
     case createOnboardProfile
     case renameOnboardProfile
     case updateOnboardProfile
+    case projectOnboardProfileDPIToActiveLayer
     case deleteOnboardProfile
     case activateOnboardProfile
     case refreshActiveOnboardProfile
