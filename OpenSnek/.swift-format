@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "indentation": {
+    "spaces": 4
+  },
+  "lineLength": 300,
+  "lineBreakBeforeEachArgument": false,
+  "lineBreakBeforeEachGenericRequirement": false,
+  "multiElementCollectionTrailingCommas": false,
+  "respectsExistingLineBreaks": false,
+  "rules": {
+    "AlwaysUseLowerCamelCase": false,
+    "ReplaceForEachWithForLoop": false
+  }
+}

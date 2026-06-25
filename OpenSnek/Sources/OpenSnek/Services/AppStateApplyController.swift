@@ -3,8 +3,7 @@ import OpenSnekAppSupport
 import OpenSnekCore
 
 /// Coordinates app state apply behavior.
-@MainActor
-final class AppStateApplyController {
+@MainActor final class AppStateApplyController {
     private static let fastDpiApplySuppressionDuration: TimeInterval = 0.9
     private static let compactInteractionDurationAfterDpiApply: TimeInterval = 3.0
     private static let dpiApplyFailureStatusDuration: TimeInterval = 4.0
@@ -13,12 +12,9 @@ final class AppStateApplyController {
     let deviceStore: DeviceStore
     let editorStore: EditorStore
     private let runtimeStore: RuntimeStore
-    @WeakBound("AppStateApplyController", dependency: "deviceController")
-    var deviceController: AppStateDeviceController
-    @WeakBound("AppStateApplyController", dependency: "editorController")
-    var editorController: AppStateEditorController
-    @WeakBound("AppStateApplyController", dependency: "runtimeController")
-    private var runtimeController: AppStateRuntimeController
+    @WeakBound("AppStateApplyController", dependency: "deviceController") var deviceController: AppStateDeviceController
+    @WeakBound("AppStateApplyController", dependency: "editorController") var editorController: AppStateEditorController
+    @WeakBound("AppStateApplyController", dependency: "runtimeController") private var runtimeController: AppStateRuntimeController
 
     let applyCoordinator = ApplyCoordinator()
     /// Defines apply task key values.
@@ -49,16 +45,7 @@ final class AppStateApplyController {
         let validLocalEditGeneration: UInt64?
         let validSettingsRestoreRevision: Int?
 
-        init(
-            markApplyingState: Bool,
-            shouldFocusOnActivity: Bool,
-            shouldSurfaceApplyFailure: Bool,
-            persistLightingZoneID: String,
-            clearLocalEditsOnSuccess: Bool,
-            backendApplyOptions: ApplyOptions,
-            validLocalEditGeneration: UInt64? = nil,
-            validSettingsRestoreRevision: Int? = nil
-        ) {
+        init(markApplyingState: Bool, shouldFocusOnActivity: Bool, shouldSurfaceApplyFailure: Bool, persistLightingZoneID: String, clearLocalEditsOnSuccess: Bool, backendApplyOptions: ApplyOptions, validLocalEditGeneration: UInt64? = nil, validSettingsRestoreRevision: Int? = nil) {
             self.markApplyingState = markApplyingState
             self.shouldFocusOnActivity = shouldFocusOnActivity
             self.shouldSurfaceApplyFailure = shouldSurfaceApplyFailure
@@ -90,12 +77,7 @@ final class AppStateApplyController {
     var localEditDeviceIdentityKey: String?
     var pendingActiveStageSelectionByDeviceIdentityKey: [String: Int] = [:]
 
-    init(
-        environment: AppEnvironment,
-        deviceStore: DeviceStore,
-        editorStore: EditorStore,
-        runtimeStore: RuntimeStore
-    ) {
+    init(environment: AppEnvironment, deviceStore: DeviceStore, editorStore: EditorStore, runtimeStore: RuntimeStore) {
         self.environment = environment
         self.deviceStore = deviceStore
         self.editorStore = editorStore
@@ -103,34 +85,30 @@ final class AppStateApplyController {
     }
 
     func tearDown() {
-        for task in applyTasks.values {
-            task.cancel()
-        }
+        for task in applyTasks.values { task.cancel() }
         applyTasks.removeAll()
         applyDrainTask?.cancel()
     }
 
-    func bind(
-        deviceController: AppStateDeviceController,
-        editorController: AppStateEditorController,
-        runtimeController: AppStateRuntimeController
-    ) {
+    func bind(deviceController: AppStateDeviceController, editorController: AppStateEditorController, runtimeController: AppStateRuntimeController) {
         _deviceController.bind(deviceController)
         _editorController.bind(editorController)
         _runtimeController.bind(runtimeController)
     }
 
-    var stateRevision: UInt64 {
-        applyCoordinator.stateRevision
-    }
+    var stateRevision: UInt64 { applyCoordinator.stateRevision }
 
-    var shouldHydrateEditable: Bool {
-        shouldHydrateEditable(for: deviceStore.selectedDevice)
-    }
+    var shouldHydrateEditable: Bool { shouldHydrateEditable(for: deviceStore.selectedDevice) }
 
     func shouldHydrateEditable(for device: MouseDevice?) -> Bool {
-        guard !deviceStore.isApplying, !editorStore.isEditingDpiControl else { return false }
+        guard canHydrateEditable else { return false }
         guard let device else { return !hasPendingLocalEdits }
+        return shouldHydrateEditableDevice(device)
+    }
+
+    private var canHydrateEditable: Bool { !deviceStore.isApplying && !editorStore.isEditingDpiControl }
+
+    private func shouldHydrateEditableDevice(_ device: MouseDevice) -> Bool {
         guard pendingActiveStageSelection(for: device) == nil else { return false }
         guard !hasPendingLocalEditsAffecting(device) else { return false }
         guard let lastLocalEditAt else { return true }
@@ -144,22 +122,11 @@ final class AppStateApplyController {
         let selectedDevice = deviceStore.selectedDevice
         let profileID = selectedDevice?.profile_id
         let values = Array(editorStore.editableStageValues.prefix(count)).map { DeviceProfiles.clampDPI($0, profileID: profileID) }
-        let pairs = Array(editorStore.editableStagePairs.prefix(count)).map { pair in
-            DpiPair(
-                x: DeviceProfiles.clampDPI(pair.x, profileID: profileID),
-                y: DeviceProfiles.clampDPI(pair.y, profileID: profileID)
-            )
-        }
+        let pairs = Array(editorStore.editableStagePairs.prefix(count)).map { pair in DpiPair(x: DeviceProfiles.clampDPI(pair.x, profileID: profileID), y: DeviceProfiles.clampDPI(pair.y, profileID: profileID)) }
         let active = max(0, min(count - 1, editorStore.editableActiveStage - 1))
         if let selectedDevice, supportsOnboardProfileEditorWrites(device: selectedDevice) {
             let scalar = pairs.indices.contains(active) ? pairs[active] : pairs.first
-            let mutation = OnboardProfileMutation(
-                dpi: OnboardDPIProfileSnapshot(
-                    scalar: scalar,
-                    activeStage: active,
-                    pairs: pairs
-                )
-            )
+            let mutation = OnboardProfileMutation(dpi: OnboardDPIProfileSnapshot(scalar: scalar, activeStage: active, pairs: pairs))
             _ = await applyOnboardProfileMutationForCurrentSelection(mutation)
             return
         }
@@ -177,29 +144,12 @@ final class AppStateApplyController {
         let count = DeviceProfiles.clampDpiStageCount(editorStore.editableStageCount)
         let selectedDevice = deviceStore.selectedDevice
         let active = max(0, min(count - 1, editorStore.editableActiveStage - 1))
-        AppLog.debug(
-            "AppState",
-            "applyActiveStageOnly device=\(selectedDevice?.id ?? "nil") editable=\(editorStore.editableActiveStage) " +
-            "active=\(active) count=\(count) pending=\(pendingActiveStageSelection(for: selectedDevice).map(String.init) ?? "nil")"
-        )
+        AppLog.debug("AppState", "applyActiveStageOnly device=\(selectedDevice?.id ?? "nil") editable=\(editorStore.editableActiveStage) " + "active=\(active) count=\(count) pending=\(pendingActiveStageSelection(for: selectedDevice).map(String.init) ?? "nil")")
         if let selectedDevice, supportsOnboardProfileEditorWrites(device: selectedDevice) {
             let profileID = selectedDevice.profile_id
-            let pairs = Array(editorStore.editableStagePairs.prefix(count)).map { pair in
-                DpiPair(
-                    x: DeviceProfiles.clampDPI(pair.x, profileID: profileID),
-                    y: DeviceProfiles.clampDPI(pair.y, profileID: profileID)
-                )
-            }
+            let pairs = Array(editorStore.editableStagePairs.prefix(count)).map { pair in DpiPair(x: DeviceProfiles.clampDPI(pair.x, profileID: profileID), y: DeviceProfiles.clampDPI(pair.y, profileID: profileID)) }
             let scalar = pairs.indices.contains(active) ? pairs[active] : pairs.first
-            _ = await applyOnboardProfileMutationForCurrentSelection(
-                OnboardProfileMutation(
-                    dpi: OnboardDPIProfileSnapshot(
-                        scalar: scalar,
-                        activeStage: active,
-                        pairs: pairs
-                    )
-                )
-            )
+            _ = await applyOnboardProfileMutationForCurrentSelection(OnboardProfileMutation(dpi: OnboardDPIProfileSnapshot(scalar: scalar, activeStage: active, pairs: pairs)))
             return
         }
         enqueueApply(DevicePatch(activeStage: active))
@@ -208,20 +158,14 @@ final class AppStateApplyController {
     func scheduleAutoApplyActiveStage() {
         guard !editorController.isHydrating else { return }
         rememberPendingActiveStageSelection(editorStore.editableActiveStage, for: deviceStore.selectedDevice)
-        AppLog.debug(
-            "AppState",
-            "scheduleActiveStageApply device=\(deviceStore.selectedDevice?.id ?? "nil") " +
-            "editable=\(editorStore.editableActiveStage) pending=\(pendingActiveStageSelection(for: deviceStore.selectedDevice).map(String.init) ?? "nil")"
-        )
+        AppLog.debug("AppState", "scheduleActiveStageApply device=\(deviceStore.selectedDevice?.id ?? "nil") " + "editable=\(editorStore.editableActiveStage) pending=\(pendingActiveStageSelection(for: deviceStore.selectedDevice).map(String.init) ?? "nil")")
         scheduleAutoApply(key: .activeStage, delay: 80_000_000) { [weak self] in
             guard let self else { return }
             await self.applyActiveStageOnly()
         }
     }
 
-    func applyPollRate() async {
-        enqueueApply(DevicePatch(pollRate: editorStore.editablePollRate))
-    }
+    func applyPollRate() async { enqueueApply(DevicePatch(pollRate: editorStore.editablePollRate)) }
 
     func scheduleAutoApplyPollRate() {
         scheduleAutoApply(key: .pollRate, delay: 250_000_000) { [weak self] in
@@ -230,9 +174,7 @@ final class AppStateApplyController {
         }
     }
 
-    func applySleepTimeout() async {
-        enqueueApply(DevicePatch(sleepTimeout: editorStore.editableSleepTimeout))
-    }
+    func applySleepTimeout() async { enqueueApply(DevicePatch(sleepTimeout: editorStore.editableSleepTimeout)) }
 
     func scheduleAutoApplySleepTimeout() {
         scheduleAutoApply(key: .power, delay: 260_000_000) { [weak self] in
@@ -256,9 +198,7 @@ final class AppStateApplyController {
     func applyScrollMode() async {
         guard let selectedDevice = selectedDeviceForScrollModeApply() else { return }
         if supportsOnboardProfileCRUD(device: selectedDevice) {
-            _ = await applyOnboardProfileMutationForCurrentSelection(
-                OnboardProfileMutation(scrollMode: max(0, min(1, editorStore.editableScrollMode)))
-            )
+            _ = await applyOnboardProfileMutationForCurrentSelection(OnboardProfileMutation(scrollMode: max(0, min(1, editorStore.editableScrollMode))))
             return
         }
         enqueueApply(DevicePatch(scrollMode: max(0, min(1, editorStore.editableScrollMode))))
@@ -274,9 +214,7 @@ final class AppStateApplyController {
     func applyScrollAcceleration() async {
         guard let selectedDevice = selectedDeviceForScrollModeApply() else { return }
         if supportsOnboardProfileCRUD(device: selectedDevice) {
-            _ = await applyOnboardProfileMutationForCurrentSelection(
-                OnboardProfileMutation(scrollAcceleration: editorStore.editableScrollAcceleration)
-            )
+            _ = await applyOnboardProfileMutationForCurrentSelection(OnboardProfileMutation(scrollAcceleration: editorStore.editableScrollAcceleration))
             return
         }
         enqueueApply(DevicePatch(scrollAcceleration: editorStore.editableScrollAcceleration))
@@ -292,19 +230,14 @@ final class AppStateApplyController {
     func applyScrollSmartReel() async {
         guard let selectedDevice = selectedDeviceForScrollModeApply() else { return }
         if supportsOnboardProfileCRUD(device: selectedDevice) {
-            _ = await applyOnboardProfileMutationForCurrentSelection(
-                OnboardProfileMutation(scrollSmartReel: editorStore.editableScrollSmartReel)
-            )
+            _ = await applyOnboardProfileMutationForCurrentSelection(OnboardProfileMutation(scrollSmartReel: editorStore.editableScrollSmartReel))
             return
         }
         enqueueApply(DevicePatch(scrollSmartReel: editorStore.editableScrollSmartReel))
     }
 
     private func selectedDeviceForScrollModeApply() -> MouseDevice? {
-        guard let selectedDevice = deviceStore.selectedDevice,
-              selectedDevice.supportsScrollModeControls else {
-            return nil
-        }
+        guard let selectedDevice = deviceStore.selectedDevice, selectedDevice.supportsScrollModeControls else { return nil }
         return selectedDevice
     }
 
@@ -316,21 +249,10 @@ final class AppStateApplyController {
     }
 
     func applyLedBrightness() async {
-        guard let selectedDevice = deviceStore.selectedDevice,
-              selectedDevice.supportsLightingBrightnessControls else {
-            return
-        }
+        guard let selectedDevice = deviceStore.selectedDevice, selectedDevice.supportsLightingBrightnessControls else { return }
         if supportsOnboardProfileLightingEditorWrites(device: selectedDevice) {
-            let brightness = Dictionary(
-                uniqueKeysWithValues: onboardProfileLEDIDs(for: selectedDevice).map { ledID in
-                    (Int(ledID), editorStore.editableLedBrightness)
-                }
-            )
-            if await applyOnboardProfileMutationForCurrentSelection(
-                OnboardProfileMutation(brightnessByLEDID: brightness)
-            ) {
-                return
-            }
+            let brightness = Dictionary(uniqueKeysWithValues: onboardProfileLEDIDs(for: selectedDevice).map { ledID in (Int(ledID), editorStore.editableLedBrightness) })
+            if await applyOnboardProfileMutationForCurrentSelection(OnboardProfileMutation(brightnessByLEDID: brightness)) { return }
             return
         }
         enqueueApply(DevicePatch(ledBrightness: editorStore.editableLedBrightness))
@@ -344,20 +266,11 @@ final class AppStateApplyController {
     }
 
     func applyLedColor() async {
-        if let selectedDevice = deviceStore.selectedDevice,
-           supportsOnboardProfileLightingEditorWrites(device: selectedDevice),
-           editorStore.editableLightingEffect == .staticColor || !selectedDevice.supports_advanced_lighting_effects {
-            _ = await applyOnboardProfileMutationForCurrentSelection(
-                OnboardProfileMutation(staticColorByLEDID: currentStaticOnboardProfileColors(for: selectedDevice))
-            )
+        if let selectedDevice = deviceStore.selectedDevice, supportsOnboardProfileLightingEditorWrites(device: selectedDevice), editorStore.editableLightingEffect == .staticColor || !selectedDevice.supports_advanced_lighting_effects {
+            _ = await applyOnboardProfileMutationForCurrentSelection(OnboardProfileMutation(staticColorByLEDID: currentStaticOnboardProfileColors(for: selectedDevice)))
             return
         }
-        enqueueApply(
-            DevicePatch(
-                ledRGB: RGBPatch(r: editorStore.editableColor.r, g: editorStore.editableColor.g, b: editorStore.editableColor.b),
-                usbLightingZoneLEDIDs: editorController.currentUSBLightingZoneLEDIDs()
-            )
-        )
+        enqueueApply(DevicePatch(ledRGB: RGBPatch(r: editorStore.editableColor.r, g: editorStore.editableColor.g, b: editorStore.editableColor.b), usbLightingZoneLEDIDs: editorController.currentUSBLightingZoneLEDIDs()))
     }
 
     func scheduleAutoApplyLedColor() {
@@ -378,17 +291,11 @@ final class AppStateApplyController {
             enqueueApply(DevicePatch(ledRGB: RGBPatch(r: editorStore.editableColor.r, g: editorStore.editableColor.g, b: editorStore.editableColor.b)))
             return
         }
-        if editorStore.editableLightingEffect == .staticColor,
-           supportsOnboardProfileLightingEditorWrites(device: selectedDevice) {
+        if editorStore.editableLightingEffect == .staticColor, supportsOnboardProfileLightingEditorWrites(device: selectedDevice) {
             _ = await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice)
             return
         }
-        enqueueApply(
-            DevicePatch(
-                lightingEffect: editorController.currentLightingEffectPatch(),
-                usbLightingZoneLEDIDs: editorController.currentUSBLightingZoneLEDIDs()
-            )
-        )
+        enqueueApply(DevicePatch(lightingEffect: editorController.currentLightingEffectPatch(), usbLightingZoneLEDIDs: editorController.currentUSBLightingZoneLEDIDs()))
     }
 
     func scheduleAutoApplyLightingEffect() {
@@ -415,50 +322,28 @@ final class AppStateApplyController {
         cancelScheduledApply(for: .ledColor)
         cancelScheduledApply(for: .lightingEffect)
 
-        if let selectedDevice = deviceStore.selectedDevice,
-           await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice, allZones: true) {
-            return
-        }
+        if let selectedDevice = deviceStore.selectedDevice, await applyCurrentStaticOnboardProfileColorsIfSupported(for: selectedDevice, allZones: true) { return }
 
         if deviceStore.selectedDevice?.supports_advanced_lighting_effects == true {
             enqueueApply(DevicePatch(lightingEffect: editorController.currentLightingEffectPatch()))
         } else {
-            enqueueApply(
-                DevicePatch(
-                    ledRGB: RGBPatch(
-                        r: editorStore.editableColor.r,
-                        g: editorStore.editableColor.g,
-                        b: editorStore.editableColor.b
-                    )
-                )
-            )
+            enqueueApply(DevicePatch(ledRGB: RGBPatch(r: editorStore.editableColor.r, g: editorStore.editableColor.g, b: editorStore.editableColor.b)))
         }
     }
 
-    func scheduleAutoApply(
-        key: ApplyTaskKey,
-        delay: UInt64 = 220_000_000,
-        action: @escaping @MainActor () async -> Void
-    ) {
+    func scheduleAutoApply(key: ApplyTaskKey, delay: UInt64 = 220_000_000, action: @escaping @MainActor () async -> Void) {
         guard !editorController.isHydrating else { return }
         markLocalEditsPending()
         let generation = localEditGeneration
         applyTasks[key]?.cancel()
         applyTasks[key] = Task {
-            do {
-                try await Task.sleep(nanoseconds: delay)
-            } catch {
-                return
-            }
+            do { try await Task.sleep(nanoseconds: delay) } catch { return }
             guard !Task.isCancelled else { return }
             await runScheduledApplyIfCurrent(generation: generation, action)
         }
     }
 
-    private func runScheduledApplyIfCurrent(
-        generation: UInt64,
-        _ action: @escaping @MainActor () async -> Void
-    ) async {
+    private func runScheduledApplyIfCurrent(generation: UInt64, _ action: @escaping @MainActor () async -> Void) async {
         guard !Task.isCancelled else { return }
         guard generation == localEditGeneration else { return }
         await action()
@@ -493,23 +378,17 @@ final class AppStateApplyController {
     }
 
     private func stateConfirmsPendingActiveStage(_ stage: Int, state: MouseState) -> Bool {
-        if state.dpi_stages.active_stage == stage - 1 {
-            return true
-        }
+        if state.dpi_stages.active_stage == stage - 1 { return true }
 
         guard let liveDPI = state.dpi else { return false }
         let count = DeviceProfiles.clampDpiStageCount(editorStore.editableStageCount)
         guard stage >= 1, stage <= count else { return false }
         let visiblePairs = Array(editorStore.editableStagePairs.prefix(count))
-        let matchingStages = visiblePairs.enumerated().compactMap { index, pair in
-            pair == liveDPI ? index + 1 : nil
-        }
+        let matchingStages = visiblePairs.enumerated().compactMap { index, pair in pair == liveDPI ? index + 1 : nil }
         return matchingStages == [stage]
     }
 
-    func cancelPendingLocalEditsForSelectionChange() {
-        _ = cancelPendingLocalEditsForSelectionChangeReturningDrainTask()
-    }
+    func cancelPendingLocalEditsForSelectionChange() { _ = cancelPendingLocalEditsForSelectionChangeReturningDrainTask() }
 
     func cancelAndDrainPendingLocalEditsForSelectionChange() async {
         let drainTask = cancelPendingLocalEditsForSelectionChangeReturningDrainTask()
@@ -518,9 +397,7 @@ final class AppStateApplyController {
 
     private func cancelPendingLocalEditsForSelectionChangeReturningDrainTask() -> Task<Void, Never>? {
         localEditGeneration &+= 1
-        for task in applyTasks.values {
-            task.cancel()
-        }
+        for task in applyTasks.values { task.cancel() }
         applyTasks.removeAll()
         applyCoordinator.clearPending()
         hasPendingLocalEdits = false
@@ -530,26 +407,16 @@ final class AppStateApplyController {
         return applyDrainTask
     }
 
-    func cancelPendingPersistedSettingsRestore(for device: MouseDevice) {
-        deviceController.cancelPendingSettingsRestore(for: device)
-    }
+    func cancelPendingPersistedSettingsRestore(for device: MouseDevice) { deviceController.cancelPendingSettingsRestore(for: device) }
 
     func enqueueApply(_ patch: DevicePatch) {
         _ = applyCoordinator.enqueue(patch, generation: localEditGeneration)
         markLocalEditsPending()
 
-        if applyDrainTask == nil {
-            applyDrainTask = Task { [weak self] in
-                await self?.drainApplyQueue()
-            }
-        }
+        if applyDrainTask == nil { applyDrainTask = Task { [weak self] in await self?.drainApplyQueue() } }
     }
 
-    @discardableResult
-    func applyPersistedSettingsRestore(
-        _ plan: AppStateEditorController.PersistedSettingsRestorePlan,
-        to device: MouseDevice
-    ) async -> Bool {
+    @discardableResult func applyPersistedSettingsRestore(_ plan: AppStateEditorController.PersistedSettingsRestorePlan, to device: MouseDevice) async -> Bool {
         if editorController.singleSlotProfileApplySyncSuppressedDeviceIDs.contains(device.id) {
             AppLog.debug("AppState", "restore skipped during single-slot profile replacement device=\(device.id)")
             return true
@@ -559,24 +426,14 @@ final class AppStateApplyController {
         let targetIdentity = deviceController.deviceIdentityKey(device)
         let targetsSelectedDevice = selectedIdentity == targetIdentity
         let restoresStaticLighting = plan.patch.ledRGB != nil || plan.snapshot.lightingEffect?.kind == .staticColor
-        let persistLightingZoneID = restoresStaticLighting
-            ? plan.snapshot.usbLightingZoneID
-            : "all"
+        let persistLightingZoneID = restoresStaticLighting ? plan.snapshot.usbLightingZoneID : "all"
 
         if !plan.patch.isEmpty {
             let restoredState = await apply(
-                device: device,
-                patch: plan.patch,
+                device: device, patch: plan.patch,
                 behavior: ApplyBehavior(
-                    markApplyingState: targetsSelectedDevice,
-                    shouldFocusOnActivity: false,
-                    shouldSurfaceApplyFailure: targetsSelectedDevice,
-                    persistLightingZoneID: persistLightingZoneID,
-                    clearLocalEditsOnSuccess: false,
-                    backendApplyOptions: ApplyOptions(),
-                    validSettingsRestoreRevision: restoreRevision
-                )
-            )
+                    markApplyingState: targetsSelectedDevice, shouldFocusOnActivity: false, shouldSurfaceApplyFailure: targetsSelectedDevice, persistLightingZoneID: persistLightingZoneID, clearLocalEditsOnSuccess: false, backendApplyOptions: ApplyOptions(),
+                    validSettingsRestoreRevision: restoreRevision))
             guard restoredState else { return false }
         }
 
@@ -586,34 +443,14 @@ final class AppStateApplyController {
         for slot in writableSlots {
             let draft = plan.buttonBindings[slot] ?? editorController.defaultButtonBinding(for: slot, device: device)
             let restoredButton = await apply(
-                device: device,
-                patch: DevicePatch(
-                    buttonBinding: makeButtonBindingPatch(
-                        slot: slot,
-                        draft: draft,
-                        profileID: device.profile_id,
-                        persistentProfile: persistentProfile,
-                        writePersistentLayer: true,
-                        writeDirectLayer: true
-                    )
-                ),
+                device: device, patch: DevicePatch(buttonBinding: makeButtonBindingPatch(slot: slot, draft: draft, profileID: device.profile_id, persistentProfile: persistentProfile, writePersistentLayer: true, writeDirectLayer: true)),
                 behavior: ApplyBehavior(
-                    markApplyingState: targetsSelectedDevice,
-                    shouldFocusOnActivity: false,
-                    shouldSurfaceApplyFailure: targetsSelectedDevice,
-                    persistLightingZoneID: persistLightingZoneID,
-                    clearLocalEditsOnSuccess: false,
-                    backendApplyOptions: restoreButtonApplyOptions,
-                    validSettingsRestoreRevision: restoreRevision
-                )
-            )
+                    markApplyingState: targetsSelectedDevice, shouldFocusOnActivity: false, shouldSurfaceApplyFailure: targetsSelectedDevice, persistLightingZoneID: persistLightingZoneID, clearLocalEditsOnSuccess: false, backendApplyOptions: restoreButtonApplyOptions,
+                    validSettingsRestoreRevision: restoreRevision))
             guard restoredButton else { return false }
         }
 
-        await verifyRestoreStateAfterDeferredButtonWrites(
-            device: device,
-            targetsSelectedDevice: targetsSelectedDevice
-        )
+        await verifyRestoreStateAfterDeferredButtonWrites(device: device, targetsSelectedDevice: targetsSelectedDevice)
 
         if targetsSelectedDevice {
             editorController.setLiveUSBButtonProfileOverride(1, for: device)
@@ -646,36 +483,15 @@ final class AppStateApplyController {
             return
         }
         _ = await apply(
-            device: selectedDevice,
-            patch: patch,
-            behavior: ApplyBehavior(
-                markApplyingState: true,
-                shouldFocusOnActivity: true,
-                shouldSurfaceApplyFailure: true,
-                persistLightingZoneID: editorStore.editableUSBLightingZoneID,
-                clearLocalEditsOnSuccess: true,
-                backendApplyOptions: ApplyOptions(),
-                validLocalEditGeneration: generation
-            )
-        )
+            device: selectedDevice, patch: patch,
+            behavior: ApplyBehavior(markApplyingState: true, shouldFocusOnActivity: true, shouldSurfaceApplyFailure: true, persistLightingZoneID: editorStore.editableUSBLightingZoneID, clearLocalEditsOnSuccess: true, backendApplyOptions: ApplyOptions(), validLocalEditGeneration: generation))
     }
 
-    @discardableResult
-    func apply(
-        device targetDevice: MouseDevice,
-        patch: DevicePatch,
-        behavior: ApplyBehavior
-    ) async -> Bool {
+    @discardableResult func apply(device targetDevice: MouseDevice, patch: DevicePatch, behavior: ApplyBehavior) async -> Bool {
         applyCoordinator.bumpRevision()
         AppLog.event("AppState", "apply start device=\(targetDevice.id) patch=\(patch.describe)")
-        if behavior.markApplyingState {
-            deviceStore.isApplying = true
-        }
-        defer {
-            if behavior.markApplyingState {
-                deviceStore.isApplying = false
-            }
-        }
+        if behavior.markApplyingState { deviceStore.isApplying = true }
+        defer { if behavior.markApplyingState { deviceStore.isApplying = false } }
 
         let start = Date()
         let applyDeviceID = targetDevice.id
@@ -687,67 +503,32 @@ final class AppStateApplyController {
             await enterHardwareApplyGate()
             defer { leaveHardwareApplyGate() }
             guard applyIsStillCurrent(behavior: behavior, targetDevice: targetDevice, patch: patch) else { return false }
-            let next = try await applyBackendState(
-                device: targetDevice,
-                patch: patch,
-                options: behavior.backendApplyOptions
-            )
-            return handleSuccessfulApply(
-                SuccessfulApplyContext(
-                    next: next,
-                    targetDevice: targetDevice,
-                    applyDeviceID: applyDeviceID,
-                    patch: patch,
-                    start: start,
-                    behavior: behavior
-                )
-            )
+            let next = try await applyBackendState(device: targetDevice, patch: patch, options: behavior.backendApplyOptions)
+            return handleSuccessfulApply(SuccessfulApplyContext(next: next, targetDevice: targetDevice, applyDeviceID: applyDeviceID, patch: patch, start: start, behavior: behavior))
         } catch {
-            handleApplyFailure(
-                error,
-                targetDevice: targetDevice,
-                patch: patch,
-                start: start,
-                shouldSurfaceApplyFailure: behavior.shouldSurfaceApplyFailure
-            )
+            handleApplyFailure(error, targetDevice: targetDevice, patch: patch, start: start, shouldSurfaceApplyFailure: behavior.shouldSurfaceApplyFailure)
             return false
         }
     }
 
-    private func applyIsStillCurrent(
-        behavior: ApplyBehavior,
-        targetDevice: MouseDevice,
-        patch: DevicePatch
-    ) -> Bool {
+    private func applyIsStillCurrent(behavior: ApplyBehavior, targetDevice: MouseDevice, patch: DevicePatch) -> Bool {
         if shouldSuppressApplyDuringSingleSlotReplacement(behavior: behavior, targetDevice: targetDevice) {
-            AppLog.debug(
-                "AppState",
-                "apply skipped during single-slot profile replacement device=\(targetDevice.id) patch=\(patch.describe)"
-            )
+            AppLog.debug("AppState", "apply skipped during single-slot profile replacement device=\(targetDevice.id) patch=\(patch.describe)")
             return false
         }
         if let generation = behavior.validLocalEditGeneration, generation != localEditGeneration {
             AppLog.debug("AppState", "local edit apply skipped after invalidation device=\(targetDevice.id) patch=\(patch.describe)")
             return false
         }
-        if let revision = behavior.validSettingsRestoreRevision,
-           revision != deviceController.settingsRestoreRevision(for: targetDevice) {
-            AppLog.debug(
-                "AppState",
-                "settings restore apply skipped after invalidation device=\(targetDevice.id) patch=\(patch.describe)"
-            )
+        if let revision = behavior.validSettingsRestoreRevision, revision != deviceController.settingsRestoreRevision(for: targetDevice) {
+            AppLog.debug("AppState", "settings restore apply skipped after invalidation device=\(targetDevice.id) patch=\(patch.describe)")
             return false
         }
         return true
     }
 
-    private func shouldSuppressApplyDuringSingleSlotReplacement(
-        behavior: ApplyBehavior,
-        targetDevice: MouseDevice
-    ) -> Bool {
-        guard behavior.validLocalEditGeneration != nil || behavior.validSettingsRestoreRevision != nil else {
-            return false
-        }
+    private func shouldSuppressApplyDuringSingleSlotReplacement(behavior: ApplyBehavior, targetDevice: MouseDevice) -> Bool {
+        guard behavior.validLocalEditGeneration != nil || behavior.validSettingsRestoreRevision != nil else { return false }
         return editorController.singleSlotProfileApplySyncSuppressedDeviceIDs.contains(targetDevice.id)
     }
 
@@ -756,9 +537,7 @@ final class AppStateApplyController {
             hardwareApplyInFlight = true
             return
         }
-        await withCheckedContinuation { continuation in
-            hardwareApplyWaiters.append(continuation)
-        }
+        await withCheckedContinuation { continuation in hardwareApplyWaiters.append(continuation) }
     }
 
     private func leaveHardwareApplyGate() {
@@ -769,87 +548,60 @@ final class AppStateApplyController {
         hardwareApplyWaiters.removeFirst().resume()
     }
 
-    private func applyBackendState(
-        device targetDevice: MouseDevice,
-        patch: DevicePatch,
-        options: ApplyOptions
-    ) async throws -> MouseState {
-        if let configurableBackend = environment.backend as? any ApplyOptionsSupportingBackend {
-            return try await configurableBackend.apply(
-                device: targetDevice,
-                patch: patch,
-                options: options
-            )
-        }
+    private func applyBackendState(device targetDevice: MouseDevice, patch: DevicePatch, options: ApplyOptions) async throws -> MouseState {
+        if let configurableBackend = environment.backend as? any ApplyOptionsSupportingBackend { return try await configurableBackend.apply(device: targetDevice, patch: patch, options: options) }
         return try await environment.backend.apply(device: targetDevice, patch: patch)
     }
 
     private func handleSuccessfulApply(_ context: SuccessfulApplyContext) -> Bool {
-        let next = context.next
-        let targetDevice = context.targetDevice
-        let applyDeviceID = context.applyDeviceID
-        let patch = context.patch
-        let start = context.start
-        let behavior = context.behavior
-        guard let presentationDevice = deviceController.presentationDevice(for: targetDevice) else {
-            let merged = next.merged(with: deviceController.cachedState(for: applyDeviceID))
-            deviceController.storeState(merged, for: applyDeviceID, updatedAt: Date())
-            AppLog.debug("AppState", "apply result cached for missing-presentation device=\(applyDeviceID)")
+        guard let presentationDevice = deviceController.presentationDevice(for: context.targetDevice) else {
+            cacheMissingPresentationApplyResult(context)
             return true
         }
 
         let presentationDeviceID = presentationDevice.id
-        let merged = next.merged(
-            with: deviceController.cachedState(for: presentationDeviceID) ?? deviceController.cachedState(for: applyDeviceID)
-        )
-        deviceController.cacheState(merged, sourceDeviceID: applyDeviceID, presentationDeviceID: presentationDeviceID)
-        if behavior.shouldFocusOnActivity {
-            deviceController.focusServiceSelectionOnActivity(deviceID: presentationDeviceID)
-        }
-
-        if deviceStore.selectedDeviceID == presentationDeviceID, deviceStore.state != merged {
-            deviceStore.state = merged
-        }
-
-        let localEditsChangedDuringApply = behavior.clearLocalEditsOnSuccess && (lastLocalEditAt ?? .distantPast) > start
-        let shouldHydrateEditableState = behavior.clearLocalEditsOnSuccess && !localEditsChangedDuringApply && !applyCoordinator.hasPending
-        suppressFastDpiAfterSuccessfulApplyIfNeeded(
-            patch: patch,
-            applyDeviceID: applyDeviceID,
-            presentationDeviceID: presentationDeviceID
-        )
-        if let activeStage = patch.activeStage {
-            clearPendingActiveStageSelection(matching: activeStage + 1, for: presentationDevice)
-        }
-
-        hydrateAfterSuccessfulApplyIfNeeded(
-            merged,
-            presentationDeviceID: presentationDeviceID,
-            shouldHydrateEditableState: shouldHydrateEditableState,
-            localEditsChangedDuringApply: localEditsChangedDuringApply
-        )
-        persistSuccessfulApply(
-            patch: patch,
-            presentationDevice: presentationDevice,
-            presentationDeviceID: presentationDeviceID,
-            merged: merged,
-            persistLightingZoneID: behavior.persistLightingZoneID
-        )
-
-        AppLog.event(
-            "AppState",
-            "apply ok device=\(presentationDevice.id) active=\(merged.dpi_stages.active_stage.map(String.init) ?? "nil") " +
-            "values=\(merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil") " +
-            "elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s"
-        )
+        let merged = successfulApplyMergedState(context, presentationDeviceID: presentationDeviceID)
+        cacheSuccessfulPresentationApplyResult(merged, context: context, presentationDeviceID: presentationDeviceID)
+        applySuccessfulPresentationSideEffects(context, presentationDevice: presentationDevice, merged: merged)
+        logSuccessfulApply(presentationDevice: presentationDevice, merged: merged, start: context.start)
         return true
     }
 
-    private func suppressFastDpiAfterSuccessfulApplyIfNeeded(
-        patch: DevicePatch,
-        applyDeviceID: String,
-        presentationDeviceID: String
-    ) {
+    private func cacheMissingPresentationApplyResult(_ context: SuccessfulApplyContext) {
+        let merged = context.next.merged(with: deviceController.cachedState(for: context.applyDeviceID))
+        deviceController.storeState(merged, for: context.applyDeviceID, updatedAt: Date())
+        AppLog.debug("AppState", "apply result cached for missing-presentation device=\(context.applyDeviceID)")
+    }
+
+    private func successfulApplyMergedState(_ context: SuccessfulApplyContext, presentationDeviceID: String) -> MouseState {
+        let cached = deviceController.cachedState(for: presentationDeviceID) ?? deviceController.cachedState(for: context.applyDeviceID)
+        return context.next.merged(with: cached)
+    }
+
+    private func cacheSuccessfulPresentationApplyResult(_ merged: MouseState, context: SuccessfulApplyContext, presentationDeviceID: String) {
+        deviceController.cacheState(merged, sourceDeviceID: context.applyDeviceID, presentationDeviceID: presentationDeviceID)
+        if context.behavior.shouldFocusOnActivity { deviceController.focusServiceSelectionOnActivity(deviceID: presentationDeviceID) }
+        if deviceStore.selectedDeviceID == presentationDeviceID, deviceStore.state != merged { deviceStore.state = merged }
+    }
+
+    private func applySuccessfulPresentationSideEffects(_ context: SuccessfulApplyContext, presentationDevice: MouseDevice, merged: MouseState) {
+        let presentationDeviceID = presentationDevice.id
+        let localEditsChangedDuringApply = context.behavior.clearLocalEditsOnSuccess && (lastLocalEditAt ?? .distantPast) > context.start
+        let shouldHydrateEditableState = context.behavior.clearLocalEditsOnSuccess && !localEditsChangedDuringApply && !applyCoordinator.hasPending
+        suppressFastDpiAfterSuccessfulApplyIfNeeded(patch: context.patch, applyDeviceID: context.applyDeviceID, presentationDeviceID: presentationDeviceID)
+        if let activeStage = context.patch.activeStage { clearPendingActiveStageSelection(matching: activeStage + 1, for: presentationDevice) }
+        hydrateAfterSuccessfulApplyIfNeeded(merged, presentationDeviceID: presentationDeviceID, shouldHydrateEditableState: shouldHydrateEditableState, localEditsChangedDuringApply: localEditsChangedDuringApply)
+        persistSuccessfulApply(patch: context.patch, presentationDevice: presentationDevice, presentationDeviceID: presentationDeviceID, merged: merged, persistLightingZoneID: context.behavior.persistLightingZoneID)
+    }
+
+    private func logSuccessfulApply(presentationDevice: MouseDevice, merged: MouseState, start: Date) {
+        let activeStage = merged.dpi_stages.active_stage.map(String.init) ?? "nil"
+        let values = merged.dpi_stages.values?.map(String.init).joined(separator: ",") ?? "nil"
+        let elapsed = String(format: "%.3f", Date().timeIntervalSince(start))
+        AppLog.event("AppState", "apply ok device=\(presentationDevice.id) active=\(activeStage) values=\(values) elapsed=\(elapsed)s")
+    }
+
+    private func suppressFastDpiAfterSuccessfulApplyIfNeeded(patch: DevicePatch, applyDeviceID: String, presentationDeviceID: String) {
         guard patch.affectsDpiStages else { return }
         let suppressedUntil = Date().addingTimeInterval(Self.fastDpiApplySuppressionDuration)
         deviceController.setFastDpiSuppressed(until: suppressedUntil, for: applyDeviceID)
@@ -857,92 +609,44 @@ final class AppStateApplyController {
         runtimeController.setCompactInteraction(until: Date().addingTimeInterval(Self.compactInteractionDurationAfterDpiApply))
     }
 
-    private func hydrateAfterSuccessfulApplyIfNeeded(
-        _ merged: MouseState,
-        presentationDeviceID: String,
-        shouldHydrateEditableState: Bool,
-        localEditsChangedDuringApply: Bool
-    ) {
+    private func hydrateAfterSuccessfulApplyIfNeeded(_ merged: MouseState, presentationDeviceID: String, shouldHydrateEditableState: Bool, localEditsChangedDuringApply: Bool) {
         guard deviceStore.selectedDeviceID == presentationDeviceID else { return }
         if shouldHydrateEditableState {
             lastLocalEditAt = nil
             editorController.hydrateEditable(from: merged)
         } else {
             editorController.hydrateLiveDpiPresentation(from: merged)
-            AppLog.debug(
-                "AppState",
-                "apply hydrate skipped pending=\(applyCoordinator.hasPending) localEditsDuringApply=\(localEditsChangedDuringApply)"
-            )
+            AppLog.debug("AppState", "apply hydrate skipped pending=\(applyCoordinator.hasPending) localEditsDuringApply=\(localEditsChangedDuringApply)")
         }
     }
 
-    private func persistSuccessfulApply(
-        patch: DevicePatch,
-        presentationDevice: MouseDevice,
-        presentationDeviceID: String,
-        merged: MouseState,
-        persistLightingZoneID: String
-    ) {
-        persistSuccessfulLightingPatch(
-            patch,
-            device: presentationDevice,
-            usbLightingZoneID: persistLightingZoneID
-        )
+    private func persistSuccessfulApply(patch: DevicePatch, presentationDevice: MouseDevice, presentationDeviceID: String, merged: MouseState, persistLightingZoneID: String) {
+        persistSuccessfulLightingPatch(patch, device: presentationDevice, usbLightingZoneID: persistLightingZoneID)
         if let buttonBinding = patch.buttonBinding {
             editorController.persistButtonBinding(buttonBinding, device: presentationDevice, profile: buttonBinding.persistentProfile)
             editorController.cachePersistedButtonBinding(buttonBinding, device: presentationDevice, profile: buttonBinding.persistentProfile)
         }
         let preserveStoredLighting = patch.ledRGB == nil && patch.lightingEffect == nil
-        let snapshotLightingZoneOverride = snapshotLightingZoneOverride(
-            for: patch,
-            device: presentationDevice,
-            defaultZoneID: persistLightingZoneID
-        )
-        let suppressSingleSlotProfileSync = editorController.singleSlotProfileApplySyncSuppressedDeviceIDs
-            .contains(presentationDeviceID)
+        let snapshotLightingZoneOverride = snapshotLightingZoneOverride(for: patch, device: presentationDevice, defaultZoneID: persistLightingZoneID)
+        let suppressSingleSlotProfileSync = editorController.singleSlotProfileApplySyncSuppressedDeviceIDs.contains(presentationDeviceID)
         if deviceStore.selectedDeviceID == presentationDeviceID {
-            if !suppressSingleSlotProfileSync {
-                editorController.persistCurrentSettingsSnapshot(
-                    for: presentationDevice,
-                    preservingStoredLighting: preserveStoredLighting,
-                    lightingZoneOverride: snapshotLightingZoneOverride
-                )
-            }
+            if !suppressSingleSlotProfileSync { editorController.persistCurrentSettingsSnapshot(for: presentationDevice, preservingStoredLighting: preserveStoredLighting, lightingZoneOverride: snapshotLightingZoneOverride) }
             if editorController.supportsOnboardProfileCRUD(device: presentationDevice) {
                 editorController.syncSelectedMappedLocalProfileFromEditor(device: presentationDevice)
             } else if !suppressSingleSlotProfileSync {
                 editorController.syncSelectedSingleSlotLocalProfileFromEditor(device: presentationDevice)
             }
         }
-        if !suppressSingleSlotProfileSync {
-            editorController.persistSuccessfulPatchFieldsInSettingsSnapshot(
-                patch: patch,
-                device: presentationDevice,
-                lightingZoneID: snapshotLightingZoneOverride ?? persistLightingZoneID
-            )
-        }
+        if !suppressSingleSlotProfileSync { editorController.persistSuccessfulPatchFieldsInSettingsSnapshot(patch: patch, device: presentationDevice, lightingZoneID: snapshotLightingZoneOverride ?? persistLightingZoneID) }
 
         if deviceStore.selectedDeviceID == presentationDeviceID {
             deviceStore.errorMessage = nil
-            deviceController.setTelemetryWarning(
-                editorController.telemetryWarning(for: merged, device: presentationDevice),
-                device: presentationDevice
-            )
+            deviceController.setTelemetryWarning(editorController.telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)
         }
     }
 
-    private func handleApplyFailure(
-        _ error: Error,
-        targetDevice: MouseDevice,
-        patch: DevicePatch,
-        start: Date,
-        shouldSurfaceApplyFailure: Bool
-    ) {
-        AppLog.error(
-            "AppState",
-            "command apply failed device=\(targetDevice.id) patch=\(patch.describe) " +
-            "elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s: \(error.localizedDescription)"
-        )
+    private func handleApplyFailure(_ error: Error, targetDevice: MouseDevice, patch: DevicePatch, start: Date, shouldSurfaceApplyFailure: Bool) {
+        AppLog.error("AppState", "command apply failed device=\(targetDevice.id) patch=\(patch.describe) " + "elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s: \(error.localizedDescription)")
         guard shouldSurfaceApplyFailure else {
             AppLog.debug("AppState", "apply failure masked for non-selected restore device=\(targetDevice.id)")
             return
@@ -964,9 +668,7 @@ final class AppStateApplyController {
 
     private func handleDpiApplyFailureIfNeeded(patch: DevicePatch, targetDevice: MouseDevice) {
         guard patch.affectsDpiStages else { return }
-        if let activeStage = patch.activeStage {
-            clearPendingActiveStageSelection(matching: activeStage + 1, for: targetDevice)
-        }
+        if let activeStage = patch.activeStage { clearPendingActiveStageSelection(matching: activeStage + 1, for: targetDevice) }
         runtimeStore.serviceStatusMessage = "DPI update failed"
         runtimeController.setTransientStatus(until: Date().addingTimeInterval(Self.dpiApplyFailureStatusDuration))
     }
@@ -976,24 +678,15 @@ final class AppStateApplyController {
         guard device.supportsSoftwareLightingEffects else { return }
 
         let status = await environment.backend.stopSoftwareLighting(device: device)
-        if let status {
-            deviceStore.softwareLightingStatusByDeviceID[device.id] = status
-        } else {
-            deviceStore.softwareLightingStatusByDeviceID.removeValue(forKey: device.id)
-        }
+        if let status { deviceStore.softwareLightingStatusByDeviceID[device.id] = status } else { deviceStore.softwareLightingStatusByDeviceID.removeValue(forKey: device.id) }
     }
 
     private static func commandFailureMessage(_ error: any Error) -> String {
-        if AppLog.currentLevel == .debug {
-            return "Command failed: \(error.localizedDescription)"
-        }
+        if AppLog.currentLevel == .debug { return "Command failed: \(error.localizedDescription)" }
         return error.localizedDescription
     }
 
-    private func verifyRestoreStateAfterDeferredButtonWrites(
-        device targetDevice: MouseDevice,
-        targetsSelectedDevice: Bool
-    ) async {
+    private func verifyRestoreStateAfterDeferredButtonWrites(device targetDevice: MouseDevice, targetsSelectedDevice: Bool) async {
         do {
             let next = try await environment.backend.readState(device: targetDevice)
             guard let presentationDevice = deviceController.presentationDevice(for: targetDevice) else {
@@ -1003,45 +696,23 @@ final class AppStateApplyController {
             }
 
             let presentationDeviceID = presentationDevice.id
-            let merged = next.merged(
-                with: deviceController.cachedState(for: presentationDeviceID) ?? deviceController.cachedState(for: targetDevice.id)
-            )
+            let merged = next.merged(with: deviceController.cachedState(for: presentationDeviceID) ?? deviceController.cachedState(for: targetDevice.id))
             deviceController.cacheState(merged, sourceDeviceID: targetDevice.id, presentationDeviceID: presentationDeviceID)
 
-            if deviceStore.selectedDeviceID == presentationDeviceID, deviceStore.state != merged {
-                deviceStore.state = merged
-            }
+            if deviceStore.selectedDeviceID == presentationDeviceID, deviceStore.state != merged { deviceStore.state = merged }
 
-            if deviceStore.selectedDeviceID == presentationDeviceID {
-                if shouldHydrateEditable(for: presentationDevice) {
-                    editorController.hydrateEditable(from: merged)
-                } else {
-                    editorController.hydrateLiveDpiPresentation(from: merged)
-                }
-            }
+            if deviceStore.selectedDeviceID == presentationDeviceID { if shouldHydrateEditable(for: presentationDevice) { editorController.hydrateEditable(from: merged) } else { editorController.hydrateLiveDpiPresentation(from: merged) } }
 
             if targetsSelectedDevice {
                 deviceStore.errorMessage = nil
-                deviceController.setTelemetryWarning(
-                    editorController.telemetryWarning(for: merged, device: presentationDevice),
-                    device: presentationDevice
-                )
+                deviceController.setTelemetryWarning(editorController.telemetryWarning(for: merged, device: presentationDevice), device: presentationDevice)
             }
 
             AppLog.debug("AppState", "restore final state verify ok device=\(presentationDeviceID)")
-        } catch {
-            AppLog.debug(
-                "AppState",
-                "restore final state verify skipped device=\(targetDevice.id): \(error.localizedDescription)"
-            )
-        }
+        } catch { AppLog.debug("AppState", "restore final state verify skipped device=\(targetDevice.id): \(error.localizedDescription)") }
     }
 
-    private func persistSuccessfulLightingPatch(
-        _ patch: DevicePatch,
-        device: MouseDevice,
-        usbLightingZoneID: String
-    ) {
+    private func persistSuccessfulLightingPatch(_ patch: DevicePatch, device: MouseDevice, usbLightingZoneID: String) {
         if let rgb = patch.ledRGB {
             let color = RGBColor(r: rgb.r, g: rgb.g, b: rgb.b)
             if patch.usbLightingZoneLEDIDs == nil && editorStore.visibleUSBLightingZones.count > 1 {
@@ -1056,47 +727,30 @@ final class AppStateApplyController {
         if let lightingEffect = patch.lightingEffect {
             editorController.persistLightingEffect(lightingEffect, device: device)
             let color = RGBColor(r: lightingEffect.primary.r, g: lightingEffect.primary.g, b: lightingEffect.primary.b)
-            if lightingEffect.kind == .staticColor,
-               patch.usbLightingZoneLEDIDs == nil,
-               editorStore.visibleUSBLightingZones.count > 1 {
+            if lightingEffect.kind == .staticColor, patch.usbLightingZoneLEDIDs == nil, editorStore.visibleUSBLightingZones.count > 1 {
                 persistLightingColorForAllZones(color, device: device)
             } else {
-                let colorZoneID = lightingEffect.kind == .staticColor && usbLightingZoneID != "all"
-                    ? usbLightingZoneID
-                    : nil
+                let colorZoneID = lightingEffect.kind == .staticColor && usbLightingZoneID != "all" ? usbLightingZoneID : nil
                 editorController.persistLightingColor(color, device: device, zoneID: colorZoneID)
             }
-            editorController.persistLightingZoneID(
-                lightingEffect.kind == .staticColor ? usbLightingZoneID : "all",
-                device: device
-            )
-            if lightingEffect.kind == .staticColor {
-                editorStore.noteLightingGradientColorsChanged()
-            }
+            editorController.persistLightingZoneID(lightingEffect.kind == .staticColor ? usbLightingZoneID : "all", device: device)
+            if lightingEffect.kind == .staticColor { editorStore.noteLightingGradientColorsChanged() }
         }
     }
 
     private func persistLightingColorForAllZones(_ color: RGBColor, device: MouseDevice) {
         editorController.persistLightingColor(color, device: device)
-        for zone in editorStore.visibleUSBLightingZones {
-            editorController.persistLightingColor(color, device: device, zoneID: zone.id)
-        }
+        for zone in editorStore.visibleUSBLightingZones { editorController.persistLightingColor(color, device: device, zoneID: zone.id) }
     }
 
-    private func snapshotLightingZoneOverride(
-        for patch: DevicePatch,
-        device: MouseDevice,
-        defaultZoneID: String
-    ) -> String? {
+    private func snapshotLightingZoneOverride(for patch: DevicePatch, device: MouseDevice, defaultZoneID: String) -> String? {
         guard device.showsLightingControls else { return nil }
         guard patch.ledRGB != nil || patch.lightingEffect != nil else { return nil }
 
         let writesStaticColor = patch.ledRGB != nil || patch.lightingEffect?.kind == .staticColor
         guard writesStaticColor else { return "all" }
 
-        if patch.usbLightingZoneLEDIDs == nil, editorStore.visibleUSBLightingZones.count > 1 {
-            return "all"
-        }
+        if patch.usbLightingZoneLEDIDs == nil, editorStore.visibleUSBLightingZones.count > 1 { return "all" }
         return defaultZoneID
     }
 }

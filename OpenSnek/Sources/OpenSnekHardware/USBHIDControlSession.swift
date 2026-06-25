@@ -8,17 +8,13 @@ import OpenSnekProtocols
 public enum USBHIDSupport {
     public static func intProperty(_ device: IOHIDDevice, key: CFString) -> Int? {
         guard let value = IOHIDDeviceGetProperty(device, key) else { return nil }
-        if CFGetTypeID(value) == CFNumberGetTypeID() {
-            return (value as? NSNumber)?.intValue
-        }
+        if CFGetTypeID(value) == CFNumberGetTypeID() { return (value as? NSNumber)?.intValue }
         return nil
     }
 
     public static func stringProperty(_ device: IOHIDDevice, key: CFString) -> String? {
         guard let value = IOHIDDeviceGetProperty(device, key) else { return nil }
-        if CFGetTypeID(value) == CFStringGetTypeID() {
-            return value as? String
-        }
+        if CFGetTypeID(value) == CFStringGetTypeID() { return value as? String }
         return nil
     }
 
@@ -28,14 +24,8 @@ public enum USBHIDSupport {
         let usage = intProperty(device, key: kIOHIDPrimaryUsageKey as CFString) ?? 0
 
         var score = 0
-        if maxFeatureReport >= 90 {
-            score += 100
-        } else if maxFeatureReport > 0 {
-            score += maxFeatureReport
-        }
-        if usagePage == 0x01 && usage == 0x02 {
-            score += 25
-        }
+        if maxFeatureReport >= 90 { score += 100 } else if maxFeatureReport > 0 { score += maxFeatureReport }
+        if usagePage == 0x01 && usage == 0x02 { score += 25 }
         return score
     }
 
@@ -50,18 +40,14 @@ public enum USBHIDSupport {
     }
 
     public static func deviceIdentityToken(_ device: IOHIDDevice) -> String {
-        if let entryID = registryEntryID(device) {
-            return "registry:\(entryID)"
-        }
+        if let entryID = registryEntryID(device) { return "registry:\(entryID)" }
         return "pointer:\(UInt(bitPattern: Unmanaged.passUnretained(device).toOpaque()))"
     }
 
     public static func isDeviceUnavailableOpenResult(_ result: IOReturn) -> Bool {
         switch result {
-        case kIOReturnNoDevice, kIOReturnOffline, kIOReturnNotOpen:
-            return true
-        default:
-            return false
+        case kIOReturnNoDevice, kIOReturnOffline, kIOReturnNotOpen: return true
+        default: return false
         }
     }
 }
@@ -86,9 +72,7 @@ public final class USBHIDControlSession: @unchecked Sendable {
         func lock(for deviceID: String) -> NSRecursiveLock {
             registryLock.lock()
             defer { registryLock.unlock() }
-            if let lock = deviceLocks[deviceID] {
-                return lock
-            }
+            if let lock = deviceLocks[deviceID] { return lock }
             let lock = NSRecursiveLock()
             lock.name = "open.snek.usb.device.\(deviceID)"
             deviceLocks[deviceID] = lock
@@ -128,65 +112,31 @@ public final class USBHIDControlSession: @unchecked Sendable {
         return try body()
     }
 
-    public func invalidateCachedTransaction() {
-        try? withExclusiveDeviceAccess {
-            cachedTxn = nil
-        }
-    }
+    public func invalidateCachedTransaction() { try? withExclusiveDeviceAccess { cachedTxn = nil } }
 
-    public func perform(
-        classID: UInt8,
-        cmdID: UInt8,
-        size: UInt8,
-        args: [UInt8],
-        transactionID: UInt8? = nil,
-        responseAttempts: Int = 6,
-        responseDelayUs: useconds_t = 35_000
-    ) throws -> [UInt8]? {
+    public func perform(classID: UInt8, cmdID: UInt8, size: UInt8, args: [UInt8], transactionID: UInt8? = nil, responseAttempts: Int = 6, responseDelayUs: useconds_t = 35_000) throws -> [UInt8]? {
         try withExclusiveDeviceAccess {
-            for txn in Self.transactionCandidates(
-                preferredTransactionID: transactionID,
-                cachedTransactionID: cachedTxn
-            ) {
+            for txn in Self.transactionCandidates(preferredTransactionID: transactionID, cachedTransactionID: cachedTxn) {
                 let report = USBHIDProtocol.createReport(txn: txn, classID: classID, cmdID: cmdID, size: size, args: args)
-                guard let response = try exchange(
-                    report: report,
-                    expectedClassID: classID,
-                    expectedCmdID: cmdID,
-                    responseAttempts: responseAttempts,
-                    responseDelayUs: responseDelayUs
-                ) else {
-                    continue
-                }
+                guard let response = try exchange(report: report, expectedClassID: classID, expectedCmdID: cmdID, responseAttempts: responseAttempts, responseDelayUs: responseDelayUs) else { continue }
                 if response.count < 90 { continue }
                 if response[0] == 0x01 { continue }
                 cachedTxn = transactionID ?? txn
                 return response
             }
 
-            if transactionID == nil {
-                cachedTxn = nil
-            }
+            if transactionID == nil { cachedTxn = nil }
             return nil
         }
     }
 
-    static func transactionCandidates(
-        preferredTransactionID: UInt8?,
-        cachedTransactionID: UInt8?
-    ) -> [UInt8] {
-        if let preferredTransactionID {
-            return [preferredTransactionID]
-        }
-        if let cachedTransactionID {
-            return [cachedTransactionID]
-        }
+    static func transactionCandidates(preferredTransactionID: UInt8?, cachedTransactionID: UInt8?) -> [UInt8] {
+        if let preferredTransactionID { return [preferredTransactionID] }
+        if let cachedTransactionID { return [cachedTransactionID] }
         return [0x1F]
     }
 
-    private static func deviceLock(for deviceID: String) -> NSRecursiveLock {
-        deviceLockRegistry.lock(for: deviceID)
-    }
+    private static func deviceLock(for deviceID: String) -> NSRecursiveLock { deviceLockRegistry.lock(for: deviceID) }
 
     static func interprocessLockFileName(for deviceID: String) -> String {
         let allowed = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_")
@@ -195,66 +145,39 @@ public final class USBHIDControlSession: @unchecked Sendable {
     }
 
     private static func interprocessLockURL(for deviceID: String) throws -> URL {
-        let directory = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Caches/OpenSnek/HIDLocks", isDirectory: true)
+        let directory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Caches/OpenSnek/HIDLocks", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory.appendingPathComponent(interprocessLockFileName(for: deviceID))
     }
 
     private static func acquireInterprocessDeviceLock(for deviceID: String) throws -> InterprocessDeviceLock {
         let url = try interprocessLockURL(for: deviceID)
-        let fd = url.path.withCString { path in
-            open(path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
-        }
-        guard fd >= 0 else {
-            throw BridgeError.commandFailed("USB HID lock open failed for \(deviceID): errno \(errno)")
-        }
+        let fd = url.path.withCString { path in open(path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR) }
+        guard fd >= 0 else { throw BridgeError.commandFailed("USB HID lock open failed for \(deviceID): errno \(errno)") }
 
         while true {
-            if flock(fd, LOCK_EX) == 0 {
-                return InterprocessDeviceLock(fd: fd)
-            }
-            if errno == EINTR {
-                continue
-            }
+            if flock(fd, LOCK_EX) == 0 { return InterprocessDeviceLock(fd: fd) }
+            if errno == EINTR { continue }
             let lockErrno = errno
             _ = close(fd)
             throw BridgeError.commandFailed("USB HID lock failed for \(deviceID): errno \(lockErrno)")
         }
     }
 
-    private static func currentThreadLockDepth(for deviceID: String) -> Int {
-        Thread.current.threadDictionary[threadLockDepthKey(for: deviceID)] as? Int ?? 0
-    }
+    private static func currentThreadLockDepth(for deviceID: String) -> Int { Thread.current.threadDictionary[threadLockDepthKey(for: deviceID)] as? Int ?? 0 }
 
     private static func setCurrentThreadLockDepth(_ depth: Int, for deviceID: String) {
         let key = threadLockDepthKey(for: deviceID)
-        if depth <= 0 {
-            Thread.current.threadDictionary.removeObject(forKey: key)
-        } else {
-            Thread.current.threadDictionary[key] = depth
-        }
+        if depth <= 0 { Thread.current.threadDictionary.removeObject(forKey: key) } else { Thread.current.threadDictionary[key] = depth }
     }
 
-    private static func threadLockDepthKey(for deviceID: String) -> String {
-        "open.snek.usb.device.lock.depth.\(deviceID)"
-    }
+    private static func threadLockDepthKey(for deviceID: String) -> String { "open.snek.usb.device.lock.depth.\(deviceID)" }
 
-    private func exchange(
-        report: [UInt8],
-        expectedClassID: UInt8,
-        expectedCmdID: UInt8,
-        responseAttempts: Int,
-        responseDelayUs: useconds_t
-    ) throws -> [UInt8]? {
+    private func exchange(report: [UInt8], expectedClassID: UInt8, expectedCmdID: UInt8, responseAttempts: Int, responseDelayUs: useconds_t) throws -> [UInt8]? {
         let openResult = IOHIDDeviceOpen(device, IOOptionBits(kIOHIDOptionsTypeNone))
         guard openResult == kIOReturnSuccess else {
-            if openResult == kIOReturnNotPermitted {
-                throw BridgeError.commandFailed("USB HID access denied. Grant Input Monitoring and relaunch.")
-            }
-            if USBHIDSupport.isDeviceUnavailableOpenResult(openResult) {
-                throw BridgeError.commandFailed("Device not available")
-            }
+            if openResult == kIOReturnNotPermitted { throw BridgeError.commandFailed("USB HID access denied. Grant Input Monitoring and relaunch.") }
+            if USBHIDSupport.isDeviceUnavailableOpenResult(openResult) { throw BridgeError.commandFailed("Device not available") }
             return nil
         }
         defer { IOHIDDeviceClose(device, IOOptionBits(kIOHIDOptionsTypeNone)) }
@@ -264,9 +187,7 @@ public final class USBHIDControlSession: @unchecked Sendable {
             return IOHIDDeviceSetReport(device, kIOHIDReportTypeFeature, CFIndex(0), base, ptr.count)
         }
         guard setResult == kIOReturnSuccess else {
-            if setResult == kIOReturnNotPermitted {
-                throw BridgeError.commandFailed("USB HID access denied. Grant Input Monitoring and relaunch.")
-            }
+            if setResult == kIOReturnNotPermitted { throw BridgeError.commandFailed("USB HID access denied. Grant Input Monitoring and relaunch.") }
             return nil
         }
 
@@ -282,20 +203,10 @@ public final class USBHIDControlSession: @unchecked Sendable {
 
             let raw = Array(out.prefix(length))
             let candidate: [UInt8]
-            if raw.count == 91 {
-                candidate = Array(raw.dropFirst())
-            } else if raw.count == 90 {
-                candidate = raw
-            } else if raw.count > 90 {
-                candidate = Array(raw.suffix(90))
-            } else {
-                continue
-            }
+            if raw.count == 91 { candidate = Array(raw.dropFirst()) } else if raw.count == 90 { candidate = raw } else if raw.count > 90 { candidate = Array(raw.suffix(90)) } else { continue }
 
             if candidate[0] == 0x00 { continue }
-            if !USBHIDProtocol.isValidResponse(candidate, txn: report[1], classID: expectedClassID, cmdID: expectedCmdID) {
-                continue
-            }
+            if !USBHIDProtocol.isValidResponse(candidate, txn: report[1], classID: expectedClassID, cmdID: expectedCmdID) { continue }
             return candidate
         }
         return nil

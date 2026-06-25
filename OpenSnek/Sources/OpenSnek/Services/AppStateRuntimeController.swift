@@ -4,8 +4,7 @@ import OpenSnekAppSupport
 import OpenSnekCore
 
 /// Coordinates app state runtime behavior.
-@MainActor
-final class AppStateRuntimeController {
+@MainActor final class AppStateRuntimeController {
     /// Defines power state values.
     private enum PowerState {
         case active
@@ -17,8 +16,7 @@ final class AppStateRuntimeController {
     private let environment: AppEnvironment
     private let deviceStore: DeviceStore
     private let runtimeStore: RuntimeStore
-    @WeakBound("AppStateRuntimeController", dependency: "deviceController")
-    private var deviceController: AppStateDeviceController
+    @WeakBound("AppStateRuntimeController", dependency: "deviceController") private var deviceController: AppStateDeviceController
 
     private var runtimeTask: Task<Void, Never>?
     private var didStartRuntime = false
@@ -44,9 +42,7 @@ final class AppStateRuntimeController {
         self.environment = environment
         self.deviceStore = deviceStore
         self.runtimeStore = runtimeStore
-        launchAtStartupObserver = environment.serviceCoordinator.addLaunchAtStartupObserver { [weak self] in
-            self?.syncLaunchAtStartupPreference()
-        }
+        launchAtStartupObserver = environment.serviceCoordinator.addLaunchAtStartupObserver { [weak self] in self?.syncLaunchAtStartupPreference() }
     }
 
     func tearDown() {
@@ -55,43 +51,25 @@ final class AppStateRuntimeController {
         backendStateUpdatesBootstrapTask?.cancel()
         backendStateUpdatesTask?.cancel()
         statusItemTransientDpiResetTask?.cancel()
-        if let systemWillSleepObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(systemWillSleepObserver)
-        }
+        if let systemWillSleepObserver { NSWorkspace.shared.notificationCenter.removeObserver(systemWillSleepObserver) }
         systemWillSleepObserver = nil
-        if let systemDidWakeObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(systemDidWakeObserver)
-        }
+        if let systemDidWakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(systemDidWakeObserver) }
         systemDidWakeObserver = nil
-        if let launchAtStartupObserver {
-            environment.serviceCoordinator.removePreferencesObserver(launchAtStartupObserver)
-        }
+        if let launchAtStartupObserver { environment.serviceCoordinator.removePreferencesObserver(launchAtStartupObserver) }
         launchAtStartupObserver = nil
     }
 
-    func bind(deviceController: AppStateDeviceController) {
-        _deviceController.bind(deviceController)
-    }
+    func bind(deviceController: AppStateDeviceController) { _deviceController.bind(deviceController) }
 
     var compactStatusMessage: String? {
-        guard let serviceStatusMessage = runtimeStore.serviceStatusMessage,
-              let transientStatusUntil,
-              Date() < transientStatusUntil else {
-            return nil
-        }
+        guard let serviceStatusMessage = runtimeStore.serviceStatusMessage, let transientStatusUntil, Date() < transientStatusUntil else { return nil }
         return serviceStatusMessage
     }
 
-    func setBackendReady(_ ready: Bool) {
-        isBackendReady = ready
-    }
+    func setBackendReady(_ ready: Bool) { isBackendReady = ready }
 
     func refreshHIDAccessStatus(forceRefresh: Bool = false) async {
-        if let backend = environment.backend as? any HIDAccessRefreshControllingBackend {
-            runtimeStore.hidAccessStatus = await backend.hidAccessStatus(forceRefresh: forceRefresh)
-        } else {
-            runtimeStore.hidAccessStatus = await environment.backend.hidAccessStatus()
-        }
+        if let backend = environment.backend as? any HIDAccessRefreshControllingBackend { runtimeStore.hidAccessStatus = await backend.hidAccessStatus(forceRefresh: forceRefresh) } else { runtimeStore.hidAccessStatus = await environment.backend.hidAccessStatus() }
     }
 
     func resetAllPermissions() async {
@@ -101,15 +79,10 @@ final class AppStateRuntimeController {
         defer { runtimeStore.isResettingPermissions = false }
 
         do {
-            let result = try PermissionSupport.resetAllPermissions(
-                bundleIdentifier: runtimeStore.hidAccessStatus.bundleIdentifier
-            )
-            runtimeStore.permissionStatusMessage =
-                "Permissions reset for \(result.bundleIdentifier). Re-enable Input Monitoring, then relaunch OpenSnek."
+            let result = try PermissionSupport.resetAllPermissions(bundleIdentifier: runtimeStore.hidAccessStatus.bundleIdentifier)
+            runtimeStore.permissionStatusMessage = "Permissions reset for \(result.bundleIdentifier). Re-enable Input Monitoring, then relaunch OpenSnek."
             PermissionSupport.openInputMonitoringSettings()
-        } catch {
-            runtimeStore.permissionStatusMessage = "Permission reset failed: \(error.localizedDescription)"
-        }
+        } catch { runtimeStore.permissionStatusMessage = "Permission reset failed: \(error.localizedDescription)" }
 
         await refreshHIDAccessStatus(forceRefresh: true)
     }
@@ -121,9 +94,7 @@ final class AppStateRuntimeController {
         defer { runtimeStore.isResettingLocalStorage = false }
 
         do {
-            try AppLocalStorageResetter(
-                backgroundServiceCoordinator: environment.serviceCoordinator
-            ).reset()
+            try AppLocalStorageResetter(backgroundServiceCoordinator: environment.serviceCoordinator).reset()
 
             environment.backend = LocalBridgeBackend.shared
             await restartBackendStateUpdates()
@@ -145,18 +116,12 @@ final class AppStateRuntimeController {
         }
     }
 
-    func setCompactInteraction(until date: Date?) {
-        compactInteractionUntil = date
-    }
+    func setCompactInteraction(until date: Date?) { compactInteractionUntil = date }
 
-    func setTransientStatus(until date: Date?) {
-        transientStatusUntil = date
-    }
+    func setTransientStatus(until date: Date?) { transientStatusUntil = date }
 
     func clearStatusItemTransientDpi(cancelTask: Bool = true) {
-        if cancelTask {
-            statusItemTransientDpiResetTask?.cancel()
-        }
+        if cancelTask { statusItemTransientDpiResetTask?.cancel() }
         statusItemTransientDpiResetTask = nil
         runtimeStore.statusItemTransientDpi = nil
     }
@@ -165,19 +130,13 @@ final class AppStateRuntimeController {
         guard !isTearingDown else { return }
         guard environment.launchRole.isService else { return }
         guard deviceStore.selectedDeviceID == deviceID else { return }
-        guard let previousDpi = resolvedDpi(from: previous),
-              let nextDpi = resolvedDpi(from: next),
-              previousDpi != nextDpi else {
-            return
-        }
+        guard let previousDpi = resolvedDpi(from: previous), let nextDpi = resolvedDpi(from: next), previousDpi != nextDpi else { return }
 
         noteServiceDpiActivity()
         presentStatusItemTransientDpi(nextDpi)
     }
 
-    var currentPollingProfile: PollingProfile {
-        pollingProfile(at: Date())
-    }
+    var currentPollingProfile: PollingProfile { pollingProfile(at: Date()) }
 
     func effectiveFastDpiInterval(at now: Date) -> TimeInterval? {
         guard DeveloperRuntimeOptions.pollingEnabled() else { return nil }
@@ -185,27 +144,17 @@ final class AppStateRuntimeController {
         guard !activeFastPollingDeviceIDs.isEmpty else { return nil }
 
         let profile = pollingProfile(at: now)
-        if let fastInterval = profile.fastDpiInterval {
-            return fastInterval
-        }
+        if let fastInterval = profile.fastDpiInterval { return fastInterval }
 
         guard profile == .serviceIdle else { return nil }
         return Self.serviceIdleFallbackFastDpiInterval
     }
 
     func pollingProfile(at now: Date) -> PollingProfile {
-        if !environment.launchRole.isService {
-            return .foreground
-        }
-        if compactMenuPresented {
-            return .serviceInteractive
-        }
-        if hasActiveRemoteClients(at: now) {
-            return .serviceInteractive
-        }
-        if let compactInteractionUntil, now < compactInteractionUntil {
-            return .serviceInteractive
-        }
+        if !environment.launchRole.isService { return .foreground }
+        if compactMenuPresented { return .serviceInteractive }
+        if hasActiveRemoteClients(at: now) { return .serviceInteractive }
+        if let compactInteractionUntil, now < compactInteractionUntil { return .serviceInteractive }
         return .serviceIdle
     }
 
@@ -238,36 +187,22 @@ final class AppStateRuntimeController {
 
         let liveIDs = Set(deviceStore.devices.map(\.id))
         let remoteSelectedDeviceIDs = uniqueDeviceIDs(activeRemoteSelectedDeviceIDs(at: now))
-        if !remoteSelectedDeviceIDs.isEmpty {
-            return remoteSelectedDeviceIDs.filter { liveIDs.contains($0) }
-        }
+        if !remoteSelectedDeviceIDs.isEmpty { return remoteSelectedDeviceIDs.filter { liveIDs.contains($0) } }
 
-        if let selectedDeviceID = deviceStore.selectedDeviceID,
-           liveIDs.contains(selectedDeviceID) {
-            return [selectedDeviceID]
-        }
+        if let selectedDeviceID = deviceStore.selectedDeviceID, liveIDs.contains(selectedDeviceID) { return [selectedDeviceID] }
 
         return Array(deviceStore.devices.prefix(1)).map(\.id)
     }
 
-    func preferredServiceSelectedDeviceID(
-        availableDeviceIDs: Set<String>,
-        currentSelectedDeviceID: String?,
-        now: Date = Date()
-    ) -> String? {
+    func preferredServiceSelectedDeviceID(availableDeviceIDs: Set<String>, currentSelectedDeviceID: String?, now: Date = Date()) -> String? {
         guard environment.launchRole.isService else { return nil }
 
         let remoteSelectedDeviceIDs = uniqueDeviceIDs(activeRemoteSelectedDeviceIDs(at: now))
         guard !remoteSelectedDeviceIDs.isEmpty else { return nil }
 
-        if let currentSelectedDeviceID,
-           remoteSelectedDeviceIDs.contains(currentSelectedDeviceID) {
-            return currentSelectedDeviceID
-        }
+        if let currentSelectedDeviceID, remoteSelectedDeviceIDs.contains(currentSelectedDeviceID) { return currentSelectedDeviceID }
 
-        if let firstLiveRemoteSelection = remoteSelectedDeviceIDs.first(where: availableDeviceIDs.contains) {
-            return firstLiveRemoteSelection
-        }
+        if let firstLiveRemoteSelection = remoteSelectedDeviceIDs.first(where: availableDeviceIDs.contains) { return firstLiveRemoteSelection }
 
         return remoteSelectedDeviceIDs.first
     }
@@ -285,14 +220,9 @@ final class AppStateRuntimeController {
         let hadActiveRemoteClients = hasActiveRemoteClients(at: now)
         pruneExpiredRemoteClientPresence(now: now)
         let previous = remoteClientPresenceByProcessID[presence.sourceProcessID]
-        remoteClientPresenceByProcessID[presence.sourceProcessID] = RemoteClientPresenceState(
-            expiresAt: now.addingTimeInterval(2.5),
-            selectedDeviceID: presence.selectedDeviceID
-        )
+        remoteClientPresenceByProcessID[presence.sourceProcessID] = RemoteClientPresenceState(expiresAt: now.addingTimeInterval(2.5), selectedDeviceID: presence.selectedDeviceID)
         let selectedDeviceChanged = previous?.selectedDeviceID != presence.selectedDeviceID
-        if !hadActiveRemoteClients || selectedDeviceChanged {
-            requestImmediateRuntimePoll(resetPollingDeadlines: true)
-        }
+        if !hadActiveRemoteClients || selectedDeviceChanged { requestImmediateRuntimePoll(resetPollingDeadlines: true) }
     }
 
     func clearRemoteClientPresence(processID: Int32, now: Date = Date()) {
@@ -305,29 +235,9 @@ final class AppStateRuntimeController {
     func installPowerObservers() {
         let notificationCenter = NSWorkspace.shared.notificationCenter
 
-        if systemWillSleepObserver == nil {
-            systemWillSleepObserver = notificationCenter.addObserver(
-                forName: NSWorkspace.willSleepNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.handleSystemWillSleep()
-                }
-            }
-        }
+        if systemWillSleepObserver == nil { systemWillSleepObserver = notificationCenter.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor [weak self] in self?.handleSystemWillSleep() } } }
 
-        if systemDidWakeObserver == nil {
-            systemDidWakeObserver = notificationCenter.addObserver(
-                forName: NSWorkspace.didWakeNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.handleSystemDidWake()
-                }
-            }
-        }
+        if systemDidWakeObserver == nil { systemDidWakeObserver = notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor [weak self] in self?.handleSystemDidWake() } } }
     }
 
     func restartBackendStateUpdates() async {
@@ -352,44 +262,19 @@ final class AppStateRuntimeController {
         }
     }
 
-    func ensureBackendStateUpdatesStarted() async {
-        if let backendStateUpdatesBootstrapTask {
-            await backendStateUpdatesBootstrapTask.value
-        }
-    }
+    func ensureBackendStateUpdatesStarted() async { if let backendStateUpdatesBootstrapTask { await backendStateUpdatesBootstrapTask.value } }
 
     private func handleBackendStateUpdate(_ update: BackendStateUpdate) async {
         guard !isTearingDown, isBackendReady else { return }
         switch update {
-        case .deviceList(let devices, let updatedAt):
-            await deviceController.handleBackendDeviceListUpdate(devices, updatedAt: updatedAt)
+        case .deviceList(let devices, let updatedAt): await deviceController.handleBackendDeviceListUpdate(devices, updatedAt: updatedAt)
         case .snapshot(let snapshot):
             guard environment.usesRemoteServiceTransport else { return }
             deviceController.applyRemoteServiceSnapshot(snapshot)
-        case .dpiTransportStatus(let deviceID, let status, let updatedAt):
-            deviceController.applyBackendDpiTransportStatusUpdate(
-                deviceID: deviceID,
-                status: status,
-                updatedAt: updatedAt
-            )
-        case .softwareLightingStatus(let deviceID, let status, let updatedAt):
-            deviceController.applyBackendSoftwareLightingStatusUpdate(
-                deviceID: deviceID,
-                status: status,
-                updatedAt: updatedAt
-            )
-        case .usbControlAvailability(let deviceID, let availability, let updatedAt):
-            deviceController.applyBackendUSBControlAvailabilityUpdate(
-                deviceID: deviceID,
-                availability: availability,
-                updatedAt: updatedAt
-            )
-        case .deviceState(let deviceID, let updatedState, let updatedAt):
-            deviceController.applyBackendDeviceStateUpdate(
-                deviceID: deviceID,
-                state: updatedState,
-                updatedAt: updatedAt
-            )
+        case .dpiTransportStatus(let deviceID, let status, let updatedAt): deviceController.applyBackendDpiTransportStatusUpdate(deviceID: deviceID, status: status, updatedAt: updatedAt)
+        case .softwareLightingStatus(let deviceID, let status, let updatedAt): deviceController.applyBackendSoftwareLightingStatusUpdate(deviceID: deviceID, status: status, updatedAt: updatedAt)
+        case .usbControlAvailability(let deviceID, let availability, let updatedAt): deviceController.applyBackendUSBControlAvailabilityUpdate(deviceID: deviceID, availability: availability, updatedAt: updatedAt)
+        case .deviceState(let deviceID, let updatedState, let updatedAt): deviceController.applyBackendDeviceStateUpdate(deviceID: deviceID, state: updatedState, updatedAt: updatedAt)
         case .openSettingsRequested:
             guard environment.usesRemoteServiceTransport else { return }
             runtimeStore.openSettingsRequestCount &+= 1
@@ -399,9 +284,7 @@ final class AppStateRuntimeController {
     private func resolvedDpi(from state: MouseState?) -> Int? {
         guard let state else { return nil }
 
-        if let liveDpi = state.dpi?.x, liveDpi > 0 {
-            return liveDpi
-        }
+        if let liveDpi = state.dpi?.x, liveDpi > 0 { return liveDpi }
 
         guard let values = state.dpi_stages.values, !values.isEmpty else { return nil }
         let active = max(0, min(values.count - 1, state.dpi_stages.active_stage ?? 0))
@@ -415,11 +298,7 @@ final class AppStateRuntimeController {
         statusItemTransientDpiResetTask?.cancel()
         let durationNanos = UInt64(max(0, runtimeStore.statusItemDpiDisplayDuration) * 1_000_000_000)
         statusItemTransientDpiResetTask = Task { @MainActor [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: durationNanos)
-            } catch {
-                return
-            }
+            do { try await Task.sleep(nanoseconds: durationNanos) } catch { return }
 
             self?.clearStatusItemTransientDpi(cancelTask: false)
         }
@@ -432,36 +311,18 @@ final class AppStateRuntimeController {
         installPowerObservers()
 
         #if DEBUG
-        let shouldSynchronizeLaunchAgent = !OpenSnekUITestSupport.forcesLocalBackend
+            let shouldSynchronizeLaunchAgent = !OpenSnekUITestSupport.forcesLocalBackend
         #else
-        let shouldSynchronizeLaunchAgent = true
+            let shouldSynchronizeLaunchAgent = true
         #endif
-        if shouldSynchronizeLaunchAgent {
-            do {
-                try environment.serviceCoordinator.synchronizeLaunchAgentIfNeeded()
-            } catch {
-                AppLog.warning("Service", "launch agent sync failed: \(error.localizedDescription)")
-            }
-        }
+        if shouldSynchronizeLaunchAgent { do { try environment.serviceCoordinator.synchronizeLaunchAgentIfNeeded() } catch { AppLog.warning("Service", "launch agent sync failed: \(error.localizedDescription)") } }
 
         if environment.launchRole.isService {
             do {
                 try await environment.serviceCoordinator.registerServiceHostIfNeeded(
-                    backend: LocalBridgeBackend.shared,
-                    remoteClientPresenceHandler: { [weak self] presence in
-                        await MainActor.run {
-                            self?.recordRemoteClientPresence(presence)
-                        }
-                    },
-                    remoteClientDisconnectHandler: { [weak self] processID in
-                        await MainActor.run {
-                            self?.clearRemoteClientPresence(processID: processID)
-                        }
-                    }
-                )
-            } catch {
-                runtimeStore.serviceStatusMessage = "Service host failed: \(error.localizedDescription)"
-            }
+                    backend: LocalBridgeBackend.shared, remoteClientPresenceHandler: { [weak self] presence in await MainActor.run { self?.recordRemoteClientPresence(presence) } },
+                    remoteClientDisconnectHandler: { [weak self] processID in await MainActor.run { self?.clearRemoteClientPresence(processID: processID) } })
+            } catch { runtimeStore.serviceStatusMessage = "Service host failed: \(error.localizedDescription)" }
             isBackendReady = true
         } else {
             await configureBackendForCurrentPreferences()
@@ -475,9 +336,7 @@ final class AppStateRuntimeController {
         } else {
             await deviceController.refreshDevices()
         }
-        if !environment.launchRole.isService {
-            await checkForUpdates(now: Date())
-        }
+        if !environment.launchRole.isService { await checkForUpdates(now: Date()) }
 
         runtimeTask = Task { [weak self] in
             while let self, !Task.isCancelled {
@@ -494,18 +353,14 @@ final class AppStateRuntimeController {
         compactMenuPresented = isPresented
         if isPresented {
             compactInteractionUntil = Date().addingTimeInterval(3.0)
-            if presentationChanged {
-                requestImmediateRuntimePoll(resetPollingDeadlines: true)
-            }
+            if presentationChanged { requestImmediateRuntimePoll(resetPollingDeadlines: true) }
         }
     }
 
     func setBackgroundServiceEnabled(_ enabled: Bool) async {
         runtimeStore.backgroundServiceEnabled = enabled
         environment.serviceCoordinator.setBackgroundServiceEnabled(enabled)
-        if !enabled, runtimeStore.launchAtStartupEnabled {
-            setLaunchAtStartupEnabled(false)
-        }
+        if !enabled, runtimeStore.launchAtStartupEnabled { setLaunchAtStartupEnabled(false) }
 
         if enabled {
             do {
@@ -559,22 +414,17 @@ final class AppStateRuntimeController {
         }
     }
 
-    func openFullAppFromService() {
-        environment.serviceCoordinator.launchFullAppProcess()
-    }
+    func openFullAppFromService() { environment.serviceCoordinator.launchFullAppProcess() }
 
     func openSettingsFromService() async {
-        if environment.launchRole.isService,
-           await environment.serviceCoordinator.requestOpenSettingsForConnectedClients() {
+        if environment.launchRole.isService, await environment.serviceCoordinator.requestOpenSettingsForConnectedClients() {
             environment.serviceCoordinator.launchFullAppProcess()
             return
         }
         environment.serviceCoordinator.launchFullAppProcess(arguments: ["--open-settings"])
     }
 
-    func prepareForCurrentServiceProcessTermination() {
-        environment.serviceCoordinator.stopCurrentServiceHostIfNeeded()
-    }
+    func prepareForCurrentServiceProcessTermination() { environment.serviceCoordinator.stopCurrentServiceHostIfNeeded() }
 
     func terminateServiceProcess() {
         environment.serviceCoordinator.terminateOtherRunningApplicationInstances()
@@ -585,12 +435,7 @@ final class AppStateRuntimeController {
     func sendRemoteClientPresence() {
         guard environment.usesRemoteServiceTransport else { return }
         lastRemoteClientPresencePingAt = Date()
-        Task {
-            await environment.backend.updateRemoteClientPresence(
-                sourceProcessID: Int32(ProcessInfo.processInfo.processIdentifier),
-                selectedDeviceID: deviceStore.selectedDeviceID
-            )
-        }
+        Task { await environment.backend.updateRemoteClientPresence(sourceProcessID: Int32(ProcessInfo.processInfo.processIdentifier), selectedDeviceID: deviceStore.selectedDeviceID) }
     }
 
     func handleSystemWillSleep(now: Date = Date()) {
@@ -627,15 +472,15 @@ final class AppStateRuntimeController {
     }
 
     private func configureBackendForCurrentPreferences() async {
-#if DEBUG
-        if OpenSnekUITestSupport.forcesLocalBackend {
-            await replaceBackend(LocalBridgeBackend.shared)
-            await restartBackendStateUpdates()
-            isBackendReady = true
-            await refreshHIDAccessStatus(forceRefresh: false)
-            return
-        }
-#endif
+        #if DEBUG
+            if OpenSnekUITestSupport.forcesLocalBackend {
+                await replaceBackend(LocalBridgeBackend.shared)
+                await restartBackendStateUpdates()
+                isBackendReady = true
+                await refreshHIDAccessStatus(forceRefresh: false)
+                return
+            }
+        #endif
         do {
             await replaceBackend(try await environment.serviceCoordinator.makeBackendForCurrentMode())
             await restartBackendStateUpdates()
@@ -658,20 +503,13 @@ final class AppStateRuntimeController {
         let previousBackend = environment.backend
         if previousBackend.usesRemoteServiceTransport != backend.usesRemoteServiceTransport {
             let stoppedStatuses = await previousBackend.stopAllSoftwareLighting()
-            for status in stoppedStatuses {
-                deviceStore.softwareLightingStatusByDeviceID[status.deviceID] = status
-            }
+            for status in stoppedStatuses { deviceStore.softwareLightingStatusByDeviceID[status.deviceID] = status }
         }
         environment.backend = backend
     }
 
     private func checkForUpdates(now: Date = Date(), force: Bool = false) async {
-        guard force || ReleaseUpdateChecker.isPeriodicCheckDue(
-            lastCheckedAt: environment.lastReleaseUpdateCheckAt,
-            now: now
-        ) else {
-            return
-        }
+        guard force || ReleaseUpdateChecker.isPeriodicCheckDue(lastCheckedAt: environment.lastReleaseUpdateCheckAt, now: now) else { return }
         environment.lastReleaseUpdateCheckAt = now
 
         guard environment.shouldCheckForReleaseUpdates else {
@@ -683,49 +521,24 @@ final class AppStateRuntimeController {
 
         do {
             deviceStore.availableUpdate = try await environment.releaseUpdateChecker.checkForUpdate(currentVersion: currentVersion)
-            if let availableUpdate = deviceStore.availableUpdate {
-                AppLog.event("AppState", "update available current=\(currentVersion) latest=\(availableUpdate.latestVersion)")
-            }
-        } catch {
-            AppLog.debug("AppState", "checkForUpdates failed: \(error.localizedDescription)")
-        }
+            if let availableUpdate = deviceStore.availableUpdate { AppLog.event("AppState", "update available current=\(currentVersion) latest=\(availableUpdate.latestVersion)") }
+        } catch { AppLog.debug("AppState", "checkForUpdates failed: \(error.localizedDescription)") }
     }
 
     private func bootstrapRemoteStateIfNeeded(force: Bool = false) async {
         guard environment.usesRemoteServiceTransport else { return }
-        if !force,
-           !deviceStore.devices.isEmpty,
-           deviceStore.state != nil {
-            return
-        }
+        if !force, !deviceStore.devices.isEmpty, deviceStore.state != nil { return }
         await deviceController.refreshDevices()
     }
 
     func runtimeSleepInterval(after now: Date) -> TimeInterval {
-        if powerState == .sleeping {
-            return RuntimeWakeSchedule.suspendedForSleepInterval
-        }
+        if powerState == .sleeping { return RuntimeWakeSchedule.suspendedForSleepInterval }
         let profile = pollingProfile(at: now)
         return RuntimeWakeSchedule.nextSleepInterval(
             RuntimeWakeSchedule.Context(
-                now: now,
-                profile: profile,
-                refreshStateIntervalOverride: effectiveRefreshStateInterval(at: now, profile: profile),
-                devicePresenceIntervalOverride: effectiveDevicePresenceInterval(at: now, profile: profile),
-                fastDpiInterval: effectiveFastDpiInterval(at: now),
-                usesRemoteServiceTransport: environment.usesRemoteServiceTransport,
-                lastDevicePresencePollAt: lastDevicePresencePollAt,
-                lastRefreshStatePollAt: lastRefreshStatePollAt,
-                lastFastDpiPollAt: lastFastDpiPollAt,
-                lastRemoteClientPresencePingAt: lastRemoteClientPresencePingAt,
-                transientStatusUntil: transientStatusUntil,
-                nextRemoteClientPresenceExpiry: remoteClientPresenceByProcessID
-                    .values
-                    .map(\.expiresAt)
-                    .filter { $0 > now }
-                    .min()
-            )
-        )
+                now: now, profile: profile, refreshStateIntervalOverride: effectiveRefreshStateInterval(at: now, profile: profile), devicePresenceIntervalOverride: effectiveDevicePresenceInterval(at: now, profile: profile), fastDpiInterval: effectiveFastDpiInterval(at: now),
+                usesRemoteServiceTransport: environment.usesRemoteServiceTransport, lastDevicePresencePollAt: lastDevicePresencePollAt, lastRefreshStatePollAt: lastRefreshStatePollAt, lastFastDpiPollAt: lastFastDpiPollAt, lastRemoteClientPresencePingAt: lastRemoteClientPresencePingAt,
+                transientStatusUntil: transientStatusUntil, nextRemoteClientPresenceExpiry: remoteClientPresenceByProcessID.values.map(\.expiresAt).filter { $0 > now }.min()))
     }
 
     func pollRuntimeOnce(now: Date = Date()) async {
@@ -735,17 +548,12 @@ final class AppStateRuntimeController {
         let effectiveDevicePresenceInterval = effectiveDevicePresenceInterval(at: now, profile: profile)
         let effectiveRefreshStateInterval = effectiveRefreshStateInterval(at: now, profile: profile)
         pruneExpiredRemoteClientPresence(now: now)
-        if !environment.launchRole.isService {
-            await checkForUpdates(now: now)
-        }
+        if !environment.launchRole.isService { await checkForUpdates(now: now) }
 
         if environment.usesRemoteServiceTransport {
             if now.timeIntervalSince(lastRemoteClientPresencePingAt) >= 1.0 {
                 lastRemoteClientPresencePingAt = now
-                await environment.backend.updateRemoteClientPresence(
-                    sourceProcessID: Int32(ProcessInfo.processInfo.processIdentifier),
-                    selectedDeviceID: deviceStore.selectedDeviceID
-                )
+                await environment.backend.updateRemoteClientPresence(sourceProcessID: Int32(ProcessInfo.processInfo.processIdentifier), selectedDeviceID: deviceStore.selectedDeviceID)
             }
             clearTransientStatusIfExpired(now: now)
             return
@@ -762,9 +570,7 @@ final class AppStateRuntimeController {
                 if environment.launchRole.isService {
                     if profile == .serviceInteractive {
                         let priorityDeviceIDs = serviceInteractivePriorityDeviceIDs(at: now)
-                        if !priorityDeviceIDs.isEmpty {
-                            await deviceController.refreshDeviceStates(deviceIDs: priorityDeviceIDs)
-                        }
+                        if !priorityDeviceIDs.isEmpty { await deviceController.refreshDeviceStates(deviceIDs: priorityDeviceIDs) }
                     } else {
                         await deviceController.refreshAllDeviceStates()
                     }
@@ -775,8 +581,7 @@ final class AppStateRuntimeController {
 
             await deviceController.probeUnavailableUSBReceivers(now: now)
 
-            if let fastInterval = effectiveFastDpiInterval(at: now),
-               now.timeIntervalSince(lastFastDpiPollAt) >= fastInterval {
+            if let fastInterval = effectiveFastDpiInterval(at: now), now.timeIntervalSince(lastFastDpiPollAt) >= fastInterval {
                 lastFastDpiPollAt = now
                 await deviceController.refreshDpiFast()
             }
@@ -786,16 +591,12 @@ final class AppStateRuntimeController {
     }
 
     func effectiveRefreshStateInterval(at now: Date, profile: PollingProfile) -> TimeInterval {
-        guard profile == .serviceIdle, shouldPrioritizeSelectedDeviceRecovery(at: now) else {
-            return profile.refreshStateInterval
-        }
+        guard profile == .serviceIdle, shouldPrioritizeSelectedDeviceRecovery(at: now) else { return profile.refreshStateInterval }
         return PollingProfile.serviceInteractive.refreshStateInterval
     }
 
     func effectiveDevicePresenceInterval(at now: Date, profile: PollingProfile) -> TimeInterval {
-        guard profile == .serviceIdle, shouldPrioritizeSelectedDeviceRecovery(at: now) else {
-            return profile.devicePresenceInterval
-        }
+        guard profile == .serviceIdle, shouldPrioritizeSelectedDeviceRecovery(at: now) else { return profile.devicePresenceInterval }
         return PollingProfile.serviceInteractive.devicePresenceInterval
     }
 
@@ -803,9 +604,7 @@ final class AppStateRuntimeController {
         guard !environment.usesRemoteServiceTransport else { return false }
         guard let selectedDevice = deviceStore.selectedDevice else { return false }
         let connectionState = deviceController.connectionState(for: selectedDevice)
-        if connectionState != .connected {
-            return true
-        }
+        if connectionState != .connected { return true }
         guard deviceStore.state != nil else { return true }
         guard let lastUpdated = deviceController.lastUpdatedTimestamp(for: selectedDevice) else { return true }
         return now.timeIntervalSince(lastUpdated) > PollingProfile.serviceInteractive.refreshStateInterval
@@ -824,9 +623,7 @@ final class AppStateRuntimeController {
     private func clearTransientStatusIfExpired(now: Date) {
         if let transientStatusUntil, now >= transientStatusUntil {
             self.transientStatusUntil = nil
-            if compactStatusMessage == nil {
-                runtimeStore.serviceStatusMessage = nil
-            }
+            if compactStatusMessage == nil { runtimeStore.serviceStatusMessage = nil }
         }
     }
 
@@ -837,9 +634,7 @@ final class AppStateRuntimeController {
             lastRefreshStatePollAt = .distantPast
             lastFastDpiPollAt = .distantPast
         }
-        Task { [weak self] in
-            await self?.pollRuntimeOnce()
-        }
+        Task { [weak self] in await self?.pollRuntimeOnce() }
     }
 
     private func noteServiceDpiActivity() {
@@ -848,34 +643,19 @@ final class AppStateRuntimeController {
         requestImmediateRuntimePoll(resetPollingDeadlines: false)
     }
 
-    private func syncLaunchAtStartupPreference() {
-        runtimeStore.launchAtStartupEnabled = environment.serviceCoordinator.launchAtStartupEnabled
-    }
+    private func syncLaunchAtStartupPreference() { runtimeStore.launchAtStartupEnabled = environment.serviceCoordinator.launchAtStartupEnabled }
 
-    private func hasActiveRemoteClients(at now: Date) -> Bool {
-        remoteClientPresenceByProcessID.values.contains { $0.expiresAt > now }
-    }
+    private func hasActiveRemoteClients(at now: Date) -> Bool { remoteClientPresenceByProcessID.values.contains { $0.expiresAt > now } }
 
-    private func activeRemoteSelectedDeviceIDs(at now: Date) -> [String] {
-        remoteClientPresenceByProcessID
-            .values
-            .filter { $0.expiresAt > now }
-            .compactMap(\.selectedDeviceID)
-    }
+    private func activeRemoteSelectedDeviceIDs(at now: Date) -> [String] { remoteClientPresenceByProcessID.values.filter { $0.expiresAt > now }.compactMap(\.selectedDeviceID) }
 
     private func orderedLocalFastPollingDevices() -> [MouseDevice] {
         var ordered: [MouseDevice] = []
         var seen: Set<String> = []
 
-        if let selectedDeviceID = deviceStore.selectedDeviceID,
-           let selectedDevice = deviceStore.devices.first(where: { $0.id == selectedDeviceID }),
-           seen.insert(selectedDeviceID).inserted {
-            ordered.append(selectedDevice)
-        }
+        if let selectedDeviceID = deviceStore.selectedDeviceID, let selectedDevice = deviceStore.devices.first(where: { $0.id == selectedDeviceID }), seen.insert(selectedDeviceID).inserted { ordered.append(selectedDevice) }
 
-        for device in deviceStore.devices where seen.insert(device.id).inserted {
-            ordered.append(device)
-        }
+        for device in deviceStore.devices where seen.insert(device.id).inserted { ordered.append(device) }
 
         return ordered
     }
@@ -895,64 +675,43 @@ final class AppStateRuntimeController {
             return orderedDevices.compactMap { device in
                 guard deviceController.allowsFastDpiPolling(for: device) else { return nil }
                 switch deviceController.dpiUpdateTransportStatus(for: device) {
-                case .pollingFallback:
-                    return device.id
-                case .realTimeHID:
-                    return shouldMaintainIdleRealtimeWatchdog(for: device, now: now) ? device.id : nil
-                case .unknown, .listening, .streamActive, .unsupported:
-                    return nil
+                case .pollingFallback: return device.id
+                case .realTimeHID: return shouldMaintainIdleRealtimeWatchdog(for: device, now: now) ? device.id : nil
+                case .unknown, .listening, .streamActive, .unsupported: return nil
                 }
             }
         }
         guard !environment.usesRemoteServiceTransport else { return [] }
-        if let selectedDeviceID = deviceStore.selectedDeviceID,
-           let selectedDevice = orderedDevices.first(where: { $0.id == selectedDeviceID }) {
-            return shouldFastPollSelectedDevice(selectedDevice) ? [selectedDeviceID] : []
-        }
-        return Array(orderedDevices.prefix(1))
-            .filter { shouldFastPollSelectedDevice($0) }
-            .map(\.id)
+        if let selectedDeviceID = deviceStore.selectedDeviceID, let selectedDevice = orderedDevices.first(where: { $0.id == selectedDeviceID }) { return shouldFastPollSelectedDevice(selectedDevice) ? [selectedDeviceID] : [] }
+        return Array(orderedDevices.prefix(1)).filter { shouldFastPollSelectedDevice($0) }.map(\.id)
     }
 
     private func shouldFastPollSelectedDevice(_ device: MouseDevice) -> Bool {
         guard deviceController.allowsFastDpiPolling(for: device) else { return false }
         switch deviceController.dpiUpdateTransportStatus(for: device) {
-        case .unknown:
-            return true
-        case .pollingFallback:
-            return true
-        case .realTimeHID:
-            return true
-        case .listening, .streamActive, .unsupported:
-            return false
+        case .unknown: return true
+        case .pollingFallback: return true
+        case .realTimeHID: return true
+        case .listening, .streamActive, .unsupported: return false
         }
     }
 
     private func shouldMaintainIdleRealtimeWatchdog(for device: MouseDevice, now: Date) -> Bool {
-        if device.transport == .bluetooth,
-           deviceController.isPassiveBluetoothHeartbeatFresh(for: device, now: now) {
-            return false
-        }
+        if device.transport == .bluetooth, deviceController.isPassiveBluetoothHeartbeatFresh(for: device, now: now) { return false }
         return true
     }
 
     private func uniqueDeviceIDs(_ deviceIDs: [String]) -> [String] {
         var ordered: [String] = []
         var seen: Set<String> = []
-        for deviceID in deviceIDs where seen.insert(deviceID).inserted {
-            ordered.append(deviceID)
-        }
+        for deviceID in deviceIDs where seen.insert(deviceID).inserted { ordered.append(deviceID) }
         return ordered
     }
 
     private func pruneExpiredRemoteClientPresence(now: Date) {
         guard !remoteClientPresenceByProcessID.isEmpty else { return }
-        let expiredProcessIDs = remoteClientPresenceByProcessID.compactMap { processID, state in
-            state.expiresAt <= now ? processID : nil
-        }
+        let expiredProcessIDs = remoteClientPresenceByProcessID.compactMap { processID, state in state.expiresAt <= now ? processID : nil }
         guard !expiredProcessIDs.isEmpty else { return }
-        for processID in expiredProcessIDs {
-            remoteClientPresenceByProcessID.removeValue(forKey: processID)
-        }
+        for processID in expiredProcessIDs { remoteClientPresenceByProcessID.removeValue(forKey: processID) }
     }
 }

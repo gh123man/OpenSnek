@@ -3,18 +3,19 @@ import OpenSnekAppSupport
 import OpenSnekCore
 
 /// Adds selection lighting behavior to `AppStateEditorController`.
-@MainActor
-extension AppStateEditorController {
+@MainActor extension AppStateEditorController {
     func liveUSBButtonProfile(for device: MouseDevice) -> Int {
         let count = max(1, device.onboard_profile_count)
         let hardwareActiveProfile = max(1, min(count, editorStore.activeOnboardProfile))
-        let overrideProfile = softwareActiveUSBButtonProfileOverrideByDeviceID[device.id].map { max(1, min(count, $0)) }
+        let overrideProfile = clampedUSBButtonProfileOverride(deviceID: device.id, count: count)
         if overrideProfile == hardwareActiveProfile {
             softwareActiveUSBButtonProfileOverrideByDeviceID.removeValue(forKey: device.id)
             return hardwareActiveProfile
         }
         return overrideProfile ?? hardwareActiveProfile
     }
+
+    private func clampedUSBButtonProfileOverride(deviceID: String, count: Int) -> Int? { softwareActiveUSBButtonProfileOverrideByDeviceID[deviceID].map { max(1, min(count, $0)) } }
 
     func liveUSBButtonProfile() -> Int {
         guard let device = deviceStore.selectedDevice else { return editorStore.activeOnboardProfile }
@@ -30,11 +31,7 @@ extension AppStateEditorController {
     func usbButtonProfileHasUnsavedChanges(device: MouseDevice, profile: Int) -> Bool {
         let writableSlots = device.button_layout?.writableSlots ?? buttonSlots.map(\.slot)
         let draftBindings: [Int: ButtonBindingDraft]
-        if editorStore.editableUSBButtonProfile == profile {
-            draftBindings = editorStore.editableButtonBindings
-        } else {
-            draftBindings = cachedButtonBindings(device: device, profile: profile)
-        }
+        if editorStore.editableUSBButtonProfile == profile { draftBindings = editorStore.editableButtonBindings } else { draftBindings = cachedButtonBindings(device: device, profile: profile) }
         let persistedBindings = cachedButtonBindings(device: device, profile: profile)
         return writableSlots.contains { slot in
             let fallback = defaultButtonBinding(for: slot, device: device)
@@ -45,11 +42,7 @@ extension AppStateEditorController {
     func setLiveUSBButtonProfileOverride(_ profile: Int, for device: MouseDevice) {
         let clamped = max(1, min(editorStore.visibleOnboardProfileCount, profile))
         let hardwareActiveProfile = max(1, min(editorStore.visibleOnboardProfileCount, editorStore.activeOnboardProfile))
-        if clamped == hardwareActiveProfile {
-            softwareActiveUSBButtonProfileOverrideByDeviceID.removeValue(forKey: device.id)
-        } else {
-            softwareActiveUSBButtonProfileOverrideByDeviceID[device.id] = clamped
-        }
+        if clamped == hardwareActiveProfile { softwareActiveUSBButtonProfileOverrideByDeviceID.removeValue(forKey: device.id) } else { softwareActiveUSBButtonProfileOverrideByDeviceID[device.id] = clamped }
         bumpUSBButtonProfilesRevision()
     }
 
@@ -59,28 +52,15 @@ extension AppStateEditorController {
         let hardwareActiveProfile = max(1, min(count, editorStore.activeOnboardProfile))
         let liveActiveProfile = max(1, min(count, liveUSBButtonProfile(for: device)))
 
-        return (1...count).map { profile in
-            USBButtonProfileSummary(
-                profile: profile,
-                isHardwareActive: profile == hardwareActiveProfile,
-                isLiveActive: profile == liveActiveProfile,
-                isCustomized: profileHasCustomBindings(device: device, profile: profile)
-            )
-        }
+        return (1...count).map { profile in USBButtonProfileSummary(profile: profile, isHardwareActive: profile == hardwareActiveProfile, isLiveActive: profile == liveActiveProfile, isCustomized: profileHasCustomBindings(device: device, profile: profile)) }
     }
 
-    func defaultButtonBinding(for slot: Int) -> ButtonBindingDraft {
-        ButtonBindingSupport.defaultButtonBinding(for: slot, profileID: deviceStore.selectedDevice?.profile_id)
-    }
+    func defaultButtonBinding(for slot: Int) -> ButtonBindingDraft { ButtonBindingSupport.defaultButtonBinding(for: slot, profileID: deviceStore.selectedDevice?.profile_id) }
 
     func currentLightingEffectPatch() -> LightingEffectPatch {
         LightingEffectPatch(
-            kind: editorStore.editableLightingEffect,
-            primary: RGBPatch(r: editorStore.editableColor.r, g: editorStore.editableColor.g, b: editorStore.editableColor.b),
-            secondary: RGBPatch(r: editorStore.editableSecondaryColor.r, g: editorStore.editableSecondaryColor.g, b: editorStore.editableSecondaryColor.b),
-            waveDirection: editorStore.editableLightingWaveDirection,
-            reactiveSpeed: editorStore.editableLightingReactiveSpeed
-        )
+            kind: editorStore.editableLightingEffect, primary: RGBPatch(r: editorStore.editableColor.r, g: editorStore.editableColor.g, b: editorStore.editableColor.b),
+            secondary: RGBPatch(r: editorStore.editableSecondaryColor.r, g: editorStore.editableSecondaryColor.g, b: editorStore.editableSecondaryColor.b), waveDirection: editorStore.editableLightingWaveDirection, reactiveSpeed: editorStore.editableLightingReactiveSpeed)
     }
 
     func startSoftwareLighting() async {
@@ -101,19 +81,13 @@ extension AppStateEditorController {
         preferenceStore.persistSoftwareLightingRequest(request, device: device)
 
         do {
-            let status = try await environment.backend.startSoftwareLighting(
-                device: device,
-                request: request
-            )
+            let status = try await environment.backend.startSoftwareLighting(device: device, request: request)
             deviceStore.softwareLightingStatusByDeviceID[device.id] = status
             deviceStore.errorMessage = nil
-        } catch {
-            deviceStore.errorMessage = error.localizedDescription
-        }
+        } catch { deviceStore.errorMessage = error.localizedDescription }
     }
 
-    @discardableResult
-    func startPersistedSoftwareLightingOnConnectIfNeeded(for device: MouseDevice) async -> Bool {
+    @discardableResult func startPersistedSoftwareLightingOnConnectIfNeeded(for device: MouseDevice) async -> Bool {
         guard !isTearingDown else { return false }
         guard device.supportsSoftwareLightingEffects else { return false }
         guard preferenceStore.loadSoftwareLightingApplyOnConnect(device: device) else { return false }
@@ -121,148 +95,79 @@ extension AppStateEditorController {
         let autoStartKey = DevicePersistenceKeys.key(for: device)
         guard !softwareLightingAutoStartInFlightKeys.contains(autoStartKey) else { return false }
 
-        let request = supportedSoftwareLightingRequest(
-            preferenceStore.loadPersistedSoftwareLightingRequest(device: device)
-                ?? SoftwareLightingEffectRequest(presetID: .flame),
-            for: device
-        )
-        if deviceStore.softwareLightingStatusByDeviceID[device.id]?.state == .running,
-           deviceStore.softwareLightingStatusByDeviceID[device.id]?.request == request {
-            return false
-        }
+        let request = supportedSoftwareLightingRequest(preferenceStore.loadPersistedSoftwareLightingRequest(device: device) ?? SoftwareLightingEffectRequest(presetID: .flame), for: device)
+        if deviceStore.softwareLightingStatusByDeviceID[device.id]?.state == .running, deviceStore.softwareLightingStatusByDeviceID[device.id]?.request == request { return false }
 
         softwareLightingAutoStartInFlightKeys.insert(autoStartKey)
-        defer {
-            softwareLightingAutoStartInFlightKeys.remove(autoStartKey)
-        }
+        defer { softwareLightingAutoStartInFlightKeys.remove(autoStartKey) }
 
         do {
-            let status = try await environment.backend.startSoftwareLighting(
-                device: device,
-                request: request
-            )
+            let status = try await environment.backend.startSoftwareLighting(device: device, request: request)
             deviceStore.softwareLightingStatusByDeviceID[device.id] = status
             if deviceStore.selectedDeviceID == device.id {
                 editorStore.editableSoftwareLightingApplyOnConnect = true
                 editorStore.applySoftwareLightingEffectRequest(request)
                 deviceStore.errorMessage = nil
             }
-            AppLog.event(
-                "AppState",
-                "software lighting auto-started on connect id=\(device.id) preset=\(request.presetID.rawValue)"
-            )
+            AppLog.event("AppState", "software lighting auto-started on connect id=\(device.id) preset=\(request.presetID.rawValue)")
             return true
         } catch {
-            AppLog.warning(
-                "AppState",
-                "software lighting auto-start failed id=\(device.id): \(error.localizedDescription)"
-            )
-            if deviceStore.selectedDeviceID == device.id {
-                deviceStore.errorMessage = error.localizedDescription
-            }
+            AppLog.warning("AppState", "software lighting auto-start failed id=\(device.id): \(error.localizedDescription)")
+            if deviceStore.selectedDeviceID == device.id { deviceStore.errorMessage = error.localizedDescription }
             return false
         }
     }
 
-    func supportedSoftwareLightingRequest(
-        _ request: SoftwareLightingEffectRequest,
-        for device: MouseDevice
-    ) -> SoftwareLightingEffectRequest {
-        guard device.supportsSoftwareLightingPreset(request.presetID) else {
-            return SoftwareLightingEffectRequest(
-                presetID: device.supportedSoftwareLightingPresets.first ?? .flame
-            )
-        }
+    func supportedSoftwareLightingRequest(_ request: SoftwareLightingEffectRequest, for device: MouseDevice) -> SoftwareLightingEffectRequest {
+        guard device.supportsSoftwareLightingPreset(request.presetID) else { return SoftwareLightingEffectRequest(presetID: device.supportedSoftwareLightingPresets.first ?? .flame) }
         return request
     }
 
     func stopSoftwareLighting() async {
         guard let device = deviceStore.selectedDevice else { return }
         let status = await environment.backend.stopSoftwareLighting(device: device)
-        if let status {
-            deviceStore.softwareLightingStatusByDeviceID[device.id] = status
-        } else {
-            deviceStore.softwareLightingStatusByDeviceID.removeValue(forKey: device.id)
-        }
+        if let status { deviceStore.softwareLightingStatusByDeviceID[device.id] = status } else { deviceStore.softwareLightingStatusByDeviceID.removeValue(forKey: device.id) }
     }
 
     func persistedSettingsRestorePlan(device: MouseDevice) -> PersistedSettingsRestorePlan? {
-        guard shouldRestorePersistedSettingsOnConnect(for: device),
-              let snapshot = loadPersistedSettingsSnapshot(device: device) else {
-            return nil
-        }
+        guard shouldRestorePersistedSettingsOnConnect(for: device), let snapshot = loadPersistedSettingsSnapshot(device: device) else { return nil }
 
-        let normalizedZoneID = normalizedLightingZoneID(
-            for: device,
-            preferredZoneID: snapshot.usbLightingZoneID
-        )
+        let normalizedZoneID = normalizedLightingZoneID(for: device, preferredZoneID: snapshot.usbLightingZoneID)
         let lightingEffect: LightingEffectPatch?
         if let persistedLightingEffect = snapshot.lightingEffect {
-            let supportedEffects = DeviceProfiles
-                .resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?
-                .supportedLightingEffects ?? LightingEffectKind.allCases
+            let supportedEffects = DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?.supportedLightingEffects ?? LightingEffectKind.allCases
             lightingEffect = supportedEffects.contains(persistedLightingEffect.kind) ? persistedLightingEffect : nil
         } else {
             lightingEffect = nil
         }
 
         let patch = DevicePatch(
-            pollRate: snapshot.pollRate,
-            sleepTimeout: snapshot.sleepTimeout,
-            lowBatteryThresholdRaw: snapshot.lowBatteryThresholdRaw,
-            scrollMode: device.supportsScrollModeControls ? snapshot.scrollMode : nil,
-            scrollAcceleration: device.supportsScrollModeControls ? snapshot.scrollAcceleration : nil,
-            scrollSmartReel: device.supportsScrollModeControls ? snapshot.scrollSmartReel : nil,
-            dpiStages: Array(snapshot.stageValues.prefix(snapshot.stageCount)),
-            dpiStagePairs: Array(snapshot.stagePairs.prefix(snapshot.stageCount)),
-            activeStage: max(0, min(snapshot.stageCount - 1, snapshot.activeStage - 1)),
-            ledBrightness: device.supportsLightingBrightnessControls ? snapshot.ledBrightness : nil,
-            ledRGB: lightingEffect == nil
-                ? snapshot.primaryLightingColor.map { RGBPatch(r: $0.r, g: $0.g, b: $0.b) }
-                : nil,
+            pollRate: snapshot.pollRate, sleepTimeout: snapshot.sleepTimeout, lowBatteryThresholdRaw: snapshot.lowBatteryThresholdRaw, scrollMode: device.supportsScrollModeControls ? snapshot.scrollMode : nil, scrollAcceleration: device.supportsScrollModeControls ? snapshot.scrollAcceleration : nil,
+            scrollSmartReel: device.supportsScrollModeControls ? snapshot.scrollSmartReel : nil, dpiStages: Array(snapshot.stageValues.prefix(snapshot.stageCount)), dpiStagePairs: Array(snapshot.stagePairs.prefix(snapshot.stageCount)),
+            activeStage: max(0, min(snapshot.stageCount - 1, snapshot.activeStage - 1)), ledBrightness: device.supportsLightingBrightnessControls ? snapshot.ledBrightness : nil, ledRGB: lightingEffect == nil ? snapshot.primaryLightingColor.map { RGBPatch(r: $0.r, g: $0.g, b: $0.b) } : nil,
             lightingEffect: lightingEffect,
             usbLightingZoneLEDIDs: {
-                if let lightingEffect, lightingEffect.kind == .staticColor {
-                    return usbLightingZoneLEDIDs(for: device, zoneID: normalizedZoneID)
-                }
-                if lightingEffect == nil {
-                    return usbLightingZoneLEDIDs(for: device, zoneID: normalizedZoneID)
-                }
+                if let lightingEffect, lightingEffect.kind == .staticColor { return usbLightingZoneLEDIDs(for: device, zoneID: normalizedZoneID) }
+                if lightingEffect == nil { return usbLightingZoneLEDIDs(for: device, zoneID: normalizedZoneID) }
                 return nil
-            }()
-        )
-        return PersistedSettingsRestorePlan(
-            snapshot: snapshot,
-            patch: patch,
-            buttonBindings: snapshot.buttonBindings
-        )
+            }())
+        return PersistedSettingsRestorePlan(snapshot: snapshot, patch: patch, buttonBindings: snapshot.buttonBindings)
     }
 
     func persistedLightingPresentationPlan(device: MouseDevice) -> PersistedLightingRestorePlan? {
         guard device.showsLightingControls else { return nil }
 
-        let normalizedZoneID = normalizedLightingZoneID(
-            for: device,
-            preferredZoneID: loadPersistedLightingZoneID(device: device)
-        )
+        let normalizedZoneID = normalizedLightingZoneID(for: device, preferredZoneID: loadPersistedLightingZoneID(device: device))
         let persistedColor = loadPersistedLightingColor(device: device, zoneID: normalizedZoneID)
 
-        if device.supports_advanced_lighting_effects,
-           let persistedEffect = loadPersistedLightingEffect(device: device) {
-            let supportedEffects = DeviceProfiles
-                .resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?
-                .supportedLightingEffects ?? LightingEffectKind.allCases
-            let resolvedKind = supportedEffects.contains(persistedEffect.kind)
-                ? persistedEffect.kind
-                : (supportedEffects.first ?? .staticColor)
+        if device.supports_advanced_lighting_effects, let persistedEffect = loadPersistedLightingEffect(device: device) {
+            let supportedEffects = DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?.supportedLightingEffects ?? LightingEffectKind.allCases
+            let resolvedKind = supportedEffects.contains(persistedEffect.kind) ? persistedEffect.kind : (supportedEffects.first ?? .staticColor)
 
             let primaryPatch: RGBPatch
             if resolvedKind.usesPrimaryColor {
                 guard let persistedColor else {
-                    AppLog.debug(
-                        "AppState",
-                        "skipping persisted lighting restore missing-primary-color id=\(device.id) kind=\(resolvedKind.rawValue)"
-                    )
+                    AppLog.debug("AppState", "skipping persisted lighting restore missing-primary-color id=\(device.id) kind=\(resolvedKind.rawValue)")
                     return nil
                 }
                 primaryPatch = RGBPatch(r: persistedColor.r, g: persistedColor.g, b: persistedColor.b)
@@ -273,45 +178,22 @@ extension AppStateEditorController {
             }
 
             let effect = LightingEffectPatch(
-                kind: resolvedKind,
-                primary: primaryPatch,
-                secondary: RGBPatch(
-                    r: persistedEffect.secondaryColor.r,
-                    g: persistedEffect.secondaryColor.g,
-                    b: persistedEffect.secondaryColor.b
-                ),
-                waveDirection: persistedEffect.waveDirection,
-                reactiveSpeed: persistedEffect.reactiveSpeed
-            )
-            return PersistedLightingRestorePlan(
-                primaryColor: persistedColor,
-                lightingEffect: effect,
-                usbLightingZoneID: resolvedKind == .staticColor ? normalizedZoneID : "all"
-            )
+                kind: resolvedKind, primary: primaryPatch, secondary: RGBPatch(r: persistedEffect.secondaryColor.r, g: persistedEffect.secondaryColor.g, b: persistedEffect.secondaryColor.b), waveDirection: persistedEffect.waveDirection, reactiveSpeed: persistedEffect.reactiveSpeed)
+            return PersistedLightingRestorePlan(primaryColor: persistedColor, lightingEffect: effect, usbLightingZoneID: resolvedKind == .staticColor ? normalizedZoneID : "all")
         }
 
         guard let persistedColor else { return nil }
-        return PersistedLightingRestorePlan(
-            primaryColor: persistedColor,
-            lightingEffect: nil,
-            usbLightingZoneID: normalizedZoneID
-        )
+        return PersistedLightingRestorePlan(primaryColor: persistedColor, lightingEffect: nil, usbLightingZoneID: normalizedZoneID)
     }
 
     func applyPersistedLightingRestorePlanToEditor(_ plan: PersistedLightingRestorePlan) {
-        if let primaryColor = plan.primaryColor {
-            editorStore.editableColor = primaryColor
-        }
+        if let primaryColor = plan.primaryColor { editorStore.editableColor = primaryColor }
         editorStore.editableUSBLightingZoneID = plan.usbLightingZoneID
         if let lightingEffect = plan.lightingEffect {
             editorStore.editableLightingEffect = lightingEffect.kind
             editorStore.editableLightingWaveDirection = lightingEffect.waveDirection
             editorStore.editableLightingReactiveSpeed = lightingEffect.reactiveSpeed
-            editorStore.editableSecondaryColor = RGBColor(
-                r: lightingEffect.secondary.r,
-                g: lightingEffect.secondary.g,
-                b: lightingEffect.secondary.b
-            )
+            editorStore.editableSecondaryColor = RGBColor(r: lightingEffect.secondary.r, g: lightingEffect.secondary.g, b: lightingEffect.secondary.b)
         } else {
             editorStore.editableLightingEffect = .staticColor
         }
@@ -325,36 +207,21 @@ extension AppStateEditorController {
     }
 
     func lightingGradientDisplayColors() -> [RGBColor] {
-        guard let selectedDevice = deviceStore.selectedDevice else {
-            return [editorStore.editableColor]
-        }
-        guard editorStore.editableLightingEffect == .staticColor,
-              editorStore.visibleUSBLightingZones.count > 1 else {
-            return [editorStore.editableColor]
-        }
+        guard let selectedDevice = deviceStore.selectedDevice else { return [editorStore.editableColor] }
+        guard editorStore.editableLightingEffect == .staticColor, editorStore.visibleUSBLightingZones.count > 1 else { return [editorStore.editableColor] }
 
-        let selectedZoneID = normalizedLightingZoneID(
-            for: selectedDevice,
-            preferredZoneID: editorStore.editableUSBLightingZoneID
-        )
+        let selectedZoneID = normalizedLightingZoneID(for: selectedDevice, preferredZoneID: editorStore.editableUSBLightingZoneID)
         let onboardProfileColors = onboardProfileLightingColorsByDeviceID[selectedDevice.id]
         let globalColor = loadPersistedLightingColor(device: selectedDevice)
         return editorStore.visibleUSBLightingZones.map { zone in
-            if selectedZoneID != "all", zone.id == selectedZoneID {
-                return editorStore.editableColor
-            }
-            if let profileColor = onboardProfileColors?[zone.id] {
-                return profileColor
-            }
-            return loadPersistedLightingColor(device: selectedDevice, zoneID: zone.id)
-                ?? globalColor
-                ?? editorStore.editableColor
+            if selectedZoneID != "all", zone.id == selectedZoneID { return editorStore.editableColor }
+            if let profileColor = onboardProfileColors?[zone.id] { return profileColor }
+            return loadPersistedLightingColor(device: selectedDevice, zoneID: zone.id) ?? globalColor ?? editorStore.editableColor
         }
     }
 
     func ensureEditableStaticLightingZoneSelection() {
-        guard editorStore.editableLightingEffect == .staticColor,
-              editorStore.visibleUSBLightingZones.count > 1 else { return }
+        guard editorStore.editableLightingEffect == .staticColor, editorStore.visibleUSBLightingZones.count > 1 else { return }
 
         let visibleZoneIDs = Set(editorStore.visibleUSBLightingZones.map(\.id))
         let currentZoneID = editorStore.editableUSBLightingZoneID
@@ -365,9 +232,7 @@ extension AppStateEditorController {
             return
         }
 
-        if let firstZoneID = editorStore.visibleUSBLightingZones.first?.id {
-            editorStore.editableUSBLightingZoneID = firstZoneID
-        }
+        if let firstZoneID = editorStore.visibleUSBLightingZones.first?.id { editorStore.editableUSBLightingZoneID = firstZoneID }
     }
 
     func normalizedLightingZoneID(for device: MouseDevice, preferredZoneID: String?) -> String {
@@ -378,9 +243,7 @@ extension AppStateEditorController {
 
     func usbLightingZoneLEDIDs(for device: MouseDevice, zoneID: String) -> [UInt8]? {
         guard zoneID != "all" else { return nil }
-        return DeviceProfiles
-            .resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?
-            .lightingLEDIDs(for: zoneID)
+        return DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?.lightingLEDIDs(for: zoneID)
     }
 
     func syncUSBButtonProfileSelection(from state: MouseState) {
@@ -389,11 +252,7 @@ extension AppStateEditorController {
         let active = max(1, min(count, state.active_onboard_profile ?? 1))
         if let override = softwareActiveUSBButtonProfileOverrideByDeviceID[selectedDevice.id] {
             let clampedOverride = max(1, min(count, override))
-            if clampedOverride == active {
-                softwareActiveUSBButtonProfileOverrideByDeviceID.removeValue(forKey: selectedDevice.id)
-            } else {
-                softwareActiveUSBButtonProfileOverrideByDeviceID[selectedDevice.id] = clampedOverride
-            }
+            if clampedOverride == active { softwareActiveUSBButtonProfileOverrideByDeviceID.removeValue(forKey: selectedDevice.id) } else { softwareActiveUSBButtonProfileOverrideByDeviceID[selectedDevice.id] = clampedOverride }
         }
         let liveSlot = softwareActiveUSBButtonProfileOverrideByDeviceID[selectedDevice.id] ?? active
 
@@ -412,28 +271,19 @@ extension AppStateEditorController {
                 editorStore.editableUSBButtonProfile = clampedSlot
                 hydratedButtonBindingsKey = nil
             }
-        case .openSnekProfile:
-            break
+        case .openSnekProfile: break
         }
         bumpUSBButtonProfilesRevision()
     }
 
-    func buttonBindingsHydrationKey(device: MouseDevice, profile: Int) -> String {
-        "\(device.id)#\(max(1, profile))"
-    }
+    func buttonBindingsHydrationKey(device: MouseDevice, profile: Int) -> String { "\(device.id)#\(max(1, profile))" }
 
     func editableButtonBindingsHydrationKey(device: MouseDevice) -> String {
-        let profile = supportsOnboardProfileCRUD(device: device)
-            ? selectedOnboardProfileIDByDeviceID[device.id] ?? editorStore.editableUSBButtonProfile
-            : editorStore.editableUSBButtonProfile
+        let profile = supportsOnboardProfileCRUD(device: device) ? selectedOnboardProfileIDByDeviceID[device.id] ?? editorStore.editableUSBButtonProfile : editorStore.editableUSBButtonProfile
         return buttonBindingsHydrationKey(device: device, profile: profile)
     }
 
-    func hasPendingButtonWorkspaceEdit(device: MouseDevice, profileID: Int) -> Bool {
-        buttonWorkspaceEditRevisionByHydrationKey[
-            buttonBindingsHydrationKey(device: device, profile: profileID)
-        ] != nil
-    }
+    func hasPendingButtonWorkspaceEdit(device: MouseDevice, profileID: Int) -> Bool { buttonWorkspaceEditRevisionByHydrationKey[buttonBindingsHydrationKey(device: device, profile: profileID)] != nil }
 
     func updateLightingEffect(_ kind: LightingEffectKind) {
         guard deviceStore.selectedDevice?.supports_advanced_lighting_effects == true else {
@@ -444,29 +294,21 @@ extension AppStateEditorController {
         }
         let supportedEffects = editorStore.visibleLightingEffects
         editorStore.editableLightingEffect = supportedEffects.contains(kind) ? kind : (supportedEffects.first ?? .staticColor)
-        if kind != .staticColor {
-            editorStore.editableUSBLightingZoneID = "all"
-        } else {
-            ensureEditableStaticLightingZoneSelection()
-        }
+        if kind != .staticColor { editorStore.editableUSBLightingZoneID = "all" } else { ensureEditableStaticLightingZoneSelection() }
     }
 
     func updateUSBLightingZoneID(_ zoneID: String) {
         let resolvedZoneID: String
         if let selectedDevice = deviceStore.selectedDevice {
             let normalizedZoneID = normalizedLightingZoneID(for: selectedDevice, preferredZoneID: zoneID)
-            if editorStore.editableLightingEffect == .staticColor,
-               editorStore.visibleUSBLightingZones.count > 1,
-               normalizedZoneID == "all" {
+            if editorStore.editableLightingEffect == .staticColor, editorStore.visibleUSBLightingZones.count > 1, normalizedZoneID == "all" {
                 resolvedZoneID = defaultEditableStaticLightingZoneID(for: selectedDevice)
             } else {
                 resolvedZoneID = normalizedLightingZoneID(for: selectedDevice, preferredZoneID: zoneID)
             }
-            if editorStore.editableLightingEffect == .staticColor,
-               let profileColor = onboardProfileLightingColorsByDeviceID[selectedDevice.id]?[resolvedZoneID] {
+            if editorStore.editableLightingEffect == .staticColor, let profileColor = onboardProfileLightingColorsByDeviceID[selectedDevice.id]?[resolvedZoneID] {
                 editorStore.editableColor = profileColor
-            } else if editorStore.editableLightingEffect == .staticColor,
-               let persistedColor = loadPersistedLightingColor(device: selectedDevice, zoneID: resolvedZoneID) {
+            } else if editorStore.editableLightingEffect == .staticColor, let persistedColor = loadPersistedLightingColor(device: selectedDevice, zoneID: resolvedZoneID) {
                 editorStore.editableColor = persistedColor
             }
         } else {
@@ -476,23 +318,14 @@ extension AppStateEditorController {
     }
 
     func defaultEditableStaticLightingZoneID(for device: MouseDevice) -> String {
-        let visibleZones = DeviceProfiles
-            .resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?
-            .usbLightingZones ?? []
+        let visibleZones = DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?.usbLightingZones ?? []
 
-        let persistedZoneID = normalizedLightingZoneID(
-            for: device,
-            preferredZoneID: loadPersistedLightingZoneID(device: device)
-        )
-        if persistedZoneID != "all", visibleZones.contains(where: { $0.id == persistedZoneID }) {
-            return persistedZoneID
-        }
+        let persistedZoneID = normalizedLightingZoneID(for: device, preferredZoneID: loadPersistedLightingZoneID(device: device))
+        if persistedZoneID != "all", visibleZones.contains(where: { $0.id == persistedZoneID }) { return persistedZoneID }
         return visibleZones.first?.id ?? "all"
     }
 
-    func updateUSBButtonProfile(_ profile: Int) {
-        selectButtonProfileSource(.mouseSlot(profile))
-    }
+    func updateUSBButtonProfile(_ profile: Int) { selectButtonProfileSource(.mouseSlot(profile)) }
 
     func selectButtonProfileSource(_ source: ButtonProfileSource) {
         guard let selectedDevice = deviceStore.selectedDevice else { return }
@@ -504,11 +337,7 @@ extension AppStateEditorController {
             let hydrationKey = buttonBindingsHydrationKey(device: selectedDevice, profile: clamped)
             editorStore.editableButtonBindings = cachedButtonBindings(device: selectedDevice, profile: clamped)
             hydratedButtonBindingsKey = hydrationKey
-            scheduleSelectedMouseSlotHydration(
-                device: selectedDevice,
-                profile: clamped,
-                hydrationKey: hydrationKey
-            )
+            scheduleSelectedMouseSlotHydration(device: selectedDevice, profile: clamped, hydrationKey: hydrationKey)
         case .openSnekProfile(let id):
             guard let profile = preferenceStore.loadOpenSnekButtonProfiles().first(where: { $0.id == id }) else { return }
             cancelSelectedMouseSlotHydration(deviceID: selectedDevice.id)
@@ -554,30 +383,18 @@ extension AppStateEditorController {
 
     func hasKnownButtonBindingsSnapshot(device: MouseDevice, profile: Int) -> Bool {
         let hydrationKey = buttonBindingsHydrationKey(device: device, profile: profile)
-        if buttonBindingsCacheByHydrationKey[hydrationKey] != nil {
-            return true
-        }
-        if device.transport != .usb, !loadPersistedButtonBindings(device: device, profile: profile).isEmpty {
-            return true
-        }
+        if buttonBindingsCacheByHydrationKey[hydrationKey] != nil { return true }
+        if device.transport != .usb, !loadPersistedButtonBindings(device: device, profile: profile).isEmpty { return true }
         return false
     }
 
-    func refreshSelectedMouseSlotFromDeviceIfNeeded(
-        device: MouseDevice,
-        profile: Int,
-        hydrationKey: String
-    ) async {
+    func refreshSelectedMouseSlotFromDeviceIfNeeded(device: MouseDevice, profile: Int, hydrationKey: String) async {
         guard buttonProfileSource(for: device) == .mouseSlot(profile) else { return }
         let workspaceEditRevisionAtStart = buttonWorkspaceEditRevision
         AppLog.debug("AppState", "usb button slot selection hydration start id=\(device.id) profile=\(profile)")
         guard let fromDevice = await loadUSBButtonBindingsFromDevice(device: device, profile: profile) else { return }
         guard !Task.isCancelled else { return }
-        guard deviceStore.selectedDevice?.id == device.id,
-              buttonProfileSource(for: device) == .mouseSlot(profile),
-              buttonWorkspaceEditRevision == workspaceEditRevisionAtStart else {
-            return
-        }
+        guard deviceStore.selectedDevice?.id == device.id, buttonProfileSource(for: device) == .mouseSlot(profile), buttonWorkspaceEditRevision == workspaceEditRevisionAtStart else { return }
 
         saveCachedButtonBindings(device: device, bindings: fromDevice, profile: profile)
         editorStore.editableButtonBindings = fromDevice
@@ -586,11 +403,7 @@ extension AppStateEditorController {
         AppLog.debug("AppState", "usb button slot selection hydration ok id=\(device.id) profile=\(profile) slots=\(fromDevice.keys.sorted())")
     }
 
-    func scheduleSelectedMouseSlotHydration(
-        device: MouseDevice,
-        profile: Int,
-        hydrationKey: String
-    ) {
+    func scheduleSelectedMouseSlotHydration(device: MouseDevice, profile: Int, hydrationKey: String) {
         selectedMouseSlotHydrationTasksByDeviceID.removeValue(forKey: device.id)?.cancel()
         let token = UUID()
         selectedMouseSlotHydrationTokensByDeviceID[device.id] = token
@@ -602,16 +415,7 @@ extension AppStateEditorController {
                 }
             }
             guard let self, !Task.isCancelled else { return }
-            if device.transport == .usb,
-               self.buttonBindingsCacheByHydrationKey[hydrationKey] == nil {
-                await self.refreshSelectedMouseSlotFromDeviceIfNeeded(
-                    device: device,
-                    profile: profile,
-                    hydrationKey: hydrationKey
-                )
-            } else {
-                await self.hydrateButtonBindingsIfNeeded(device: device)
-            }
+            if device.transport == .usb, self.buttonBindingsCacheByHydrationKey[hydrationKey] == nil { await self.refreshSelectedMouseSlotFromDeviceIfNeeded(device: device, profile: profile, hydrationKey: hydrationKey) } else { await self.hydrateButtonBindingsIfNeeded(device: device) }
         }
     }
 
@@ -633,12 +437,8 @@ extension AppStateEditorController {
         selectButtonProfileSource(sources[nextIndex])
     }
 
-    @discardableResult
-    func saveCurrentButtonWorkspaceAsNewProfile(name: String) -> OpenSnekButtonProfile {
-        let saved = preferenceStore.saveOpenSnekButtonProfile(
-            name: normalizedButtonProfileName(name),
-            bindings: editorStore.editableButtonBindings
-        )
+    @discardableResult func saveCurrentButtonWorkspaceAsNewProfile(name: String) -> OpenSnekButtonProfile {
+        let saved = preferenceStore.saveOpenSnekButtonProfile(name: normalizedButtonProfileName(name), bindings: editorStore.editableButtonBindings)
         bumpUSBButtonProfilesRevision()
         return saved
     }
@@ -654,43 +454,23 @@ extension AppStateEditorController {
         }
     }
 
-    func updateLightingWaveDirection(_ direction: LightingWaveDirection) {
-        editorStore.editableLightingWaveDirection = direction
-    }
+    func updateLightingWaveDirection(_ direction: LightingWaveDirection) { editorStore.editableLightingWaveDirection = direction }
 
-    func updateLightingReactiveSpeed(_ speed: Int) {
-        editorStore.editableLightingReactiveSpeed = max(1, min(4, speed))
-    }
+    func updateLightingReactiveSpeed(_ speed: Int) { editorStore.editableLightingReactiveSpeed = max(1, min(4, speed)) }
 
-    func buttonBindingKind(for slot: Int) -> ButtonBindingKind {
-        editorStore.editableButtonBindings[slot]?.kind ?? defaultButtonBinding(for: slot).kind
-    }
+    func buttonBindingKind(for slot: Int) -> ButtonBindingKind { editorStore.editableButtonBindings[slot]?.kind ?? defaultButtonBinding(for: slot).kind }
 
-    func buttonBindingHidKey(for slot: Int) -> Int {
-        editorStore.editableButtonBindings[slot]?.hidKey ?? defaultButtonBinding(for: slot).hidKey
-    }
+    func buttonBindingHidKey(for slot: Int) -> Int { editorStore.editableButtonBindings[slot]?.hidKey ?? defaultButtonBinding(for: slot).hidKey }
 
-    func buttonBindingHidModifiers(for slot: Int) -> Int {
-        editorStore.editableButtonBindings[slot]?.hidModifiers ?? defaultButtonBinding(for: slot).hidModifiers
-    }
+    func buttonBindingHidModifiers(for slot: Int) -> Int { editorStore.editableButtonBindings[slot]?.hidModifiers ?? defaultButtonBinding(for: slot).hidModifiers }
 
-    func buttonBindingTurboEnabled(for slot: Int) -> Bool {
-        editorStore.editableButtonBindings[slot]?.turboEnabled ?? defaultButtonBinding(for: slot).turboEnabled
-    }
+    func buttonBindingTurboEnabled(for slot: Int) -> Bool { editorStore.editableButtonBindings[slot]?.turboEnabled ?? defaultButtonBinding(for: slot).turboEnabled }
 
-    func buttonBindingTurboRate(for slot: Int) -> Int {
-        editorStore.editableButtonBindings[slot]?.turboRate ?? defaultButtonBinding(for: slot).turboRate
-    }
+    func buttonBindingTurboRate(for slot: Int) -> Int { editorStore.editableButtonBindings[slot]?.turboRate ?? defaultButtonBinding(for: slot).turboRate }
 
-    func buttonBindingClutchDPI(for slot: Int) -> Int {
-        editorStore.editableButtonBindings[slot]?.clutchDPI
-            ?? ButtonBindingSupport.defaultDPIClutchDPI(for: deviceStore.selectedDevice?.profile_id)
-            ?? 400
-    }
+    func buttonBindingClutchDPI(for slot: Int) -> Int { editorStore.editableButtonBindings[slot]?.clutchDPI ?? ButtonBindingSupport.defaultDPIClutchDPI(for: deviceStore.selectedDevice?.profile_id) ?? 400 }
 
-    func shouldAutoApplyCurrentButtonWorkspaceAfterEdit() -> Bool {
-        deviceStore.selectedDevice != nil
-    }
+    func shouldAutoApplyCurrentButtonWorkspaceAfterEdit() -> Bool { deviceStore.selectedDevice != nil }
 
     func handleButtonWorkspaceDidChange(slot: Int) {
         buttonWorkspaceEditRevision &+= 1
@@ -711,12 +491,8 @@ extension AppStateEditorController {
             next.hidKey = 4
             next.hidModifiers = 0
         }
-        if kind == .dpiClutch {
-            next.clutchDPI = next.clutchDPI ?? ButtonBindingSupport.defaultDPIClutchDPI(for: deviceStore.selectedDevice?.profile_id)
-        }
-        if !kind.supportsTurbo {
-            next.turboEnabled = false
-        }
+        if kind == .dpiClutch { next.clutchDPI = next.clutchDPI ?? ButtonBindingSupport.defaultDPIClutchDPI(for: deviceStore.selectedDevice?.profile_id) }
+        if !kind.supportsTurbo { next.turboEnabled = false }
         editorStore.editableButtonBindings[slot] = next
         handleButtonWorkspaceDidChange(slot: slot)
     }

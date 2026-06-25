@@ -7,47 +7,18 @@ import OpenSnekCore
 /// Exercises app state button workspace behavior.
 final class AppStateButtonWorkspaceTests: XCTestCase {
     func testProjectSelectedUSBButtonProfileToDirectLayerEnqueuesProjectAction() async throws {
-        let device = makeRefactorTestDevice(
-            id: "usb-profile-project-device",
-            transport: .usb,
-            serial: "USB-PROFILE-PROJECT-\(UUID().uuidString)",
-            onboardProfileCount: 2
-        )
+        let device = makeRefactorTestDevice(id: "usb-profile-project-device", transport: .usb, serial: "USB-PROFILE-PROJECT-\(UUID().uuidString)", onboardProfileCount: 2)
         defer { clearRefactorPreferences(for: device) }
 
         let backend = AppStateRefactorStubBackend(
             devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "usb",
-                        batteryPercent: 82,
-                        dpiValues: [800, 1600, 2400],
-                        activeStage: 0
-                    ),
-                    options: RefactorTestStateOptions(
-                        activeOnboardProfile: 1,
-                        onboardProfileCount: 2
-                    )
-                )
-            ]
-        )
-        await backend.setButtonBindingBlock(
-            try XCTUnwrap(ButtonBindingSupport.defaultUSBFunctionBlock(for: 4, profileID: .basiliskV3Pro)),
-            forDeviceID: device.id,
-            slot: 4,
-            profile: 2
-        )
+            stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 82, dpiValues: [800, 1600, 2400], activeStage: 0), options: RefactorTestStateOptions(activeOnboardProfile: 1, onboardProfileCount: 2))])
+        await backend.setButtonBindingBlock(try XCTUnwrap(ButtonBindingSupport.defaultUSBFunctionBlock(for: 4, profileID: .basiliskV3Pro)), forDeviceID: device.id, slot: 4, profile: 2)
 
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await appState.deviceStore.refreshDevices()
-        await MainActor.run {
-            appState.editorStore.updateUSBButtonProfile(2)
-        }
+        await MainActor.run { appState.editorStore.updateUSBButtonProfile(2) }
 
         await appState.editorStore.projectSelectedUSBButtonProfileToDirectLayer()
 
@@ -57,49 +28,14 @@ final class AppStateButtonWorkspaceTests: XCTestCase {
     }
 
     func testLoadingStoredUSBButtonProfileOverwritesBaseProfile() async throws {
-        let device = makeRefactorTestDevice(
-            id: "usb-profile-load-device",
-            transport: .usb,
-            serial: "USB-PROFILE-LOAD-\(UUID().uuidString)",
-            onboardProfileCount: 3
-        )
+        let device = makeRefactorTestDevice(id: "usb-profile-load-device", transport: .usb, serial: "USB-PROFILE-LOAD-\(UUID().uuidString)", onboardProfileCount: 3)
         defer { clearRefactorPreferences(for: device) }
 
         let backend = AppStateRefactorStubBackend(
             devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "usb",
-                        batteryPercent: 82,
-                        dpiValues: [800, 1600, 2400],
-                        activeStage: 0
-                    ),
-                    options: RefactorTestStateOptions(
-                        activeOnboardProfile: 1,
-                        onboardProfileCount: 3
-                    )
-                )
-            ]
-        )
-        await backend.setButtonBindingBlock(
-            ButtonBindingSupport.buildUSBFunctionBlock(
-                slot: 4,
-                kind: .keyboardSimple,
-                hidKey: 9,
-                turboEnabled: false,
-                turboRate: 0x8E,
-                clutchDPI: nil,
-                profileID: .basiliskV3Pro
-            ),
-            forDeviceID: device.id,
-            slot: 4,
-            profile: 2
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+            stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 82, dpiValues: [800, 1600, 2400], activeStage: 0), options: RefactorTestStateOptions(activeOnboardProfile: 1, onboardProfileCount: 3))])
+        await backend.setButtonBindingBlock(ButtonBindingSupport.buildUSBFunctionBlock(slot: 4, kind: .keyboardSimple, hidKey: 9, turboEnabled: false, turboRate: 0x8E, clutchDPI: nil, profileID: .basiliskV3Pro), forDeviceID: device.id, slot: 4, profile: 2)
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await appState.deviceStore.refreshDevices()
         await appState.editorStore.loadButtonProfileSourceIntoLive(.mouseSlot(2))
@@ -113,49 +49,14 @@ final class AppStateButtonWorkspaceTests: XCTestCase {
     }
 
     func testReloadingKnownStoredUSBButtonProfileSkipsExtraDeviceReadback() async throws {
-        let device = makeRefactorTestDevice(
-            id: "usb-profile-reload-device",
-            transport: .usb,
-            serial: "USB-PROFILE-RELOAD-\(UUID().uuidString)",
-            onboardProfileCount: 3
-        )
+        let device = makeRefactorTestDevice(id: "usb-profile-reload-device", transport: .usb, serial: "USB-PROFILE-RELOAD-\(UUID().uuidString)", onboardProfileCount: 3)
         defer { clearRefactorPreferences(for: device) }
 
         let backend = AppStateRefactorStubBackend(
             devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "usb",
-                        batteryPercent: 82,
-                        dpiValues: [800, 1600, 2400],
-                        activeStage: 0
-                    ),
-                    options: RefactorTestStateOptions(
-                        activeOnboardProfile: 1,
-                        onboardProfileCount: 3
-                    )
-                )
-            ]
-        )
-        await backend.setButtonBindingBlock(
-            ButtonBindingSupport.buildUSBFunctionBlock(
-                slot: 4,
-                kind: .keyboardSimple,
-                hidKey: 9,
-                turboEnabled: false,
-                turboRate: 0x8E,
-                clutchDPI: nil,
-                profileID: .basiliskV3Pro
-            ),
-            forDeviceID: device.id,
-            slot: 4,
-            profile: 2
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+            stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 82, dpiValues: [800, 1600, 2400], activeStage: 0), options: RefactorTestStateOptions(activeOnboardProfile: 1, onboardProfileCount: 3))])
+        await backend.setButtonBindingBlock(ButtonBindingSupport.buildUSBFunctionBlock(slot: 4, kind: .keyboardSimple, hidKey: 9, turboEnabled: false, turboRate: 0x8E, clutchDPI: nil, profileID: .basiliskV3Pro), forDeviceID: device.id, slot: 4, profile: 2)
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await appState.deviceStore.refreshDevices()
         await appState.editorStore.loadButtonProfileSourceIntoLive(.mouseSlot(2))
@@ -171,142 +72,44 @@ final class AppStateButtonWorkspaceTests: XCTestCase {
     }
 
     func testStoredUSBButtonProfileDisplaysMatchingSavedProfileName() async throws {
-        let device = makeRefactorTestDevice(
-            id: "usb-profile-match-device",
-            transport: .usb,
-            serial: "USB-PROFILE-MATCH-\(UUID().uuidString)",
-            onboardProfileCount: 3
-        )
+        let device = makeRefactorTestDevice(id: "usb-profile-match-device", transport: .usb, serial: "USB-PROFILE-MATCH-\(UUID().uuidString)", onboardProfileCount: 3)
         let preferenceStore = DevicePreferenceStore()
-        let matchingBindings = [
-            4: ButtonBindingDraft(
-                kind: .keyboardSimple,
-                hidKey: 9,
-                turboEnabled: false,
-                turboRate: 0x8E,
-                clutchDPI: nil
-            )
-        ]
+        let matchingBindings = [4: ButtonBindingDraft(kind: .keyboardSimple, hidKey: 9, turboEnabled: false, turboRate: 0x8E, clutchDPI: nil)]
         preferenceStore.saveOpenSnekButtonProfile(name: "Travel", bindings: matchingBindings)
         defer { clearRefactorPreferences(for: device) }
 
         let backend = AppStateRefactorStubBackend(
             devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "usb",
-                        batteryPercent: 82,
-                        dpiValues: [800, 1600, 2400],
-                        activeStage: 0
-                    ),
-                    options: RefactorTestStateOptions(
-                        activeOnboardProfile: 1,
-                        onboardProfileCount: 3
-                    )
-                )
-            ]
-        )
-        await backend.setButtonBindingBlock(
-            ButtonBindingSupport.buildUSBFunctionBlock(
-                slot: 4,
-                kind: .keyboardSimple,
-                hidKey: 9,
-                turboEnabled: false,
-                turboRate: 0x8E,
-                clutchDPI: nil,
-                profileID: .basiliskV3Pro
-            ),
-            forDeviceID: device.id,
-            slot: 4,
-            profile: 2
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+            stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 82, dpiValues: [800, 1600, 2400], activeStage: 0), options: RefactorTestStateOptions(activeOnboardProfile: 1, onboardProfileCount: 3))])
+        await backend.setButtonBindingBlock(ButtonBindingSupport.buildUSBFunctionBlock(slot: 4, kind: .keyboardSimple, hidKey: 9, turboEnabled: false, turboRate: 0x8E, clutchDPI: nil, profileID: .basiliskV3Pro), forDeviceID: device.id, slot: 4, profile: 2)
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await appState.deviceStore.refreshDevices()
-        await MainActor.run {
-            appState.editorStore.refreshButtonProfilePresentation()
-        }
+        await MainActor.run { appState.editorStore.refreshButtonProfilePresentation() }
 
-        try await waitForRefactorCondition(timeout: 2.0) {
-            await MainActor.run {
-                appState.editorStore.buttonProfileSourceMatchDescription(.mouseSlot(2)) == "Travel"
-            }
-        }
+        try await waitForRefactorCondition(timeout: 2.0) { await MainActor.run { appState.editorStore.buttonProfileSourceMatchDescription(.mouseSlot(2)) == "Travel" } }
     }
 
     func testLoadableMouseButtonSourcesHideDefaultStoredSlots() async throws {
-        let device = makeRefactorTestDevice(
-            id: "usb-profile-loadable-device",
-            transport: .usb,
-            serial: "USB-PROFILE-LOADABLE-\(UUID().uuidString)",
-            onboardProfileCount: 4
-        )
+        let device = makeRefactorTestDevice(id: "usb-profile-loadable-device", transport: .usb, serial: "USB-PROFILE-LOADABLE-\(UUID().uuidString)", onboardProfileCount: 4)
         defer { clearRefactorPreferences(for: device) }
 
         let backend = AppStateRefactorStubBackend(
             devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "usb",
-                        batteryPercent: 82,
-                        dpiValues: [800, 1600, 2400],
-                        activeStage: 0
-                    ),
-                    options: RefactorTestStateOptions(
-                        activeOnboardProfile: 1,
-                        onboardProfileCount: 4
-                    )
-                )
-            ]
-        )
-        await backend.setButtonBindingBlock(
-            ButtonBindingSupport.buildUSBFunctionBlock(
-                slot: 4,
-                kind: .keyboardSimple,
-                hidKey: 9,
-                turboEnabled: false,
-                turboRate: 0x8E,
-                clutchDPI: nil,
-                profileID: .basiliskV3Pro
-            ),
-            forDeviceID: device.id,
-            slot: 4,
-            profile: 2
-        )
-        await backend.setButtonBindingBlock(
-            try XCTUnwrap(ButtonBindingSupport.defaultUSBFunctionBlock(for: 4, profileID: .basiliskV3Pro)),
-            forDeviceID: device.id,
-            slot: 4,
-            profile: 3
-        )
-        await backend.setButtonBindingBlock(
-            try XCTUnwrap(ButtonBindingSupport.defaultUSBFunctionBlock(for: 4, profileID: .basiliskV3Pro)),
-            forDeviceID: device.id,
-            slot: 4,
-            profile: 4
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+            stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 82, dpiValues: [800, 1600, 2400], activeStage: 0), options: RefactorTestStateOptions(activeOnboardProfile: 1, onboardProfileCount: 4))])
+        await backend.setButtonBindingBlock(ButtonBindingSupport.buildUSBFunctionBlock(slot: 4, kind: .keyboardSimple, hidKey: 9, turboEnabled: false, turboRate: 0x8E, clutchDPI: nil, profileID: .basiliskV3Pro), forDeviceID: device.id, slot: 4, profile: 2)
+        await backend.setButtonBindingBlock(try XCTUnwrap(ButtonBindingSupport.defaultUSBFunctionBlock(for: 4, profileID: .basiliskV3Pro)), forDeviceID: device.id, slot: 4, profile: 3)
+        await backend.setButtonBindingBlock(try XCTUnwrap(ButtonBindingSupport.defaultUSBFunctionBlock(for: 4, profileID: .basiliskV3Pro)), forDeviceID: device.id, slot: 4, profile: 4)
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await appState.deviceStore.refreshDevices()
-        await MainActor.run {
-            appState.editorStore.refreshButtonProfilePresentation()
-        }
+        await MainActor.run { appState.editorStore.refreshButtonProfilePresentation() }
 
         try await waitForRefactorCondition(timeout: 2.0) {
             await MainActor.run {
                 let summaries = appState.editorStore.visibleUSBButtonProfiles
                 guard summaries.count == 4 else { return false }
-                return summaries.first(where: { $0.profile == 2 })?.isCustomized == true &&
-                    summaries.first(where: { $0.profile == 3 })?.isCustomized == false &&
-                    summaries.first(where: { $0.profile == 4 })?.isCustomized == false
+                return summaries.first(where: { $0.profile == 2 })?.isCustomized == true && summaries.first(where: { $0.profile == 3 })?.isCustomized == false && summaries.first(where: { $0.profile == 4 })?.isCustomized == false
             }
         }
 
@@ -327,98 +130,39 @@ final class AppStateButtonWorkspaceTests: XCTestCase {
     }
 
     func testSavingCurrentButtonWorkspaceAsNewProfileUpdatesSavedLibraryImmediately() async throws {
-        let device = makeRefactorTestDevice(
-            id: "usb-profile-save-source-device",
-            transport: .usb,
-            serial: "USB-PROFILE-SAVE-SOURCE-\(UUID().uuidString)",
-            onboardProfileCount: 3
-        )
+        let device = makeRefactorTestDevice(id: "usb-profile-save-source-device", transport: .usb, serial: "USB-PROFILE-SAVE-SOURCE-\(UUID().uuidString)", onboardProfileCount: 3)
         defer { clearRefactorPreferences(for: device) }
 
         let backend = AppStateRefactorStubBackend(
             devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "usb",
-                        batteryPercent: 82,
-                        dpiValues: [800, 1600, 2400],
-                        activeStage: 0
-                    ),
-                    options: RefactorTestStateOptions(
-                        activeOnboardProfile: 1,
-                        onboardProfileCount: 3
-                    )
-                )
-            ]
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+            stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 82, dpiValues: [800, 1600, 2400], activeStage: 0), options: RefactorTestStateOptions(activeOnboardProfile: 1, onboardProfileCount: 3))])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await appState.deviceStore.refreshDevices()
 
-        await MainActor.run {
-            _ = appState.editorStore.saveCurrentButtonWorkspaceAsNewProfile(name: "Bar")
-        }
+        await MainActor.run { _ = appState.editorStore.saveCurrentButtonWorkspaceAsNewProfile(name: "Bar") }
 
-        let savedNames = await MainActor.run {
-            appState.editorStore.savedButtonProfiles.map(\.name)
-        }
+        let savedNames = await MainActor.run { appState.editorStore.savedButtonProfiles.map(\.name) }
         XCTAssertTrue(savedNames.contains("Bar"))
     }
 
     func testSavingSelectedUSBButtonProfileUsesExplicitButtonWriteWithoutActivation() async throws {
-        let device = makeRefactorTestDevice(
-            id: "usb-profile-save-device",
-            transport: .usb,
-            serial: "USB-PROFILE-SAVE-\(UUID().uuidString)",
-            onboardProfileCount: 3
-        )
+        let device = makeRefactorTestDevice(id: "usb-profile-save-device", transport: .usb, serial: "USB-PROFILE-SAVE-\(UUID().uuidString)", onboardProfileCount: 3)
         defer { clearRefactorPreferences(for: device) }
 
         let backend = AppStateRefactorStubBackend(
             devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "usb",
-                        batteryPercent: 76,
-                        dpiValues: [800, 1600, 2400],
-                        activeStage: 0
-                    ),
-                    options: RefactorTestStateOptions(
-                        activeOnboardProfile: 1,
-                        onboardProfileCount: 3
-                    )
-                )
-            ]
-        )
-        await backend.setButtonBindingBlock(
-            try XCTUnwrap(ButtonBindingSupport.defaultUSBFunctionBlock(for: 4, profileID: .basiliskV3Pro)),
-            forDeviceID: device.id,
-            slot: 4,
-            profile: 2
-        )
+            stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 76, dpiValues: [800, 1600, 2400], activeStage: 0), options: RefactorTestStateOptions(activeOnboardProfile: 1, onboardProfileCount: 3))])
+        await backend.setButtonBindingBlock(try XCTUnwrap(ButtonBindingSupport.defaultUSBFunctionBlock(for: 4, profileID: .basiliskV3Pro)), forDeviceID: device.id, slot: 4, profile: 2)
 
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await appState.deviceStore.refreshDevices()
-        await MainActor.run {
-            appState.editorStore.updateUSBButtonProfile(2)
-        }
+        await MainActor.run { appState.editorStore.updateUSBButtonProfile(2) }
 
-        try await waitForRefactorCondition {
-            await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) == .default }
-        }
+        try await waitForRefactorCondition { await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) == .default } }
 
-        await MainActor.run {
-            appState.editorStore.updateButtonBindingKind(slot: 4, kind: .rightClick)
-        }
+        await MainActor.run { appState.editorStore.updateButtonBindingKind(slot: 4, kind: .rightClick) }
 
         let hasUnsavedChanges = await MainActor.run { appState.editorStore.selectedUSBButtonProfileHasUnsavedChanges }
         XCTAssertTrue(hasUnsavedChanges)
@@ -432,9 +176,7 @@ final class AppStateButtonWorkspaceTests: XCTestCase {
         XCTAssertEqual(patch.buttonBinding?.writeDirectLayer, false)
         XCTAssertNil(patch.usbButtonProfileAction)
 
-        try await waitForRefactorCondition(timeout: 2.0) {
-            await MainActor.run { !appState.editorStore.selectedUSBButtonProfileHasUnsavedChanges }
-        }
+        try await waitForRefactorCondition(timeout: 2.0) { await MainActor.run { !appState.editorStore.selectedUSBButtonProfileHasUnsavedChanges } }
 
         let liveProfile = await MainActor.run { appState.editorStore.liveUSBButtonProfile }
         let pendingChanges = await MainActor.run { appState.editorStore.selectedUSBButtonProfileHasUnsavedChanges }
@@ -443,55 +185,22 @@ final class AppStateButtonWorkspaceTests: XCTestCase {
     }
 
     func testSaveAndActivateSelectedUSBButtonProfileProjectsLiveProfileOverride() async throws {
-        let device = makeRefactorTestDevice(
-            id: "usb-profile-save-activate-device",
-            transport: .usb,
-            serial: "USB-PROFILE-SAVE-ACTIVATE-\(UUID().uuidString)",
-            onboardProfileCount: 3
-        )
+        let device = makeRefactorTestDevice(id: "usb-profile-save-activate-device", transport: .usb, serial: "USB-PROFILE-SAVE-ACTIVATE-\(UUID().uuidString)", onboardProfileCount: 3)
         defer { clearRefactorPreferences(for: device) }
 
         let backend = AppStateRefactorStubBackend(
             devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "usb",
-                        batteryPercent: 76,
-                        dpiValues: [800, 1600, 2400],
-                        activeStage: 0
-                    ),
-                    options: RefactorTestStateOptions(
-                        activeOnboardProfile: 1,
-                        onboardProfileCount: 3
-                    )
-                )
-            ]
-        )
-        await backend.setButtonBindingBlock(
-            try XCTUnwrap(ButtonBindingSupport.defaultUSBFunctionBlock(for: 4, profileID: .basiliskV3Pro)),
-            forDeviceID: device.id,
-            slot: 4,
-            profile: 2
-        )
+            stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 76, dpiValues: [800, 1600, 2400], activeStage: 0), options: RefactorTestStateOptions(activeOnboardProfile: 1, onboardProfileCount: 3))])
+        await backend.setButtonBindingBlock(try XCTUnwrap(ButtonBindingSupport.defaultUSBFunctionBlock(for: 4, profileID: .basiliskV3Pro)), forDeviceID: device.id, slot: 4, profile: 2)
 
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await appState.deviceStore.refreshDevices()
-        await MainActor.run {
-            appState.editorStore.updateUSBButtonProfile(2)
-        }
+        await MainActor.run { appState.editorStore.updateUSBButtonProfile(2) }
 
-        try await waitForRefactorCondition {
-            await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) == .default }
-        }
+        try await waitForRefactorCondition { await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) == .default } }
 
-        await MainActor.run {
-            appState.editorStore.updateButtonBindingKind(slot: 4, kind: .rightClick)
-        }
+        await MainActor.run { appState.editorStore.updateButtonBindingKind(slot: 4, kind: .rightClick) }
 
         await appState.editorStore.saveSelectedUSBButtonProfile(activateAfterSave: true)
 
@@ -510,99 +219,42 @@ final class AppStateButtonWorkspaceTests: XCTestCase {
     }
 
     func testEditingProjectedStoredUSBButtonProfileAutoAppliesToBaseAndDirectLayer() async throws {
-        for (profileID, onboardProfileCount) in [
-            (DeviceProfileID.basiliskV3, 5),
-            (.basiliskV335K, 5)
-        ] {
-            let device = makeRefactorTestDevice(
-                id: "usb-profile-projected-auto-apply-\(profileID.rawValue)",
-                transport: .usb,
-                serial: "USB-PROFILE-PROJECTED-AUTO-\(profileID.rawValue)-\(UUID().uuidString)",
-                onboardProfileCount: onboardProfileCount,
-                profileID: profileID
-            )
+        for (profileID, onboardProfileCount) in [(DeviceProfileID.basiliskV3, 5), (.basiliskV335K, 5)] {
+            let device = makeRefactorTestDevice(id: "usb-profile-projected-auto-apply-\(profileID.rawValue)", transport: .usb, serial: "USB-PROFILE-PROJECTED-AUTO-\(profileID.rawValue)-\(UUID().uuidString)", onboardProfileCount: onboardProfileCount, profileID: profileID)
             defer { clearRefactorPreferences(for: device) }
 
             let backend = AppStateRefactorStubBackend(
                 devices: [device],
                 stateByDeviceID: [
-                    device.id: makeRefactorTestState(
-                        device: device,
-                        telemetry: RefactorTestStateTelemetry(
-                            connection: "usb",
-                            batteryPercent: 76,
-                            dpiValues: [800, 1600, 2400],
-                            activeStage: 0
-                        ),
-                        options: RefactorTestStateOptions(
-                            activeOnboardProfile: 1,
-                            onboardProfileCount: onboardProfileCount
-                        )
-                    )
-                ]
-            )
-            await backend.setButtonBindingBlock(
-                try XCTUnwrap(ButtonBindingSupport.defaultUSBFunctionBlock(for: 4, profileID: profileID)),
-                forDeviceID: device.id,
-                slot: 4,
-                profile: 2
-            )
+                    device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 76, dpiValues: [800, 1600, 2400], activeStage: 0), options: RefactorTestStateOptions(activeOnboardProfile: 1, onboardProfileCount: onboardProfileCount))
+                ])
+            await backend.setButtonBindingBlock(try XCTUnwrap(ButtonBindingSupport.defaultUSBFunctionBlock(for: 4, profileID: profileID)), forDeviceID: device.id, slot: 4, profile: 2)
 
-            let appState = await MainActor.run {
-                AppState(launchRole: .app, backend: backend, autoStart: false)
-            }
+            let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
             await appState.deviceStore.refreshDevices()
-            await MainActor.run {
-                appState.editorStore.updateUSBButtonProfile(2)
-            }
+            await MainActor.run { appState.editorStore.updateUSBButtonProfile(2) }
 
-            try await waitForRefactorCondition {
-                await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) == .default }
-            }
+            try await waitForRefactorCondition { await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) == .default } }
 
             await appState.editorStore.projectSelectedUSBButtonProfileToDirectLayer()
 
-            await MainActor.run {
-                appState.editorStore.updateButtonBindingKind(slot: 4, kind: .rightClick)
-            }
+            await MainActor.run { appState.editorStore.updateButtonBindingKind(slot: 4, kind: .rightClick) }
 
-            try await waitForRefactorCondition(timeout: 2.0) {
-                await backend.recordedPatches().contains(where: { patch in
-                    patch.buttonBinding?.slot == 4 && patch.buttonBinding?.kind == .rightClick
-                })
-            }
+            try await waitForRefactorCondition(timeout: 2.0) { await backend.recordedPatches().contains(where: { patch in patch.buttonBinding?.slot == 4 && patch.buttonBinding?.kind == .rightClick }) }
 
             let patches = await backend.recordedPatches()
-            let patch = try XCTUnwrap(
-                patches.last(where: { $0.buttonBinding?.slot == 4 }),
-                "Missing button patch for \(profileID.rawValue)"
-            )
-            XCTAssertEqual(
-                patch.buttonBinding?.persistentProfile,
-                1,
-                "Projected USB edits should persist to base slot 1 for \(profileID.rawValue)"
-            )
+            let patch = try XCTUnwrap(patches.last(where: { $0.buttonBinding?.slot == 4 }), "Missing button patch for \(profileID.rawValue)")
+            XCTAssertEqual(patch.buttonBinding?.persistentProfile, 1, "Projected USB edits should persist to base slot 1 for \(profileID.rawValue)")
             XCTAssertEqual(patch.buttonBinding?.writePersistentLayer, true)
             XCTAssertEqual(patch.buttonBinding?.writeDirectLayer, true)
         }
     }
 
     func testEditingSavedButtonProfileStillAutoAppliesToBaseAndDirectLayer() async throws {
-        let device = makeRefactorTestDevice(
-            id: "saved-button-auto-apply-device",
-            transport: .usb,
-            serial: "SAVED-BUTTON-AUTO-\(UUID().uuidString)",
-            onboardProfileCount: 3,
-            profileID: .basiliskV335K
-        )
+        let device = makeRefactorTestDevice(id: "saved-button-auto-apply-device", transport: .usb, serial: "SAVED-BUTTON-AUTO-\(UUID().uuidString)", onboardProfileCount: 3, profileID: .basiliskV335K)
         let preferenceStore = DevicePreferenceStore()
-        let saved = preferenceStore.saveOpenSnekButtonProfile(
-            name: "Travel",
-            bindings: [
-                4: ButtonBindingDraft(kind: .rightClick, hidKey: 4, turboEnabled: false, turboRate: 0x8E, clutchDPI: nil)
-            ]
-        )
+        let saved = preferenceStore.saveOpenSnekButtonProfile(name: "Travel", bindings: [4: ButtonBindingDraft(kind: .rightClick, hidKey: 4, turboEnabled: false, turboRate: 0x8E, clutchDPI: nil)])
         defer {
             clearSavedButtonProfiles()
             clearRefactorPreferences(for: device)
@@ -610,25 +262,8 @@ final class AppStateButtonWorkspaceTests: XCTestCase {
 
         let backend = AppStateRefactorStubBackend(
             devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "usb",
-                        batteryPercent: 74,
-                        dpiValues: [800, 1600, 2400],
-                        activeStage: 0
-                    ),
-                    options: RefactorTestStateOptions(
-                        activeOnboardProfile: 1,
-                        onboardProfileCount: 3
-                    )
-                )
-            ]
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+            stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 74, dpiValues: [800, 1600, 2400], activeStage: 0), options: RefactorTestStateOptions(activeOnboardProfile: 1, onboardProfileCount: 3))])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await appState.deviceStore.refreshDevices()
         await MainActor.run {
@@ -637,11 +272,7 @@ final class AppStateButtonWorkspaceTests: XCTestCase {
             appState.editorStore.updateButtonBindingKind(slot: 4, kind: .mouseForward)
         }
 
-        try await waitForRefactorCondition(timeout: 2.0) {
-            await backend.recordedPatches().contains(where: { patch in
-                patch.buttonBinding?.slot == 4 && patch.buttonBinding?.kind == .mouseForward
-            })
-        }
+        try await waitForRefactorCondition(timeout: 2.0) { await backend.recordedPatches().contains(where: { patch in patch.buttonBinding?.slot == 4 && patch.buttonBinding?.kind == .mouseForward }) }
 
         let patches = await backend.recordedPatches()
         let patch = try XCTUnwrap(patches.last(where: { $0.buttonBinding?.slot == 4 }))
@@ -651,49 +282,20 @@ final class AppStateButtonWorkspaceTests: XCTestCase {
     }
 
     func testEditingBaseProfileAutoAppliesToLiveAndPersistentSlotOne() async throws {
-        let device = makeRefactorTestDevice(
-            id: "usb-profile-base-auto-apply-device",
-            transport: .usb,
-            serial: "USB-PROFILE-BASE-\(UUID().uuidString)",
-            onboardProfileCount: 3,
-            profileID: .basiliskV335K
-        )
+        let device = makeRefactorTestDevice(id: "usb-profile-base-auto-apply-device", transport: .usb, serial: "USB-PROFILE-BASE-\(UUID().uuidString)", onboardProfileCount: 3, profileID: .basiliskV335K)
         defer { clearRefactorPreferences(for: device) }
 
         let backend = AppStateRefactorStubBackend(
             devices: [device],
-            stateByDeviceID: [
-                device.id: makeRefactorTestState(
-                    device: device,
-                    telemetry: RefactorTestStateTelemetry(
-                        connection: "usb",
-                        batteryPercent: 76,
-                        dpiValues: [800, 1600, 2400],
-                        activeStage: 0
-                    ),
-                    options: RefactorTestStateOptions(
-                        activeOnboardProfile: 1,
-                        onboardProfileCount: 3
-                    )
-                )
-            ]
-        )
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+            stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 76, dpiValues: [800, 1600, 2400], activeStage: 0), options: RefactorTestStateOptions(activeOnboardProfile: 1, onboardProfileCount: 3))])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
 
         await appState.deviceStore.refreshDevices()
-        await MainActor.run {
-            appState.editorStore.updateButtonBindingKind(slot: 4, kind: .rightClick)
-        }
+        await MainActor.run { appState.editorStore.updateButtonBindingKind(slot: 4, kind: .rightClick) }
 
-        try await waitForRefactorCondition(timeout: 2.0) {
-            await backend.recordedPatches().contains(where: { $0.buttonBinding?.slot == 4 })
-        }
+        try await waitForRefactorCondition(timeout: 2.0) { await backend.recordedPatches().contains(where: { $0.buttonBinding?.slot == 4 }) }
 
-        try await waitForRefactorCondition(timeout: 2.0) {
-            await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) == .rightClick }
-        }
+        try await waitForRefactorCondition(timeout: 2.0) { await MainActor.run { appState.editorStore.buttonBindingKind(for: 4) == .rightClick } }
 
         let patches = await backend.recordedPatches()
         let patch = try XCTUnwrap(patches.last(where: { $0.buttonBinding?.slot == 4 }))

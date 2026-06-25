@@ -31,11 +31,7 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
     private var isNotifyReady = false
     private var preferredPeripheralName: String?
 
-    public func run(
-        writes: [Data],
-        timeout: TimeInterval = 2.2,
-        preferredPeripheralName: String? = nil
-    ) async throws -> [Data] {
+    public func run(writes: [Data], timeout: TimeInterval = 2.2, preferredPeripheralName: String? = nil) async throws -> [Data] {
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[Data], any Error>) in
             queue.async {
                 guard self.completion == nil else {
@@ -51,19 +47,11 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
                 self.timeoutWorkItem = nil
                 self.preferredPeripheralName = preferredPeripheralName?.trimmingCharacters(in: .whitespacesAndNewlines)
 
-                self.completion = { output in
-                    continuation.resume(with: output)
-                }
+                self.completion = { output in continuation.resume(with: output) }
 
-                if self.central == nil {
-                    self.central = CBCentralManager(delegate: self, queue: self.queue)
-                } else {
-                    self.ensureConnectedAndReady()
-                }
+                if self.central == nil { self.central = CBCentralManager(delegate: self, queue: self.queue) } else { self.ensureConnectedAndReady() }
 
-                let timeoutItem = DispatchWorkItem { [weak self] in
-                    self?.finish(.failure(BridgeError.commandFailed("BT vendor timeout")))
-                }
+                let timeoutItem = DispatchWorkItem { [weak self] in self?.finish(.failure(BridgeError.commandFailed("BT vendor timeout"))) }
                 self.timeoutWorkItem = timeoutItem
                 self.queue.asyncAfter(deadline: .now() + timeout, execute: timeoutItem)
             }
@@ -73,14 +61,11 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
     public func currentPeripheralSummary() async -> ConnectedPeripheralSummary? {
         await withCheckedContinuation { continuation in
             queue.async {
-                guard let peripheral = self.peripheral,
-                      peripheral.state == .connected else {
+                guard let peripheral = self.peripheral, peripheral.state == .connected else {
                     continuation.resume(returning: nil)
                     return
                 }
-                continuation.resume(
-                    returning: ConnectedPeripheralSummary(name: peripheral.name, identifier: peripheral.identifier)
-                )
+                continuation.resume(returning: ConnectedPeripheralSummary(name: peripheral.name, identifier: peripheral.identifier))
             }
         }
     }
@@ -97,14 +82,8 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
                     return
                 }
 
-                let peripherals = central.retrieveConnectedPeripherals(withServices: [
-                    CBUUID(nsuuid: BLEVendorProtocol.serviceUUID)
-                ])
-                continuation.resume(
-                    returning: peripherals.map { peripheral in
-                        ConnectedPeripheralSummary(name: peripheral.name, identifier: peripheral.identifier)
-                    }
-                )
+                let peripherals = central.retrieveConnectedPeripherals(withServices: [CBUUID(nsuuid: BLEVendorProtocol.serviceUUID)])
+                continuation.resume(returning: peripherals.map { peripheral in ConnectedPeripheralSummary(name: peripheral.name, identifier: peripheral.identifier) })
             }
         }
     }
@@ -131,20 +110,13 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
         queue.asyncAfter(deadline: .now() + 0.12, execute: item)
     }
 
-    private func fail(_ message: String) {
-        finish(.failure(BridgeError.commandFailed("BT vendor: \(message)")))
-    }
+    private func fail(_ message: String) { finish(.failure(BridgeError.commandFailed("BT vendor: \(message)"))) }
 
     private func ensureConnectedAndReady() {
         guard let central else { return }
         guard central.state == .poweredOn else { return }
 
-        if isNotifyReady,
-           let peripheral,
-           peripheral.state == .connected,
-           writeChar != nil,
-           notifyChar != nil,
-           peripheralMatchesPreference(peripheral) {
+        if isNotifyReady, let peripheral, peripheral.state == .connected, writeChar != nil, notifyChar != nil, peripheralMatchesPreference(peripheral) {
             sendNextWriteIfReady()
             return
         }
@@ -165,17 +137,11 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
         }
         peripheral = connected
         connected.delegate = self
-        if connected.state == .connected {
-            connected.discoverServices([CBUUID(nsuuid: BLEVendorProtocol.serviceUUID)])
-        } else {
-            central.connect(connected)
-        }
+        if connected.state == .connected { connected.discoverServices([CBUUID(nsuuid: BLEVendorProtocol.serviceUUID)]) } else { central.connect(connected) }
     }
 
     private func preferredPeripheral(from peripherals: [CBPeripheral]) -> CBPeripheral? {
-        guard let preferredPeripheralName, !preferredPeripheralName.isEmpty else {
-            return peripherals.first
-        }
+        guard let preferredPeripheralName, !preferredPeripheralName.isEmpty else { return peripherals.first }
 
         return peripherals.first(where: { peripheralMatchesPreference($0) }) ?? peripherals.first
     }
@@ -200,24 +166,16 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
 extension BLEVendorTransportClient: CBCentralManagerDelegate, CBPeripheralDelegate {
     public func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
-        case .poweredOn:
-            ensureConnectedAndReady()
-        case .unauthorized:
-            fail("Bluetooth access unauthorized; allow OpenSnek in System Settings > Privacy & Security > Bluetooth")
-        case .poweredOff:
-            fail("Bluetooth is powered off")
-        case .unsupported:
-            fail("Bluetooth is unsupported on this Mac")
-        case .resetting, .unknown:
-            break
-        @unknown default:
-            fail("Bluetooth state is unsupported")
+        case .poweredOn: ensureConnectedAndReady()
+        case .unauthorized: fail("Bluetooth access unauthorized; allow OpenSnek in System Settings > Privacy & Security > Bluetooth")
+        case .poweredOff: fail("Bluetooth is powered off")
+        case .unsupported: fail("Bluetooth is unsupported on this Mac")
+        case .resetting, .unknown: break
+        @unknown default: fail("Bluetooth state is unsupported")
         }
     }
 
-    public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        peripheral.discoverServices([CBUUID(nsuuid: BLEVendorProtocol.serviceUUID)])
-    }
+    public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) { peripheral.discoverServices([CBUUID(nsuuid: BLEVendorProtocol.serviceUUID)]) }
 
     public func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         isNotifyReady = false
@@ -228,9 +186,7 @@ extension BLEVendorTransportClient: CBCentralManagerDelegate, CBPeripheralDelega
         isNotifyReady = false
         writeChar = nil
         notifyChar = nil
-        if self.peripheral?.identifier == peripheral.identifier {
-            self.peripheral = nil
-        }
+        if self.peripheral?.identifier == peripheral.identifier { self.peripheral = nil }
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
@@ -238,9 +194,7 @@ extension BLEVendorTransportClient: CBCentralManagerDelegate, CBPeripheralDelega
             fail("Service discovery failed: \(error.localizedDescription)")
             return
         }
-        for service in peripheral.services ?? [] {
-            peripheral.discoverCharacteristics(nil, for: service)
-        }
+        for service in peripheral.services ?? [] { peripheral.discoverCharacteristics(nil, for: service) }
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
@@ -250,17 +204,11 @@ extension BLEVendorTransportClient: CBCentralManagerDelegate, CBPeripheralDelega
         }
 
         for characteristic in service.characteristics ?? [] {
-            if characteristic.uuid == CBUUID(nsuuid: BLEVendorProtocol.writeUUID) {
-                writeChar = characteristic
-            }
-            if characteristic.uuid == CBUUID(nsuuid: BLEVendorProtocol.notifyUUID) {
-                notifyChar = characteristic
-            }
+            if characteristic.uuid == CBUUID(nsuuid: BLEVendorProtocol.writeUUID) { writeChar = characteristic }
+            if characteristic.uuid == CBUUID(nsuuid: BLEVendorProtocol.notifyUUID) { notifyChar = characteristic }
         }
 
-        if let notifyChar {
-            peripheral.setNotifyValue(true, for: notifyChar)
-        }
+        if let notifyChar { peripheral.setNotifyValue(true, for: notifyChar) }
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {

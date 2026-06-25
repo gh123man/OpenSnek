@@ -2,13 +2,7 @@ import Foundation
 
 /// Stores device diagnostics formatter data.
 public struct DeviceDiagnosticsFormatter {
-    public static func format(
-        device: MouseDevice,
-        state: MouseState?,
-        profile: DeviceProfile?,
-        generatedAt: Date = Date(),
-        appContextLines: [String] = []
-    ) -> String {
+    public static func format(device: MouseDevice, state: MouseState?, profile: DeviceProfile?, generatedAt: Date = Date(), appContextLines: [String] = []) -> String {
         var lines: [String] = []
         lines.append("OpenSnek Device Diagnostics")
         lines.append("Generated: \(iso8601(generatedAt))")
@@ -16,110 +10,64 @@ public struct DeviceDiagnosticsFormatter {
 
         appendSection("Device", to: &lines) {
             [
-                "Name: \(device.product_name)",
-                "Transport: \(device.transport.connectionLabel)",
-                "Connection: \(state?.connection ?? device.connectionLabel)",
-                "Device ID: \(device.id)",
-                "Vendor ID: \(hex(device.vendor_id, width: 4))",
-                "Product ID: \(hex(device.product_id, width: 4))",
-                "Location ID: \(hex(device.location_id, width: 8))",
-                "Serial: \(display(device.serial))",
-                "Firmware: \(display(state?.device.firmware ?? device.firmware))",
-                "Path (base64): \(display(device.path_b64))"
+                "Name: \(device.product_name)", "Transport: \(device.transport.connectionLabel)", "Connection: \(state?.connection ?? device.connectionLabel)", "Device ID: \(device.id)", "Vendor ID: \(hex(device.vendor_id, width: 4))", "Product ID: \(hex(device.product_id, width: 4))",
+                "Location ID: \(hex(device.location_id, width: 8))", "Serial: \(display(device.serial))", "Firmware: \(display(state?.device.firmware ?? device.firmware))", "Path (base64): \(display(device.path_b64))"
             ]
         }
 
         appendSection("Support", to: &lines) {
             let supportStatus: String
-            if let profile {
-                supportStatus = profile.isLocallyValidated ? "Validated profile" : "Mapped profile (not locally validated)"
-            } else {
-                supportStatus = "Generic best-effort"
-            }
+            if let profile { supportStatus = profile.isLocallyValidated ? "Validated profile" : "Mapped profile (not locally validated)" } else { supportStatus = "Generic best-effort" }
             return [
-                "Support status: \(supportStatus)",
-                "Resolved profile: \(profile?.id.rawValue ?? "none")",
-                "Reported profile ID: \(device.profile_id?.rawValue ?? "none")",
-                "Advanced lighting effects: \(yesNo(device.supports_advanced_lighting_effects))",
+                "Support status: \(supportStatus)", "Resolved profile: \(profile?.id.rawValue ?? "none")", "Reported profile ID: \(device.profile_id?.rawValue ?? "none")", "Advanced lighting effects: \(yesNo(device.supports_advanced_lighting_effects))",
                 "Onboard profile count: \(device.onboard_profile_count)"
             ]
         }
 
         appendSection("Capabilities", to: &lines) {
-            guard let state else {
-                return ["Live state unavailable"]
-            }
+            guard let state else { return ["Live state unavailable"] }
             return [
-                "DPI stages: \(yesNo(state.capabilities.dpi_stages))",
-                "Polling rate: \(yesNo(state.capabilities.poll_rate))",
-                "Power management: \(yesNo(state.capabilities.power_management))",
-                "Button remap: \(yesNo(state.capabilities.button_remap))",
+                "DPI stages: \(yesNo(state.capabilities.dpi_stages))", "Polling rate: \(yesNo(state.capabilities.poll_rate))", "Power management: \(yesNo(state.capabilities.power_management))", "Button remap: \(yesNo(state.capabilities.button_remap))",
                 "Lighting: \(yesNo(state.capabilities.lighting))"
             ]
         }
 
         appendSection("Button Layout", to: &lines) {
-            guard let layout = device.button_layout ?? profile?.buttonLayout else {
-                return ["No mapped button layout"]
-            }
+            guard let layout = device.button_layout ?? profile?.buttonLayout else { return ["No mapped button layout"] }
 
-            var sectionLines: [String] = [
-                "Visible slots: \(formatSlots(layout.visibleSlots))",
-                "Writable slots: \(formatInts(layout.writableSlots))"
-            ]
+            var sectionLines: [String] = ["Visible slots: \(formatSlots(layout.visibleSlots))", "Writable slots: \(formatInts(layout.writableSlots))"]
 
-            let hiddenReadOnly = layout.documentedSlots.filter { slot in
-                slot.access != .editable && !layout.visibleSlots.contains(where: { $0.slot == slot.slot })
-            }
+            let hiddenReadOnly = layout.documentedSlots.filter { slot in slot.access != .editable && !layout.visibleSlots.contains(where: { $0.slot == slot.slot }) }
             if hiddenReadOnly.isEmpty {
                 sectionLines.append("Hidden unsupported buttons: none")
             } else {
                 sectionLines.append("Hidden unsupported buttons:")
-                sectionLines.append(contentsOf: hiddenReadOnly.map { slot in
-                    let note = slot.note ?? slot.access.defaultNotice ?? "Unsupported"
-                    return "- \(slot.slot): \(slot.descriptor.friendlyName) (\(note))"
-                })
+                sectionLines.append(
+                    contentsOf: hiddenReadOnly.map { slot in
+                        let note = slot.note ?? slot.access.defaultNotice ?? "Unsupported"
+                        return "- \(slot.slot): \(slot.descriptor.friendlyName) (\(note))"
+                    })
             }
             return sectionLines
         }
 
         appendSection("Lighting", to: &lines) {
             let effects = profile?.supportedLightingEffects.map(\.label).joined(separator: ", ") ?? "Unknown"
-            let zones = (profile?.usbLightingZones ?? []).map { zone in
-                "\(zone.label) [\(zone.ledIDs.map { hex(Int($0), width: 2) }.joined(separator: ", "))]"
-            }
-            return [
-                "Supported effects: \(effects)",
-                "USB zones: \(zones.isEmpty ? "None mapped" : zones.joined(separator: "; "))"
-            ]
+            let zones = (profile?.usbLightingZones ?? []).map { zone in "\(zone.label) [\(zone.ledIDs.map { hex(Int($0), width: 2) }.joined(separator: ", "))]" }
+            return ["Supported effects: \(effects)", "USB zones: \(zones.isEmpty ? "None mapped" : zones.joined(separator: "; "))"]
         }
 
         appendSection("Live State", to: &lines) {
-            guard let state else {
-                return ["Live state unavailable"]
-            }
+            guard let state else { return ["Live state unavailable"] }
             return [
-                "Battery: \(formatBattery(percent: state.battery_percent, charging: state.charging))",
-                "Current DPI: \(formatDpi(state.dpi))",
-                "DPI stages: \(formatStages(state.dpi_stages))",
-                "Polling rate: \(displayInt(state.poll_rate, suffix: " Hz"))",
-                "Sleep timeout: \(displayInt(state.sleep_timeout, suffix: " s"))",
-                "Device mode: \(formatDeviceMode(state.device_mode))",
-                "Low battery threshold: \(displayInt(state.low_battery_threshold_raw))",
-                "Scroll mode: \(formatScrollMode(state.scroll_mode))",
-                "Scroll acceleration: \(displayBool(state.scroll_acceleration))",
-                "Smart reel: \(displayBool(state.scroll_smart_reel))",
-                "Active onboard profile: \(displayInt(state.active_onboard_profile))",
-                "Reported onboard profile count: \(displayInt(state.onboard_profile_count))",
+                "Battery: \(formatBattery(percent: state.battery_percent, charging: state.charging))", "Current DPI: \(formatDpi(state.dpi))", "DPI stages: \(formatStages(state.dpi_stages))", "Polling rate: \(displayInt(state.poll_rate, suffix: " Hz"))",
+                "Sleep timeout: \(displayInt(state.sleep_timeout, suffix: " s"))", "Device mode: \(formatDeviceMode(state.device_mode))", "Low battery threshold: \(displayInt(state.low_battery_threshold_raw))", "Scroll mode: \(formatScrollMode(state.scroll_mode))",
+                "Scroll acceleration: \(displayBool(state.scroll_acceleration))", "Smart reel: \(displayBool(state.scroll_smart_reel))", "Active onboard profile: \(displayInt(state.active_onboard_profile))", "Reported onboard profile count: \(displayInt(state.onboard_profile_count))",
                 "LED brightness: \(displayInt(state.led_value))"
             ]
         }
 
-        if !appContextLines.isEmpty {
-            appendSection("App Context", to: &lines) {
-                appContextLines
-            }
-        }
+        if !appContextLines.isEmpty { appendSection("App Context", to: &lines) { appContextLines } }
 
         return lines.joined(separator: "\n")
     }
@@ -137,13 +85,9 @@ public struct DeviceDiagnosticsFormatter {
         return formatter.string(from: date)
     }
 
-    private static func yesNo(_ value: Bool) -> String {
-        value ? "Yes" : "No"
-    }
+    private static func yesNo(_ value: Bool) -> String { value ? "Yes" : "No" }
 
-    private static func hex(_ value: Int, width: Int) -> String {
-        String(format: "0x%0\(width)X", value)
-    }
+    private static func hex(_ value: Int, width: Int) -> String { String(format: "0x%0\(width)X", value) }
 
     private static func display(_ value: String?) -> String {
         guard let value, !value.isEmpty else { return "Unknown" }
@@ -163,17 +107,12 @@ public struct DeviceDiagnosticsFormatter {
     private static func formatBattery(percent: Int?, charging: Bool?) -> String {
         let chargeState: String
         switch charging {
-        case true:
-            chargeState = "charging"
-        case false:
-            chargeState = "not charging"
-        case nil:
-            chargeState = "charging state unknown"
+        case true: chargeState = "charging"
+        case false: chargeState = "not charging"
+        case nil: chargeState = "charging state unknown"
         }
 
-        guard let percent else {
-            return "Unknown (\(chargeState))"
-        }
+        guard let percent else { return "Unknown (\(chargeState))" }
         return "\(percent)% (\(chargeState))"
     }
 
@@ -200,12 +139,9 @@ public struct DeviceDiagnosticsFormatter {
     private static func formatScrollMode(_ mode: Int?) -> String {
         guard let mode else { return "Unknown" }
         switch mode {
-        case 0:
-            return "Tactile"
-        case 1:
-            return "Free-spin"
-        default:
-            return "\(mode)"
+        case 0: return "Tactile"
+        case 1: return "Free-spin"
+        default: return "\(mode)"
         }
     }
 

@@ -9,23 +9,14 @@ public enum BluetoothNameMatcher {
 
         let lowered = trimmed.lowercased()
         let withoutRazerPrefix: String
-        if lowered.hasPrefix("razer ") {
-            withoutRazerPrefix = String(trimmed.dropFirst(6))
-        } else {
-            withoutRazerPrefix = trimmed
-        }
+        if lowered.hasPrefix("razer ") { withoutRazerPrefix = String(trimmed.dropFirst(6)) } else { withoutRazerPrefix = trimmed }
 
-        let pieces = withoutRazerPrefix
-            .lowercased()
-            .split { !$0.isLetter && !$0.isNumber }
-            .map { token -> String in
-                switch token {
-                case "bsk":
-                    return "basilisk"
-                default:
-                    return String(token)
-                }
+        let pieces = withoutRazerPrefix.lowercased().split { !$0.isLetter && !$0.isNumber }.map { token -> String in
+            switch token {
+            case "bsk": return "basilisk"
+            default: return String(token)
             }
+        }
         let normalized = pieces.joined(separator: " ")
         return normalized.isEmpty ? nil : normalized
     }

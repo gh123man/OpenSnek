@@ -34,129 +34,49 @@ extension BridgeClient {
         let writeDirectLayer: Bool
     }
 
-    static func usbButtonWriteSucceeded(
-        writePersistentLayer: Bool,
-        writeDirectLayer: Bool,
-        wrotePersistent: Bool,
-        wroteDirect: Bool
-    ) -> Bool {
-        if writePersistentLayer, !wrotePersistent {
-            return false
-        }
-        if writeDirectLayer, !wroteDirect {
-            return false
-        }
+    static func usbButtonWriteSucceeded(writePersistentLayer: Bool, writeDirectLayer: Bool, wrotePersistent: Bool, wroteDirect: Bool) -> Bool {
+        if writePersistentLayer, !wrotePersistent { return false }
+        if writeDirectLayer, !wroteDirect { return false }
         return writePersistentLayer || writeDirectLayer
     }
 
-    func resolvedUSBStateCapabilities(
-        profile: DeviceProfile?,
-        stages: USBDpiStageSnapshot?,
-        poll: Int?,
-        sleepTimeout: Int?,
-        led: Int?
-    ) -> Capabilities {
-        if profile != nil {
-            return Capabilities(
-                dpi_stages: true,
-                poll_rate: true,
-                power_management: true,
-                button_remap: true,
-                lighting: true
-            )
-        }
+    func resolvedUSBStateCapabilities(profile: DeviceProfile?, stages: USBDpiStageSnapshot?, poll: Int?, sleepTimeout: Int?, led: Int?) -> Capabilities {
+        if profile != nil { return Capabilities(dpi_stages: true, poll_rate: true, power_management: true, button_remap: true, lighting: true) }
 
-        return Capabilities(
-            dpi_stages: stages != nil,
-            poll_rate: poll != nil,
-            power_management: sleepTimeout != nil,
-            button_remap: false,
-            lighting: led != nil
-        )
+        return Capabilities(dpi_stages: stages != nil, poll_rate: poll != nil, power_management: sleepTimeout != nil, button_remap: false, lighting: led != nil)
     }
 
-    func resolvedUSBStateCapabilities(
-        profile: DeviceProfile?,
-        stages: (Int, [Int])?,
-        poll: Int?,
-        sleepTimeout: Int?,
-        led: Int?
-    ) -> Capabilities {
-        resolvedUSBStateCapabilities(
-            profile: profile,
-            stages: stages.map { active, values in
-                USBDpiStageSnapshot(
-                    active: active,
-                    values: values,
-                    pairs: values.map { DpiPair(x: $0, y: $0) },
-                    stageIDs: Array(0..<values.count).map(UInt8.init)
-                )
-            },
-            poll: poll,
-            sleepTimeout: sleepTimeout,
-            led: led
-        )
+    func resolvedUSBStateCapabilities(profile: DeviceProfile?, stages: (Int, [Int])?, poll: Int?, sleepTimeout: Int?, led: Int?) -> Capabilities {
+        resolvedUSBStateCapabilities(profile: profile, stages: stages.map { active, values in USBDpiStageSnapshot(active: active, values: values, pairs: values.map { DpiPair(x: $0, y: $0) }, stageIDs: Array(0..<values.count).map(UInt8.init)) }, poll: poll, sleepTimeout: sleepTimeout, led: led)
     }
 
-    func debugUSBReadButtonBinding(
-        device: MouseDevice,
-        slot: Int,
-        profile: Int = 0x01,
-        hypershift: Int = 0x00
-    ) async throws -> [UInt8]? {
+    func debugUSBReadButtonBinding(device: MouseDevice, slot: Int, profile: Int = 0x01, hypershift: Int = 0x00) async throws -> [UInt8]? {
         guard device.transport != .bluetooth else { return nil }
         let sessions = sessionsFor(device: device)
-        guard !sessions.isEmpty else {
-            throw BridgeError.commandFailed("Device not available")
-        }
+        guard !sessions.isEmpty else { throw BridgeError.commandFailed("Device not available") }
 
         let clampedSlot = UInt8(max(0, min(255, slot)))
         let clampedProfile = UInt8(max(0, min(255, profile)))
         let clampedHypershift = UInt8(max(0, min(1, hypershift)))
         let session = sessions[0]
-        if let block = try getButtonBindingUSBRaw(
-            session,
-            device,
-            profile: clampedProfile,
-            slot: clampedSlot,
-            hypershift: clampedHypershift
-        ) {
+        if let block = try getButtonBindingUSBRaw(session, device, profile: clampedProfile, slot: clampedSlot, hypershift: clampedHypershift) {
             deviceSessions[device.id] = session
             return block
         }
         return nil
     }
 
-    func debugUSBSetButtonBindingRaw(
-        device: MouseDevice,
-        slot: Int,
-        profile: Int = 0x01,
-        hypershift: Int = 0x00,
-        functionBlock: [UInt8]
-    ) async throws -> Bool {
+    func debugUSBSetButtonBindingRaw(device: MouseDevice, slot: Int, profile: Int = 0x01, hypershift: Int = 0x00, functionBlock: [UInt8]) async throws -> Bool {
         guard device.transport != .bluetooth else { return false }
-        guard functionBlock.count == 7 else {
-            throw BridgeError.commandFailed("functionBlock must be exactly 7 bytes")
-        }
+        guard functionBlock.count == 7 else { throw BridgeError.commandFailed("functionBlock must be exactly 7 bytes") }
         let sessions = sessionsFor(device: device)
-        guard !sessions.isEmpty else {
-            throw BridgeError.commandFailed("Device not available")
-        }
+        guard !sessions.isEmpty else { throw BridgeError.commandFailed("Device not available") }
 
         let clampedSlot = UInt8(max(0, min(255, slot)))
         let clampedProfile = UInt8(max(0, min(255, profile)))
         let clampedHypershift = UInt8(max(0, min(1, hypershift)))
         let session = sessions[0]
-        if try setButtonBindingUSBRaw(
-            session,
-            device,
-            request: USBRawButtonBindingWrite(
-                profile: clampedProfile,
-                slot: clampedSlot,
-                hypershift: clampedHypershift,
-                functionBlock: functionBlock
-            )
-        ) {
+        if try setButtonBindingUSBRaw(session, device, request: USBRawButtonBindingWrite(profile: clampedProfile, slot: clampedSlot, hypershift: clampedHypershift, functionBlock: functionBlock)) {
             deviceSessions[device.id] = session
             return true
         }
@@ -168,9 +88,7 @@ extension BridgeClient {
             // A cached session-level kIOReturnNotPermitted can be transient around sleep/wake.
             // Always attempt a fresh HID exchange here instead of trapping the process in a
             // self-sustaining permission loop until restart.
-            guard let dpi = try getDPI(session, device) else {
-                throw BridgeError.usbMouseUnavailable
-            }
+            guard let dpi = try getDPI(session, device) else { throw BridgeError.usbMouseUnavailable }
 
             let serial = try getSerial(session, device)
             let fw = try getFirmware(session, device)
@@ -196,58 +114,18 @@ extension BridgeClient {
             }
             let led = try getScrollLEDBrightness(session, device)
             let profile = usbDeviceProfile(for: device)
-            let capabilities = resolvedUSBStateCapabilities(
-                profile: profile,
-                stages: stages,
-                poll: poll,
-                sleepTimeout: sleepTimeout,
-                led: led
-            )
+            let capabilities = resolvedUSBStateCapabilities(profile: profile, stages: stages, poll: poll, sleepTimeout: sleepTimeout, led: led)
 
-            let active = stages.map {
-                Self.resolvedUSBActiveStage(stages: $0, liveDpi: DpiPair(x: dpi.0, y: dpi.1))
-            } ?? 0
+            let active = stages.map { Self.resolvedUSBActiveStage(stages: $0, liveDpi: DpiPair(x: dpi.0, y: dpi.1)) } ?? 0
             let values = stages?.values ?? [dpi.0]
             let pairs = stages?.pairs
-            AppLog.debug(
-                "Bridge",
-                "readUSBState dpi-active-resolve device=\(device.id) " +
-                "tableActive=\(stages?.active.description ?? "nil") live=(\(dpi.0),\(dpi.1)) " +
-                "resolved=\(active) values=\(values.map(String.init).joined(separator: ","))"
-            )
-            AppLog.debug(
-                "Bridge",
-                "readUSBState scroll device=\(device.id) profile=\(scrollProfileID) " +
-                "mode=\(scrollMode.map(String.init) ?? "nil") " +
-                "accel=\(scrollAcceleration.map(String.init) ?? "nil") " +
-                "smart=\(scrollSmartReel.map(String.init) ?? "nil")"
-            )
+            AppLog.debug("Bridge", "readUSBState dpi-active-resolve device=\(device.id) " + "tableActive=\(stages?.active.description ?? "nil") live=(\(dpi.0),\(dpi.1)) " + "resolved=\(active) values=\(values.map(String.init).joined(separator: ","))")
+            AppLog.debug("Bridge", "readUSBState scroll device=\(device.id) profile=\(scrollProfileID) " + "mode=\(scrollMode.map(String.init) ?? "nil") " + "accel=\(scrollAcceleration.map(String.init) ?? "nil") " + "smart=\(scrollSmartReel.map(String.init) ?? "nil")")
 
             return MouseState(
-                device: DeviceSummary(
-                    id: device.id,
-                    product_name: device.product_name,
-                    serial: serial ?? device.serial,
-                    transport: device.transport,
-                    firmware: fw ?? device.firmware
-                ),
-                connection: "USB",
-                battery_percent: battery?.0,
-                charging: battery?.1,
-                dpi: DpiPair(x: dpi.0, y: dpi.1),
-                dpi_stages: DpiStages(active_stage: active, values: values, pairs: pairs),
-                poll_rate: poll,
-                sleep_timeout: sleepTimeout,
-                device_mode: mode.map { DeviceMode(mode: $0.0, param: $0.1) },
-                low_battery_threshold_raw: lowBatteryThreshold,
-                scroll_mode: scrollMode,
-                scroll_acceleration: scrollAcceleration,
-                scroll_smart_reel: scrollSmartReel,
-                active_onboard_profile: onboardProfile?.active,
-                onboard_profile_count: onboardProfile?.count ?? max(1, device.onboard_profile_count),
-                led_value: led,
-                capabilities: capabilities
-            )
+                device: DeviceSummary(id: device.id, product_name: device.product_name, serial: serial ?? device.serial, transport: device.transport, firmware: fw ?? device.firmware), connection: "USB", battery_percent: battery?.0, charging: battery?.1, dpi: DpiPair(x: dpi.0, y: dpi.1),
+                dpi_stages: DpiStages(active_stage: active, values: values, pairs: pairs), poll_rate: poll, sleep_timeout: sleepTimeout, device_mode: mode.map { DeviceMode(mode: $0.0, param: $0.1) }, low_battery_threshold_raw: lowBatteryThreshold, scroll_mode: scrollMode,
+                scroll_acceleration: scrollAcceleration, scroll_smart_reel: scrollSmartReel, active_onboard_profile: onboardProfile?.active, onboard_profile_count: onboardProfile?.count ?? max(1, device.onboard_profile_count), led_value: led, capabilities: capabilities)
         }
     }
 
@@ -258,65 +136,35 @@ extension BridgeClient {
 
         let orderedSessions = sessionsFor(device: device)
         guard !orderedSessions.isEmpty else {
-            if managerAccessDenied {
-                throw BridgeError.commandFailed(
-                    "USB HID access denied by macOS. Enable Input Monitoring for OpenSnek " +
-                    "(or Terminal/Xcode when running via swift run/Xcode), then relaunch."
-                )
-            }
+            if managerAccessDenied { throw BridgeError.commandFailed("USB HID access denied by macOS. Enable Input Monitoring for OpenSnek " + "(or Terminal/Xcode when running via swift run/Xcode), then relaunch.") }
             return .receiverAbsent
         }
 
         var firstError: Error?
         for (index, session) in orderedSessions.enumerated() {
             do {
-                let isReachable = try session.withExclusiveDeviceAccess {
-                    try getDPI(session, device) != nil
-                }
+                let isReachable = try session.withExclusiveDeviceAccess { try getDPI(session, device) != nil }
                 if isReachable {
                     if index > 0 {
                         deviceSessions[device.id] = session
-                        AppLog.debug(
-                            "Bridge",
-                            "usbControlAvailability switched to alternate session index=\(index) device=\(device.id)"
-                        )
+                        AppLog.debug("Bridge", "usbControlAvailability switched to alternate session index=\(index) device=\(device.id)")
                     }
                     return .receiverPresentMouseReachable
                 }
             } catch {
-                if firstError == nil {
-                    firstError = error
-                }
-                if let bridgeError = error as? BridgeError,
-                   case .commandFailed(let message) = bridgeError,
-                   message.contains("USB HID access denied") {
-                    throw error
-                }
-                AppLog.debug(
-                    "Bridge",
-                    "usbControlAvailability candidate index=\(index) failed device=\(device.id): \(error.localizedDescription)"
-                )
+                if firstError == nil { firstError = error }
+                if let bridgeError = error as? BridgeError, case .commandFailed(let message) = bridgeError, message.contains("USB HID access denied") { throw error }
+                AppLog.debug("Bridge", "usbControlAvailability candidate index=\(index) failed device=\(device.id): \(error.localizedDescription)")
             }
         }
 
         deviceSessions[device.id]?.invalidateCachedTransaction()
-        if await usbDeviceIsAbsentAfterDiscoveryRefresh(device: device, operation: "usb-control-availability") {
-            return .receiverAbsent
-        }
-        if let firstError,
-           !Self.isUSBTelemetryUnavailableError(firstError) {
-            AppLog.debug(
-                "Bridge",
-                "usbControlAvailability treating feature-report failure as mouse unavailable " +
-                "device=\(device.id): \(firstError.localizedDescription)"
-            )
-        }
+        if await usbDeviceIsAbsentAfterDiscoveryRefresh(device: device, operation: "usb-control-availability") { return .receiverAbsent }
+        if let firstError, !Self.isUSBTelemetryUnavailableError(firstError) { AppLog.debug("Bridge", "usbControlAvailability treating feature-report failure as mouse unavailable " + "device=\(device.id): \(firstError.localizedDescription)") }
         return .receiverPresentMouseUnavailable
     }
 
-    func sessionFor(device: MouseDevice) -> USBHIDControlSession? {
-        deviceSessions[device.id]
-    }
+    func sessionFor(device: MouseDevice) -> USBHIDControlSession? { deviceSessions[device.id] }
 
     func sessionsFor(device: MouseDevice) -> [USBHIDControlSession] {
         if let preferred = deviceSessions[device.id] {
@@ -326,35 +174,12 @@ extension BridgeClient {
         return deviceSessionCandidates[device.id] ?? []
     }
 
-    func perform(
-        _ session: USBHIDControlSession,
-        _ device: MouseDevice,
-        classID: UInt8,
-        cmdID: UInt8,
-        size: UInt8,
-        args: [UInt8] = [],
-        responseAttempts: Int = 6,
-        responseDelayUs: useconds_t = 30_000
-    ) throws -> [UInt8]? {
-#if DEBUG
-        OpenSnekUITestSupport.recordUSBCommand(
-            device: device,
-            classID: classID,
-            cmdID: cmdID,
-            size: size,
-            args: args
-        )
-#endif
+    func perform(_ session: USBHIDControlSession, _ device: MouseDevice, classID: UInt8, cmdID: UInt8, size: UInt8, args: [UInt8] = [], responseAttempts: Int = 6, responseDelayUs: useconds_t = 30_000) throws -> [UInt8]? {
+        #if DEBUG
+            OpenSnekUITestSupport.recordUSBCommand(device: device, classID: classID, cmdID: cmdID, size: size, args: args)
+        #endif
         do {
-            let response = try session.perform(
-                classID: classID,
-                cmdID: cmdID,
-                size: size,
-                args: args,
-                transactionID: usbDeviceProfile(for: device)?.usbTransactionID,
-                responseAttempts: responseAttempts,
-                responseDelayUs: responseDelayUs
-            )
+            let response = try session.perform(classID: classID, cmdID: cmdID, size: size, args: args, transactionID: usbDeviceProfile(for: device)?.usbTransactionID, responseAttempts: responseAttempts, responseDelayUs: responseDelayUs)
             hidAccessDenied = false
             return response
         } catch let error as BridgeError {
@@ -379,33 +204,19 @@ extension BridgeClient {
         let x = DeviceProfiles.clampDPI(dpiX, device: device)
         let y = DeviceProfiles.clampDPI(dpiY, device: device)
         let storage: UInt8 = store ? 0x01 : 0x00
-        let args: [UInt8] = [
-            storage,
-            UInt8((x >> 8) & 0xFF),
-            UInt8(x & 0xFF),
-            UInt8((y >> 8) & 0xFF),
-            UInt8(y & 0xFF)
-        ]
+        let args: [UInt8] = [storage, UInt8((x >> 8) & 0xFF), UInt8(x & 0xFF), UInt8((y >> 8) & 0xFF), UInt8(y & 0xFF)]
         guard let r = try perform(session, device, classID: 0x04, cmdID: 0x05, size: 0x07, args: args), r[0] == 0x02 else { return false }
         return true
     }
 
     func getDPIStageSnapshot(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> USBDpiStageSnapshot? {
-        guard let r = try perform(session, device, classID: 0x04, cmdID: 0x86, size: 0x26),
-              let snapshot = parseUSBDpiStageSnapshotResponse(r, device: device)
-        else {
-            return nil
-        }
+        guard let r = try perform(session, device, classID: 0x04, cmdID: 0x86, size: 0x26), let snapshot = parseUSBDpiStageSnapshotResponse(r, device: device) else { return nil }
         return snapshot
     }
 
     func usbResolveStageIndex(activeRaw: Int, stageIDs: [UInt8], count: Int) -> Int {
-        if let mapped = stageIDs.firstIndex(of: UInt8(activeRaw & 0xFF)) {
-            return mapped
-        }
-        if activeRaw >= 1, activeRaw <= count {
-            return activeRaw - 1
-        }
+        if let mapped = stageIDs.firstIndex(of: UInt8(activeRaw & 0xFF)) { return mapped }
+        if activeRaw >= 1, activeRaw <= count { return activeRaw - 1 }
         return max(0, min(count - 1, activeRaw))
     }
 
@@ -413,34 +224,21 @@ extension BridgeClient {
         let clippedCount = DeviceProfiles.clampDpiStageCount(count)
         let defaultStageIDs = (0..<DeviceProfiles.maximumDpiStageCount).map(UInt8.init)
         var ids = Array((stageIDs ?? defaultStageIDs).prefix(clippedCount))
-        while ids.count < clippedCount {
-            ids.append(ids.last.map { $0 &+ 1 } ?? UInt8(ids.count))
-        }
+        while ids.count < clippedCount { ids.append(ids.last.map { $0 &+ 1 } ?? UInt8(ids.count)) }
         return ids
     }
 
-    func usbStageIDsForWrite(count: Int, stageIDs: [UInt8]?) -> [UInt8] {
-        Self.usbStageIDsForWrite(count: count, stageIDs: stageIDs)
-    }
+    func usbStageIDsForWrite(count: Int, stageIDs: [UInt8]?) -> [UInt8] { Self.usbStageIDsForWrite(count: count, stageIDs: stageIDs) }
 
-    nonisolated static func usbDPIStageWriteArgs(
-        profileID: UInt8,
-        activeStage: Int,
-        pairs: [DpiPair],
-        stageIDs: [UInt8]?,
-        device: MouseDevice,
-        declaredCountMode: USBDPIStageDeclaredCountMode = .logical
-    ) -> [UInt8]? {
+    nonisolated static func usbDPIStageWriteArgs(profileID: UInt8, activeStage: Int, pairs: [DpiPair], stageIDs: [UInt8]?, device: MouseDevice, declaredCountMode: USBDPIStageDeclaredCountMode = .logical) -> [UInt8]? {
         guard !pairs.isEmpty else { return nil }
         let logicalCount = DeviceProfiles.clampDpiStageCount(pairs.count)
         let activeIndex = max(0, min(logicalCount - 1, activeStage))
         let rowCount = DeviceProfiles.maximumDpiStageCount
         let declaredCount: Int
         switch declaredCountMode {
-        case .logical:
-            declaredCount = logicalCount
-        case .fixedRowCount:
-            declaredCount = rowCount
+        case .logical: declaredCount = logicalCount
+        case .fixedRowCount: declaredCount = rowCount
         }
         let writeStageIDs = usbStageIDsForWrite(count: rowCount, stageIDs: stageIDs)
         guard writeStageIDs.count == rowCount else { return nil }
@@ -448,15 +246,8 @@ extension BridgeClient {
         // The command size is always 0x26. Live/single-slot writes can declare
         // the logical stage count, but mapped V3 Pro USB stored slots reject a
         // reduced declaration even when the payload includes all five rows.
-        var rowPairs = Array(pairs.prefix(rowCount)).map { pair in
-            DpiPair(
-                x: DeviceProfiles.clampDPI(pair.x, device: device),
-                y: DeviceProfiles.clampDPI(pair.y, device: device)
-            )
-        }
-        while rowPairs.count < rowCount {
-            rowPairs.append(rowPairs.last ?? DpiPair(x: 800, y: 800))
-        }
+        var rowPairs = Array(pairs.prefix(rowCount)).map { pair in DpiPair(x: DeviceProfiles.clampDPI(pair.x, device: device), y: DeviceProfiles.clampDPI(pair.y, device: device)) }
+        while rowPairs.count < rowCount { rowPairs.append(rowPairs.last ?? DpiPair(x: 800, y: 800)) }
 
         var args = [UInt8](repeating: 0, count: 3 + rowCount * 7)
         args[0] = profileID
@@ -475,107 +266,46 @@ extension BridgeClient {
         return args
     }
 
-    nonisolated static func usbLogicalDPIForActiveLayer(
-        dpi: OnboardDPIProfileSnapshot,
-        device: MouseDevice
-    ) -> OnboardDPIProfileSnapshot? {
+    nonisolated static func usbLogicalDPIForActiveLayer(dpi: OnboardDPIProfileSnapshot, device: MouseDevice) -> OnboardDPIProfileSnapshot? {
         var pairs = Array(dpi.pairs.prefix(DeviceProfiles.maximumDpiStageCount))
-        if pairs.isEmpty, let scalar = dpi.scalar {
-            pairs = [scalar]
-        }
+        if pairs.isEmpty, let scalar = dpi.scalar { pairs = [scalar] }
         guard !pairs.isEmpty else { return nil }
 
-        pairs = pairs.map { pair in
-            DpiPair(
-                x: DeviceProfiles.clampDPI(pair.x, device: device),
-                y: DeviceProfiles.clampDPI(pair.y, device: device)
-            )
-        }
+        pairs = pairs.map { pair in DpiPair(x: DeviceProfiles.clampDPI(pair.x, device: device), y: DeviceProfiles.clampDPI(pair.y, device: device)) }
         let logicalCount = DeviceProfiles.clampDpiStageCount(pairs.count)
         let activeStage = max(0, min(logicalCount - 1, dpi.activeStage ?? 0))
-        let scalar = dpi.scalar.map { pair in
-            DpiPair(
-                x: DeviceProfiles.clampDPI(pair.x, device: device),
-                y: DeviceProfiles.clampDPI(pair.y, device: device)
-            )
-        } ?? pairs[activeStage]
-        return OnboardDPIProfileSnapshot(
-            scalar: scalar,
-            activeStage: activeStage,
-            pairs: Array(pairs.prefix(logicalCount)),
-            stageIDs: dpi.stageIDs,
-            marker: dpi.marker
-        )
+        let scalar = dpi.scalar.map { pair in DpiPair(x: DeviceProfiles.clampDPI(pair.x, device: device), y: DeviceProfiles.clampDPI(pair.y, device: device)) } ?? pairs[activeStage]
+        return OnboardDPIProfileSnapshot(scalar: scalar, activeStage: activeStage, pairs: Array(pairs.prefix(logicalCount)), stageIDs: dpi.stageIDs, marker: dpi.marker)
     }
 
-    nonisolated static func usbActiveLayerDPIStageWriteArgs(
-        dpi: OnboardDPIProfileSnapshot,
-        device: MouseDevice
-    ) -> [UInt8]? {
-        guard let logicalDPI = usbLogicalDPIForActiveLayer(dpi: dpi, device: device) else {
-            return nil
-        }
-        return usbDPIStageWriteArgs(
-            profileID: 0x00,
-            activeStage: logicalDPI.activeStage ?? 0,
-            pairs: logicalDPI.pairs,
-            stageIDs: logicalDPI.stageIDs,
-            device: device
-        )
+    nonisolated static func usbActiveLayerDPIStageWriteArgs(dpi: OnboardDPIProfileSnapshot, device: MouseDevice) -> [UInt8]? {
+        guard let logicalDPI = usbLogicalDPIForActiveLayer(dpi: dpi, device: device) else { return nil }
+        return usbDPIStageWriteArgs(profileID: 0x00, activeStage: logicalDPI.activeStage ?? 0, pairs: logicalDPI.pairs, stageIDs: logicalDPI.stageIDs, device: device)
     }
 
-    nonisolated static func usbStoredProfileDPIWriteSnapshot(
-        requested dpi: OnboardDPIProfileSnapshot,
-        slotContext context: OnboardDPIProfileSnapshot?
-    ) -> OnboardDPIProfileSnapshot {
-        guard let context,
-              dpi.pairs.count < DeviceProfiles.maximumDpiStageCount,
-              context.pairs.count == DeviceProfiles.maximumDpiStageCount else {
-            return dpi
-        }
+    nonisolated static func usbStoredProfileDPIWriteSnapshot(requested dpi: OnboardDPIProfileSnapshot, slotContext context: OnboardDPIProfileSnapshot?) -> OnboardDPIProfileSnapshot {
+        guard let context, dpi.pairs.count < DeviceProfiles.maximumDpiStageCount, context.pairs.count == DeviceProfiles.maximumDpiStageCount else { return dpi }
 
         let rowCount = DeviceProfiles.maximumDpiStageCount
         var pairs = Array(dpi.pairs.prefix(rowCount))
         let hiddenRowPair = pairs.last ?? context.pairs.first ?? DpiPair(x: 800, y: 800)
-        while pairs.count < rowCount {
-            pairs.append(hiddenRowPair)
-        }
+        while pairs.count < rowCount { pairs.append(hiddenRowPair) }
         let stageIDs = context.stageIDs.isEmpty ? dpi.stageIDs : context.stageIDs
         let contextActive = context.activeStage.map { max(0, min(rowCount - 1, $0)) }
         let requestedActive = dpi.activeStage.map { max(0, min(max(0, dpi.pairs.count - 1), $0)) }
-        let requestedScalar = dpi.scalar ??
-            requestedActive.flatMap { dpi.pairs.indices.contains($0) ? dpi.pairs[$0] : nil }
+        let requestedScalar = dpi.scalar ?? requestedActive.flatMap { dpi.pairs.indices.contains($0) ? dpi.pairs[$0] : nil }
 
         // USB create/assign gives the slot a firmware stage table before we rewrite
         // content. V3 Pro USB rejects reduced local profiles if that rewrite resets
         // the stored active token, so keep the slot token and IDs while replacing all
         // physical rows. Hidden rows duplicate the last logical stage so stale slot
         // values cannot reappear if the device cycles through the fixed stored table.
-        return OnboardDPIProfileSnapshot(
-            scalar: requestedScalar ?? pairs.first,
-            activeStage: contextActive ?? requestedActive,
-            pairs: pairs,
-            stageIDs: stageIDs,
-            marker: dpi.marker ?? context.marker
-        )
+        return OnboardDPIProfileSnapshot(scalar: requestedScalar ?? pairs.first, activeStage: contextActive ?? requestedActive, pairs: pairs, stageIDs: stageIDs, marker: dpi.marker ?? context.marker)
     }
 
-    func setDPIStages(
-        _ session: USBHIDControlSession,
-        _ device: MouseDevice,
-        stages: [Int],
-        activeStage: Int,
-        stagePairs: [DpiPair]? = nil,
-        stageIDs: [UInt8]? = nil
-    ) throws -> Bool {
+    func setDPIStages(_ session: USBHIDControlSession, _ device: MouseDevice, stages: [Int], activeStage: Int, stagePairs: [DpiPair]? = nil, stageIDs: [UInt8]? = nil) throws -> Bool {
         let pairs = stagePairs ?? stages.map { DpiPair(x: $0, y: $0) }
-        guard let args = Self.usbDPIStageWriteArgs(
-            profileID: 0x01,
-            activeStage: activeStage,
-            pairs: pairs,
-            stageIDs: stageIDs,
-            device: device
-        ) else { return false }
+        guard let args = Self.usbDPIStageWriteArgs(profileID: 0x01, activeStage: activeStage, pairs: pairs, stageIDs: stageIDs, device: device) else { return false }
 
         guard let r = try perform(session, device, classID: 0x04, cmdID: 0x06, size: 0x26, args: args) else { return false }
         return r[0] == 0x02
@@ -603,12 +333,7 @@ extension BridgeClient {
             let dpiY = (Int(response[offset + 3]) << 8) | Int(response[offset + 4])
             stageIDs.append(stageID)
             values.append(DeviceProfiles.clampDPI(dpiX, device: device))
-            pairs.append(
-                DpiPair(
-                    x: DeviceProfiles.clampDPI(dpiX, device: device),
-                    y: DeviceProfiles.clampDPI(dpiY, device: device)
-                )
-            )
+            pairs.append(DpiPair(x: DeviceProfiles.clampDPI(dpiX, device: device), y: DeviceProfiles.clampDPI(dpiY, device: device)))
         }
 
         guard !values.isEmpty else { return nil }
@@ -620,17 +345,8 @@ extension BridgeClient {
             stageIDs.append(stageIDs.last.map { $0 &+ 1 } ?? UInt8(stageIDs.count))
         }
 
-        let active = usbResolveStageIndex(
-            activeRaw: activeRaw,
-            stageIDs: Array(stageIDs.prefix(count)),
-            count: count
-        )
-        return USBDpiStageSnapshot(
-            active: active,
-            values: Array(values.prefix(count)),
-            pairs: Array(pairs.prefix(count)),
-            stageIDs: Array(stageIDs.prefix(count))
-        )
+        let active = usbResolveStageIndex(activeRaw: activeRaw, stageIDs: Array(stageIDs.prefix(count)), count: count)
+        return USBDpiStageSnapshot(active: active, values: Array(values.prefix(count)), pairs: Array(pairs.prefix(count)), stageIDs: Array(stageIDs.prefix(count)))
     }
 
     func getPollRate(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> Int? {
@@ -743,16 +459,11 @@ extension BridgeClient {
     func getOnboardProfileInfo(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> (active: Int, count: Int)? {
         guard device.onboard_profile_count > 1 else { return (active: 1, count: 1) }
         if let profile = usbDeviceProfile(for: device), profile.supportsMappedOnboardProfileCRUD {
-            guard let inventoryResponse = try perform(session, device, classID: 0x05, cmdID: 0x81, size: 0x00),
-                  let inventory = USBHIDProtocol.onboardProfileInventory(from: inventoryResponse) else {
-                return nil
-            }
+            guard let inventoryResponse = try perform(session, device, classID: 0x05, cmdID: 0x81, size: 0x00), let inventory = USBHIDProtocol.onboardProfileInventory(from: inventoryResponse) else { return nil }
             let active = try getDirectUSBActiveProfileID(session, device) ?? 1
             return (active: active, count: max(Int(inventory.maxProfileID), profile.onboardProfileCount))
         }
-        guard let summary = try perform(session, device, classID: 0x00, cmdID: 0x87, size: 0x00), summary[0] == 0x02 else {
-            return nil
-        }
+        guard let summary = try perform(session, device, classID: 0x00, cmdID: 0x87, size: 0x00), summary[0] == 0x02 else { return nil }
         let summaryActive = max(1, Int(summary[8]))
         let active = try getDirectUSBActiveProfileID(session, device) ?? summaryActive
         let count = max(1, Int(summary[10]))
@@ -761,10 +472,7 @@ extension BridgeClient {
 
     func getDirectUSBActiveProfileID(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> Int? {
         guard device.profile_id == .basiliskV3Pro else { return nil }
-        guard let response = try perform(session, device, classID: 0x05, cmdID: 0x84, size: 0x00),
-              let active = USBHIDProtocol.activeProfileID(from: response) else {
-            return nil
-        }
+        guard let response = try perform(session, device, classID: 0x05, cmdID: 0x84, size: 0x00), let active = USBHIDProtocol.activeProfileID(from: response) else { return nil }
         return max(1, Int(active))
     }
 
@@ -774,9 +482,7 @@ extension BridgeClient {
         return r[0] == 0x02
     }
 
-    func usbDeviceProfile(for device: MouseDevice) -> DeviceProfile? {
-        DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)
-    }
+    func usbDeviceProfile(for device: MouseDevice) -> DeviceProfile? { DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport) }
 
     func usbLightingLEDIDs(for device: MouseDevice, override: [UInt8]? = nil) -> [UInt8] {
         let ids = override ?? usbDeviceProfile(for: device)?.allUSBLightingLEDIDs ?? [0x01]
@@ -787,9 +493,7 @@ extension BridgeClient {
         var values: [Int] = []
         for ledID in usbLightingLEDIDs(for: device) {
             let args: [UInt8] = [0x01, ledID]
-            guard let r = try perform(session, device, classID: 0x0F, cmdID: 0x84, size: 0x03, args: args), r[0] == 0x02 else {
-                continue
-            }
+            guard let r = try perform(session, device, classID: 0x0F, cmdID: 0x84, size: 0x03, args: args), r[0] == 0x02 else { continue }
             values.append(Int(r[10]))
         }
         return values.max()
@@ -800,92 +504,41 @@ extension BridgeClient {
         var wroteAny = false
         for ledID in usbLightingLEDIDs(for: device) {
             let args: [UInt8] = [0x01, ledID, v]
-            guard let r = try perform(session, device, classID: 0x0F, cmdID: 0x04, size: 0x03, args: args), r[0] == 0x02 else {
-                return false
-            }
+            guard let r = try perform(session, device, classID: 0x0F, cmdID: 0x04, size: 0x03, args: args), r[0] == 0x02 else { return false }
             wroteAny = true
         }
         return wroteAny
     }
 
-    func setScrollLEDEffect(
-        _ session: USBHIDControlSession,
-        _ device: MouseDevice,
-        effect: LightingEffectPatch,
-        ledIDs: [UInt8]? = nil
-    ) throws -> Bool {
+    func setScrollLEDEffect(_ session: USBHIDControlSession, _ device: MouseDevice, effect: LightingEffectPatch, ledIDs: [UInt8]? = nil) throws -> Bool {
         var wroteAny = false
         for ledID in usbLightingLEDIDs(for: device, override: ledIDs) {
             let args = BLEVendorProtocol.buildScrollLEDEffectArgs(effect: effect, ledID: ledID)
-            guard let r = try perform(
-                session,
-                device,
-                classID: 0x0F,
-                cmdID: 0x02,
-                size: UInt8(max(0, min(255, args.count))),
-                args: args
-            ), r[0] == 0x02 else {
-                return false
-            }
+            guard let r = try perform(session, device, classID: 0x0F, cmdID: 0x02, size: UInt8(max(0, min(255, args.count))), args: args), r[0] == 0x02 else { return false }
             wroteAny = true
         }
         return wroteAny
     }
 
-    func setUSBLightingCustomFrame(
-        _ session: USBHIDControlSession,
-        _ device: MouseDevice,
-        frame: USBLightingFramePatch
-    ) throws -> Bool {
-        let args = USBHIDProtocol.lightingCustomFrameArgs(
-            storage: frame.storage,
-            row: frame.row,
-            startColumn: frame.startColumn,
-            colors: frame.colors
-        )
-        guard let r = try perform(
-            session,
-            device,
-            classID: 0x0F,
-            cmdID: 0x03,
-            size: UInt8(max(0, min(255, args.count))),
-            args: args,
-            responseAttempts: 8,
-            responseDelayUs: 1_000
-        ) else {
-            return false
-        }
+    func setUSBLightingCustomFrame(_ session: USBHIDControlSession, _ device: MouseDevice, frame: USBLightingFramePatch) throws -> Bool {
+        let args = USBHIDProtocol.lightingCustomFrameArgs(storage: frame.storage, row: frame.row, startColumn: frame.startColumn, colors: frame.colors)
+        guard let r = try perform(session, device, classID: 0x0F, cmdID: 0x03, size: UInt8(max(0, min(255, args.count))), args: args, responseAttempts: 8, responseDelayUs: 1_000) else { return false }
         return r[0] == 0x02
     }
 
     func writeSoftwareLightingFrame(device: MouseDevice, frame: USBLightingFramePatch) async throws {
-        guard device.transport == .usb,
-              let layout = device.softwareLightingFrameLayout else {
-            throw BridgeError.commandFailed("Software lighting frames are not supported for this device")
-        }
-        guard !frame.colors.isEmpty,
-              frame.colors.count <= layout.cellCount else {
-            throw BridgeError.commandFailed("Software lighting frame must contain 1...\(layout.cellCount) cells")
-        }
+        guard device.transport == .usb, let layout = device.softwareLightingFrameLayout else { throw BridgeError.commandFailed("Software lighting frames are not supported for this device") }
+        guard !frame.colors.isEmpty, frame.colors.count <= layout.cellCount else { throw BridgeError.commandFailed("Software lighting frame must contain 1...\(layout.cellCount) cells") }
 
         let orderedSessions = sessionsFor(device: device)
         guard !orderedSessions.isEmpty else {
-            if managerAccessDenied {
-                throw BridgeError.commandFailed(
-                    "USB HID access denied by macOS. Enable Input Monitoring for OpenSnek " +
-                    "(or Terminal/Xcode when running via swift run/Xcode), then relaunch."
-                )
-            }
+            if managerAccessDenied { throw BridgeError.commandFailed("USB HID access denied by macOS. Enable Input Monitoring for OpenSnek " + "(or Terminal/Xcode when running via swift run/Xcode), then relaunch.") }
             throw BridgeError.commandFailed("Device not available")
         }
 
         let session = orderedSessions[0]
-        let succeeded = try session.withExclusiveDeviceAccess {
-            try setUSBLightingCustomFrame(session, device, frame: frame)
-        }
-        guard succeeded else {
-            throw BridgeError.commandFailed("Failed to write software lighting frame")
-        }
+        let succeeded = try session.withExclusiveDeviceAccess { try setUSBLightingCustomFrame(session, device, frame: frame) }
+        guard succeeded else { throw BridgeError.commandFailed("Failed to write software lighting frame") }
         deviceSessions[device.id] = session
     }
 
@@ -895,218 +548,74 @@ extension BridgeClient {
         return slots.map { UInt8(max(0, min(255, $0))) }
     }
 
-    func projectUSBButtonProfileToDirectLayer(
-        _ session: USBHIDControlSession,
-        _ device: MouseDevice,
-        profile: UInt8
-    ) throws -> Bool {
+    func projectUSBButtonProfileToDirectLayer(_ session: USBHIDControlSession, _ device: MouseDevice, profile: UInt8) throws -> Bool {
         let slots = writableUSBButtonSlots(for: device)
         guard !slots.isEmpty else { return false }
 
         for slot in slots {
-            guard let block = try getButtonBindingUSBRaw(
-                session,
-                device,
-                profile: profile,
-                slot: slot,
-                hypershift: 0x00
-            ) else {
-                return false
-            }
-            guard try setButtonBindingUSBRaw(
-                session,
-                device,
-                request: USBRawButtonBindingWrite(
-                    profile: 0x00,
-                    slot: slot,
-                    hypershift: 0x00,
-                    functionBlock: block
-                )
-            ) else {
-                return false
-            }
+            guard let block = try getButtonBindingUSBRaw(session, device, profile: profile, slot: slot, hypershift: 0x00) else { return false }
+            guard try setButtonBindingUSBRaw(session, device, request: USBRawButtonBindingWrite(profile: 0x00, slot: slot, hypershift: 0x00, functionBlock: block)) else { return false }
         }
 
         return true
     }
 
-    func duplicateUSBButtonProfile(
-        _ session: USBHIDControlSession,
-        _ device: MouseDevice,
-        sourceProfile: UInt8,
-        targetProfile: UInt8
-    ) throws -> Bool {
+    func duplicateUSBButtonProfile(_ session: USBHIDControlSession, _ device: MouseDevice, sourceProfile: UInt8, targetProfile: UInt8) throws -> Bool {
         let slots = writableUSBButtonSlots(for: device)
         guard !slots.isEmpty else { return false }
 
         for slot in slots {
-            guard let block = try getButtonBindingUSBRaw(
-                session,
-                device,
-                profile: sourceProfile,
-                slot: slot,
-                hypershift: 0x00
-            ) else {
-                return false
-            }
-            guard try setButtonBindingUSBRaw(
-                session,
-                device,
-                request: USBRawButtonBindingWrite(
-                    profile: targetProfile,
-                    slot: slot,
-                    hypershift: 0x00,
-                    functionBlock: block
-                )
-            ) else {
-                return false
-            }
+            guard let block = try getButtonBindingUSBRaw(session, device, profile: sourceProfile, slot: slot, hypershift: 0x00) else { return false }
+            guard try setButtonBindingUSBRaw(session, device, request: USBRawButtonBindingWrite(profile: targetProfile, slot: slot, hypershift: 0x00, functionBlock: block)) else { return false }
         }
 
         return true
     }
 
-    func resetUSBButtonProfile(
-        _ session: USBHIDControlSession,
-        _ device: MouseDevice,
-        profile: UInt8
-    ) throws -> Bool {
+    func resetUSBButtonProfile(_ session: USBHIDControlSession, _ device: MouseDevice, profile: UInt8) throws -> Bool {
         let slots = writableUSBButtonSlots(for: device)
         guard !slots.isEmpty else { return false }
 
         for slot in slots {
-            guard let block = ButtonBindingSupport.defaultUSBFunctionBlock(
-                for: Int(slot),
-                profileID: device.profile_id
-            ) else {
-                return false
-            }
-            guard try setButtonBindingUSBRaw(
-                session,
-                device,
-                request: USBRawButtonBindingWrite(
-                    profile: profile,
-                    slot: slot,
-                    hypershift: 0x00,
-                    functionBlock: block
-                )
-            ) else {
-                return false
-            }
+            guard let block = ButtonBindingSupport.defaultUSBFunctionBlock(for: Int(slot), profileID: device.profile_id) else { return false }
+            guard try setButtonBindingUSBRaw(session, device, request: USBRawButtonBindingWrite(profile: profile, slot: slot, hypershift: 0x00, functionBlock: block)) else { return false }
         }
 
         return true
     }
 
-    func setButtonBindingUSBRaw(
-        _ session: USBHIDControlSession,
-        _ device: MouseDevice,
-        request: USBRawButtonBindingWrite
-    ) throws -> Bool {
+    func setButtonBindingUSBRaw(_ session: USBHIDControlSession, _ device: MouseDevice, request: USBRawButtonBindingWrite) throws -> Bool {
         guard request.functionBlock.count == 7 else { return false }
         let args = [request.profile, request.slot, request.hypershift] + request.functionBlock
-        guard let r = try perform(
-            session,
-            device,
-            classID: 0x02,
-            cmdID: 0x0C,
-            size: UInt8(args.count),
-            args: args,
-            responseAttempts: 12,
-            responseDelayUs: 40_000
-        ) else { return false }
+        guard let r = try perform(session, device, classID: 0x02, cmdID: 0x0C, size: UInt8(args.count), args: args, responseAttempts: 12, responseDelayUs: 40_000) else { return false }
         return r[0] == 0x02
     }
 
-    func setButtonBindingUSB(
-        _ session: USBHIDControlSession,
-        _ device: MouseDevice,
-        request: USBButtonBindingWrite
-    ) throws -> Bool {
+    func setButtonBindingUSB(_ session: USBHIDControlSession, _ device: MouseDevice, request: USBButtonBindingWrite) throws -> Bool {
         guard let bindingKind = ButtonBindingKind(rawValue: request.kind) else { return false }
         let functionBlock = ButtonBindingSupport.buildUSBFunctionBlock(
-            slot: request.slot,
-            kind: bindingKind,
-            hidKey: request.hidKey,
-            hidModifiers: request.hidModifiers,
-            turboEnabled: request.turboEnabled && bindingKind.supportsTurbo,
-            turboRate: request.turboRate,
-            clutchDPI: request.clutchDPI,
-            profileID: device.profile_id
-        )
+            slot: request.slot, kind: bindingKind, hidKey: request.hidKey, hidModifiers: request.hidModifiers, turboEnabled: request.turboEnabled && bindingKind.supportsTurbo, turboRate: request.turboRate, clutchDPI: request.clutchDPI, profileID: device.profile_id)
         let clampedSlot = UInt8(max(0, min(255, request.slot)))
 
-        let clampedPersistentProfile = UInt8(
-            OnboardProfileLimits.clampPersistentProfileID(request.persistentProfile)
-        )
+        let clampedPersistentProfile = UInt8(OnboardProfileLimits.clampPersistentProfileID(request.persistentProfile))
 
         let wrotePersistent: Bool
         if request.writePersistentLayer {
-            wrotePersistent = try setButtonBindingUSBRaw(
-                session,
-                device,
-                request: USBRawButtonBindingWrite(
-                    profile: clampedPersistentProfile,
-                    slot: clampedSlot,
-                    hypershift: 0x00,
-                    functionBlock: functionBlock
-                )
-            )
+            wrotePersistent = try setButtonBindingUSBRaw(session, device, request: USBRawButtonBindingWrite(profile: clampedPersistentProfile, slot: clampedSlot, hypershift: 0x00, functionBlock: functionBlock))
             guard wrotePersistent else { return false }
         } else {
             wrotePersistent = false
         }
         let wroteDirect: Bool
-        if request.writeDirectLayer {
-            wroteDirect = try setButtonBindingUSBRaw(
-                session,
-                device,
-                request: USBRawButtonBindingWrite(
-                    profile: 0x00,
-                    slot: clampedSlot,
-                    hypershift: 0x00,
-                    functionBlock: functionBlock
-                )
-            )
-        } else {
-            wroteDirect = false
-        }
-        return Self.usbButtonWriteSucceeded(
-            writePersistentLayer: request.writePersistentLayer,
-            writeDirectLayer: request.writeDirectLayer,
-            wrotePersistent: wrotePersistent,
-            wroteDirect: wroteDirect
-        )
+        if request.writeDirectLayer { wroteDirect = try setButtonBindingUSBRaw(session, device, request: USBRawButtonBindingWrite(profile: 0x00, slot: clampedSlot, hypershift: 0x00, functionBlock: functionBlock)) } else { wroteDirect = false }
+        return Self.usbButtonWriteSucceeded(writePersistentLayer: request.writePersistentLayer, writeDirectLayer: request.writeDirectLayer, wrotePersistent: wrotePersistent, wroteDirect: wroteDirect)
     }
 
-    func getButtonBindingUSBRaw(
-        _ session: USBHIDControlSession,
-        _ device: MouseDevice,
-        profile: UInt8,
-        slot: UInt8,
-        hypershift: UInt8
-    ) throws -> [UInt8]? {
+    func getButtonBindingUSBRaw(_ session: USBHIDControlSession, _ device: MouseDevice, profile: UInt8, slot: UInt8, hypershift: UInt8) throws -> [UInt8]? {
         var args: [UInt8] = [profile, slot, hypershift]
         args.append(contentsOf: [UInt8](repeating: 0x00, count: 7))
-        guard let response = try perform(
-            session,
-            device,
-            classID: 0x02,
-            cmdID: 0x8C,
-            size: UInt8(args.count),
-            args: args,
-            responseAttempts: 12,
-            responseDelayUs: 40_000
-        ), response[0] == 0x02 else {
-            return nil
-        }
+        guard let response = try perform(session, device, classID: 0x02, cmdID: 0x8C, size: UInt8(args.count), args: args, responseAttempts: 12, responseDelayUs: 40_000), response[0] == 0x02 else { return nil }
 
-        return ButtonBindingSupport.extractUSBFunctionBlock(
-            response: response,
-            profile: profile,
-            slot: slot,
-            hypershift: hypershift,
-            profileID: device.profile_id
-        )
+        return ButtonBindingSupport.extractUSBFunctionBlock(response: response, profile: profile, slot: slot, hypershift: hypershift, profileID: device.profile_id)
     }
 }

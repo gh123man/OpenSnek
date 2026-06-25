@@ -35,10 +35,7 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(usb.buttonLayout.visibleSlots, bluetooth.buttonLayout.visibleSlots)
         XCTAssertEqual(usb.buttonLayout.writableSlots, bluetooth.buttonLayout.writableSlots)
         XCTAssertEqual(usb.buttonLayout.documentedSlots, bluetooth.buttonLayout.documentedSlots)
-        XCTAssertEqual(
-            ButtonBindingSupport.availableButtonBindingKinds(profileID: usb.id),
-            ButtonBindingSupport.availableButtonBindingKinds(profileID: bluetooth.id)
-        )
+        XCTAssertEqual(ButtonBindingSupport.availableButtonBindingKinds(profileID: usb.id), ButtonBindingSupport.availableButtonBindingKinds(profileID: bluetooth.id))
     }
 
     func testResolveUSBProfileForBasiliskV335K() {
@@ -224,10 +221,8 @@ final class DeviceProfilesTests: XCTestCase {
         let expectedSlots = DeviceProfiles.basiliskV3FamilyButtonSlots
         let expectedSlotIDs = expectedSlots.map(\.slot)
         let profiles = [
-            ("Basilisk V3 USB", DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x0099, transport: .usb)),
-            ("Basilisk V3 Pro USB", DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00AB, transport: .usb)),
-            ("Basilisk V3 Pro Bluetooth", DeviceProfiles.resolve(vendorID: 0x068E, productID: 0x00AC, transport: .bluetooth)),
-            ("Basilisk V3 35K USB", DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00CB, transport: .usb))
+            ("Basilisk V3 USB", DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x0099, transport: .usb)), ("Basilisk V3 Pro USB", DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00AB, transport: .usb)),
+            ("Basilisk V3 Pro Bluetooth", DeviceProfiles.resolve(vendorID: 0x068E, productID: 0x00AC, transport: .bluetooth)), ("Basilisk V3 35K USB", DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00CB, transport: .usb))
         ]
 
         for (label, maybeProfile) in profiles {
@@ -292,39 +287,9 @@ final class DeviceProfilesTests: XCTestCase {
     }
 
     func testBasiliskV3ProBluetoothShowsLightingControls() {
-        let bluetoothV3Pro = MouseDevice(
-            id: "bt-v3-pro",
-            vendor_id: 0x068E,
-            product_id: 0x00AC,
-            product_name: "Basilisk V3 Pro",
-            transport: .bluetooth,
-            path_b64: "",
-            serial: nil,
-            firmware: nil,
-            profile_id: .basiliskV3Pro
-        )
-        let bluetoothV3X = MouseDevice(
-            id: "bt-v3x",
-            vendor_id: 0x068E,
-            product_id: 0x00BA,
-            product_name: "Basilisk V3 X HyperSpeed",
-            transport: .bluetooth,
-            path_b64: "",
-            serial: nil,
-            firmware: nil,
-            profile_id: .basiliskV3XHyperspeed
-        )
-        let usbV3Pro = MouseDevice(
-            id: "usb-v3-pro",
-            vendor_id: 0x1532,
-            product_id: 0x00AB,
-            product_name: "Basilisk V3 Pro",
-            transport: .usb,
-            path_b64: "",
-            serial: nil,
-            firmware: nil,
-            profile_id: .basiliskV3Pro
-        )
+        let bluetoothV3Pro = MouseDevice(id: "bt-v3-pro", vendor_id: 0x068E, product_id: 0x00AC, product_name: "Basilisk V3 Pro", transport: .bluetooth, path_b64: "", serial: nil, firmware: nil, profile_id: .basiliskV3Pro)
+        let bluetoothV3X = MouseDevice(id: "bt-v3x", vendor_id: 0x068E, product_id: 0x00BA, product_name: "Basilisk V3 X HyperSpeed", transport: .bluetooth, path_b64: "", serial: nil, firmware: nil, profile_id: .basiliskV3XHyperspeed)
+        let usbV3Pro = MouseDevice(id: "usb-v3-pro", vendor_id: 0x1532, product_id: 0x00AB, product_name: "Basilisk V3 Pro", transport: .usb, path_b64: "", serial: nil, firmware: nil, profile_id: .basiliskV3Pro)
 
         XCTAssertTrue(bluetoothV3Pro.showsLightingControls)
         XCTAssertTrue(bluetoothV3X.showsLightingControls)
@@ -332,62 +297,12 @@ final class DeviceProfilesTests: XCTestCase {
     }
 
     func testSoftwareLightingSupportIsUSBOnlyAndRequiresFrameLayout() {
-        let usbV3X = MouseDevice(
-            id: "usb-v3x",
-            vendor_id: 0x1532,
-            product_id: 0x00B9,
-            product_name: "Basilisk V3 X HyperSpeed",
-            transport: .usb,
-            path_b64: "",
-            serial: nil,
-            firmware: nil,
-            profile_id: .basiliskV3XHyperspeed
-        )
-        let usbV3Pro = MouseDevice(
-            id: "usb-v3-pro",
-            vendor_id: 0x1532,
-            product_id: 0x00AB,
-            product_name: "Basilisk V3 Pro",
-            transport: .usb,
-            path_b64: "",
-            serial: nil,
-            firmware: nil,
-            profile_id: .basiliskV3Pro
-        )
+        let usbV3X = MouseDevice(id: "usb-v3x", vendor_id: 0x1532, product_id: 0x00B9, product_name: "Basilisk V3 X HyperSpeed", transport: .usb, path_b64: "", serial: nil, firmware: nil, profile_id: .basiliskV3XHyperspeed)
+        let usbV3Pro = MouseDevice(id: "usb-v3-pro", vendor_id: 0x1532, product_id: 0x00AB, product_name: "Basilisk V3 Pro", transport: .usb, path_b64: "", serial: nil, firmware: nil, profile_id: .basiliskV3Pro)
         let bluetoothDevices = [
-            MouseDevice(
-                id: "bt-v3x",
-                vendor_id: 0x068E,
-                product_id: 0x00BA,
-                product_name: "Basilisk V3 X HyperSpeed",
-                transport: .bluetooth,
-                path_b64: "",
-                serial: nil,
-                firmware: nil,
-                profile_id: .basiliskV3XHyperspeed
-            ),
-            MouseDevice(
-                id: "bt-v3-pro",
-                vendor_id: 0x068E,
-                product_id: 0x00AC,
-                product_name: "Basilisk V3 Pro",
-                transport: .bluetooth,
-                path_b64: "",
-                serial: nil,
-                firmware: nil,
-                profile_id: .basiliskV3Pro
-            ),
-            MouseDevice(
-                id: "bt-orochi",
-                vendor_id: 0x1532,
-                product_id: 0x0095,
-                product_name: "Orochi V2",
-                transport: .bluetooth,
-                path_b64: "",
-                serial: nil,
-                firmware: nil,
-                profile_id: .orochiV2
-            )
+            MouseDevice(id: "bt-v3x", vendor_id: 0x068E, product_id: 0x00BA, product_name: "Basilisk V3 X HyperSpeed", transport: .bluetooth, path_b64: "", serial: nil, firmware: nil, profile_id: .basiliskV3XHyperspeed),
+            MouseDevice(id: "bt-v3-pro", vendor_id: 0x068E, product_id: 0x00AC, product_name: "Basilisk V3 Pro", transport: .bluetooth, path_b64: "", serial: nil, firmware: nil, profile_id: .basiliskV3Pro),
+            MouseDevice(id: "bt-orochi", vendor_id: 0x1532, product_id: 0x0095, product_name: "Orochi V2", transport: .bluetooth, path_b64: "", serial: nil, firmware: nil, profile_id: .orochiV2)
         ]
 
         XCTAssertFalse(usbV3X.supportsSoftwareLightingEffects)
@@ -433,31 +348,13 @@ final class DeviceProfilesTests: XCTestCase {
     }
 
     func testPersistenceKeysPreferSerial() {
-        let device = MouseDevice(
-            id: "dev",
-            vendor_id: 0x1532,
-            product_id: 0x00B9,
-            product_name: "Mouse",
-            transport: .usb,
-            path_b64: "",
-            serial: "ABC123",
-            firmware: nil
-        )
+        let device = MouseDevice(id: "dev", vendor_id: 0x1532, product_id: 0x00B9, product_name: "Mouse", transport: .usb, path_b64: "", serial: "ABC123", firmware: nil)
         XCTAssertEqual(DevicePersistenceKeys.key(for: device), "serial:abc123")
         XCTAssertEqual(DevicePersistenceKeys.legacyKey(for: device), "dev")
     }
 
     func testPersistenceKeysIgnorePlaceholderZeroSerial() {
-        let device = MouseDevice(
-            id: "dev",
-            vendor_id: 0x1532,
-            product_id: 0x00AB,
-            product_name: "Mouse",
-            transport: .usb,
-            path_b64: "",
-            serial: "000000000000",
-            firmware: nil
-        )
+        let device = MouseDevice(id: "dev", vendor_id: 0x1532, product_id: 0x00AB, product_name: "Mouse", transport: .usb, path_b64: "", serial: "000000000000", firmware: nil)
 
         XCTAssertNil(DevicePersistenceKeys.normalizedStableSerial(device.serial))
         XCTAssertEqual(DevicePersistenceKeys.key(for: device), "vp:1532:00ab:usb")

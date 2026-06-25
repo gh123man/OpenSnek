@@ -11,15 +11,11 @@ enum ApplyReadbackPolicy: String, Codable, Sendable {
 struct ApplyOptions: Codable, Sendable {
     let readbackPolicy: ApplyReadbackPolicy
 
-    init(readbackPolicy: ApplyReadbackPolicy = .immediateStateReadback) {
-        self.readbackPolicy = readbackPolicy
-    }
+    init(readbackPolicy: ApplyReadbackPolicy = .immediateStateReadback) { self.readbackPolicy = readbackPolicy }
 }
 
 /// Defines the apply options supporting backend contract.
-protocol ApplyOptionsSupportingBackend: DeviceBackend {
-    func apply(device: MouseDevice, patch: DevicePatch, options: ApplyOptions) async throws -> MouseState
-}
+protocol ApplyOptionsSupportingBackend: DeviceBackend { func apply(device: MouseDevice, patch: DevicePatch, options: ApplyOptions) async throws -> MouseState }
 
 /// Carries apply request data.
 struct ApplyRequest: Codable, Sendable {
@@ -42,14 +38,10 @@ struct SoftwareLightingStartRequest: Codable, Sendable {
 }
 
 /// Carries software lighting status request data.
-struct SoftwareLightingStatusRequest: Codable, Sendable {
-    let deviceID: String
-}
+struct SoftwareLightingStatusRequest: Codable, Sendable { let deviceID: String }
 
 /// Carries software lighting stop request data.
-struct SoftwareLightingStopRequest: Codable, Sendable {
-    let device: MouseDevice
-}
+struct SoftwareLightingStopRequest: Codable, Sendable { let device: MouseDevice }
 
 /// Carries onboard profile ID request data.
 struct OnboardProfileIDRequest: Codable, Sendable {
@@ -93,9 +85,7 @@ struct StreamSubscriptionRequest: Codable, Sendable {
 }
 
 /// Defines background service stream client event values.
-enum BackgroundServiceStreamClientEvent: String, Codable, Sendable {
-    case clientPresence
-}
+enum BackgroundServiceStreamClientEvent: String, Codable, Sendable { case clientPresence }
 
 /// Wraps background service stream client payload data.
 struct BackgroundServiceStreamClientEnvelope: Codable, Sendable {
@@ -120,13 +110,9 @@ enum BackendCodec {
     static let encoder = JSONEncoder()
     static let decoder = JSONDecoder()
 
-    static func encode<T: Encodable>(_ value: T) throws -> Data {
-        try encoder.encode(value)
-    }
+    static func encode<T: Encodable>(_ value: T) throws -> Data { try encoder.encode(value) }
 
-    static func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
-        try decoder.decode(type, from: data)
-    }
+    static func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T { try decoder.decode(type, from: data) }
 }
 
 /// Defines background service method values.

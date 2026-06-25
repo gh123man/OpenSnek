@@ -2,8 +2,7 @@ import XCTest
 import OpenSnekCore
 
 /// Exercises turbo rate mapping behavior.
-@MainActor
-final class TurboRateMappingTests: XCTestCase {
+@MainActor final class TurboRateMappingTests: XCTestCase {
     func testTurboRawToPressesPerSecondExtremes() {
         XCTAssertEqual(ButtonBindingSupport.turboRawToPressesPerSecond(1), 20)
         XCTAssertEqual(ButtonBindingSupport.turboRawToPressesPerSecond(255), 1)

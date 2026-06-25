@@ -1,8 +1,7 @@
 import Foundation
 
 /// Stores weak bound data.
-@propertyWrapper
-struct WeakBound<Value: AnyObject> {
+@propertyWrapper struct WeakBound<Value: AnyObject> {
     private weak var storage: Value?
     private let ownerType: String
     private let dependencyLabel: String
@@ -13,17 +12,11 @@ struct WeakBound<Value: AnyObject> {
     }
 
     var wrappedValue: Value {
-        guard let storage else {
-            preconditionFailure("\(ownerType) accessed before \(dependencyLabel) was bound")
-        }
+        guard let storage else { preconditionFailure("\(ownerType) accessed before \(dependencyLabel) was bound") }
         return storage
     }
 
-    var optionalValue: Value? {
-        storage
-    }
+    var optionalValue: Value? { storage }
 
-    mutating func bind(_ value: Value) {
-        storage = value
-    }
+    mutating func bind(_ value: Value) { storage = value }
 }

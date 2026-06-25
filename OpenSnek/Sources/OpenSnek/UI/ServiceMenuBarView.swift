@@ -23,56 +23,35 @@ enum BatteryPresentation {
     static func icon(percent: Int, charging: Bool?, thresholdRaw: Int? = nil) -> BatteryIconPresentation {
         let clampedPercent = max(0, min(100, percent))
         let isLow = isLowBattery(percent: clampedPercent, charging: charging, thresholdRaw: thresholdRaw)
-        return BatteryIconPresentation(
-            symbolName: symbolName(percent: clampedPercent, charging: charging),
-            variableValue: tieredBatteryValue(percent: clampedPercent, charging: charging),
-            accent: isLow ? .low : .normal
-        )
+        return BatteryIconPresentation(symbolName: symbolName(percent: clampedPercent, charging: charging), variableValue: tieredBatteryValue(percent: clampedPercent, charging: charging), accent: isLow ? .low : .normal)
     }
 
     static func symbolName(percent: Int, charging: Bool?) -> String {
-        if charging == true {
-            return "battery.100percent.bolt"
-        }
+        if charging == true { return "battery.100percent.bolt" }
 
         switch percent {
-        case ..<13:
-            return "battery.0percent"
-        case ..<38:
-            return "battery.25percent"
-        case ..<63:
-            return "battery.50percent"
-        case ..<88:
-            return "battery.75percent"
-        default:
-            return "battery.100percent"
+        case ..<13: return "battery.0percent"
+        case ..<38: return "battery.25percent"
+        case ..<63: return "battery.50percent"
+        case ..<88: return "battery.75percent"
+        default: return "battery.100percent"
         }
     }
 
     static func tieredBatteryValue(percent: Int, charging: Bool?) -> Double {
-        if charging == true {
-            return Double(max(0, min(100, percent))) / 100.0
-        }
+        if charging == true { return Double(max(0, min(100, percent))) / 100.0 }
 
         switch percent {
-        case ..<13:
-            return 0.0
-        case ..<38:
-            return 0.25
-        case ..<63:
-            return 0.50
-        case ..<88:
-            return 0.75
-        default:
-            return 1.0
+        case ..<13: return 0.0
+        case ..<38: return 0.25
+        case ..<63: return 0.50
+        case ..<88: return 0.75
+        default: return 1.0
         }
     }
 
     static func isLowBattery(percent: Int, charging: Bool?, thresholdRaw: Int?) -> Bool {
-        guard charging != true,
-              let thresholdPercent = approximateThresholdPercent(raw: thresholdRaw) else {
-            return false
-        }
+        guard charging != true, let thresholdPercent = approximateThresholdPercent(raw: thresholdRaw) else { return false }
         return max(0, min(100, percent)) <= thresholdPercent
     }
 
@@ -92,20 +71,11 @@ enum ServiceMenuBarPresentation {
         case split(DpiPair)
     }
 
-    static func batteryIcon(percent: Int, charging: Bool?, thresholdRaw: Int? = nil) -> BatteryIconPresentation {
-        BatteryPresentation.icon(percent: percent, charging: charging, thresholdRaw: thresholdRaw)
-    }
+    static func batteryIcon(percent: Int, charging: Bool?, thresholdRaw: Int? = nil) -> BatteryIconPresentation { BatteryPresentation.icon(percent: percent, charging: charging, thresholdRaw: thresholdRaw) }
 
     static func statusGlyphBatteryIcon(state: MouseState?) -> BatteryIconPresentation? {
-        guard let state,
-              let percent = state.battery_percent else {
-            return nil
-        }
-        let icon = batteryIcon(
-            percent: percent,
-            charging: state.charging,
-            thresholdRaw: state.low_battery_threshold_raw
-        )
+        guard let state, let percent = state.battery_percent else { return nil }
+        let icon = batteryIcon(percent: percent, charging: state.charging, thresholdRaw: state.low_battery_threshold_raw)
         return icon.accent == .low ? icon : nil
     }
 
@@ -116,22 +86,15 @@ enum ServiceMenuBarPresentation {
         let thousands = Double(dpi) / 1000.0
         if dpi < 10_000 {
             let rounded = (thousands * 10).rounded() / 10
-            if rounded == rounded.rounded() {
-                return "\(Int(rounded))k"
-            }
+            if rounded == rounded.rounded() { return "\(Int(rounded))k" }
             return String(format: "%.1fk", rounded)
         }
 
         return "\(Int(thousands.rounded()))k"
     }
 
-    static func compactDpiControlMode(
-        for pair: DpiPair,
-        supportsIndependentXYDPI: Bool
-    ) -> CompactDpiControlMode {
-        guard supportsIndependentXYDPI, pair.x != pair.y else {
-            return .scalar(pair.x)
-        }
+    static func compactDpiControlMode(for pair: DpiPair, supportsIndependentXYDPI: Bool) -> CompactDpiControlMode {
+        guard supportsIndependentXYDPI, pair.x != pair.y else { return .scalar(pair.x) }
         return .split(pair)
     }
 }
@@ -144,17 +107,11 @@ struct ServiceMenuBarView: View {
     let editorStore: EditorStore
     let runtimeStore: RuntimeStore
 
-    private var showsDeviceControls: Bool {
-        deviceStore.selectedDevice != nil && deviceStore.state != nil
-    }
+    private var showsDeviceControls: Bool { deviceStore.selectedDevice != nil && deviceStore.state != nil }
 
-    private var controlsEnabled: Bool {
-        deviceStore.selectedDeviceControlsEnabled
-    }
+    private var controlsEnabled: Bool { deviceStore.selectedDeviceControlsEnabled }
 
-    private var showsDevicePicker: Bool {
-        deviceStore.devices.count > 1
-    }
+    private var showsDevicePicker: Bool { deviceStore.devices.count > 1 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -162,230 +119,120 @@ struct ServiceMenuBarView: View {
             statusRow
             if showsDeviceControls {
                 VStack(alignment: .leading, spacing: 10) {
-                    if !controlsEnabled, let message = deviceStore.selectedDeviceInteractionMessage {
-                        Text(message)
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(.secondary)
-                    }
+                    if !controlsEnabled, let message = deviceStore.selectedDeviceInteractionMessage { Text(message).font(.system(size: 11, weight: .bold, design: .rounded)).foregroundStyle(.secondary) }
 
                     VStack(alignment: .leading, spacing: 14) {
                         stagePicker
                         dpiSlider
-                    }
-                    .disabled(!controlsEnabled)
-                    .opacity(controlsEnabled ? 1.0 : 0.45)
+                    }.disabled(!controlsEnabled).opacity(controlsEnabled ? 1.0 : 0.45)
 
-                    if let message = runtimeStore.compactStatusMessage {
-                        Text(message)
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(.secondary)
-                    }
+                    if let message = runtimeStore.compactStatusMessage { Text(message).font(.system(size: 11, weight: .bold, design: .rounded)).foregroundStyle(.secondary) }
                 }
             } else if let message = deviceStore.selectedDeviceInteractionMessage {
-                Text(message)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
+                Text(message).font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
             } else {
-                Text("Connect a supported mouse to edit DPI from the menu bar.")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
+                Text("Connect a supported mouse to edit DPI from the menu bar.").font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
             }
             Divider()
-            actionRow("Show OpenSnek", systemImage: "rectangle.on.rectangle") {
-                runtimeStore.openFullAppFromService()
-            }
-            actionRow("Settings…", systemImage: "gearshape") {
-                runtimeStore.openSettingsFromService()
-            }
-            toggleRow("Start at login", systemImage: "checkmark.circle", isOn: Binding(
-                get: { runtimeStore.launchAtStartupEnabled },
-                set: { runtimeStore.setLaunchAtStartupEnabled($0) }
-            ))
-            actionRow("Quit", systemImage: "power") {
-                runtimeStore.terminateServiceProcess()
-            }
-        }
-        .padding(16)
-        .frame(width: 320)
-        .task {
+            actionRow("Show OpenSnek", systemImage: "rectangle.on.rectangle") { runtimeStore.openFullAppFromService() }
+            actionRow("Settings…", systemImage: "gearshape") { runtimeStore.openSettingsFromService() }
+            toggleRow("Start at login", systemImage: "checkmark.circle", isOn: Binding(get: { runtimeStore.launchAtStartupEnabled }, set: { runtimeStore.setLaunchAtStartupEnabled($0) }))
+            actionRow("Quit", systemImage: "power") { runtimeStore.terminateServiceProcess() }
+        }.padding(16).frame(width: 320).task {
             await runtimeStore.start()
             await refreshCompactMenuDiagnostics()
-        }
-        .task(id: deviceStore.selectedDeviceID) {
-            await refreshCompactMenuDiagnostics()
-        }
-        .onAppear {
+        }.task(id: deviceStore.selectedDeviceID) { await refreshCompactMenuDiagnostics() }.onAppear {
             runtimeStore.setCompactMenuPresented(true)
-            Task {
-                await refreshCompactMenuDiagnostics()
-            }
-        }
-        .onDisappear {
-            runtimeStore.setCompactMenuPresented(false)
-        }
+            Task { await refreshCompactMenuDiagnostics() }
+        }.onDisappear { runtimeStore.setCompactMenuPresented(false) }
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: showsDevicePicker ? 8 : 3) {
             if showsDevicePicker {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Device")
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .foregroundStyle(.secondary)
+                    Text("Device").font(.system(size: 10, weight: .bold, design: .rounded)).foregroundStyle(.secondary)
                     Menu {
                         ForEach(deviceStore.devices) { device in
                             Button {
                                 deviceStore.selectDevice(device.id)
                             } label: {
-                                if device.id == deviceStore.selectedDeviceID {
-                                    Label(devicePickerTitle(for: device), systemImage: "checkmark")
-                                } else {
-                                    Text(devicePickerTitle(for: device))
-                                }
+                                if device.id == deviceStore.selectedDeviceID { Label(devicePickerTitle(for: device), systemImage: "checkmark") } else { Text(devicePickerTitle(for: device)) }
                             }
                         }
                     } label: {
                         HStack(spacing: 10) {
-                            Text(selectedDevicePickerTitle)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
+                            Text(selectedDevicePickerTitle).lineLimit(1).minimumScaleFactor(0.8)
 
                             Spacer(minLength: 8)
 
-                            Image(systemName: "chevron.up.chevron.down")
-                                .font(.system(size: 11, weight: .black))
-                                .foregroundStyle(.secondary)
-                        }
-                        .font(.system(size: 15, weight: .black, design: .rounded))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 9)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color.primary.opacity(0.04))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                                )
-                        )
-                        .contentShape(RoundedRectangle(cornerRadius: 10))
-                    }
-                    .menuStyle(.borderlessButton)
-                    .menuIndicator(.hidden)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                            Image(systemName: "chevron.up.chevron.down").font(.system(size: 11, weight: .black)).foregroundStyle(.secondary)
+                        }.font(.system(size: 15, weight: .black, design: .rounded)).padding(.horizontal, 12).padding(.vertical, 9).frame(maxWidth: .infinity, alignment: .leading).background(
+                            RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.04)).overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.08), lineWidth: 1))
+                        ).contentShape(RoundedRectangle(cornerRadius: 10))
+                    }.menuStyle(.borderlessButton).menuIndicator(.hidden).frame(maxWidth: .infinity, alignment: .leading)
                 }
             } else {
-                Text(deviceStore.selectedDevice?.product_name ?? "No device connected")
-                    .font(.system(size: 15, weight: .black, design: .rounded))
+                Text(deviceStore.selectedDevice?.product_name ?? "No device connected").font(.system(size: 15, weight: .black, design: .rounded))
             }
-            Text(deviceStore.selectedDevice?.connectionLabel ?? "Waiting for a supported mouse")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+            Text(deviceStore.selectedDevice?.connectionLabel ?? "Waiting for a supported mouse").font(.system(size: 11, weight: .bold, design: .rounded)).foregroundStyle(.secondary)
+        }.frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var statusRow: some View {
         HStack(spacing: 10) {
-            Label(deviceStore.currentDeviceStatusIndicator.label, systemImage: "circle.fill")
-                .foregroundStyle(deviceStore.currentDeviceStatusIndicator.color)
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .help(deviceStore.currentDeviceStatusTooltip ?? "")
+            Label(deviceStore.currentDeviceStatusIndicator.label, systemImage: "circle.fill").foregroundStyle(deviceStore.currentDeviceStatusIndicator.color).font(.system(size: 11, weight: .bold, design: .rounded)).help(deviceStore.currentDeviceStatusTooltip ?? "")
 
             Spacer()
 
             if let battery = deviceStore.state?.battery_percent {
-                let batteryIcon = ServiceMenuBarPresentation.batteryIcon(
-                    percent: battery,
-                    charging: deviceStore.state?.charging,
-                    thresholdRaw: deviceStore.state?.low_battery_threshold_raw
-                )
+                let batteryIcon = ServiceMenuBarPresentation.batteryIcon(percent: battery, charging: deviceStore.state?.charging, thresholdRaw: deviceStore.state?.low_battery_threshold_raw)
                 HStack(spacing: 4) {
-                    Image(
-                        systemName: batteryIcon.symbolName,
-                        variableValue: batteryIcon.variableValue
-                    )
+                    Image(systemName: batteryIcon.symbolName, variableValue: batteryIcon.variableValue)
                     Text("\(battery)%")
-                }
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                .foregroundStyle(batteryIcon.accent == .low ? BatteryPresentation.lowBatteryColor : .secondary)
+                }.font(.system(size: 11, weight: .bold, design: .monospaced)).foregroundStyle(batteryIcon.accent == .low ? BatteryPresentation.lowBatteryColor : .secondary)
             }
         }
     }
 
-    private var stagePicker: some View {
-        HStack(spacing: 8) {
-            ForEach(0..<max(1, editorStore.editableStageCount), id: \.self) { index in
-                let stage = index + 1
-                let stagePair = editorStore.stagePair(index)
-                let isSelected = editorStore.editableActiveStage == stage
-                CompactStagePickerButton(
-                    title: stageDisplayText(stagePair),
-                    isSelected: isSelected
-                ) {
-                    if !isSelected {
-                        editorStore.setEditableActiveStage(stage, source: "ui.menu.stagePicker")
-                        editorStore.scheduleAutoApplyActiveStage()
-                    }
-                }
-            }
+    private var stagePicker: some View { HStack(spacing: 8) { ForEach(0..<stagePickerCount, id: \.self) { index in stagePickerButton(index: index) } } }
+
+    private var stagePickerCount: Int { max(1, editorStore.editableStageCount) }
+
+    private func stagePickerButton(index: Int) -> some View {
+        let stage = index + 1
+        let stagePair = editorStore.stagePair(index)
+        let isSelected = editorStore.editableActiveStage == stage
+        return CompactStagePickerButton(title: stageDisplayText(stagePair), isSelected: isSelected) {
+            guard !isSelected else { return }
+            editorStore.setEditableActiveStage(stage, source: "ui.menu.stagePicker")
+            editorStore.scheduleAutoApplyActiveStage()
         }
     }
 
     private var selectedDevicePickerTitle: String {
-        guard let selected = deviceStore.selectedDevice else {
-            return "No device connected"
-        }
+        guard let selected = deviceStore.selectedDevice else { return "No device connected" }
         return devicePickerTitle(for: selected)
     }
 
-    private func devicePickerTitle(for device: MouseDevice) -> String {
-        "\(device.product_name) (\(device.transport.shortLabel))"
-    }
+    private func devicePickerTitle(for device: MouseDevice) -> String { "\(device.product_name) (\(device.transport.shortLabel))" }
 
     private var dpiSlider: some View {
         let profileID = editorStore.selectedDeviceProfileID
         let activePair = editorStore.stagePair(editorStore.compactActiveStageIndex)
-        let controlMode = ServiceMenuBarPresentation.compactDpiControlMode(
-            for: activePair,
-            supportsIndependentXYDPI: editorStore.selectedDeviceSupportsIndependentXYDPI
-        )
+        let controlMode = ServiceMenuBarPresentation.compactDpiControlMode(for: activePair, supportsIndependentXYDPI: editorStore.selectedDeviceSupportsIndependentXYDPI)
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(dpiSliderTitle(for: controlMode))
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                Text(dpiSliderTitle(for: controlMode)).font(.system(size: 12, weight: .bold, design: .rounded))
                 Spacer()
-                Text(dpiSliderValueText(for: controlMode))
-                    .font(.system(size: 12, weight: .black, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                Text(dpiSliderValueText(for: controlMode)).font(.system(size: 12, weight: .black, design: .monospaced)).foregroundStyle(.secondary)
             }
             switch controlMode {
-            case .scalar:
-                compactDpiSlider(
-                    currentValue: { editorStore.stageValue(editorStore.compactActiveStageIndex) },
-                    update: { value in
-                        editorStore.updateStage(editorStore.compactActiveStageIndex, value: value)
-                    },
-                    profileID: profileID
-                )
+            case .scalar: compactDpiSlider(currentValue: { editorStore.stageValue(editorStore.compactActiveStageIndex) }, update: { value in editorStore.updateStage(editorStore.compactActiveStageIndex, value: value) }, profileID: profileID)
             case .split:
                 VStack(alignment: .leading, spacing: 10) {
-                    compactDpiAxisSlider(
-                        axisLabel: "X",
-                        currentValue: { editorStore.stagePair(editorStore.compactActiveStageIndex).x },
-                        update: { value in
-                            editorStore.updateStageX(editorStore.compactActiveStageIndex, value: value)
-                        },
-                        profileID: profileID
-                    )
-                    compactDpiAxisSlider(
-                        axisLabel: "Y",
-                        currentValue: { editorStore.stagePair(editorStore.compactActiveStageIndex).y },
-                        update: { value in
-                            editorStore.updateStageY(editorStore.compactActiveStageIndex, value: value)
-                        },
-                        profileID: profileID
-                    )
+                    compactDpiAxisSlider(axisLabel: "X", currentValue: { editorStore.stagePair(editorStore.compactActiveStageIndex).x }, update: { value in editorStore.updateStageX(editorStore.compactActiveStageIndex, value: value) }, profileID: profileID)
+                    compactDpiAxisSlider(axisLabel: "Y", currentValue: { editorStore.stagePair(editorStore.compactActiveStageIndex).y }, update: { value in editorStore.updateStageY(editorStore.compactActiveStageIndex, value: value) }, profileID: profileID)
                 }
             }
         }
@@ -393,51 +240,30 @@ struct ServiceMenuBarView: View {
 
     private func dpiSliderTitle(for mode: ServiceMenuBarPresentation.CompactDpiControlMode) -> String {
         switch mode {
-        case .scalar:
-            return "Stage \(editorStore.editableActiveStage) DPI"
-        case .split:
-            return "Stage \(editorStore.editableActiveStage) X/Y DPI"
+        case .scalar: return "Stage \(editorStore.editableActiveStage) DPI"
+        case .split: return "Stage \(editorStore.editableActiveStage) X/Y DPI"
         }
     }
 
     private func dpiSliderValueText(for mode: ServiceMenuBarPresentation.CompactDpiControlMode) -> String {
         switch mode {
-        case .scalar(let value):
-            return "\(value)"
-        case .split(let pair):
-            return stageDisplayText(pair)
+        case .scalar(let value): return "\(value)"
+        case .split(let pair): return stageDisplayText(pair)
         }
     }
 
-    private func compactDpiAxisSlider(
-        axisLabel: String,
-        currentValue: @escaping () -> Int,
-        update: @escaping (Int) -> Void,
-        profileID: DeviceProfileID?
-    ) -> some View {
+    private func compactDpiAxisSlider(axisLabel: String, currentValue: @escaping () -> Int, update: @escaping (Int) -> Void, profileID: DeviceProfileID?) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
-                Text(axisLabel)
-                    .font(.system(size: 10, weight: .black, design: .rounded))
-                    .foregroundStyle(.secondary)
+                Text(axisLabel).font(.system(size: 10, weight: .black, design: .rounded)).foregroundStyle(.secondary)
                 Spacer()
-                Text("\(currentValue())")
-                    .font(.system(size: 11, weight: .black, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                Text("\(currentValue())").font(.system(size: 11, weight: .black, design: .monospaced)).foregroundStyle(.secondary)
             }
-            compactDpiSlider(
-                currentValue: currentValue,
-                update: update,
-                profileID: profileID
-            )
+            compactDpiSlider(currentValue: currentValue, update: update, profileID: profileID)
         }
     }
 
-    private func compactDpiSlider(
-        currentValue: @escaping () -> Int,
-        update: @escaping (Int) -> Void,
-        profileID: DeviceProfileID?
-    ) -> some View {
+    private func compactDpiSlider(currentValue: @escaping () -> Int, update: @escaping (Int) -> Void, profileID: DeviceProfileID?) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Slider(
                 value: Binding(
@@ -445,77 +271,37 @@ struct ServiceMenuBarView: View {
                     set: { newPosition in
                         update(DeviceProfiles.dpi(forSliderPosition: newPosition, profileID: profileID))
                         editorStore.scheduleAutoApplyDpi()
-                    }
-                ),
-                in: 0...1,
-                onEditingChanged: { editing in
-                    editorStore.isEditingDpiControl = editing
-                }
-            )
-            DpiSliderScaleMarkers(
-                profileID: profileID,
-                markerColor: Color.primary.opacity(0.78),
-                compact: true
-            )
+                    }), in: 0...1, onEditingChanged: { editing in editorStore.isEditingDpiControl = editing })
+            DpiSliderScaleMarkers(profileID: profileID, markerColor: Color.primary.opacity(0.78), compact: true)
         }
     }
 
     private func stageDisplayText(_ pair: DpiPair) -> String {
-        if editorStore.selectedDeviceSupportsIndependentXYDPI, pair.x != pair.y {
-            return "\(pair.x)/\(pair.y)"
-        }
+        if editorStore.selectedDeviceSupportsIndependentXYDPI, pair.x != pair.y { return "\(pair.x)/\(pair.y)" }
         return "\(pair.x)"
     }
 
     private func actionRow(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Text(title)
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                Image(systemName: systemImage).font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
+                Text(title).font(.system(size: 12, weight: .bold, design: .rounded))
                 Spacer()
-            }
-            .padding(.horizontal, 10)
-            .frame(height: Self.menuActionRowHeight)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.primary.opacity(0.04))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                    )
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 10))
-        }
-        .buttonStyle(.plain)
+            }.padding(.horizontal, 10).frame(height: Self.menuActionRowHeight).frame(maxWidth: .infinity, alignment: .leading).background(
+                RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.04)).overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.08), lineWidth: 1))
+            ).contentShape(RoundedRectangle(cornerRadius: 10))
+        }.buttonStyle(.plain)
     }
 
     private func toggleRow(_ title: String, systemImage: String, isOn: Binding<Bool>) -> some View {
         Toggle(isOn: isOn) {
             HStack(spacing: 10) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Text(title)
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                Image(systemName: systemImage).font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
+                Text(title).font(.system(size: 12, weight: .bold, design: .rounded))
                 Spacer()
             }
-        }
-        .toggleStyle(.switch)
-        .padding(.horizontal, 10)
-        .frame(height: Self.menuActionRowHeight)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.primary.opacity(0.04))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                )
-        )
+        }.toggleStyle(.switch).padding(.horizontal, 10).frame(height: Self.menuActionRowHeight).frame(maxWidth: .infinity, alignment: .leading).background(
+            RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.04)).overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.08), lineWidth: 1)))
     }
 
     private func refreshCompactMenuDiagnostics() async {
@@ -533,34 +319,15 @@ private struct CompactStagePickerButton: View {
     let isSelected: Bool
     let action: () -> Void
 
-    var body: some View {
-        Button(action: action) {
-            stageLabel
-        }
-        .buttonStyle(.plain)
-    }
+    var body: some View { Button(action: action) { stageLabel }.buttonStyle(.plain) }
 
     private var stageLabel: some View {
-        Text(title)
-            .font(.system(size: 11, weight: .black, design: .rounded))
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-            .foregroundStyle(isSelected ? Color.accentColor : .primary)
-            .frame(maxWidth: .infinity, minHeight: 34)
-            .background(stageBackground)
-            .overlay(stageBorder)
-            .contentShape(Capsule())
+        Text(title).font(.system(size: 11, weight: .black, design: .rounded)).lineLimit(1).minimumScaleFactor(0.7).foregroundStyle(isSelected ? Color.accentColor : .primary).frame(maxWidth: .infinity, minHeight: 34).background(stageBackground).overlay(stageBorder).contentShape(Capsule())
     }
 
-    private var stageBackground: some View {
-        Capsule()
-            .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.06))
-    }
+    private var stageBackground: some View { Capsule().fill(isSelected ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.06)) }
 
-    private var stageBorder: some View {
-        Capsule()
-            .stroke(isSelected ? Color.accentColor : Color.primary.opacity(0.10), lineWidth: 1)
-    }
+    private var stageBorder: some View { Capsule().stroke(isSelected ? Color.accentColor : Color.primary.opacity(0.10), lineWidth: 1) }
 }
 
 /// Stores service menu bar status item label data.
@@ -572,9 +339,7 @@ struct ServiceMenuBarStatusItemLabel: View {
     private var currentDpi: Int? {
         guard deviceStore.state != nil else { return nil }
 
-        if let liveDpi = deviceStore.state?.dpi?.x, liveDpi > 0 {
-            return liveDpi
-        }
+        if let liveDpi = deviceStore.state?.dpi?.x, liveDpi > 0 { return liveDpi }
 
         let fallback = editorStore.compactActiveStageValue
         return fallback > 0 ? fallback : nil
@@ -590,34 +355,22 @@ struct ServiceMenuBarStatusItemLabel: View {
                 // FB10185325, orchetect/MenuBarExtraAccess#1). Suppress it.
                 SpuriousStatusItemSuppressor()
             }
-        }
-        .help(helpText)
-        .accessibilityLabel(helpText)
+        }.help(helpText).accessibilityLabel(helpText)
     }
 
     private var serviceLabel: some View {
         Group {
             if let transientDpi = runtimeStore.statusItemTransientDpi {
-                ServiceMenuBarStatusDpiBadge(dpi: transientDpi)
-                    .frame(width: OpenSnekBranding.menuBarIconSide, height: OpenSnekBranding.menuBarIconSide)
+                ServiceMenuBarStatusDpiBadge(dpi: transientDpi).frame(width: OpenSnekBranding.menuBarIconSide, height: OpenSnekBranding.menuBarIconSide)
             } else {
-                ServiceMenuBarStatusGlyph(
-                    isConnected: deviceStore.selectedDevice != nil,
-                    batteryPresentation: ServiceMenuBarPresentation.statusGlyphBatteryIcon(state: deviceStore.state)
-                )
-                    .frame(height: OpenSnekBranding.menuBarIconSide)
-                    .fixedSize()
+                ServiceMenuBarStatusGlyph(isConnected: deviceStore.selectedDevice != nil, batteryPresentation: ServiceMenuBarPresentation.statusGlyphBatteryIcon(state: deviceStore.state)).frame(height: OpenSnekBranding.menuBarIconSide).fixedSize()
             }
         }
     }
 
     private var helpText: String {
-        if let device = deviceStore.selectedDevice, let currentDpi {
-            return "\(device.product_name), \(currentDpi) DPI"
-        }
-        if let device = deviceStore.selectedDevice {
-            return device.product_name
-        }
+        if let device = deviceStore.selectedDevice, let currentDpi { return "\(device.product_name), \(currentDpi) DPI" }
+        if let device = deviceStore.selectedDevice { return device.product_name }
         return "OpenSnek"
     }
 }
@@ -626,11 +379,7 @@ struct ServiceMenuBarStatusItemLabel: View {
 private struct ServiceMenuBarStatusDpiBadge: View {
     let dpi: Int
 
-    var body: some View {
-        Image(nsImage: OpenSnekBranding.menuBarDpiBadge(dpi: dpi))
-            .interpolation(.high)
-            .antialiased(true)
-    }
+    var body: some View { Image(nsImage: OpenSnekBranding.menuBarDpiBadge(dpi: dpi)).interpolation(.high).antialiased(true) }
 }
 
 /// Hides the status-item window that SwiftUI's MenuBarExtra erroneously
@@ -649,9 +398,7 @@ private struct ServiceMenuBarStatusDpiBadge: View {
 /// If the status item is never created (bug doesn't manifest), this view
 /// is never rendered, so it's a no-op in that case.
 private struct SpuriousStatusItemSuppressor: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        SuppressorView()
-    }
+    func makeNSView(context: Context) -> NSView { SuppressorView() }
 
     func updateNSView(_ nsView: NSView, context: Context) {}
 
@@ -687,61 +434,38 @@ private struct ServiceMenuBarStatusGlyph: View {
     let isConnected: Bool
     let batteryPresentation: BatteryIconPresentation?
 
-    private var iconOpacity: Double {
-        isConnected ? 0.88 : 0.46
-    }
+    private var iconOpacity: Double { isConnected ? 0.88 : 0.46 }
 
     private var statusImage: NSImage? {
-        if let batteryPresentation {
-            return OpenSnekBranding.menuBarSymbolIcon(
-                symbolName: batteryPresentation.symbolName,
-                color: BatteryPresentation.lowBatteryNSColor
-            )
-        }
+        if let batteryPresentation { return OpenSnekBranding.menuBarSymbolIcon(symbolName: batteryPresentation.symbolName, color: BatteryPresentation.lowBatteryNSColor) }
         return OpenSnekBranding.menuIcon
     }
 
     private var statusImageID: String {
-        if let batteryPresentation {
-            return "battery:\(batteryPresentation.symbolName)"
-        }
+        if let batteryPresentation { return "battery:\(batteryPresentation.symbolName)" }
         return "menu"
     }
 
     private var statusImageWidth: CGFloat {
-        if let batteryPresentation {
-            return OpenSnekBranding.menuBarSymbolWidth(symbolName: batteryPresentation.symbolName)
-        }
+        if let batteryPresentation { return OpenSnekBranding.menuBarSymbolWidth(symbolName: batteryPresentation.symbolName) }
         return OpenSnekBranding.menuBarIconSide
     }
 
     var body: some View {
         Group {
             if let statusImage {
-                Image(nsImage: statusImage)
-                    .interpolation(.high)
-                    .antialiased(true)
-                    .id(statusImageID)
+                Image(nsImage: statusImage).interpolation(.high).antialiased(true).id(statusImageID)
             } else {
                 ZStack {
-                    Circle()
-                        .stroke(Color.primary.opacity(iconOpacity), lineWidth: 1.2)
+                    Circle().stroke(Color.primary.opacity(iconOpacity), lineWidth: 1.2)
 
-                    Rectangle()
-                        .fill(Color.primary.opacity(iconOpacity))
-                        .frame(width: 1, height: 11)
+                    Rectangle().fill(Color.primary.opacity(iconOpacity)).frame(width: 1, height: 11)
 
-                    Rectangle()
-                        .fill(Color.primary.opacity(iconOpacity))
-                        .frame(width: 11, height: 1)
+                    Rectangle().fill(Color.primary.opacity(iconOpacity)).frame(width: 11, height: 1)
 
-                    Circle()
-                        .fill(Color.primary.opacity(iconOpacity))
-                        .frame(width: 3.5, height: 3.5)
+                    Circle().fill(Color.primary.opacity(iconOpacity)).frame(width: 3.5, height: 3.5)
                 }
             }
-        }
-        .opacity(iconOpacity)
-        .frame(width: statusImageWidth, height: OpenSnekBranding.menuBarIconSide)
+        }.opacity(iconOpacity).frame(width: statusImageWidth, height: OpenSnekBranding.menuBarIconSide)
     }
 }

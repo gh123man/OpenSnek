@@ -8,19 +8,12 @@ struct OnConnectBehaviorCard: View {
     let editorStore: EditorStore
     @State private var showsExpandedInfo = false
 
-    private var connectBehaviorBinding: Binding<DeviceConnectBehavior> {
-        Binding(
-            get: { editorStore.connectBehavior },
-            set: { editorStore.updateConnectBehavior($0) }
-        )
-    }
+    private var connectBehaviorBinding: Binding<DeviceConnectBehavior> { Binding(get: { editorStore.connectBehavior }, set: { editorStore.updateConnectBehavior($0) }) }
 
     private var selectedDescription: String {
         switch editorStore.connectBehavior {
-        case .useMouseSettings:
-            return "OpenSnek reads the current settings from the mouse when it connects and does not rewrite them automatically."
-        case .restoreOpenSnekSettings:
-            return "OpenSnek reapplies the last profile you changed here when this mouse connects."
+        case .useMouseSettings: return "OpenSnek reads the current settings from the mouse when it connects and does not rewrite them automatically."
+        case .restoreOpenSnekSettings: return "OpenSnek reapplies the last profile you changed here when this mouse connects."
         }
     }
 
@@ -30,32 +23,19 @@ struct OnConnectBehaviorCard: View {
                 Picker("On Connect Behavior", selection: connectBehaviorBinding) {
                     Text("Use Mouse Settings").tag(DeviceConnectBehavior.useMouseSettings)
                     Text("Restore Last Profile").tag(DeviceConnectBehavior.restoreOpenSnekSettings)
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("on-connect-picker")
+                }.labelsHidden().pickerStyle(.segmented).accessibilityIdentifier("on-connect-picker")
 
                 HStack(alignment: .top, spacing: 10) {
-                    Text(selectedDescription)
-                        .hintTextStyle()
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(selectedDescription).hintTextStyle().frame(maxWidth: .infinity, alignment: .leading)
 
                     Button {
                         showsExpandedInfo.toggle()
                     } label: {
-                        Image(systemName: showsExpandedInfo ? "info.circle.fill" : "info.circle")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.72))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(showsExpandedInfo ? "Hide on connect details" : "Show on connect details")
-                    .accessibilityIdentifier("on-connect-details-button")
+                        Image(systemName: showsExpandedInfo ? "info.circle.fill" : "info.circle").font(.system(size: 13, weight: .semibold)).foregroundStyle(.white.opacity(0.72))
+                    }.buttonStyle(.plain).accessibilityLabel(showsExpandedInfo ? "Hide on connect details" : "Show on connect details").accessibilityIdentifier("on-connect-details-button")
                 }
 
-                if showsExpandedInfo {
-                    Text("Choose Restore Last Profile if you use this mouse with another computer or with Synapse. Vendor software can overwrite the live settings on reconnect, and this restores your OpenSnek setup.")
-                        .hintTextStyle()
-                }
+                if showsExpandedInfo { Text("Choose Restore Last Profile if you use this mouse with another computer or with Synapse. Vendor software can overwrite the live settings on reconnect, and this restores your OpenSnek setup.").hintTextStyle() }
             }
         }
     }
@@ -69,29 +49,10 @@ struct PollRateCard: View {
     var body: some View {
         Card(title: "Polling Rate", accessibilityIdentifier: "poll-rate-card") {
             LabeledControlRow(title: "Rate") {
-                Picker(
-                    "Rate",
-                    selection: Binding(
-                        get: { editorStore.editablePollRate },
-                        set: { editorStore.editablePollRate = $0 }
-                    )
-                ) {
-                    ForEach(pollRates, id: \.self) { rate in
-                        Text("\(rate) Hz")
-                            .tag(rate)
-                            .accessibilityIdentifier("poll-rate-option-\(rate)")
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .frame(width: 220, alignment: .trailing)
-                .accessibilityLabel("Polling Rate")
-                .accessibilityIdentifier("poll-rate-picker")
+                Picker("Rate", selection: Binding(get: { editorStore.editablePollRate }, set: { editorStore.editablePollRate = $0 })) { ForEach(pollRates, id: \.self) { rate in Text("\(rate) Hz").tag(rate).accessibilityIdentifier("poll-rate-option-\(rate)") } }.labelsHidden().pickerStyle(.segmented)
+                    .frame(width: 220, alignment: .trailing).accessibilityLabel("Polling Rate").accessibilityIdentifier("poll-rate-picker")
             }
-        }
-        .onChange(of: editorStore.editablePollRate) { _, _ in
-            editorStore.scheduleAutoApplyPollRate()
-        }
+        }.onChange(of: editorStore.editablePollRate) { _, _ in editorStore.scheduleAutoApplyPollRate() }
     }
 }
 
@@ -102,13 +63,9 @@ struct SleepTimeoutCard: View {
     var body: some View {
         Card(title: "Power Management", accessibilityIdentifier: "power-management-card") {
             HStack {
-                Text("Sleep timeout")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.85))
+                Text("Sleep timeout").font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(.white.opacity(0.85))
                 Spacer()
-                Text(formatTimeout(editorStore.editableSleepTimeout))
-                    .font(.system(size: 13, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.white)
+                Text(formatTimeout(editorStore.editableSleepTimeout)).font(.system(size: 13, weight: .bold, design: .monospaced)).foregroundStyle(.white)
             }
 
             Slider(
@@ -118,11 +75,8 @@ struct SleepTimeoutCard: View {
                         let quantized = Int(round(newValue / 15.0) * 15.0)
                         editorStore.editableSleepTimeout = max(60, min(900, quantized))
                         editorStore.scheduleAutoApplySleepTimeout()
-                    }
-                ),
-                in: 60...900
-            )
-            .accessibilityIdentifier("sleep-timeout-slider")
+                    }), in: 60...900
+            ).accessibilityIdentifier("sleep-timeout-slider")
         }
     }
 
@@ -141,36 +95,26 @@ struct LowBatteryThresholdCard: View {
     var body: some View {
         Card(title: "Low Battery Threshold", accessibilityIdentifier: "low-battery-threshold-card") {
             HStack {
-                Text("Threshold")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.82))
+                Text("Threshold").font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(.white.opacity(0.82))
                 Spacer()
                 let raw = max(0x0C, min(0x3F, editorStore.editableLowBatteryThresholdRaw))
-                Text("~\(approxPercent(raw))%")
-                    .font(.system(size: 13, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.white)
+                Text("~\(approxPercent(raw))%").font(.system(size: 13, weight: .bold, design: .monospaced)).foregroundStyle(.white)
             }
 
             Slider(
                 value: Binding(
-                    get: { Double(max(0x0C, min(0x3F, editorStore.editableLowBatteryThresholdRaw)) ) },
+                    get: { Double(max(0x0C, min(0x3F, editorStore.editableLowBatteryThresholdRaw))) },
                     set: { newValue in
                         editorStore.editableLowBatteryThresholdRaw = max(0x0C, min(0x3F, Int(round(newValue))))
                         editorStore.scheduleAutoApplyLowBatteryThreshold()
-                    }
-                ),
-                in: Double(0x0C)...Double(0x3F)
-            )
-            .accessibilityIdentifier("low-battery-threshold-slider")
+                    }), in: Double(0x0C)...Double(0x3F)
+            ).accessibilityIdentifier("low-battery-threshold-slider")
 
-            Text("Approximate warning level")
-                .hintTextStyle()
+            Text("Approximate warning level").hintTextStyle()
         }
     }
 
-    private func approxPercent(_ raw: Int) -> Int {
-        BatteryPresentation.approximateThresholdPercent(raw: raw) ?? 5
-    }
+    private func approxPercent(_ raw: Int) -> Int { BatteryPresentation.approximateThresholdPercent(raw: raw) ?? 5 }
 }
 
 /// Renders the scroll controls card UI.
@@ -190,16 +134,11 @@ struct ScrollControlsCard: View {
                                 set: {
                                     editorStore.editableScrollMode = ($0 == 1 ? 1 : 0)
                                     editorStore.scheduleAutoApplyScrollMode()
-                                }
-                            )
+                                })
                         ) {
                             Text("Tactile").tag(0)
                             Text("Free Spin").tag(1)
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.segmented)
-                        .frame(width: 220, alignment: .trailing)
-                        .accessibilityIdentifier("scroll-mode-picker")
+                        }.labelsHidden().pickerStyle(.segmented).frame(width: 220, alignment: .trailing).accessibilityIdentifier("scroll-mode-picker")
                     }
                 }
 
@@ -212,13 +151,8 @@ struct ScrollControlsCard: View {
                                 set: {
                                     editorStore.editableScrollAcceleration = $0
                                     editorStore.scheduleAutoApplyScrollAcceleration()
-                                }
-                            )
-                        )
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.regular)
-                        .accessibilityIdentifier("scroll-acceleration-toggle")
+                                })
+                        ).labelsHidden().toggleStyle(.switch).controlSize(.regular).accessibilityIdentifier("scroll-acceleration-toggle")
                     }
                 }
 
@@ -231,17 +165,11 @@ struct ScrollControlsCard: View {
                                 set: {
                                     editorStore.editableScrollSmartReel = $0
                                     editorStore.scheduleAutoApplyScrollSmartReel()
-                                }
-                            )
-                        )
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.regular)
-                        .accessibilityIdentifier("scroll-smart-reel-toggle")
+                                })
+                        ).labelsHidden().toggleStyle(.switch).controlSize(.regular).accessibilityIdentifier("scroll-smart-reel-toggle")
                     }
                 }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            }.frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

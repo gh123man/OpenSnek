@@ -5,15 +5,7 @@ import XCTest
 /// Exercises OpenSnek branding behavior.
 final class OpenSnekBrandingTests: XCTestCase {
     func testMenuIconUsesTemplateRendering() throws {
-        let icon = try XCTUnwrap(
-            OpenSnekBranding.menuTemplateIcon(
-                from: menuTemplateResourceURL,
-                size: NSSize(
-                    width: OpenSnekBranding.menuBarIconSide,
-                    height: OpenSnekBranding.menuBarIconSide
-                )
-            )
-        )
+        let icon = try XCTUnwrap(OpenSnekBranding.menuTemplateIcon(from: menuTemplateResourceURL, size: NSSize(width: OpenSnekBranding.menuBarIconSide, height: OpenSnekBranding.menuBarIconSide)))
 
         XCTAssertTrue(icon.isTemplate)
         XCTAssertEqual(icon.size.width, OpenSnekBranding.menuBarIconSide, accuracy: 0.1)
@@ -35,27 +27,12 @@ final class OpenSnekBrandingTests: XCTestCase {
     }
 
     func testColoredStatusSymbolUsesOriginalRendering() throws {
-        let icon = try XCTUnwrap(
-            OpenSnekBranding.menuBarSymbolIcon(
-                symbolName: "battery.25percent",
-                color: BatteryPresentation.lowBatteryNSColor
-            )
-        )
+        let icon = try XCTUnwrap(OpenSnekBranding.menuBarSymbolIcon(symbolName: "battery.25percent", color: BatteryPresentation.lowBatteryNSColor))
 
         XCTAssertFalse(icon.isTemplate)
     }
 
-    private var menuTemplateResourceURL: URL {
-        packageRoot
-            .appendingPathComponent("App")
-            .appendingPathComponent("Resources")
-            .appendingPathComponent("snek-menu-template.png")
-    }
+    private var menuTemplateResourceURL: URL { packageRoot.appendingPathComponent("App").appendingPathComponent("Resources").appendingPathComponent("snek-menu-template.png") }
 
-    private var packageRoot: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-    }
+    private var packageRoot: URL { URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent() }
 }

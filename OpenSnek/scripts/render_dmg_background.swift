@@ -21,14 +21,10 @@ enum RenderError: Error, CustomStringConvertible {
 
     var description: String {
         switch self {
-        case .usage(let message):
-            return message
-        case .help(let message):
-            return message
-        case .invalidImage(let path):
-            return "Failed to load image at \(path)"
-        case .writeFailed(let path):
-            return "Failed to write PNG to \(path)"
+        case .usage(let message): return message
+        case .help(let message): return message
+        case .invalidImage(let path): return "Failed to load image at \(path)"
+        case .writeFailed(let path): return "Failed to write PNG to \(path)"
         }
     }
 }
@@ -61,27 +57,21 @@ func parseArguments() throws -> Options {
             options.iconPath = value
             args.removeFirst()
         case "-h", "--help":
-            throw RenderError.help("""
-            Usage:
-              render_dmg_background.swift --output <path> [--width <px>] [--height <px>] [--scale <factor>] --icon <path>
-            """)
-        default:
-            throw RenderError.usage("Unknown argument: \(arg)")
+            throw RenderError.help(
+                """
+                Usage:
+                  render_dmg_background.swift --output <path> [--width <px>] [--height <px>] [--scale <factor>] --icon <path>
+                """)
+        default: throw RenderError.usage("Unknown argument: \(arg)")
         }
     }
 
-    guard !options.outputPath.isEmpty else {
-        throw RenderError.usage("Missing required --output path")
-    }
-    guard !options.iconPath.isEmpty else {
-        throw RenderError.usage("Missing required --icon path")
-    }
+    guard !options.outputPath.isEmpty else { throw RenderError.usage("Missing required --output path") }
+    guard !options.iconPath.isEmpty else { throw RenderError.usage("Missing required --icon path") }
     return options
 }
 
-func rgba(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat, _ a: CGFloat = 1.0) -> NSColor {
-    NSColor(calibratedRed: r / 255.0, green: g / 255.0, blue: b / 255.0, alpha: a)
-}
+func rgba(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat, _ a: CGFloat = 1.0) -> NSColor { NSColor(calibratedRed: r / 255.0, green: g / 255.0, blue: b / 255.0, alpha: a) }
 
 func drawGlow(in rect: NSRect, color: NSColor) {
     color.setFill()
@@ -95,11 +85,7 @@ func drawArrow(from start: NSPoint, to end: NSPoint, scale: CGFloat) {
     arrowPath.lineJoinStyle = .round
     arrowPath.move(to: start)
     let midX = (start.x + end.x) / 2
-    arrowPath.curve(
-        to: end,
-        controlPoint1: NSPoint(x: midX - 34 * scale, y: start.y - 6 * scale),
-        controlPoint2: NSPoint(x: midX + 34 * scale, y: end.y + 6 * scale)
-    )
+    arrowPath.curve(to: end, controlPoint1: NSPoint(x: midX - 34 * scale, y: start.y - 6 * scale), controlPoint2: NSPoint(x: midX + 34 * scale, y: end.y + 6 * scale))
     rgba(190, 246, 214, 0.82).setStroke()
     arrowPath.stroke()
 
@@ -115,13 +101,7 @@ func drawArrow(from start: NSPoint, to end: NSPoint, scale: CGFloat) {
 }
 
 func savePNG(_ image: NSImage, to path: String) throws {
-    guard
-        let tiffData = image.tiffRepresentation,
-        let bitmap = NSBitmapImageRep(data: tiffData),
-        let pngData = bitmap.representation(using: .png, properties: [:])
-    else {
-        throw RenderError.writeFailed(path)
-    }
+    guard let tiffData = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiffData), let pngData = bitmap.representation(using: .png, properties: [:]) else { throw RenderError.writeFailed(path) }
 
     let url = URL(fileURLWithPath: path)
     try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -133,16 +113,10 @@ do {
     let scale = CGFloat(options.scale)
     let canvasSize = NSSize(width: CGFloat(options.width) * scale, height: CGFloat(options.height) * scale)
 
-    guard NSImage(contentsOfFile: options.iconPath) != nil else {
-        throw RenderError.invalidImage(options.iconPath)
-    }
+    guard NSImage(contentsOfFile: options.iconPath) != nil else { throw RenderError.invalidImage(options.iconPath) }
 
     let image = NSImage(size: canvasSize, flipped: false) { bounds in
-        let backgroundGradient = NSGradient(colors: [
-            rgba(8, 16, 18),
-            rgba(12, 28, 26),
-            rgba(10, 16, 20)
-        ])!
+        let backgroundGradient = NSGradient(colors: [rgba(8, 16, 18), rgba(12, 28, 26), rgba(10, 16, 20)])!
         backgroundGradient.draw(in: bounds, angle: -24)
 
         drawGlow(in: NSRect(x: bounds.minX - 80 * scale, y: bounds.maxY - 260 * scale, width: 320 * scale, height: 320 * scale), color: rgba(38, 201, 149, 0.18))

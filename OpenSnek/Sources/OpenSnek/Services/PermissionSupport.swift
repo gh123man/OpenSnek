@@ -2,9 +2,7 @@ import AppKit
 import Foundation
 
 /// Stores permission reset result data.
-struct PermissionResetResult: Equatable, Sendable {
-    let bundleIdentifier: String
-}
+struct PermissionResetResult: Equatable, Sendable { let bundleIdentifier: String }
 
 /// Describes permission support failures.
 enum PermissionSupportError: LocalizedError {
@@ -12,8 +10,7 @@ enum PermissionSupportError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .resetFailed(let detail):
-            return detail
+        case .resetFailed(let detail): return detail
         }
     }
 }
@@ -32,9 +29,7 @@ enum PermissionSupport {
         return "\(processName) (\(resolvedBundleIdentifier(bundleIdentifier)))"
     }
 
-    static func permissionResetCommand(bundleIdentifier: String? = Bundle.main.bundleIdentifier) -> String {
-        "tccutil reset All \(resolvedBundleIdentifier(bundleIdentifier))"
-    }
+    static func permissionResetCommand(bundleIdentifier: String? = Bundle.main.bundleIdentifier) -> String { "tccutil reset All \(resolvedBundleIdentifier(bundleIdentifier))" }
 
     static func resetAllPermissions(bundleIdentifier: String? = Bundle.main.bundleIdentifier) throws -> PermissionResetResult {
         let resolvedBundleIdentifier = resolvedBundleIdentifier(bundleIdentifier)
@@ -50,34 +45,24 @@ enum PermissionSupport {
         task.waitUntilExit()
 
         let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        let output = (String(bytes: outputData, encoding: .utf8) ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let output = (String(bytes: outputData, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard task.terminationStatus == 0 else {
-            let message = output.isEmpty
-                ? "Permission reset failed with exit status \(task.terminationStatus)."
-                : output
+            let message = output.isEmpty ? "Permission reset failed with exit status \(task.terminationStatus)." : output
             throw PermissionSupportError.resetFailed(message)
         }
 
-        return PermissionResetResult(
-            bundleIdentifier: resolvedBundleIdentifier
-        )
+        return PermissionResetResult(bundleIdentifier: resolvedBundleIdentifier)
     }
 
     static func openInputMonitoringSettings() {
         let candidates = [
-            "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
-            "x-apple.systempreferences:com.apple.preference.security?Privacy_InputMonitoring",
-            "x-apple.systempreferences:com.apple.preference.security?Privacy",
-            "x-apple.systempreferences:com.apple.preference.security"
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent", "x-apple.systempreferences:com.apple.preference.security?Privacy_InputMonitoring", "x-apple.systempreferences:com.apple.preference.security?Privacy", "x-apple.systempreferences:com.apple.preference.security"
         ]
 
         for candidate in candidates {
             guard let url = URL(string: candidate) else { continue }
-            if NSWorkspace.shared.open(url) {
-                return
-            }
+            if NSWorkspace.shared.open(url) { return }
         }
     }
 }

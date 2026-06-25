@@ -13,9 +13,7 @@ final class BroadcastStream<Element: Sendable>: @unchecked Sendable {
         continuations[id] = continuation
         lock.unlock()
 
-        continuation.onTermination = { @Sendable [weak self] _ in
-            self?.remove(id: id)
-        }
+        continuation.onTermination = { @Sendable [weak self] _ in self?.remove(id: id) }
 
         return stream
     }
@@ -25,9 +23,7 @@ final class BroadcastStream<Element: Sendable>: @unchecked Sendable {
         let activeContinuations = Array(continuations.values)
         lock.unlock()
 
-        for continuation in activeContinuations {
-            continuation.yield(value)
-        }
+        for continuation in activeContinuations { continuation.yield(value) }
     }
 
     private func remove(id: UUID) {

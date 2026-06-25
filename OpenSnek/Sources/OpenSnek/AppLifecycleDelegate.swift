@@ -1,8 +1,7 @@
 import AppKit
 
 /// Coordinates app lifecycle delegate behavior.
-@MainActor
-final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
+@MainActor final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
     /// Defines reopen behavior values.
     enum ReopenBehavior: Equatable {
         case launchFullApp
@@ -10,21 +9,12 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
         case noop
     }
 
-    nonisolated static func reopenBehavior(
-        launchRole: OpenSnekProcessRole,
-        hasVisibleWindows: Bool
-    ) -> ReopenBehavior {
-        if launchRole.isService {
-            return .launchFullApp
-        }
+    nonisolated static func reopenBehavior(launchRole: OpenSnekProcessRole, hasVisibleWindows: Bool) -> ReopenBehavior {
+        if launchRole.isService { return .launchFullApp }
         return hasVisibleWindows ? .noop : .reopenWindows
     }
 
-    nonisolated static func launchActivationPolicy(
-        launchRole: OpenSnekProcessRole
-    ) -> NSApplication.ActivationPolicy {
-        launchRole.isService ? .accessory : .regular
-    }
+    nonisolated static func launchActivationPolicy(launchRole: OpenSnekProcessRole) -> NSApplication.ActivationPolicy { launchRole.isService ? .accessory : .regular }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         OpenSnekAppearance.apply()
@@ -36,9 +26,7 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown"
         AppLog.info("App", "launch version=\(version) build=\(build) logLevel=\(AppLog.currentLevel.shortLabel)")
 
-        if OpenSnekProcessRole.current.isService {
-            return
-        }
+        if OpenSnekProcessRole.current.isService { return }
 
         NSApp.setActivationPolicy(Self.launchActivationPolicy(launchRole: .app))
         NSApp.activate(ignoringOtherApps: true)
@@ -52,11 +40,7 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    func applicationDidBecomeActive(_ notification: Notification) {
-        if OpenSnekProcessRole.current.isService {
-            NSApp.setActivationPolicy(.accessory)
-        }
-    }
+    func applicationDidBecomeActive(_ notification: Notification) { if OpenSnekProcessRole.current.isService { NSApp.setActivationPolicy(.accessory) } }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         switch Self.reopenBehavior(launchRole: OpenSnekProcessRole.current, hasVisibleWindows: flag) {
@@ -70,16 +54,11 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
                 $0.makeKeyAndOrderFront(nil)
             }
             return true
-        case .noop:
-            return true
+        case .noop: return true
         }
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        !OpenSnekProcessRole.current.isService
-    }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { !OpenSnekProcessRole.current.isService }
 
-    func applicationWillTerminate(_ notification: Notification) {
-        BackgroundServiceCoordinator.shared.stopCurrentServiceHostIfNeeded()
-    }
+    func applicationWillTerminate(_ notification: Notification) { BackgroundServiceCoordinator.shared.stopCurrentServiceHostIfNeeded() }
 }

@@ -7,20 +7,8 @@ import OpenSnekCore
 /// Exercises app state fresh local profile behavior.
 final class AppStateFreshLocalProfileTests: XCTestCase {
     func testMappedBluetoothCreateDoesNotBackfillUnsupportedScrollFields() {
-        let bluetoothDevice = makeRefactorTestDevice(
-            id: "fresh-local-profile-bt-fill",
-            transport: .bluetooth,
-            serial: "FRESH-BT-\(UUID().uuidString)",
-            onboardProfileCount: 5,
-            profileID: .basiliskV3Pro
-        )
-        let usbDevice = makeRefactorTestDevice(
-            id: "fresh-local-profile-usb-fill",
-            transport: .usb,
-            serial: "FRESH-USB-\(UUID().uuidString)",
-            onboardProfileCount: 5,
-            profileID: .basiliskV3Pro
-        )
+        let bluetoothDevice = makeRefactorTestDevice(id: "fresh-local-profile-bt-fill", transport: .bluetooth, serial: "FRESH-BT-\(UUID().uuidString)", onboardProfileCount: 5, profileID: .basiliskV3Pro)
+        let usbDevice = makeRefactorTestDevice(id: "fresh-local-profile-usb-fill", transport: .usb, serial: "FRESH-USB-\(UUID().uuidString)", onboardProfileCount: 5, profileID: .basiliskV3Pro)
         let mutation = makeFreshMappedProfileMutation()
 
         XCTAssertFalse(mutation.needsMappedContentFill(for: bluetoothDevice))
@@ -32,34 +20,17 @@ final class AppStateFreshLocalProfileTests: XCTestCase {
         defer { clearSavedButtonProfiles() }
 
         let device = makeFreshLocalProfileDevice()
-        let oldSnapshot = makeFreshLocalProfileOnboardSnapshot(
-            profileID: 2,
-            identifier: UUID(),
-            name: "Old Slot",
-            dpiValues: [900, 1800],
-            activeStage: 0
-        )
+        let oldSnapshot = makeFreshLocalProfileOnboardSnapshot(profileID: 2, identifier: UUID(), name: "Old Slot", dpiValues: [900, 1800], activeStage: 0)
         let backend = makeFreshLocalProfileBackend(device: device, activeProfile: 2, dpiValues: [900, 1800])
-        await backend.setOnboardInventory(
-            makeFreshLocalProfileInventory(activeProfile: 2, maxProfileID: 5, snapshots: [oldSnapshot]),
-            forDeviceID: device.id
-        )
+        await backend.setOnboardInventory(makeFreshLocalProfileInventory(activeProfile: 2, maxProfileID: 5, snapshots: [oldSnapshot]), forDeviceID: device.id)
         await backend.setOnboardSnapshot(oldSnapshot, forDeviceID: device.id)
 
-        let appState = await MainActor.run {
-            AppState(launchRole: .app, backend: backend, autoStart: false)
-        }
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
         await appState.deviceStore.refreshDevices()
         await appState.editorStore.refreshOnboardProfiles()
         await MainActor.run {
             appState.editorStore.editableStageCount = 2
-            appState.editorStore.editableStagePairs = [
-                DpiPair(x: 900, y: 900),
-                DpiPair(x: 1800, y: 1800),
-                DpiPair(x: 3200, y: 3200),
-                DpiPair(x: 6400, y: 6400),
-                DpiPair(x: 10_000, y: 10_000)
-            ]
+            appState.editorStore.editableStagePairs = [DpiPair(x: 900, y: 900), DpiPair(x: 1800, y: 1800), DpiPair(x: 3200, y: 3200), DpiPair(x: 6400, y: 6400), DpiPair(x: 10_000, y: 10_000)]
             appState.editorStore.updateButtonBindingKind(slot: 4, kind: .mouseForward)
             appState.editorStore.editableLedBrightness = 12
             appState.editorStore.editableColor = RGBColor(r: 90, g: 80, b: 70)
@@ -71,26 +42,15 @@ final class AppStateFreshLocalProfileTests: XCTestCase {
 
         await appState.editorStore.createFreshLocalProfileAndReplaceSelected(name: "Fresh Defaults")
 
-        try await waitForRefactorCondition {
-            await backend.recordedOnboardCreates().count == 1
-        }
+        try await waitForRefactorCondition { await backend.recordedOnboardCreates().count == 1 }
 
-        let profile = try XCTUnwrap(
-            DevicePreferenceStore().loadOpenSnekLocalProfiles().first { $0.name == "Fresh Defaults" }
-        )
-        let expectedSlots = try XCTUnwrap(DeviceProfiles.resolve(
-            vendorID: device.vendor_id,
-            productID: device.product_id,
-            transport: device.transport
-        )?.buttonLayout.writableSlots)
+        let profile = try XCTUnwrap(DevicePreferenceStore().loadOpenSnekLocalProfiles().first { $0.name == "Fresh Defaults" })
+        let expectedSlots = try XCTUnwrap(DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?.buttonLayout.writableSlots)
         let defaultColor = RGBPatch(r: 0, g: 255, b: 0)
         XCTAssertEqual(profile.content.dpi?.values, [800, 1600, 3200])
         XCTAssertEqual(profile.content.dpi?.activeStage, 0)
         XCTAssertEqual(Set(profile.content.buttonBindings.keys), Set(expectedSlots))
-        XCTAssertEqual(
-            profile.content.buttonBindings[4],
-            ButtonBindingSupport.defaultButtonBinding(for: 4, profileID: device.profile_id)
-        )
+        XCTAssertEqual(profile.content.buttonBindings[4], ButtonBindingSupport.defaultButtonBinding(for: 4, profileID: device.profile_id))
         XCTAssertEqual(profile.content.brightnessByLEDID, [1: 64, 4: 64, 10: 64])
         XCTAssertEqual(profile.content.staticColorByLEDID, [1: defaultColor, 4: defaultColor, 10: defaultColor])
         XCTAssertEqual(profile.content.scrollMode, 0)
@@ -116,107 +76,35 @@ private func makeFreshMappedProfileMutation() -> OnboardProfileMutation {
     let dpiPairs = [800, 1600, 3200].map { DpiPair(x: $0, y: $0) }
     let color = RGBPatch(r: 0, g: 255, b: 0)
     return OnboardProfileMutation(
-        metadata: OnboardProfileMetadata(name: "Fresh Defaults"),
-        dpi: OnboardDPIProfileSnapshot(
-            scalar: dpiPairs.first,
-            activeStage: 0,
-            pairs: dpiPairs
-        ),
+        metadata: OnboardProfileMetadata(name: "Fresh Defaults"), dpi: OnboardDPIProfileSnapshot(scalar: dpiPairs.first, activeStage: 0, pairs: dpiPairs),
         buttonBindings: [
-            1: ButtonBindingSupport.defaultButtonBinding(for: 1, profileID: .basiliskV3Pro),
-            2: ButtonBindingSupport.defaultButtonBinding(for: 2, profileID: .basiliskV3Pro),
-            3: ButtonBindingSupport.defaultButtonBinding(for: 3, profileID: .basiliskV3Pro),
+            1: ButtonBindingSupport.defaultButtonBinding(for: 1, profileID: .basiliskV3Pro), 2: ButtonBindingSupport.defaultButtonBinding(for: 2, profileID: .basiliskV3Pro), 3: ButtonBindingSupport.defaultButtonBinding(for: 3, profileID: .basiliskV3Pro),
             4: ButtonBindingSupport.defaultButtonBinding(for: 4, profileID: .basiliskV3Pro)
-        ],
-        brightnessByLEDID: [1: 64, 4: 64, 10: 64],
-        staticColorByLEDID: [1: color, 4: color, 10: color]
-    )
+        ], brightnessByLEDID: [1: 64, 4: 64, 10: 64], staticColorByLEDID: [1: color, 4: color, 10: color])
 }
 
-private func makeFreshLocalProfileDevice() -> MouseDevice {
-    makeRefactorTestDevice(
-        id: "local-profile-fresh-defaults",
-        transport: .usb,
-        serial: "LOCAL-PROFILE-\(UUID().uuidString)",
-        onboardProfileCount: 5,
-        profileID: .basiliskV3Pro
-    )
-}
+private func makeFreshLocalProfileDevice() -> MouseDevice { makeRefactorTestDevice(id: "local-profile-fresh-defaults", transport: .usb, serial: "LOCAL-PROFILE-\(UUID().uuidString)", onboardProfileCount: 5, profileID: .basiliskV3Pro) }
 
-private func makeFreshLocalProfileBackend(
-    device: MouseDevice,
-    activeProfile: Int,
-    dpiValues: [Int]
-) -> AppStateRefactorStubBackend {
+private func makeFreshLocalProfileBackend(device: MouseDevice, activeProfile: Int, dpiValues: [Int]) -> AppStateRefactorStubBackend {
     AppStateRefactorStubBackend(
         devices: [device],
         stateByDeviceID: [
             device.id: makeRefactorTestState(
-                device: device,
-                telemetry: RefactorTestStateTelemetry(
-                    connection: device.transport.connectionLabel.lowercased(),
-                    batteryPercent: 81,
-                    dpiValues: dpiValues,
-                    activeStage: 0
-                ),
+                device: device, telemetry: RefactorTestStateTelemetry(connection: device.transport.connectionLabel.lowercased(), batteryPercent: 81, dpiValues: dpiValues, activeStage: 0),
                 options: RefactorTestStateOptions(
-                    activeOnboardProfile: activeProfile,
-                    onboardProfileCount: device.onboard_profile_count,
-                    scrollMode: device.supportsScrollModeControls ? 0 : nil,
-                    scrollAcceleration: device.supportsScrollModeControls ? false : nil,
-                    scrollSmartReel: device.supportsScrollModeControls ? false : nil
-                )
-            )
-        ]
-    )
+                    activeOnboardProfile: activeProfile, onboardProfileCount: device.onboard_profile_count, scrollMode: device.supportsScrollModeControls ? 0 : nil, scrollAcceleration: device.supportsScrollModeControls ? false : nil, scrollSmartReel: device.supportsScrollModeControls ? false : nil))
+        ])
 }
 
-private func makeFreshLocalProfileInventory(
-    activeProfile: Int,
-    maxProfileID: Int,
-    snapshots: [OnboardProfileSnapshot]
-) -> OnboardProfileInventory {
-    let summaries = snapshots.map { snapshot in
-        OnboardProfileSummary(
-            profileID: snapshot.profileID,
-            metadata: snapshot.metadata,
-            isAssigned: true,
-            isActive: snapshot.profileID == activeProfile,
-            isBaseProfile: snapshot.profileID == 1
-        )
-    }
-    return OnboardProfileInventory(
-        activeProfileID: activeProfile,
-        maxProfileID: maxProfileID,
-        assignedProfileIDs: snapshots.map(\.profileID).sorted(),
-        profiles: summaries
-    )
+private func makeFreshLocalProfileInventory(activeProfile: Int, maxProfileID: Int, snapshots: [OnboardProfileSnapshot]) -> OnboardProfileInventory {
+    let summaries = snapshots.map { snapshot in OnboardProfileSummary(profileID: snapshot.profileID, metadata: snapshot.metadata, isAssigned: true, isActive: snapshot.profileID == activeProfile, isBaseProfile: snapshot.profileID == 1) }
+    return OnboardProfileInventory(activeProfileID: activeProfile, maxProfileID: maxProfileID, assignedProfileIDs: snapshots.map(\.profileID).sorted(), profiles: summaries)
 }
 
-private func makeFreshLocalProfileOnboardSnapshot(
-    profileID: Int,
-    identifier: UUID,
-    name: String,
-    dpiValues: [Int],
-    activeStage: Int
-) -> OnboardProfileSnapshot {
+private func makeFreshLocalProfileOnboardSnapshot(profileID: Int, identifier: UUID, name: String, dpiValues: [Int], activeStage: Int) -> OnboardProfileSnapshot {
     let pairs = dpiValues.map { DpiPair(x: $0, y: $0) }
     let active = max(0, min(max(0, pairs.count - 1), activeStage))
     return OnboardProfileSnapshot(
-        profileID: profileID,
-        metadata: OnboardProfileMetadata(identifier: identifier, name: name),
-        dpi: OnboardDPIProfileSnapshot(
-            scalar: pairs.indices.contains(active) ? pairs[active] : pairs.first,
-            activeStage: active,
-            pairs: pairs
-        ),
-        buttonBindings: [
-            4: ButtonBindingDraft(kind: .mouseBack, hidKey: 4, turboEnabled: false, turboRate: 0x8E)
-        ],
-        brightnessByLEDID: [1: 64],
-        staticColorByLEDID: [1: RGBPatch(r: 1, g: 2, b: 3)],
-        scrollMode: 0,
-        scrollAcceleration: false,
-        scrollSmartReel: false
-    )
+        profileID: profileID, metadata: OnboardProfileMetadata(identifier: identifier, name: name), dpi: OnboardDPIProfileSnapshot(scalar: pairs.indices.contains(active) ? pairs[active] : pairs.first, activeStage: active, pairs: pairs),
+        buttonBindings: [4: ButtonBindingDraft(kind: .mouseBack, hidKey: 4, turboEnabled: false, turboRate: 0x8E)], brightnessByLEDID: [1: 64], staticColorByLEDID: [1: RGBPatch(r: 1, g: 2, b: 3)], scrollMode: 0, scrollAcceleration: false, scrollSmartReel: false)
 }

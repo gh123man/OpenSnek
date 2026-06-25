@@ -33,10 +33,7 @@ public struct PassiveDPIHeartbeatEvent: Sendable {
     public let deviceID: String
     public let observedAt: Date
 
-    public init(
-        deviceID: String,
-        observedAt: Date
-    ) {
+    public init(deviceID: String, observedAt: Date) {
         self.deviceID = deviceID
         self.observedAt = observedAt
     }
@@ -47,10 +44,7 @@ public struct PassiveProfileSwitchEvent: Sendable {
     public let deviceID: String
     public let observedAt: Date
 
-    public init(
-        deviceID: String,
-        observedAt: Date
-    ) {
+    public init(deviceID: String, observedAt: Date) {
         self.deviceID = deviceID
         self.observedAt = observedAt
     }
@@ -66,27 +60,14 @@ public enum PassiveDPIInputClassification: Hashable, Sendable {
 
 /// Defines passive DPI parser values.
 public enum PassiveDPIParser {
-    public static func classify(
-        report: [UInt8],
-        descriptor: PassiveDPIInputDescriptor,
-        profileSwitchPreludeSatisfied: Bool = false
-    ) -> PassiveDPIInputClassification {
+    public static func classify(report: [UInt8], descriptor: PassiveDPIInputDescriptor, profileSwitchPreludeSatisfied: Bool = false) -> PassiveDPIInputClassification {
         if matchesProfileSwitchPrefix(report: report, descriptor: descriptor) {
-            guard descriptor.profileSwitchPreludePrefixes.isEmpty || profileSwitchPreludeSatisfied else {
-                return .other
-            }
+            guard descriptor.profileSwitchPreludePrefixes.isEmpty || profileSwitchPreludeSatisfied else { return .other }
             return .profileSwitch
         }
 
         let allowedSubtypes = [descriptor.subtype, descriptor.heartbeatSubtype].compactMap { $0 }
-        guard report.count >= descriptor.minInputReportSize,
-              let payloadStart = payloadStartIndex(
-                  in: report,
-                  descriptor: descriptor,
-                  allowedSubtypes: allowedSubtypes
-              ) else {
-            return .other
-        }
+        guard report.count >= descriptor.minInputReportSize, let payloadStart = payloadStartIndex(in: report, descriptor: descriptor, allowedSubtypes: allowedSubtypes) else { return .other }
 
         let subtype = report[payloadStart]
         if subtype == descriptor.subtype {
@@ -99,71 +80,37 @@ public enum PassiveDPIParser {
             return .dpi(PassiveDPIReading(dpiX: dpiX, dpiY: dpiY))
         }
 
-        if let heartbeatSubtype = descriptor.heartbeatSubtype, subtype == heartbeatSubtype {
-            return .heartbeat
-        }
+        if let heartbeatSubtype = descriptor.heartbeatSubtype, subtype == heartbeatSubtype { return .heartbeat }
 
         return .other
     }
 
-    public static func parse(
-        report: [UInt8],
-        descriptor: PassiveDPIInputDescriptor
-    ) -> PassiveDPIReading? {
+    public static func parse(report: [UInt8], descriptor: PassiveDPIInputDescriptor) -> PassiveDPIReading? {
         guard case .dpi(let reading) = classify(report: report, descriptor: descriptor) else { return nil }
         return reading
     }
 
-    public static func matchesProfileSwitchPrelude(
-        report: [UInt8],
-        descriptor: PassiveDPIInputDescriptor
-    ) -> Bool {
-        matchesAnyPrefix(
-            report: report,
-            prefixes: descriptor.profileSwitchPreludePrefixes
-        )
-    }
+    public static func matchesProfileSwitchPrelude(report: [UInt8], descriptor: PassiveDPIInputDescriptor) -> Bool { matchesAnyPrefix(report: report, prefixes: descriptor.profileSwitchPreludePrefixes) }
 
-    private static func payloadStartIndex(
-        in report: [UInt8],
-        descriptor: PassiveDPIInputDescriptor,
-        allowedSubtypes: [UInt8]
-    ) -> Int? {
-        if let first = report.first, allowedSubtypes.contains(first) {
-            return 0
-        }
+    private static func payloadStartIndex(in report: [UInt8], descriptor: PassiveDPIInputDescriptor, allowedSubtypes: [UInt8]) -> Int? {
+        if let first = report.first, allowedSubtypes.contains(first) { return 0 }
 
         var index = 0
         while index < report.count, report[index] == descriptor.reportID {
             let candidate = index + 1
-            if candidate < report.count, allowedSubtypes.contains(report[candidate]) {
-                return candidate
-            }
+            if candidate < report.count, allowedSubtypes.contains(report[candidate]) { return candidate }
             index += 1
         }
 
         return nil
     }
 
-    private static func matchesProfileSwitchPrefix(
-        report: [UInt8],
-        descriptor: PassiveDPIInputDescriptor
-    ) -> Bool {
-        matchesAnyPrefix(
-            report: report,
-            prefixes: descriptor.profileSwitchPrefixes
-        )
-    }
+    private static func matchesProfileSwitchPrefix(report: [UInt8], descriptor: PassiveDPIInputDescriptor) -> Bool { matchesAnyPrefix(report: report, prefixes: descriptor.profileSwitchPrefixes) }
 
-    private static func matchesAnyPrefix(
-        report: [UInt8],
-        prefixes: [[UInt8]]
-    ) -> Bool {
+    private static func matchesAnyPrefix(report: [UInt8], prefixes: [[UInt8]]) -> Bool {
         prefixes.contains { prefix in
             guard !prefix.isEmpty, report.count >= prefix.count else { return false }
-            return zip(prefix, report).allSatisfy { expected, actual in
-                expected == actual
-            }
+            return zip(prefix, report).allSatisfy { expected, actual in expected == actual }
         }
     }
 }
@@ -178,13 +125,7 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         public let deviceIdentityToken: String
         public let descriptor: PassiveDPIInputDescriptor
 
-        public init(
-            deviceID: String,
-            targetID: String,
-            device: IOHIDDevice,
-            deviceIdentityToken: String,
-            descriptor: PassiveDPIInputDescriptor
-        ) {
+        public init(deviceID: String, targetID: String, device: IOHIDDevice, deviceIdentityToken: String, descriptor: PassiveDPIInputDescriptor) {
             self.deviceID = deviceID
             self.targetID = targetID
             self.device = device
@@ -202,13 +143,7 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         let emitProfileSwitch: @Sendable (PassiveProfileSwitchEvent) -> Void
         var lastProfileSwitchPreludeAt: Date?
 
-        init(
-            deviceID: String,
-            descriptor: PassiveDPIInputDescriptor,
-            emit: @escaping @Sendable (PassiveDPIEvent) -> Void,
-            emitHeartbeat: @escaping @Sendable (PassiveDPIHeartbeatEvent) -> Void,
-            emitProfileSwitch: @escaping @Sendable (PassiveProfileSwitchEvent) -> Void
-        ) {
+        init(deviceID: String, descriptor: PassiveDPIInputDescriptor, emit: @escaping @Sendable (PassiveDPIEvent) -> Void, emitHeartbeat: @escaping @Sendable (PassiveDPIHeartbeatEvent) -> Void, emitProfileSwitch: @escaping @Sendable (PassiveProfileSwitchEvent) -> Void) {
             self.deviceID = deviceID
             self.descriptor = descriptor
             self.emit = emit
@@ -220,9 +155,7 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
             guard !descriptor.profileSwitchPreludePrefixes.isEmpty else { return true }
             guard let lastProfileSwitchPreludeAt else { return false }
             let age = observedAt.timeIntervalSince(lastProfileSwitchPreludeAt)
-            if age >= 0, age <= window {
-                return true
-            }
+            if age >= 0, age <= window { return true }
             self.lastProfileSwitchPreludeAt = nil
             return false
         }
@@ -233,9 +166,7 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         let deviceID: String
         let targetID: String
 
-        static func == (lhs: Self, rhs: Self) -> Bool {
-            lhs.deviceID == rhs.deviceID && lhs.targetID == rhs.targetID
-        }
+        static func == (lhs: Self, rhs: Self) -> Bool { lhs.deviceID == rhs.deviceID && lhs.targetID == rhs.targetID }
 
         func hash(into hasher: inout Hasher) {
             hasher.combine(deviceID)
@@ -266,18 +197,12 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
 
     public init() {}
 
-    public func replaceTargets(
-        _ targets: [WatchTarget],
-        forceRebuildDeviceIDs: Set<String> = []
-    ) async -> Set<String> {
+    public func replaceTargets(_ targets: [WatchTarget], forceRebuildDeviceIDs: Set<String> = []) async -> Set<String> {
         await withCheckedContinuation { continuation in
             queue.async {
                 self.ensureRunLoopLocked()
                 self.performOnRunLoopLocked {
-                    let active = self.replaceTargetsOnRunLoop(
-                        targets,
-                        forceRebuildDeviceIDs: forceRebuildDeviceIDs
-                    )
+                    let active = self.replaceTargetsOnRunLoop(targets, forceRebuildDeviceIDs: forceRebuildDeviceIDs)
                     continuation.resume(returning: active)
                 }
             }
@@ -309,11 +234,7 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
             self.runLoopStateLock.unlock()
             ready.signal()
 
-            while !Thread.current.isCancelled {
-                let _: Void = autoreleasepool {
-                    CFRunLoopRunInMode(CFRunLoopMode.defaultMode, 1.0, false)
-                }
-            }
+            while !Thread.current.isCancelled { let _: Void = autoreleasepool { CFRunLoopRunInMode(CFRunLoopMode.defaultMode, 1.0, false) } }
         }
         thread.name = "open.snek.hid.passive-dpi"
         runLoopStateLock.lock()
@@ -332,47 +253,29 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         CFRunLoopWakeUp(runLoop)
     }
 
-    private func replaceTargetsOnRunLoop(
-        _ targets: [WatchTarget],
-        forceRebuildDeviceIDs: Set<String>
-    ) -> Set<String> {
+    private func replaceTargetsOnRunLoop(_ targets: [WatchTarget], forceRebuildDeviceIDs: Set<String>) -> Set<String> {
         var desiredByKey: [RegistrationKey: WatchTarget] = [:]
         for target in targets {
-            let key = RegistrationKey(
-                deviceID: target.deviceID,
-                targetID: target.targetID
-            )
+            let key = RegistrationKey(deviceID: target.deviceID, targetID: target.targetID)
             desiredByKey[key] = target
         }
 
         let obsoleteKeys = Set(registrationsByKey.keys).subtracting(desiredByKey.keys)
-        for key in obsoleteKeys {
-            removeRegistration(key: key)
-        }
+        for key in obsoleteKeys { removeRegistration(key: key) }
         if !forceRebuildDeviceIDs.isEmpty {
             let forcedKeys = registrationsByKey.keys.filter { forceRebuildDeviceIDs.contains($0.deviceID) }
-            for key in forcedKeys {
-                removeRegistration(key: key)
-            }
+            for key in forcedKeys { removeRegistration(key: key) }
         }
 
         var activeDeviceIDs: Set<String> = []
         for (key, target) in desiredByKey {
-            if let existing = registrationsByKey[key],
-               Self.shouldReuseRegistration(
-                existingDescriptor: existing.descriptor,
-                existingDeviceIdentityToken: existing.deviceIdentityToken,
-                targetDescriptor: target.descriptor,
-                targetDeviceIdentityToken: target.deviceIdentityToken
-               ) {
+            if let existing = registrationsByKey[key], Self.shouldReuseRegistration(existingDescriptor: existing.descriptor, existingDeviceIdentityToken: existing.deviceIdentityToken, targetDescriptor: target.descriptor, targetDeviceIdentityToken: target.deviceIdentityToken) {
                 activeDeviceIDs.insert(target.deviceID)
                 continue
             }
 
             removeRegistration(key: key)
-            if addRegistration(target: target, key: key) {
-                activeDeviceIDs.insert(target.deviceID)
-            }
+            if addRegistration(target: target, key: key) { activeDeviceIDs.insert(target.deviceID) }
         }
 
         return activeDeviceIDs
@@ -386,17 +289,11 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         let openResult = IOHIDDeviceOpen(registrationDevice, IOOptionBits(kIOHIDOptionsTypeNone))
         guard openResult == kIOReturnSuccess else { return false }
 
-        let reportLength = max(
-            target.descriptor.minInputReportSize,
-            USBHIDSupport.intProperty(registrationDevice, key: kIOHIDMaxInputReportSizeKey as CFString) ?? target.descriptor.minInputReportSize
-        )
+        let reportLength = max(target.descriptor.minInputReportSize, USBHIDSupport.intProperty(registrationDevice, key: kIOHIDMaxInputReportSizeKey as CFString) ?? target.descriptor.minInputReportSize)
         let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: reportLength)
         buffer.initialize(repeating: 0, count: reportLength)
 
-        let contextBox = CallbackContext(
-            deviceID: target.deviceID,
-            descriptor: target.descriptor
-        ) { [weak self] event in
+        let contextBox = CallbackContext(deviceID: target.deviceID, descriptor: target.descriptor) { [weak self] event in
             self?.onEvent?(event)
         } emitHeartbeat: { [weak self] event in
             self?.onHeartbeat?(event)
@@ -406,46 +303,23 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         let context = UnsafeMutableRawPointer(Unmanaged.passRetained(contextBox).toOpaque())
 
         IOHIDDeviceScheduleWithRunLoop(registrationDevice, CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
-        IOHIDDeviceRegisterInputReportCallback(
-            registrationDevice,
-            buffer,
-            CFIndex(reportLength),
-            Self.inputReportCallback,
-            context
-        )
+        IOHIDDeviceRegisterInputReportCallback(registrationDevice, buffer, CFIndex(reportLength), Self.inputReportCallback, context)
 
-        registrationsByKey[key] = Registration(
-            device: registrationDevice,
-            deviceIdentityToken: target.deviceIdentityToken,
-            descriptor: target.descriptor,
-            buffer: buffer,
-            bufferLength: CFIndex(reportLength),
-            context: context
-        )
+        registrationsByKey[key] = Registration(device: registrationDevice, deviceIdentityToken: target.deviceIdentityToken, descriptor: target.descriptor, buffer: buffer, bufferLength: CFIndex(reportLength), context: context)
         return true
     }
 
     private func removeRegistration(key: RegistrationKey) {
         guard let registration = registrationsByKey.removeValue(forKey: key) else { return }
-        IOHIDDeviceUnscheduleFromRunLoop(
-            registration.device,
-            CFRunLoopGetCurrent(),
-            CFRunLoopMode.defaultMode.rawValue
-        )
+        IOHIDDeviceUnscheduleFromRunLoop(registration.device, CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
         IOHIDDeviceClose(registration.device, IOOptionBits(kIOHIDOptionsTypeNone))
         registration.buffer.deinitialize(count: Int(registration.bufferLength))
         registration.buffer.deallocate()
         Unmanaged<CallbackContext>.fromOpaque(registration.context).release()
     }
 
-    static func shouldReuseRegistration(
-        existingDescriptor: PassiveDPIInputDescriptor,
-        existingDeviceIdentityToken: String,
-        targetDescriptor: PassiveDPIInputDescriptor,
-        targetDeviceIdentityToken: String
-    ) -> Bool {
-        existingDescriptor == targetDescriptor &&
-            existingDeviceIdentityToken == targetDeviceIdentityToken
+    static func shouldReuseRegistration(existingDescriptor: PassiveDPIInputDescriptor, existingDeviceIdentityToken: String, targetDescriptor: PassiveDPIInputDescriptor, targetDeviceIdentityToken: String) -> Bool {
+        existingDescriptor == targetDescriptor && existingDeviceIdentityToken == targetDeviceIdentityToken
     }
 
     private static let inputReportCallback: IOHIDReportCallback = { context, result, _, reportType, _, report, reportLength in
@@ -458,41 +332,14 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
             return
         }
 
-        let profileSwitchPreludeSatisfied = callbackContext.profileSwitchPreludeSatisfied(
-            observedAt: observedAt,
-            window: PassiveDPIEventMonitor.profileSwitchPreludeWindow
-        )
-        switch PassiveDPIParser.classify(
-            report: bytes,
-            descriptor: callbackContext.descriptor,
-            profileSwitchPreludeSatisfied: profileSwitchPreludeSatisfied
-        ) {
-        case .dpi(let reading):
-            callbackContext.emit(
-                PassiveDPIEvent(
-                    deviceID: callbackContext.deviceID,
-                    dpiX: reading.dpiX,
-                    dpiY: reading.dpiY,
-                    observedAt: observedAt
-                )
-            )
-        case .heartbeat:
-            callbackContext.emitHeartbeat(
-                PassiveDPIHeartbeatEvent(
-                    deviceID: callbackContext.deviceID,
-                    observedAt: observedAt
-                )
-            )
+        let profileSwitchPreludeSatisfied = callbackContext.profileSwitchPreludeSatisfied(observedAt: observedAt, window: PassiveDPIEventMonitor.profileSwitchPreludeWindow)
+        switch PassiveDPIParser.classify(report: bytes, descriptor: callbackContext.descriptor, profileSwitchPreludeSatisfied: profileSwitchPreludeSatisfied) {
+        case .dpi(let reading): callbackContext.emit(PassiveDPIEvent(deviceID: callbackContext.deviceID, dpiX: reading.dpiX, dpiY: reading.dpiY, observedAt: observedAt))
+        case .heartbeat: callbackContext.emitHeartbeat(PassiveDPIHeartbeatEvent(deviceID: callbackContext.deviceID, observedAt: observedAt))
         case .profileSwitch:
             callbackContext.lastProfileSwitchPreludeAt = nil
-            callbackContext.emitProfileSwitch(
-                PassiveProfileSwitchEvent(
-                    deviceID: callbackContext.deviceID,
-                    observedAt: observedAt
-                )
-            )
-        case .other:
-            break
+            callbackContext.emitProfileSwitch(PassiveProfileSwitchEvent(deviceID: callbackContext.deviceID, observedAt: observedAt))
+        case .other: break
         }
     }
 

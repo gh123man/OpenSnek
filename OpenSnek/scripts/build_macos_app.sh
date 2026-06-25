@@ -234,6 +234,8 @@ require_cmd xcodebuild
 require_cmd xcodegen
 require_cmd ditto
 
+"$SCRIPT_DIR/check_swift_format.sh"
+
 if [[ -z "$VERSION" ]]; then
   VERSION="$(detect_project_marketing_version "$SPEC_FILE")"
 fi

@@ -1,9 +1,7 @@
 import Foundation
 
 /// Defines the release update checking contract.
-protocol ReleaseUpdateChecking: Sendable {
-    func checkForUpdate(currentVersion: String) async throws -> ReleaseAvailability?
-}
+protocol ReleaseUpdateChecking: Sendable { func checkForUpdate(currentVersion: String) async throws -> ReleaseAvailability? }
 
 /// Defines app build channel values.
 enum AppBuildChannel: String, Equatable {
@@ -20,14 +18,10 @@ struct ReleaseVersion: Comparable, Equatable {
 
         static func < (lhs: PreReleaseIdentifier, rhs: PreReleaseIdentifier) -> Bool {
             switch (lhs, rhs) {
-            case let (.numeric(left), .numeric(right)):
-                return left < right
-            case let (.textual(left), .textual(right)):
-                return left.localizedStandardCompare(right) == .orderedAscending
-            case (.numeric, .textual):
-                return true
-            case (.textual, .numeric):
-                return false
+            case let (.numeric(left), .numeric(right)): return left < right
+            case let (.textual(left), .textual(right)): return left.localizedStandardCompare(right) == .orderedAscending
+            case (.numeric, .textual): return true
+            case (.textual, .numeric): return false
             }
         }
     }
@@ -39,11 +33,7 @@ struct ReleaseVersion: Comparable, Equatable {
         let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
-        let withoutPrefix = trimmed.replacingOccurrences(
-            of: #"^[vV]"#,
-            with: "",
-            options: .regularExpression
-        )
+        let withoutPrefix = trimmed.replacingOccurrences(of: #"^[vV]"#, with: "", options: .regularExpression)
         let coreAndSuffix = withoutPrefix.split(separator: "-", maxSplits: 1).map(String.init)
         guard let core = coreAndSuffix.first, !core.isEmpty else { return nil }
         let parts = core.split(separator: ".")
@@ -62,9 +52,7 @@ struct ReleaseVersion: Comparable, Equatable {
             let identifiers = suffix.split(separator: ".")
             guard !identifiers.isEmpty else { return nil }
             preRelease = identifiers.map { identifier in
-                if let numeric = Int(identifier) {
-                    return .numeric(numeric)
-                }
+                if let numeric = Int(identifier) { return .numeric(numeric) }
                 return .textual(String(identifier))
             }
         } else {
@@ -79,20 +67,12 @@ struct ReleaseVersion: Comparable, Equatable {
         for index in 0..<count {
             let left = index < lhs.components.count ? lhs.components[index] : 0
             let right = index < rhs.components.count ? rhs.components[index] : 0
-            if left != right {
-                return left < right
-            }
+            if left != right { return left < right }
         }
 
-        if lhs.preRelease.isEmpty && rhs.preRelease.isEmpty {
-            return false
-        }
-        if lhs.preRelease.isEmpty {
-            return false
-        }
-        if rhs.preRelease.isEmpty {
-            return true
-        }
+        if lhs.preRelease.isEmpty && rhs.preRelease.isEmpty { return false }
+        if lhs.preRelease.isEmpty { return false }
+        if rhs.preRelease.isEmpty { return true }
 
         let preReleaseCount = max(lhs.preRelease.count, rhs.preRelease.count)
         for index in 0..<preReleaseCount {
@@ -100,17 +80,13 @@ struct ReleaseVersion: Comparable, Equatable {
             if index >= rhs.preRelease.count { return false }
             let left = lhs.preRelease[index]
             let right = rhs.preRelease[index]
-            if left != right {
-                return left < right
-            }
+            if left != right { return left < right }
         }
 
         return false
     }
 
-    static func == (lhs: ReleaseVersion, rhs: ReleaseVersion) -> Bool {
-        !(lhs < rhs) && !(rhs < lhs)
-    }
+    static func == (lhs: ReleaseVersion, rhs: ReleaseVersion) -> Bool { !(lhs < rhs) && !(rhs < lhs) }
 }
 
 /// Stores release availability data.
@@ -132,9 +108,7 @@ struct ReleaseUpdateChecker: ReleaseUpdateChecking, Sendable {
 
     private let session: URLSession
 
-    init(session: URLSession = .shared) {
-        self.session = session
-    }
+    init(session: URLSession = .shared) { self.session = session }
 
     func checkForUpdate(currentVersion: String) async throws -> ReleaseAvailability? {
         guard let current = ReleaseVersion.parse(currentVersion) else { return nil }
@@ -146,9 +120,7 @@ struct ReleaseUpdateChecker: ReleaseUpdateChecking, Sendable {
         request.timeoutInterval = 8
 
         let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) else {
-            return nil
-        }
+        guard let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) else { return nil }
 
         let release = try JSONDecoder().decode(LatestReleaseResponse.self, from: data)
         guard let latest = ReleaseVersion.parse(release.tag_name), latest > current else { return nil }
@@ -158,18 +130,14 @@ struct ReleaseUpdateChecker: ReleaseUpdateChecking, Sendable {
         return ReleaseAvailability(latestVersion: latestVersion, releaseURL: releaseURL)
     }
 
-    static func currentAppVersion(bundle: Bundle = .main) -> String? {
-        bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-    }
+    static func currentAppVersion(bundle: Bundle = .main) -> String? { bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String }
 
     static func currentBuildChannel(bundle: Bundle = .main) -> AppBuildChannel {
         let rawValue = bundle.object(forInfoDictionaryKey: "OpenSnekBuildChannel") as? String
         return rawValue.flatMap(AppBuildChannel.init(rawValue:)) ?? .release
     }
 
-    static func shouldCheckForUpdates(bundle: Bundle = .main) -> Bool {
-        currentBuildChannel(bundle: bundle) == .release
-    }
+    static func shouldCheckForUpdates(bundle: Bundle = .main) -> Bool { currentBuildChannel(bundle: bundle) == .release }
 
     static func isPeriodicCheckDue(lastCheckedAt: Date?, now: Date = Date()) -> Bool {
         guard let lastCheckedAt else { return true }
