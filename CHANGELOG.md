@@ -10,6 +10,9 @@ All notable changes to this project are documented in this file.
 - Improved setup and editing workflows with a searchable supported-device table, a fuzzy keybinding picker, modifier chord support, clearer profile-picker loading states, and automatic loading for newly created local profiles.
 - Improved USB dongle, sleeping-mouse, and reconnect recovery so receiver-backed devices stay visible when appropriate and recover after wake or replug without restarting OpenSnek.
 
+### Changed
+- Device detail headers no longer show serial numbers or live DPI readouts below the device name.
+
 ### Fixed
 - Fixed Basilisk V3 Pro USB and Bluetooth button maps so the shared V3-family DPI button slot is editable like the rest of the V3-family layout.
 - Fixed Basilisk V3 Pro profile switches and reconnect hydration so reduced DPI stage tables keep driving live DPI-cycle UI updates.

@@ -187,8 +187,6 @@ struct DeviceOverviewBar: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(selected.product_name).font(.system(size: 32, weight: .black, design: .rounded)).foregroundStyle(.white).accessibilityIdentifier("selected-device-name").accessibilityLabel(selected.product_name)
                     if showsUnsupportedUSBMarker { UnsupportedUSBInlineBanner() }
-                    if let serial = state.device.serial { Text("Serial \(serial)").font(.system(size: 11, weight: .medium, design: .monospaced)).foregroundStyle(.white.opacity(0.7)) }
-                    if let dpi = state.dpi { Text("DPI \(dpi.x)").font(.system(size: 12, weight: .bold, design: .monospaced)).foregroundStyle(.white.opacity(0.76)) }
                 }
 
                 Spacer()
@@ -366,7 +364,6 @@ struct GenericDeviceOverviewBar: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(selected.product_name).font(.system(size: 32, weight: .black, design: .rounded)).foregroundStyle(.white)
                     if showsUnsupportedUSBMarker { UnsupportedUSBInlineBanner() }
-                    if let serial = selected.serial { Text("Serial \(serial)").font(.system(size: 11, weight: .medium, design: .monospaced)).foregroundStyle(.white.opacity(0.7)) }
                 }
 
                 Spacer()
