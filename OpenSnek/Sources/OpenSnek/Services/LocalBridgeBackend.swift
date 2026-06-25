@@ -630,11 +630,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         do {
             let resumedStatus = try await softwareLightingEngine.resumeIfNeeded(device: device, batteryPercent: batteryPercent)
             let status: SoftwareLightingEngineStatus?
-            if let resumedStatus {
-                status = resumedStatus
-            } else {
-                status = try await softwareLightingEngine.reassertIfRunning(device: device, batteryPercent: batteryPercent)
-            }
+            if let resumedStatus { status = resumedStatus } else { status = try await softwareLightingEngine.reassertIfRunning(device: device, batteryPercent: batteryPercent) }
             if let status { handleSoftwareLightingStatus(status) }
         } catch { AppLog.warning("Backend", "software lighting USB recovery failed device=\(deviceID): \(error.localizedDescription)") }
     }
