@@ -248,12 +248,14 @@ import OpenSnekHardware
         let previous = stateCacheByDeviceID[presentationDeviceID] ?? stateCacheByDeviceID[deviceID]
         let merged = updatedState.merged(with: previous)
         let shouldFocusOnActivity = shouldFocusServiceSelectionOnActivity(previous: previous, next: merged)
+        let shouldRestoreSettingsAfterRecovery = shouldRestoreSettingsAfterSuccessfulRecovery(sourceDeviceID: deviceID, presentationDeviceID: presentationDeviceID, device: presentationDevice)
         logBackendStateUpdate(sourceDeviceID: deviceID, presentationDevice: presentationDevice, incoming: updatedState, merged: merged)
 
         cacheState(merged, sourceDeviceID: deviceID, presentationDeviceID: presentationDeviceID, updatedAt: updatedAt)
         setDpiUpdateTransportStatus(.realTimeHID, for: deviceID)
         setDpiUpdateTransportStatus(.realTimeHID, for: presentationDeviceID)
         if sourceDevice.transport == .usb { recordUSBLiveObservation(sourceDeviceID: deviceID, presentationDeviceID: presentationDeviceID, observedAt: updatedAt, transportStatus: .realTimeHID) }
+        if shouldRestoreSettingsAfterRecovery { armPendingSettingsRestore(for: [deviceID, presentationDeviceID]) }
         refreshFailureCountByDeviceID[deviceID] = 0
         refreshFailureCountByDeviceID[presentationDeviceID] = 0
         unavailableDeviceIDs.remove(deviceID)
@@ -263,6 +265,7 @@ import OpenSnekHardware
         runtimeController.updateStatusItemTransientDpi(previous: previous, next: merged, deviceID: presentationDeviceID)
 
         applySelectedBackendStateUpdate(merged, presentationDevice: presentationDevice)
+        if shouldRestoreSettingsAfterRecovery { Task { @MainActor [weak self] in await self?.restorePersistedSettingsIfNeeded(for: presentationDevice) } }
     }
 
     func logBackendStateUpdate(sourceDeviceID: String, presentationDevice: MouseDevice, incoming updatedState: MouseState, merged: MouseState) {
