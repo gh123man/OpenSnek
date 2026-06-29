@@ -38,9 +38,9 @@ Button remap keyboard actions support modifier chords on shipped USB and Bluetoo
 | Device | USB | BT | Biggest Gaps |
 |---|---|---|---|
 | Basilisk V3 X HyperSpeed | `Validated` | `Validated` | Bluetooth keeps lighting to static color, hides poll-rate and threshold controls, and leaves the Hypershift/sniper path read-only |
-| Basilisk V3 | `Mapped` | `No transport` | The whole USB profile is still the unvalidated mapped profile |
+| Basilisk V3 | `Mapped` | `No transport` | Shares the Basilisk V3 USB family configuration, but remains unvalidated on local hardware |
 | Basilisk V3 Pro | `Validated` | `Validated` | Ships mapped onboard profile CRUD on USB and Bluetooth; Bluetooth keeps lighting static-only, hides poll-rate and threshold controls, and does not ship clutch/profile-button remap |
-| Basilisk V3 35K | `Validated` | `No transport` | Onboard hardware profiles are still not shipped, and a few buttons remain unsupported footnotes instead of editable controls |
+| Basilisk V3 35K | `Validated` | `No transport` | Shares the Basilisk V3 USB family configuration with mapped onboard profile CRUD; no Bluetooth transport |
 | Orochi V2 | `Not shipped` | `Contributor validated` | Contributor validated Bluetooth DPI stages, battery, and no-RGB behavior; button remap is profile-mapped pending hardware readback validation |
 
 ## Basilisk V3 USB Family Assumptions
@@ -48,7 +48,7 @@ Button remap keyboard actions support modifier chords on shipped USB and Bluetoo
 For future USB feature work, treat the wired Basilisk V3 (`0x0099`), Basilisk V3 Pro (`0x00AA`/`0x00AB`), and Basilisk V3 35K (`0x00CB`) as one shared Basilisk V3 USB family unless hardware validation proves a device-specific exception.
 
 - USB lighting effect work should start from the assumption that all three share the same `0x0F` zone-effect set and the same three public zones: scroll wheel `0x01`, logo `0x04`, and underglow `0x0A`.
-- USB onboard-profile work should start from the assumption that all three expose the same mapped core profile API shape documented in [USB_PROFILE_CRUD_SPEC.md](./protocol/USB_PROFILE_CRUD_SPEC.md), even when OpenSnek has not yet shipped the UI for a specific family member.
+- USB onboard-profile work uses the same mapped core profile API shape documented in [USB_PROFILE_CRUD_SPEC.md](./protocol/USB_PROFILE_CRUD_SPEC.md) across the family; keep device-specific exceptions out of the implementation unless hardware validation proves one.
 - The Basilisk V3 X HyperSpeed is not part of this family assumption; it has its own simpler USB/Bluetooth profile shape.
 
 ## Basilisk V3 X HyperSpeed
@@ -79,7 +79,7 @@ USB PID `0x0099`, no Bluetooth transport
 |---|---|---|---|
 | Overall transport status | `Mapped` | `No transport` | The shipped USB profile is derived from OpenRazer plus the 35K layout, not yet locally validated in OpenSnek |
 | DPI stages + active stage | `Mapped` | `No transport` | The mapped USB profile clamps DPI to `26,000` |
-| Independent X/Y DPI | `Scalar only` | `No transport` | The mapped V3 USB profile ships with `supportsIndependentXYDPI = false` |
+| Independent X/Y DPI | `Mapped` | `No transport` | The mapped V3 USB profile inherits the shared Basilisk V3 USB family independent X/Y DPI configuration |
 | Poll rate | `Mapped` | `No transport` | Uses the shared USB poll-rate read/write path through the mapped profile |
 | Sleep timeout | `Mapped` | `No transport` | Uses the shared USB idle-time path through the mapped profile |
 | Low battery threshold | `Mapped` | `No transport` | Uses the shared USB threshold path through the mapped profile |
@@ -89,7 +89,7 @@ USB PID `0x0099`, no Bluetooth transport
 | Button remap: shipped editable slots | `Mapped` | `No transport` | The mapped USB profile exposes writable slots `1-5`, `9`, `10`, `15`, `52`, `53`, and `96` |
 | Button remap: unsupported slots | `Hidden` | `No transport` | The mapped profile documents slot `14` and slot `106` as unsupported footnote entries rather than editable controls |
 | Scroll controls | `Mapped` | `No transport` | The mapped profile rides the same shared USB scroll-control implementation as the other USB Basilisk profiles |
-| Onboard hardware profiles | `Not shipped` | `No transport` | OpenSnek does not currently claim shipped onboard hardware-profile support for the wired V3, but future work should assume the shared Basilisk V3 USB profile API applies until hardware proves otherwise |
+| Onboard hardware profiles | `Mapped` | `No transport` | The mapped V3 USB profile exposes the shared inventory-backed core profile CRUD surface: list, read, create, rename, update, delete/unassign, activate, and passive profile-cycle refresh |
 
 ## Basilisk V3 Pro
 
@@ -106,8 +106,8 @@ USB PIDs `0x00AA` / `0x00AB`, Bluetooth PID `0x00AC`
 | Battery telemetry | `Shipped` | `Shipped` | BT state publishes battery percent; BT charging is only surfaced when a USB fallback session can verify it |
 | Lighting: brightness + static color | `Shipped` | `Shipped` | USB ships three onboard zones; BT ships per-zone brightness and per-zone static color on `0x01`, `0x04`, and `0x0A`. The V3 USB family is modeled with 14 individually addressable Custom Frame cells (1 logo + 1 scroll wheel + 12 underglow/tail cells) via `Class 0x0F Cmd 0x03`, which OpenSnek uses for volatile USB Advanced software lighting while the app/service is running; see [docs/research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md](./research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md). OpenSnek's onboard model remains the shipped three-zone subset. |
 | Lighting: extra effects | `Shipped` | `Limited` | USB advertises the shared onboard Basilisk V3 USB family set: `off`, `static`, `spectrum`, and `wave`. V3 Pro USB also exposes Advanced software presets, including the Battery Meter underglow progress bar gated to this profile because it is the shipped device with both the light strip and battery telemetry. BT is static-only because the BT profile advertises only `.staticColor` |
-| Button remap: shipped editable slots | `Shipped` | `Shipped` | USB writable slots are `1-5`, `9`, `10`, `15`, `52`, `53`; BT writable slots are `1-5`, `9`, `10`, `52`, `53` |
-| Button remap: unsupported slots | `Hidden` | `Hidden` | USB profile button `106` is kept out of the editable layout; BT clutch `15` and profile button `106` are also kept out of the editable layout and only appear as unsupported footnotes |
+| Button remap: shipped editable slots | `Shipped` | `Shipped` | USB writable slots are `1-5`, `9`, `10`, `15`, `52`, `53`, and `96`; BT writable slots are `1-5`, `9`, `10`, `52`, `53` |
+| Button remap: unsupported slots | `Hidden` | `Hidden` | USB slot `14` and profile button `106` are kept out of the editable layout; BT clutch `15` and profile button `106` are also kept out of the editable layout and only appear as unsupported footnotes |
 | Scroll controls | `Shipped` | `Hidden` | V3 Pro USB uses profile-scoped `get/setScrollMode`, `get/setScrollAcceleration`, and `get/setScrollSmartReel`; BT never publishes those fields and the UI excludes BT scroll controls |
 | Onboard hardware profiles | `Shipped` | `Shipped` | V3 Pro USB and BT expose inventory-backed mapped core profile CRUD: list, read, create, rename, update, delete/unassign, activate, and passive profile-cycle refresh. Profile snapshots include metadata, DPI, mapped button bindings, brightness, USB scroll controls, USB/BT static color where mapped, and leave global settings plus advanced profile surfaces outside the v1 profile snapshot. |
 
@@ -129,7 +129,7 @@ USB PID `0x00CB`, no Bluetooth transport
 | Button remap: shipped editable slots | `Shipped` | `No transport` | Writable slots are `1-5`, `9`, `10`, `15`, `52`, `53`, and `96` |
 | Button remap: unsupported slots | `Hidden` | `No transport` | Slot `14` and slot `106` are documented as unsupported footnote entries rather than editable controls |
 | Scroll controls | `Shipped` | `No transport` | The 35K USB profile uses the shared `get/setScrollMode`, `get/setScrollAcceleration`, and `get/setScrollSmartReel` implementation |
-| Onboard hardware profiles | `Not shipped` | `No transport` | OpenSnek does not currently claim shipped onboard hardware-profile support for the 35K, but future work should assume the shared Basilisk V3 USB profile API applies until hardware proves otherwise |
+| Onboard hardware profiles | `Shipped` | `No transport` | The 35K USB profile exposes the shared inventory-backed core profile CRUD surface: list, read, create, rename, update, delete/unassign, activate, and passive profile-cycle refresh |
 
 ## Orochi V2
 

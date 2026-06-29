@@ -382,56 +382,47 @@ public enum DeviceProfiles {
     public static let basiliskV3ProBluetoothButtonSlots = basiliskV3FamilyButtonSlots
     public static let basiliskV335KUSBButtonSlots = basiliskV3FamilyButtonSlots
     public static let basiliskV3ProUSBButtonSlots = basiliskV3FamilyButtonSlots
+    private static let basiliskV3USBFamilyTransactionID: UInt8 = 0x1F
+    private static let basiliskV3USBFamilyLightingLEDIDs: [UInt8] = [0x01, 0x04, 0x0A]
+    private static let basiliskV3USBFamilyProfileSwitchPrefixes: [[UInt8]] = [[0x05, 0x39]]
 
     public static let basiliskV3ProBluetoothDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
         DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 106, friendlyName: "Profile Button", defaultKind: .default), access: .softwareReadOnly, note: "The V3 Pro Bluetooth path still needs capture-backed profile-button defaults before OpenSnek can expose this control.")
     ]
 
-    public static let basiliskV335KUSBDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
+    public static let basiliskV3USBFamilyDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
         DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 14, friendlyName: "Scroll Mode Toggle", defaultKind: .default), access: .protocolReadOnly, note: "OpenSnek can see this button, but the mouse does not let apps remap it yet."),
-        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 106, friendlyName: "Profile Button", defaultKind: .default), access: .softwareReadOnly, note: "This button is handled separately by the mouse, so OpenSnek cannot reassign it yet.")
+        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 106, friendlyName: "Profile Button", defaultKind: .default), access: .protocolReadOnly, note: "OpenSnek can see this button, but profile-button remap ACK/readback is not stable enough to expose yet.")
     ]
 
-    public static let basiliskV3USBDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
-        DocumentedButtonSlot(
-            descriptor: ButtonSlotDescriptor(slot: 14, friendlyName: "Scroll Mode Toggle", defaultKind: .default), access: .protocolReadOnly,
-            note: "This OpenRazer-backed profile assumes the Basilisk V3 matches the 35K's read-only scroll-mode control, but OpenSnek has not validated that on hardware yet."),
-        DocumentedButtonSlot(
-            descriptor: ButtonSlotDescriptor(slot: 106, friendlyName: "Profile Button", defaultKind: .default), access: .softwareReadOnly,
-            note: "This OpenRazer-backed profile assumes the Basilisk V3 matches the 35K's separate profile-button path, but OpenSnek has not validated that on hardware yet.")
-    ]
+    public static let basiliskV335KUSBDocumentedReadOnlySlots = basiliskV3USBFamilyDocumentedReadOnlySlots
+    public static let basiliskV3USBDocumentedReadOnlySlots = basiliskV3USBFamilyDocumentedReadOnlySlots
 
     public static let basiliskV335KUSBLightingZones: [USBLightingZoneDescriptor] = [
         USBLightingZoneDescriptor(id: "scroll_wheel", label: "Scroll Wheel", ledIDs: [0x01]), USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x04]), USBLightingZoneDescriptor(id: "underglow", label: "Underglow", ledIDs: [0x0A])
     ]
 
-    public static let basiliskV3ProUSBDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
-        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 106, friendlyName: "Profile Button", defaultKind: .default), access: .protocolReadOnly, note: "Observed remap writes can land on this button, but the V3 Pro's USB ACK/readback path is not stable enough to ship in OpenSnek yet.")
-    ]
+    public static let basiliskV3ProUSBDocumentedReadOnlySlots = basiliskV3USBFamilyDocumentedReadOnlySlots
 
     public static let basiliskV3XUSB = DeviceProfile(
         id: .basiliskV3XHyperspeed, productName: "Basilisk V3 X HyperSpeed", transport: .usb, supportedProducts: [0x00B9], usbTransactionID: 0x1F,
         buttonLayout: ButtonSlotLayout(visibleSlots: basiliskV3XButtonSlots, writableSlots: basiliskV3XButtonSlots.map(\.slot), documentedSlots: basiliskV3XDocumentedReadOnlySlots), supportsAdvancedLightingEffects: true, supportedLightingEffects: basiliskV3XUSBLightingEffects,
         usbLightingLEDIDs: [0x01], usbLightingZones: basiliskV3XUSBLightingZones, passiveDPIInput: PassiveDPIInputDescriptor(usagePage: 0x01, usage: 0x06, reportID: 0x05, subtype: 0x02, minInputReportSize: 5, maximumDPI: 18_000), usesProjectedDPIStageWriteReadback: true, onboardProfileCount: 1)
 
-    public static let basiliskV335KUSB = DeviceProfile(
-        id: .basiliskV335K, productName: "Basilisk V3 35K", transport: .usb, supportedProducts: [0x00CB], usbTransactionID: 0x1F,
-        buttonLayout: ButtonSlotLayout(visibleSlots: basiliskV3FamilyButtonSlots, writableSlots: basiliskV3FamilyButtonSlots.map(\.slot), documentedSlots: basiliskV335KUSBDocumentedReadOnlySlots), supportsAdvancedLightingEffects: true, supportedLightingEffects: basiliskV335KUSBLightingEffects,
-        usbLightingLEDIDs: [0x01, 0x04, 0x0A], usbLightingZones: basiliskV335KUSBLightingZones, softwareLightingFrameLayout: .basiliskV3ProUSB, supportedSoftwareLightingPresets: SoftwareLightingPresetID.animatedPresets,
-        passiveDPIInput: PassiveDPIInputDescriptor(usagePage: 0x01, usage: 0x06, reportID: 0x05, subtype: 0x02, minInputReportSize: 5, maximumDPI: 35_000), supportsIndependentXYDPI: true, supportsScrollModeControls: true, supportsLightingBrightnessControls: true, onboardProfileCount: 5)
+    public static let basiliskV335KUSB = basiliskV3USBFamilyProfile(id: .basiliskV335K, productName: "Basilisk V3 35K", supportedProducts: [0x00CB], maximumDPI: 35_000)
 
-    public static let basiliskV3USB = DeviceProfile(
-        id: .basiliskV3, productName: "Basilisk V3", transport: .usb, supportedProducts: [0x0099], buttonLayout: ButtonSlotLayout(visibleSlots: basiliskV3FamilyButtonSlots, writableSlots: basiliskV3FamilyButtonSlots.map(\.slot), documentedSlots: basiliskV3USBDocumentedReadOnlySlots),
-        supportsAdvancedLightingEffects: true, supportedLightingEffects: basiliskV335KUSBLightingEffects, usbLightingLEDIDs: [0x01, 0x04, 0x0A], usbLightingZones: basiliskV335KUSBLightingZones, softwareLightingFrameLayout: .basiliskV3ProUSB,
-        supportedSoftwareLightingPresets: SoftwareLightingPresetID.animatedPresets, passiveDPIInput: PassiveDPIInputDescriptor(usagePage: 0x01, usage: 0x06, reportID: 0x05, subtype: 0x02, minInputReportSize: 5, maximumDPI: 26_000), supportsScrollModeControls: true,
-        supportsLightingBrightnessControls: true, onboardProfileCount: 5, isLocallyValidated: false)
+    public static let basiliskV3USB = basiliskV3USBFamilyProfile(id: .basiliskV3, productName: "Basilisk V3", supportedProducts: [0x0099], maximumDPI: 26_000, isLocallyValidated: false)
 
-    public static let basiliskV3ProUSB = DeviceProfile(
-        id: .basiliskV3Pro, productName: "Basilisk V3 Pro", transport: .usb, supportedProducts: [0x00AA, 0x00AB], usbTransactionID: 0x1F,
-        buttonLayout: ButtonSlotLayout(visibleSlots: basiliskV3FamilyButtonSlots, writableSlots: basiliskV3FamilyButtonSlots.map(\.slot), documentedSlots: basiliskV3ProUSBDocumentedReadOnlySlots), supportsAdvancedLightingEffects: true, supportedLightingEffects: basiliskV335KUSBLightingEffects,
-        usbLightingLEDIDs: [0x01, 0x04, 0x0A], usbLightingZones: basiliskV335KUSBLightingZones, softwareLightingFrameLayout: .basiliskV3ProUSB, supportedSoftwareLightingPresets: SoftwareLightingPresetID.basiliskV3ProPresets,
-        passiveDPIInput: PassiveDPIInputDescriptor(usagePage: 0x01, usage: 0x06, reportID: 0x05, subtype: 0x02, profileSwitchPrefixes: [[0x05, 0x39]], minInputReportSize: 5, maximumDPI: 30_000), supportsIndependentXYDPI: true, supportsScrollModeControls: true,
-        supportsLightingBrightnessControls: true, onboardProfileSupport: .mappedCore, onboardProfileCount: 5)
+    public static let basiliskV3ProUSB = basiliskV3USBFamilyProfile(id: .basiliskV3Pro, productName: "Basilisk V3 Pro", supportedProducts: [0x00AA, 0x00AB], maximumDPI: 30_000, supportedSoftwareLightingPresets: SoftwareLightingPresetID.basiliskV3ProPresets)
+
+    private static func basiliskV3USBFamilyProfile(id: DeviceProfileID, productName: String, supportedProducts: Set<Int>, maximumDPI: Int, supportedSoftwareLightingPresets: [SoftwareLightingPresetID] = SoftwareLightingPresetID.animatedPresets, isLocallyValidated: Bool = true) -> DeviceProfile {
+        DeviceProfile(
+            id: id, productName: productName, transport: .usb, supportedProducts: supportedProducts, usbTransactionID: basiliskV3USBFamilyTransactionID,
+            buttonLayout: ButtonSlotLayout(visibleSlots: basiliskV3FamilyButtonSlots, writableSlots: basiliskV3FamilyButtonSlots.map(\.slot), documentedSlots: basiliskV3USBFamilyDocumentedReadOnlySlots), supportsAdvancedLightingEffects: true,
+            supportedLightingEffects: basiliskV335KUSBLightingEffects, usbLightingLEDIDs: basiliskV3USBFamilyLightingLEDIDs, usbLightingZones: basiliskV335KUSBLightingZones, softwareLightingFrameLayout: .basiliskV3ProUSB, supportedSoftwareLightingPresets: supportedSoftwareLightingPresets,
+            passiveDPIInput: PassiveDPIInputDescriptor(usagePage: 0x01, usage: 0x06, reportID: 0x05, subtype: 0x02, profileSwitchPrefixes: basiliskV3USBFamilyProfileSwitchPrefixes, minInputReportSize: 5, maximumDPI: maximumDPI), supportsIndependentXYDPI: true, supportsScrollModeControls: true,
+            supportsLightingBrightnessControls: true, onboardProfileSupport: .mappedCore, onboardProfileCount: 5, isLocallyValidated: isLocallyValidated)
+    }
 
     public static let basiliskV3XBluetooth = DeviceProfile(
         id: .basiliskV3XHyperspeed, productName: "Basilisk V3 X HyperSpeed", transport: .bluetooth, supportedProducts: [0x00BA],
@@ -584,8 +575,8 @@ public enum DeviceProfiles {
 
     public static func supportsIndependentXYDPI(for profileID: DeviceProfileID?) -> Bool {
         switch profileID {
-        case .basiliskV3Pro, .basiliskV335K: return true
-        case .basiliskV3XHyperspeed, .basiliskV3, .orochiV2, nil: return false
+        case .basiliskV3, .basiliskV3Pro, .basiliskV335K: return true
+        case .basiliskV3XHyperspeed, .orochiV2, nil: return false
         }
     }
 

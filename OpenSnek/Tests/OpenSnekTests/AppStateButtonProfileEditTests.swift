@@ -6,7 +6,7 @@ import OpenSnekCore
 
 /// Exercises app state button profile edit behavior.
 final class AppStateButtonProfileEditTests: XCTestCase {
-    func testDefaultDPIButtonAppliesAsDPICycleOn35K() async throws {
+    func testDefaultDPIButtonUsesMappedOnboardMutationAndDPICycleWriteBlockOn35K() async throws {
         let device = MouseDevice(
             id: "usb-35k-default-dpi-cycle-device", vendor_id: 0x1532, product_id: 0x00CB, product_name: "Basilisk V3 35K", transport: .usb, path_b64: "", serial: "USB-35K-DPI-\(UUID().uuidString)", firmware: "1.0.0", location_id: 1, profile_id: .basiliskV335K,
             supports_advanced_lighting_effects: true, onboard_profile_count: 5)
@@ -20,15 +20,16 @@ final class AppStateButtonProfileEditTests: XCTestCase {
         await appState.deviceStore.refreshDevices()
         await MainActor.run { appState.editorStore.updateButtonBindingKind(slot: 96, kind: .default) }
 
-        try await waitForRefactorCondition(timeout: 2.0) { await backend.recordedPatches().contains(where: { $0.buttonBinding?.slot == 96 && $0.buttonBinding?.kind == .dpiCycle }) }
+        try await waitForRefactorCondition(timeout: 2.0) { await backend.recordedOnboardUpdates().contains(where: { $0.profileID == 1 && $0.mutation.buttonBindings?[96]?.kind == .default }) }
 
-        let patches = await backend.recordedPatches()
-        let patch = try XCTUnwrap(patches.last(where: { $0.buttonBinding?.slot == 96 }))
+        let updates = await backend.recordedOnboardUpdates()
+        let update = try XCTUnwrap(updates.last(where: { $0.mutation.buttonBindings?[96] != nil }))
+        let draft = try XCTUnwrap(update.mutation.buttonBindings?[96])
+        let writeBlock = ButtonBindingSupport.usbFunctionBlockForWrite(slot: 96, draft: draft, profileID: .basiliskV335K)
         let selectedKind = await MainActor.run { appState.editorStore.buttonBindingKind(for: 96) }
-        XCTAssertEqual(patch.buttonBinding?.kind, .dpiCycle)
-        XCTAssertEqual(patch.buttonBinding?.persistentProfile, 1)
-        XCTAssertEqual(patch.buttonBinding?.writePersistentLayer, true)
-        XCTAssertEqual(patch.buttonBinding?.writeDirectLayer, true)
+        XCTAssertEqual(update.profileID, 1)
+        XCTAssertEqual(draft.kind, .default)
+        XCTAssertEqual(writeBlock, [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00])
         XCTAssertEqual(selectedKind, .default)
     }
 
@@ -72,7 +73,7 @@ final class AppStateButtonProfileEditTests: XCTestCase {
     }
 
     func testEditingMouseTurboBindingAutoAppliesToBaseProfile() async throws {
-        let device = makeRefactorTestDevice(id: "usb-profile-mouse-turbo-device", transport: .usb, serial: "USB-PROFILE-MOUSE-TURBO-\(UUID().uuidString)", onboardProfileCount: 3, profileID: .basiliskV335K)
+        let device = makeRefactorTestDevice(id: "usb-profile-mouse-turbo-device", transport: .usb, serial: "USB-PROFILE-MOUSE-TURBO-\(UUID().uuidString)", onboardProfileCount: 3, profileID: .basiliskV3XHyperspeed)
         defer { clearRefactorPreferences(for: device) }
 
         let backend = AppStateRefactorStubBackend(

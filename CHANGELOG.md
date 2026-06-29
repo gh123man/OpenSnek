@@ -9,6 +9,7 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 - Fixed Basilisk V3 Pro profile switches and reconnect hydration so reduced DPI stage tables keep driving live DPI-cycle UI updates.
+- Fixed Basilisk V3 USB-family profile configuration so Basilisk V3, Basilisk V3 Pro, and Basilisk V3 35K inherit the same mapped onboard-profile support instead of leaving the 35K without onboard profile CRUD.
 - Fixed Advanced USB software-lighting streams so stale USB sessions are suspended on write or control-heartbeat failures and recover when USB reachability returns after mouse sleep or power-cycle events.
 
 ## [1.2.0]

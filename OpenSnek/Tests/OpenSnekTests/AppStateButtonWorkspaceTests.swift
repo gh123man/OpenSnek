@@ -218,8 +218,9 @@ final class AppStateButtonWorkspaceTests: XCTestCase {
         XCTAssertEqual(summaries.first(where: { $0.profile == 1 })?.isHardwareActive, true)
     }
 
-    func testEditingProjectedStoredUSBButtonProfileAutoAppliesToBaseAndDirectLayer() async throws {
-        for (profileID, onboardProfileCount) in [(DeviceProfileID.basiliskV3, 5), (.basiliskV335K, 5)] {
+    func testEditingBasiliskV3USBFamilyButtonProfileAutoAppliesMappedOnboardMutation() async throws {
+        for profileID in [DeviceProfileID.basiliskV3, .basiliskV3Pro, .basiliskV335K] {
+            let onboardProfileCount = 5
             let device = makeRefactorTestDevice(id: "usb-profile-projected-auto-apply-\(profileID.rawValue)", transport: .usb, serial: "USB-PROFILE-PROJECTED-AUTO-\(profileID.rawValue)-\(UUID().uuidString)", onboardProfileCount: onboardProfileCount, profileID: profileID)
             defer { clearRefactorPreferences(for: device) }
 
@@ -241,18 +242,17 @@ final class AppStateButtonWorkspaceTests: XCTestCase {
 
             await MainActor.run { appState.editorStore.updateButtonBindingKind(slot: 4, kind: .rightClick) }
 
-            try await waitForRefactorCondition(timeout: 2.0) { await backend.recordedPatches().contains(where: { patch in patch.buttonBinding?.slot == 4 && patch.buttonBinding?.kind == .rightClick }) }
+            try await waitForRefactorCondition(timeout: 2.0) { await backend.recordedOnboardUpdates().contains { update in update.profileID == 1 && update.mutation.buttonBindings?[4]?.kind == .rightClick } }
 
-            let patches = await backend.recordedPatches()
-            let patch = try XCTUnwrap(patches.last(where: { $0.buttonBinding?.slot == 4 }), "Missing button patch for \(profileID.rawValue)")
-            XCTAssertEqual(patch.buttonBinding?.persistentProfile, 1, "Projected USB edits should persist to base slot 1 for \(profileID.rawValue)")
-            XCTAssertEqual(patch.buttonBinding?.writePersistentLayer, true)
-            XCTAssertEqual(patch.buttonBinding?.writeDirectLayer, true)
+            let updates = await backend.recordedOnboardUpdates()
+            let update = try XCTUnwrap(updates.last(where: { $0.mutation.buttonBindings?[4] != nil }), "Missing onboard button update for \(profileID.rawValue)")
+            XCTAssertEqual(update.profileID, 1, "Projected USB edits should persist to base onboard slot 1 for \(profileID.rawValue)")
+            XCTAssertEqual(update.mutation.buttonBindings?[4]?.kind, .rightClick)
         }
     }
 
     func testEditingSavedButtonProfileStillAutoAppliesToBaseAndDirectLayer() async throws {
-        let device = makeRefactorTestDevice(id: "saved-button-auto-apply-device", transport: .usb, serial: "SAVED-BUTTON-AUTO-\(UUID().uuidString)", onboardProfileCount: 3, profileID: .basiliskV335K)
+        let device = makeRefactorTestDevice(id: "saved-button-auto-apply-device", transport: .usb, serial: "SAVED-BUTTON-AUTO-\(UUID().uuidString)", onboardProfileCount: 3, profileID: .basiliskV3XHyperspeed)
         let preferenceStore = DevicePreferenceStore()
         let saved = preferenceStore.saveOpenSnekButtonProfile(name: "Travel", bindings: [4: ButtonBindingDraft(kind: .rightClick, hidKey: 4, turboEnabled: false, turboRate: 0x8E, clutchDPI: nil)])
         defer {
@@ -282,7 +282,7 @@ final class AppStateButtonWorkspaceTests: XCTestCase {
     }
 
     func testEditingBaseProfileAutoAppliesToLiveAndPersistentSlotOne() async throws {
-        let device = makeRefactorTestDevice(id: "usb-profile-base-auto-apply-device", transport: .usb, serial: "USB-PROFILE-BASE-\(UUID().uuidString)", onboardProfileCount: 3, profileID: .basiliskV335K)
+        let device = makeRefactorTestDevice(id: "usb-profile-base-auto-apply-device", transport: .usb, serial: "USB-PROFILE-BASE-\(UUID().uuidString)", onboardProfileCount: 3, profileID: .basiliskV3XHyperspeed)
         defer { clearRefactorPreferences(for: device) }
 
         let backend = AppStateRefactorStubBackend(

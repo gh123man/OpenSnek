@@ -13,6 +13,12 @@ device-specific exception. Feature work built on this spec should be designed
 to apply across that family, with shipped status still gated per device by
 validation and UI exposure.
 
+OpenSnek's USB device profiles implement this as one shared Basilisk V3 USB
+configuration profile for the wired V3, V3 Pro, and V3 35K. Device-specific
+entries may still override identity, product IDs, validation status,
+software-lighting presets, and DPI ceilings, but mapped profile CRUD support
+must stay inherited from the shared configuration.
+
 ## Storage Model
 
 USB profile-addressed commands use a one-byte storage/profile ID.
