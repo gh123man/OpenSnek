@@ -32,9 +32,9 @@ Support is transport-specific. A mouse may be supported over USB, Bluetooth, or 
 | Device | USB | Bluetooth | Notes |
 |---|---|---|---|
 | Basilisk V3 X HyperSpeed | Validated | Validated | |
-| Basilisk V3 | Mapped | No | OpenRazer-backed USB profile, modeled after the Basilisk V3 35K with a `26,000` DPI ceiling |
+| Basilisk V3 | Mapped | No | OpenRazer-backed USB profile, sharing the Basilisk V3 USB family configuration with a `26,000` DPI ceiling |
 | Basilisk V3 Pro | Validated | Validated | |
-| Basilisk V3 35K | Validated | No | |
+| Basilisk V3 35K | Validated | No | Shares the Basilisk V3 USB family configuration |
 | Orochi V2 | Not yet | Contributor validated | Contributor validated Bluetooth DPI stages and battery; button remap is profile-mapped pending hardware readback validation. 2.4 GHz HyperSpeed dongle not yet supported. Mouse has no RGB lighting. |
 
 Status key:

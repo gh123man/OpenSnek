@@ -81,7 +81,7 @@ Validated in-session over USB:
 - working: matrix brightness/effect writes on all validated LED IDs (`0x01` scroll wheel, `0x04` logo, `0x0A` underglow)
 - working: button remap read/write/readback on standard slots plus the additional sensitivity clutch / DPI clutch (`0x0F`), wheel-tilt (`0x34`, `0x35`), and top DPI-button (`0x60`) slots
 - observed clutch behavior on `0x00CB`: native slot `0x0F` default reads back as `06 01 05 01 90 01 90`, accepts remap writes, and also accepts the V3 Pro-style `06 05 05 <dpi> <dpi>` DPI-clutch payload; the same DPI-clutch payload also round-trips on slot `0x04`
-- observed non-remappable controls on `0x00CB`: scroll-mode (`0x0E`, protocol-read-only), profile button (`0x6A`, software-read-only via report-4 `0x50`)
+- observed non-remappable controls on `0x00CB`: scroll-mode (`0x0E`, protocol-read-only), profile button (`0x6A`, protocol-read-only with report-4 `0x50`)
 - observed alternate USB DPI-button payload on slot `0x60`: `04 02 0F 7B 00 00 00`
 - shipped client behavior: normalize `0x60` to a user-facing `DPI Cycle` action and allow binding `DPI Cycle` to any writable USB slot
 - observed HID candidates on an attached `0x00CB`: `0x01:0x06` interfaces with `input=16/8` and `feature=1/0`, matching the tuple already used for the shipped V3 Pro USB passive DPI listener
@@ -89,13 +89,13 @@ Validated in-session over USB:
 - observed profile summary getter on `0x00CB`: `0x00:0x87` -> `<active,0x00,count>`
 - tested active-profile write candidates on `0x00CB`: `0x00:0x07` with payloads `02`, `02 00`, `02 00 05`, and `02 00 00` all returned status `0x05` (`not supported`)
 - observed profile-model behavior on `0x00CB`: persistent slot `0x05` writes stay isolated, persistent slot `0x01` writes mirror into direct/live `0x00` while profile `1` is active, and later direct/live writes do not write back into persistent slot `0x01`
-- shipped client behavior: per-slot button-function reads/writes remain available to the backend and probe tooling, but the UI keeps onboard button-profile controls disabled until the hardware-selected active-slot model is validated
+- shipped client behavior: the 35K USB profile now inherits the shared Basilisk V3 USB mapped core profile configuration, so OpenSnek exposes inventory-backed onboard profile CRUD and direct active-profile reads through the same `0x05` profile commands used by the V3 Pro USB path
 
 ## OpenRazer-Backed Device Profile (Basilisk V3, USB PID `0x0099`)
 
 Mapped from current OpenRazer source, not yet validated in-session with OpenSnek hardware:
 - OpenRazer advertises the wired Basilisk V3 as `USB PID 0x0099` with `DPI_MAX = 26000`
-- OpenSnek currently maps the wired V3 onto the shipped 35K-style USB profile shape for button slots, multi-zone lighting targets, passive HID DPI listener matching, and `5` onboard profiles
+- OpenSnek maps the wired V3 onto the shared Basilisk V3 USB configuration profile for button slots, multi-zone lighting targets, passive HID DPI/profile-switch listener matching, independent X/Y DPI editing, scroll controls, and mapped core onboard profile CRUD
 - OpenSnek caps DPI edits/readback for this profile at `26,000` instead of the 35K profile's `35,000`
 - until local protocol captures confirm otherwise, this profile should be treated as best-known support derived from ecosystem sources rather than hardware-validated parity
 
@@ -132,7 +132,7 @@ Validated in-session over USB:
 - observed V3 Pro USB create side effect on June 16, 2026: the `0x05:0x02` assignment path changed profile `4` DPI scalar/stage active token and brightness; OpenSnek restored them through `0x04:0x06`, `0x04:0x05`, and `0x0F:0x04`. Production USB create must rewrite desired profile content after metadata assignment.
 - observed V3 Pro USB profile-management negative reads on June 16, 2026: BLE-like USB `03:80`, `03:82`, `03:84`, and `01:8C` did not expose BLE inventory/active/metadata behavior over the 90-byte HID feature-report transport
 - observed V3 Pro USB static-color profile mapping on June 16, 2026: `0x0F:0x82`, size `0x0C`, read profile-addressed effect state for profile IDs `0..5` and LEDs `0x01`, `0x04`, and `0x0A`; assigned profile `2` accepted `0x0F:0x02` static-color writes and effective profile `0` mirrored those colors after `0x05:0x04 02`; the original profile `2` effect payloads were restored.
-- shipped client behavior: OpenSnek exposes mapped core onboard profile CRUD on validated V3 Pro USB devices through `0x05:0x81` inventory, `0x05:0x84` active-profile reads, guarded metadata/create/delete transactions, profile-addressed DPI/button/brightness/static-color/scroll-control writes, and passive profile-cycle HID refresh. It also exposes volatile 14-cell V3-family Custom Frame software presets through service-owned `0x0F:0x03` streaming while OpenSnek is running. Non-static onboard effect payload editing, macros, and advanced button families remain outside the v1 CRUD surface.
+- shipped client behavior: OpenSnek exposes mapped core onboard profile CRUD through the shared Basilisk V3 USB configuration profile for the wired V3, V3 Pro, and V3 35K USB paths. The shared surface uses `0x05:0x81` inventory, `0x05:0x84` active-profile reads, guarded metadata/create/delete transactions, profile-addressed DPI/button/brightness/static-color/scroll-control writes, and passive profile-cycle HID refresh. OpenSnek also exposes volatile 14-cell V3-family Custom Frame software presets through service-owned `0x0F:0x03` streaming while it is running. Non-static onboard effect payload editing, macros, and advanced button families remain outside the v1 CRUD surface.
 
 ## Validated BT Profile (Basilisk V3 X HyperSpeed BT PID `0x00BA`, macOS stack)
 

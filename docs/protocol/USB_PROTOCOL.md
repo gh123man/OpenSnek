@@ -255,7 +255,7 @@ Client note:
   - `editable`: validated over `0x02:0x0C`
   - `protocol-read-only`: readable from `0x02:0x8C`, but no validated writable path
   - `software-read-only`: fixed control exposed to software through auxiliary HID input/report paths rather than button-function writes
-- On Basilisk V3 35K, OpenRazer documents keyboard-interface report-4 codes `0x50 = profile` and `0x51 = sensitivity clutch`. The profile button still behaves like a software-read-only control, but the native clutch slot also has a validated USB button-function write path, so do not blanket-mark `0x0F` as software-read-only on this device.
+- On Basilisk V3 35K, OpenRazer documents keyboard-interface report-4 codes `0x50 = profile` and `0x51 = sensitivity clutch`. The profile button remains protocol-read-only in OpenSnek because remap ACK/readback is not stable enough to expose, but the native clutch slot has a validated USB button-function write path, so do not blanket-mark `0x0F` as read-only on this device.
 
 #### Get Onboard Profile Summary
 ```
@@ -508,7 +508,7 @@ Validated LED IDs on `0x00AB`:
 
 Client note:
 - For whole-device USB lighting on Basilisk V3 Pro and Basilisk V3 35K, apply brightness/effect writes to all validated LED IDs (`0x01`, `0x04`, and `0x0A`).
-- On the attached Basilisk V3 35K, brightness reads on `0x0F:0x84` succeed for both storage `0x00` and `0x01`. Treat lighting the same way as DPI until proven otherwise: a separate live/persisted layer, not a slot-addressed onboard-profile store.
+- On the attached Basilisk V3 35K, brightness reads on `0x0F:0x84` succeed for both storage `0x00` and `0x01`. OpenSnek now treats the 35K as part of the shared Basilisk V3 USB mapped profile family, so profile-scoped lighting should use the same guarded `0x0F` storage/profile IDs as the V3 Pro path unless hardware validation proves a device-specific exception.
 - On the attached Basilisk V3 Pro on June 16, 2026, brightness reads on `0x0F:0x84` succeeded for storage/profile IDs `0..5` and all validated LED IDs. Storage `3` returned `0x60`, matching the Bluetooth-recreated target-`3` profile, while the other banks returned `0x54`. Treat brightness as profile-scoped on this device. Changed-value `0x0F:0x04` stored-bank write/readback with restore is validated on profile `5`, and those values persisted across USB reconnect. Cross-transport readback and power-cycle persistence still need guarded validation before shipping.
 
 #### Get/Set Scroll LED Effects
@@ -858,9 +858,10 @@ reliable on the local USB stack.
 | Transaction ID | `0x1F` |
 | Max DPI | 35000 |
 | DPI Stages | 5 |
+| Onboard Profiles | 5 |
 | Poll Rates | 125, 500, 1000 Hz |
 | Validated matrix LEDs | `0x01` scroll wheel, `0x04` logo, `0x0A` underglow |
-| Extra validated button slots | `0x0E` scroll mode (protocol-read-only), `0x0F` sensitivity clutch / DPI clutch (editable; default `06 01 05 01 90 01 90`), `0x34` wheel tilt left, `0x35` wheel tilt right, `0x60` DPI button, `0x6A` profile button (software-read-only / report-4 `0x50`) |
+| Extra validated button slots | `0x0E` scroll mode (protocol-read-only), `0x0F` sensitivity clutch / DPI clutch (editable; default `06 01 05 01 90 01 90`), `0x34` wheel tilt left, `0x35` wheel tilt right, `0x60` DPI button, `0x6A` profile button (protocol-read-only; report-4 `0x50`) |
 
 ### Razer Basilisk V3 Pro (0x00AA / 0x00AB)
 

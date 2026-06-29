@@ -233,6 +233,12 @@ final class USBButtonHydrationTests: XCTestCase {
         XCTAssertEqual(block, [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00])
     }
 
+    func testUSBWriteFunctionBlockResolves35KSemanticDPIButtonDefault() {
+        let draft = ButtonBindingSupport.defaultButtonBinding(for: 96, profileID: .basiliskV335K)
+        let block = ButtonBindingSupport.usbFunctionBlockForWrite(slot: 96, draft: draft, profileID: .basiliskV335K)
+        XCTAssertEqual(block, [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00])
+    }
+
     func testExtractUSBFunctionBlockRejectsMismatchedEchoedSlot() {
         let response: [UInt8] = [0x02, 0x1F, 0x00, 0x00, 0x00, 0x0A, 0x02, 0x8C, 0x01, 0x35, 0x00, 0x01, 0x01, 0x02, 0x00, 0x00, 0x00] + Array(repeating: 0x00, count: 73)
 

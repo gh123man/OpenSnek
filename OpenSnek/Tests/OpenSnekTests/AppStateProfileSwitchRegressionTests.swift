@@ -51,9 +51,11 @@ final class AppStateProfileSwitchRegressionTests: XCTestCase {
         await backend.setOnboardInventory(makeProfileSwitchInventory(activeProfile: 2, maxProfileID: 5, snapshots: [baseSnapshot, workSnapshot]), forDeviceID: device.id)
         await backend.setOnboardSnapshot(baseSnapshot, forDeviceID: device.id)
         await backend.setOnboardSnapshot(workSnapshot, forDeviceID: device.id)
+        await backend.holdOnboardProfileRead(deviceID: device.id, profileID: 2)
 
         let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
         await appState.deviceStore.refreshDevices()
+        await backend.waitForOnboardProfileReadToStart(deviceID: device.id, profileID: 2)
 
         let connectHydrationState = await MainActor.run { (appState.editorStore.selectedOnboardProfileID, appState.deviceStore.state?.active_onboard_profile, appState.deviceStore.state?.dpi_stages.values, appState.editorStore.editableStageCount) }
         XCTAssertEqual(connectHydrationState.0, 2)
@@ -61,6 +63,7 @@ final class AppStateProfileSwitchRegressionTests: XCTestCase {
         XCTAssertEqual(connectHydrationState.2, [600, 30_000, 8000, 12_000, 16_000])
         XCTAssertNotEqual(connectHydrationState.3, 5)
 
+        await backend.releaseOnboardProfileRead(deviceID: device.id, profileID: 2)
         try await waitForRefactorCondition { await MainActor.run { appState.editorStore.selectedOnboardProfileID == 2 && appState.editorStore.editableStageCount == 2 && appState.editorStore.stageValue(0) == 600 && appState.editorStore.stageValue(1) == 30_000 } }
 
         let profileHydrationState = await MainActor.run { (appState.deviceStore.state?.dpi_stages.values, appState.editorStore.editableStageCount, Array(appState.editorStore.editableStagePairs.prefix(2)).map(\.x)) }

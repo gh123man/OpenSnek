@@ -295,8 +295,7 @@ extension BridgeClient {
         }
         if let bindings = mutation.buttonBindings {
             for (slot, draft) in bindings where profile.buttonLayout.isEditable(slot) {
-                let block = ButtonBindingSupport.buildUSBFunctionBlock(
-                    slot: slot, kind: draft.kind, hidKey: draft.hidKey, hidModifiers: draft.hidModifiers, turboEnabled: draft.turboEnabled && draft.kind.supportsTurbo, turboRate: draft.turboRate, clutchDPI: draft.clutchDPI, profileID: device.profile_id)
+                let block = ButtonBindingSupport.usbFunctionBlockForWrite(slot: slot, draft: draft, profileID: device.profile_id)
                 guard try setButtonBindingUSBRaw(session, device, request: USBRawButtonBindingWrite(profile: UInt8(profileID), slot: UInt8(slot), hypershift: 0x00, functionBlock: block)) else { throw BridgeError.commandFailed("USB onboard profile button write failed for slot \(slot).") }
             }
         }

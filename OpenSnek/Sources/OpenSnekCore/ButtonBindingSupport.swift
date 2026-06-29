@@ -98,6 +98,11 @@ public enum ButtonBindingSupport {
         return defaultButtonBinding(for: slot, profileID: profileID)
     }
 
+    public static func usbFunctionBlockForWrite(slot: Int, draft: ButtonBindingDraft, profileID: DeviceProfileID? = nil) -> [UInt8] {
+        let resolved = draft.kind == .default ? semanticDefaultButtonBinding(for: slot, profileID: profileID) ?? draft : draft
+        return buildUSBFunctionBlock(slot: slot, kind: resolved.kind, hidKey: resolved.hidKey, hidModifiers: resolved.hidModifiers, turboEnabled: resolved.turboEnabled && resolved.kind.supportsTurbo, turboRate: resolved.turboRate, clutchDPI: resolved.clutchDPI, profileID: profileID)
+    }
+
     public static func buttonBindingDraftFromUSBFunctionBlock(slot: Int, functionBlock: [UInt8], profileID: DeviceProfileID? = nil) -> ButtonBindingDraft? {
         guard functionBlock.count == 7 else { return nil }
 

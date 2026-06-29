@@ -471,7 +471,7 @@ extension BridgeClient {
     }
 
     func getDirectUSBActiveProfileID(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> Int? {
-        guard device.profile_id == .basiliskV3Pro else { return nil }
+        guard usbDeviceProfile(for: device)?.supportsMappedOnboardProfileCRUD == true else { return nil }
         guard let response = try perform(session, device, classID: 0x05, cmdID: 0x84, size: 0x00), let active = USBHIDProtocol.activeProfileID(from: response) else { return nil }
         return max(1, Int(active))
     }
@@ -622,8 +622,8 @@ extension BridgeClient {
 
     func setButtonBindingUSB(_ session: USBHIDControlSession, _ device: MouseDevice, request: USBButtonBindingWrite) throws -> Bool {
         guard let bindingKind = ButtonBindingKind(rawValue: request.kind) else { return false }
-        let functionBlock = ButtonBindingSupport.buildUSBFunctionBlock(
-            slot: request.slot, kind: bindingKind, hidKey: request.hidKey, hidModifiers: request.hidModifiers, turboEnabled: request.turboEnabled && bindingKind.supportsTurbo, turboRate: request.turboRate, clutchDPI: request.clutchDPI, profileID: device.profile_id)
+        let draft = ButtonBindingDraft(kind: bindingKind, hidKey: request.hidKey, hidModifiers: request.hidModifiers, turboEnabled: request.turboEnabled && bindingKind.supportsTurbo, turboRate: request.turboRate, clutchDPI: request.clutchDPI)
+        let functionBlock = ButtonBindingSupport.usbFunctionBlockForWrite(slot: request.slot, draft: draft, profileID: device.profile_id)
         let clampedSlot = UInt8(max(0, min(255, request.slot)))
 
         let clampedPersistentProfile = UInt8(OnboardProfileLimits.clampPersistentProfileID(request.persistentProfile))
