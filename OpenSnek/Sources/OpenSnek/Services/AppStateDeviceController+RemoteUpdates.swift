@@ -213,12 +213,26 @@ import OpenSnekHardware
         let didApplyPresentationAvailability = presentationDeviceID == deviceID ? didApplySourceAvailability : setBackendObservedUSBControlAvailability(availability, for: presentationDeviceID, observedAt: updatedAt)
         let clearsPhysicalAbsence = availability == .unknown && (previousSourceAvailability?.blocksUSBControlInteraction == true || previousPresentationAvailability?.blocksUSBControlInteraction == true)
         if availability == .receiverPresentMouseReachable || clearsPhysicalAbsence {
+            if shouldRestoreSettingsAfterUSBAvailabilityRecovery(sourceDeviceID: deviceID, presentationDeviceID: presentationDeviceID, previousSourceAvailability: previousSourceAvailability, previousPresentationAvailability: previousPresentationAvailability, newAvailability: availability) {
+                armPendingSettingsRestore(for: [deviceID, presentationDeviceID])
+            }
             clearConnectionFailureState(sourceDeviceID: deviceID, presentationDeviceID: presentationDeviceID)
             if deviceStore.selectedDeviceID == presentationDeviceID { Task { @MainActor [weak self] in _ = await self?.refreshState(for: presentationDevice) } }
         } else if availability.blocksUSBControlInteraction, didApplyPresentationAvailability, deviceStore.selectedDeviceID == presentationDeviceID {
             deviceStore.errorMessage = nil
             deviceStore.warningMessage = nil
         }
+    }
+
+    func shouldRestoreSettingsAfterUSBAvailabilityRecovery(sourceDeviceID: String, presentationDeviceID: String, previousSourceAvailability: USBControlAvailability?, previousPresentationAvailability: USBControlAvailability?, newAvailability: USBControlAvailability) -> Bool {
+        guard !environment.usesRemoteServiceTransport else { return false }
+        guard newAvailability == .receiverPresentMouseReachable || newAvailability == .unknown else { return false }
+        if previousSourceAvailability?.blocksUSBControlInteraction == true { return true }
+        if previousPresentationAvailability?.blocksUSBControlInteraction == true { return true }
+        let deviceIDs = Set([sourceDeviceID, presentationDeviceID])
+        if !deviceIDs.isDisjoint(with: unavailableDeviceIDs) { return true }
+        if !deviceIDs.isDisjoint(with: usbTelemetryUnavailableBackoffDeviceIDs) { return true }
+        return deviceIDs.contains { stateRefreshSuppressedUntilByDeviceID[$0] != nil && (refreshFailureCountByDeviceID[$0] ?? 0) > 0 }
     }
 
     func applyBackendDeviceStateUpdate(deviceID: String, state updatedState: MouseState, updatedAt: Date) {
@@ -234,12 +248,14 @@ import OpenSnekHardware
         let previous = stateCacheByDeviceID[presentationDeviceID] ?? stateCacheByDeviceID[deviceID]
         let merged = updatedState.merged(with: previous)
         let shouldFocusOnActivity = shouldFocusServiceSelectionOnActivity(previous: previous, next: merged)
+        let shouldRestoreSettingsAfterRecovery = shouldRestoreSettingsAfterSuccessfulRecovery(sourceDeviceID: deviceID, presentationDeviceID: presentationDeviceID, device: presentationDevice)
         logBackendStateUpdate(sourceDeviceID: deviceID, presentationDevice: presentationDevice, incoming: updatedState, merged: merged)
 
         cacheState(merged, sourceDeviceID: deviceID, presentationDeviceID: presentationDeviceID, updatedAt: updatedAt)
         setDpiUpdateTransportStatus(.realTimeHID, for: deviceID)
         setDpiUpdateTransportStatus(.realTimeHID, for: presentationDeviceID)
         if sourceDevice.transport == .usb { recordUSBLiveObservation(sourceDeviceID: deviceID, presentationDeviceID: presentationDeviceID, observedAt: updatedAt, transportStatus: .realTimeHID) }
+        if shouldRestoreSettingsAfterRecovery { armPendingSettingsRestore(for: [deviceID, presentationDeviceID]) }
         refreshFailureCountByDeviceID[deviceID] = 0
         refreshFailureCountByDeviceID[presentationDeviceID] = 0
         unavailableDeviceIDs.remove(deviceID)
@@ -249,6 +265,7 @@ import OpenSnekHardware
         runtimeController.updateStatusItemTransientDpi(previous: previous, next: merged, deviceID: presentationDeviceID)
 
         applySelectedBackendStateUpdate(merged, presentationDevice: presentationDevice)
+        if shouldRestoreSettingsAfterRecovery { Task { @MainActor [weak self] in await self?.restorePersistedSettingsIfNeeded(for: presentationDevice) } }
     }
 
     func logBackendStateUpdate(sourceDeviceID: String, presentationDevice: MouseDevice, incoming updatedState: MouseState, merged: MouseState) {

@@ -141,11 +141,11 @@ import OpenSnekCore
             lightingEffect = nil
         }
 
+        // On-connect restore refreshes saved DPI values but keeps the active stage live.
         let patch = DevicePatch(
             pollRate: snapshot.pollRate, sleepTimeout: snapshot.sleepTimeout, lowBatteryThresholdRaw: snapshot.lowBatteryThresholdRaw, scrollMode: device.supportsScrollModeControls ? snapshot.scrollMode : nil, scrollAcceleration: device.supportsScrollModeControls ? snapshot.scrollAcceleration : nil,
             scrollSmartReel: device.supportsScrollModeControls ? snapshot.scrollSmartReel : nil, dpiStages: Array(snapshot.stageValues.prefix(snapshot.stageCount)), dpiStagePairs: Array(snapshot.stagePairs.prefix(snapshot.stageCount)),
-            activeStage: max(0, min(snapshot.stageCount - 1, snapshot.activeStage - 1)), ledBrightness: device.supportsLightingBrightnessControls ? snapshot.ledBrightness : nil, ledRGB: lightingEffect == nil ? snapshot.primaryLightingColor.map { RGBPatch(r: $0.r, g: $0.g, b: $0.b) } : nil,
-            lightingEffect: lightingEffect,
+            ledBrightness: device.supportsLightingBrightnessControls ? snapshot.ledBrightness : nil, ledRGB: lightingEffect == nil ? snapshot.primaryLightingColor.map { RGBPatch(r: $0.r, g: $0.g, b: $0.b) } : nil, lightingEffect: lightingEffect,
             usbLightingZoneLEDIDs: {
                 if let lightingEffect, lightingEffect.kind == .staticColor { return usbLightingZoneLEDIDs(for: device, zoneID: normalizedZoneID) }
                 if lightingEffect == nil { return usbLightingZoneLEDIDs(for: device, zoneID: normalizedZoneID) }

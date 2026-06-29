@@ -6,7 +6,7 @@ import OpenSnekCore
 
 /// Exercises app state restore behavior.
 final class AppStateRestoreTests: XCTestCase {
-    func testBluetoothPersistedSettingsSnapshotReappliesOnFirstHydration() async throws {
+    func testBluetoothPersistedSettingsRestorePreservesLiveActiveDPIStage() async throws {
         let device = makeRefactorTestDevice(id: "bt-lighting-device", transport: .bluetooth, serial: "BT-LIGHT-\(UUID().uuidString)", onboardProfileCount: 1)
         let persistedColor = RGBColor(r: 10, g: 20, b: 30)
         let preferenceStore = DevicePreferenceStore()
@@ -26,6 +26,7 @@ final class AppStateRestoreTests: XCTestCase {
         let buttonPatch = try XCTUnwrap(patches.first(where: { $0.buttonBinding?.slot == 5 }))
         let editableColor = await MainActor.run { appState.editorStore.editableColor }
         let editableActiveStage = await MainActor.run { appState.editorStore.editableActiveStage }
+        let liveActiveStage = await MainActor.run { appState.deviceStore.state?.dpi_stages.active_stage }
 
         XCTAssertEqual(patch.pollRate, 500)
         XCTAssertEqual(patch.sleepTimeout, 420)
@@ -34,14 +35,15 @@ final class AppStateRestoreTests: XCTestCase {
         XCTAssertNil(patch.scrollAcceleration)
         XCTAssertNil(patch.scrollSmartReel)
         XCTAssertEqual(patch.dpiStages, [900, 1800, 3600])
-        XCTAssertEqual(patch.activeStage, 2)
+        XCTAssertNil(patch.activeStage)
         XCTAssertEqual(patch.ledRGB?.r, persistedColor.r)
         XCTAssertEqual(patch.ledRGB?.g, persistedColor.g)
         XCTAssertEqual(patch.ledRGB?.b, persistedColor.b)
         XCTAssertEqual(buttonPatch.buttonBinding?.kind, .keyboardSimple)
         XCTAssertEqual(buttonPatch.buttonBinding?.hidKey, 80)
         XCTAssertEqual(editableColor, persistedColor)
-        XCTAssertEqual(editableActiveStage, 3)
+        XCTAssertEqual(editableActiveStage, 2)
+        XCTAssertEqual(liveActiveStage, 1)
     }
 
     func testUSBHyperSpeedPersistedSettingsRestoreOmitsUnsupportedScrollAndBrightnessFields() async throws {

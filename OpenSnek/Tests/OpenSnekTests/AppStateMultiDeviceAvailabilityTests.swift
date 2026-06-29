@@ -307,6 +307,83 @@ final class AppStateMultiDeviceAvailabilityTests: XCTestCase {
         XCTAssertEqual(presentedDpi, 1600)
     }
 
+    func testUnavailableUSBReceiverRecoveryRestoresPersistedHyperSpeedLighting() async throws {
+        let usbDevice = MouseDevice(
+            id: "usb-v3x-hyperspeed-lighting-wake", vendor_id: 0x1532, product_id: 0x00B9, product_name: "Basilisk V3 X HyperSpeed", transport: .usb, path_b64: "", serial: "V3X-HS-LIGHTING-WAKE", firmware: "1.0.0", location_id: 1, profile_id: .basiliskV3XHyperspeed,
+            supports_advanced_lighting_effects: true, onboard_profile_count: 1)
+        let persistedColor = RGBColor(r: 42, g: 84, b: 126)
+        let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: usbDevice)
+        preferenceStore.persistDeviceSettingsSnapshot(makeMultiDeviceSettingsSnapshot(color: persistedColor), device: usbDevice)
+        defer { clearMultiDeviceLightingPreferences(for: usbDevice) }
+
+        let initialState = makeTestState(device: usbDevice, connection: "usb", batteryPercent: 81, dpiValues: [800, 1600, 3200], activeStage: 0)
+        let recoveredState = makeTestState(device: usbDevice, connection: "usb", batteryPercent: 79, dpiValues: [800, 1600, 3200], activeStage: 1)
+        let backend = DeviceListUpdatingStubBackend(devices: [usbDevice], stateByDeviceID: [usbDevice.id: initialState])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
+        let telemetryUnavailable = "USB device telemetry unavailable. Feature-report interface did not return usable responses."
+
+        await appState.deviceStore.refreshDevices()
+        try await waitForAppStateCondition(timeout: 5.0) {
+            let hasRestoredColor = await backend.recordedPatches().contains { $0.staticLightingRGB == RGBPatch(r: persistedColor.r, g: persistedColor.g, b: persistedColor.b) }
+            let applyCount = await backend.applyCount()
+            let isRestoring = await MainActor.run { appState.deviceController.isRestoringSettings(for: usbDevice) }
+            let isApplying = await MainActor.run { appState.deviceStore.isApplying }
+            return hasRestoredColor && applyCount >= ButtonSlotDescriptor.defaults.count + 1 && !isRestoring && !isApplying
+        }
+        let initialApplyCount = await backend.applyCount()
+
+        await backend.setTransientReadFailures([telemetryUnavailable], for: usbDevice.id)
+        let failed = await appState.deviceController.refreshState(for: usbDevice)
+        await backend.setState(recoveredState, for: usbDevice.id)
+        await backend.setUSBControlAvailability(.receiverPresentMouseReachable, for: usbDevice.id)
+        await appState.runtimeController.pollRuntimeOnce(now: Date(timeIntervalSince1970: 1_773_500_000))
+
+        try await waitForAppStateCondition(timeout: 5.0) {
+            let patches = await backend.recordedPatches()
+            let recoveryPatches = patches.dropFirst(initialApplyCount)
+            return recoveryPatches.contains { patch in patch.staticLightingRGB == RGBPatch(r: persistedColor.r, g: persistedColor.g, b: persistedColor.b) && patch.usbLightingZoneLEDIDs == [0x01] && patch.activeStage == nil }
+        }
+
+        XCTAssertFalse(failed)
+    }
+
+    func testUnavailableBluetoothRealtimeRecoveryRestoresPersistedHyperSpeedLighting() async throws {
+        let bluetoothDevice = MouseDevice(
+            id: "bt-v3x-hyperspeed-lighting-wake", vendor_id: 0x068E, product_id: 0x00BA, product_name: "Basilisk V3 X HyperSpeed", transport: .bluetooth, path_b64: "", serial: "V3X-HS-BT-LIGHTING-WAKE", firmware: "1.0.0", location_id: 1, profile_id: .basiliskV3XHyperspeed,
+            supports_advanced_lighting_effects: true, onboard_profile_count: 1)
+        let persistedColor = RGBColor(r: 42, g: 84, b: 126)
+        let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistConnectBehavior(.restoreOpenSnekSettings, device: bluetoothDevice)
+        preferenceStore.persistDeviceSettingsSnapshot(makeMultiDeviceSettingsSnapshot(color: persistedColor), device: bluetoothDevice)
+        defer { clearMultiDeviceLightingPreferences(for: bluetoothDevice) }
+
+        let initialState = makeTestState(device: bluetoothDevice, connection: "bluetooth", batteryPercent: 81, dpiValues: [800, 1600, 3200], activeStage: 0)
+        let recoveredState = makeTestState(device: bluetoothDevice, connection: "bluetooth", batteryPercent: 79, dpiValues: [800, 1600, 3200], activeStage: 1)
+        let backend = DeviceListUpdatingStubBackend(devices: [bluetoothDevice], stateByDeviceID: [bluetoothDevice.id: initialState])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
+
+        await appState.deviceStore.refreshDevices()
+        try await waitForAppStateCondition(timeout: 5.0) {
+            let hasRestoredColor = await backend.recordedPatches().contains { $0.staticLightingRGB == RGBPatch(r: persistedColor.r, g: persistedColor.g, b: persistedColor.b) }
+            let isRestoring = await MainActor.run { appState.deviceController.isRestoringSettings(for: bluetoothDevice) }
+            let isApplying = await MainActor.run { appState.deviceStore.isApplying }
+            return hasRestoredColor && !isRestoring && !isApplying
+        }
+        let initialApplyCount = await backend.applyCount()
+
+        await backend.setTransientReadFailures(["BT vendor timeout"], for: bluetoothDevice.id)
+        let failed = await appState.deviceController.refreshState(for: bluetoothDevice)
+        await MainActor.run { appState.deviceController.applyBackendDeviceStateUpdate(deviceID: bluetoothDevice.id, state: recoveredState, updatedAt: Date().addingTimeInterval(1)) }
+
+        try await waitForAppStateCondition(timeout: 5.0) {
+            let patches = await backend.recordedPatches()
+            return patches.dropFirst(initialApplyCount).contains { patch in patch.staticLightingRGB == RGBPatch(r: persistedColor.r, g: persistedColor.g, b: persistedColor.b) && patch.activeStage == nil }
+        }
+
+        XCTAssertFalse(failed)
+    }
+
     func testTransientBackendUSBUnavailableDoesNotFlickerConnectedMouse() async throws {
         let usbDevice = makeTestDevice(id: "usb-transient-unavailable", productName: "Alpha Mouse", identity: MultiDeviceTestIdentity(transport: .usb, serial: "USB-TRANSIENT-UNAVAILABLE", locationID: 1), profile: .basiliskV3Pro)
         let backend = DeviceListUpdatingStubBackend(devices: [usbDevice], stateByDeviceID: [usbDevice.id: makeTestState(device: usbDevice, connection: "usb", batteryPercent: 81, dpiValues: [800, 1600, 3200], activeStage: 0)])
@@ -469,5 +546,14 @@ final class AppStateMultiDeviceAvailabilityTests: XCTestCase {
         XCTAssertFalse(refreshed)
         XCTAssertEqual(failedReadCount, initialReadCount + 1)
         XCTAssertEqual(readCountAfterNewlyVisibleSubscription, failedReadCount)
+    }
+}
+
+/// Adds static lighting matching helpers for availability tests.
+private extension DevicePatch {
+    var staticLightingRGB: RGBPatch? {
+        if let ledRGB { return ledRGB }
+        guard lightingEffect?.kind == .staticColor else { return nil }
+        return lightingEffect?.primary
     }
 }

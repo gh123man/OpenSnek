@@ -253,6 +253,7 @@ private struct RefreshStateReadContext {
         let shouldFocusOnActivity = context.shouldFocusOnActivity
         let clearSeededReconnectState = context.clearSeededReconnectState
         let presentationDeviceID = presentationDevice.id
+        let shouldRestoreSettingsAfterRecovery = shouldRestoreSettingsAfterSuccessfulRecovery(sourceDeviceID: sourceDeviceID, presentationDeviceID: presentationDeviceID, device: presentationDevice)
         let updatedAt = Date()
         cacheState(merged, sourceDeviceID: sourceDeviceID, presentationDeviceID: presentationDeviceID, updatedAt: updatedAt)
         if sourceDevice.transport == .usb { recordUSBLiveObservation(sourceDeviceID: sourceDeviceID, presentationDeviceID: presentationDeviceID, observedAt: updatedAt) }
@@ -265,10 +266,20 @@ private struct RefreshStateReadContext {
         lastFullStateRefreshStartedAtByDeviceID[sourceDeviceID] = start
         lastFullStateRefreshStartedAtByDeviceID[presentationDeviceID] = start
         clearRefreshFailureState(sourceDeviceID: sourceDeviceID, presentationDeviceID: presentationDeviceID)
+        if shouldRestoreSettingsAfterRecovery { armPendingSettingsRestore(for: [sourceDeviceID, presentationDeviceID]) }
         if shouldFocusOnActivity { focusServiceSelectionOnActivity(deviceID: presentationDeviceID) }
         if let previous { runtimeController.updateStatusItemTransientDpi(previous: previous, next: merged, deviceID: presentationDeviceID) }
         applySelectedSuccessfulRefreshState(merged, presentationDevice: presentationDevice)
         await restorePersistedSettingsIfNeeded(for: presentationDevice)
+    }
+
+    func shouldRestoreSettingsAfterSuccessfulRecovery(sourceDeviceID: String, presentationDeviceID: String, device: MouseDevice) -> Bool {
+        guard !environment.usesRemoteServiceTransport else { return false }
+        let deviceIDs = Set([sourceDeviceID, presentationDeviceID])
+        if !deviceIDs.isDisjoint(with: unavailableDeviceIDs) { return true }
+        guard device.transport == .usb else { return false }
+        if !deviceIDs.isDisjoint(with: usbTelemetryUnavailableBackoffDeviceIDs) { return true }
+        return deviceIDs.contains { usbControlAvailabilityByDeviceID[$0]?.blocksUSBControlInteraction == true }
     }
 
     func clearRefreshFailureState(sourceDeviceID: String, presentationDeviceID: String) {

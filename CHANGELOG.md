@@ -10,6 +10,8 @@ All notable changes to this project are documented in this file.
 ### Fixed
 - Fixed Basilisk V3 Pro profile switches and reconnect hydration so reduced DPI stage tables keep driving live DPI-cycle UI updates.
 - Fixed Basilisk V3 USB-family profile configuration so Basilisk V3, Basilisk V3 Pro, and Basilisk V3 35K inherit the same mapped onboard-profile support instead of leaving the 35K without onboard profile CRUD.
+- Fixed restore-on-connect so saved DPI stage tables refresh without forcing the saved active DPI stage over the mouse's current stage.
+- Fixed wake recovery so Restore Last Profile reapplies saved lighting after a sleeping mouse becomes reachable again without a device-list reconnect event, including Bluetooth realtime wake updates and receiver-backed USB recovery.
 - Fixed Advanced USB software-lighting streams so stale USB sessions are suspended on write or control-heartbeat failures and recover when USB reachability returns after mouse sleep or power-cycle events.
 
 ## [1.2.0]
