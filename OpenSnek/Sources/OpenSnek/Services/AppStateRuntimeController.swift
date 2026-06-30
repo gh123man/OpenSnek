@@ -512,18 +512,30 @@ import OpenSnekCore
         guard force || ReleaseUpdateChecker.isPeriodicCheckDue(lastCheckedAt: environment.lastReleaseUpdateCheckAt, now: now) else { return }
         environment.lastReleaseUpdateCheckAt = now
 
-        guard environment.shouldCheckForReleaseUpdates else {
+        let usesDryRun = Self.usesReleaseUpdateDryRun()
+        guard environment.shouldCheckForReleaseUpdates || usesDryRun else {
             deviceStore.availableUpdate = nil
             return
         }
 
         guard let currentVersion = environment.currentAppVersion else { return }
+        let checkMode: ReleaseUpdateCheckMode = usesDryRun ? .latestReleaseDryRun : .newerThanCurrent
 
         do {
-            deviceStore.availableUpdate = try await environment.releaseUpdateChecker.checkForUpdate(currentVersion: currentVersion)
+            deviceStore.availableUpdate = try await environment.releaseUpdateChecker.checkForUpdate(currentVersion: currentVersion, mode: checkMode)
             if let availableUpdate = deviceStore.availableUpdate { AppLog.event("AppState", "update available current=\(currentVersion) latest=\(availableUpdate.latestVersion)") }
         } catch { AppLog.debug("AppState", "checkForUpdates failed: \(error.localizedDescription)") }
     }
+
+    func installAvailableUpdate() async {
+        guard deviceStore.availableUpdate != nil else { return }
+        do {
+            deviceStore.updateInstallState = .checking
+            try environment.softwareUpdateInstaller.installLatestRelease { [weak self] state in self?.deviceStore.updateInstallState = state }
+        } catch { deviceStore.updateInstallState = .failed(error.localizedDescription) }
+    }
+
+    private static func usesReleaseUpdateDryRun() -> Bool { ReleaseUpdateChecker.currentBuildChannel() == .dev && DeveloperRuntimeOptions.releaseUpdateDryRunEnabled() }
 
     private func bootstrapRemoteStateIfNeeded(force: Bool = false) async {
         guard environment.usesRemoteServiceTransport else { return }
@@ -618,6 +630,11 @@ import OpenSnekCore
             await deviceController.refreshDevices()
         }
         requestImmediateRuntimePoll(resetPollingDeadlines: true)
+    }
+
+    func developerUpdateDryRunSettingsDidChange() async {
+        environment.lastReleaseUpdateCheckAt = nil
+        await checkForUpdates(force: true)
     }
 
     private func clearTransientStatusIfExpired(now: Date) {

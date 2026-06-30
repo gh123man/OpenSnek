@@ -22,6 +22,14 @@
     <string>$(CURRENT_PROJECT_VERSION)</string>
     <key>OpenSnekBuildChannel</key>
     <string>$(OPEN_SNEK_BUILD_CHANNEL)</string>
+    <key>SUAutomaticallyUpdate</key>
+    <false/>
+    <key>SUEnableAutomaticChecks</key>
+    <false/>
+    <key>SUFeedURL</key>
+    <string>https://github.com/gh123man/OpenSnek/releases/latest/download/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>$(OPEN_SNEK_SPARKLE_PUBLIC_ED_KEY)</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.utilities</string>
     <key>LSMinimumSystemVersion</key>

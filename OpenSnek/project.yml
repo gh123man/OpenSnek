@@ -14,10 +14,14 @@ settings:
       - -warn-long-function-bodies=200
     CURRENT_PROJECT_VERSION: 1
     MARKETING_VERSION: 0.1.0
+    OPEN_SNEK_SPARKLE_PUBLIC_ED_KEY: ""
 packages:
   SwiftLintPlugins:
     url: https://github.com/SimplyDanny/SwiftLintPlugins
     exactVersion: 0.63.3
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.9.3
 targetTemplates:
   SwiftLintBuild:
     buildToolPlugins:
@@ -113,6 +117,8 @@ targets:
       - target: OpenSnekProtocols
       - target: OpenSnekHardware
       - target: OpenSnekAppSupport
+      - package: Sparkle
+        product: Sparkle
     scheme:
       gatherCoverageData: false
       testTargets:

@@ -1,4 +1,5 @@
 import XCTest
+import OpenSnekAppSupport
 @testable import OpenSnek
 
 /// Exercises release update checker behavior.
@@ -31,6 +32,17 @@ final class ReleaseUpdateCheckerTests: XCTestCase {
         let bundle = bundleWithInfoDictionary(["OpenSnekBuildChannel": "dev"])
         XCTAssertEqual(ReleaseUpdateChecker.currentBuildChannel(bundle: bundle), .dev)
         XCTAssertFalse(ReleaseUpdateChecker.shouldCheckForUpdates(bundle: bundle))
+    }
+
+    func testDryRunAppcastDefaultsToReleaseAssetURL() { XCTAssertEqual(ReleaseUpdateChecker.dryRunAppcastURL(), URL(string: "https://github.com/gh123man/OpenSnek/releases/download/sparkle-dryrun/dryrun-appcast.xml")!) }
+
+    func testDryRunAppcastUsesDeveloperOverrideURL() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "OpenSnek.ReleaseUpdateCheckerTests.dryRunAppcast"))
+        defer { defaults.removePersistentDomain(forName: "OpenSnek.ReleaseUpdateCheckerTests.dryRunAppcast") }
+        let overrideURL = URL(string: "https://example.com/branch-appcast.xml")!
+        defaults.set(overrideURL.absoluteString, forKey: DeveloperRuntimeOptions.releaseUpdateDryRunAppcastURLDefaultsKey)
+
+        XCTAssertEqual(ReleaseUpdateChecker.dryRunAppcastURL(defaults: defaults), overrideURL)
     }
 }
 

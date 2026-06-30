@@ -5,6 +5,7 @@ import OpenSnekCore
 private struct AppEnvironmentConfiguration {
     let launchRole: OpenSnekProcessRole
     let releaseUpdateChecker: any ReleaseUpdateChecking
+    let softwareUpdateInstaller: any SoftwareUpdateInstalling
     let currentAppVersion: String?
     let shouldCheckForReleaseUpdates: Bool
     let backend: any DeviceBackend
@@ -25,11 +26,13 @@ private struct AppEnvironmentConfiguration {
 
     init(
         launchRole: OpenSnekProcessRole = .current, backend: (any DeviceBackend)? = nil, releaseUpdateChecker: (any ReleaseUpdateChecking)? = nil, currentAppVersion: String? = ReleaseUpdateChecker.currentAppVersion(), shouldCheckForReleaseUpdates: Bool = ReleaseUpdateChecker.shouldCheckForUpdates(),
-        serviceCoordinator: BackgroundServiceCoordinator = .shared, autoStart: Bool = true, statusItemDpiDisplayDuration: TimeInterval = 3.0
+        serviceCoordinator: BackgroundServiceCoordinator = .shared, softwareUpdateInstaller: (any SoftwareUpdateInstalling)? = nil, autoStart: Bool = true, statusItemDpiDisplayDuration: TimeInterval = 3.0
     ) {
         let initialBackend: any DeviceBackend = backend ?? Self.initialBackend(launchRole: launchRole, serviceCoordinator: serviceCoordinator)
         let updateChecker: any ReleaseUpdateChecking = releaseUpdateChecker ?? ReleaseUpdateChecker()
-        let environmentConfiguration = AppEnvironmentConfiguration(launchRole: launchRole, releaseUpdateChecker: updateChecker, currentAppVersion: currentAppVersion, shouldCheckForReleaseUpdates: shouldCheckForReleaseUpdates, backend: initialBackend, serviceCoordinator: serviceCoordinator)
+        let updateInstaller: any SoftwareUpdateInstalling = softwareUpdateInstaller ?? SparkleSoftwareUpdateInstaller.shared
+        let environmentConfiguration = AppEnvironmentConfiguration(
+            launchRole: launchRole, releaseUpdateChecker: updateChecker, softwareUpdateInstaller: updateInstaller, currentAppVersion: currentAppVersion, shouldCheckForReleaseUpdates: shouldCheckForReleaseUpdates, backend: initialBackend, serviceCoordinator: serviceCoordinator)
         let environment = Self.makeEnvironment(environmentConfiguration)
         let buttonSlots: [ButtonSlotDescriptor] = ButtonSlotDescriptor.defaults
         self.environment = environment
@@ -55,7 +58,7 @@ private struct AppEnvironmentConfiguration {
     private static func makeEnvironment(_ configuration: AppEnvironmentConfiguration) -> AppEnvironment {
         AppEnvironment(
             launchRole: configuration.launchRole, releaseUpdateChecker: configuration.releaseUpdateChecker, currentAppVersion: configuration.currentAppVersion, shouldCheckForReleaseUpdates: configuration.shouldCheckForReleaseUpdates, backend: configuration.backend,
-            serviceCoordinator: configuration.serviceCoordinator)
+            serviceCoordinator: configuration.serviceCoordinator, softwareUpdateInstaller: configuration.softwareUpdateInstaller)
     }
 
     private static func makeRuntimeStore(environment: AppEnvironment, serviceCoordinator: BackgroundServiceCoordinator, statusItemDpiDisplayDuration: TimeInterval) -> RuntimeStore {

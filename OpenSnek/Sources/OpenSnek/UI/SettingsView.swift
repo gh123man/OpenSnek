@@ -10,6 +10,7 @@ struct SettingsView: View {
     @AppStorage(DeveloperRuntimeOptions.pollingEnabledDefaultsKey) private var developerPollingEnabled = true
     @AppStorage(DeveloperRuntimeOptions.passiveHIDUpdatesEnabledDefaultsKey) private var developerPassiveHIDUpdatesEnabled = true
     @AppStorage(DeveloperRuntimeOptions.rememberWindowSizeEnabledDefaultsKey) private var developerRememberWindowSizeEnabled = true
+    @AppStorage(DeveloperRuntimeOptions.releaseUpdateDryRunEnabledDefaultsKey) private var developerReleaseUpdateDryRunEnabled = false
     @AppStorage(DeveloperRuntimeOptions.settingStorageEnabledDefaultsKey) private var developerSettingStorageEnabled = true
     @State private var showsDiagnosticsSheet = false
     @State private var showsLocalStorageResetConfirmation = false
@@ -36,6 +37,7 @@ struct SettingsView: View {
                     developerPollingEnabled = true
                     developerPassiveHIDUpdatesEnabled = true
                     developerRememberWindowSizeEnabled = true
+                    developerReleaseUpdateDryRunEnabled = false
                     developerSettingStorageEnabled = true
                 }
             }
@@ -111,9 +113,11 @@ struct SettingsView: View {
             Toggle("Enable passive HID DPI stream", isOn: developerPassiveHIDBinding)
             Toggle("Enable setting storage", isOn: $developerSettingStorageEnabled)
             Toggle("Remember window size", isOn: $developerRememberWindowSizeEnabled)
+            Toggle("Preview latest release update", isOn: developerReleaseUpdateDryRunBinding)
             Text("Turn off Enable setting storage to apply mouse changes without updating OpenSnek's saved reconnect state. Re-enable it, then reconnect the mouse or relaunch OpenSnek to verify the last stored state rehydrates.").font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
-            Text("Use the transport switches to isolate polling from passive HID DPI callbacks during debugging, or temporarily disable window-frame restore while testing launch behavior.").font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
+            Text("Use the transport switches to isolate polling from passive HID DPI callbacks during debugging, temporarily disable window-frame restore while testing launch behavior, or preview the latest GitHub release update prompt.").font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -132,6 +136,15 @@ struct SettingsView: View {
             set: { newValue in
                 developerPassiveHIDUpdatesEnabled = newValue
                 runtimeStore.developerTransportSettingsDidChange()
+            })
+    }
+
+    private var developerReleaseUpdateDryRunBinding: Binding<Bool> {
+        Binding(
+            get: { developerReleaseUpdateDryRunEnabled },
+            set: { newValue in
+                developerReleaseUpdateDryRunEnabled = newValue
+                runtimeStore.developerUpdateDryRunSettingsDidChange()
             })
     }
 

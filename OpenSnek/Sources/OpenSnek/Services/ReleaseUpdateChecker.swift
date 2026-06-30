@@ -1,7 +1,14 @@
 import Foundation
+import OpenSnekAppSupport
+
+/// Defines release update check modes.
+enum ReleaseUpdateCheckMode: Equatable {
+    case newerThanCurrent
+    case latestReleaseDryRun
+}
 
 /// Defines the release update checking contract.
-protocol ReleaseUpdateChecking: Sendable { func checkForUpdate(currentVersion: String) async throws -> ReleaseAvailability? }
+protocol ReleaseUpdateChecking: Sendable { func checkForUpdate(currentVersion: String, mode: ReleaseUpdateCheckMode) async throws -> ReleaseAvailability? }
 
 /// Defines app build channel values.
 enum AppBuildChannel: String, Equatable {
@@ -93,6 +100,31 @@ struct ReleaseVersion: Comparable, Equatable {
 struct ReleaseAvailability: Equatable {
     let latestVersion: String
     let releaseURL: URL
+    let checkMode: ReleaseUpdateCheckMode
+
+    var isDryRun: Bool { checkMode == .latestReleaseDryRun }
+}
+
+/// Defines software update install lifecycle values.
+enum SoftwareUpdateInstallState: Equatable {
+    case idle
+    case checking
+    case downloading(received: UInt64, expected: UInt64?)
+    case extracting(progress: Double?)
+    case readyToInstall
+    case installing
+    case installed
+    case failed(String)
+}
+
+/// Defines software update installer behavior.
+@MainActor protocol SoftwareUpdateInstalling: AnyObject { func installLatestRelease(statusHandler: @escaping @MainActor (SoftwareUpdateInstallState) -> Void) throws }
+
+/// Provides a disabled software update installer fallback.
+@MainActor final class DisabledSoftwareUpdateInstaller: SoftwareUpdateInstalling {
+    static let shared = DisabledSoftwareUpdateInstaller()
+
+    func installLatestRelease(statusHandler _: @escaping @MainActor (SoftwareUpdateInstallState) -> Void) throws { throw NSError(domain: "OpenSnek.Update", code: 1, userInfo: [NSLocalizedDescriptionKey: "Automatic update installation is not configured for this build."]) }
 }
 
 /// Stores release update checker data.
@@ -105,14 +137,13 @@ struct ReleaseUpdateChecker: ReleaseUpdateChecking, Sendable {
 
     static let periodicCheckInterval: TimeInterval = 60 * 60 * 24
     static let releasesPageURL = URL(string: "https://github.com/gh123man/OpenSnek/releases")!
+    static let defaultDryRunAppcastURL = URL(string: "https://github.com/gh123man/OpenSnek/releases/download/sparkle-dryrun/dryrun-appcast.xml")!
 
     private let session: URLSession
 
     init(session: URLSession = .shared) { self.session = session }
 
-    func checkForUpdate(currentVersion: String) async throws -> ReleaseAvailability? {
-        guard let current = ReleaseVersion.parse(currentVersion) else { return nil }
-
+    func checkForUpdate(currentVersion: String, mode: ReleaseUpdateCheckMode = .newerThanCurrent) async throws -> ReleaseAvailability? {
         var request = URLRequest(url: URL(string: "https://api.github.com/repos/gh123man/OpenSnek/releases/latest")!)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
@@ -123,11 +154,12 @@ struct ReleaseUpdateChecker: ReleaseUpdateChecking, Sendable {
         guard let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) else { return nil }
 
         let release = try JSONDecoder().decode(LatestReleaseResponse.self, from: data)
-        guard let latest = ReleaseVersion.parse(release.tag_name), latest > current else { return nil }
+        guard let latest = ReleaseVersion.parse(release.tag_name) else { return nil }
+        if mode == .newerThanCurrent { guard let current = ReleaseVersion.parse(currentVersion), latest > current else { return nil } }
 
         let latestVersion = release.tag_name.replacingOccurrences(of: #"^[vV]"#, with: "", options: .regularExpression)
         let releaseURL = release.html_url.flatMap(URL.init(string:)) ?? Self.releasesPageURL
-        return ReleaseAvailability(latestVersion: latestVersion, releaseURL: releaseURL)
+        return ReleaseAvailability(latestVersion: latestVersion, releaseURL: releaseURL, checkMode: mode)
     }
 
     static func currentAppVersion(bundle: Bundle = .main) -> String? { bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String }
@@ -138,6 +170,8 @@ struct ReleaseUpdateChecker: ReleaseUpdateChecking, Sendable {
     }
 
     static func shouldCheckForUpdates(bundle: Bundle = .main) -> Bool { currentBuildChannel(bundle: bundle) == .release }
+
+    static func dryRunAppcastURL(defaults: UserDefaults = .standard) -> URL { DeveloperRuntimeOptions.releaseUpdateDryRunAppcastURL(defaults: defaults) ?? defaultDryRunAppcastURL }
 
     static func isPeriodicCheckDue(lastCheckedAt: Date?, now: Date = Date()) -> Bool {
         guard let lastCheckedAt else { return true }

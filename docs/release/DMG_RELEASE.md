@@ -19,6 +19,16 @@ Required repository secrets:
 - `APPLE_NOTARY_KEY_ID`
 - `APPLE_NOTARY_ISSUER_ID`
 - `APPLE_NOTARY_API_KEY_P8`
+- `OPEN_SNEK_SPARKLE_PUBLIC_ED_KEY`
+- `OPEN_SNEK_SPARKLE_PRIVATE_ED_KEY`
+
+Generate the Sparkle EdDSA key pair once with Sparkle's release tools:
+
+```bash
+gh release download 2.9.3 --repo sparkle-project/Sparkle --pattern Sparkle-2.9.3.tar.xz --dir /tmp/sparkle
+tar -xf /tmp/sparkle/Sparkle-2.9.3.tar.xz -C /tmp/sparkle
+/tmp/sparkle/bin/generate_keys
+```
 
 You can set them with:
 
@@ -30,6 +40,8 @@ You can set them with:
   --notary-key /path/to/AuthKey_XXXX.p8 \
   --notary-key-id '<KEY_ID>' \
   --notary-issuer-id '<ISSUER_ID>' \
+  --sparkle-public-key '<PUBLIC_ED_KEY>' \
+  --sparkle-private-key '<PRIVATE_ED_KEY>' \
   --repo gh123man/OpenSnek \
   --apply
 ```
@@ -74,6 +86,7 @@ Output:
 
 ```text
 OpenSnek/.release/artifacts/OpenSnek-<version>.dmg
+OpenSnek/.release/artifacts/OpenSnek-<version>.zip
 ```
 
 Logs and notarization output are written to:
@@ -120,10 +133,38 @@ The workflow will:
 3. import the Developer ID certificate into a temporary keychain
 4. archive/export the app with Xcode
 5. notarize and staple the `.app`
-6. create a styled drag-install DMG, then sign, notarize, and staple it
-7. publish the latest top section from `CHANGELOG.md` as the GitHub Release notes
-8. upload `OpenSnek-<version>.dmg` to the matching GitHub Release
-9. mark prerelease-suffix tags as GitHub prereleases instead of latest full releases
+6. create a Sparkle update ZIP from the notarized `.app`
+7. create a styled drag-install DMG, then sign, notarize, and staple it
+8. generate a signed `appcast.xml` that points at the GitHub Release ZIP asset
+9. publish the latest top section from `CHANGELOG.md` as the GitHub Release notes
+10. upload `OpenSnek-<version>.dmg`, `OpenSnek-<version>.zip`, and `appcast.xml` to the matching GitHub Release
+11. mark prerelease-suffix tags as GitHub prereleases instead of latest full releases
+
+OpenSnek uses GitHub Releases as the Sparkle backend. The app feed URL is:
+
+```text
+https://github.com/gh123man/OpenSnek/releases/latest/download/appcast.xml
+```
+
+Stable releases are marked as GitHub's latest release, so existing users read the latest stable `appcast.xml`. Prerelease appcasts are uploaded to their prerelease tags but are not selected by the `/latest/download/` feed URL.
+
+Developer dry-run update checks use a stable GitHub prerelease appcast:
+
+```text
+https://github.com/gh123man/OpenSnek/releases/download/sparkle-dryrun/dryrun-appcast.xml
+```
+
+Debug builds can temporarily point dry-run checks at a branch-specific appcast without source edits:
+
+```bash
+defaults write io.opensnek.OpenSnek developer.releaseUpdateDryRunAppcastURL "https://example.com/appcast.xml"
+```
+
+Remove the override to return to the stable dry-run appcast:
+
+```bash
+defaults delete io.opensnek.OpenSnek developer.releaseUpdateDryRunAppcastURL
+```
 
 ## Project generation check
 
@@ -142,4 +183,5 @@ codesign --verify --deep --strict --verbose=2 "OpenSnek/.release/export/OpenSnek
 spctl -a -vv --type exec "OpenSnek/.release/export/OpenSnek.app"
 xcrun stapler validate "OpenSnek/.release/export/OpenSnek.app"
 xcrun stapler validate "OpenSnek/.release/artifacts/OpenSnek-<version>.dmg"
+unzip -l "OpenSnek/.release/artifacts/OpenSnek-<version>.zip" | grep 'OpenSnek.app/Contents/Info.plist'
 ```
