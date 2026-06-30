@@ -5,19 +5,16 @@
         <item>
             <title>1.2.2</title>
             <pubDate>Tue, 30 Jun 2026 10:53:23 -0400</pubDate>
-            <sparkle:fullReleaseNotesLink>https://github.com/gh123man/OpenSnek/releases/tag/v1.2.2</sparkle:fullReleaseNotesLink>
+            <sparkle:fullReleaseNotesLink>https://github.com/gh123man/OpenSnek/releases/tag/sparkle-dryrun</sparkle:fullReleaseNotesLink>
             <sparkle:version>38</sparkle:version>
             <sparkle:shortVersionString>1.2.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="markdown"><![CDATA[## [1.2.2]
+            <description sparkle:format="markdown"><![CDATA[## OpenSnek 1.2.2 Dry Run
 
-### Fixed
-- Fixed onboard profile support for Basilisk V3 35K by sharing the Basilisk V3 USB-family profile configuration across Basilisk V3, Basilisk V3 Pro, and Basilisk V3 35K.
-- Fixed Restore Last Profile so reconnects refresh saved DPI stage tables without forcing the saved active DPI stage over the mouse's current stage.
-- Fixed Restore Last Profile lighting after mouse wake, including Bluetooth realtime wake updates and receiver-backed USB recovery.
+This Sparkle dry-run payload is built from the `codex/sparkle-github-updates` branch and signed with the local Apple Development certificate so the updater can validate the full download/install path during development.
 
 ]]></description>
-            <enclosure url="https://github.com/gh123man/OpenSnek/releases/download/v1.2.2/OpenSnek-1.2.2.dmg" length="6788170" type="application/octet-stream" sparkle:edSignature="tHjvP55dTKPML4MF4QkJT12H39Q+D8A/7LAy/Z//vtJ0e63ObNQY2ElIh9So2jY8qF80QB8HjmW4sanV5NgeDg=="/>
+            <enclosure url="https://github.com/gh123man/OpenSnek/releases/download/sparkle-dryrun/OpenSnek-1.2.2-dev-dryrun.zip" length="12577336" type="application/octet-stream" sparkle:edSignature="Ri95U6faQZ+J8muk9X4pufMFxRsH3psW9A8YqKhdoK+vqPZGVz90hyRkZD5lWUnsDzBouywOlMI8dNVrcNJsCg=="/>
         </item>
     </channel>
 </rss>
