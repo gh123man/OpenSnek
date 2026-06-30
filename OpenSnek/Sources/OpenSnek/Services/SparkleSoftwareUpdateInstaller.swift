@@ -58,7 +58,7 @@ import OpenSnekAppSupport
 
     func feedURLString(for _: SPUUpdater) -> String? {
         guard Self.shouldForceLatestUpdateForDryRun else { return nil }
-        return ReleaseUpdateChecker.dryRunAppcastURL.absoluteString
+        return ReleaseUpdateChecker.dryRunAppcastURL().absoluteString
     }
 
     func updater(_: SPUUpdater, willDownloadUpdate _: SUAppcastItem, with _: NSMutableURLRequest) { statusHandler(.downloading(received: 0, expected: nil)) }

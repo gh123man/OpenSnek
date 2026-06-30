@@ -9,9 +9,9 @@
             <sparkle:version>38</sparkle:version>
             <sparkle:shortVersionString>1.2.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="markdown"><![CDATA[## OpenSnek 1.2.2 Dry Run
+            <description sparkle:format="markdown"><![CDATA[## OpenSnek Dry Run
 
-This Sparkle dry-run payload is built from the `codex/sparkle-github-updates` branch and signed with the local Apple Development certificate so the updater can validate the full download/install path during development.
+This Sparkle dry-run payload is signed with the local Apple Development certificate used for OpenSnek development builds so the updater can validate the full download/install path before a public release is available.
 
 ]]></description>
             <enclosure url="https://github.com/gh123man/OpenSnek/releases/download/sparkle-dryrun/OpenSnek-1.2.2-dev-dryrun.zip" length="12577336" type="application/octet-stream" sparkle:edSignature="Ri95U6faQZ+J8muk9X4pufMFxRsH3psW9A8YqKhdoK+vqPZGVz90hyRkZD5lWUnsDzBouywOlMI8dNVrcNJsCg=="/>

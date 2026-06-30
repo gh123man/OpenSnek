@@ -1,4 +1,5 @@
 import Foundation
+import OpenSnekAppSupport
 
 /// Defines release update check modes.
 enum ReleaseUpdateCheckMode: Equatable {
@@ -136,7 +137,7 @@ struct ReleaseUpdateChecker: ReleaseUpdateChecking, Sendable {
 
     static let periodicCheckInterval: TimeInterval = 60 * 60 * 24
     static let releasesPageURL = URL(string: "https://github.com/gh123man/OpenSnek/releases")!
-    static let dryRunAppcastURL = URL(string: "https://raw.githubusercontent.com/gh123man/OpenSnek/codex/sparkle-github-updates/OpenSnek/Appcast/dryrun-appcast.xml")!
+    static let defaultDryRunAppcastURL = URL(string: "https://github.com/gh123man/OpenSnek/releases/download/sparkle-dryrun/dryrun-appcast.xml")!
 
     private let session: URLSession
 
@@ -169,6 +170,8 @@ struct ReleaseUpdateChecker: ReleaseUpdateChecking, Sendable {
     }
 
     static func shouldCheckForUpdates(bundle: Bundle = .main) -> Bool { currentBuildChannel(bundle: bundle) == .release }
+
+    static func dryRunAppcastURL(defaults: UserDefaults = .standard) -> URL { DeveloperRuntimeOptions.releaseUpdateDryRunAppcastURL(defaults: defaults) ?? defaultDryRunAppcastURL }
 
     static func isPeriodicCheckDue(lastCheckedAt: Date?, now: Date = Date()) -> Bool {
         guard let lastCheckedAt else { return true }

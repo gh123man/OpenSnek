@@ -148,6 +148,24 @@ https://github.com/gh123man/OpenSnek/releases/latest/download/appcast.xml
 
 Stable releases are marked as GitHub's latest release, so existing users read the latest stable `appcast.xml`. Prerelease appcasts are uploaded to their prerelease tags but are not selected by the `/latest/download/` feed URL.
 
+Developer dry-run update checks use a stable GitHub prerelease appcast:
+
+```text
+https://github.com/gh123man/OpenSnek/releases/download/sparkle-dryrun/dryrun-appcast.xml
+```
+
+Debug builds can temporarily point dry-run checks at a branch-specific appcast without source edits:
+
+```bash
+defaults write io.opensnek.OpenSnek developer.releaseUpdateDryRunAppcastURL "https://example.com/appcast.xml"
+```
+
+Remove the override to return to the stable dry-run appcast:
+
+```bash
+defaults delete io.opensnek.OpenSnek developer.releaseUpdateDryRunAppcastURL
+```
+
 ## Project generation check
 
 The pull-request workflow installs XcodeGen and regenerates the Xcode project from `OpenSnek/project.yml` to catch spec regressions. The generated `OpenSnek/OpenSnek.xcodeproj` is not committed:
