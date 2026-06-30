@@ -30,6 +30,7 @@ Environment overrides:
   OPEN_SNEK_NOTARY_KEY_ID
   OPEN_SNEK_NOTARY_ISSUER_ID
   OPEN_SNEK_CODESIGN_KEYCHAIN
+  OPEN_SNEK_SPARKLE_PUBLIC_ED_KEY
 USAGE
 }
 
@@ -44,6 +45,7 @@ OUTPUT_DIR=""
 SKIP_NOTARIZE=false
 SKIP_SIGN=false
 CODE_SIGN_KEYCHAIN="${OPEN_SNEK_CODESIGN_KEYCHAIN:-}"
+SPARKLE_PUBLIC_ED_KEY="${OPEN_SNEK_SPARKLE_PUBLIC_ED_KEY:-}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -197,6 +199,11 @@ if [[ "$SKIP_SIGN" == false && -z "$APPLE_TEAM_ID" ]]; then
   exit 1
 fi
 
+if [[ "$SKIP_SIGN" == false && -z "$SPARKLE_PUBLIC_ED_KEY" ]]; then
+  echo "OPEN_SNEK_SPARKLE_PUBLIC_ED_KEY is required for signed release builds" >&2
+  exit 1
+fi
+
 if [[ "$SKIP_NOTARIZE" == false ]]; then
   require_notary_credentials
 fi
@@ -218,6 +225,8 @@ EXPORT_OPTIONS_TMP="$OUTPUT_DIR/ExportOptions.generated.plist"
 APP_NAME="OpenSnek.app"
 DMG_NAME="OpenSnek-$VERSION.dmg"
 DMG_PATH="$ARTIFACTS_DIR/$DMG_NAME"
+SPARKLE_ZIP_NAME="OpenSnek-$VERSION.zip"
+SPARKLE_ZIP_PATH="$ARTIFACTS_DIR/$SPARKLE_ZIP_NAME"
 VOLUME_NAME="OpenSnek"
 
 rm -rf "$ARCHIVE_DIR" "$EXPORT_DIR" "$STAGE_DIR" "$ARTIFACTS_DIR" "$LOG_DIR" "$ARCHIVE_PATH" "$EXPORT_OPTIONS_TMP"
@@ -238,6 +247,7 @@ ARCHIVE_ARGS=(
   -archivePath "$ARCHIVE_PATH"
   MARKETING_VERSION="$VERSION"
   CURRENT_PROJECT_VERSION="$BUILD_NUMBER"
+  OPEN_SNEK_SPARKLE_PUBLIC_ED_KEY="$SPARKLE_PUBLIC_ED_KEY"
 )
 
 if [[ "$SKIP_SIGN" == true ]]; then
@@ -290,6 +300,9 @@ if [[ "$SKIP_NOTARIZE" == false ]]; then
   xcrun stapler validate "$APP_PATH" | tee "$LOG_DIR/staple-app-validate.log"
   spctl -a -vv --type exec "$APP_PATH" 2>&1 | tee "$LOG_DIR/app-spctl.log"
 fi
+
+echo "[open-snek] Creating Sparkle update archive $SPARKLE_ZIP_NAME"
+ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$SPARKLE_ZIP_PATH"
 
 cp -R "$APP_PATH" "$STAGE_DIR/$APP_NAME"
 APP_ICON_SOURCE="$PACKAGE_DIR/Branding/AppIcon-master.png"
@@ -347,3 +360,4 @@ if [[ "$SKIP_NOTARIZE" == false ]]; then
 fi
 
 echo "[open-snek] Release DMG ready: $DMG_PATH"
+echo "[open-snek] Sparkle update archive ready: $SPARKLE_ZIP_PATH"

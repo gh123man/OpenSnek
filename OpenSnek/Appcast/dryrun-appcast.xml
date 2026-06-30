@@ -1,0 +1,23 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>OpenSnek</title>
+        <item>
+            <title>1.2.2</title>
+            <pubDate>Tue, 30 Jun 2026 10:53:23 -0400</pubDate>
+            <sparkle:fullReleaseNotesLink>https://github.com/gh123man/OpenSnek/releases/tag/v1.2.2</sparkle:fullReleaseNotesLink>
+            <sparkle:version>38</sparkle:version>
+            <sparkle:shortVersionString>1.2.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description sparkle:format="markdown"><![CDATA[## [1.2.2]
+
+### Fixed
+- Fixed onboard profile support for Basilisk V3 35K by sharing the Basilisk V3 USB-family profile configuration across Basilisk V3, Basilisk V3 Pro, and Basilisk V3 35K.
+- Fixed Restore Last Profile so reconnects refresh saved DPI stage tables without forcing the saved active DPI stage over the mouse's current stage.
+- Fixed Restore Last Profile lighting after mouse wake, including Bluetooth realtime wake updates and receiver-backed USB recovery.
+
+]]></description>
+            <enclosure url="https://github.com/gh123man/OpenSnek/releases/download/v1.2.2/OpenSnek-1.2.2.dmg" length="6788170" type="application/octet-stream" sparkle:edSignature="tHjvP55dTKPML4MF4QkJT12H39Q+D8A/7LAy/Z//vtJ0e63ObNQY2ElIh9So2jY8qF80QB8HjmW4sanV5NgeDg=="/>
+        </item>
+    </channel>
+</rss>

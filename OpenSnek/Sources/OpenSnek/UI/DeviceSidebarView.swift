@@ -53,7 +53,9 @@ struct DeviceSidebarView: View {
         }.buttonStyle(.plain).accessibilityIdentifier("device-row-\(device.id)")
     }
 
-    @ViewBuilder private var footer: some View { if deviceStore.currentBuildChannel == .dev { DevBuildSidebarFooter() } else if let availableUpdate = deviceStore.availableUpdate { UpdateAvailableSidebarFooter(availableUpdate: availableUpdate) } }
+    @ViewBuilder private var footer: some View {
+        if deviceStore.currentBuildChannel == .dev, deviceStore.availableUpdate == nil { DevBuildSidebarFooter() } else if let availableUpdate = deviceStore.availableUpdate { UpdateAvailableSidebarFooter(availableUpdate: availableUpdate) { deviceStore.installAvailableUpdate() } }
+    }
 }
 
 /// Renders the dev build sidebar footer UI.
@@ -72,21 +74,22 @@ private struct DevBuildSidebarFooter: View {
 /// Renders the update available sidebar footer UI.
 private struct UpdateAvailableSidebarFooter: View {
     let availableUpdate: ReleaseAvailability
+    let openDetails: () -> Void
 
     var body: some View {
         Button {
-            NSWorkspace.shared.open(availableUpdate.releaseURL)
+            openDetails()
         } label: {
             SidebarFooterShell(strokeColor: Color(hex: 0xA8FF70)) {
                 Image(systemName: "arrow.down.circle.fill").font(.system(size: 15, weight: .bold)).foregroundStyle(Color(hex: 0xA8FF70))
 
-                SidebarFooterText(title: "New Version Available", subtitle: "Open GitHub release v\(availableUpdate.latestVersion)")
+                SidebarFooterText(title: availableUpdate.isDryRun ? "Update Dry Run" : "New Version Available", subtitle: "OpenSnek v\(availableUpdate.latestVersion)")
 
                 Spacer(minLength: 8)
 
                 Image(systemName: "arrow.up.right").font(.system(size: 11, weight: .black)).foregroundStyle(.white.opacity(0.72))
             }
-        }.buttonStyle(.plain).help("Open GitHub Releases")
+        }.buttonStyle(.plain).help("Show update options")
     }
 }
 

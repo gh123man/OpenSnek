@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 import OpenSnekCore
@@ -11,6 +12,7 @@ import SwiftUI
     var selectedDeviceID: String?
     var state: MouseState?
     var availableUpdate: ReleaseAvailability?
+    var updateInstallState: SoftwareUpdateInstallState = .idle
     var isLoading = false
     var isApplying = false
     var isRefreshingState = false
@@ -100,6 +102,15 @@ import SwiftUI
     }
 
     var currentBuildChannel: AppBuildChannel { ReleaseUpdateChecker.currentBuildChannel() }
+
+    func installAvailableUpdate() { Task { await runtimeController.installAvailableUpdate() } }
+
+    func openAvailableUpdateChangelog() {
+        guard let availableUpdate else { return }
+        NSWorkspace.shared.open(availableUpdate.releaseURL)
+    }
+
+    func resetUpdateInstallState() { updateInstallState = .idle }
 
     var selectedDeviceInteractionMessage: String? {
         _ = connectionDiagnosticsRevision
