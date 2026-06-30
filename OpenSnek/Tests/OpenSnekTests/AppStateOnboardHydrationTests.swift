@@ -96,13 +96,27 @@ final class AppStateOnboardHydrationTests: XCTestCase {
         XCTAssertEqual(hydrated.3, 1)
     }
 
-    func testServiceActiveOnboardProfileUpdatesDoNotHydrateProfileUI() async throws {
+    func testServiceActiveOnboardProfileUpdatesHydrateProfileUI() async throws {
         let device = makeRefactorTestDevice(id: "onboard-service-active-update-device", transport: .bluetooth, serial: "ONBOARD-SERVICE-ACTIVE-\(UUID().uuidString)", onboardProfileCount: 5, profileID: .basiliskV3Pro)
         let backend = AppStateRefactorStubBackend(
             devices: [device],
             stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "bluetooth", batteryPercent: 74, dpiValues: [800, 1600, 3200], activeStage: 0), options: RefactorTestStateOptions(activeOnboardProfile: 2, onboardProfileCount: 5))])
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 2, maxProfileID: 5, assignedProfileIDs: [1, 2, 3],
+                profiles: [makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: false), makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: true), makeRefactorOnboardProfileSummary(profileID: 3, name: "Stored 3", isActive: false)]), forDeviceID: device.id)
+        await backend.setOnboardSnapshot(makeRefactorOnboardProfileSnapshot(profileID: 2, name: "Stored 2", dpiValues: [800, 1600, 3200]), forDeviceID: device.id)
+        await backend.setOnboardSnapshot(makeRefactorOnboardProfileSnapshot(profileID: 3, name: "Stored 3", dpiValues: [1200, 2400]), forDeviceID: device.id)
+
         let appState = await MainActor.run { AppState(launchRole: .service, backend: backend, autoStart: false) }
         await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+        try await waitForRefactorCondition { await MainActor.run { appState.editorStore.selectedOnboardProfileID == 2 && appState.editorStore.editableStageCount == 3 && appState.editorStore.stageValue(0) == 800 && appState.editorStore.stageValue(2) == 3200 } }
+
+        await backend.setOnboardInventory(
+            OnboardProfileInventory(
+                activeProfileID: 3, maxProfileID: 5, assignedProfileIDs: [1, 2, 3],
+                profiles: [makeRefactorOnboardProfileSummary(profileID: 1, name: "Base", isActive: false), makeRefactorOnboardProfileSummary(profileID: 2, name: "Stored 2", isActive: false), makeRefactorOnboardProfileSummary(profileID: 3, name: "Stored 3", isActive: true)]), forDeviceID: device.id)
 
         await MainActor.run {
             appState.deviceController.applyBackendDeviceStateUpdate(
@@ -112,15 +126,17 @@ final class AppStateOnboardHydrationTests: XCTestCase {
                 deviceID: device.id, state: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "bluetooth", batteryPercent: 74, dpiValues: [1200, 2400], activeStage: 0), options: RefactorTestStateOptions(activeOnboardProfile: 3, onboardProfileCount: 5)),
                 updatedAt: Date())
         }
-        for _ in 0..<5 { await Task.yield() }
+        try await waitForRefactorCondition { await MainActor.run { appState.editorStore.selectedOnboardProfileID == 3 && appState.editorStore.editableStageCount == 2 && appState.editorStore.stageValue(0) == 1200 && appState.editorStore.stageValue(1) == 2400 } }
 
         let listCount = await backend.onboardListCount(deviceID: device.id)
         let readCount = await backend.onboardReadCount(deviceID: device.id, profileID: 3)
         let coreReadCount = await backend.onboardCoreReadCount(deviceID: device.id, profileID: 3)
+        let activations = await backend.recordedOnboardActivations()
         let loading = await MainActor.run { appState.editorStore.isOnboardProfileLoadInFlight }
-        XCTAssertEqual(listCount, 0)
+        XCTAssertEqual(listCount, 1)
         XCTAssertEqual(readCount, 0)
-        XCTAssertEqual(coreReadCount, 0)
+        XCTAssertEqual(coreReadCount, 1)
+        XCTAssertTrue(activations.isEmpty)
         XCTAssertFalse(loading)
     }
 
