@@ -48,14 +48,17 @@ jobs:
           fi
           RELEASE_IS_UPDATE_SEED=false
           RELEASE_BUILD_VERSION="${RELEASE_REF_NAME#v}"
+          RELEASE_BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
           if [[ "$RELEASE_REF_NAME" =~ ^v1\.2\.2-seed\.[0-9]+$ ]]; then
             RELEASE_IS_UPDATE_SEED=true
             RELEASE_BUILD_VERSION="1.2.2"
+            RELEASE_BUILD_NUMBER="38"
           fi
           echo "RELEASE_REF_NAME=$RELEASE_REF_NAME" >> "$GITHUB_ENV"
           echo "RELEASE_IS_PRERELEASE=$RELEASE_IS_PRERELEASE" >> "$GITHUB_ENV"
           echo "RELEASE_IS_UPDATE_SEED=$RELEASE_IS_UPDATE_SEED" >> "$GITHUB_ENV"
           echo "RELEASE_BUILD_VERSION=$RELEASE_BUILD_VERSION" >> "$GITHUB_ENV"
+          echo "RELEASE_BUILD_NUMBER=$RELEASE_BUILD_NUMBER" >> "$GITHUB_ENV"
 
       - name: Install XcodeGen
         run: |
@@ -149,7 +152,7 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$RELEASE_BUILD_VERSION"
-          BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
+          BUILD_NUMBER="$RELEASE_BUILD_NUMBER"
           chmod +x OpenSnek/scripts/build_release_dmg.sh
           ./OpenSnek/scripts/build_release_dmg.sh \
             --version "$VERSION" \
