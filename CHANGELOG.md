@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.2.3]
+
+### Added
+- Added Sparkle-backed automatic update installation from GitHub Releases, including an in-app Install/View Changelog update prompt and a developer dry-run mode for previewing the latest release update flow.
+
 ## [1.2.2]
 
 ### Fixed

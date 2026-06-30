@@ -8,11 +8,14 @@ Prepare GitHub release secrets for OpenSnek DMG signing/notarization.
 Usage:
   prepare_release_secrets.sh --cert <developer-id-app.p12> --cert-password <password> \
     --team-id <APPLE_TEAM_ID> --notary-key <AuthKey_XXXX.p8> \
-    --notary-key-id <KEY_ID> --notary-issuer-id <ISSUER_ID> [--repo <owner/repo>] [--apply]
+    --notary-key-id <KEY_ID> --notary-issuer-id <ISSUER_ID> \
+    --sparkle-public-key <PUBLIC_ED_KEY> --sparkle-private-key <PRIVATE_ED_KEY> \
+    [--repo <owner/repo>] [--apply]
 
 Behavior:
   - Encodes the Developer ID Application .p12 as base64 for GitHub secrets.
   - Reads the App Store Connect API key (.p8) as plain text for GitHub secrets.
+  - Stores Sparkle EdDSA keys used for appcast signing and update verification.
   - With --apply and gh installed, writes the secrets directly to the target GitHub repo.
   - Without --apply, prints the exact gh secret commands to run.
 USAGE
@@ -24,6 +27,8 @@ TEAM_ID=""
 NOTARY_KEY_PATH=""
 NOTARY_KEY_ID=""
 NOTARY_ISSUER_ID=""
+SPARKLE_PUBLIC_KEY=""
+SPARKLE_PRIVATE_KEY=""
 REPO=""
 APPLY=false
 
@@ -53,6 +58,14 @@ while [[ $# -gt 0 ]]; do
       NOTARY_ISSUER_ID="${2:-}"
       shift 2
       ;;
+    --sparkle-public-key)
+      SPARKLE_PUBLIC_KEY="${2:-}"
+      shift 2
+      ;;
+    --sparkle-private-key)
+      SPARKLE_PRIVATE_KEY="${2:-}"
+      shift 2
+      ;;
     --repo)
       REPO="${2:-}"
       shift 2
@@ -73,7 +86,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-for required in CERT_PATH CERT_PASSWORD TEAM_ID NOTARY_KEY_PATH NOTARY_KEY_ID NOTARY_ISSUER_ID; do
+for required in CERT_PATH CERT_PASSWORD TEAM_ID NOTARY_KEY_PATH NOTARY_KEY_ID NOTARY_ISSUER_ID SPARKLE_PUBLIC_KEY SPARKLE_PRIVATE_KEY; do
   if [[ -z "${!required}" ]]; then
     echo "Missing required argument: $required" >&2
     usage
@@ -98,6 +111,8 @@ gh secret set APPLE_DEVELOPER_ID_APP_CERT_PASSWORD ${GH_ARGS[*]} <<< '$CERT_PASS
 gh secret set APPLE_DEVELOPER_TEAM_ID ${GH_ARGS[*]} <<< '$TEAM_ID'
 gh secret set APPLE_NOTARY_KEY_ID ${GH_ARGS[*]} <<< '$NOTARY_KEY_ID'
 gh secret set APPLE_NOTARY_ISSUER_ID ${GH_ARGS[*]} <<< '$NOTARY_ISSUER_ID'
+gh secret set OPEN_SNEK_SPARKLE_PUBLIC_ED_KEY ${GH_ARGS[*]} <<< '$SPARKLE_PUBLIC_KEY'
+gh secret set OPEN_SNEK_SPARKLE_PRIVATE_ED_KEY ${GH_ARGS[*]} <<< '$SPARKLE_PRIVATE_KEY'
 cat <<'KEY' | gh secret set APPLE_NOTARY_API_KEY_P8 ${GH_ARGS[*]}
 $NOTARY_KEY_CONTENT
 KEY
@@ -114,6 +129,8 @@ if [[ "$APPLY" == true ]]; then
   printf '%s' "$TEAM_ID" | gh secret set APPLE_DEVELOPER_TEAM_ID "${GH_ARGS[@]}"
   printf '%s' "$NOTARY_KEY_ID" | gh secret set APPLE_NOTARY_KEY_ID "${GH_ARGS[@]}"
   printf '%s' "$NOTARY_ISSUER_ID" | gh secret set APPLE_NOTARY_ISSUER_ID "${GH_ARGS[@]}"
+  printf '%s' "$SPARKLE_PUBLIC_KEY" | gh secret set OPEN_SNEK_SPARKLE_PUBLIC_ED_KEY "${GH_ARGS[@]}"
+  printf '%s' "$SPARKLE_PRIVATE_KEY" | gh secret set OPEN_SNEK_SPARKLE_PRIVATE_ED_KEY "${GH_ARGS[@]}"
   printf '%s' "$NOTARY_KEY_CONTENT" | gh secret set APPLE_NOTARY_API_KEY_P8 "${GH_ARGS[@]}"
   echo "GitHub secrets updated."
 else

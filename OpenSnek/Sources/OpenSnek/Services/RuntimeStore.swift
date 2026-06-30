@@ -67,4 +67,6 @@ import Observation
     func terminateServiceProcess() { runtimeController.terminateServiceProcess() }
 
     func developerTransportSettingsDidChange() { Task { await runtimeController.developerTransportSettingsDidChange() } }
+
+    func developerUpdateDryRunSettingsDidChange() { Task { await runtimeController.developerUpdateDryRunSettingsDidChange() } }
 }

@@ -5,6 +5,7 @@ public enum DeveloperRuntimeOptions {
     public static let pollingEnabledDefaultsKey = "developer.runtimePollingEnabled"
     public static let passiveHIDUpdatesEnabledDefaultsKey = "developer.passiveHIDUpdatesEnabled"
     public static let rememberWindowSizeEnabledDefaultsKey = "developer.rememberWindowSizeEnabled"
+    public static let releaseUpdateDryRunEnabledDefaultsKey = "developer.releaseUpdateDryRunEnabled"
     public static let settingStorageEnabledDefaultsKey = "developer.settingStorageEnabled"
 
     public static func pollingEnabled(defaults: UserDefaults = .standard) -> Bool { storedBool(forKey: pollingEnabledDefaultsKey, defaults: defaults, fallback: true) }
@@ -12,6 +13,8 @@ public enum DeveloperRuntimeOptions {
     public static func passiveHIDUpdatesEnabled(defaults: UserDefaults = .standard) -> Bool { storedBool(forKey: passiveHIDUpdatesEnabledDefaultsKey, defaults: defaults, fallback: true) }
 
     public static func rememberWindowSizeEnabled(defaults: UserDefaults = .standard) -> Bool { storedBool(forKey: rememberWindowSizeEnabledDefaultsKey, defaults: defaults, fallback: true) }
+
+    public static func releaseUpdateDryRunEnabled(defaults: UserDefaults = .standard) -> Bool { storedBool(forKey: releaseUpdateDryRunEnabledDefaultsKey, defaults: defaults, fallback: false) }
 
     public static func settingStorageEnabled(defaults: UserDefaults = .standard) -> Bool { storedBool(forKey: settingStorageEnabledDefaultsKey, defaults: defaults, fallback: true) }
 
