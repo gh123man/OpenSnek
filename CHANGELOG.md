@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [1.2.2]
 
 ### Fixed
+- Fixed the menu bar DPI stage list so mouse-button onboard profile cycling reloads the active profile's stage table just like the main window.
 - Fixed onboard profile support for Basilisk V3 35K by sharing the Basilisk V3 USB-family profile configuration across Basilisk V3, Basilisk V3 Pro, and Basilisk V3 35K.
 - Fixed Restore Last Profile so reconnects refresh saved DPI stage tables without forcing the saved active DPI stage over the mouse's current stage.
 - Fixed Restore Last Profile lighting after mouse wake, including Bluetooth realtime wake updates and receiver-backed USB recovery.

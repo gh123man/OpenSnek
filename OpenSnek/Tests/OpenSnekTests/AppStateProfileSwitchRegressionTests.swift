@@ -83,6 +83,44 @@ final class AppStateProfileSwitchRegressionTests: XCTestCase {
         XCTAssertEqual(dpiProjections.first?.dpi.values, [600, 30_000])
     }
 
+    func testServiceMenuHydratesDPIStagesWhenMouseButtonCyclesActiveProfile() async throws {
+        clearSavedButtonProfiles()
+        defer { clearSavedButtonProfiles() }
+
+        let device = makeProfileSwitchDevice(id: "service-menu-profile-switch-dpi-state")
+        let baseSnapshot = makeProfileSwitchSnapshot(profileID: 1, identifier: UUID(), name: "Base", dpiValues: [800, 1600, 3200, 6400, 12_000], activeStage: 0)
+        let travelSnapshot = makeProfileSwitchSnapshot(profileID: 2, identifier: UUID(), name: "Travel", dpiValues: [600, 30_000], activeStage: 1)
+        let backend = makeProfileSwitchBackend(device: device, activeProfile: 1, dpiValues: [800, 1600, 3200, 6400, 12_000])
+        await backend.setOnboardInventory(makeProfileSwitchInventory(activeProfile: 1, maxProfileID: 5, snapshots: [baseSnapshot, travelSnapshot]), forDeviceID: device.id)
+        await backend.setOnboardSnapshot(baseSnapshot, forDeviceID: device.id)
+        await backend.setOnboardSnapshot(travelSnapshot, forDeviceID: device.id)
+
+        let appState = await MainActor.run { AppState(launchRole: .service, backend: backend, autoStart: false, statusItemDpiDisplayDuration: 0) }
+        await appState.deviceStore.refreshDevices()
+        try await waitForRefactorCondition { await MainActor.run { appState.editorStore.selectedOnboardProfileID == 1 && appState.editorStore.editableStageCount == 5 && Array(appState.editorStore.editableStagePairs.prefix(5)).map(\.x) == [800, 1600, 3200, 6400, 12_000] } }
+
+        let switchedState = makeRefactorTestState(
+            device: device, telemetry: RefactorTestStateTelemetry(connection: device.transport.connectionLabel.lowercased(), batteryPercent: 81, dpiValues: [600, 30_000, 8000, 12_000, 16_000], activeStage: 1),
+            options: RefactorTestStateOptions(
+                activeOnboardProfile: 2, onboardProfileCount: device.onboard_profile_count, scrollMode: device.supportsScrollModeControls ? 0 : nil, scrollAcceleration: device.supportsScrollModeControls ? false : nil, scrollSmartReel: device.supportsScrollModeControls ? false : nil))
+        await backend.setState(switchedState, forDeviceID: device.id)
+        await MainActor.run { appState.deviceController.applyBackendDeviceStateUpdate(deviceID: device.id, state: switchedState, updatedAt: Date().addingTimeInterval(1)) }
+
+        try await waitForRefactorCondition {
+            await MainActor.run { appState.editorStore.selectedOnboardProfileID == 2 && appState.editorStore.editableStageCount == 2 && Array(appState.editorStore.editableStagePairs.prefix(2)).map(\.x) == [600, 30_000] && appState.deviceStore.state?.dpi_stages.values == [600, 30_000] }
+        }
+
+        let profile2CoreReadCount = await backend.onboardCoreReadCount(deviceID: device.id, profileID: 2)
+        let activations = await backend.recordedOnboardActivations()
+        try await waitForRefactorCondition { await backend.recordedOnboardDPIProjections().count == 1 }
+        let dpiProjections = await backend.recordedOnboardDPIProjections()
+        XCTAssertEqual(profile2CoreReadCount, 1)
+        XCTAssertTrue(activations.isEmpty)
+        XCTAssertEqual(dpiProjections.first?.deviceID, device.id)
+        XCTAssertEqual(dpiProjections.first?.profileID, 2)
+        XCTAssertEqual(dpiProjections.first?.dpi.values, [600, 30_000])
+    }
+
 }
 
 private func makeProfileSwitchDevice(id: String) -> MouseDevice { makeRefactorTestDevice(id: id, transport: .usb, serial: "PROFILE-SWITCH-\(UUID().uuidString)", onboardProfileCount: 5, profileID: .basiliskV3Pro) }

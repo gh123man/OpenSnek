@@ -272,7 +272,7 @@ private struct ProjectedOnboardDPIState {
     }
 
     func scheduleActiveOnboardDPIProjectionIfNeeded(from snapshot: OnboardProfileSnapshot, device: MouseDevice, source: String) {
-        guard environment.launchRole == .app, device.transport == .usb, snapshot.profileID > 0, isOnboardProfileActive(deviceID: device.id, profileID: snapshot.profileID), let dpi = snapshot.dpi, !dpi.pairs.isEmpty, dpi.pairs.count < DeviceProfiles.maximumDpiStageCount else { return }
+        guard device.transport == .usb, snapshot.profileID > 0, isOnboardProfileActive(deviceID: device.id, profileID: snapshot.profileID), let dpi = snapshot.dpi, !dpi.pairs.isEmpty, dpi.pairs.count < DeviceProfiles.maximumDpiStageCount else { return }
         let signature = activeOnboardDPIProjectionSignature(profileID: snapshot.profileID, dpi: dpi)
         guard lastProjectedActiveOnboardDPISignatureByDeviceID[device.id] != signature else { return }
         lastProjectedActiveOnboardDPISignatureByDeviceID[device.id] = signature

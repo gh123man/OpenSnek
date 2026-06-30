@@ -70,10 +70,6 @@ import OpenSnekCore
             AppLog.debug("AppState", "active onboard profile presentation skipped duplicate manual load device=\(device.id) active=\(active)")
             return
         }
-        guard environment.launchRole == .app else {
-            AppLog.debug("AppState", "active onboard profile presentation skipped service profile load device=\(device.id) active=\(active)")
-            return
-        }
         guard shouldFollowActive, activeChanged || reloadRequired || shouldLoadMissingActiveSnapshot else { return }
         onboardProfileReloadRequiredDeviceIDs.remove(device.id)
 
