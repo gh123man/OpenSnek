@@ -46,8 +46,16 @@ jobs:
           if [[ "$RELEASE_REF_NAME" == *-* ]]; then
             RELEASE_IS_PRERELEASE=true
           fi
+          RELEASE_IS_UPDATE_SEED=false
+          RELEASE_BUILD_VERSION="${RELEASE_REF_NAME#v}"
+          if [[ "$RELEASE_REF_NAME" =~ ^v1\.2\.2-seed\.[0-9]+$ ]]; then
+            RELEASE_IS_UPDATE_SEED=true
+            RELEASE_BUILD_VERSION="1.2.2"
+          fi
           echo "RELEASE_REF_NAME=$RELEASE_REF_NAME" >> "$GITHUB_ENV"
           echo "RELEASE_IS_PRERELEASE=$RELEASE_IS_PRERELEASE" >> "$GITHUB_ENV"
+          echo "RELEASE_IS_UPDATE_SEED=$RELEASE_IS_UPDATE_SEED" >> "$GITHUB_ENV"
+          echo "RELEASE_BUILD_VERSION=$RELEASE_BUILD_VERSION" >> "$GITHUB_ENV"
 
       - name: Install XcodeGen
         run: |
@@ -58,6 +66,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ "$RELEASE_IS_UPDATE_SEED" == "true" ]]; then
+            echo "Skipping main ancestry check for temporary update seed $RELEASE_REF_NAME"
+            exit 0
+          fi
           TAG_COMMIT="$(git rev-parse HEAD)"
           git fetch origin main
           git merge-base --is-ancestor "$TAG_COMMIT" origin/main
@@ -73,7 +85,15 @@ jobs:
         run: |
           set -euo pipefail
           RELEASE_NOTES_PATH="$RUNNER_TEMP/release-notes.md"
-          python3 OpenSnek/scripts/extract_release_notes.py CHANGELOG.md --version "$RELEASE_REF_NAME" > "$RELEASE_NOTES_PATH"
+          if [[ "$RELEASE_IS_UPDATE_SEED" == "true" ]]; then
+            cat > "$RELEASE_NOTES_PATH" <<'NOTES'
+          ## OpenSnek 1.2.2 Update Seed
+
+          Temporary Developer ID-signed build for validating Sparkle updates to OpenSnek 1.2.3.
+          NOTES
+          else
+            python3 OpenSnek/scripts/extract_release_notes.py CHANGELOG.md --version "$RELEASE_REF_NAME" > "$RELEASE_NOTES_PATH"
+          fi
           echo "RELEASE_NOTES_PATH=$RELEASE_NOTES_PATH" >> "$GITHUB_ENV"
 
       - name: Decode signing assets
@@ -128,7 +148,7 @@ jobs:
           OPEN_SNEK_SPARKLE_PUBLIC_ED_KEY: ${{ secrets.OPEN_SNEK_SPARKLE_PUBLIC_ED_KEY }}
         run: |
           set -euo pipefail
-          VERSION="${RELEASE_REF_NAME#v}"
+          VERSION="$RELEASE_BUILD_VERSION"
           BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
           chmod +x OpenSnek/scripts/build_release_dmg.sh
           ./OpenSnek/scripts/build_release_dmg.sh \
@@ -146,7 +166,7 @@ jobs:
           OPEN_SNEK_SPARKLE_PRIVATE_ED_KEY: ${{ secrets.OPEN_SNEK_SPARKLE_PRIVATE_ED_KEY }}
         run: |
           set -euo pipefail
-          VERSION="${RELEASE_REF_NAME#v}"
+          VERSION="$RELEASE_BUILD_VERSION"
           SPARKLE_TOOLS_DIR="$RUNNER_TEMP/sparkle"
           APPCAST_DIR="$RUNNER_TEMP/open-snek-appcast"
           SPARKLE_ARCHIVE="$SPARKLE_TOOLS_DIR/Sparkle-${SPARKLE_VERSION}.tar.xz"
@@ -196,11 +216,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          VERSION="${RELEASE_REF_NAME#v}"
+          VERSION="$RELEASE_BUILD_VERSION"
           DMG_PATH="OpenSnek/.release/artifacts/OpenSnek-${VERSION}.dmg"
           SPARKLE_ZIP_PATH="OpenSnek/.release/artifacts/OpenSnek-${VERSION}.zip"
           APPCAST_PATH="OpenSnek/.release/artifacts/appcast.xml"
           RELEASE_TITLE="OpenSnek ${VERSION}"
+          if [[ "$RELEASE_IS_UPDATE_SEED" == "true" ]]; then
+            RELEASE_TITLE="OpenSnek ${VERSION} Update Seed"
+          fi
           if gh release view "$RELEASE_REF_NAME" >/dev/null 2>&1; then
             edit_args=(
               "$RELEASE_REF_NAME"
