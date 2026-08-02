@@ -84,6 +84,10 @@ public struct OpenSnekLocalProfile: Identifiable, Codable, Hashable, Sendable {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
+
+    // Matches the synthesized "Profile N"/"Active Profile" names a metadata read falls back to when the device
+    // has no real name stored for a slot; used to coalesce the duplicate library entries that pattern used to produce.
+    public static func isSynthesizedPlaceholderName(_ name: String) -> Bool { name == "Active Profile" || name.range(of: "^Profile \\d+$", options: .regularExpression) != nil }
 }
 
 /// Defines device connect behavior values.
@@ -491,7 +495,7 @@ public final class DevicePreferenceStore: @unchecked Sendable {
         var byID: [UUID: OpenSnekLocalProfile] = [:]
         var orderedIDs: [UUID] = []
         for profile in profiles {
-            let duplicateID = duplicateSyntheticBackupID(for: profile, in: byID)
+            let duplicateID = duplicateSyntheticBackupID(for: profile, in: byID) ?? duplicatePlaceholderOnboardProfileID(for: profile, in: byID)
             let profileID = duplicateID ?? profile.id
             if byID[profileID] == nil { orderedIDs.append(profileID) }
             if let existing = byID[profileID], existing.lastSyncedAt > profile.lastSyncedAt { continue }
@@ -506,6 +510,14 @@ public final class DevicePreferenceStore: @unchecked Sendable {
         return profilesByID.first { element in
             let existing = element.value
             return existing.syntheticSourceKey != nil && existing.sourceDeviceProfileID == profile.sourceDeviceProfileID && existing.sourceTransport == profile.sourceTransport
+        }?.key
+    }
+
+    private func duplicatePlaceholderOnboardProfileID(for profile: OpenSnekLocalProfile, in profilesByID: [UUID: OpenSnekLocalProfile]) -> UUID? {
+        guard profile.onboardIdentifier != nil, OpenSnekLocalProfile.isSynthesizedPlaceholderName(profile.name) else { return nil }
+        return profilesByID.first { element in
+            let existing = element.value
+            return existing.name == profile.name && existing.sourceDeviceProfileID == profile.sourceDeviceProfileID && existing.sourceTransport == profile.sourceTransport
         }?.key
     }
 

@@ -65,7 +65,8 @@ extension BridgeClient {
         let parsed = try await btReadOnboardProfileMetadataFields(device: device, target: target)
         if let metadata = Self.completeBluetoothOnboardProfileMetadata(parsed) { return metadata }
         if requireKnownFields { throw BridgeError.commandFailed("Bluetooth onboard profile metadata read did not include complete UUID/name/owner fields for target \(target).") }
-        return OnboardProfileMetadata(identifier: parsed.identifier ?? UUID(), name: parsed.name ?? "Profile \(target)", owner: parsed.owner ?? OnboardProfileMetadata.synapseCompatibleFallbackOwner)
+        let placeholderIdentifier = OnboardProfileMetadata.placeholderIdentifier(deviceKey: DevicePersistenceKeys.key(for: device), profileID: target)
+        return OnboardProfileMetadata(identifier: parsed.identifier ?? placeholderIdentifier, name: parsed.name ?? "Profile \(target)", owner: parsed.owner ?? OnboardProfileMetadata.synapseCompatibleFallbackOwner)
     }
 
     func btReadOnboardProfileMetadataFields(device: MouseDevice, target: Int) async throws -> USBHIDProtocol.OnboardProfileMetadata {

@@ -334,6 +334,7 @@ import OpenSnekCore
             guard let index = summaries.firstIndex(where: { $0.profileID == profileID }) else { continue }
             let existing = summaries[index]
             summaries[index] = OnboardProfileSummary(profileID: existing.profileID, metadata: metadata, isAssigned: existing.isAssigned, isActive: existing.isActive, isBaseProfile: existing.isBaseProfile)
+            purgeStalePlaceholderLocalProfile(device: device, profileID: profileID, realMetadata: metadata)
         }
         return OnboardProfileInventory(activeProfileID: inventory.activeProfileID, maxProfileID: inventory.maxProfileID, assignedProfileIDs: inventory.assignedProfileIDs, profiles: summaries)
     }

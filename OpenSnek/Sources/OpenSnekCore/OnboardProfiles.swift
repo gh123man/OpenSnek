@@ -79,6 +79,24 @@ public struct OnboardProfileMetadata: Codable, Hashable, Sendable {
 
     public static func isSynapseCompatibleOwner(_ value: String) -> Bool { synapseCompatibleOwner(from: value) != nil }
 
+    // Used when a device has no real metadata stored for a slot: deterministic (not `UUID()`) so repeated fallback
+    // reads of the same never-named slot resolve to the same identifier instead of minting a new local-profile-library
+    // entry on every read.
+    public static func placeholderIdentifier(deviceKey: String, profileID: Int) -> UUID {
+        let seed = "opensnek.onboard-placeholder.\(deviceKey).\(profileID)"
+        var hash1: UInt64 = 0xcbf2_9ce4_8422_2325
+        var hash2: UInt64 = 0x0000_0001_0000_01b3
+        for byte in seed.utf8 {
+            hash1 = (hash1 ^ UInt64(byte)) &* 0x0000_0100_0000_01b3
+            hash2 = (hash2 &+ UInt64(byte)) &* 0xcbf2_9ce4_8422_2325
+        }
+        var bytes = withUnsafeBytes(of: hash1.bigEndian, Array.init) + withUnsafeBytes(of: hash2.bigEndian, Array.init)
+        bytes[6] = (bytes[6] & 0x0F) | 0x50
+        bytes[8] = (bytes[8] & 0x3F) | 0x80
+        let uuid = uuid_t(bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7], bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15])
+        return UUID(uuid: uuid)
+    }
+
     public static func synapseCompatibleOwner(from value: String?) -> String? {
         guard let value else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)

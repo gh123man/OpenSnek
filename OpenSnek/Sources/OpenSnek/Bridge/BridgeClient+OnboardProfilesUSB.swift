@@ -175,7 +175,8 @@ extension BridgeClient {
     func usbReadOnboardProfileMetadata(_ session: USBHIDControlSession, _ device: MouseDevice, profileID: Int, requireKnownFields: Bool = false) throws -> OnboardProfileMetadata {
         let read = try usbReadOnboardProfileMetadataCandidate(session, device, profileID: profileID, requireKnownFields: requireKnownFields)
         if requireKnownFields, read.metadata == nil { throw BridgeError.commandFailed("USB onboard profile metadata read did not include complete UUID/name/owner fields for profile \(profileID).") }
-        return read.metadata ?? OnboardProfileMetadata(identifier: read.parsed.identifier ?? UUID(), name: read.parsed.name ?? "Profile \(profileID)", owner: read.parsed.owner ?? OnboardProfileMetadata.synapseCompatibleFallbackOwner)
+        let placeholderIdentifier = OnboardProfileMetadata.placeholderIdentifier(deviceKey: DevicePersistenceKeys.key(for: device), profileID: profileID)
+        return read.metadata ?? OnboardProfileMetadata(identifier: read.parsed.identifier ?? placeholderIdentifier, name: read.parsed.name ?? "Profile \(profileID)", owner: read.parsed.owner ?? OnboardProfileMetadata.synapseCompatibleFallbackOwner)
     }
 
     func usbWriteOnboardProfileMetadata(_ session: USBHIDControlSession, _ device: MouseDevice, profileID: Int, metadata: OnboardProfileMetadata, mode: String = "write") throws {
