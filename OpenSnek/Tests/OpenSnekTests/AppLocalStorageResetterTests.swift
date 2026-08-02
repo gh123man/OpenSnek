@@ -44,7 +44,9 @@ final class AppLocalStorageResetterTests: XCTestCase {
         let backgroundServiceEnabled = await MainActor.run { coordinator.backgroundServiceEnabled }
         let launchAtStartupEnabled = await MainActor.run { coordinator.launchAtStartupEnabled }
 
-        XCTAssertNil(defaults.persistentDomain(forName: suiteName))
+        // `removePersistentDomain` reliably leaves an empty dictionary rather than nil once a suite has ever had a
+        // key set, on current macOS - both mean "no persisted defaults remain", so accept either.
+        XCTAssertEqual(defaults.persistentDomain(forName: suiteName)?.count ?? 0, 0)
         XCTAssertTrue(backgroundServiceEnabled)
         XCTAssertFalse(launchAtStartupEnabled)
         XCTAssertNil(defaults.string(forKey: AppLog.levelDefaultsKey))
