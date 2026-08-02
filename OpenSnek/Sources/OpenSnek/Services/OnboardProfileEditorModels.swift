@@ -6,16 +6,22 @@ import OpenSnekCore
 extension OnboardProfileSnapshot {
     var isMetadataOnly: Bool { dpi == nil && buttonBindings.isEmpty && brightnessByLEDID.isEmpty && staticColorByLEDID.isEmpty && scrollMode == nil && scrollAcceleration == nil && scrollSmartReel == nil }
 
-    func replacingMetadata(_ metadata: OnboardProfileMetadata) -> OnboardProfileSnapshot {
-        OnboardProfileSnapshot(profileID: profileID, metadata: metadata, dpi: dpi, buttonBindings: buttonBindings, brightnessByLEDID: brightnessByLEDID, staticColorByLEDID: staticColorByLEDID, scrollMode: scrollMode, scrollAcceleration: scrollAcceleration, scrollSmartReel: scrollSmartReel)
+    func replacingMetadata(_ metadata: OnboardProfileMetadata, hasFetchedMetadata: Bool = true) -> OnboardProfileSnapshot {
+        OnboardProfileSnapshot(
+            profileID: profileID, metadata: metadata, dpi: dpi, buttonBindings: buttonBindings, brightnessByLEDID: brightnessByLEDID, staticColorByLEDID: staticColorByLEDID, scrollMode: scrollMode, scrollAcceleration: scrollAcceleration, scrollSmartReel: scrollSmartReel,
+            hasFetchedMetadata: hasFetchedMetadata)
     }
 
     func replacingButtonBindings(_ bindings: [Int: ButtonBindingDraft]) -> OnboardProfileSnapshot {
-        OnboardProfileSnapshot(profileID: profileID, metadata: metadata, dpi: dpi, buttonBindings: bindings, brightnessByLEDID: brightnessByLEDID, staticColorByLEDID: staticColorByLEDID, scrollMode: scrollMode, scrollAcceleration: scrollAcceleration, scrollSmartReel: scrollSmartReel)
+        OnboardProfileSnapshot(
+            profileID: profileID, metadata: metadata, dpi: dpi, buttonBindings: bindings, brightnessByLEDID: brightnessByLEDID, staticColorByLEDID: staticColorByLEDID, scrollMode: scrollMode, scrollAcceleration: scrollAcceleration, scrollSmartReel: scrollSmartReel,
+            hasFetchedMetadata: hasFetchedMetadata)
     }
 
     func replacingDPI(_ dpi: OnboardDPIProfileSnapshot?) -> OnboardProfileSnapshot {
-        OnboardProfileSnapshot(profileID: profileID, metadata: metadata, dpi: dpi, buttonBindings: buttonBindings, brightnessByLEDID: brightnessByLEDID, staticColorByLEDID: staticColorByLEDID, scrollMode: scrollMode, scrollAcceleration: scrollAcceleration, scrollSmartReel: scrollSmartReel)
+        OnboardProfileSnapshot(
+            profileID: profileID, metadata: metadata, dpi: dpi, buttonBindings: buttonBindings, brightnessByLEDID: brightnessByLEDID, staticColorByLEDID: staticColorByLEDID, scrollMode: scrollMode, scrollAcceleration: scrollAcceleration, scrollSmartReel: scrollSmartReel,
+            hasFetchedMetadata: hasFetchedMetadata)
     }
 }
 

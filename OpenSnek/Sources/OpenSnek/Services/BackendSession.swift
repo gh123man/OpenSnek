@@ -29,6 +29,7 @@ protocol DeviceBackend: AnyObject, Sendable {
     func listOnboardProfiles(device: MouseDevice) async throws -> OnboardProfileInventory
     func readOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot
     func readOnboardProfileCore(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot
+    func readOnboardProfileMetadata(device: MouseDevice, profileID: Int) async throws -> OnboardProfileMetadata
     func readOnboardProfileButtonBindings(device: MouseDevice, profileID: Int) async throws -> [Int: ButtonBindingDraft]
     func createOnboardProfile(device: MouseDevice, mutation: OnboardProfileMutation, targetProfileID: Int?, replaceAssignedProfile: Bool) async throws -> OnboardProfileSnapshot
     func renameOnboardProfile(device: MouseDevice, profileID: Int, name: String) async throws -> OnboardProfileSnapshot
@@ -84,6 +85,8 @@ final actor BootstrapPendingBackend: DeviceBackend {
 
     func readOnboardProfileCore(device _: MouseDevice, profileID _: Int) async throws -> OnboardProfileSnapshot { throw BridgeError.commandFailed("Backend is still starting") }
 
+    func readOnboardProfileMetadata(device _: MouseDevice, profileID _: Int) async throws -> OnboardProfileMetadata { throw BridgeError.commandFailed("Backend is still starting") }
+
     func readOnboardProfileButtonBindings(device _: MouseDevice, profileID _: Int) async throws -> [Int: ButtonBindingDraft] { throw BridgeError.commandFailed("Backend is still starting") }
 
     func createOnboardProfile(device _: MouseDevice, mutation _: OnboardProfileMutation, targetProfileID _: Int?, replaceAssignedProfile _: Bool) async throws -> OnboardProfileSnapshot { throw BridgeError.commandFailed("Backend is still starting") }
@@ -127,6 +130,8 @@ extension DeviceBackend {
     func readOnboardProfile(device _: MouseDevice, profileID _: Int) async throws -> OnboardProfileSnapshot { throw BridgeError.commandFailed("Onboard profile CRUD is not supported by this backend.") }
 
     func readOnboardProfileCore(device _: MouseDevice, profileID _: Int) async throws -> OnboardProfileSnapshot { throw BridgeError.commandFailed("Onboard profile CRUD is not supported by this backend.") }
+
+    func readOnboardProfileMetadata(device _: MouseDevice, profileID _: Int) async throws -> OnboardProfileMetadata { throw BridgeError.commandFailed("Onboard profile CRUD is not supported by this backend.") }
 
     func readOnboardProfileButtonBindings(device _: MouseDevice, profileID _: Int) async throws -> [Int: ButtonBindingDraft] { throw BridgeError.commandFailed("Onboard profile CRUD is not supported by this backend.") }
 

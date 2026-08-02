@@ -115,7 +115,7 @@ import OpenSnekCore
         let metadataResolvedSnapshot = snapshotPreservingExistingLocalProfileDPI(snapshotPreservingKnownMetadataForCoreRead(snapshot, device: device, source: source), device: device, expectedDPIReadback: expectedDPIReadback)
         let storedSnapshot: OnboardProfileSnapshot
         if metadataResolvedSnapshot.isMetadataOnly, let current = currentOnboardProfileSnapshotByDeviceID[device.id], current.profileID == metadataResolvedSnapshot.profileID, !current.isMetadataOnly {
-            storedSnapshot = current.replacingMetadata(metadataResolvedSnapshot.metadata)
+            storedSnapshot = current.replacingMetadata(metadataResolvedSnapshot.metadata, hasFetchedMetadata: metadataResolvedSnapshot.hasFetchedMetadata)
         } else {
             storedSnapshot = metadataResolvedSnapshot
         }
@@ -168,8 +168,8 @@ import OpenSnekCore
 
     private func snapshotPreservingKnownMetadataForCoreRead(_ snapshot: OnboardProfileSnapshot, device: MouseDevice, source: String) -> OnboardProfileSnapshot {
         guard source.localizedCaseInsensitiveContains("core") else { return snapshot }
-        if let metadata = onboardProfileInventoryByDeviceID[device.id]?.summary(for: snapshot.profileID)?.metadata { return snapshot.replacingMetadata(metadata) }
-        if let current = currentOnboardProfileSnapshotByDeviceID[device.id], current.profileID == snapshot.profileID { return snapshot.replacingMetadata(current.metadata) }
+        if let metadata = onboardProfileInventoryByDeviceID[device.id]?.summary(for: snapshot.profileID)?.metadata { return snapshot.replacingMetadata(metadata, hasFetchedMetadata: true) }
+        if let current = currentOnboardProfileSnapshotByDeviceID[device.id], current.profileID == snapshot.profileID { return snapshot.replacingMetadata(current.metadata, hasFetchedMetadata: current.hasFetchedMetadata) }
         return snapshot
     }
 
@@ -282,7 +282,7 @@ import OpenSnekCore
             let inventory = try await environment.backend.listOnboardProfiles(device: device)
             logRefreshOnboardProfilesInventory(device: device, inventory: inventory)
             let priorNames = onboardProfileInventoryByDeviceID[device.id]?.profiles.reduce(into: [Int: String]()) { partialResult, summary in partialResult[summary.profileID] = summary.displayName } ?? [:]
-            let projectedInventory = inventoryApplyingProjectedOnboardMetadata(inventoryPreservingKnownOnboardMetadata(inventory, deviceID: device.id), deviceID: device.id, source: "refreshOnboardProfiles", confirmMatchingProjections: true)
+            let projectedInventory = await fillingMissingOnboardProfileNames(inventoryApplyingProjectedOnboardMetadata(inventoryPreservingKnownOnboardMetadata(inventory, deviceID: device.id), deviceID: device.id, source: "refreshOnboardProfiles", confirmMatchingProjections: true), device: device)
             onboardProfileInventoryByDeviceID[device.id] = projectedInventory
             lastHardwareActiveOnboardProfileIDByDeviceID[device.id] = inventory.activeProfileID
             let selected = selectedOnboardProfileIDByDeviceID[device.id]
@@ -322,11 +322,28 @@ import OpenSnekCore
         logDPITrace("refreshOnboardProfiles inventory", device: device, extra: "active=\(inventory.activeProfileID) assigned=\(assigned) summaries=\(summaries)")
     }
 
+    // Bulk inventory listing never carries names (it's a lightweight assigned/active read), so every assigned
+    // slot without a cached name needs one lightweight metadata-only fetch to show up correctly without requiring
+    // the user to individually activate each slot first. Fetched sequentially: BLE only supports one exchange at a time.
+    private func fillingMissingOnboardProfileNames(_ inventory: OnboardProfileInventory, device: MouseDevice) async -> OnboardProfileInventory {
+        let profileIDsNeedingNames = inventory.assignedProfileIDs.filter { inventory.summary(for: $0)?.metadata == nil }
+        guard !profileIDsNeedingNames.isEmpty else { return inventory }
+        var summaries = inventory.profiles
+        for profileID in profileIDsNeedingNames {
+            guard let metadata = try? await environment.backend.readOnboardProfileMetadata(device: device, profileID: profileID) else { continue }
+            guard let index = summaries.firstIndex(where: { $0.profileID == profileID }) else { continue }
+            let existing = summaries[index]
+            summaries[index] = OnboardProfileSummary(profileID: existing.profileID, metadata: metadata, isAssigned: existing.isAssigned, isActive: existing.isActive, isBaseProfile: existing.isBaseProfile)
+        }
+        return OnboardProfileInventory(activeProfileID: inventory.activeProfileID, maxProfileID: inventory.maxProfileID, assignedProfileIDs: inventory.assignedProfileIDs, profiles: summaries)
+    }
+
     private func hydrateSelectedOnboardProfileAfterRefreshIfNeeded(device: MouseDevice, selectedAfterRefresh: Int, inventory: OnboardProfileInventory, hydrateSelectedProfile: Bool) async throws {
         guard hydrateSelectedProfile else { return }
         guard shouldHydrateSelectedProfileDuringRefresh(device: device) else { return }
         guard selectedAfterRefresh == inventory.activeProfileID, inventory.assignedProfileIDs.contains(selectedAfterRefresh) else { return }
-        guard currentOnboardProfileSnapshotByDeviceID[device.id]?.profileID != selectedAfterRefresh else { return }
+        let cached = currentOnboardProfileSnapshotByDeviceID[device.id]
+        guard cached?.profileID != selectedAfterRefresh || cached?.hasFetchedMetadata == false else { return }
         logDPITrace("refreshOnboardProfiles read selected snapshot", device: device, extra: "profile=\(selectedAfterRefresh)")
         let snapshot = try await readLatestOnboardProfileSnapshot(device: device, profileID: selectedAfterRefresh)
         let shouldHydrateEditable = applyController.shouldHydrateEditable(for: device)
@@ -406,8 +423,17 @@ import OpenSnekCore
             let active = storeActiveOnboardProfileState(state, for: device, fallbackActiveProfileID: profileID)
             selectedOnboardProfileIDByDeviceID[device.id] = active
             logDPITrace("activateOnboardProfile state readback", device: device, state: state, extra: "requested=\(profileID) active=\(active)")
-            let snapshot = snapshotWithCachedButtonBindings(try await readLatestOnboardProfileCoreSnapshot(device: device, profileID: active), device: device)
-            let storedSnapshot = storeCurrentOnboardProfileSnapshot(snapshot, device: device, source: "activateOnboardProfileCore")
+            let hasKnownMetadata = onboardProfileInventoryByDeviceID[device.id]?.summary(for: active)?.metadata != nil || currentOnboardProfileSnapshotByDeviceID[device.id]?.profileID == active
+            let storedSnapshot: OnboardProfileSnapshot
+            if hasKnownMetadata {
+                let snapshot = snapshotWithCachedButtonBindings(try await readLatestOnboardProfileCoreSnapshot(device: device, profileID: active), device: device)
+                storedSnapshot = storeCurrentOnboardProfileSnapshot(snapshot, device: device, source: "activateOnboardProfileCore")
+            } else {
+                // First time this slot has been activated this session: no cached name exists to fall back on, so
+                // do a full metadata-including read up front instead of caching a "Profile N" placeholder that
+                // would otherwise stick around (nothing re-fetches metadata once a snapshot exists for a profile ID).
+                storedSnapshot = try await readLatestOnboardProfileSnapshot(device: device, profileID: active)
+            }
             logDPITrace("activateOnboardProfile snapshot stored", device: device, state: state, snapshot: storedSnapshot, extra: "requested=\(profileID) active=\(active)")
             hydrateEditable(from: storedSnapshot, device: device)
             if shouldHydrateOnboardProfileButtonsInline(device: device) { await readOnboardProfileButtonBindingsForSelection(device: device, profileID: active) } else { scheduleOnboardProfileButtonHydration(device: device, profileID: active) }

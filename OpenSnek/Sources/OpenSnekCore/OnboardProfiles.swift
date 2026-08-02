@@ -146,10 +146,12 @@ public struct OnboardProfileSnapshot: Codable, Hashable, Sendable {
     public let scrollMode: Int?
     public let scrollAcceleration: Bool?
     public let scrollSmartReel: Bool?
+    /// False when `metadata` is a synthesized "Profile N" placeholder from a core-only read (`includeMetadata: false`), not a real device fetch.
+    public let hasFetchedMetadata: Bool
 
     public init(
         profileID: Int, metadata: OnboardProfileMetadata, dpi: OnboardDPIProfileSnapshot? = nil, buttonBindings: [Int: ButtonBindingDraft] = [:], brightnessByLEDID: [Int: Int] = [:], staticColorByLEDID: [Int: RGBPatch] = [:], scrollMode: Int? = nil, scrollAcceleration: Bool? = nil,
-        scrollSmartReel: Bool? = nil
+        scrollSmartReel: Bool? = nil, hasFetchedMetadata: Bool = true
     ) {
         self.profileID = max(0, profileID)
         self.metadata = metadata
@@ -160,6 +162,7 @@ public struct OnboardProfileSnapshot: Codable, Hashable, Sendable {
         self.scrollMode = scrollMode.map { max(0, min(1, $0)) }
         self.scrollAcceleration = scrollAcceleration
         self.scrollSmartReel = scrollSmartReel
+        self.hasFetchedMetadata = hasFetchedMetadata
     }
 
     public var summary: OnboardProfileSummary { OnboardProfileSummary(profileID: profileID, metadata: metadata, isAssigned: profileID > 0, isActive: profileID == 0, isBaseProfile: profileID <= 1) }

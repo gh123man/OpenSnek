@@ -122,7 +122,8 @@ extension BridgeClient {
             scrollAcceleration = nil
             scrollSmartReel = nil
         }
-        return OnboardProfileSnapshot(profileID: profileID, metadata: metadata, dpi: dpi, buttonBindings: bindings, brightnessByLEDID: brightness, staticColorByLEDID: colors, scrollMode: scrollMode, scrollAcceleration: scrollAcceleration, scrollSmartReel: scrollSmartReel)
+        return OnboardProfileSnapshot(
+            profileID: profileID, metadata: metadata, dpi: dpi, buttonBindings: bindings, brightnessByLEDID: brightness, staticColorByLEDID: colors, scrollMode: scrollMode, scrollAcceleration: scrollAcceleration, scrollSmartReel: scrollSmartReel, hasFetchedMetadata: includeMetadata)
     }
 
     func usbReadOnboardProfileMetadataCandidate(_ session: USBHIDControlSession, _ device: MouseDevice, profileID: Int, requireKnownFields: Bool = false) throws -> USBOnboardProfileMetadataRead {

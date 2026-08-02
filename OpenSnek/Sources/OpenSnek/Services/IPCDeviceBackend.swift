@@ -61,6 +61,10 @@ final actor IPCDeviceBackend: HIDAccessRefreshControllingBackend, ApplyOptionsSu
         try await request(method: .readOnboardProfileCore, payload: try BackendCodec.encode(OnboardProfileIDRequest(device: device, profileID: profileID)), responseType: OnboardProfileSnapshot.self)
     }
 
+    func readOnboardProfileMetadata(device: MouseDevice, profileID: Int) async throws -> OnboardProfileMetadata {
+        try await request(method: .readOnboardProfileMetadata, payload: try BackendCodec.encode(OnboardProfileIDRequest(device: device, profileID: profileID)), responseType: OnboardProfileMetadata.self)
+    }
+
     func readOnboardProfileButtonBindings(device: MouseDevice, profileID: Int) async throws -> [Int: ButtonBindingDraft] {
         try await request(method: .readOnboardProfileButtonBindings, payload: try BackendCodec.encode(OnboardProfileIDRequest(device: device, profileID: profileID)), responseType: [Int: ButtonBindingDraft].self)
     }

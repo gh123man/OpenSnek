@@ -58,7 +58,7 @@ extension BridgeClient {
         let bindings = includeButtonBindings ? try await btReadOnboardProfileButtons(device: device, profile: profile, target: target) : [:]
         let brightness = try await btReadOnboardProfileBrightness(device: device, target: target)
         let colors = try await btReadOnboardProfileStaticColors(device: device, target: target)
-        return OnboardProfileSnapshot(profileID: target, metadata: metadata, dpi: dpi, buttonBindings: bindings, brightnessByLEDID: brightness, staticColorByLEDID: colors)
+        return OnboardProfileSnapshot(profileID: target, metadata: metadata, dpi: dpi, buttonBindings: bindings, brightnessByLEDID: brightness, staticColorByLEDID: colors, hasFetchedMetadata: includeMetadata)
     }
 
     func btReadOnboardProfileMetadata(device: MouseDevice, target: Int, requireKnownFields: Bool = false) async throws -> OnboardProfileMetadata {
