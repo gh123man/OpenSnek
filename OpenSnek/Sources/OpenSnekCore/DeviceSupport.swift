@@ -484,7 +484,12 @@ public enum DeviceProfiles {
         id: .nagaPro, productName: "Naga Pro", transport: .usb, supportedProducts: [0x008F, 0x0090], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: nagaProUSBButtonSlots, writableSlots: nagaProUSBWritableSlots, documentedSlots: nagaProUSBDocumentedReadOnlySlots),
         supportsAdvancedLightingEffects: false, supportedLightingEffects: [], usbLightingLEDIDs: [0x01, 0x04], usbLightingZones: nagaProUSBLightingZones, supportsLightingBrightnessControls: true, onboardProfileSupport: .mappedCore, onboardProfileCount: 5, isLocallyValidated: false)
 
-    public static let all: [DeviceProfile] = [basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, orochiV2Bluetooth, nagaProUSB]
+    // Confirmed by capture: Naga Pro's Bluetooth GATT vendor service uses the identical function-block byte encoding as its USB path, unlike the Basilisk family, which remaps to vendor ID 0x068E over Bluetooth.
+    public static let nagaProBluetooth = DeviceProfile(
+        id: .nagaPro, productName: "Naga Pro", transport: .bluetooth, supportedProducts: [0x0092], buttonLayout: ButtonSlotLayout(visibleSlots: nagaProUSBButtonSlots, writableSlots: nagaProUSBWritableSlots, documentedSlots: nagaProUSBDocumentedReadOnlySlots), supportsAdvancedLightingEffects: false,
+        supportedLightingEffects: [], usbLightingLEDIDs: [0x01, 0x04], usbLightingZones: nagaProUSBLightingZones, supportsLightingBrightnessControls: true, onboardProfileSupport: .mappedCore, onboardProfileCount: 5, isLocallyValidated: false)
+
+    public static let all: [DeviceProfile] = [basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, orochiV2Bluetooth, nagaProUSB, nagaProBluetooth]
 
     public static func resolve(vendorID: Int, productID: Int, transport: DeviceTransportKind) -> DeviceProfile? { all.first(where: { $0.matches(vendorID: vendorID, productID: productID, transport: transport) }) }
 

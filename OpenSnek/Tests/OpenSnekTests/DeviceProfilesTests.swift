@@ -318,6 +318,13 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.id, .nagaPro)
     }
 
+    func testResolveBluetoothProfileForNagaPro() {
+        // Unlike the Basilisk family, Naga Pro keeps vendor ID 0x1532 over Bluetooth instead of remapping to 0x068E.
+        let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x0092, transport: .bluetooth)
+        XCTAssertEqual(profile?.id, .nagaPro)
+        XCTAssertEqual(profile?.buttonLayout, DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x008F, transport: .usb)?.buttonLayout)
+    }
+
     func testDPIRangesMatchSupportedProfiles() {
         XCTAssertEqual(DeviceProfiles.dpiRange(for: .basiliskV3XHyperspeed), 100...18_000)
         XCTAssertEqual(DeviceProfiles.dpiRange(for: .basiliskV3), 100...26_000)
