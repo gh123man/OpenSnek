@@ -237,5 +237,6 @@ extension BLEVendorTransportClient: CBCentralManagerDelegate, CBPeripheralDelega
         }
         guard let value = characteristic.value else { return }
         notifications.append(value)
+        scheduleFinishIfIdle()
     }
 }
