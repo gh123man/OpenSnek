@@ -5,11 +5,14 @@ public struct ButtonSlotDescriptor: Identifiable, Hashable, Codable, Sendable {
     public let slot: Int
     public let friendlyName: String
     public let defaultKind: ButtonBindingKind
+    /// Optional section label for devices whose slots split across swappable hardware (e.g. Naga Pro side panels). Rows with the same group are shown together under one header; `nil` renders ungrouped, matching prior behavior.
+    public let group: String?
 
-    public init(slot: Int, friendlyName: String, defaultKind: ButtonBindingKind) {
+    public init(slot: Int, friendlyName: String, defaultKind: ButtonBindingKind, group: String? = nil) {
         self.slot = slot
         self.friendlyName = friendlyName
         self.defaultKind = defaultKind
+        self.group = group
     }
 
     public var id: Int { slot }
@@ -448,7 +451,40 @@ public enum DeviceProfiles {
         id: .orochiV2, productName: "Orochi V2", transport: .bluetooth, supportedProducts: [0x0095], buttonLayout: ButtonSlotLayout(visibleSlots: orochiV2BluetoothButtonSlots, writableSlots: [1, 2, 3, 4, 5, 9, 10, 96]), supportsAdvancedLightingEffects: false, supportedLightingEffects: [],
         usbLightingLEDIDs: [], usbLightingZones: [], passiveDPIInput: PassiveDPIInputDescriptor(usagePage: 0x01, usage: 0x02, reportID: 0x05, subtype: 0x02, heartbeatSubtype: 0x10, minInputReportSize: 7, maxFeatureReportSize: 1, maximumDPI: 18_000), onboardProfileCount: 1)
 
-    public static let all: [DeviceProfile] = [basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, orochiV2Bluetooth]
+    // Naga Pro's three swappable side panels (2-button, 6-button, 12-button) share one static firmware slot table; only one panel's buttons are physically wired at a time.
+    public static let nagaProUSBButtonSlots: [ButtonSlotDescriptor] = [
+        ButtonSlotDescriptor(slot: 1, friendlyName: "Left Click", defaultKind: .leftClick, group: "Mouse"), ButtonSlotDescriptor(slot: 2, friendlyName: "Right Click", defaultKind: .rightClick, group: "Mouse"),
+        ButtonSlotDescriptor(slot: 3, friendlyName: "Middle Click", defaultKind: .middleClick, group: "Mouse"), ButtonSlotDescriptor(slot: 9, friendlyName: "Scroll Up", defaultKind: .scrollUp, group: "Mouse"),
+        ButtonSlotDescriptor(slot: 10, friendlyName: "Scroll Down", defaultKind: .scrollDown, group: "Mouse"), ButtonSlotDescriptor(slot: 11, friendlyName: "DPI Down", defaultKind: .default, group: "Mouse"),
+        ButtonSlotDescriptor(slot: 12, friendlyName: "DPI Up", defaultKind: .default, group: "Mouse"), ButtonSlotDescriptor(slot: 52, friendlyName: "Wheel Tilt Left", defaultKind: .scrollLeft, group: "Mouse"),
+        ButtonSlotDescriptor(slot: 53, friendlyName: "Wheel Tilt Right", defaultKind: .scrollRight, group: "Mouse"),
+        // These slots have no dedicated buttons on the mouse body itself - they only respond when the 2-button panel is installed, and are reversed from panel label order (label 1 = slot 5, label 2 = slot 4).
+        ButtonSlotDescriptor(slot: 5, friendlyName: "Panel Button 1", defaultKind: .mouseForward, group: "2-Button Panel"), ButtonSlotDescriptor(slot: 4, friendlyName: "Panel Button 2", defaultKind: .mouseBack, group: "2-Button Panel"),
+        // Panel labels 1-3 map straight to slots 80-82, but labels 4-6 map in reverse order to slots 85, 84, 83. Slots 83-85 use an undecoded function-block class (0x03) but accept ordinary keyboard remaps.
+        ButtonSlotDescriptor(slot: 80, friendlyName: "Side Button 1", defaultKind: .keyboardSimple, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 81, friendlyName: "Side Button 2", defaultKind: .keyboardSimple, group: "6-Button Panel"),
+        ButtonSlotDescriptor(slot: 82, friendlyName: "Side Button 3", defaultKind: .keyboardSimple, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 85, friendlyName: "Side Button 4", defaultKind: .default, group: "6-Button Panel"),
+        ButtonSlotDescriptor(slot: 84, friendlyName: "Side Button 5", defaultKind: .default, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 83, friendlyName: "Side Button 6", defaultKind: .default, group: "6-Button Panel"),
+        ButtonSlotDescriptor(slot: 64, friendlyName: "Side Button 1", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 65, friendlyName: "Side Button 2", defaultKind: .keyboardSimple, group: "12-Button Panel"),
+        ButtonSlotDescriptor(slot: 66, friendlyName: "Side Button 3", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 67, friendlyName: "Side Button 4", defaultKind: .keyboardSimple, group: "12-Button Panel"),
+        ButtonSlotDescriptor(slot: 68, friendlyName: "Side Button 5", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 69, friendlyName: "Side Button 6", defaultKind: .keyboardSimple, group: "12-Button Panel"),
+        ButtonSlotDescriptor(slot: 70, friendlyName: "Side Button 7", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 71, friendlyName: "Side Button 8", defaultKind: .keyboardSimple, group: "12-Button Panel"),
+        ButtonSlotDescriptor(slot: 72, friendlyName: "Side Button 9", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 73, friendlyName: "Side Button 10", defaultKind: .keyboardSimple, group: "12-Button Panel"),
+        ButtonSlotDescriptor(slot: 74, friendlyName: "Side Button 11", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 75, friendlyName: "Side Button 12", defaultKind: .keyboardSimple, group: "12-Button Panel")
+    ]
+
+    public static let nagaProUSBWritableSlots: [Int] = [1, 2, 3, 4, 5, 9, 10, 52, 53, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82, 83, 84, 85]
+
+    public static let nagaProUSBDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
+        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 14, friendlyName: "Scroll Mode Toggle", defaultKind: .default), access: .protocolReadOnly, note: "OpenSnek can see this button, but the mouse does not let apps remap it yet.")
+    ]
+
+    public static let nagaProUSBLightingZones: [USBLightingZoneDescriptor] = [USBLightingZoneDescriptor(id: "scroll_wheel", label: "Scroll Wheel", ledIDs: [0x01]), USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x04])]
+
+    public static let nagaProUSB = DeviceProfile(
+        id: .nagaPro, productName: "Naga Pro", transport: .usb, supportedProducts: [0x008F, 0x0090], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: nagaProUSBButtonSlots, writableSlots: nagaProUSBWritableSlots, documentedSlots: nagaProUSBDocumentedReadOnlySlots),
+        supportsAdvancedLightingEffects: false, supportedLightingEffects: [], usbLightingLEDIDs: [0x01, 0x04], usbLightingZones: nagaProUSBLightingZones, supportsLightingBrightnessControls: true, onboardProfileSupport: .mappedCore, onboardProfileCount: 5, isLocallyValidated: false)
+
+    public static let all: [DeviceProfile] = [basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, orochiV2Bluetooth, nagaProUSB]
 
     public static func resolve(vendorID: Int, productID: Int, transport: DeviceTransportKind) -> DeviceProfile? { all.first(where: { $0.matches(vendorID: vendorID, productID: productID, transport: transport) }) }
 
@@ -470,6 +506,7 @@ public enum DeviceProfiles {
         case .basiliskV3Pro: return 30_000
         case .basiliskV335K: return 35_000
         case .orochiV2: return 18_000
+        case .nagaPro: return 20_000
         case nil: return defaultMaximumDPI
         }
     }
@@ -576,7 +613,7 @@ public enum DeviceProfiles {
     public static func supportsIndependentXYDPI(for profileID: DeviceProfileID?) -> Bool {
         switch profileID {
         case .basiliskV3, .basiliskV3Pro, .basiliskV335K: return true
-        case .basiliskV3XHyperspeed, .orochiV2, nil: return false
+        case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, nil: return false
         }
     }
 

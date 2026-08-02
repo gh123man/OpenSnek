@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Added
 - Added Sparkle-backed automatic update installation from GitHub Releases, including Sparkle's changelog/install UI and a developer dry-run mode for previewing the latest release update flow.
+- Added Razer Naga Pro (USB) support: button remapping across all three swappable side panels (2-button, 6-button, 12-button), grouped clearly in the button mapping table; DPI stages; and full onboard-profile switching/CRUD.
 
 ## [1.2.2]
 

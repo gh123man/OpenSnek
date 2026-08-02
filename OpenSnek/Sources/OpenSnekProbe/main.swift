@@ -219,6 +219,8 @@ struct ProbeUSBRawArgs {
     let responseAttempts: Int
     let responseDelayUs: useconds_t
     let productID: Int?
+    let transactionID: UInt8?
+    let scanTransactionIDs: Bool
 }
 
 /// Defines OpenSnek probe values.

@@ -154,6 +154,43 @@ final class USBButtonHydrationTests: XCTestCase {
         XCTAssertEqual(rightBlock, [0x0E, 0x03, 0x69, 0x00, 0x14, 0x00, 0x00])
     }
 
+    func testNagaProWheelTiltBlocksDecodeAsHorizontalScroll() {
+        let leftBlock: [UInt8] = [0x0E, 0x03, 0x09, 0x00, 0x50, 0x00, 0x00]
+        let rightBlock: [UInt8] = [0x0E, 0x03, 0x0A, 0x00, 0x50, 0x00, 0x00]
+        XCTAssertEqual(ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 52, functionBlock: leftBlock, profileID: .nagaPro)?.kind, .scrollLeft)
+        XCTAssertEqual(ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 53, functionBlock: rightBlock, profileID: .nagaPro)?.kind, .scrollRight)
+    }
+
+    func testSameButtonIDsDecodeAsVerticalScrollForNonNagaProProfiles() {
+        let block: [UInt8] = [0x0E, 0x03, 0x09, 0x00, 0x50, 0x00, 0x00]
+        XCTAssertEqual(ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 52, functionBlock: block, profileID: .basiliskV3Pro)?.kind, .scrollUp)
+    }
+
+    func testNagaProWheelTiltDefaultBlocksUseVerticalScrollButtonIDs() {
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 52, profileID: .nagaPro), [0x0E, 0x03, 0x09, 0x00, 0x8E, 0x00, 0x00])
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 53, profileID: .nagaPro), [0x0E, 0x03, 0x0A, 0x00, 0x8E, 0x00, 0x00])
+    }
+
+    func testBuildUSBFunctionBlockSupportsNagaProHorizontalScrollBindings() {
+        let leftBlock = ButtonBindingSupport.buildUSBFunctionBlock(slot: 52, kind: .scrollLeft, hidKey: 4, turboEnabled: false, turboRate: 0x8E, profileID: .nagaPro)
+        let rightBlock = ButtonBindingSupport.buildUSBFunctionBlock(slot: 53, kind: .scrollRight, hidKey: 4, turboEnabled: false, turboRate: 0x8E, profileID: .nagaPro)
+        XCTAssertEqual(leftBlock, [0x0E, 0x03, 0x09, 0x00, 0x8E, 0x00, 0x00])
+        XCTAssertEqual(rightBlock, [0x0E, 0x03, 0x0A, 0x00, 0x8E, 0x00, 0x00])
+    }
+
+    func testNagaProSideButtonDefaultDecodesAsKeyboardSimple() {
+        let block: [UInt8] = [0x02, 0x02, 0x00, 0x1E, 0x00, 0x00, 0x00]
+        let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 64, functionBlock: block, profileID: .nagaPro)
+        XCTAssertEqual(draft?.kind, .keyboardSimple)
+        XCTAssertEqual(draft?.hidKey, 0x1E)
+        XCTAssertEqual(draft?.hidModifiers, 0)
+    }
+
+    func testNagaProIsNotPartOfBasiliskV3FamilyDPIClutchSupport() {
+        XCTAssertNil(ButtonBindingSupport.semanticDefaultButtonBinding(for: 15, profileID: .nagaPro))
+        XCTAssertFalse(ButtonBindingSupport.availableButtonBindingKinds(profileID: .nagaPro).contains(.dpiClutch))
+    }
+
     func testBuildUSBFunctionBlockSupportsKeyboardShortcutModifiers() {
         let block = ButtonBindingSupport.buildUSBFunctionBlock(slot: 4, kind: .keyboardSimple, hidKey: 0x2F, hidModifiers: 0x08, turboEnabled: false, turboRate: 0x8E)
 

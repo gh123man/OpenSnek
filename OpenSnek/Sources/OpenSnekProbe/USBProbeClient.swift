@@ -376,8 +376,8 @@ final class USBProbeClient: @unchecked Sendable {
         return wroteAny
     }
 
-    func rawCommand(classID: UInt8, cmdID: UInt8, size: UInt8, args: [UInt8], responseAttempts: Int = 12, responseDelayUs: useconds_t = 40_000) throws -> [UInt8]? {
-        try session.perform(classID: classID, cmdID: cmdID, size: size, args: args, responseAttempts: responseAttempts, responseDelayUs: responseDelayUs)
+    func rawCommand(classID: UInt8, cmdID: UInt8, size: UInt8, args: [UInt8], transactionID: UInt8? = nil, responseAttempts: Int = 12, responseDelayUs: useconds_t = 40_000) throws -> [UInt8]? {
+        try session.perform(classID: classID, cmdID: cmdID, size: size, args: args, transactionID: transactionID, responseAttempts: responseAttempts, responseDelayUs: responseDelayUs)
     }
 
     private func readLightingBrightness(ledID: UInt8) throws -> Int? {

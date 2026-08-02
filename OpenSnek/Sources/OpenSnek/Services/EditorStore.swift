@@ -382,6 +382,14 @@ import OpenSnekCore
 
     func selectOnboardProfile(_ profileID: Int) async { await withOnboardProfileLoad(statusText: "Loading profile...") { [self] in await self.editorController.selectOnboardProfile(profileID) } }
 
+    // Forces the mouse to reload the selected profile from flash into its live state, even if it's already active.
+    // Unlike selectOnboardProfile, this never short-circuits on "already active" - it's a manual escape hatch for when
+    // the mouse's live behavior might have drifted from its stored config (the in-app equivalent of a power cycle).
+    func refreshActiveOnboardProfile() async {
+        guard let profileID = selectedOnboardProfileID else { return }
+        await withOnboardProfileLoad(statusText: "Refreshing profile...") { [self] in await self.editorController.activateOnboardProfile(profileID) }
+    }
+
     func createOnboardProfile(name: String, targetProfileID: Int? = nil, copyFromProfileID: Int? = nil) async {
         await withButtonProfileOperation(statusText: "Creating profile...") { [self] in await self.editorController.createOnboardProfile(name: name, targetProfileID: targetProfileID, copyFromProfileID: copyFromProfileID) }
     }

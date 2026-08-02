@@ -71,7 +71,9 @@ extension OpenSnekProbe {
         let size = parseUInt8(flags["--size"] ?? "") ?? UInt8(parsedArgs.count)
         let responseAttempts = max(1, Int(flags["--response-attempts"] ?? "12") ?? 12)
         let responseDelayUs = useconds_t(max(1_000, Int(flags["--response-delay-us"] ?? "40000") ?? 40_000))
-        return ProbeUSBRawArgs(classID: classID, cmdID: cmdID, size: size, args: parsedArgs, responseAttempts: responseAttempts, responseDelayUs: responseDelayUs, productID: try parseOptionalUSBPID(args))
+        let transactionID = flags["--transaction-id"].flatMap(parseUInt8)
+        let scanTransactionIDs = parseBoolean(flags["--scan-transaction-ids"] ?? "off")
+        return ProbeUSBRawArgs(classID: classID, cmdID: cmdID, size: size, args: parsedArgs, responseAttempts: responseAttempts, responseDelayUs: responseDelayUs, productID: try parseOptionalUSBPID(args), transactionID: transactionID, scanTransactionIDs: scanTransactionIDs)
     }
 
     static func parseOptionalUSBPID(_ args: [String]) throws -> Int? {

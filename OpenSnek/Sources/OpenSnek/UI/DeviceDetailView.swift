@@ -209,7 +209,7 @@ struct DeviceOverviewBar: View {
                 if editorStore.supportsProfilePicker {
                     Spacer(minLength: 12)
                     Text("Profile").font(.system(size: 10, weight: .bold, design: .rounded)).foregroundStyle(.white.opacity(0.50))
-                    OnboardProfilePillButton(editorStore: editorStore) { isProfilePickerPresented.toggle() }.popover(isPresented: $isProfilePickerPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .top) { ProfilePickerPopover(editorStore: editorStore) }
+                    OnboardProfilePillButton(editorStore: editorStore) { toggleProfilePickerPresented() }.popover(isPresented: $isProfilePickerPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .top) { ProfilePickerPopover(editorStore: editorStore) }
                 }
             }
 
@@ -221,6 +221,11 @@ struct DeviceOverviewBar: View {
     }
 
     private var showsUnsupportedUSBMarker: Bool { deviceStore.selectedDeviceIsUnsupportedUSB && deviceStore.selectedDeviceID == selected.id }
+
+    // Closes immediately, but delays opening slightly. AppKit's popover window-ordering machinery can throw an uncaught
+    // exception (seen as a crash) when a popover is presented in the same transaction as another popover's teardown or an
+    // unrelated layout pass (e.g. right after a button-mapping row changes height); this gap gives that prior work time to settle.
+    private func toggleProfilePickerPresented() { if isProfilePickerPresented { isProfilePickerPresented = false } else { DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { isProfilePickerPresented = true } } }
 }
 
 /// Renders the generic device detail view UI.

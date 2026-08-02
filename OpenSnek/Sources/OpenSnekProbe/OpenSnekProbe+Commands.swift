@@ -379,12 +379,23 @@ extension OpenSnekProbe {
             let parsed = try parseUSBRawArgs(commandArgs)
             let usb = try USBProbeClient(productID: parsed.productID)
             print("usb \(usb.describe())")
-            let response = try usb.rawCommand(classID: parsed.classID, cmdID: parsed.cmdID, size: parsed.size, args: parsed.args, responseAttempts: parsed.responseAttempts, responseDelayUs: parsed.responseDelayUs)
-            if let response {
-                let hex = response.map { String(format: "%02x", $0) }.joined(separator: " ")
-                print("response[\(response.count)]: \(hex)")
+            if parsed.scanTransactionIDs {
+                var found = false
+                for candidate: UInt8 in 0...0xFF {
+                    guard let response = try? usb.rawCommand(classID: parsed.classID, cmdID: parsed.cmdID, size: parsed.size, args: parsed.args, transactionID: candidate, responseAttempts: 2, responseDelayUs: parsed.responseDelayUs) else { continue }
+                    let hex = response.map { String(format: "%02x", $0) }.joined(separator: " ")
+                    print("transaction-id=0x\(String(format: "%02x", candidate)) response[\(response.count)]: \(hex)")
+                    found = true
+                }
+                if !found { print("transaction-id scan: no candidate produced a response") }
             } else {
-                print("response: nil")
+                let response = try usb.rawCommand(classID: parsed.classID, cmdID: parsed.cmdID, size: parsed.size, args: parsed.args, transactionID: parsed.transactionID, responseAttempts: parsed.responseAttempts, responseDelayUs: parsed.responseDelayUs)
+                if let response {
+                    let hex = response.map { String(format: "%02x", $0) }.joined(separator: " ")
+                    print("response[\(response.count)]: \(hex)")
+                } else {
+                    print("response: nil")
+                }
             }
         default: return false
         }

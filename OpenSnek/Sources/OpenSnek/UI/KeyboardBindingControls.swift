@@ -14,13 +14,18 @@ struct KeyboardBindingEditor: View {
     private var keyLabel: String { AppStateKeyboardSupport.keyboardDisplayLabel(forHidKey: hidKey, hidModifiers: hidModifiers) }
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: 10) { HStack(spacing: 8) { KeyboardBindingCurrentKeyButton(label: keyLabel, isEditable: isEditable) { isShowingRecorder = true } } }.popover(isPresented: $isShowingRecorder) {
+        VStack(alignment: .trailing, spacing: 10) { HStack(spacing: 8) { KeyboardBindingCurrentKeyButton(label: keyLabel, isEditable: isEditable) { presentRecorderAfterDelay() } } }.popover(isPresented: $isShowingRecorder) {
             KeyboardBindingRecorderPopover(currentHidKey: hidKey, currentHidModifiers: hidModifiers, supportsModifierChords: supportsModifierChords) { selection in
                 onSelect(selection)
                 isShowingRecorder = false
             }
         }
     }
+
+    // See the matching comment on DeviceOverviewBar.toggleProfilePickerPresented(): presenting a popover in the same
+    // transaction as another popover's teardown or an unrelated layout pass can crash on some AppKit versions, so this
+    // gives any pending work a moment to settle before opening.
+    private func presentRecorderAfterDelay() { DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { isShowingRecorder = true } }
 }
 
 /// Renders the keyboard binding current key button UI.

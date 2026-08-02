@@ -35,6 +35,7 @@ public enum DeviceProfileID: String, Codable, Hashable, Sendable {
     case basiliskV3Pro = "basilisk_v3_pro"
     case basiliskV335K = "basilisk_v3_35k"
     case orochiV2 = "orochi_v2"
+    case nagaPro = "naga_pro"
 }
 
 /// Stores device identity data.
