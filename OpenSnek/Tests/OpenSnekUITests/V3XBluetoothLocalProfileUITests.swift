@@ -194,7 +194,7 @@ class V3XLocalProfileUITestSupport: OpenSnekHardwareUITestCase {
         XCTAssertTrue(try requireElement("profile-on-connect-picker", timeout: 2).exists)
         XCTAssertTrue(try requireElement("local-profile-replace-section", timeout: 2).exists)
         XCTAssertTrue(app.staticTexts["Onboard Profiles"].waitForExistence(timeout: 1))
-        XCTAssertTrue(app.staticTexts["Replace Profile"].waitForExistence(timeout: 1))
+        XCTAssertTrue(app.staticTexts["Replace Selected Profile With"].waitForExistence(timeout: 1))
         XCTAssertNotNil(onConnectOption(named: "Use Mouse Settings"))
         XCTAssertNotNil(onConnectOption(named: "Restore Last Profile"))
         XCTAssertFalse(app.buttons["Load From Mouse"].waitForExistence(timeout: 0.5))
