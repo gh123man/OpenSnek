@@ -7,6 +7,9 @@ All notable changes to this project are documented in this file.
 ### Added
 - Added Sparkle-backed automatic update installation from GitHub Releases, including Sparkle's changelog/install UI and a developer dry-run mode for previewing the latest release update flow.
 
+### Fixed
+- Fixed a Bluetooth vendor-transport bug where multi-fragment responses (e.g. onboard profile metadata, which can span 5+ notify packets) could be truncated if the peripheral hadn't finished streaming before a fixed completion timer fired. The timer now resets on every notification instead of only after the last write.
+
 ## [1.2.2]
 
 ### Fixed
