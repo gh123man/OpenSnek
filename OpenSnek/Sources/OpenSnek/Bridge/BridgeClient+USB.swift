@@ -41,7 +41,7 @@ extension BridgeClient {
     }
 
     func resolvedUSBStateCapabilities(profile: DeviceProfile?, stages: USBDpiStageSnapshot?, poll: Int?, sleepTimeout: Int?, led: Int?) -> Capabilities {
-        if profile != nil { return Capabilities(dpi_stages: true, poll_rate: true, power_management: true, button_remap: true, lighting: true) }
+        if let profile { return Capabilities(dpi_stages: profile.supportsDPIControls, poll_rate: profile.supportsPollRateControls, power_management: profile.supportsPowerManagementControls, button_remap: profile.supportsButtonRemapControls, lighting: true) }
 
         return Capabilities(dpi_stages: stages != nil, poll_rate: poll != nil, power_management: sleepTimeout != nil, button_remap: false, lighting: led != nil)
     }
@@ -85,21 +85,34 @@ extension BridgeClient {
 
     func readUSBState(device: MouseDevice, session: USBHIDControlSession) async throws -> MouseState {
         try session.withExclusiveDeviceAccess {
+            let statedProfile = usbDeviceProfile(for: device)
+            let readsDPI = statedProfile?.supportsDPIControls ?? true
+            let readsPowerManagement = statedProfile?.supportsPowerManagementControls ?? true
+            let readsPollRate = statedProfile?.supportsPollRateControls ?? true
+            let readsOnboardProfiles = (statedProfile?.formFactor ?? .mouse) == .mouse
+
             // A cached session-level kIOReturnNotPermitted can be transient around sleep/wake.
             // Always attempt a fresh HID exchange here instead of trapping the process in a
             // self-sustaining permission loop until restart.
-            guard let dpi = try getDPI(session, device) else { throw BridgeError.usbMouseUnavailable }
+            let dpi: (Int, Int)?
+            if readsDPI {
+                guard let read = try getDPI(session, device) else { throw BridgeError.usbMouseUnavailable }
+                dpi = read
+            } else {
+                dpi = nil
+            }
 
             let serial = try getSerial(session, device)
             let fw = try getFirmware(session, device)
+            if !readsDPI, serial == nil, fw == nil { throw BridgeError.usbMouseUnavailable }
             let mode = try getDeviceMode(session, device)
-            let battery = try getBattery(session, device)
-            let stages = try getDPIStageSnapshot(session, device)
-            let poll = try getPollRate(session, device)
-            let sleepTimeout = try getIdleTime(session, device)
-            let onboardProfile = try getOnboardProfileInfo(session, device)
+            let battery = readsPowerManagement ? try getBattery(session, device) : nil
+            let stages = readsDPI ? try getDPIStageSnapshot(session, device) : nil
+            let poll = readsPollRate ? try getPollRate(session, device) : nil
+            let sleepTimeout = readsPowerManagement ? try getIdleTime(session, device) : nil
+            let onboardProfile = readsOnboardProfiles ? try getOnboardProfileInfo(session, device) : nil
             let scrollProfileID = onboardProfile?.active ?? 1
-            let lowBatteryThreshold = try getLowBatteryThreshold(session, device)
+            let lowBatteryThreshold = readsPowerManagement ? try getLowBatteryThreshold(session, device) : nil
             let scrollMode: Int?
             let scrollAcceleration: Bool?
             let scrollSmartReel: Bool?
@@ -113,17 +126,18 @@ extension BridgeClient {
                 scrollSmartReel = nil
             }
             let led = try getScrollLEDBrightness(session, device)
-            let profile = usbDeviceProfile(for: device)
+            let profile = statedProfile
             let capabilities = resolvedUSBStateCapabilities(profile: profile, stages: stages, poll: poll, sleepTimeout: sleepTimeout, led: led)
 
-            let active = stages.map { Self.resolvedUSBActiveStage(stages: $0, liveDpi: DpiPair(x: dpi.0, y: dpi.1)) } ?? 0
-            let values = stages?.values ?? [dpi.0]
+            let active: Int
+            if let stages, let dpi { active = Self.resolvedUSBActiveStage(stages: stages, liveDpi: DpiPair(x: dpi.0, y: dpi.1)) } else { active = 0 }
+            let values = stages?.values ?? dpi.map { [$0.0] } ?? []
             let pairs = stages?.pairs
-            AppLog.debug("Bridge", "readUSBState dpi-active-resolve device=\(device.id) " + "tableActive=\(stages?.active.description ?? "nil") live=(\(dpi.0),\(dpi.1)) " + "resolved=\(active) values=\(values.map(String.init).joined(separator: ","))")
+            AppLog.debug("Bridge", "readUSBState dpi-active-resolve device=\(device.id) " + "tableActive=\(stages?.active.description ?? "nil") live=(\(dpi?.0.description ?? "nil"),\(dpi?.1.description ?? "nil")) " + "resolved=\(active) values=\(values.map(String.init).joined(separator: ","))")
             AppLog.debug("Bridge", "readUSBState scroll device=\(device.id) profile=\(scrollProfileID) " + "mode=\(scrollMode.map(String.init) ?? "nil") " + "accel=\(scrollAcceleration.map(String.init) ?? "nil") " + "smart=\(scrollSmartReel.map(String.init) ?? "nil")")
 
             return MouseState(
-                device: DeviceSummary(id: device.id, product_name: device.product_name, serial: serial ?? device.serial, transport: device.transport, firmware: fw ?? device.firmware), connection: "USB", battery_percent: battery?.0, charging: battery?.1, dpi: DpiPair(x: dpi.0, y: dpi.1),
+                device: DeviceSummary(id: device.id, product_name: device.product_name, serial: serial ?? device.serial, transport: device.transport, firmware: fw ?? device.firmware), connection: "USB", battery_percent: battery?.0, charging: battery?.1, dpi: dpi.map { DpiPair(x: $0.0, y: $0.1) },
                 dpi_stages: DpiStages(active_stage: active, values: values, pairs: pairs), poll_rate: poll, sleep_timeout: sleepTimeout, device_mode: mode.map { DeviceMode(mode: $0.0, param: $0.1) }, low_battery_threshold_raw: lowBatteryThreshold, scroll_mode: scrollMode,
                 scroll_acceleration: scrollAcceleration, scroll_smart_reel: scrollSmartReel, active_onboard_profile: onboardProfile?.active, onboard_profile_count: onboardProfile?.count ?? max(1, device.onboard_profile_count), led_value: led, capabilities: capabilities)
         }
@@ -143,7 +157,7 @@ extension BridgeClient {
         var firstError: Error?
         for (index, session) in orderedSessions.enumerated() {
             do {
-                let isReachable = try session.withExclusiveDeviceAccess { try getDPI(session, device) != nil }
+                let isReachable = try session.withExclusiveDeviceAccess { try usbTelemetryIsReachable(session, device) }
                 if isReachable {
                     if index > 0 {
                         deviceSessions[device.id] = session
@@ -193,6 +207,13 @@ extension BridgeClient {
             }
             throw error
         }
+    }
+
+    // Devices without DPI hardware (keyboards, keypads) cannot answer the DPI read used
+    // as the default reachability probe, so fall back to a serial read for them.
+    func usbTelemetryIsReachable(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> Bool {
+        if usbDeviceProfile(for: device)?.supportsDPIControls ?? true { return try getDPI(session, device) != nil }
+        return try getSerial(session, device) != nil || getFirmware(session, device) != nil
     }
 
     func getDPI(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> (Int, Int)? {
@@ -489,9 +510,14 @@ extension BridgeClient {
         return ids.isEmpty ? [0x01] : ids
     }
 
+    func usbBrightnessLEDIDs(for device: MouseDevice) -> [UInt8] {
+        guard let profile = usbDeviceProfile(for: device) else { return usbLightingLEDIDs(for: device) }
+        return profile.allUSBBrightnessLEDIDs
+    }
+
     func getScrollLEDBrightness(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> Int? {
         var values: [Int] = []
-        for ledID in usbLightingLEDIDs(for: device) {
+        for ledID in usbBrightnessLEDIDs(for: device) {
             let args: [UInt8] = [0x01, ledID]
             guard let r = try perform(session, device, classID: 0x0F, cmdID: 0x84, size: 0x03, args: args), r[0] == 0x02 else { continue }
             values.append(Int(r[10]))
@@ -502,7 +528,7 @@ extension BridgeClient {
     func setScrollLEDBrightness(_ session: USBHIDControlSession, _ device: MouseDevice, value: Int) throws -> Bool {
         let v = UInt8(max(0, min(255, value)))
         var wroteAny = false
-        for ledID in usbLightingLEDIDs(for: device) {
+        for ledID in usbBrightnessLEDIDs(for: device) {
             let args: [UInt8] = [0x01, ledID, v]
             guard let r = try perform(session, device, classID: 0x0F, cmdID: 0x04, size: 0x03, args: args), r[0] == 0x02 else { return false }
             wroteAny = true

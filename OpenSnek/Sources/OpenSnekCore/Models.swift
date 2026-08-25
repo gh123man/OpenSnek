@@ -37,6 +37,13 @@ public enum DeviceProfileID: String, Codable, Hashable, Sendable {
     case orochiV2 = "orochi_v2"
 }
 
+/// Defines device form factor values.
+public enum DeviceFormFactor: String, Codable, Hashable, Sendable {
+    case mouse
+    case keyboard
+    case keypad
+}
+
 /// Stores device identity data.
 public struct DeviceIdentity: Codable, Hashable, Sendable {
     public let vendorID: Int
