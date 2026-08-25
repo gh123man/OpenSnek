@@ -88,6 +88,17 @@ final class UnsupportedDeviceHandlingTests: XCTestCase {
         XCTAssertTrue(capabilities.lighting)
     }
 
+    func testManagerNotPermittedWithInputMonitoringGrantedIsNotADenial() {
+        XCTAssertFalse(BridgeClient.resolvedManagerAccessDenied(openResult: kIOReturnNotPermitted, inputMonitoringGranted: true))
+        XCTAssertTrue(BridgeClient.resolvedManagerAccessDenied(openResult: kIOReturnNotPermitted, inputMonitoringGranted: false))
+        XCTAssertFalse(BridgeClient.resolvedManagerAccessDenied(openResult: kIOReturnSuccess, inputMonitoringGranted: false))
+
+        XCTAssertTrue(BridgeClient.shouldReuseHIDManager(openResult: kIOReturnSuccess, inputMonitoringGranted: false))
+        XCTAssertTrue(BridgeClient.shouldReuseHIDManager(openResult: kIOReturnNotPermitted, inputMonitoringGranted: true))
+        XCTAssertFalse(BridgeClient.shouldReuseHIDManager(openResult: kIOReturnNotPermitted, inputMonitoringGranted: false))
+        XCTAssertFalse(BridgeClient.shouldReuseHIDManager(openResult: kIOReturnNoDevice, inputMonitoringGranted: true))
+    }
+
     @MainActor func testUnsupportedClassificationIsStrictForBluetoothOnly() {
         let appState = AppState()
         let unsupportedUSB = MouseDevice(id: "usb-unsupported", vendor_id: 0x1532, product_id: 0x1234, product_name: "Razer USB Mystery Mouse", transport: .usb, path_b64: "", serial: nil, firmware: nil)

@@ -223,7 +223,10 @@ func enumerateUSBProbeCandidates(preferredProductID: Int? = nil) throws -> (mana
     let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
     IOHIDManagerSetDeviceMatching(manager, [kIOHIDVendorIDKey: usbVID] as CFDictionary)
     let openResult = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
-    guard openResult == kIOReturnSuccess else { throw ProbeError.protocolError("IOHIDManagerOpen failed (\(openResult))") }
+    // Match the app's best-effort discovery (BridgeClient): a manager-level open can fail
+    // (e.g. one matched interface is privileged) while per-device IOHIDDeviceOpen still
+    // succeeds, so keep enumerating instead of aborting the probe.
+    if openResult != kIOReturnSuccess { FileHandle.standardError.write(Data("warning: IOHIDManagerOpen failed (\(openResult)); continuing best-effort discovery\n".utf8)) }
 
     guard let rawSet = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice>, !rawSet.isEmpty else { throw ProbeError.protocolError("No USB Razer HID device found") }
 
