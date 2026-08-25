@@ -390,6 +390,53 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(DevicePersistenceKeys.legacyKey(for: device), "dev")
     }
 
+    func testResolveUSBProfileForBasilisk() {
+        let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x0064, transport: .usb)
+        XCTAssertEqual(profile?.id, .basilisk)
+        XCTAssertEqual(profile?.formFactor, .mouse)
+        XCTAssertEqual(profile?.usbTransactionID, 0x1F)
+        XCTAssertEqual(profile?.buttonLayout.writableSlots, [])
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots.map(\.slot), [1, 2, 3, 4, 5, 9, 10, 96])
+        XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .spectrum, .reactive, .pulseRandom, .pulseSingle, .pulseDual])
+        XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel", "logo"])
+        XCTAssertEqual(profile?.allUSBLightingLEDIDs, [0x01, 0x04])
+        XCTAssertEqual(profile?.allUSBBrightnessLEDIDs, [0x01, 0x04])
+        XCTAssertEqual(profile?.supportsDPIControls, true)
+        XCTAssertEqual(profile?.supportsPollRateControls, true)
+        XCTAssertEqual(profile?.supportsPowerManagementControls, false)
+        XCTAssertEqual(profile?.supportsButtonRemapControls, false)
+        XCTAssertEqual(profile?.supportsLightingBrightnessControls, true)
+        XCTAssertEqual(profile?.supportsIndependentXYDPI, true)
+        XCTAssertEqual(profile?.onboardProfileCount, 1)
+        XCTAssertNil(profile?.passiveDPIInput)
+        XCTAssertEqual(profile?.isLocallyValidated, false)
+    }
+
+    func testResolveUSBProfileForLanceheadTournamentEdition() {
+        let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x0060, transport: .usb)
+        XCTAssertEqual(profile?.id, .lanceheadTournamentEdition)
+        XCTAssertEqual(profile?.formFactor, .mouse)
+        XCTAssertEqual(profile?.usbTransactionID, 0x1F)
+        XCTAssertEqual(profile?.buttonLayout.writableSlots, [])
+        XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual])
+        XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel", "logo", "left_side", "right_side"])
+        XCTAssertEqual(profile?.allUSBLightingLEDIDs, [0x01, 0x04, 0x11, 0x10])
+        XCTAssertEqual(profile?.supportsDPIControls, true)
+        XCTAssertEqual(profile?.supportsPollRateControls, true)
+        XCTAssertEqual(profile?.supportsPowerManagementControls, false)
+        XCTAssertEqual(profile?.supportsButtonRemapControls, false)
+        XCTAssertEqual(profile?.supportsLightingBrightnessControls, true)
+        XCTAssertEqual(profile?.supportsIndependentXYDPI, true)
+        XCTAssertEqual(profile?.isLocallyValidated, false)
+    }
+
+    func testNewDeviceDPIRanges() {
+        XCTAssertEqual(DeviceProfiles.dpiRange(for: .basilisk), 100...16_000)
+        XCTAssertEqual(DeviceProfiles.dpiRange(for: .lanceheadTournamentEdition), 100...16_000)
+        XCTAssertEqual(DeviceProfiles.sliderScaleMarkerValues(for: .basilisk), [100, 2_000, 10_000, 16_000])
+        XCTAssertEqual(DeviceProfiles.clampDPI(20_000, profileID: .lanceheadTournamentEdition), 16_000)
+    }
+
     func testBrightnessLEDIDsDefaultToLightingLEDIDsUnlessOverridden() {
         for profile in DeviceProfiles.all where profile.usbBrightnessLEDIDs == nil { XCTAssertEqual(profile.allUSBBrightnessLEDIDs, profile.allUSBLightingLEDIDs, "profile \(profile.id) \(profile.transport)") }
 

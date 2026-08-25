@@ -42,6 +42,8 @@ Button remap keyboard actions support modifier chords on shipped USB and Bluetoo
 | Basilisk V3 Pro | `Validated` | `Validated` | Ships mapped onboard profile CRUD on USB and Bluetooth; Bluetooth keeps lighting static-only, hides poll-rate and threshold controls, and does not ship clutch/profile-button remap |
 | Basilisk V3 35K | `Validated` | `No transport` | Shares the Basilisk V3 USB family configuration with mapped onboard profile CRUD; no Bluetooth transport |
 | Orochi V2 | `Not shipped` | `Contributor validated` | Contributor validated Bluetooth DPI stages, battery, and no-RGB behavior; button remap is profile-mapped pending hardware readback validation |
+| Basilisk (2017) | `Contributor validated` | `No transport` | Contributor validated DPI (scalar, independent X/Y, live 5-stage table), poll-rate reads, and logo/scroll lighting with restore-verified writes; button remap and onboard profiles are not mapped |
+| Lancehead Tournament Edition | `Contributor validated` | `No transport` | Contributor validated DPI (scalar, independent X/Y, live 5-stage table read without OpenRazer's `0xFF` stage transaction), poll-rate reads, and all four lighting zones; button remap is not mapped |
 
 ## Basilisk V3 USB Family Assumptions
 
@@ -150,6 +152,46 @@ Bluetooth PID `0x0095`; 2.4 GHz HyperSpeed dongle path not yet shipped.
 | Button remap: unsupported slots | `Not shipped` | `Hidden` | No extra unsupported Orochi-specific slots are documented yet |
 | Scroll controls | `Not shipped` | `Hidden` | Bluetooth never publishes scroll-control state fields and the UI excludes BT scroll controls |
 | Onboard hardware profiles | `Not shipped` | `Single slot` | Profile ships with `onboardProfileCount = 1` |
+
+## Basilisk (2017)
+
+USB PID `0x0064`, no Bluetooth transport. This is the original 2017 Basilisk; it is not part of the Basilisk V3 USB family assumptions. Ships transaction ID `0x1F` (contributor validated; hardware also answers OpenRazer's `0x3F`).
+
+| Feature Area | USB | BT | Notes |
+|---|---|---|---|
+| Overall transport status | `Contributor validated` | `No transport` | OpenRazer-derived profile with contributor hardware validation of DPI, poll-rate reads, and lighting (write + readback + restore) |
+| DPI stages + active stage | `Contributor validated` | `No transport` | Clamped to `16,000`. Contributor hardware returned a live 5-stage table (`04:86`) with active-stage tracking even though OpenRazer never exposed stages for this device |
+| Independent X/Y DPI | `Contributor validated` | `No transport` | Distinct X/Y writes read back exactly on contributor hardware |
+| Poll rate | `Contributor validated` | `No transport` | Poll-rate reads validated (500 Hz observed); writes ride the shared USB path |
+| Sleep timeout | `Not shipped` | `No transport` | Wired mouse; `supportsPowerManagementControls` is false |
+| Low battery threshold | `Not shipped` | `No transport` | Wired mouse; no battery |
+| Battery telemetry | `Not shipped` | `No transport` | Wired mouse; no battery |
+| Lighting: brightness + static color | `Contributor validated` | `No transport` | Two zones: scroll wheel `0x01` and logo `0x04`; brightness and static color validated with write + readback + restore |
+| Lighting: extra effects | `Contributor validated` | `No transport` | `off`, `static`, `spectrum`, `reactive`, and the pulse set validated on contributor hardware; OpenRazer does not expose wave on this device |
+| Button remap: shipped editable slots | `Not shipped` | `No transport` | `supportsButtonRemapControls` is false; no capture-backed function-block layout exists yet |
+| Button remap: unsupported slots | `Hidden` | `No transport` | The standard mouse slots are visible read-only in the profile metadata |
+| Scroll controls | `Not shipped` | `No transport` | `supportsScrollModeControls` is false |
+| Onboard hardware profiles | `Single slot` | `No transport` | Profile ships with `onboardProfileCount = 1` |
+
+## Lancehead Tournament Edition
+
+USB PID `0x0060` (wired), no Bluetooth transport. Ships transaction ID `0x1F` (contributor validated; hardware also answers OpenRazer's `0x3F`).
+
+| Feature Area | USB | BT | Notes |
+|---|---|---|---|
+| Overall transport status | `Contributor validated` | `No transport` | OpenRazer-derived profile with contributor hardware validation of DPI, poll-rate reads, and all four lighting zones (write + readback + restore) |
+| DPI stages + active stage | `Contributor validated` | `No transport` | Clamped to `16,000`. Contributor hardware returned a live 5-stage table under transaction `0x1F`; OpenRazer's `0xFF` stage-transaction quirk was not needed |
+| Independent X/Y DPI | `Contributor validated` | `No transport` | Distinct X/Y writes read back exactly on contributor hardware |
+| Poll rate | `Contributor validated` | `No transport` | Poll-rate reads validated (500 Hz observed); writes ride the shared USB path |
+| Sleep timeout | `Not shipped` | `No transport` | Wired mouse; `supportsPowerManagementControls` is false |
+| Low battery threshold | `Not shipped` | `No transport` | Wired mouse; no battery |
+| Battery telemetry | `Not shipped` | `No transport` | Wired mouse; no battery |
+| Lighting: brightness + static color | `Contributor validated` | `No transport` | Four zones: scroll wheel `0x01`, logo `0x04`, left side `0x11`, right side `0x10`; per-zone brightness and static color validated with write + readback + restore |
+| Lighting: extra effects | `Contributor validated` | `No transport` | `off`, `static`, `spectrum`, `wave`, `reactive`, and the pulse set validated on contributor hardware |
+| Button remap: shipped editable slots | `Not shipped` | `No transport` | `supportsButtonRemapControls` is false; no capture-backed function-block layout exists yet |
+| Button remap: unsupported slots | `Hidden` | `No transport` | The standard mouse slots are visible read-only in the profile metadata |
+| Scroll controls | `Not shipped` | `No transport` | `supportsScrollModeControls` is false |
+| Onboard hardware profiles | `Single slot` | `No transport` | Profile ships with `onboardProfileCount = 1`; OpenRazer exposes VARSTORE DPI stages but OpenSnek has not mapped a profile CRUD surface for this device |
 
 ## References
 

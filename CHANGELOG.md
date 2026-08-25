@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- Added contributor-validated USB profiles for the Razer Basilisk (2017, `0x0064`) and Razer Lancehead Tournament Edition (`0x0060`): DPI (scalar, independent X/Y, and live 5-stage tables), poll rate, and multi-zone extended-matrix lighting, all hardware-validated with write/readback/restore probes on contributor hardware. Button remap and onboard profiles are not mapped yet and stay hidden.
 - Added per-profile USB control capability flags (`supportsDPIControls`, `supportsPollRateControls`, `supportsPowerManagementControls`, `supportsButtonRemapControls`), a `DeviceFormFactor` (mouse/keyboard/keypad), and a per-profile brightness LED override so future non-mouse device profiles do not inherit mouse capabilities.
 
 ### Changed

@@ -876,6 +876,35 @@ reliable on the local USB stack.
 | Button-read layout note | `0x02:0x8C` extended slots decode from `response[11..<18]`, matching the 35K-style offset rather than the Basilisk V3 X shape |
 | Discovery note | Observed on 2026-03-25: the directly cabled macOS USB path reports `1532:00AA`; OpenSnek aliases it to the same shipped V3 Pro USB profile as `1532:00AB` |
 
+### Razer Basilisk (0x0064)
+
+| Setting | Value |
+|---------|-------|
+| USB VID:PID | `1532:0064` |
+| Transaction ID | `0x1F` shipped (contributor validated); hardware also answers OpenRazer's `0x3F` |
+| Max DPI | 16000 |
+| DPI Stages | 5-stage table read/active tracking contributor validated via `04:86` (observed `800/1800/4500/9000/16000`), even though OpenRazer never exposed stages for this PID |
+| Onboard Profiles | 1 |
+| Validated matrix LEDs | `0x01` scroll wheel, `0x04` logo (brightness + effect write/readback/restore) |
+| Validated lighting effects | none/static/spectrum/reactive/breathing (`pulse_*`) via extended matrix `0x0F 0x02`; effect readback via `0x0F 0x82`; no wave (per OpenRazer) |
+
+**Discovery note**: The 2017 original Basilisk. Contributor hardware (2026-08) validated scalar DPI, independent X/Y DPI (`04:85/05`, NOSTORE writes read back exactly), poll-rate reads (`00:85`, 500 Hz observed), serial/firmware reads, and the lighting suite above with restores. Control interface is the usage-page `0x01` / usage `0x02` interface with a 90-byte feature report.
+
+### Razer Lancehead Tournament Edition (0x0060)
+
+| Setting | Value |
+|---------|-------|
+| USB VID:PID | `1532:0060` |
+| Transaction ID | `0x1F` shipped (contributor validated); hardware also answers OpenRazer's `0x3F` |
+| Max DPI | 16000 |
+| DPI Stages | 5-stage table read contributor validated via `04:86` under `0x1F` (observed `800/1800/4500/9000/16000`) |
+| Onboard Profiles | 1 (no mapped CRUD surface) |
+| Validated matrix LEDs | `0x01` scroll wheel, `0x04` logo, `0x11` left side, `0x10` right side (per-zone brightness + effect write/readback/restore) |
+| Validated lighting effects | none/static/spectrum/wave/reactive/breathing via extended matrix `0x0F 0x02` |
+
+**Known Issues**:
+- OpenRazer deliberately mismatches transaction IDs on this device (`0x3F` for scalar DPI, `0xFF` for DPI stages). Contributor hardware validation showed the `0xFF` stage quirk is unnecessary: stage reads succeed under the shipped `0x1F`, so no per-command transaction override is needed. Independent X/Y DPI writes were also validated (NOSTORE writes read back exactly).
+
 ### Transaction ID by Device
 
 | Device Type | Transaction ID |
@@ -883,6 +912,8 @@ reliable on the local USB stack.
 | Modern wireless (2022+) | `0x1F` |
 | Modern wired (2020+) | `0x3F` |
 | Older devices | `0xFF` |
+
+Shipped per-profile IDs: all current USB profiles use `0x1F` (`DeviceProfile.usbTransactionID`). Contributor hardware validation on the Basilisk (2017) and Lancehead Tournament Edition showed `0x1F` works for every validated command, including DPI stages where OpenRazer uses `0xFF` on the Lancehead TE - the transaction byte appears to be an echo tag rather than a routing requirement on these devices. The mice also answered `0x3F` in ad-hoc testing.
 
 ---
 

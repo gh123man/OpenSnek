@@ -466,7 +466,44 @@ public enum DeviceProfiles {
         id: .orochiV2, productName: "Orochi V2", transport: .bluetooth, supportedProducts: [0x0095], buttonLayout: ButtonSlotLayout(visibleSlots: orochiV2BluetoothButtonSlots, writableSlots: [1, 2, 3, 4, 5, 9, 10, 96]), supportsAdvancedLightingEffects: false, supportedLightingEffects: [],
         usbLightingLEDIDs: [], usbLightingZones: [], passiveDPIInput: PassiveDPIInputDescriptor(usagePage: 0x01, usage: 0x02, reportID: 0x05, subtype: 0x02, heartbeatSubtype: 0x10, minInputReportSize: 7, maxFeatureReportSize: 1, maximumDPI: 18_000), onboardProfileCount: 1)
 
-    public static let all: [DeviceProfile] = [basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, orochiV2Bluetooth]
+    // MARK: - Razer Basilisk (2017, 0x0064)
+
+    // OpenRazer-backed USB profile (razermouse_driver.c): extended-matrix lighting on
+    // logo (0x04) + scroll wheel (0x01), 16,000 DPI ceiling, no wave effect.
+    // Contributor hardware validation confirmed DPI (scalar + independent X/Y + a live
+    // 5-stage table), poll-rate reads, and all listed lighting effects with transaction
+    // 0x1F (OpenRazer uses 0x3F; hardware answers both). Button remap and onboard
+    // profiles are not mapped yet, so those controls stay hidden.
+    public static let basiliskUSBLightingEffects: [LightingEffectKind] = [.off, .staticColor, .spectrum, .reactive, .pulseRandom, .pulseSingle, .pulseDual]
+
+    public static let basiliskUSBLightingZones: [USBLightingZoneDescriptor] = [USBLightingZoneDescriptor(id: "scroll_wheel", label: "Scroll Wheel", ledIDs: [0x01]), USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x04])]
+
+    public static let basiliskUSB = DeviceProfile(
+        id: .basilisk, productName: "Basilisk", transport: .usb, supportedProducts: [0x0064], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: ButtonSlotDescriptor.defaults, writableSlots: []), supportsAdvancedLightingEffects: true,
+        supportedLightingEffects: basiliskUSBLightingEffects, usbLightingLEDIDs: [0x01, 0x04], usbLightingZones: basiliskUSBLightingZones, supportsIndependentXYDPI: true, supportsLightingBrightnessControls: true, supportsPowerManagementControls: false, supportsButtonRemapControls: false,
+        isLocallyValidated: false)
+
+    // MARK: - Razer Lancehead Tournament Edition (wired, 0x0060)
+
+    // OpenRazer-backed USB profile: extended-matrix lighting on logo (0x04), scroll
+    // wheel (0x01), and the left (0x11) / right (0x10) side strips, 16,000 DPI ceiling,
+    // wave supported. Contributor hardware validation confirmed DPI (scalar +
+    // independent X/Y + a live 5-stage table read without OpenRazer's 0xFF stage
+    // transaction quirk), poll-rate reads, and all listed lighting effects with
+    // transaction 0x1F. Button remap is not mapped yet.
+    public static let lanceheadTEUSBLightingEffects: [LightingEffectKind] = [.off, .staticColor, .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual]
+
+    public static let lanceheadTEUSBLightingZones: [USBLightingZoneDescriptor] = [
+        USBLightingZoneDescriptor(id: "scroll_wheel", label: "Scroll Wheel", ledIDs: [0x01]), USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x04]), USBLightingZoneDescriptor(id: "left_side", label: "Left Side", ledIDs: [0x11]),
+        USBLightingZoneDescriptor(id: "right_side", label: "Right Side", ledIDs: [0x10])
+    ]
+
+    public static let lanceheadTEUSB = DeviceProfile(
+        id: .lanceheadTournamentEdition, productName: "Lancehead Tournament Edition", transport: .usb, supportedProducts: [0x0060], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: ButtonSlotDescriptor.defaults, writableSlots: []), supportsAdvancedLightingEffects: true,
+        supportedLightingEffects: lanceheadTEUSBLightingEffects, usbLightingLEDIDs: [0x01, 0x04, 0x11, 0x10], usbLightingZones: lanceheadTEUSBLightingZones, supportsIndependentXYDPI: true, supportsLightingBrightnessControls: true, supportsPowerManagementControls: false,
+        supportsButtonRemapControls: false, isLocallyValidated: false)
+
+    public static let all: [DeviceProfile] = [basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskUSB, lanceheadTEUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, orochiV2Bluetooth]
 
     public static func resolve(vendorID: Int, productID: Int, transport: DeviceTransportKind) -> DeviceProfile? { all.first(where: { $0.matches(vendorID: vendorID, productID: productID, transport: transport) }) }
 
@@ -488,6 +525,8 @@ public enum DeviceProfiles {
         case .basiliskV3Pro: return 30_000
         case .basiliskV335K: return 35_000
         case .orochiV2: return 18_000
+        case .basilisk: return 16_000
+        case .lanceheadTournamentEdition: return 16_000
         case nil: return defaultMaximumDPI
         }
     }
@@ -593,7 +632,7 @@ public enum DeviceProfiles {
 
     public static func supportsIndependentXYDPI(for profileID: DeviceProfileID?) -> Bool {
         switch profileID {
-        case .basiliskV3, .basiliskV3Pro, .basiliskV335K: return true
+        case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basilisk, .lanceheadTournamentEdition: return true
         case .basiliskV3XHyperspeed, .orochiV2, nil: return false
         }
     }
