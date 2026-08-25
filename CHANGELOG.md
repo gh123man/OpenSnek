@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Added per-profile USB control capability flags (`supportsDPIControls`, `supportsPollRateControls`, `supportsPowerManagementControls`, `supportsButtonRemapControls`), a `DeviceFormFactor` (mouse/keyboard/keypad), and a per-profile brightness LED override so future non-mouse device profiles do not inherit mouse capabilities.
+
+### Changed
+- USB state reads and reachability checks now tolerate devices without DPI hardware by falling back to serial/firmware reads, and skip DPI, poll-rate, power-management, and onboard-profile commands on profiles that do not support them.
+
 ### Fixed
 - Fixed the OpenSnekProbe USB path to continue best-effort device discovery when the manager-level `IOHIDManagerOpen` fails (matching the app's behavior), since per-device opens can still succeed.
 - Fixed HID access reporting when macOS refuses the bulk `IOHIDManagerOpen` on protected keyboard interfaces even though Input Monitoring is granted: the app previously misreported that as a permission denial while recreating the HID manager and logging errors every discovery cycle. The bridge now checks `IOHIDCheckAccess`, keeps the manager, reports access as granted, and logs the refusal once.

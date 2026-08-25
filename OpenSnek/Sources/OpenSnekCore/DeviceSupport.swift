@@ -245,12 +245,19 @@ public struct DeviceProfile: Hashable, Sendable {
     public let usesProjectedDPIStageWriteReadback: Bool
     public let onboardProfileSupport: OnboardProfileSupport
     public let onboardProfileCount: Int
+    public let formFactor: DeviceFormFactor
+    public let supportsDPIControls: Bool
+    public let supportsPollRateControls: Bool
+    public let supportsPowerManagementControls: Bool
+    public let supportsButtonRemapControls: Bool
+    public let usbBrightnessLEDIDs: [UInt8]?
     public let isLocallyValidated: Bool
 
     public init(
         id: DeviceProfileID, productName: String, transport: DeviceTransportKind, supportedProducts: Set<Int>, usbTransactionID: UInt8? = nil, buttonLayout: ButtonSlotLayout, supportsAdvancedLightingEffects: Bool, supportedLightingEffects: [LightingEffectKind] = LightingEffectKind.allCases,
         usbLightingLEDIDs: [UInt8] = [], usbLightingZones: [USBLightingZoneDescriptor] = [], softwareLightingFrameLayout: SoftwareLightingFrameLayout? = nil, supportedSoftwareLightingPresets: [SoftwareLightingPresetID] = [], passiveDPIInput: PassiveDPIInputDescriptor? = nil,
         supportsIndependentXYDPI: Bool = false, supportsScrollModeControls: Bool = false, supportsLightingBrightnessControls: Bool = false, usesProjectedDPIStageWriteReadback: Bool = false, onboardProfileSupport: OnboardProfileSupport = .unavailable, onboardProfileCount: Int = 1,
+        formFactor: DeviceFormFactor = .mouse, supportsDPIControls: Bool = true, supportsPollRateControls: Bool = true, supportsPowerManagementControls: Bool = true, supportsButtonRemapControls: Bool = true, usbBrightnessLEDIDs: [UInt8]? = nil,
         isLocallyValidated: Bool = true
     ) {
         self.id = id
@@ -272,6 +279,12 @@ public struct DeviceProfile: Hashable, Sendable {
         self.usesProjectedDPIStageWriteReadback = usesProjectedDPIStageWriteReadback
         self.onboardProfileSupport = onboardProfileSupport
         self.onboardProfileCount = max(1, onboardProfileCount)
+        self.formFactor = formFactor
+        self.supportsDPIControls = supportsDPIControls
+        self.supportsPollRateControls = supportsPollRateControls
+        self.supportsPowerManagementControls = supportsPowerManagementControls
+        self.supportsButtonRemapControls = supportsButtonRemapControls
+        self.usbBrightnessLEDIDs = usbBrightnessLEDIDs
         self.isLocallyValidated = isLocallyValidated
     }
 
@@ -284,6 +297,11 @@ public struct DeviceProfile: Hashable, Sendable {
     public var allUSBLightingLEDIDs: [UInt8] {
         let ids = usbLightingLEDIDs.isEmpty ? usbLightingZones.flatMap(\.ledIDs) : usbLightingLEDIDs
         return ids.isEmpty ? [0x01] : ids
+    }
+
+    public var allUSBBrightnessLEDIDs: [UInt8] {
+        guard let usbBrightnessLEDIDs, !usbBrightnessLEDIDs.isEmpty else { return allUSBLightingLEDIDs }
+        return usbBrightnessLEDIDs
     }
 
     public func lightingZone(id zoneID: String) -> USBLightingZoneDescriptor? { usbLightingZones.first(where: { $0.id == zoneID }) }
