@@ -121,6 +121,7 @@ actor BridgeClient {
     let btVID = 0x068E
     private var hidManager: IOHIDManager?
     private var hidManagerOpenResult: IOReturn?
+    private var lastLoggedHIDManagerOpenFailure: IOReturn?
     private var lastEmptyHIDManagerRefreshAt: Date?
 
     init(startHIDMonitoring: Bool = true) {
@@ -175,8 +176,18 @@ actor BridgeClient {
         }
     }
 
+    // A bulk IOHIDManagerOpen can return kIOReturnNotPermitted even with Input
+    // Monitoring granted when the matched set includes protected keyboard input
+    // interfaces (e.g. Razer Huntsman Mini / Tartarus Pro). Per-device opens still
+    // succeed, so that state is not a TCC denial and the manager stays reusable.
+    nonisolated static func resolvedManagerAccessDenied(openResult: IOReturn, inputMonitoringGranted: Bool) -> Bool { openResult == kIOReturnNotPermitted && !inputMonitoringGranted }
+
+    nonisolated static func shouldReuseHIDManager(openResult: IOReturn, inputMonitoringGranted: Bool) -> Bool { openResult == kIOReturnSuccess || (openResult == kIOReturnNotPermitted && inputMonitoringGranted) }
+
+    nonisolated static func inputMonitoringGranted() -> Bool { IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted }
+
     private func managedHIDManager() -> (manager: IOHIDManager, openResult: IOReturn) {
-        if let hidManager, let hidManagerOpenResult, hidManagerOpenResult == kIOReturnSuccess { return (hidManager, hidManagerOpenResult) }
+        if let hidManager, let hidManagerOpenResult, Self.shouldReuseHIDManager(openResult: hidManagerOpenResult, inputMonitoringGranted: Self.inputMonitoringGranted()) { return (hidManager, hidManagerOpenResult) }
 
         clearManagedHIDManager()
 
@@ -184,10 +195,18 @@ actor BridgeClient {
         IOHIDManagerSetDeviceMatchingMultiple(manager, [[kIOHIDVendorIDKey: usbVID] as CFDictionary, [kIOHIDVendorIDKey: btVID] as CFDictionary] as CFArray)
 
         let openResult = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
-        managerAccessDenied = openResult == kIOReturnNotPermitted
-        if openResult != kIOReturnSuccess {
-            AppLog.error("Bridge", "IOHIDManagerOpen failed (\(openResult)); continuing best-effort discovery")
-            if openResult == kIOReturnNotPermitted { AppLog.error("Bridge", "IOHID access not permitted; USB access may be blocked unless Input Monitoring permission is granted") }
+        let inputMonitoringGranted = Self.inputMonitoringGranted()
+        managerAccessDenied = Self.resolvedManagerAccessDenied(openResult: openResult, inputMonitoringGranted: inputMonitoringGranted)
+        if openResult == kIOReturnSuccess {
+            lastLoggedHIDManagerOpenFailure = nil
+        } else if lastLoggedHIDManagerOpenFailure != openResult {
+            lastLoggedHIDManagerOpenFailure = openResult
+            if managerAccessDenied {
+                AppLog.error("Bridge", "IOHIDManagerOpen failed (\(openResult)); continuing best-effort discovery")
+                AppLog.error("Bridge", "IOHID access not permitted; USB access may be blocked unless Input Monitoring permission is granted")
+            } else {
+                AppLog.warning("Bridge", "IOHIDManagerOpen failed (\(openResult)) with Input Monitoring granted; protected keyboard interfaces refuse the bulk open, using per-device opens")
+            }
         }
 
         hidManager = manager
@@ -227,6 +246,9 @@ actor BridgeClient {
         case kIOReturnSuccess:
             authorization = .granted
             detail = nil
+        case kIOReturnNotPermitted where Self.inputMonitoringGranted():
+            authorization = .granted
+            detail = "Input Monitoring is granted; macOS refuses the bulk HID-manager open because protected keyboard interfaces are present, so OpenSnek uses per-device opens."
         case kIOReturnNotPermitted:
             authorization = .denied
             detail = "Input Monitoring is required before macOS will allow HID listeners and feature-report access."
