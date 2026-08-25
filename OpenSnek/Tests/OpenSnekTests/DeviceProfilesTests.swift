@@ -437,6 +437,45 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(DeviceProfiles.clampDPI(20_000, profileID: .lanceheadTournamentEdition), 16_000)
     }
 
+    func testResolveUSBProfileForHuntsmanMini() {
+        let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x0257, transport: .usb)
+        XCTAssertEqual(profile?.id, .huntsmanMini)
+        XCTAssertEqual(profile?.formFactor, .keyboard)
+        XCTAssertEqual(profile?.usbTransactionID, 0x1F)
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots, [])
+        XCTAssertEqual(profile?.buttonLayout.writableSlots, [])
+        XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual])
+        XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["backlight"])
+        XCTAssertEqual(profile?.allUSBLightingLEDIDs, [0x05])
+        XCTAssertEqual(profile?.allUSBBrightnessLEDIDs, [0x05])
+        XCTAssertEqual(profile?.supportsDPIControls, false)
+        XCTAssertEqual(profile?.supportsPollRateControls, false)
+        XCTAssertEqual(profile?.supportsPowerManagementControls, false)
+        XCTAssertEqual(profile?.supportsButtonRemapControls, false)
+        XCTAssertEqual(profile?.supportsLightingBrightnessControls, true)
+        XCTAssertEqual(profile?.isLocallyValidated, false)
+    }
+
+    func testResolveUSBProfileForTartarusPro() {
+        let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x0244, transport: .usb)
+        XCTAssertEqual(profile?.id, .tartarusPro)
+        XCTAssertEqual(profile?.formFactor, .keypad)
+        XCTAssertEqual(profile?.usbTransactionID, 0x1F)
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots, [])
+        XCTAssertEqual(profile?.buttonLayout.writableSlots, [])
+        XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["backlight"])
+        XCTAssertEqual(profile?.allUSBLightingLEDIDs, [0x05])
+        // OpenRazer's ZERO_LED brightness quirk: brightness is addressed via LED 0x00.
+        XCTAssertEqual(profile?.usbBrightnessLEDIDs, [0x00])
+        XCTAssertEqual(profile?.allUSBBrightnessLEDIDs, [0x00])
+        XCTAssertEqual(profile?.supportsDPIControls, false)
+        XCTAssertEqual(profile?.supportsPollRateControls, false)
+        XCTAssertEqual(profile?.supportsPowerManagementControls, false)
+        XCTAssertEqual(profile?.supportsButtonRemapControls, false)
+        XCTAssertEqual(profile?.supportsLightingBrightnessControls, true)
+        XCTAssertEqual(profile?.isLocallyValidated, false)
+    }
+
     func testBrightnessLEDIDsDefaultToLightingLEDIDsUnlessOverridden() {
         for profile in DeviceProfiles.all where profile.usbBrightnessLEDIDs == nil { XCTAssertEqual(profile.allUSBBrightnessLEDIDs, profile.allUSBLightingLEDIDs, "profile \(profile.id) \(profile.transport)") }
 

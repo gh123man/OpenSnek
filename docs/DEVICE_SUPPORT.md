@@ -44,6 +44,8 @@ Button remap keyboard actions support modifier chords on shipped USB and Bluetoo
 | Orochi V2 | `Not shipped` | `Contributor validated` | Contributor validated Bluetooth DPI stages, battery, and no-RGB behavior; button remap is profile-mapped pending hardware readback validation |
 | Basilisk (2017) | `Contributor validated` | `No transport` | Contributor validated DPI (scalar, independent X/Y, live 5-stage table), poll-rate reads, and logo/scroll lighting with restore-verified writes; button remap and onboard profiles are not mapped |
 | Lancehead Tournament Edition | `Contributor validated` | `No transport` | Contributor validated DPI (scalar, independent X/Y, live 5-stage table read without OpenRazer's `0xFF` stage transaction), poll-rate reads, and all four lighting zones; button remap is not mapped |
+| Huntsman Mini | `Contributor validated` | `No transport` | Keyboard: contributor validated backlight lighting, brightness, and that poll-rate reads return `status 0x05` (unsupported). No DPI hardware; key remap is not mapped |
+| Tartarus Pro | `Contributor validated` | `No transport` | Keypad: contributor validated backlight lighting and brightness (LED `0x00` and `0x05` alias the same register). Analog actuation and key remap have no public protocol; OpenSnek never switches this device into driver mode |
 
 ## Basilisk V3 USB Family Assumptions
 
@@ -192,6 +194,46 @@ USB PID `0x0060` (wired), no Bluetooth transport. Ships transaction ID `0x1F` (c
 | Button remap: unsupported slots | `Hidden` | `No transport` | The standard mouse slots are visible read-only in the profile metadata |
 | Scroll controls | `Not shipped` | `No transport` | `supportsScrollModeControls` is false |
 | Onboard hardware profiles | `Single slot` | `No transport` | Profile ships with `onboardProfileCount = 1`; OpenRazer exposes VARSTORE DPI stages but OpenSnek has not mapped a profile CRUD surface for this device |
+
+## Huntsman Mini
+
+USB PID `0x0257`, no Bluetooth transport. Keyboard (`formFactor = .keyboard`); the first non-mouse device profile in OpenSnek. Ships transaction ID `0x1F` (contributor validated; OpenRazer uses `0x3F`). The JP variant (`0x0269`) and the Analog variant (`0x0282`) are not registered.
+
+| Feature Area | USB | BT | Notes |
+|---|---|---|---|
+| Overall transport status | `Contributor validated` | `No transport` | Lighting-only profile; contributor hardware validated serial/effects/brightness over the 90-byte feature-report interface |
+| DPI stages + active stage | `Not shipped` | `No transport` | The keyboard has no DPI hardware; `supportsDPIControls` is false and USB state reads skip DPI commands, using serial/firmware reads for reachability |
+| Independent X/Y DPI | `Not shipped` | `No transport` | No DPI hardware |
+| Poll rate | `Not shipped` | `No transport` | Contributor hardware returns `status 0x05` (unsupported) for poll-rate reads, confirming `supportsPollRateControls = false` |
+| Sleep timeout | `Not shipped` | `No transport` | Wired keyboard; no power management |
+| Low battery threshold | `Not shipped` | `No transport` | Wired keyboard; no battery |
+| Battery telemetry | `Not shipped` | `No transport` | Wired keyboard; no battery |
+| Lighting: brightness + static color | `Contributor validated` | `No transport` | One zone: backlight LED `0x05`; brightness and static color validated with write + readback + restore |
+| Lighting: extra effects | `Contributor validated` | `No transport` | `off`, `static`, `spectrum`, `wave`, `reactive`, and the pulse set validated on contributor hardware; OpenRazer's starlight and per-key custom-frame effects (5x15 matrix) are not shipped |
+| Button remap: shipped editable slots | `Not shipped` | `No transport` | Key remap is not mapped; the profile ships an empty button layout |
+| Button remap: unsupported slots | `Hidden` | `No transport` | No slots are documented |
+| Scroll controls | `Not shipped` | `No transport` | Not applicable to a keyboard |
+| Onboard hardware profiles | `Single slot` | `No transport` | Profile ships with `onboardProfileCount = 1`; USB state reads skip the mouse onboard-profile commands for non-mouse form factors |
+
+## Tartarus Pro
+
+USB PID `0x0244`, no Bluetooth transport. Keypad (`formFactor = .keypad`). Uses USB transaction ID `0x1F`; contributor hardware validated breathing/pulse effects under `0x1F` too, so OpenRazer's `0x3F` breath quirk needs no per-effect override.
+
+| Feature Area | USB | BT | Notes |
+|---|---|---|---|
+| Overall transport status | `Contributor validated` | `No transport` | Lighting-only profile; contributor hardware validated serial/effects/brightness over the 90-byte feature-report interface |
+| DPI stages + active stage | `Not shipped` | `No transport` | No DPI hardware; `supportsDPIControls` is false and USB state reads skip DPI commands, using serial/firmware reads for reachability |
+| Independent X/Y DPI | `Not shipped` | `No transport` | No DPI hardware |
+| Poll rate | `Not shipped` | `No transport` | Contributor hardware returns `status 0x05` (unsupported) for poll-rate reads; OpenRazer does not register poll-rate controls either |
+| Sleep timeout | `Not shipped` | `No transport` | Wired keypad; no power management |
+| Low battery threshold | `Not shipped` | `No transport` | Wired keypad; no battery |
+| Battery telemetry | `Not shipped` | `No transport` | Wired keypad; no battery |
+| Lighting: brightness + static color | `Contributor validated` | `No transport` | Effects target backlight LED `0x05`; brightness keeps OpenRazer's LED `0x00` addressing via `usbBrightnessLEDIDs`. Contributor hardware showed LED `0x00` and `0x05` alias the same brightness register (writes to either update both readbacks) |
+| Lighting: extra effects | `Contributor validated` | `No transport` | `off`, `static`, `spectrum`, `wave`, `reactive`, and the pulse set validated on contributor hardware; starlight and per-key custom frames are not shipped |
+| Button remap: shipped editable slots | `Not shipped` | `No transport` | Key remap and analog actuation have no public protocol (OpenRazer exposes neither); the profile ships an empty button layout |
+| Button remap: unsupported slots | `Hidden` | `No transport` | No slots are documented |
+| Scroll controls | `Not shipped` | `No transport` | Not applicable to a keypad |
+| Onboard hardware profiles | `Single slot` | `No transport` | Profile ships with `onboardProfileCount = 1`. OpenRazer deliberately never switches the Tartarus Pro into driver mode (`DRIVER_MODE = False`) because its analog input handling misbehaves; OpenSnek likewise only reads device mode and must not write mode `0x03` to this device |
 
 ## References
 

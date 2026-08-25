@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- Added the first non-mouse device profiles: Razer Huntsman Mini (`0x0257`, keyboard) and Razer Tartarus Pro (`0x0244`, keypad), with contributor-validated backlight lighting effects and brightness controls over USB. The Tartarus Pro keeps OpenRazer's LED `0x00` brightness addressing (validated to alias LED `0x05`), and OpenSnek never switches it into driver mode.
 - Added contributor-validated USB profiles for the Razer Basilisk (2017, `0x0064`) and Razer Lancehead Tournament Edition (`0x0060`): DPI (scalar, independent X/Y, and live 5-stage tables), poll rate, and multi-zone extended-matrix lighting, all hardware-validated with write/readback/restore probes on contributor hardware. Button remap and onboard profiles are not mapped yet and stay hidden.
 - Added per-profile USB control capability flags (`supportsDPIControls`, `supportsPollRateControls`, `supportsPowerManagementControls`, `supportsButtonRemapControls`), a `DeviceFormFactor` (mouse/keyboard/keypad), and a per-profile brightness LED override so future non-mouse device profiles do not inherit mouse capabilities.
 

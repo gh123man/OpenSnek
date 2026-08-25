@@ -12,7 +12,7 @@
 
 ![Screenshot](/docs/media/screenshot.png)
 
-OpenSnek is an open source native macOS app for configuring supported Razer mice over USB or Bluetooth.
+OpenSnek is an open source native macOS app for configuring supported Razer mice over USB or Bluetooth, with early lighting-only support for select Razer keyboards and keypads.
 
 ## Highlights
 
@@ -38,6 +38,8 @@ Support is transport-specific. A mouse may be supported over USB, Bluetooth, or 
 | Orochi V2 | Not yet | Contributor validated | Contributor validated Bluetooth DPI stages and battery; button remap is profile-mapped pending hardware readback validation. 2.4 GHz HyperSpeed dongle not yet supported. Mouse has no RGB lighting. |
 | Basilisk (2017) | Contributor validated | No | Contributor validated DPI (scalar, X/Y, live 5-stage table), poll-rate reads, and logo/scroll lighting; button remap not yet mapped |
 | Lancehead Tournament Edition | Contributor validated | No | Contributor validated DPI (scalar, X/Y, live 5-stage table), poll-rate reads, and all four lighting zones; button remap not yet mapped |
+| Huntsman Mini | Contributor validated | No | Keyboard: contributor validated backlight lighting and brightness. First non-mouse profile; key remap not supported |
+| Tartarus Pro | Contributor validated | No | Keypad: contributor validated backlight lighting and brightness. Analog actuation and key remap have no public protocol |
 
 Status key:
 - `Validated` = supported and locally capture/test validated in OpenSnek

@@ -53,7 +53,7 @@ public enum ButtonBindingSupport {
     private static func isBasiliskV3Family(_ profileID: DeviceProfileID?) -> Bool {
         switch profileID {
         case .basiliskV3, .basiliskV3Pro, .basiliskV335K: return true
-        case .basiliskV3XHyperspeed, .orochiV2, .basilisk, .lanceheadTournamentEdition, .none: return false
+        case .basiliskV3XHyperspeed, .orochiV2, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .none: return false
         }
     }
 
@@ -68,7 +68,7 @@ public enum ButtonBindingSupport {
     public static func defaultDPIClutchDPI(for profileID: DeviceProfileID?) -> Int? {
         switch profileID {
         case .basiliskV3, .basiliskV3Pro, .basiliskV335K: return defaultBasiliskDPIClutchDPI
-        case .basiliskV3XHyperspeed, .orochiV2, .basilisk, .lanceheadTournamentEdition, .none: return nil
+        case .basiliskV3XHyperspeed, .orochiV2, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .none: return nil
         }
     }
 
@@ -87,6 +87,7 @@ public enum ButtonBindingSupport {
         case 96:
             switch profileID {
             case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3XHyperspeed, .orochiV2, .basilisk, .lanceheadTournamentEdition, .none: return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
+            case .huntsmanMini, .tartarusPro: return nil
             }
         default: return nil
         }
@@ -258,6 +259,7 @@ public enum ButtonBindingSupport {
             case .basiliskV3, .basiliskV335K: return [0x04, 0x02, 0x0F, 0x7B, 0x00, 0x00, 0x00]
             case .basiliskV3Pro: return [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
             case .basiliskV3XHyperspeed, .orochiV2, .basilisk, .lanceheadTournamentEdition, .none: return [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
+            case .huntsmanMini, .tartarusPro: return nil
             }
         default: break
         }
@@ -300,6 +302,7 @@ public enum ButtonBindingSupport {
         case .basiliskV3XHyperspeed, .none: return DeviceProfiles.basiliskV3XButtonSlots
         case .orochiV2: return DeviceProfiles.orochiV2BluetoothButtonSlots
         case .basilisk, .lanceheadTournamentEdition: return ButtonSlotDescriptor.defaults
+        case .huntsmanMini, .tartarusPro: return []
         }
     }
 
