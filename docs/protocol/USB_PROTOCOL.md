@@ -876,6 +876,69 @@ reliable on the local USB stack.
 | Button-read layout note | `0x02:0x8C` extended slots decode from `response[11..<18]`, matching the 35K-style offset rather than the Basilisk V3 X shape |
 | Discovery note | Observed on 2026-03-25: the directly cabled macOS USB path reports `1532:00AA`; OpenSnek aliases it to the same shipped V3 Pro USB profile as `1532:00AB` |
 
+### Razer Basilisk (0x0064)
+
+| Setting | Value |
+|---------|-------|
+| USB VID:PID | `1532:0064` |
+| Transaction ID | `0x1F` shipped (contributor validated); hardware also answers OpenRazer's `0x3F` |
+| Max DPI | 16000 |
+| DPI Stages | 5-stage table read/active tracking contributor validated via `04:86` (observed `800/1800/4500/9000/16000`), even though OpenRazer never exposed stages for this PID |
+| Onboard Profiles | 1 |
+| Validated matrix LEDs | `0x01` scroll wheel, `0x04` logo (brightness + effect write/readback/restore) |
+| Validated lighting effects | none/static/spectrum/reactive/breathing (`pulse_*`) via extended matrix `0x0F 0x02`; effect readback via `0x0F 0x82`; no wave (per OpenRazer) |
+
+**Discovery note**: The 2017 original Basilisk. Contributor hardware (2026-08) validated scalar DPI, independent X/Y DPI (`04:85/05`, NOSTORE writes read back exactly), poll-rate reads (`00:85`, 500 Hz observed), serial/firmware reads, and the lighting suite above with restores. Control interface is the usage-page `0x01` / usage `0x02` interface with a 90-byte feature report.
+
+### Razer Lancehead Tournament Edition (0x0060)
+
+| Setting | Value |
+|---------|-------|
+| USB VID:PID | `1532:0060` |
+| Transaction ID | `0x1F` shipped (contributor validated); hardware also answers OpenRazer's `0x3F` |
+| Max DPI | 16000 |
+| DPI Stages | 5-stage table read contributor validated via `04:86` under `0x1F` (observed `800/1800/4500/9000/16000`) |
+| Onboard Profiles | 1 (no mapped CRUD surface) |
+| Validated matrix LEDs | `0x01` scroll wheel, `0x04` logo, `0x11` left side, `0x10` right side (per-zone brightness + effect write/readback/restore) |
+| Validated lighting effects | none/static/spectrum/wave/reactive/breathing via extended matrix `0x0F 0x02` |
+
+**Known Issues**:
+- OpenRazer deliberately mismatches transaction IDs on this device (`0x3F` for scalar DPI, `0xFF` for DPI stages). Contributor hardware validation showed the `0xFF` stage quirk is unnecessary: stage reads succeed under the shipped `0x1F`, so no per-command transaction override is needed. Independent X/Y DPI writes were also validated (NOSTORE writes read back exactly).
+
+### Razer Huntsman Mini (0x0257)
+
+| Setting | Value |
+|---------|-------|
+| USB VID:PID | `1532:0257` (JP variant `1532:0269` not registered; Analog `1532:0282` uses `0x1F` in OpenRazer and is not registered) |
+| Transaction ID | `0x1F` shipped (contributor validated); OpenRazer uses `0x3F` (`razerkbd_driver.c`) |
+| Max DPI | n/a (keyboard) |
+| DPI Stages | n/a |
+| Onboard Profiles | 1 |
+| Validated matrix LEDs | `0x05` backlight (brightness + effect write/readback/restore); matrix dims 5x15 for per-key custom frames (not shipped) |
+| Validated lighting effects | none/static/spectrum/wave/reactive/breathing via extended matrix `0x0F 0x02`; brightness via `0x0F 0x84/0x04` on LED `0x05`; starlight not shipped |
+
+**Known Issues**:
+- OpenRazer routes reports for this keyboard through HID report index `0x02` (`razer_get_report_params`). Contributor hardware validation confirmed OpenSnek's feature-report-size scoring selects a working control interface on macOS: the usage-page `0x01` / usage `0x02` interface carries the 90-byte feature report and answers serial, lighting, and brightness commands.
+- Poll-rate reads (`00:85`) return `status 0x05` (command not supported) on contributor hardware; `supportsPollRateControls` stays false.
+- Game-mode LED (`0x08`) uses legacy class `0x03` commands in OpenRazer; OpenSnek does not implement class `0x03` and does not ship that control.
+
+### Razer Tartarus Pro (0x0244)
+
+| Setting | Value |
+|---------|-------|
+| USB VID:PID | `1532:0244` |
+| Transaction ID | `0x1F` (contributor validated, including breathing effects; OpenRazer's `0x3F` breath quirk is unnecessary) |
+| Max DPI | n/a (keypad) |
+| DPI Stages | n/a |
+| Onboard Profiles | 1 |
+| Validated matrix LEDs | `0x05` backlight for effects (write/readback/restore). Brightness: contributor hardware showed LED `0x00` and `0x05` alias the same register (a write to either updates both readbacks); OpenSnek keeps OpenRazer's `0x00` addressing via the profile brightness override |
+| Validated lighting effects | none/static/spectrum/wave/reactive/breathing via extended matrix `0x0F 0x02`; starlight not shipped |
+
+**Known Issues**:
+- Do not write device mode `0x03` (driver mode) to this device. OpenRazer sets `DRIVER_MODE = False` for the Tartarus Pro because its analog optical switch input handling misbehaves in driver mode. OpenSnek only reads device mode.
+- Poll-rate reads (`00:85`) return `status 0x05` (command not supported) on contributor hardware.
+- Analog actuation (per-key actuation depth) has no public protocol; OpenRazer exposes lighting and macros only.
+
 ### Transaction ID by Device
 
 | Device Type | Transaction ID |
@@ -883,6 +946,8 @@ reliable on the local USB stack.
 | Modern wireless (2022+) | `0x1F` |
 | Modern wired (2020+) | `0x3F` |
 | Older devices | `0xFF` |
+
+Shipped per-profile IDs: all current USB profiles use `0x1F` (`DeviceProfile.usbTransactionID`). Contributor hardware validation on the Basilisk (2017), Lancehead Tournament Edition, Huntsman Mini, and Tartarus Pro showed `0x1F` works for every validated command on all four devices, including the commands where OpenRazer uses other IDs (Lancehead TE DPI stages `0xFF`, Tartarus Pro breathing `0x3F`, Huntsman Mini device mode `0xFF`) - the transaction byte appears to be an echo tag rather than a routing requirement on these devices. The mice also answered `0x3F` in ad-hoc testing.
 
 ---
 

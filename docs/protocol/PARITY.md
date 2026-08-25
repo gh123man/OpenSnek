@@ -11,6 +11,10 @@ Target device baseline:
 - Basilisk V3 Pro Bluetooth (`BT PID 0x00AC`)
 - Basilisk V3 35K (`USB PID 0x00CB`)
 - Orochi V2 Bluetooth (`BT PID 0x0095`)
+- Basilisk 2017 (`USB PID 0x0064`, OpenRazer-backed USB profile only)
+- Lancehead Tournament Edition (`USB PID 0x0060`, OpenRazer-backed USB profile only)
+- Huntsman Mini (`USB PID 0x0257`, keyboard, OpenRazer-backed USB lighting-only profile)
+- Tartarus Pro (`USB PID 0x0244`, keypad, OpenRazer-backed USB lighting-only profile)
 
 Transport paths:
 - USB/2.4GHz: 90-byte HID report protocol

@@ -390,6 +390,102 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(DevicePersistenceKeys.legacyKey(for: device), "dev")
     }
 
+    func testResolveUSBProfileForBasilisk() {
+        let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x0064, transport: .usb)
+        XCTAssertEqual(profile?.id, .basilisk)
+        XCTAssertEqual(profile?.formFactor, .mouse)
+        XCTAssertEqual(profile?.usbTransactionID, 0x1F)
+        XCTAssertEqual(profile?.buttonLayout.writableSlots, [])
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots.map(\.slot), [1, 2, 3, 4, 5, 9, 10, 96])
+        XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .spectrum, .reactive, .pulseRandom, .pulseSingle, .pulseDual])
+        XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel", "logo"])
+        XCTAssertEqual(profile?.allUSBLightingLEDIDs, [0x01, 0x04])
+        XCTAssertEqual(profile?.allUSBBrightnessLEDIDs, [0x01, 0x04])
+        XCTAssertEqual(profile?.supportsDPIControls, true)
+        XCTAssertEqual(profile?.supportsPollRateControls, true)
+        XCTAssertEqual(profile?.supportsPowerManagementControls, false)
+        XCTAssertEqual(profile?.supportsButtonRemapControls, false)
+        XCTAssertEqual(profile?.supportsLightingBrightnessControls, true)
+        XCTAssertEqual(profile?.supportsIndependentXYDPI, true)
+        XCTAssertEqual(profile?.onboardProfileCount, 1)
+        XCTAssertNil(profile?.passiveDPIInput)
+        XCTAssertEqual(profile?.isLocallyValidated, false)
+    }
+
+    func testResolveUSBProfileForLanceheadTournamentEdition() {
+        let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x0060, transport: .usb)
+        XCTAssertEqual(profile?.id, .lanceheadTournamentEdition)
+        XCTAssertEqual(profile?.formFactor, .mouse)
+        XCTAssertEqual(profile?.usbTransactionID, 0x1F)
+        XCTAssertEqual(profile?.buttonLayout.writableSlots, [])
+        XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual])
+        XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel", "logo", "left_side", "right_side"])
+        XCTAssertEqual(profile?.allUSBLightingLEDIDs, [0x01, 0x04, 0x11, 0x10])
+        XCTAssertEqual(profile?.supportsDPIControls, true)
+        XCTAssertEqual(profile?.supportsPollRateControls, true)
+        XCTAssertEqual(profile?.supportsPowerManagementControls, false)
+        XCTAssertEqual(profile?.supportsButtonRemapControls, false)
+        XCTAssertEqual(profile?.supportsLightingBrightnessControls, true)
+        XCTAssertEqual(profile?.supportsIndependentXYDPI, true)
+        XCTAssertEqual(profile?.isLocallyValidated, false)
+    }
+
+    func testNewDeviceDPIRanges() {
+        XCTAssertEqual(DeviceProfiles.dpiRange(for: .basilisk), 100...16_000)
+        XCTAssertEqual(DeviceProfiles.dpiRange(for: .lanceheadTournamentEdition), 100...16_000)
+        XCTAssertEqual(DeviceProfiles.sliderScaleMarkerValues(for: .basilisk), [100, 2_000, 10_000, 16_000])
+        XCTAssertEqual(DeviceProfiles.clampDPI(20_000, profileID: .lanceheadTournamentEdition), 16_000)
+    }
+
+    func testResolveUSBProfileForHuntsmanMini() {
+        let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x0257, transport: .usb)
+        XCTAssertEqual(profile?.id, .huntsmanMini)
+        XCTAssertEqual(profile?.formFactor, .keyboard)
+        XCTAssertEqual(profile?.usbTransactionID, 0x1F)
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots, [])
+        XCTAssertEqual(profile?.buttonLayout.writableSlots, [])
+        XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual])
+        XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["backlight"])
+        XCTAssertEqual(profile?.allUSBLightingLEDIDs, [0x05])
+        XCTAssertEqual(profile?.allUSBBrightnessLEDIDs, [0x05])
+        XCTAssertEqual(profile?.supportsDPIControls, false)
+        XCTAssertEqual(profile?.supportsPollRateControls, false)
+        XCTAssertEqual(profile?.supportsPowerManagementControls, false)
+        XCTAssertEqual(profile?.supportsButtonRemapControls, false)
+        XCTAssertEqual(profile?.supportsLightingBrightnessControls, true)
+        XCTAssertEqual(profile?.isLocallyValidated, false)
+    }
+
+    func testResolveUSBProfileForTartarusPro() {
+        let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x0244, transport: .usb)
+        XCTAssertEqual(profile?.id, .tartarusPro)
+        XCTAssertEqual(profile?.formFactor, .keypad)
+        XCTAssertEqual(profile?.usbTransactionID, 0x1F)
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots, [])
+        XCTAssertEqual(profile?.buttonLayout.writableSlots, [])
+        XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["backlight"])
+        XCTAssertEqual(profile?.allUSBLightingLEDIDs, [0x05])
+        // OpenRazer's ZERO_LED brightness quirk: brightness is addressed via LED 0x00.
+        XCTAssertEqual(profile?.usbBrightnessLEDIDs, [0x00])
+        XCTAssertEqual(profile?.allUSBBrightnessLEDIDs, [0x00])
+        XCTAssertEqual(profile?.supportsDPIControls, false)
+        XCTAssertEqual(profile?.supportsPollRateControls, false)
+        XCTAssertEqual(profile?.supportsPowerManagementControls, false)
+        XCTAssertEqual(profile?.supportsButtonRemapControls, false)
+        XCTAssertEqual(profile?.supportsLightingBrightnessControls, true)
+        XCTAssertEqual(profile?.isLocallyValidated, false)
+    }
+
+    func testBrightnessLEDIDsDefaultToLightingLEDIDsUnlessOverridden() {
+        for profile in DeviceProfiles.all where profile.usbBrightnessLEDIDs == nil { XCTAssertEqual(profile.allUSBBrightnessLEDIDs, profile.allUSBLightingLEDIDs, "profile \(profile.id) \(profile.transport)") }
+
+        let overridden = DeviceProfile(
+            id: .orochiV2, productName: "Brightness Override Test Device", transport: .usb, supportedProducts: [0x7778], buttonLayout: ButtonSlotLayout(visibleSlots: [], writableSlots: []), supportsAdvancedLightingEffects: true, usbLightingLEDIDs: [0x05],
+            usbBrightnessLEDIDs: [0x00])
+        XCTAssertEqual(overridden.allUSBLightingLEDIDs, [0x05])
+        XCTAssertEqual(overridden.allUSBBrightnessLEDIDs, [0x00])
+    }
+
     func testPersistenceKeysIgnorePlaceholderZeroSerial() {
         let device = MouseDevice(id: "dev", vendor_id: 0x1532, product_id: 0x00AB, product_name: "Mouse", transport: .usb, path_b64: "", serial: "000000000000", firmware: nil)
 

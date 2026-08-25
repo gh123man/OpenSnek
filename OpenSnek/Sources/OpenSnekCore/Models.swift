@@ -35,6 +35,17 @@ public enum DeviceProfileID: String, Codable, Hashable, Sendable {
     case basiliskV3Pro = "basilisk_v3_pro"
     case basiliskV335K = "basilisk_v3_35k"
     case orochiV2 = "orochi_v2"
+    case basilisk = "basilisk"
+    case lanceheadTournamentEdition = "lancehead_tournament_edition"
+    case huntsmanMini = "huntsman_mini"
+    case tartarusPro = "tartarus_pro"
+}
+
+/// Defines device form factor values.
+public enum DeviceFormFactor: String, Codable, Hashable, Sendable {
+    case mouse
+    case keyboard
+    case keypad
 }
 
 /// Stores device identity data.
