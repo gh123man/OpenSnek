@@ -285,12 +285,56 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertNil(ButtonBindingSupport.defaultDPIClutchDPI(for: .orochiV2))
     }
 
+    func testResolveUSBProfileForNagaProWired() {
+        let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x008F, transport: .usb)
+        XCTAssertEqual(profile?.id, .nagaPro)
+        XCTAssertEqual(profile?.productName, "Naga Pro")
+        XCTAssertEqual(profile?.supportedProducts, [0x008F, 0x0090])
+        XCTAssertEqual(profile?.usbTransactionID, 0x1F)
+        XCTAssertEqual(profile?.buttonLayout.writableSlots, [1, 2, 3, 4, 5, 9, 10, 52, 53, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82])
+        XCTAssertEqual(profile?.buttonLayout.access(for: 14), .protocolReadOnly)
+        XCTAssertEqual(profile?.buttonLayout.access(for: 80), .editable)
+        XCTAssertEqual(profile?.buttonLayout.access(for: 83), .protocolReadOnly)
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots.first(where: { $0.slot == 5 })?.friendlyName, "Panel Button 1")
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots.first(where: { $0.slot == 5 })?.group, "2-Button Panel")
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots.first(where: { $0.slot == 4 })?.group, "2-Button Panel")
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots.first(where: { $0.slot == 64 })?.group, "12-Button Panel")
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots.first(where: { $0.slot == 80 })?.group, "6-Button Panel")
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots.filter { $0.group == "Mouse" }.map(\.slot), [1, 2, 3, 9, 10, 11, 12, 52, 53])
+        XCTAssertEqual(profile?.supportsAdvancedLightingEffects, false)
+        XCTAssertEqual(profile?.supportedLightingEffects, [])
+        XCTAssertEqual(profile?.usbLightingLEDIDs, [0x01, 0x04])
+        XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["scroll_wheel", "logo"])
+        XCTAssertEqual(profile?.supportsLightingBrightnessControls, true)
+        XCTAssertEqual(profile?.onboardProfileSupport, .mappedCore)
+        XCTAssertEqual(profile?.onboardProfileCount, 5)
+        XCTAssertEqual(profile?.isLocallyValidated, false)
+        XCTAssertFalse(ButtonBindingSupport.availableButtonBindingKinds(profileID: .nagaPro).contains(.dpiClutch))
+        XCTAssertFalse(ButtonBindingSupport.availableButtonBindingKinds(for: 64, profileID: .nagaPro).contains(.default))
+        XCTAssertTrue(ButtonBindingSupport.availableButtonBindingKinds(for: 64, profileID: .nagaPro).contains(.keyboardSimple))
+        XCTAssertTrue(ButtonBindingSupport.availableButtonBindingKinds(for: 52, profileID: .nagaPro).contains(.default))
+        XCTAssertNil(ButtonBindingSupport.defaultDPIClutchDPI(for: .nagaPro))
+    }
+
+    func testResolveUSBProfileForNagaProWireless() {
+        let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x0090, transport: .usb)
+        XCTAssertEqual(profile?.id, .nagaPro)
+    }
+
+    func testResolveBluetoothProfileForNagaPro() {
+        // Unlike the Basilisk family, Naga Pro keeps vendor ID 0x1532 over Bluetooth instead of remapping to 0x068E.
+        let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x0092, transport: .bluetooth)
+        XCTAssertEqual(profile?.id, .nagaPro)
+        XCTAssertEqual(profile?.buttonLayout, DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x008F, transport: .usb)?.buttonLayout)
+    }
+
     func testDPIRangesMatchSupportedProfiles() {
         XCTAssertEqual(DeviceProfiles.dpiRange(for: .basiliskV3XHyperspeed), 100...18_000)
         XCTAssertEqual(DeviceProfiles.dpiRange(for: .basiliskV3), 100...26_000)
         XCTAssertEqual(DeviceProfiles.dpiRange(for: .basiliskV3Pro), 100...30_000)
         XCTAssertEqual(DeviceProfiles.dpiRange(for: .basiliskV335K), 100...35_000)
         XCTAssertEqual(DeviceProfiles.dpiRange(for: .orochiV2), 100...18_000)
+        XCTAssertEqual(DeviceProfiles.dpiRange(for: .nagaPro), 100...20_000)
         XCTAssertEqual(DeviceProfiles.sliderDpiRange(for: .basiliskV3XHyperspeed), 100...18_000)
         XCTAssertEqual(DeviceProfiles.sliderDpiRange(for: .basiliskV3), 100...26_000)
         XCTAssertEqual(DeviceProfiles.sliderDpiRange(for: .basiliskV3Pro), 100...30_000)

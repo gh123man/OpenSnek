@@ -18,21 +18,43 @@ struct ButtonMappingTableCard: View {
             let turboEnabled = editorStore.buttonBindingTurboEnabled(for: slot.slot)
             let turboRate = editorStore.buttonBindingTurboRatePressesPerSecond(for: slot.slot)
             return ButtonBindingRowModel(
-                slot: slot.slot, friendlyName: slot.friendlyName, isEditable: deviceStore.isButtonSlotEditable(slot.slot) && !isBusy, selectedKind: kind, turboEligible: kind != .default && kind.supportsTurbo, clutchDPI: editorStore.buttonBindingClutchDPI(for: slot.slot),
+                slot: slot.slot, friendlyName: slot.friendlyName, group: slot.group, isEditable: deviceStore.isButtonSlotEditable(slot.slot) && !isBusy, selectedKind: kind, turboEligible: kind != .default && kind.supportsTurbo, clutchDPI: editorStore.buttonBindingClutchDPI(for: slot.slot),
                 keyboardHidKey: editorStore.buttonBindingHidKey(for: slot.slot), keyboardHidModifiers: editorStore.buttonBindingHidModifiers(for: slot.slot), supportsKeyboardModifierChords: deviceStore.selectedDevice.map { device in device.transport.supportsHIDBackedControls } ?? false,
                 turboEnabled: turboEnabled, turboRatePressesPerSecond: turboRate, notice: deviceStore.buttonSlotNotice(slot.slot))
+        }
+    }
+
+    /// Rows preceded by the group name whose section they start, or `nil` when ungrouped or continuing the prior row's group.
+    private var rowsWithGroupHeaders: [(header: String?, row: ButtonBindingRowModel)] {
+        var previousGroup: String?
+        return rows.map { row in
+            let header = row.group != previousGroup ? row.group : nil
+            previousGroup = row.group
+            return (header, row)
         }
     }
 
     var body: some View {
         Card(title: title, accessibilityIdentifier: "button-mapping-card") {
             VStack(alignment: .leading, spacing: 12) {
-                LazyVStack(alignment: .leading, spacing: 10) { ForEach(rows) { row in ButtonBindingRow(editorStore: editorStore, row: row) } }
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    ForEach(rowsWithGroupHeaders, id: \.row.id) { entry in
+                        if let header = entry.header { ButtonGroupHeader(title: header) }
+                        ButtonBindingRow(editorStore: editorStore, row: entry.row)
+                    }
+                }
 
                 if !deviceStore.hiddenUnsupportedButtonSlots.isEmpty { UnsupportedButtonsFootnote(entries: deviceStore.hiddenUnsupportedButtonSlots) }
             }
         }
     }
+}
+
+/// Renders a section header separating button groups (e.g. swappable side panels) within the mapping table.
+private struct ButtonGroupHeader: View {
+    let title: String
+
+    var body: some View { Text(title.uppercased()).font(.system(size: 11, weight: .black, design: .rounded)).foregroundStyle(.white.opacity(0.42)).tracking(0.6).padding(.top, 4).accessibilityAddTraits(.isHeader) }
 }
 
 /// Renders the onboard profile pill button UI.
@@ -480,6 +502,7 @@ struct LabeledControlRow<Control: View>: View {
 private struct ButtonBindingRowModel: Identifiable, Equatable {
     let slot: Int
     let friendlyName: String
+    let group: String?
     let isEditable: Bool
     let selectedKind: ButtonBindingKind
     let turboEligible: Bool
@@ -532,8 +555,9 @@ private struct ButtonBindingHeaderRow: View {
 
             Spacer(minLength: 12)
 
-            Picker("", selection: Binding(get: { editorStore.buttonBindingKind(for: row.slot) }, set: { editorStore.updateButtonBindingKind(slot: row.slot, kind: $0) })) { ForEach(ButtonBindingSupport.availableButtonBindingKinds(profileID: profileID)) { kind in Text(kind.label).tag(kind) } }
-                .labelsHidden().pickerStyle(.menu).frame(width: 220, alignment: .trailing).disabled(!row.isEditable).accessibilityIdentifier("button-binding-kind-picker-\(row.slot)")
+            Picker("", selection: Binding(get: { editorStore.buttonBindingKind(for: row.slot) }, set: { editorStore.updateButtonBindingKind(slot: row.slot, kind: $0) })) {
+                ForEach(ButtonBindingSupport.availableButtonBindingKinds(for: row.slot, profileID: profileID)) { kind in Text(kind.label).tag(kind) }
+            }.labelsHidden().pickerStyle(.menu).frame(width: 220, alignment: .trailing).disabled(!row.isEditable).accessibilityIdentifier("button-binding-kind-picker-\(row.slot)")
         }
     }
 }

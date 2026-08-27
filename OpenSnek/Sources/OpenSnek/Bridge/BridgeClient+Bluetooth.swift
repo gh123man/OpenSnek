@@ -369,7 +369,8 @@ extension BridgeClient {
     }
 
     func btSetButtonBinding(_ request: BluetoothButtonBindingWrite) async throws -> Bool {
-        let payload = BLEVendorProtocol.buildButtonPayload(slot: request.slot, kind: request.kind, hidKey: request.hidKey, hidModifiers: request.hidModifiers, turboEnabled: request.turboEnabled, turboRate: request.turboRate, clutchDPI: request.clutchDPI)
+        guard request.kind != .default || ButtonBindingSupport.supportsDefaultRestore(for: Int(request.slot), profileID: request.device.profile_id) else { return false }
+        let payload = BLEVendorProtocol.buildButtonPayload(slot: request.slot, kind: request.kind, hidKey: request.hidKey, hidModifiers: request.hidModifiers, turboEnabled: request.turboEnabled, turboRate: request.turboRate, clutchDPI: request.clutchDPI, profileID: request.device.profile_id)
         let req = nextBTReq()
         let header = BLEVendorProtocol.buildWriteHeader(req: req, payloadLength: 0x0A, key: .buttonBind(slot: request.slot))
         let notifies = try await btExchange([header, payload], timeout: 0.9, device: request.device)

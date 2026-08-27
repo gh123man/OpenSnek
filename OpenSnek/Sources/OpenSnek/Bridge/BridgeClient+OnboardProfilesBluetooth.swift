@@ -165,13 +165,18 @@ extension BridgeClient {
     }
 
     func btApplyOnboardProfileMutation(device: MouseDevice, profile: DeviceProfile, target: Int, mutation: OnboardProfileMutation) async throws {
+        if let bindings = mutation.buttonBindings {
+            let hasUnsupportedDefault = bindings.contains { slot, draft in profile.buttonLayout.isEditable(slot) && draft.kind == .default && !ButtonBindingSupport.supportsDefaultRestore(for: slot, profileID: device.profile_id) }
+            guard !hasUnsupportedDefault else { throw BridgeError.commandFailed("Bluetooth onboard profile contains a button default that OpenSnek cannot safely restore.") }
+        }
         if let dpi = mutation.dpi, !dpi.pairs.isEmpty { try await btWriteOnboardProfileDPI(device: device, target: target, dpi: dpi) }
         if let bindings = mutation.buttonBindings {
             for (slot, draft) in bindings where profile.buttonLayout.isEditable(slot) {
                 let payload = BLEVendorProtocol.retargetButtonPayload(
                     BLEVendorProtocol.buildButtonPayload(
                         slot: UInt8(slot), kind: draft.kind, hidKey: UInt8(max(0, min(255, draft.hidKey))), hidModifiers: UInt8(max(0, min(255, draft.hidModifiers))), turboEnabled: draft.turboEnabled && draft.kind.supportsTurbo,
-                        turboRate: UInt16(ButtonBindingSupport.clampTurboRate(draft.turboRate)), clutchDPI: draft.kind == .dpiClutch ? DeviceProfiles.clampDPI(draft.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI, device: device) : nil), target: UInt8(target), slot: UInt8(slot))
+                        turboRate: UInt16(ButtonBindingSupport.clampTurboRate(draft.turboRate)), clutchDPI: draft.kind == .dpiClutch ? DeviceProfiles.clampDPI(draft.clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI, device: device) : nil, profileID: device.profile_id),
+                    target: UInt8(target), slot: UInt8(slot))
                 guard try await btWriteAck(device: device, key: .buttonBindSet(target: UInt8(target), slot: UInt8(slot)), payload: payload) else { throw BridgeError.commandFailed("Bluetooth onboard profile button write failed for slot \(slot).") }
             }
         }

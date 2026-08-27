@@ -247,7 +247,8 @@ import OpenSnekCore
     private func defaultLocalProfileButtonBindings(device: MouseDevice) -> [Int: ButtonBindingDraft] {
         let layout = resolvedDeviceProfile(for: device)?.buttonLayout ?? device.button_layout
         let writableSlots = layout?.writableSlots ?? buttonSlots.map(\.slot)
-        return Dictionary(uniqueKeysWithValues: writableSlots.map { slot in (slot, ButtonBindingSupport.defaultButtonBinding(for: slot, profileID: device.profile_id)) })
+        let restorableSlots = writableSlots.filter { ButtonBindingSupport.supportsDefaultRestore(for: $0, profileID: device.profile_id) }
+        return Dictionary(uniqueKeysWithValues: restorableSlots.map { slot in (slot, ButtonBindingSupport.defaultButtonBinding(for: slot, profileID: device.profile_id)) })
     }
 
     private func defaultLocalProfileBrightness(ledIDs: [UInt8], device: MouseDevice) -> [Int: Int] {
@@ -464,12 +465,11 @@ import OpenSnekCore
     private func adaptedButtonBindings(_ bindings: [Int: ButtonBindingDraft], for device: MouseDevice) -> [Int: ButtonBindingDraft] {
         let layout = resolvedDeviceProfile(for: device)?.buttonLayout ?? device.button_layout
         let writableSlots = Set(layout?.writableSlots ?? buttonSlots.map(\.slot))
-        let availableKinds = Set(ButtonBindingSupport.availableButtonBindingKinds(profileID: device.profile_id))
         return bindings.reduce(into: [Int: ButtonBindingDraft]()) { partialResult, pair in
             guard writableSlots.contains(pair.key) else { return }
-            let resolvedDraft: ButtonBindingDraft
-            if availableKinds.contains(pair.value.kind) { resolvedDraft = pair.value } else { resolvedDraft = ButtonBindingSupport.defaultButtonBinding(for: pair.key, profileID: device.profile_id) }
-            partialResult[pair.key] = ButtonBindingSupport.normalizedDefaultRepresentation(for: pair.key, draft: resolvedDraft, profileID: device.profile_id)
+            let availableKinds = Set(ButtonBindingSupport.availableButtonBindingKinds(for: pair.key, profileID: device.profile_id))
+            guard availableKinds.contains(pair.value.kind) else { return }
+            partialResult[pair.key] = ButtonBindingSupport.normalizedDefaultRepresentation(for: pair.key, draft: pair.value, profileID: device.profile_id)
         }
     }
 

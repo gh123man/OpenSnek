@@ -11,6 +11,7 @@ Target device baseline:
 - Basilisk V3 Pro Bluetooth (`BT PID 0x00AC`)
 - Basilisk V3 35K (`USB PID 0x00CB`)
 - Orochi V2 Bluetooth (`BT PID 0x0095`)
+- Naga Pro (`USB PIDs 0x008F, 0x0090`, `BT PID 0x0092`, contributor validated)
 
 Transport paths:
 - USB/2.4GHz: 90-byte HID report protocol
@@ -187,6 +188,17 @@ Validated by the PR contributor over Bluetooth:
 - contributor-validated battery behavior: vendor battery reads are used and the AAA-powered profile reports `charging = false`
 - profile-mapped button layout: slots `0x01..0x05`, `0x09`, `0x0A`, and `0x60` are exposed from metadata, but Orochi-specific button-remap write/readback validation is still pending
 - not shipped: 2.4 GHz HyperSpeed dongle path until its USB PID and protocol behavior are probed
+
+## Contributor-Validated Device Profile (Naga Pro, USB PIDs `0x008F` / `0x0090`, BT PID `0x0092`)
+
+Validated on physical hardware by [varunyellina in PR #106](https://github.com/gh123man/OpenSnek/pull/106), not by an OpenSnek maintainer:
+- wired USB, the 2.4 GHz receiver, and Bluetooth all resolve to the shared Naga Pro profile with a `20,000` DPI ceiling and five mapped onboard profile slots
+- the three swappable panels share one firmware slot table; the UI groups body controls, the 2-button panel, the 6-button panel, and the 12-button panel while only the installed panel is physically active
+- contributor-tested explicit remaps ship for body/2-button-panel slots `1-5`, `9`, `10`, `52`, `53`, 12-button slots `64-75`, and 6-button slots `80-82`
+- Naga Pro wheel tilt uses class-`0x0E` button IDs `0x09` / `0x0A`, not the Basilisk-family `0x68` / `0x69`; the Bluetooth writer deliberately reuses the Naga USB function-block encoder
+- native factory blocks for slots `64-75` and `80-82` have not been captured, so OpenSnek permits explicit remaps but hides `Default` and omits those defaults from synthesized profile content
+- slots `83-85` read as an undecoded class-`0x03` action and remain read-only; full button-profile reset is rejected before any write while any writable slot lacks a known factory block
+- remaining device-dependent capture and validation work stays open in [issue #56](https://github.com/gh123man/OpenSnek/issues/56)
 
 ## Validation Checklist
 

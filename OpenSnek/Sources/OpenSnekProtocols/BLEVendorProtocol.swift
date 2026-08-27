@@ -402,8 +402,12 @@ public enum BLEVendorProtocol {
         return out
     }
 
-    public static func buildButtonPayload(slot: UInt8, kind: ButtonBindingKind, hidKey: UInt8?, hidModifiers: UInt8 = 0, turboEnabled: Bool = false, turboRate: UInt16? = nil, clutchDPI: Int? = nil) -> Data {
+    public static func buildButtonPayload(slot: UInt8, kind: ButtonBindingKind, hidKey: UInt8?, hidModifiers: UInt8 = 0, turboEnabled: Bool = false, turboRate: UInt16? = nil, clutchDPI: Int? = nil, profileID: DeviceProfileID? = nil) -> Data {
         let clampedTurboRate = max(UInt16(1), min(UInt16(0x00FF), turboRate ?? 0x008E))
+        if profileID == .nagaPro {
+            let draft = ButtonBindingDraft(kind: kind, hidKey: Int(hidKey ?? 0x04), hidModifiers: Int(hidModifiers), turboEnabled: turboEnabled, turboRate: Int(clampedTurboRate), clutchDPI: clutchDPI)
+            return buildRawFunctionBlockPayload(slot: slot, functionBlock: ButtonBindingSupport.usbFunctionBlockForWrite(slot: Int(slot), draft: draft, profileID: profileID))
+        }
         func clutchBytes() -> (UInt8, UInt8) {
             let clamped = UInt16(DeviceProfiles.clampDPI(clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI, profileID: .basiliskV3Pro))
             return (UInt8((clamped >> 8) & 0xFF), UInt8(clamped & 0xFF))

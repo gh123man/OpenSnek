@@ -83,12 +83,14 @@ import OpenSnekCore
     private func localProfileButtonBindingsToApply(_ bindings: [Int: ButtonBindingDraft], device: MouseDevice) -> [Int: ButtonBindingDraft] { bindings.filter { slot, draft in shouldApplyLocalProfileButtonBinding(slot: slot, draft: draft, device: device) } }
 
     private func shouldApplyLocalProfileButtonBinding(slot: Int, draft: ButtonBindingDraft, device: MouseDevice) -> Bool {
+        let availableKinds = Set(ButtonBindingSupport.availableButtonBindingKinds(for: slot, profileID: device.profile_id))
+        guard availableKinds.contains(draft.kind) else { return false }
         let current = editorStore.editableButtonBindings[slot] ?? editorController.defaultButtonBinding(for: slot, device: device)
         return normalizedProfileButtonBinding(draft, slot: slot, device: device) != normalizedProfileButtonBinding(current, slot: slot, device: device)
     }
 
     private func normalizedProfileButtonBinding(_ draft: ButtonBindingDraft, slot: Int, device: MouseDevice) -> ButtonBindingDraft {
-        let availableKinds = Set(ButtonBindingSupport.availableButtonBindingKinds(profileID: device.profile_id))
+        let availableKinds = Set(ButtonBindingSupport.availableButtonBindingKinds(for: slot, profileID: device.profile_id))
         let resolved = availableKinds.contains(draft.kind) ? draft : ButtonBindingSupport.defaultButtonBinding(for: slot, profileID: device.profile_id)
         // Single-slot profile switches can contain full button snapshots. Avoid
         // no-op default writes because some devices ACK the meaningful remap but

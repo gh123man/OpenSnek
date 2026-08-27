@@ -14,6 +14,27 @@ public enum ButtonBindingSupport {
     private static let horizontalScrollRightButtonID: UInt8 = 0x69
     private static let basiliskV3FamilyHorizontalScrollTurboRate = 0x14
 
+    // Naga Pro USB wheel tilt reuses the vertical scroll button IDs (0x09/0x0A) inside the same class-0x0E block.
+    private static let nagaProHorizontalScrollLeftButtonID: UInt8 = 0x09
+    private static let nagaProHorizontalScrollRightButtonID: UInt8 = 0x0A
+
+    private static func horizontalScrollButtonID(for kind: ButtonBindingKind, profileID: DeviceProfileID?) -> UInt8? {
+        switch kind {
+        case .scrollLeft: return profileID == .nagaPro ? nagaProHorizontalScrollLeftButtonID : horizontalScrollLeftButtonID
+        case .scrollRight: return profileID == .nagaPro ? nagaProHorizontalScrollRightButtonID : horizontalScrollRightButtonID
+        default: return nil
+        }
+    }
+
+    private static func horizontalScrollKind(forButtonID buttonID: UInt8, profileID: DeviceProfileID?) -> ButtonBindingKind? {
+        guard profileID == .nagaPro else { return nil }
+        switch buttonID {
+        case nagaProHorizontalScrollLeftButtonID: return .scrollLeft
+        case nagaProHorizontalScrollRightButtonID: return .scrollRight
+        default: return nil
+        }
+    }
+
     public static func clampTurboRate(_ turboRate: Int) -> Int { max(minimumTurboRate, min(maximumTurboRate, turboRate)) }
 
     public static func clampTurboPressesPerSecond(_ pressesPerSecond: Int) -> Int { max(minimumTurboPressesPerSecond, min(maximumTurboPressesPerSecond, pressesPerSecond)) }
@@ -53,7 +74,7 @@ public enum ButtonBindingSupport {
     private static func isBasiliskV3Family(_ profileID: DeviceProfileID?) -> Bool {
         switch profileID {
         case .basiliskV3, .basiliskV3Pro, .basiliskV335K: return true
-        case .basiliskV3XHyperspeed, .orochiV2, .none: return false
+        case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .none: return false
         }
     }
 
@@ -68,7 +89,7 @@ public enum ButtonBindingSupport {
     public static func defaultDPIClutchDPI(for profileID: DeviceProfileID?) -> Int? {
         switch profileID {
         case .basiliskV3, .basiliskV3Pro, .basiliskV335K: return defaultBasiliskDPIClutchDPI
-        case .basiliskV3XHyperspeed, .orochiV2, .none: return nil
+        case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .none: return nil
         }
     }
 
@@ -79,6 +100,13 @@ public enum ButtonBindingSupport {
         return fallback
     }
 
+    public static func supportsDefaultRestore(for slot: Int, profileID: DeviceProfileID? = nil) -> Bool { defaultUSBFunctionBlock(for: slot, profileID: profileID) != nil }
+
+    public static func completeDefaultUSBFunctionBlocks(for slots: [Int], profileID: DeviceProfileID? = nil) -> [Int: [UInt8]]? {
+        let blocks = slots.reduce(into: [Int: [UInt8]]()) { result, slot in result[slot] = defaultUSBFunctionBlock(for: slot, profileID: profileID) }
+        return blocks.count == Set(slots).count ? blocks : nil
+    }
+
     public static func semanticDefaultButtonBinding(for slot: Int, profileID: DeviceProfileID? = nil) -> ButtonBindingDraft? {
         switch slot {
         case 15 where isBasiliskV3Family(profileID): return ButtonBindingDraft(kind: .dpiClutch, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate, clutchDPI: defaultDPIClutchDPI(for: profileID))
@@ -86,7 +114,7 @@ public enum ButtonBindingSupport {
         case 53 where isBasiliskV3Family(profileID): return ButtonBindingDraft(kind: .scrollRight, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
         case 96:
             switch profileID {
-            case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3XHyperspeed, .orochiV2, .none: return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
+            case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .none: return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
             }
         default: return nil
         }
@@ -151,7 +179,7 @@ public enum ButtonBindingSupport {
             let rawRate = (Int(data[2]) << 8) | Int(data[3])
             return ButtonBindingDraft(kind: .keyboardSimple, hidKey: max(4, min(231, hidKey)), hidModifiers: max(0, min(255, hidModifiers)), turboEnabled: true, turboRate: clampTurboRate(rawRate))
         case 0x0E:
-            guard let buttonID = data.first, let kind = buttonKindFromUSBMouseButton(buttonID) else { return nil }
+            guard let buttonID = data.first, let kind = horizontalScrollKind(forButtonID: buttonID, profileID: profileID) ?? buttonKindFromUSBMouseButton(buttonID) else { return nil }
             guard data.count >= 3 else { return ButtonBindingDraft(kind: kind, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate) }
             let rawRate = (Int(data[1]) << 8) | Int(data[2])
             return ButtonBindingDraft(kind: kind, hidKey: 4, turboEnabled: true, turboRate: clampTurboRate(rawRate))
@@ -237,8 +265,11 @@ public enum ButtonBindingSupport {
             if turboEnabled { return [0x0D, 0x04, clampedModifiers, clampedKey, turboHi, turboLo, 0x00] }
             return [0x02, 0x02, clampedModifiers, clampedKey, 0x00, 0x00, 0x00]
         default:
+            if kind == .scrollLeft || kind == .scrollRight, let buttonID = horizontalScrollButtonID(for: kind, profileID: profileID), usesBasiliskV3FamilyHorizontalScrollBlock(profileID) || profileID == .nagaPro {
+                let defaultRate = profileID == .nagaPro ? defaultTurboRate : basiliskV3FamilyHorizontalScrollTurboRate
+                return basiliskV3FamilyHorizontalScrollBlock(buttonID: buttonID, turboRate: turboEnabled ? turboRate : defaultRate)
+            }
             if let buttonID = usbMouseButtonID(for: kind) {
-                if usesBasiliskV3FamilyHorizontalScrollBlock(profileID), kind == .scrollLeft || kind == .scrollRight { return basiliskV3FamilyHorizontalScrollBlock(buttonID: buttonID, turboRate: turboEnabled ? turboRate : basiliskV3FamilyHorizontalScrollTurboRate) }
                 if turboEnabled { return [0x0E, 0x03, buttonID, turboHi, turboLo, 0x00, 0x00] }
                 return [0x01, 0x01, buttonID, 0x00, 0x00, 0x00, 0x00]
             }
@@ -253,11 +284,13 @@ public enum ButtonBindingSupport {
         case 15 where profileID == .basiliskV3Pro: return basiliskDPIClutchBlock(profileID: .basiliskV3Pro)
         case 52 where usesExtendedBasiliskUSBReadLayout(profileID): return basiliskV3FamilyHorizontalScrollBlock(buttonID: horizontalScrollLeftButtonID)
         case 53 where usesExtendedBasiliskUSBReadLayout(profileID): return basiliskV3FamilyHorizontalScrollBlock(buttonID: horizontalScrollRightButtonID)
+        case 52 where profileID == .nagaPro: return basiliskV3FamilyHorizontalScrollBlock(buttonID: nagaProHorizontalScrollLeftButtonID, turboRate: defaultTurboRate)
+        case 53 where profileID == .nagaPro: return basiliskV3FamilyHorizontalScrollBlock(buttonID: nagaProHorizontalScrollRightButtonID, turboRate: defaultTurboRate)
         case 96:
             switch profileID {
             case .basiliskV3, .basiliskV335K: return [0x04, 0x02, 0x0F, 0x7B, 0x00, 0x00, 0x00]
             case .basiliskV3Pro: return [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
-            case .basiliskV3XHyperspeed, .orochiV2, .none: return [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
+            case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .none: return [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
             }
         default: break
         }
@@ -294,11 +327,14 @@ public enum ButtonBindingSupport {
         }
     }
 
+    public static func availableButtonBindingKinds(for slot: Int, profileID: DeviceProfileID?) -> [ButtonBindingKind] { availableButtonBindingKinds(profileID: profileID).filter { kind in kind != .default || supportsDefaultRestore(for: slot, profileID: profileID) } }
+
     private static func buttonSlotDescriptors(for profileID: DeviceProfileID?) -> [ButtonSlotDescriptor] {
         switch profileID {
         case .basiliskV3, .basiliskV3Pro, .basiliskV335K: return DeviceProfiles.basiliskV3FamilyButtonSlots
         case .basiliskV3XHyperspeed, .none: return DeviceProfiles.basiliskV3XButtonSlots
         case .orochiV2: return DeviceProfiles.orochiV2BluetoothButtonSlots
+        case .nagaPro: return DeviceProfiles.nagaProUSBButtonSlots
         }
     }
 

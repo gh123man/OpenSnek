@@ -238,6 +238,14 @@ final class BLEVendorProtocolTests: XCTestCase {
         XCTAssertEqual(Array(payload), [0x01, 0x35, 0x00, 0x0E, 0x03, 0x69, 0x00, 0x14, 0x00, 0x00])
     }
 
+    func testNagaProBluetoothWheelTiltUsesNagaFunctionBlock() {
+        let leftPayload = BLEVendorProtocol.buildButtonPayload(slot: 0x34, kind: .scrollLeft, hidKey: nil, profileID: .nagaPro)
+        let rightPayload = BLEVendorProtocol.buildButtonPayload(slot: 0x35, kind: .scrollRight, hidKey: nil, profileID: .nagaPro)
+
+        XCTAssertEqual(Array(leftPayload), [0x01, 0x34, 0x00, 0x0E, 0x03, 0x09, 0x00, 0x8E, 0x00, 0x00])
+        XCTAssertEqual(Array(rightPayload), [0x01, 0x35, 0x00, 0x0E, 0x03, 0x0A, 0x00, 0x8E, 0x00, 0x00])
+    }
+
     func testButtonPayloadMouseBack() {
         let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x05, kind: .mouseBack, hidKey: nil)
         XCTAssertEqual(Array(payload), [0x01, 0x05, 0x00, 0x01, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00])
