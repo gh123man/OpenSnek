@@ -129,20 +129,8 @@ import OpenSnekCore
         guard supportsOnboardProfileCRUD(device: device) else { return }
         guard shouldSyncOnboardSnapshotToLocalProfile(snapshot, device: device, source: source) else { return }
         _ = preferenceStore.upsertOpenSnekLocalProfile(from: snapshot, device: device)
-        purgeStalePlaceholderLocalProfile(device: device, profileID: snapshot.profileID, realMetadata: snapshot.metadata)
         bumpOnboardProfilesRevision()
         bumpUSBButtonProfilesRevision()
-    }
-
-    // A slot's fallback "Profile N" library entry becomes permanently orphaned once the slot gets a real name
-    // (nothing ever syncs to that placeholder name again), including entries minted before placeholder identifiers
-    // were made deterministic. Matching on the exact placeholder name for this profile ID catches those legacy
-    // entries too, since nothing else would coincidentally carry that exact synthesized name for this device.
-    func purgeStalePlaceholderLocalProfile(device: MouseDevice, profileID: Int, realMetadata: OnboardProfileMetadata) {
-        guard !OpenSnekLocalProfile.isSynthesizedPlaceholderName(realMetadata.name) else { return }
-        let placeholderName = OpenSnekLocalProfile.normalizedName(profileID == 0 ? "Active Profile" : "Profile \(profileID)")
-        let stalePlaceholders = preferenceStore.loadOpenSnekLocalProfiles().filter { $0.name == placeholderName && $0.sourceDeviceProfileID == device.profile_id && $0.sourceTransport == device.transport }
-        for stale in stalePlaceholders { preferenceStore.deleteOpenSnekLocalProfile(id: stale.id) }
     }
 
     func syncSelectedMappedLocalProfileFromEditor(device: MouseDevice) {
@@ -354,6 +342,8 @@ import OpenSnekCore
         // Core reads intentionally skip metadata and button bindings for speed. They
         // must not mint UUID-backed local backups from fallback names like "Profile 1".
         guard !source.localizedCaseInsensitiveContains("core") else { return false }
+        let placeholderIdentifier = OnboardProfileMetadata.placeholderIdentifier(deviceKey: DevicePersistenceKeys.key(for: device), profileID: snapshot.profileID)
+        guard snapshot.metadata.identifier != placeholderIdentifier else { return false }
         guard !snapshot.metadata.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
         return true
     }

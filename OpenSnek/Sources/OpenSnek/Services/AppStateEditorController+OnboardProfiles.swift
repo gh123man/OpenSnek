@@ -334,7 +334,6 @@ import OpenSnekCore
             guard let index = summaries.firstIndex(where: { $0.profileID == profileID }) else { continue }
             let existing = summaries[index]
             summaries[index] = OnboardProfileSummary(profileID: existing.profileID, metadata: metadata, isAssigned: existing.isAssigned, isActive: existing.isActive, isBaseProfile: existing.isBaseProfile)
-            purgeStalePlaceholderLocalProfile(device: device, profileID: profileID, realMetadata: metadata)
         }
         return OnboardProfileInventory(activeProfileID: inventory.activeProfileID, maxProfileID: inventory.maxProfileID, assignedProfileIDs: inventory.assignedProfileIDs, profiles: summaries)
     }
@@ -424,7 +423,8 @@ import OpenSnekCore
             let active = storeActiveOnboardProfileState(state, for: device, fallbackActiveProfileID: profileID)
             selectedOnboardProfileIDByDeviceID[device.id] = active
             logDPITrace("activateOnboardProfile state readback", device: device, state: state, extra: "requested=\(profileID) active=\(active)")
-            let hasKnownMetadata = onboardProfileInventoryByDeviceID[device.id]?.summary(for: active)?.metadata != nil || currentOnboardProfileSnapshotByDeviceID[device.id]?.profileID == active
+            let currentSnapshot = currentOnboardProfileSnapshotByDeviceID[device.id]
+            let hasKnownMetadata = onboardProfileInventoryByDeviceID[device.id]?.summary(for: active)?.metadata != nil || (currentSnapshot?.profileID == active && currentSnapshot?.hasFetchedMetadata == true)
             let storedSnapshot: OnboardProfileSnapshot
             if hasKnownMetadata {
                 let snapshot = snapshotWithCachedButtonBindings(try await readLatestOnboardProfileCoreSnapshot(device: device, profileID: active), device: device)
