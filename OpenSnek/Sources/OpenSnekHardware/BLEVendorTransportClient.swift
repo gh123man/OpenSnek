@@ -3,6 +3,35 @@ import CoreBluetooth
 import OpenSnekCore
 import OpenSnekProtocols
 
+/// Restarts a completion deadline whenever a BLE response remains active.
+/// Callers serialize access on the owning transport queue.
+final class BLEVendorResponseIdleTimer: @unchecked Sendable {
+    typealias Scheduler = @Sendable (DispatchWorkItem) -> Void
+
+    private let scheduler: Scheduler
+    private let onIdle: @Sendable () -> Void
+    private var workItem: DispatchWorkItem?
+
+    convenience init(queue: DispatchQueue, idleInterval: TimeInterval, onIdle: @escaping @Sendable () -> Void) { self.init(scheduler: { item in queue.asyncAfter(deadline: .now() + idleInterval, execute: item) }, onIdle: onIdle) }
+
+    init(scheduler: @escaping Scheduler, onIdle: @escaping @Sendable () -> Void) {
+        self.scheduler = scheduler
+        self.onIdle = onIdle
+    }
+
+    func restart() {
+        workItem?.cancel()
+        let item = DispatchWorkItem(block: onIdle)
+        workItem = item
+        scheduler(item)
+    }
+
+    func cancel() {
+        workItem?.cancel()
+        workItem = nil
+    }
+}
+
 /// Coordinates BLE vendor transport client operations.
 public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
     /// Stores connected peripheral summary data.
@@ -16,6 +45,8 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
         }
     }
 
+    private static let responseIdleInterval: TimeInterval = 0.12
+
     private let queue = DispatchQueue(label: "open.snek.bt.vendor")
 
     private var central: CBCentralManager?
@@ -26,10 +57,13 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
     private var notifications: [Data] = []
     private var writeQueue: [Data] = []
     private var completion: ((Result<[Data], any Error>) -> Void)?
-    private var finishWorkItem: DispatchWorkItem?
     private var timeoutWorkItem: DispatchWorkItem?
     private var isNotifyReady = false
     private var preferredPeripheralName: String?
+    private lazy var responseIdleTimer = BLEVendorResponseIdleTimer(queue: queue, idleInterval: Self.responseIdleInterval) { [weak self] in
+        guard let self else { return }
+        self.finish(.success(self.notifications))
+    }
 
     public func run(writes: [Data], timeout: TimeInterval = 2.2, preferredPeripheralName: String? = nil) async throws -> [Data] {
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[Data], any Error>) in
@@ -41,8 +75,7 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
 
                 self.notifications = []
                 self.writeQueue = writes
-                self.finishWorkItem?.cancel()
-                self.finishWorkItem = nil
+                self.responseIdleTimer.cancel()
                 self.timeoutWorkItem?.cancel()
                 self.timeoutWorkItem = nil
                 self.preferredPeripheralName = preferredPeripheralName?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -94,20 +127,14 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
             return
         }
 
-        finishWorkItem?.cancel()
+        responseIdleTimer.cancel()
         let next = writeQueue.removeFirst()
         peripheral.writeValue(next, for: writeChar, type: .withResponse)
     }
 
     private func scheduleFinishIfIdle() {
         guard writeQueue.isEmpty else { return }
-        finishWorkItem?.cancel()
-        let item = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.finish(.success(self.notifications))
-        }
-        finishWorkItem = item
-        queue.asyncAfter(deadline: .now() + 0.12, execute: item)
+        responseIdleTimer.restart()
     }
 
     private func fail(_ message: String) { finish(.failure(BridgeError.commandFailed("BT vendor: \(message)"))) }
@@ -154,8 +181,7 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
     private func finish(_ output: Result<[Data], Error>) {
         guard let completion else { return }
         self.completion = nil
-        finishWorkItem?.cancel()
-        finishWorkItem = nil
+        responseIdleTimer.cancel()
         timeoutWorkItem?.cancel()
         timeoutWorkItem = nil
         completion(output)
@@ -237,5 +263,6 @@ extension BLEVendorTransportClient: CBCentralManagerDelegate, CBPeripheralDelega
         }
         guard let value = characteristic.value else { return }
         notifications.append(value)
+        scheduleFinishIfIdle()
     }
 }

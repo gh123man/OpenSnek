@@ -2,10 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Fixed the OpenSnekProbe USB path to continue best-effort device discovery when the manager-level `IOHIDManagerOpen` fails (matching the app's behavior), since per-device opens can still succeed.
+- Fixed HID access reporting when macOS refuses the bulk `IOHIDManagerOpen` on protected keyboard interfaces even though Input Monitoring is granted: the app previously misreported that as a permission denial while recreating the HID manager and logging errors every discovery cycle. The bridge now checks `IOHIDCheckAccess`, keeps the manager, reports access as granted, and logs the refusal once.
+
 ## [1.2.3]
 
 ### Added
 - Added Sparkle-backed automatic update installation from GitHub Releases, including Sparkle's changelog/install UI and a developer dry-run mode for previewing the latest release update flow.
+
+### Fixed
+- Fixed a Bluetooth vendor-transport bug where multi-fragment responses (e.g. onboard profile metadata, which can span 5+ notify packets) could be truncated if the peripheral hadn't finished streaming before a fixed completion timer fired. The timer now resets on every notification instead of only after the last write.
 
 ## [1.2.2]
 
