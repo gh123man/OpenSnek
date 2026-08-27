@@ -280,7 +280,9 @@ func enumerateBTHIDProfileCandidates(preferredProductID: Int? = 0x00AC, preferre
     let matching = supportedVendorIDs.map { [kIOHIDVendorIDKey: $0] as CFDictionary }
     IOHIDManagerSetDeviceMatchingMultiple(manager, matching as CFArray)
     let openResult = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
-    guard openResult == kIOReturnSuccess else { throw ProbeError.protocolError("IOHIDManagerOpen failed (\(openResult))") }
+    // Match the app and USB probe: a protected interface can reject the manager-level
+    // open while usable Bluetooth HID devices remain available for per-device opens.
+    if openResult != kIOReturnSuccess { FileHandle.standardError.write(Data("warning: IOHIDManagerOpen failed (\(openResult)); continuing best-effort discovery\n".utf8)) }
 
     guard let rawSet = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice>, !rawSet.isEmpty else { throw ProbeError.protocolError("No Bluetooth Razer HID device found") }
 

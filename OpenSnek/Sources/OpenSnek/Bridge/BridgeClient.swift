@@ -121,7 +121,9 @@ actor BridgeClient {
     let btVID = 0x068E
     private var hidManager: IOHIDManager?
     private var hidManagerOpenResult: IOReturn?
+    private var hidManagerInputMonitoringGrantedAtOpen: Bool?
     private var lastLoggedHIDManagerOpenFailure: IOReturn?
+    private var lastLoggedHIDManagerAccessDenied: Bool?
     private var lastEmptyHIDManagerRefreshAt: Date?
 
     init(startHIDMonitoring: Bool = true) {
@@ -182,12 +184,23 @@ actor BridgeClient {
     // succeed, so that state is not a TCC denial and the manager stays reusable.
     nonisolated static func resolvedManagerAccessDenied(openResult: IOReturn, inputMonitoringGranted: Bool) -> Bool { openResult == kIOReturnNotPermitted && !inputMonitoringGranted }
 
-    nonisolated static func shouldReuseHIDManager(openResult: IOReturn, inputMonitoringGranted: Bool) -> Bool { openResult == kIOReturnSuccess || (openResult == kIOReturnNotPermitted && inputMonitoringGranted) }
+    nonisolated static func shouldReuseHIDManager(openResult: IOReturn, inputMonitoringGrantedAtOpen: Bool, inputMonitoringGrantedNow: Bool) -> Bool {
+        guard inputMonitoringGrantedAtOpen == inputMonitoringGrantedNow else { return false }
+        return openResult == kIOReturnSuccess || (openResult == kIOReturnNotPermitted && inputMonitoringGrantedNow)
+    }
+
+    nonisolated static func shouldLogHIDManagerOpenFailure(openResult: IOReturn, managerAccessDenied: Bool, lastOpenResult: IOReturn?, lastManagerAccessDenied: Bool?) -> Bool {
+        guard openResult != kIOReturnSuccess else { return false }
+        return lastOpenResult != openResult || lastManagerAccessDenied != managerAccessDenied
+    }
 
     nonisolated static func inputMonitoringGranted() -> Bool { IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted }
 
     private func managedHIDManager() -> (manager: IOHIDManager, openResult: IOReturn) {
-        if let hidManager, let hidManagerOpenResult, Self.shouldReuseHIDManager(openResult: hidManagerOpenResult, inputMonitoringGranted: Self.inputMonitoringGranted()) { return (hidManager, hidManagerOpenResult) }
+        let inputMonitoringGrantedNow = Self.inputMonitoringGranted()
+        if let hidManager, let hidManagerOpenResult, let hidManagerInputMonitoringGrantedAtOpen, Self.shouldReuseHIDManager(openResult: hidManagerOpenResult, inputMonitoringGrantedAtOpen: hidManagerInputMonitoringGrantedAtOpen, inputMonitoringGrantedNow: inputMonitoringGrantedNow) {
+            return (hidManager, hidManagerOpenResult)
+        }
 
         clearManagedHIDManager()
 
@@ -199,8 +212,10 @@ actor BridgeClient {
         managerAccessDenied = Self.resolvedManagerAccessDenied(openResult: openResult, inputMonitoringGranted: inputMonitoringGranted)
         if openResult == kIOReturnSuccess {
             lastLoggedHIDManagerOpenFailure = nil
-        } else if lastLoggedHIDManagerOpenFailure != openResult {
+            lastLoggedHIDManagerAccessDenied = nil
+        } else if Self.shouldLogHIDManagerOpenFailure(openResult: openResult, managerAccessDenied: managerAccessDenied, lastOpenResult: lastLoggedHIDManagerOpenFailure, lastManagerAccessDenied: lastLoggedHIDManagerAccessDenied) {
             lastLoggedHIDManagerOpenFailure = openResult
+            lastLoggedHIDManagerAccessDenied = managerAccessDenied
             if managerAccessDenied {
                 AppLog.error("Bridge", "IOHIDManagerOpen failed (\(openResult)); continuing best-effort discovery")
                 AppLog.error("Bridge", "IOHID access not permitted; USB access may be blocked unless Input Monitoring permission is granted")
@@ -211,6 +226,7 @@ actor BridgeClient {
 
         hidManager = manager
         hidManagerOpenResult = openResult
+        hidManagerInputMonitoringGrantedAtOpen = inputMonitoringGranted
         return (manager, openResult)
     }
 
@@ -226,6 +242,7 @@ actor BridgeClient {
             self.hidManager = nil
         }
         hidManagerOpenResult = nil
+        hidManagerInputMonitoringGrantedAtOpen = nil
         managerAccessDenied = false
         lastEmptyHIDManagerRefreshAt = nil
     }
@@ -246,7 +263,7 @@ actor BridgeClient {
         case kIOReturnSuccess:
             authorization = .granted
             detail = nil
-        case kIOReturnNotPermitted where Self.inputMonitoringGranted():
+        case kIOReturnNotPermitted where !managerAccessDenied:
             authorization = .granted
             detail = "Input Monitoring is granted; macOS refuses the bulk HID-manager open because protected keyboard interfaces are present, so OpenSnek uses per-device opens."
         case kIOReturnNotPermitted:
@@ -265,7 +282,7 @@ actor BridgeClient {
         var hidSnapshot = currentHIDDeviceSnapshot()
         if hidSnapshot.devices.isEmpty {
             let now = Date()
-            if Self.shouldRefreshEmptyHIDManagerSnapshot(openResult: hidSnapshot.openResult, lastRefreshAt: lastEmptyHIDManagerRefreshAt, now: now) {
+            if Self.shouldRefreshEmptyHIDManagerSnapshot(openResult: hidSnapshot.openResult, inputMonitoringGranted: !managerAccessDenied, lastRefreshAt: lastEmptyHIDManagerRefreshAt, now: now) {
                 // macOS can show a replugged receiver in IORegistry while a previously opened
                 // IOHIDManager keeps returning an empty device set and never emits another
                 // presence callback. Reopen the manager so polling can rediscover the device.
@@ -282,7 +299,7 @@ actor BridgeClient {
         } else {
             lastEmptyHIDManagerRefreshAt = nil
         }
-        let openResult = hidSnapshot.openResult
+        let managerAccessDeniedForSnapshot = managerAccessDenied
         let connectedBluetoothPeripheralNames = await btVendorClient.connectedPeripheralSummaries()?.map(\.name)
 
         let devices = hidSnapshot.devices
@@ -332,8 +349,7 @@ actor BridgeClient {
         await updatePassiveDpiTracking(with: passiveDpiTargets)
         var result = Array(modelsByID.values)
 
-        let hasBluetoothDevice = result.contains(where: { $0.transport == .bluetooth })
-        if !hasBluetoothDevice, result.isEmpty, openResult == kIOReturnNotPermitted {
+        if Self.discoveryIsBlockedByHIDAccess(discoveredDeviceCount: result.count, managerAccessDenied: managerAccessDeniedForSnapshot) {
             do {
                 _ = try await btExchange([], timeout: 0.8)
                 guard let summary = await btVendorClient.currentPeripheralSummary() else { throw BridgeError.commandFailed("Bluetooth fallback discovery resolved no peripheral identity") }
@@ -344,7 +360,7 @@ actor BridgeClient {
         }
 
         let sorted = result.sorted { $0.product_name < $1.product_name }
-        if sorted.isEmpty, openResult == kIOReturnNotPermitted {
+        if Self.discoveryIsBlockedByHIDAccess(discoveredDeviceCount: sorted.count, managerAccessDenied: managerAccessDeniedForSnapshot) {
             throw BridgeError.commandFailed("HID access denied by macOS (kIOReturnNotPermitted). " + "Enable Input Monitoring for OpenSnek (or Terminal/Xcode when running via swift run/Xcode), " + "or ensure a supported Bluetooth device is connected.")
         }
         AppLog.event("Bridge", "listDevices count=\(sorted.count) elapsed=\(String(format: "%.3f", Date().timeIntervalSince(start)))s")
@@ -386,11 +402,14 @@ actor BridgeClient {
         return now < settleDeadline
     }
 
-    nonisolated static func shouldRefreshEmptyHIDManagerSnapshot(openResult: IOReturn, lastRefreshAt: Date?, now: Date = Date()) -> Bool {
-        guard openResult == kIOReturnSuccess else { return false }
+    nonisolated static func shouldRefreshEmptyHIDManagerSnapshot(openResult: IOReturn, inputMonitoringGranted: Bool, lastRefreshAt: Date?, now: Date = Date()) -> Bool {
+        let canEnumerate = openResult == kIOReturnSuccess || (openResult == kIOReturnNotPermitted && inputMonitoringGranted)
+        guard canEnumerate else { return false }
         guard let lastRefreshAt else { return true }
         return now.timeIntervalSince(lastRefreshAt) >= Self.emptyHIDManagerRefreshInterval
     }
+
+    nonisolated static func discoveryIsBlockedByHIDAccess(discoveredDeviceCount: Int, managerAccessDenied: Bool) -> Bool { discoveredDeviceCount == 0 && managerAccessDenied }
 
     private func updateUSBReconnectSettleDeadline(for event: HIDDevicePresenceEvent) {
         guard event.transport == .usb else { return }

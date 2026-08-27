@@ -55,13 +55,14 @@ final class UnsupportedDeviceHandlingTests: XCTestCase {
 
     func testUSBReconnectSettleIntervalIsTwoSeconds() { XCTAssertEqual(BridgeClient.usbReconnectSettleInterval, 2.0) }
 
-    func testEmptyHIDManagerSnapshotRefreshRequiresSuccessfulOpenAndRateLimit() {
+    func testEmptyHIDManagerSnapshotRefreshSupportsNormalAndStructuralOpenResults() {
         let now = Date(timeIntervalSince1970: 3000)
 
-        XCTAssertTrue(BridgeClient.shouldRefreshEmptyHIDManagerSnapshot(openResult: kIOReturnSuccess, lastRefreshAt: nil, now: now))
-        XCTAssertFalse(BridgeClient.shouldRefreshEmptyHIDManagerSnapshot(openResult: kIOReturnNotPermitted, lastRefreshAt: nil, now: now))
-        XCTAssertFalse(BridgeClient.shouldRefreshEmptyHIDManagerSnapshot(openResult: kIOReturnSuccess, lastRefreshAt: now.addingTimeInterval(-0.25), now: now))
-        XCTAssertTrue(BridgeClient.shouldRefreshEmptyHIDManagerSnapshot(openResult: kIOReturnSuccess, lastRefreshAt: now.addingTimeInterval(-BridgeClient.emptyHIDManagerRefreshInterval), now: now))
+        XCTAssertTrue(BridgeClient.shouldRefreshEmptyHIDManagerSnapshot(openResult: kIOReturnSuccess, inputMonitoringGranted: true, lastRefreshAt: nil, now: now))
+        XCTAssertTrue(BridgeClient.shouldRefreshEmptyHIDManagerSnapshot(openResult: kIOReturnNotPermitted, inputMonitoringGranted: true, lastRefreshAt: nil, now: now))
+        XCTAssertFalse(BridgeClient.shouldRefreshEmptyHIDManagerSnapshot(openResult: kIOReturnNotPermitted, inputMonitoringGranted: false, lastRefreshAt: nil, now: now))
+        XCTAssertFalse(BridgeClient.shouldRefreshEmptyHIDManagerSnapshot(openResult: kIOReturnSuccess, inputMonitoringGranted: true, lastRefreshAt: now.addingTimeInterval(-0.25), now: now))
+        XCTAssertTrue(BridgeClient.shouldRefreshEmptyHIDManagerSnapshot(openResult: kIOReturnNotPermitted, inputMonitoringGranted: true, lastRefreshAt: now.addingTimeInterval(-BridgeClient.emptyHIDManagerRefreshInterval), now: now))
     }
 
     func testStaleSessionPermissionFlagDoesNotMasqueradeAsManagerDenial() async {
@@ -93,10 +94,32 @@ final class UnsupportedDeviceHandlingTests: XCTestCase {
         XCTAssertTrue(BridgeClient.resolvedManagerAccessDenied(openResult: kIOReturnNotPermitted, inputMonitoringGranted: false))
         XCTAssertFalse(BridgeClient.resolvedManagerAccessDenied(openResult: kIOReturnSuccess, inputMonitoringGranted: false))
 
-        XCTAssertTrue(BridgeClient.shouldReuseHIDManager(openResult: kIOReturnSuccess, inputMonitoringGranted: false))
-        XCTAssertTrue(BridgeClient.shouldReuseHIDManager(openResult: kIOReturnNotPermitted, inputMonitoringGranted: true))
-        XCTAssertFalse(BridgeClient.shouldReuseHIDManager(openResult: kIOReturnNotPermitted, inputMonitoringGranted: false))
-        XCTAssertFalse(BridgeClient.shouldReuseHIDManager(openResult: kIOReturnNoDevice, inputMonitoringGranted: true))
+        XCTAssertTrue(BridgeClient.shouldReuseHIDManager(openResult: kIOReturnSuccess, inputMonitoringGrantedAtOpen: true, inputMonitoringGrantedNow: true))
+        XCTAssertTrue(BridgeClient.shouldReuseHIDManager(openResult: kIOReturnNotPermitted, inputMonitoringGrantedAtOpen: true, inputMonitoringGrantedNow: true))
+        XCTAssertFalse(BridgeClient.shouldReuseHIDManager(openResult: kIOReturnNotPermitted, inputMonitoringGrantedAtOpen: false, inputMonitoringGrantedNow: false))
+        XCTAssertFalse(BridgeClient.shouldReuseHIDManager(openResult: kIOReturnNoDevice, inputMonitoringGrantedAtOpen: true, inputMonitoringGrantedNow: true))
+    }
+
+    func testHIDManagerPermissionTransitionsRequireReopenInBothDirections() {
+        XCTAssertFalse(BridgeClient.shouldReuseHIDManager(openResult: kIOReturnNotPermitted, inputMonitoringGrantedAtOpen: false, inputMonitoringGrantedNow: true))
+        XCTAssertFalse(BridgeClient.shouldReuseHIDManager(openResult: kIOReturnNotPermitted, inputMonitoringGrantedAtOpen: true, inputMonitoringGrantedNow: false))
+        XCTAssertFalse(BridgeClient.shouldReuseHIDManager(openResult: kIOReturnSuccess, inputMonitoringGrantedAtOpen: true, inputMonitoringGrantedNow: false))
+    }
+
+    func testHIDManagerLoggingTracksResolvedPermissionClassification() {
+        XCTAssertTrue(BridgeClient.shouldLogHIDManagerOpenFailure(openResult: kIOReturnNotPermitted, managerAccessDenied: false, lastOpenResult: nil, lastManagerAccessDenied: nil))
+        XCTAssertFalse(BridgeClient.shouldLogHIDManagerOpenFailure(openResult: kIOReturnNotPermitted, managerAccessDenied: false, lastOpenResult: kIOReturnNotPermitted, lastManagerAccessDenied: false))
+        XCTAssertTrue(BridgeClient.shouldLogHIDManagerOpenFailure(openResult: kIOReturnNotPermitted, managerAccessDenied: true, lastOpenResult: kIOReturnNotPermitted, lastManagerAccessDenied: false))
+        XCTAssertFalse(BridgeClient.shouldLogHIDManagerOpenFailure(openResult: kIOReturnSuccess, managerAccessDenied: false, lastOpenResult: kIOReturnNotPermitted, lastManagerAccessDenied: true))
+    }
+
+    func testEmptyDiscoveryReportsOnlyResolvedAccessDenial() {
+        let structuralRefusalIsDenied = BridgeClient.resolvedManagerAccessDenied(openResult: kIOReturnNotPermitted, inputMonitoringGranted: true)
+        let permissionRefusalIsDenied = BridgeClient.resolvedManagerAccessDenied(openResult: kIOReturnNotPermitted, inputMonitoringGranted: false)
+
+        XCTAssertFalse(BridgeClient.discoveryIsBlockedByHIDAccess(discoveredDeviceCount: 0, managerAccessDenied: structuralRefusalIsDenied))
+        XCTAssertTrue(BridgeClient.discoveryIsBlockedByHIDAccess(discoveredDeviceCount: 0, managerAccessDenied: permissionRefusalIsDenied))
+        XCTAssertFalse(BridgeClient.discoveryIsBlockedByHIDAccess(discoveredDeviceCount: 1, managerAccessDenied: true))
     }
 
     @MainActor func testUnsupportedClassificationIsStrictForBluetoothOnly() {
