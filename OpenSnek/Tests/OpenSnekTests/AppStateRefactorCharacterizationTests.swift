@@ -63,6 +63,7 @@ actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupportingBackend 
     private var onboardListCountByDeviceID: [String: Int] = [:]
     private var onboardReadCountByKey: [String: Int] = [:]
     private var onboardCoreReadCountByKey: [String: Int] = [:]
+    private var onboardMetadataReadCountByKey: [String: Int] = [:]
     private var onboardButtonReadCountByKey: [String: Int] = [:]
     private var onboardUpdates: [RecordedOnboardUpdate] = []
     private var onboardCreates: [RecordedOnboardCreate] = []
@@ -236,7 +237,14 @@ actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupportingBackend 
         let snapshot = onboardSnapshotsByKey[key] ?? makeRefactorOnboardProfileSnapshot(profileID: profileID, name: "Profile \(profileID)")
         return OnboardProfileSnapshot(
             profileID: snapshot.profileID, metadata: snapshot.metadata, dpi: snapshot.dpi, buttonBindings: [:], brightnessByLEDID: snapshot.brightnessByLEDID, staticColorByLEDID: snapshot.staticColorByLEDID, scrollMode: snapshot.scrollMode, scrollAcceleration: snapshot.scrollAcceleration,
-            scrollSmartReel: snapshot.scrollSmartReel)
+            scrollSmartReel: snapshot.scrollSmartReel, hasFetchedMetadata: false)
+    }
+
+    func readOnboardProfileMetadata(device: MouseDevice, profileID: Int) async throws -> OnboardProfileMetadata {
+        let key = onboardSnapshotKey(deviceID: device.id, profileID: profileID)
+        onboardMetadataReadCountByKey[key, default: 0] += 1
+        onboardEvents.append("read-metadata:\(profileID)")
+        return onboardSnapshotsByKey[key]?.metadata ?? OnboardProfileMetadata(name: "Profile \(profileID)")
     }
 
     func readOnboardProfileButtonBindings(device: MouseDevice, profileID: Int) async throws -> [Int: ButtonBindingDraft] {
@@ -407,6 +415,8 @@ actor AppStateRefactorStubBackend: DeviceBackend, ApplyOptionsSupportingBackend 
     func onboardReadCount(deviceID: String, profileID: Int) -> Int { onboardReadCountByKey[onboardSnapshotKey(deviceID: deviceID, profileID: profileID), default: 0] }
 
     func onboardCoreReadCount(deviceID: String, profileID: Int) -> Int { onboardCoreReadCountByKey[onboardSnapshotKey(deviceID: deviceID, profileID: profileID), default: 0] }
+
+    func onboardMetadataReadCount(deviceID: String, profileID: Int) -> Int { onboardMetadataReadCountByKey[onboardSnapshotKey(deviceID: deviceID, profileID: profileID), default: 0] }
 
     func onboardButtonReadCount(deviceID: String, profileID: Int) -> Int { onboardButtonReadCountByKey[onboardSnapshotKey(deviceID: deviceID, profileID: profileID), default: 0] }
 

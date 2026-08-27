@@ -54,7 +54,7 @@ struct LocalProfileLibraryPanel: View {
 
     private var localProfileSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(selectedSlotIsAssigned ? "Replace Profile" : "Load Profile").font(.system(size: 11, weight: .black, design: .rounded)).foregroundStyle(.white.opacity(0.74))
+            Text(selectedSlotIsAssigned ? "Replace Selected Profile With" : "Load Profile").font(.system(size: 11, weight: .black, design: .rounded)).foregroundStyle(.white.opacity(0.74))
 
             if visibleProfiles.isEmpty {
                 Text("No local profiles yet").font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(.white.opacity(0.42)).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 4)

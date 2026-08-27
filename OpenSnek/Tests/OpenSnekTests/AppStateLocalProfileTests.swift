@@ -12,7 +12,7 @@ final class AppStateLocalProfileTests: XCTestCase {
 
         let device = makeMappedProfileDevice(id: "local-profile-read-sync")
         let identifier = UUID()
-        let snapshot = makeLocalProfileOnboardSnapshot(profileID: 2, identifier: identifier, name: "Stored 2", dpiValues: [1200, 2400], activeStage: 1)
+        let snapshot = makeLocalProfileOnboardSnapshot(profileID: 2, identifier: identifier, name: "Profile 2", dpiValues: [1200, 2400], activeStage: 1)
         let backend = makeLocalProfileBackend(device: device, activeProfile: 2, dpiValues: [800, 1600])
         await backend.setOnboardInventory(makeLocalProfileInventory(activeProfile: 2, maxProfileID: 5, snapshots: [snapshot]), forDeviceID: device.id)
         await backend.setOnboardSnapshot(snapshot, forDeviceID: device.id)
@@ -24,12 +24,30 @@ final class AppStateLocalProfileTests: XCTestCase {
         try await waitForLocalProfiles { profiles in profiles.contains { $0.onboardIdentifier == identifier } }
 
         let profile = try XCTUnwrap(DevicePreferenceStore().loadOpenSnekLocalProfiles().first)
-        XCTAssertEqual(profile.name, "Stored 2")
+        XCTAssertEqual(profile.name, "Profile 2")
         XCTAssertEqual(profile.onboardIdentifier, identifier)
         XCTAssertEqual(profile.sourceDeviceProfileID, .basiliskV3Pro)
         XCTAssertEqual(profile.sourceTransport, .usb)
         XCTAssertEqual(profile.content.dpi?.values, [1200, 2400])
         XCTAssertEqual(profile.content.dpi?.activeStage, 1)
+    }
+
+    func testFetchedPlaceholderMetadataDoesNotCreateLocalProfile() async throws {
+        clearSavedButtonProfiles()
+        defer { clearSavedButtonProfiles() }
+
+        let device = makeMappedProfileDevice(id: "local-profile-placeholder-no-sync")
+        let placeholderIdentifier = OnboardProfileMetadata.placeholderIdentifier(deviceKey: DevicePersistenceKeys.key(for: device), profileID: 2)
+        let snapshot = makeLocalProfileOnboardSnapshot(profileID: 2, identifier: placeholderIdentifier, name: "Profile 2", dpiValues: [1200, 2400], activeStage: 1)
+        let backend = makeLocalProfileBackend(device: device, activeProfile: 2, dpiValues: [1200, 2400])
+        await backend.setOnboardInventory(makeLocalProfileInventory(activeProfile: 2, maxProfileID: 5, snapshots: [snapshot]), forDeviceID: device.id)
+        await backend.setOnboardSnapshot(snapshot, forDeviceID: device.id)
+
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
+        await appState.deviceStore.refreshDevices()
+        await appState.editorStore.refreshOnboardProfiles()
+
+        XCTAssertTrue(DevicePreferenceStore().loadOpenSnekLocalProfiles().isEmpty)
     }
 
     func testMappedOnboardProfileDPIEditUpdatesSameLocalUUIDProfile() async throws {

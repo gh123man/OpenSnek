@@ -51,6 +51,9 @@ private actor BackgroundServiceRequestHandler {
         case .readOnboardProfileCore:
             let onboardRequest = try decodePayload(OnboardProfileIDRequest.self, from: request.payload)
             payload = try BackendCodec.encode(try await backend.readOnboardProfileCore(device: onboardRequest.device, profileID: onboardRequest.profileID))
+        case .readOnboardProfileMetadata:
+            let onboardRequest = try decodePayload(OnboardProfileIDRequest.self, from: request.payload)
+            payload = try BackendCodec.encode(try await backend.readOnboardProfileMetadata(device: onboardRequest.device, profileID: onboardRequest.profileID))
         case .readOnboardProfileButtonBindings:
             let onboardRequest = try decodePayload(OnboardProfileIDRequest.self, from: request.payload)
             payload = try BackendCodec.encode(try await backend.readOnboardProfileButtonBindings(device: onboardRequest.device, profileID: onboardRequest.profileID))

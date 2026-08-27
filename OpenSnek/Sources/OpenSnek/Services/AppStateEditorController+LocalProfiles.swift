@@ -342,6 +342,8 @@ import OpenSnekCore
         // Core reads intentionally skip metadata and button bindings for speed. They
         // must not mint UUID-backed local backups from fallback names like "Profile 1".
         guard !source.localizedCaseInsensitiveContains("core") else { return false }
+        let placeholderIdentifier = OnboardProfileMetadata.placeholderIdentifier(deviceKey: DevicePersistenceKeys.key(for: device), profileID: snapshot.profileID)
+        guard snapshot.metadata.identifier != placeholderIdentifier else { return false }
         guard !snapshot.metadata.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
         return true
     }

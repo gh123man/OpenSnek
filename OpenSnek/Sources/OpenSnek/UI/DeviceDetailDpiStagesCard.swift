@@ -246,7 +246,7 @@ private struct DpiSelectableStageHeader: View {
     private var stageNumber: Int { index + 1 }
 
     var body: some View {
-        Button(action: selectStage) { DpiSelectableStageHeaderLabel(stageNumber: stageNumber, systemImage: editorStore.editableActiveStage == stageNumber ? "checkmark.square.fill" : "square", stageColor: stageColor, isSelectedStage: isSelectedStage) }.buttonStyle(.plain).foregroundStyle(
+        Button(action: selectStage) { DpiSelectableStageHeaderLabel(stageNumber: stageNumber, systemImage: editorStore.editableActiveStage == stageNumber ? "largecircle.fill.circle" : "circle", stageColor: stageColor, isSelectedStage: isSelectedStage) }.buttonStyle(.plain).foregroundStyle(
             isSelectedStage ? stageColor : .white
         ).accessibilityIdentifier("dpi-stage-\(stageNumber)-select-button")
     }

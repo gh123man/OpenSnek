@@ -284,6 +284,8 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         return snapshot
     }
 
+    func readOnboardProfileMetadata(device: MouseDevice, profileID: Int) async throws -> OnboardProfileMetadata { try await client.readOnboardProfileMetadata(device: device, profileID: profileID) }
+
     func readOnboardProfileButtonBindings(device: MouseDevice, profileID: Int) async throws -> [Int: ButtonBindingDraft] { try await client.readOnboardProfileButtonBindings(device: device, profileID: profileID) }
 
     func createOnboardProfile(device: MouseDevice, mutation: OnboardProfileMutation, targetProfileID: Int?, replaceAssignedProfile: Bool) async throws -> OnboardProfileSnapshot {

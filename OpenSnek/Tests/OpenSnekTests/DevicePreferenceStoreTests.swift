@@ -105,6 +105,28 @@ final class DevicePreferenceStoreTests: XCTestCase {
         XCTAssertEqual(profiles.first?.content.scrollMode, 1)
     }
 
+    func testOnboardProfilesWithPlaceholderLikeNamesRemainDistinct() {
+        let suiteName = "DevicePreferenceStoreTests.PlaceholderLikeNames.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = DevicePreferenceStore(defaults: defaults)
+        let device = MouseDevice(id: "usb-placeholder-like-names", vendor_id: 0x1532, product_id: 0x00AB, product_name: "Basilisk V3 Pro", transport: .usb, path_b64: "", serial: "PLACEHOLDER-LIKE-NAMES", firmware: nil, profile_id: .basiliskV3Pro)
+        let firstIdentifier = UUID()
+        let secondIdentifier = UUID()
+        let first = OnboardProfileSnapshot(profileID: 2, metadata: OnboardProfileMetadata(identifier: firstIdentifier, name: "Profile 2"), dpi: OnboardDPIProfileSnapshot(scalar: DpiPair(x: 800, y: 800), activeStage: 0, pairs: [DpiPair(x: 800, y: 800)]))
+        let second = OnboardProfileSnapshot(profileID: 3, metadata: OnboardProfileMetadata(identifier: secondIdentifier, name: "Profile 2"), dpi: OnboardDPIProfileSnapshot(scalar: DpiPair(x: 1600, y: 1600), activeStage: 0, pairs: [DpiPair(x: 1600, y: 1600)]))
+
+        store.upsertOpenSnekLocalProfile(from: first, device: device)
+        store.upsertOpenSnekLocalProfile(from: second, device: device)
+
+        let profilesByIdentifier = Dictionary(uniqueKeysWithValues: store.loadOpenSnekLocalProfiles().compactMap { profile in profile.onboardIdentifier.map { ($0, profile) } })
+        XCTAssertEqual(profilesByIdentifier.count, 2)
+        XCTAssertEqual(profilesByIdentifier[firstIdentifier]?.content.dpi?.values, [800])
+        XCTAssertEqual(profilesByIdentifier[secondIdentifier]?.content.dpi?.values, [1600])
+    }
+
     func testOpenSnekLocalProfileUpsertBySyntheticSlotKeyPreservesLocalRecordID() {
         let suiteName = "DevicePreferenceStoreTests.SyntheticUpsert.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
