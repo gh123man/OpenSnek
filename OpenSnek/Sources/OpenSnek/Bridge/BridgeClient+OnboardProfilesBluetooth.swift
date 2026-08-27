@@ -58,14 +58,15 @@ extension BridgeClient {
         let bindings = includeButtonBindings ? try await btReadOnboardProfileButtons(device: device, profile: profile, target: target) : [:]
         let brightness = try await btReadOnboardProfileBrightness(device: device, target: target)
         let colors = try await btReadOnboardProfileStaticColors(device: device, target: target)
-        return OnboardProfileSnapshot(profileID: target, metadata: metadata, dpi: dpi, buttonBindings: bindings, brightnessByLEDID: brightness, staticColorByLEDID: colors)
+        return OnboardProfileSnapshot(profileID: target, metadata: metadata, dpi: dpi, buttonBindings: bindings, brightnessByLEDID: brightness, staticColorByLEDID: colors, hasFetchedMetadata: includeMetadata)
     }
 
     func btReadOnboardProfileMetadata(device: MouseDevice, target: Int, requireKnownFields: Bool = false) async throws -> OnboardProfileMetadata {
         let parsed = try await btReadOnboardProfileMetadataFields(device: device, target: target)
         if let metadata = Self.completeBluetoothOnboardProfileMetadata(parsed) { return metadata }
         if requireKnownFields { throw BridgeError.commandFailed("Bluetooth onboard profile metadata read did not include complete UUID/name/owner fields for target \(target).") }
-        return OnboardProfileMetadata(identifier: parsed.identifier ?? UUID(), name: parsed.name ?? "Profile \(target)", owner: parsed.owner ?? OnboardProfileMetadata.synapseCompatibleFallbackOwner)
+        let placeholderIdentifier = OnboardProfileMetadata.placeholderIdentifier(deviceKey: DevicePersistenceKeys.key(for: device), profileID: target)
+        return OnboardProfileMetadata(identifier: parsed.identifier ?? placeholderIdentifier, name: parsed.name ?? "Profile \(target)", owner: parsed.owner ?? OnboardProfileMetadata.synapseCompatibleFallbackOwner)
     }
 
     func btReadOnboardProfileMetadataFields(device: MouseDevice, target: Int) async throws -> USBHIDProtocol.OnboardProfileMetadata {

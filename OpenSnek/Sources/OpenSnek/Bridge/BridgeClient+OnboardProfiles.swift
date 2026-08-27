@@ -31,6 +31,15 @@ extension BridgeClient {
         }
     }
 
+    func readOnboardProfileMetadata(device: MouseDevice, profileID: Int) async throws -> OnboardProfileMetadata {
+        let profile = try mappedOnboardProfileSupport(for: device)
+        let clampedProfileID = max(0, min(profile.onboardProfileCount, profileID))
+        switch device.transport {
+        case .usb: return try await withUSBProfileSession(device: device) { session in try self.usbReadOnboardProfileMetadata(session, device, profileID: clampedProfileID) }
+        case .bluetooth: return try await btReadOnboardProfileMetadata(device: device, target: clampedProfileID)
+        }
+    }
+
     func readOnboardProfileButtonBindings(device: MouseDevice, profileID: Int) async throws -> [Int: ButtonBindingDraft] {
         let profile = try mappedOnboardProfileSupport(for: device)
         let clampedProfileID = max(0, min(profile.onboardProfileCount, profileID))

@@ -42,7 +42,7 @@ private struct ProjectedOnboardDPIState {
 
     func snapshotWithCachedButtonBindings(_ snapshot: OnboardProfileSnapshot, device: MouseDevice) -> OnboardProfileSnapshot {
         let metadataResolvedSnapshot: OnboardProfileSnapshot
-        if let metadata = onboardProfileInventoryByDeviceID[device.id]?.summary(for: snapshot.profileID)?.metadata { metadataResolvedSnapshot = snapshot.replacingMetadata(metadata) } else { metadataResolvedSnapshot = snapshot }
+        if let metadata = onboardProfileInventoryByDeviceID[device.id]?.summary(for: snapshot.profileID)?.metadata { metadataResolvedSnapshot = snapshot.replacingMetadata(metadata, hasFetchedMetadata: true) } else { metadataResolvedSnapshot = snapshot }
         guard !(device.transport == .bluetooth && supportsOnboardProfileCRUD(device: device)) else { return metadataResolvedSnapshot }
         let cached = cachedButtonBindings(device: device, profile: max(1, snapshot.profileID))
         guard !cached.isEmpty else { return metadataResolvedSnapshot }
