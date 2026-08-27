@@ -290,6 +290,10 @@ extension BridgeClient {
     }
 
     func usbApplyOnboardProfileMutation(_ session: USBHIDControlSession, _ device: MouseDevice, profile: DeviceProfile, profileID: Int, mutation: OnboardProfileMutation, dpiWriteContext: OnboardDPIProfileSnapshot? = nil) throws {
+        if let bindings = mutation.buttonBindings {
+            let hasUnsupportedDefault = bindings.contains { slot, draft in profile.buttonLayout.isEditable(slot) && draft.kind == .default && !ButtonBindingSupport.supportsDefaultRestore(for: slot, profileID: device.profile_id) }
+            guard !hasUnsupportedDefault else { throw BridgeError.commandFailed("USB onboard profile contains a button default that OpenSnek cannot safely restore.") }
+        }
         if let dpi = mutation.dpi, !dpi.pairs.isEmpty {
             let dpiForWrite = Self.usbStoredProfileDPIWriteSnapshot(requested: dpi, slotContext: dpiWriteContext)
             try usbWriteOnboardProfileDPIStages(session, device, profileID: profileID, dpi: dpiForWrite)

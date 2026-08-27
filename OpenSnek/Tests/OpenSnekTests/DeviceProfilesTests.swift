@@ -291,10 +291,10 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.productName, "Naga Pro")
         XCTAssertEqual(profile?.supportedProducts, [0x008F, 0x0090])
         XCTAssertEqual(profile?.usbTransactionID, 0x1F)
-        XCTAssertEqual(profile?.buttonLayout.writableSlots, [1, 2, 3, 4, 5, 9, 10, 52, 53, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82, 83, 84, 85])
+        XCTAssertEqual(profile?.buttonLayout.writableSlots, [1, 2, 3, 4, 5, 9, 10, 52, 53, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82])
         XCTAssertEqual(profile?.buttonLayout.access(for: 14), .protocolReadOnly)
         XCTAssertEqual(profile?.buttonLayout.access(for: 80), .editable)
-        XCTAssertEqual(profile?.buttonLayout.access(for: 83), .editable)
+        XCTAssertEqual(profile?.buttonLayout.access(for: 83), .protocolReadOnly)
         XCTAssertEqual(profile?.buttonLayout.visibleSlots.first(where: { $0.slot == 5 })?.friendlyName, "Panel Button 1")
         XCTAssertEqual(profile?.buttonLayout.visibleSlots.first(where: { $0.slot == 5 })?.group, "2-Button Panel")
         XCTAssertEqual(profile?.buttonLayout.visibleSlots.first(where: { $0.slot == 4 })?.group, "2-Button Panel")
@@ -310,6 +310,9 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.onboardProfileCount, 5)
         XCTAssertEqual(profile?.isLocallyValidated, false)
         XCTAssertFalse(ButtonBindingSupport.availableButtonBindingKinds(profileID: .nagaPro).contains(.dpiClutch))
+        XCTAssertFalse(ButtonBindingSupport.availableButtonBindingKinds(for: 64, profileID: .nagaPro).contains(.default))
+        XCTAssertTrue(ButtonBindingSupport.availableButtonBindingKinds(for: 64, profileID: .nagaPro).contains(.keyboardSimple))
+        XCTAssertTrue(ButtonBindingSupport.availableButtonBindingKinds(for: 52, profileID: .nagaPro).contains(.default))
         XCTAssertNil(ButtonBindingSupport.defaultDPIClutchDPI(for: .nagaPro))
     }
 

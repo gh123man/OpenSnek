@@ -100,6 +100,13 @@ public enum ButtonBindingSupport {
         return fallback
     }
 
+    public static func supportsDefaultRestore(for slot: Int, profileID: DeviceProfileID? = nil) -> Bool { defaultUSBFunctionBlock(for: slot, profileID: profileID) != nil }
+
+    public static func completeDefaultUSBFunctionBlocks(for slots: [Int], profileID: DeviceProfileID? = nil) -> [Int: [UInt8]]? {
+        let blocks = slots.reduce(into: [Int: [UInt8]]()) { result, slot in result[slot] = defaultUSBFunctionBlock(for: slot, profileID: profileID) }
+        return blocks.count == Set(slots).count ? blocks : nil
+    }
+
     public static func semanticDefaultButtonBinding(for slot: Int, profileID: DeviceProfileID? = nil) -> ButtonBindingDraft? {
         switch slot {
         case 15 where isBasiliskV3Family(profileID): return ButtonBindingDraft(kind: .dpiClutch, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate, clutchDPI: defaultDPIClutchDPI(for: profileID))
@@ -319,6 +326,8 @@ public enum ButtonBindingSupport {
             }
         }
     }
+
+    public static func availableButtonBindingKinds(for slot: Int, profileID: DeviceProfileID?) -> [ButtonBindingKind] { availableButtonBindingKinds(profileID: profileID).filter { kind in kind != .default || supportsDefaultRestore(for: slot, profileID: profileID) } }
 
     private static func buttonSlotDescriptors(for profileID: DeviceProfileID?) -> [ButtonSlotDescriptor] {
         switch profileID {

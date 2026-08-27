@@ -588,6 +588,11 @@ Observed Basilisk V3 Pro Bluetooth exception:
 - stored and active profile targets can report default wheel tilt as the shortened raw function blocks `0e016800140000` / `0e016900140000`; normalize these to the slot default instead of decoding the packed payload prefix as a mouse button action
 - OpenSnek writes that same raw `0x0E` block for Bluetooth `Scroll Left` / `Scroll Right` and for wheel-tilt default restore
 
+Contributor-validated Naga Pro Bluetooth exception (`PID 0x0092`):
+- the device keeps vendor ID `0x1532` and uses the same seven-byte function-block encoding as its USB/receiver paths
+- wheel tilt on slots `0x34` / `0x35` uses raw blocks `0e0309008e0000` / `0e030a008e0000`, so Naga writes must not reuse the Basilisk `0x68` / `0x69` encoder
+- side-panel slots with unknown factory blocks do not offer `Default`; slots `0x53..0x55` remain read-only until their native class-`0x03` action is decoded
+
 #### 6.5.2 Mouse Button IDs Used by Swift
 
 | Meaning | Button ID |

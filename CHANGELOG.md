@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Added contributor-validated Razer Naga Pro support over USB (wired `0x008F` and 2.4 GHz receiver `0x0090`) and Bluetooth (`0x0092`), including DPI stages, two-zone static lighting/brightness, mapped onboard profiles, and grouped remapping for the known-safe buttons on all three side panels. Native default restore remains unavailable for side-panel slots whose factory blocks are unknown, and undecoded class-`0x03` slots remain read-only.
+
 ### Fixed
 - Fixed onboard profile names remaining stuck on synthesized `Profile N` labels after profile switches; assigned profile names now load when the profile picker refreshes.
 - Stopped metadata fallbacks from creating repeated local profile entries without treating legitimate user-named `Profile N` profiles as disposable placeholders.
@@ -15,7 +18,6 @@ All notable changes to this project are documented in this file.
 
 ### Added
 - Added Sparkle-backed automatic update installation from GitHub Releases, including Sparkle's changelog/install UI and a developer dry-run mode for previewing the latest release update flow.
-- Added Razer Naga Pro support over USB (wired and 2.4GHz dongle) and Bluetooth: button remapping across all three swappable side panels (2-button, 6-button, 12-button), grouped clearly in the button mapping table; DPI stages; and full onboard-profile switching/CRUD. Known limitation: onboard profile names for non-active slots can fail to load over Bluetooth due to a pre-existing multi-fragment BLE response reassembly issue that also affects other Bluetooth devices.
 
 ### Fixed
 - Fixed a Bluetooth vendor-transport bug where multi-fragment responses (e.g. onboard profile metadata, which can span 5+ notify packets) could be truncated if the peripheral hadn't finished streaming before a fixed completion timer fired. The timer now resets on every notification instead of only after the last write.

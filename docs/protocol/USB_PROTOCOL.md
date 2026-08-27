@@ -217,6 +217,12 @@ Observed control labels on `0x00CB`:
 - `0x60`: top DPI button
 - `0x6A`: profile button
 
+Contributor-validated Naga Pro slots (`0x008F` wired / `0x0090` receiver): body and 2-button-panel slots `0x01..0x05`, `0x09`, `0x0A`, `0x34`, `0x35`; 12-button-panel slots `0x40..0x4B`; and 6-button-panel slots `0x50..0x55`.
+- explicit remaps ship for `0x40..0x4B` and `0x50..0x52`, but their native factory blocks are not known, so `Default` is not offered
+- slots `0x53..0x55` use an undecoded native class-`0x03` function block and remain read-only
+- wheel tilt uses class-`0x0E` button IDs `0x09` / `0x0A` with default rate `0x8E`, rather than the Basilisk-family IDs `0x68` / `0x69`
+- full-profile reset must resolve every native block before sending its first write; otherwise the operation fails without partially resetting the profile
+
 Validated function block examples:
 - right click: `01 01 02 00 00 00 00`
 - back button (default for slot `0x04`): `01 01 04 00 00 00 00`

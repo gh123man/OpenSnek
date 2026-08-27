@@ -183,16 +183,6 @@ private struct ProfilePickerPanel: View {
 
     private var selectedArrowCenterY: CGFloat { CGFloat(selectedProfileIndex) * (slotRowHeight + slotRowSpacing) + (slotRowHeight / 2) }
 
-    // Forces the mouse to reload the selected profile from flash, in case its live behavior has drifted from what's
-    // stored (the in-app equivalent of a power cycle) - a manual escape hatch, not something normal use should need.
-    private var refreshActiveProfileButton: some View {
-        Button {
-            Task { await editorStore.refreshActiveOnboardProfile() }
-        } label: {
-            Image(systemName: "arrow.clockwise").font(.system(size: 11, weight: .bold))
-        }.buttonStyle(.plain).foregroundStyle(.white.opacity(0.54)).disabled(isBusy || selectedProfileID == nil).help("Reload this profile from the mouse").accessibilityIdentifier("onboard-profile-refresh-active-button").accessibilityLabel("Refresh profile from mouse")
-    }
-
     var body: some View { VStack(alignment: .leading, spacing: 12) { if editorStore.onboardProfileSummaries.isEmpty { if isRefreshing { loadingRow } else { emptyRefreshState } } else { profileLayout } } }
 
     private var loadingRow: some View {
@@ -219,11 +209,7 @@ private struct ProfilePickerPanel: View {
 
     private var profileLayout: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Text("Onboard Profiles").font(.system(size: 11, weight: .black, design: .rounded)).foregroundStyle(.white.opacity(0.74))
-                Spacer(minLength: 8)
-                refreshActiveProfileButton
-            }
+            Text("Onboard Profiles").font(.system(size: 11, weight: .black, design: .rounded)).foregroundStyle(.white.opacity(0.74))
 
             HStack(alignment: .top, spacing: columnSpacing) {
                 VStack(alignment: .leading, spacing: slotRowSpacing) { ForEach(editorStore.onboardProfileSummaries) { profile in profileSlotRow(profile).frame(width: slotColumnWidth, height: slotRowHeight) } }
@@ -569,8 +555,9 @@ private struct ButtonBindingHeaderRow: View {
 
             Spacer(minLength: 12)
 
-            Picker("", selection: Binding(get: { editorStore.buttonBindingKind(for: row.slot) }, set: { editorStore.updateButtonBindingKind(slot: row.slot, kind: $0) })) { ForEach(ButtonBindingSupport.availableButtonBindingKinds(profileID: profileID)) { kind in Text(kind.label).tag(kind) } }
-                .labelsHidden().pickerStyle(.menu).frame(width: 220, alignment: .trailing).disabled(!row.isEditable).accessibilityIdentifier("button-binding-kind-picker-\(row.slot)")
+            Picker("", selection: Binding(get: { editorStore.buttonBindingKind(for: row.slot) }, set: { editorStore.updateButtonBindingKind(slot: row.slot, kind: $0) })) {
+                ForEach(ButtonBindingSupport.availableButtonBindingKinds(for: row.slot, profileID: profileID)) { kind in Text(kind.label).tag(kind) }
+            }.labelsHidden().pickerStyle(.menu).frame(width: 220, alignment: .trailing).disabled(!row.isEditable).accessibilityIdentifier("button-binding-kind-picker-\(row.slot)")
         }
     }
 }

@@ -605,8 +605,11 @@ extension BridgeClient {
         let slots = writableUSBButtonSlots(for: device)
         guard !slots.isEmpty else { return false }
 
+        let defaultBlocks = ButtonBindingSupport.completeDefaultUSBFunctionBlocks(for: slots.map(Int.init), profileID: device.profile_id)
+        guard let defaultBlocks else { return false }
+
         for slot in slots {
-            guard let block = ButtonBindingSupport.defaultUSBFunctionBlock(for: Int(slot), profileID: device.profile_id) else { return false }
+            guard let block = defaultBlocks[Int(slot)] else { return false }
             guard try setButtonBindingUSBRaw(session, device, request: USBRawButtonBindingWrite(profile: profile, slot: slot, hypershift: 0x00, functionBlock: block)) else { return false }
         }
 
@@ -622,6 +625,7 @@ extension BridgeClient {
 
     func setButtonBindingUSB(_ session: USBHIDControlSession, _ device: MouseDevice, request: USBButtonBindingWrite) throws -> Bool {
         guard let bindingKind = ButtonBindingKind(rawValue: request.kind) else { return false }
+        guard bindingKind != .default || ButtonBindingSupport.supportsDefaultRestore(for: request.slot, profileID: device.profile_id) else { return false }
         let draft = ButtonBindingDraft(kind: bindingKind, hidKey: request.hidKey, hidModifiers: request.hidModifiers, turboEnabled: request.turboEnabled && bindingKind.supportsTurbo, turboRate: request.turboRate, clutchDPI: request.clutchDPI)
         let functionBlock = ButtonBindingSupport.usbFunctionBlockForWrite(slot: request.slot, draft: draft, profileID: device.profile_id)
         let clampedSlot = UInt8(max(0, min(255, request.slot)))

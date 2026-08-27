@@ -191,6 +191,11 @@ final class USBButtonHydrationTests: XCTestCase {
         XCTAssertFalse(ButtonBindingSupport.availableButtonBindingKinds(profileID: .nagaPro).contains(.dpiClutch))
     }
 
+    func testNagaProFullProfileResetRequiresMissingNativeDefaults() {
+        XCTAssertNil(ButtonBindingSupport.completeDefaultUSBFunctionBlocks(for: DeviceProfiles.nagaProUSBWritableSlots, profileID: .nagaPro))
+        XCTAssertNotNil(ButtonBindingSupport.completeDefaultUSBFunctionBlocks(for: [1, 2, 3, 4, 5, 9, 10, 52, 53], profileID: .nagaPro))
+    }
+
     func testBuildUSBFunctionBlockSupportsKeyboardShortcutModifiers() {
         let block = ButtonBindingSupport.buildUSBFunctionBlock(slot: 4, kind: .keyboardSimple, hidKey: 0x2F, hidModifiers: 0x08, turboEnabled: false, turboRate: 0x8E)
 
