@@ -2,7 +2,9 @@
 
 Pure Swift macOS frontend for `open-snek`.
 
-Official builds use the latest Xcode/macOS SDK. Minimum supported macOS version: macOS 14.
+Official builds use the latest Xcode/macOS SDK. Local source builds can use
+either full Xcode or Command Line Tools. Minimum supported macOS version:
+macOS 14.
 
 Device onboarding and capture interpretation live in:
 
@@ -88,6 +90,13 @@ From the repo root, the shortest path is:
 ./run.sh
 ```
 
+`./run.sh` uses the canonical Xcode app target when full Xcode is installed. On
+a Command Line Tools-only Mac it automatically uses a compatible standalone
+Swift toolchain and assembles the same app bundle. If the Swift bundled with
+Command Line Tools is older than the package requires, install the current
+toolchain with `brew install swift`; changing `xcode-select` or `PATH` is not
+required.
+
 To launch the current app bundle without rebuilding:
 
 ```bash
@@ -172,7 +181,10 @@ Bundle build only:
 ./OpenSnek/scripts/build_macos_app.sh --configuration release
 ```
 
-This now builds the real Xcode `OpenSnek.app` target and stages that app bundle into `OpenSnek/.dist/` for local launch/TCC reuse.
+With full Xcode this builds the canonical `OpenSnek.app` target. On a Command
+Line Tools-only Mac it builds the same executable with SwiftPM and assembles the
+app bundle. Both paths stage `OpenSnek/.dist/OpenSnek.app` for local launch/TCC
+reuse.
 
 DMG release build and notarization:
 

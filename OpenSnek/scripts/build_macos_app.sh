@@ -5,9 +5,10 @@ usage() {
   cat <<'USAGE'
 Build a local macOS .app bundle for OpenSnek.
 
-This uses the canonical Xcode app target, then copies the built app into
-`OpenSnek/.dist/OpenSnek.app` so local launches can reuse a stable bundle path
-for TCC/Input Monitoring.
+This uses the canonical Xcode app target when full Xcode is available. On a
+Command Line Tools-only host it builds with SwiftPM and assembles the same
+`OpenSnek/.dist/OpenSnek.app` path so local launches can reuse a stable bundle
+path for TCC/Input Monitoring.
 
 Usage:
   build_macos_app.sh [options]
@@ -221,6 +222,121 @@ print_xcodebuild_failure() {
   echo "[open-snek] Full xcodebuild log: $log_file" >&2
 }
 
+find_compatible_swift() {
+  local candidate
+  local candidates=()
+
+  if command -v swift >/dev/null 2>&1; then
+    candidates+=("$(command -v swift)")
+  fi
+  candidates+=(
+    "/opt/homebrew/opt/swift/bin/swift"
+    "/usr/local/opt/swift/bin/swift"
+  )
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -x "$candidate" ]] && "$candidate" package --package-path "$PACKAGE_DIR" dump-package >/dev/null 2>&1; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+has_full_xcode() {
+  command -v xcodebuild >/dev/null 2>&1 && xcodebuild -version >/dev/null 2>&1
+}
+
+stage_swiftpm_app() {
+  local swift_bin_path="$1"
+  local built_executable="$swift_bin_path/$PRODUCT_NAME"
+  local built_framework="$swift_bin_path/Sparkle.framework"
+  local contents_dir="$APP_BUNDLE/Contents"
+  local executable_dir="$contents_dir/MacOS"
+  local frameworks_dir="$contents_dir/Frameworks"
+  local resources_dir="$contents_dir/Resources"
+  local info_plist="$contents_dir/Info.plist"
+  local icon_source_dir="$PACKAGE_DIR/App/Resources/Assets.xcassets/AppIcon.appiconset"
+  local icon_work_dir
+  local iconset_dir
+
+  if [[ ! -x "$built_executable" ]]; then
+    echo "Built executable not found: $built_executable" >&2
+    exit 1
+  fi
+  if [[ ! -d "$built_framework" ]]; then
+    echo "Built Sparkle framework not found: $built_framework" >&2
+    exit 1
+  fi
+
+  rm -rf "$APP_BUNDLE"
+  mkdir -p "$executable_dir" "$frameworks_dir" "$resources_dir"
+  ditto "$built_executable" "$executable_dir/$PRODUCT_NAME"
+  ditto "$built_framework" "$frameworks_dir/Sparkle.framework"
+  ditto "$PACKAGE_DIR/App/Resources/snek-menu-template.png" "$resources_dir/snek-menu-template.png"
+  ditto "$PACKAGE_DIR/App/Resources/snek-menu.png" "$resources_dir/snek-menu.png"
+
+  install_name_tool -add_rpath "@executable_path/../Frameworks" "$executable_dir/$PRODUCT_NAME"
+
+  ditto "$PACKAGE_DIR/App/Info.plist" "$info_plist"
+  plutil -replace CFBundleDevelopmentRegion -string "en" "$info_plist"
+  plutil -replace CFBundleExecutable -string "$PRODUCT_NAME" "$info_plist"
+  plutil -replace CFBundleIdentifier -string "$BUNDLE_ID" "$info_plist"
+  plutil -replace CFBundleName -string "$PRODUCT_NAME" "$info_plist"
+  plutil -replace CFBundleShortVersionString -string "$VERSION" "$info_plist"
+  plutil -replace CFBundleVersion -string "$BUILD_NUMBER" "$info_plist"
+  plutil -replace LSMinimumSystemVersion -string "14.0" "$info_plist"
+  plutil -replace OpenSnekBuildChannel -string "$BUILD_CHANNEL" "$info_plist"
+  plutil -replace SUPublicEDKey -string "$SPARKLE_PUBLIC_ED_KEY" "$info_plist"
+  plutil -insert CFBundleIconFile -string "OpenSnek.icns" "$info_plist"
+
+  icon_work_dir="$(mktemp -d "${TMPDIR:-/tmp}/open_snek_icon.XXXXXX")"
+  iconset_dir="$icon_work_dir/OpenSnek.iconset"
+  mkdir -p "$iconset_dir"
+  for icon_file in "$icon_source_dir"/icon_*.png; do
+    ditto "$icon_file" "$iconset_dir/$(basename "$icon_file")"
+  done
+  iconutil --convert icns --output "$resources_dir/OpenSnek.icns" "$iconset_dir"
+  rm -rf "$icon_work_dir"
+}
+
+build_with_swiftpm() {
+  local swift_command="$1"
+  local swift_scratch_path="$DERIVED_DATA_PATH/SwiftPM"
+  local swift_cache_path="$DERIVED_DATA_PATH/SwiftPMCache"
+  local swift_config_path="$DERIVED_DATA_PATH/SwiftPMConfig"
+  local swift_security_path="$DERIVED_DATA_PATH/SwiftPMSecurity"
+  local module_cache_path="$DERIVED_DATA_PATH/ModuleCache"
+  local developer_dir=""
+  local swift_environment=(env "CLANG_MODULE_CACHE_PATH=$module_cache_path")
+  local swift_arguments=(
+    --disable-keychain
+    --package-path "$PACKAGE_DIR"
+    --scratch-path "$swift_scratch_path"
+    --cache-path "$swift_cache_path"
+    --config-path "$swift_config_path"
+    --security-path "$swift_security_path"
+    --configuration "$CONFIGURATION"
+  )
+
+  if developer_dir="$(xcode-select -p 2>/dev/null)" && [[ -d "$developer_dir/usr/lib/sourcekitdInProc.framework" ]]; then
+    swift_environment+=("XCODE_DEFAULT_TOOLCHAIN_OVERRIDE=$developer_dir")
+  fi
+
+  if [[ "$CLEAN_BUILD" == true ]]; then
+    rm -rf "$swift_scratch_path" "$module_cache_path"
+  fi
+  mkdir -p "$swift_cache_path" "$swift_config_path" "$swift_security_path" "$module_cache_path"
+
+  echo "[open-snek] Full Xcode unavailable; building $PRODUCT_NAME ($CONFIGURATION) with SwiftPM..."
+  "${swift_environment[@]}" "$swift_command" build "${swift_arguments[@]}" --product "$PRODUCT_NAME"
+
+  local swift_bin_path
+  swift_bin_path="$("${swift_environment[@]}" "$swift_command" build "${swift_arguments[@]}" --show-bin-path)"
+  stage_swiftpm_app "$swift_bin_path"
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 OUTPUT_DIR="${OUTPUT_DIR:-$PACKAGE_DIR/.dist}"
@@ -231,9 +347,8 @@ DISPLAY_NAME="OpenSnek"
 APP_BUNDLE="$OUTPUT_DIR/$DISPLAY_NAME.app"
 DERIVED_DATA_PATH="$OUTPUT_DIR/.derived-data"
 XCODEBUILD_LOG=""
+PRESERVE_NESTED_SIGNATURES=false
 
-require_cmd xcodebuild
-require_cmd xcodegen
 require_cmd ditto
 
 "$SCRIPT_DIR/check_swift_format.sh"
@@ -273,56 +388,78 @@ if [[ "$SIGN_IDENTITY" == "auto" && "$EXISTING_SIGN_IDENTITY" == "adhoc" ]]; the
   echo "[open-snek] Existing app is ad-hoc signed; auto mode will try a real signing identity for stable TCC grants"
 fi
 
-XCODE_CONFIGURATION="$(tr '[:lower:]' '[:upper:]' <<< "${CONFIGURATION:0:1}")${CONFIGURATION:1}"
-ACTIVE_PROJECT_FILE="$PROJECT_FILE"
-ensure_generated_project
-echo "[open-snek] Ensured generated Xcode project at: $ACTIVE_PROJECT_FILE"
+if has_full_xcode; then
+  require_cmd xcodegen
 
-echo "[open-snek] Building $PRODUCT_NAME ($CONFIGURATION) via Xcode target..."
-XCODEBUILD_LOG="$(mktemp "${TMPDIR:-/tmp}/open_snek_xcodebuild.XXXXXX")"
-XCODEBUILD_ACTIONS=(build)
-if [[ "$CLEAN_BUILD" == true ]]; then
-  XCODEBUILD_ACTIONS=(clean build)
-fi
-if ! xcodebuild \
-  -skipPackagePluginValidation \
-  -skipMacroValidation \
-  -project "$ACTIVE_PROJECT_FILE" \
-  -scheme OpenSnek \
-  -configuration "$XCODE_CONFIGURATION" \
-  -destination "generic/platform=macOS" \
-  -derivedDataPath "$DERIVED_DATA_PATH" \
-  "${XCODEBUILD_ACTIONS[@]}" \
-  CODE_SIGNING_ALLOWED=NO \
-  CODE_SIGNING_REQUIRED=NO \
-  CODE_SIGN_IDENTITY="" \
-  MARKETING_VERSION="$VERSION" \
-  CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
-  PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
-  OPEN_SNEK_BUILD_CHANNEL="$BUILD_CHANNEL" \
-  OPEN_SNEK_SPARKLE_PUBLIC_ED_KEY="$SPARKLE_PUBLIC_ED_KEY" >"$XCODEBUILD_LOG" 2>&1; then
-  print_xcodebuild_failure "$XCODEBUILD_LOG"
-  exit 1
-fi
+  XCODE_CONFIGURATION="$(tr '[:lower:]' '[:upper:]' <<< "${CONFIGURATION:0:1}")${CONFIGURATION:1}"
+  ACTIVE_PROJECT_FILE="$PROJECT_FILE"
+  ensure_generated_project
+  echo "[open-snek] Ensured generated Xcode project at: $ACTIVE_PROJECT_FILE"
 
-BUILT_APP="$DERIVED_DATA_PATH/Build/Products/$XCODE_CONFIGURATION/OpenSnek.app"
-if [[ ! -d "$BUILT_APP" ]]; then
-  echo "Built app not found: $BUILT_APP" >&2
-  exit 1
-fi
+  echo "[open-snek] Building $PRODUCT_NAME ($CONFIGURATION) via Xcode target..."
+  XCODEBUILD_LOG="$(mktemp "${TMPDIR:-/tmp}/open_snek_xcodebuild.XXXXXX")"
+  XCODEBUILD_ACTIONS=(build)
+  if [[ "$CLEAN_BUILD" == true ]]; then
+    XCODEBUILD_ACTIONS=(clean build)
+  fi
+  if ! xcodebuild \
+    -skipPackagePluginValidation \
+    -skipMacroValidation \
+    -project "$ACTIVE_PROJECT_FILE" \
+    -scheme OpenSnek \
+    -configuration "$XCODE_CONFIGURATION" \
+    -destination "generic/platform=macOS" \
+    -derivedDataPath "$DERIVED_DATA_PATH" \
+    "${XCODEBUILD_ACTIONS[@]}" \
+    CODE_SIGNING_ALLOWED=NO \
+    CODE_SIGNING_REQUIRED=NO \
+    CODE_SIGN_IDENTITY="" \
+    MARKETING_VERSION="$VERSION" \
+    CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+    PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
+    OPEN_SNEK_BUILD_CHANNEL="$BUILD_CHANNEL" \
+    OPEN_SNEK_SPARKLE_PUBLIC_ED_KEY="$SPARKLE_PUBLIC_ED_KEY" >"$XCODEBUILD_LOG" 2>&1; then
+    print_xcodebuild_failure "$XCODEBUILD_LOG"
+    exit 1
+  fi
 
-rm -rf "$APP_BUNDLE"
-ditto "$BUILT_APP" "$APP_BUNDLE"
+  BUILT_APP="$DERIVED_DATA_PATH/Build/Products/$XCODE_CONFIGURATION/OpenSnek.app"
+  if [[ ! -d "$BUILT_APP" ]]; then
+    echo "Built app not found: $BUILT_APP" >&2
+    exit 1
+  fi
+
+  rm -rf "$APP_BUNDLE"
+  ditto "$BUILT_APP" "$APP_BUNDLE"
+else
+  require_cmd iconutil
+  require_cmd install_name_tool
+  require_cmd plutil
+
+  if ! SWIFT_COMMAND="$(find_compatible_swift)"; then
+    echo "Swift 6.2 or newer is required. Install it with: brew install swift" >&2
+    exit 1
+  fi
+  build_with_swiftpm "$SWIFT_COMMAND"
+  PRESERVE_NESTED_SIGNATURES=true
+fi
 
 if command -v codesign >/dev/null 2>&1; then
   ADHOC_REQ="=designated => identifier \"$BUNDLE_ID\""
+  codesign_app() {
+    if [[ "$PRESERVE_NESTED_SIGNATURES" == true ]]; then
+      codesign --force "$@"
+    else
+      codesign --force --deep "$@"
+    fi
+  }
   sign_adhoc() {
-    if codesign --force --deep --sign - --requirements "$ADHOC_REQ" "$APP_BUNDLE" >/dev/null 2>&1; then
+    if codesign_app --sign - --requirements "$ADHOC_REQ" "$APP_BUNDLE" >/dev/null 2>&1; then
       echo "[open-snek] Signed app with ad-hoc identity (stable designated requirement: identifier \"$BUNDLE_ID\")"
       echo "[open-snek] If HID remains blocked after this build, run once: tccutil reset ListenEvent $BUNDLE_ID"
       return 0
     fi
-    if codesign --force --deep --sign - "$APP_BUNDLE" >/dev/null 2>&1; then
+    if codesign_app --sign - "$APP_BUNDLE" >/dev/null 2>&1; then
       echo "[open-snek] Signed app with ad-hoc identity"
       echo "[open-snek] Warning: stable designated requirement could not be applied; Input Monitoring grants may not survive rebuilds."
       echo "[open-snek] If HID remains blocked, run: tccutil reset ListenEvent $BUNDLE_ID"
@@ -344,7 +481,7 @@ if command -v codesign >/dev/null 2>&1; then
       ;;
     auto)
       if detected_identity="$(detect_preferred_sign_identity)"; then
-        if codesign --force --deep --sign "$detected_identity" "$APP_BUNDLE" >/dev/null 2>&1; then
+        if codesign_app --sign "$detected_identity" "$APP_BUNDLE" >/dev/null 2>&1; then
           echo "[open-snek] Signed app with detected identity: $detected_identity"
         else
           echo "[open-snek] Warning: signing with detected identity failed; falling back to ad-hoc"
@@ -364,7 +501,7 @@ if command -v codesign >/dev/null 2>&1; then
       fi
       ;;
     *)
-      if codesign --force --deep --sign "$RESOLVED_SIGN_IDENTITY" "$APP_BUNDLE" >/dev/null 2>&1; then
+      if codesign_app --sign "$RESOLVED_SIGN_IDENTITY" "$APP_BUNDLE" >/dev/null 2>&1; then
         echo "[open-snek] Signed app with requested identity: $RESOLVED_SIGN_IDENTITY"
       else
         echo "[open-snek] Error: codesign failed for identity: $RESOLVED_SIGN_IDENTITY" >&2
