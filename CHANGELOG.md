@@ -11,6 +11,7 @@ All notable changes to this project are documented in this file.
 - Local app builds now fall back to SwiftPM on Command Line Tools-only Macs, while retaining the canonical Xcode target when full Xcode is available; local build and pre-push SwiftPM commands also skip irrelevant macOS Keychain credential lookup for public dependencies.
 
 ### Fixed
+- Fixed unsigned SwiftPM app bundles retaining an invalidated executable signature after their framework rpath was added.
 - Fixed onboard profile names remaining stuck on synthesized `Profile N` labels after profile switches; assigned profile names now load when the profile picker refreshes.
 - Stopped metadata fallbacks from creating repeated local profile entries without treating legitimate user-named `Profile N` profiles as disposable placeholders.
 - Hardened HID discovery around Input Monitoring changes and protected interfaces: cached managers now reopen when authorization changes, empty snapshots retain rate-limited reconnect recovery, permission errors use the resolved authorization state, and Bluetooth HID probing continues best-effort after a manager-level refusal.

@@ -470,6 +470,11 @@ if command -v codesign >/dev/null 2>&1; then
 
   case "$RESOLVED_SIGN_IDENTITY" in
     none)
+      if [[ "$PRESERVE_NESTED_SIGNATURES" == true ]]; then
+        # install_name_tool invalidates SwiftPM's ad-hoc executable signature.
+        # Remove it so an explicitly unsigned build is unsigned rather than invalidly signed.
+        codesign --remove-signature "$APP_BUNDLE/Contents/MacOS/$PRODUCT_NAME"
+      fi
       echo "[open-snek] Skipping codesign (sign identity: none)"
       ;;
     adhoc|-)
