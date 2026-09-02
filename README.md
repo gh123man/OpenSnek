@@ -79,7 +79,9 @@ More device support is welcome, whether that comes from new hardware captures or
 3. Drag `OpenSnek.app` into `Applications`.
 4. Launch `OpenSnek`.
 
-Official builds use the latest Xcode/macOS SDK. Minimum supported macOS version: macOS 14.
+Official builds use the latest Xcode/macOS SDK. Local source builds can use
+either full Xcode or Command Line Tools. Minimum supported macOS version:
+macOS 14.
 
 If macOS asks for permissions:
 
@@ -94,7 +96,13 @@ From the repo root:
 ./run.sh
 ```
 
-That rebuilds the canonical Xcode `OpenSnek.app` target, copies it into the stable local `.dist` bundle path, and launches it through `OpenSnek/scripts/run_macos_app.sh`.
+With full Xcode, that rebuilds the canonical `OpenSnek.app` target. On a
+Command Line Tools-only Mac, it builds with SwiftPM and assembles the same
+stable `.dist` app bundle before launching it through
+`OpenSnek/scripts/run_macos_app.sh`. If Command Line Tools provides an older
+Swift than the package requires, install the current toolchain with
+`brew install swift`; the script detects it without changing `xcode-select` or
+`PATH`.
 
 If you want to reuse the current app bundle without rebuilding:
 
@@ -108,11 +116,23 @@ If you want to reuse the current app bundle without rebuilding:
 swift build --package-path OpenSnek
 ```
 
+Direct SwiftPM commands require Swift 6.2 or newer. After `brew install swift`,
+either call `/opt/homebrew/opt/swift/bin/swift` directly on Apple silicon or
+prepend the Homebrew Swift directory to `PATH`.
+
 ## Test
 
 ```bash
 swift test --package-path OpenSnek
 ```
+
+Running tests with the above command as-is still requires a full Xcode installation
+due to XCTest, but if desired, it is possible to run the test suite on a machine with
+only Xcode CLT installed, by extracting XCTest from an Xcode .xip for standalone
+usage and pointing swift test to it, but due to the non-reproducible nature of
+that procedure, caused by the need to match the Xcode version XCTest is extracted
+from to the user's installed Xcode CLT version, which differs by macOS version,
+that process will not be documented in detail here, other than noting it can be achieved.
 
 ## Xcode
 
