@@ -540,11 +540,16 @@ struct LightingSummaryPresentation: Equatable {
     let batteryIcon: BatteryIconPresentation?
 
     static func make(_ input: LightingSummaryInput) -> LightingSummaryPresentation {
-        if input.supportsSoftwareLightingEffects, input.softwareLightingStatus?.state == .running {
-            let preset = input.softwareLightingStatus?.request?.presetID ?? input.editableSoftwareLightingPreset
-            if preset == .batteryMeter { return LightingSummaryPresentation(title: preset.label, swatches: [], batteryIcon: batteryIcon(for: input.batteryState)) }
+        if input.supportsSoftwareLightingEffects, let status = input.softwareLightingStatus, status.state != .stopped {
+            let preset = status.request?.presetID ?? input.editableSoftwareLightingPreset
+            if preset == .batteryMeter {
+                // Battery-less accessories (for example the Mouse Dock) follow another device's
+                // battery, so show the configured band colors instead of a fake battery level.
+                guard let batteryState = input.batteryState, batteryState.battery_percent != nil else { return LightingSummaryPresentation(title: preset.label, swatches: condensedSwatches(from: input.editableSoftwareLightingPalette, fallback: input.fallbackColor), batteryIcon: nil) }
+                return LightingSummaryPresentation(title: preset.label, swatches: [], batteryIcon: batteryIcon(for: batteryState))
+            }
 
-            let palette = input.softwareLightingStatus?.request?.palette.map { color in RGBColor(r: color.r, g: color.g, b: color.b) } ?? input.editableSoftwareLightingPalette
+            let palette = status.request?.palette.map { color in RGBColor(r: color.r, g: color.g, b: color.b) } ?? input.editableSoftwareLightingPalette
             return LightingSummaryPresentation(title: preset.label, swatches: condensedSwatches(from: palette, fallback: input.fallbackColor), batteryIcon: nil)
         }
 

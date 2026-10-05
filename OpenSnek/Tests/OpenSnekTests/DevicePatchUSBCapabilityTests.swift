@@ -38,6 +38,18 @@ final class DevicePatchUSBCapabilityTests: XCTestCase {
         XCTAssertEqual(patch.supportedUSBControls(for: try makeDevice(profile: DeviceProfiles.basiliskV3ProBluetooth)), patch)
     }
 
+    func testWithoutOnboardLightingWritesClearsLightingOnly() {
+        let patch = makeMixedPatch()
+        let stripped = patch.withoutOnboardLightingWrites
+
+        XCTAssertNil(stripped.ledRGB)
+        XCTAssertNil(stripped.lightingEffect)
+        XCTAssertNil(stripped.usbLightingZoneLEDIDs)
+        XCTAssertEqual(stripped.ledBrightness, patch.ledBrightness)
+        XCTAssertEqual(stripped.dpiStages, patch.dpiStages)
+        XCTAssertEqual(stripped.buttonBinding, patch.buttonBinding)
+    }
+
     private func makeDevice(profile: DeviceProfile) throws -> MouseDevice {
         MouseDevice(id: profile.id.rawValue, vendor_id: profile.transport == .usb ? 0x1532 : 0x068E, product_id: try XCTUnwrap(profile.supportedProducts.first), product_name: profile.productName, transport: profile.transport, path_b64: "", serial: nil, firmware: nil, profile_id: profile.id)
     }

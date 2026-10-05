@@ -242,6 +242,9 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     func stateUpdates() async -> AsyncStream<BackendStateUpdate> { stateUpdatesStream.makeStream() }
 
     func apply(device: MouseDevice, patch: DevicePatch, options: ApplyOptions) async throws -> MouseState {
+        // Running software lighting owns the lighting surface; drop onboard lighting writes so a
+        // queued onboard apply cannot clobber the engine's frames.
+        let patch = softwareLightingStatusByDeviceID[device.id]?.state == .running ? patch.withoutOnboardLightingWrites : patch
         let startedAt = Date()
         activeApplyCount += 1
         maxConcurrentApplyCount = max(maxConcurrentApplyCount, activeApplyCount)

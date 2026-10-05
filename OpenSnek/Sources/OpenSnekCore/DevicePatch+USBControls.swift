@@ -20,4 +20,13 @@ public extension DevicePatch {
         }
         return supported
     }
+
+    /// Clears onboard lighting writes so running software lighting frames are not overwritten.
+    var withoutOnboardLightingWrites: DevicePatch {
+        var copy = self
+        copy.ledRGB = nil
+        copy.lightingEffect = nil
+        copy.usbLightingZoneLEDIDs = nil
+        return copy
+    }
 }
