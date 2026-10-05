@@ -226,12 +226,15 @@ Observed control labels on `0x00CB`:
 - `0x6A`: profile button
 
 Contributor-validated Naga Pro slots (`0x008F` wired / `0x0090` receiver): body and 2-button-panel slots `0x01..0x05`, `0x09`, `0x0A`, `0x34`, `0x35`; 12-button-panel slots `0x40..0x4B`; and 6-button-panel slots `0x50..0x55`.
-- explicit remaps ship for `0x40..0x4B` and `0x50..0x52`, but their native factory blocks are not known, so `Default` is not offered
-- slots `0x53..0x55` use an undecoded native class-`0x03` function block and remain read-only
-- wheel tilt uses class-`0x0E` button IDs `0x09` / `0x0A` with default rate `0x8E`, rather than the Basilisk-family IDs `0x68` / `0x69`
-- full-profile reset must resolve every native block before sending its first write; otherwise the operation fails without partially resetting the profile
+- native factory blocks for `0x40..0x4B` and `0x50..0x52` were captured from the firmware's unassigned onboard banks (2.4 GHz receiver, firmware `0x00112100`; see `captures/usb/2026-10-05-naga-pro-native-default-banks/`); the 12-button panel defaults to keyboard `1..9`, `0`, `-`, `=` and the 6-button panel to keyboard `1..6`
+- native default blocks declare function-data length `0x01` while keeping the HID key in byte 3 (`02 01 00 <key>`); OpenSnek's keyboard writer still emits length `0x02` for explicit remaps
+- slots `0x53..0x55` read as keyboard `4` / `5` / `6` native defaults on the captured firmware and remain read-only; the class-`0x03` block seen on another unit was not reproduced
+- wheel tilt uses class-`0x0E` button IDs `0x09` / `0x0A`; the shipped default is `0e 03 09 00 8e` (turbo), while the captured native bank holds `0e 01 09 00 14` (no turbo)
+- full-profile reset now resolves every native block for the writable slot set before sending its first write
 
 Validated function block examples:
+- Naga Pro native default keyboard `1`: `02 01 00 1e 00 00 00`
+- Naga Pro native default scroll left: `0e 01 09 00 14 00 00`
 - right click: `01 01 02 00 00 00 00`
 - back button (default for slot `0x04`): `01 01 04 00 00 00 00`
 - keyboard key `A` (HID `0x04`): `02 02 00 04 00 00 00`

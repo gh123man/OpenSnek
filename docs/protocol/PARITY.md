@@ -200,9 +200,10 @@ Validated on physical hardware by [varunyellina in PR #106](https://github.com/g
 - the three swappable panels share one firmware slot table; the UI groups body controls, the 2-button panel, the 6-button panel, and the 12-button panel while only the installed panel is physically active
 - contributor-tested explicit remaps ship for body/2-button-panel slots `1-5`, `9`, `10`, `52`, `53`, 12-button slots `64-75`, and 6-button slots `80-82`
 - Naga Pro wheel tilt uses class-`0x0E` button IDs `0x09` / `0x0A`, not the Basilisk-family `0x68` / `0x69`; the Bluetooth writer deliberately reuses the Naga USB function-block encoder
-- native factory blocks for slots `64-75` and `80-82` have not been captured, so OpenSnek permits explicit remaps but hides `Default` and omits those defaults from synthesized profile content
-- slots `83-85` read as an undecoded class-`0x03` action and remain read-only; full button-profile reset is rejected before any write while any writable slot lacks a known factory block
-- remaining device-dependent capture and validation work stays open in [issue #56](https://github.com/gh123man/OpenSnek/issues/56)
+- native factory blocks for slots `64-75` and `80-82` were captured from the firmware's unassigned onboard banks on a second unit, so `Default` restore and full button-profile reset now resolve every writable slot
+- the captured defaults use function-data length `0x01` (`02 01 00 <key>`) with the HID key in byte 3; the 12-button panel defaults to keyboard `1..9`, `0`, `-`, `=`, and the 6-button panel to `1..6`
+- slots `83-85` read as keyboard `4` / `5` / `6` native defaults on the captured firmware and stay read-only; the class-`0x03` block seen on the original contributor's unit was not reproduced
+- side-panel physical press validation is still pending for units with the 12- and 6-button panels installed
 
 ## Validation Checklist
 

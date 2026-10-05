@@ -18,6 +18,21 @@ public enum ButtonBindingSupport {
     private static let nagaProHorizontalScrollLeftButtonID: UInt8 = 0x09
     private static let nagaProHorizontalScrollRightButtonID: UInt8 = 0x0A
 
+    // Native Naga Pro side-panel defaults captured from the firmware's unassigned onboard banks
+    // (2.4 GHz receiver 1532:0090, firmware 0x00112100). The 12-button panel defaults to keyboard
+    // 1..9, 0, -, = and the 6-button panel defaults to keyboard 1..6. Native blocks declare
+    // function-data length 0x01 while keeping [class, length, modifiers, HID key] at bytes 0..3.
+    // See captures/usb/2026-10-05-naga-pro-native-default-banks/.
+    private static let nagaProNativeKeyboardKeyBySlot: [Int: UInt8] = [
+        64: 0x1E, 65: 0x1F, 66: 0x20, 67: 0x21, 68: 0x22, 69: 0x23,
+        70: 0x24, 71: 0x25, 72: 0x26, 73: 0x27, 74: 0x2D, 75: 0x2E,
+        80: 0x1E, 81: 0x1F, 82: 0x20
+    ]
+
+    private static func nagaProNativeKeyboardBlock(hidKey: UInt8) -> [UInt8] {
+        [0x02, 0x01, 0x00, hidKey, 0x00, 0x00, 0x00]
+    }
+
     private static func horizontalScrollButtonID(for kind: ButtonBindingKind, profileID: DeviceProfileID?) -> UInt8? {
         switch kind {
         case .scrollLeft: return profileID == .nagaPro ? nagaProHorizontalScrollLeftButtonID : horizontalScrollLeftButtonID
@@ -170,8 +185,11 @@ public enum ButtonBindingSupport {
             return ButtonBindingDraft(kind: kind, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
         case 0x02:
             guard !data.isEmpty else { return nil }
-            let hidModifiers = data.count >= 2 ? Int(data[0]) : 0
-            let hidKey = data.count >= 2 ? Int(data[1]) : Int(data[0])
+            // Native default blocks declare function-data length 0x01 while still placing the HID key
+            // in byte 3. The Naga Pro write test in captures/usb/2026-10-05-naga-pro-native-default-banks
+            // proves the firmware emits `1` for `02 01 00 1e`.
+            let hidModifiers = Int(data[0])
+            let hidKey = data.count >= 2 ? Int(data[1]) : Int(functionBlock[3])
             return ButtonBindingDraft(kind: .keyboardSimple, hidKey: max(4, min(231, hidKey)), hidModifiers: max(0, min(255, hidModifiers)), turboEnabled: false, turboRate: defaultTurboRate)
         case 0x0D:
             guard data.count >= 4 else { return nil }
@@ -295,6 +313,9 @@ public enum ButtonBindingSupport {
             case .huntsmanMini, .tartarusPro: return nil
             }
         default: break
+        }
+        if profileID == .nagaPro, let hidKey = nagaProNativeKeyboardKeyBySlot[slot] {
+            return nagaProNativeKeyboardBlock(hidKey: hidKey)
         }
         switch slot {
         case 1: return [0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00]

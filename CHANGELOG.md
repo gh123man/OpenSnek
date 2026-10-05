@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Naga Pro side-panel buttons (`64-75`, `80-82`) now offer `Default` restore and full button-profile reset, using native default blocks captured from the firmware's unassigned onboard banks. Side-panel physical press validation is still pending for the 12- and 6-button panels.
+
 ## [1.3.0]
 
 ### Highlights
