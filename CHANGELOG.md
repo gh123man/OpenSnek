@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Fixed USB button reads decoding a shifted function-block window when a stored binding's hypershift/layer flag differs from the requested layer, which displayed right-click, middle-click, and scroll buttons as Left Click on Synapse-configured profiles.
+
 ## [1.3.0]
 
 ### Highlights

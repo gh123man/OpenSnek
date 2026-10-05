@@ -193,9 +193,12 @@ public enum ButtonBindingSupport {
 
         if usesExtendedBasiliskUSBReadLayout(profileID) { return Array(response[11..<18]) }
 
-        var candidates: [[UInt8]] = []
-        if response[10] == hypershift { candidates.append(Array(response[11..<18])) }
-        candidates.append(Array(response[10..<17]))
+        // response[10] carries the stored binding's hypershift/layer flag, not the requested
+        // layer, so it must not shift the 7-byte function block window. Synapse-configured
+        // Naga Pro profiles return flag `1` on most body buttons; decoding the shifted window
+        // mislabels right-click, middle-click, and scroll buttons as left click. The shifted
+        // window stays as a fallback for older responses that omit the flag byte.
+        let candidates: [[UInt8]] = [Array(response[11..<18]), Array(response[10..<17])]
 
         if let defaultBlock = defaultUSBFunctionBlock(for: Int(slot), profileID: profileID), let matchedDefault = candidates.first(where: { $0 == defaultBlock }) { return matchedDefault }
 

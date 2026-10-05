@@ -229,6 +229,7 @@ Contributor-validated Naga Pro slots (`0x008F` wired / `0x0090` receiver): body 
 - explicit remaps ship for `0x40..0x4B` and `0x50..0x52`, but their native factory blocks are not known, so `Default` is not offered
 - slots `0x53..0x55` use an undecoded native class-`0x03` function block and remain read-only
 - wheel tilt uses class-`0x0E` button IDs `0x09` / `0x0A` with default rate `0x8E`, rather than the Basilisk-family IDs `0x68` / `0x69`
+- a controlled HID capture (`captures/usb/2026-10-05-naga-pro-button-encoding-hid/`) shows a Synapse-written `01 01 01 04 e4` block emits mouse Button 1, while the native `01 01 04` block emits Button 4
 - full-profile reset must resolve every native block before sending its first write; otherwise the operation fails without partially resetting the profile
 
 Validated function block examples:
@@ -256,6 +257,7 @@ Client note:
 - On Basilisk V3 X HyperSpeed (`0x00B9`), the Hypershift / Boss-sniper control (`0x06`) rejects `0x02:0x8C` button reads with status `0x03`; do not treat it as part of the writable/readable USB button-function slot set.
 - Basilisk V3 Pro (`0x00AB`) and Basilisk V3 35K (`0x00CB`) `0x02:0x8C` reads do not use the simpler Basilisk V3 X payload shape. Observed extended-layout slots decode from `response[11..<18]`; treating `response[10...]` as the block causes false positives and mislabels on extra controls.
 - Always validate the echoed `profile` and `slot` bytes before decoding a `0x02:0x8C` read. This device will otherwise yield stale-looking success frames that can be mistaken for additional slots.
+- The `0x02:0x8C` response's byte 10 is the stored binding's hypershift/layer flag, not the requested-layer echo. The 7-byte function block always starts at `response[11]`; do not shift the window when that flag differs from the requested hypershift value. Synapse-configured Naga Pro profiles store flag `1` on body buttons, and the shifted window mislabels right-click, middle-click, and scroll buttons as left click.
 - Treat layered button writes as all-or-nothing at the client boundary: if a persistent-layer write is requested and fails, do not continue on to a direct/live write and do not surface the operation as success.
 - OpenSnek normalizes both `06 01 06 00 00 00 00` and the observed `0x60` variant `04 02 0F 7B 00 00 00` as the user-facing `DPI Cycle` action.
 - On the observed V3 Pro clutch slot (`0x0F`), the default block is not a simple mouse/keyboard payload; preserve `06 05 05 01 90 01 90` when restoring the native clutch behavior.

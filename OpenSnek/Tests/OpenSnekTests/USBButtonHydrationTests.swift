@@ -288,6 +288,24 @@ final class USBButtonHydrationTests: XCTestCase {
         XCTAssertNil(block)
     }
 
+    func testExtractUSBFunctionBlockUsesCanonicalWindowWhenStoredLayerFlagDiffers() {
+        // Captured from a Synapse-configured Naga Pro: response[10] is the stored layer flag (1),
+        // not the requested hypershift echo, and the block stays at response[11..<18].
+        let response: [UInt8] = [0x02, 0x1F, 0x00, 0x00, 0x00, 0x0A, 0x02, 0x8C, 0x01, 0x02, 0x01, 0x01, 0x01, 0x02, 0x05, 0x00, 0x00, 0x02] + Array(repeating: 0x00, count: 72)
+
+        let block = ButtonBindingSupport.extractUSBFunctionBlock(response: response, profile: 0x01, slot: 0x02, hypershift: 0x00, profileID: .nagaPro)
+        XCTAssertEqual(block, [0x01, 0x01, 0x02, 0x05, 0x00, 0x00, 0x02])
+        XCTAssertEqual(block.flatMap { ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 0x02, functionBlock: $0, profileID: .nagaPro) }?.kind, .rightClick)
+    }
+
+    func testExtractUSBFunctionBlockDecodesNagaSynapseScrollWindow() {
+        let response: [UInt8] = [0x02, 0x1F, 0x00, 0x00, 0x00, 0x0A, 0x02, 0x8C, 0x01, 0x09, 0x01, 0x01, 0x01, 0x09, 0xE4, 0x00, 0x00, 0x02] + Array(repeating: 0x00, count: 72)
+
+        let block = ButtonBindingSupport.extractUSBFunctionBlock(response: response, profile: 0x01, slot: 0x09, hypershift: 0x00, profileID: .nagaPro)
+        XCTAssertEqual(block, [0x01, 0x01, 0x09, 0xE4, 0x00, 0x00, 0x02])
+        XCTAssertEqual(block.flatMap { ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 0x09, functionBlock: $0, profileID: .nagaPro) }?.kind, .scrollUp)
+    }
+
     func testDPICycleBlockMapsToDPICycleKind() {
         let block: [UInt8] = [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
         let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 4, functionBlock: block)
