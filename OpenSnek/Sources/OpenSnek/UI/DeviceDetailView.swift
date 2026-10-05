@@ -41,8 +41,10 @@ struct DeviceDetailView: View {
         DetailColumnsLayout(minTwoColumnCardWidth: detailTwoColumnMinWidth, twoColumnBreakpointPadding: twoColumnBreakpointPadding, spacing: cardSpacing, maxCardWidth: detailCardMaxWidth) { ForEach(detailSections, id: \.self) { section in detailCardWithLayout(for: section) } }
     }
 
+    private var isLightingOnlyDevice: Bool { detailSections == [.lighting] }
+
     private func detailCardWithLayout(for section: DetailSection) -> some View {
-        detailCard(for: section).layoutValue(key: PreferredDetailColumnLayoutKey.self, value: preferredColumn(for: section)).layoutValue(key: DetailCardMaxWidthLayoutKey.self, value: section == .buttonRemap ? detailContentMaxWidth : detailCardMaxWidth)
+        detailCard(for: section).layoutValue(key: PreferredDetailColumnLayoutKey.self, value: preferredColumn(for: section)).layoutValue(key: DetailCardMaxWidthLayoutKey.self, value: isLightingOnlyDevice || section == .buttonRemap ? detailContentMaxWidth : detailCardMaxWidth)
     }
 
     private var detailSections: [DetailSection] {
@@ -62,7 +64,7 @@ struct DeviceDetailView: View {
         switch section {
         case .dpiStages: DpiStagesCard(editorStore: editorStore)
         case .onConnect: OnConnectBehaviorCard(editorStore: editorStore)
-        case .lighting: LightingCard(editorStore: editorStore, selected: selected, swatches: swatches)
+        case .lighting: LightingCard(editorStore: editorStore, selected: selected, swatches: swatches, isLightingOnly: isLightingOnlyDevice)
         case .pollRate: PollRateCard(editorStore: editorStore)
         case .powerManagement: SleepTimeoutCard(editorStore: editorStore)
         case .lowBatteryThreshold: LowBatteryThresholdCard(editorStore: editorStore)
@@ -74,6 +76,7 @@ struct DeviceDetailView: View {
     private func detailContentWidth(for availableWidth: CGFloat) -> CGFloat { min(max(availableWidth - (horizontalPadding * 2), 0), detailContentMaxWidth) }
 
     private func preferredColumn(for section: DetailSection) -> Int {
+        if isLightingOnlyDevice { return 0 }
         switch section {
         case .lighting, .buttonRemap: return 1
         default: return 0

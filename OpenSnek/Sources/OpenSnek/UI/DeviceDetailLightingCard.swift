@@ -21,10 +21,17 @@ struct LightingCard: View {
     let editorStore: EditorStore
     let selected: MouseDevice
     let swatches: [LightingSwatch]
+    let isLightingOnly: Bool
 
     @State private var selectedTab: LightingCardTab = .onboard
     @State private var onboardZoneMode: LightingZoneEditMode = .allZones
     @State private var isExpanded = false
+
+    /// Defines the single-picker modes shown for lighting-only devices.
+    private enum LightingMode: Hashable {
+        case onboard(LightingEffectKind)
+        case software(SoftwareLightingPresetID)
+    }
 
     private var accentBase: Color { Color(rgb: editorStore.editableColor) }
 
@@ -51,7 +58,13 @@ struct LightingCard: View {
         return onboardLightingGradientColors
     }
 
-    private var usesSoftwareLightingPaletteForCard: Bool { selected.supportsSoftwareLightingEffects && (softwareLightingIsRunning || (isExpanded && activeTab == .advanced)) }
+    private var usesSoftwareLightingPaletteForCard: Bool {
+        if isLightingOnly {
+            if case .software = selectedLightingMode { return true }
+            return false
+        }
+        return selected.supportsSoftwareLightingEffects && (softwareLightingIsRunning || (isExpanded && activeTab == .advanced))
+    }
 
     private var onboardLightingGradientColors: [Color] { gradientColors(from: editorStore.lightingGradientDisplayColors, fallback: editorStore.editableColor) }
 
@@ -122,6 +135,61 @@ struct LightingCard: View {
     }
 
     private var tabSelection: Binding<LightingCardTab> { Binding(get: { selectedTab }, set: { selectedTab = availableTabs.contains($0) ? $0 : .onboard }) }
+
+    private var effectiveExpanded: Bool { isLightingOnly || isExpanded }
+
+    private var availableLightingModes: [LightingMode] {
+        var modes = editorStore.visibleLightingEffects.map(LightingMode.onboard)
+        if selected.supportsSoftwareLightingEffects { modes.append(contentsOf: editorStore.visibleSoftwareLightingPresets.map(LightingMode.software)) }
+        return modes
+    }
+
+    private var selectedLightingMode: LightingMode {
+        if let status = softwareLightingStatus, status.state == .running || status.state == .suspended || status.state == .failed { return .software(status.request?.presetID ?? editorStore.editableSoftwareLightingPreset) }
+        return .onboard(editorStore.editableLightingEffect)
+    }
+
+    private var lightingModeBinding: Binding<LightingMode> {
+        Binding(
+            get: { selectedLightingMode },
+            set: { mode in
+                switch mode {
+                case .onboard(let kind):
+                    Task {
+                        await editorStore.stopSoftwareLighting()
+                        editorStore.updateLightingEffect(kind)
+                        editorStore.scheduleAutoApplyLightingEffect()
+                    }
+                case .software(let preset):
+                    editorStore.updateEditableSoftwareLightingPreset(preset)
+                    Task { await editorStore.startSoftwareLighting() }
+                }
+            })
+    }
+
+    private func lightingModeLabel(_ mode: LightingMode) -> String {
+        switch mode {
+        case .onboard(let kind): return kind.label
+        case .software(let preset): return preset.label
+        }
+    }
+
+    @ViewBuilder private func unifiedLightingControls() -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Text("Mode").font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(.white.opacity(0.82))
+
+                Spacer(minLength: 12)
+
+                Picker("", selection: lightingModeBinding) { ForEach(availableLightingModes, id: \.self) { mode in Text(lightingModeLabel(mode)).tag(mode) } }.labelsHidden().pickerStyle(.menu).frame(width: 220, alignment: .trailing).accessibilityIdentifier("lighting-mode-picker")
+            }
+
+            switch selectedLightingMode {
+            case .onboard: onboardControls(includePresetPicker: false)
+            case .software: softwareLightingControls(includePresetPicker: false)
+            }
+        }
+    }
 
     @ViewBuilder private func tabPicker() -> some View { if availableTabs.count > 1 { Picker("", selection: tabSelection) { ForEach(availableTabs) { tab in Text(tab.label).tag(tab) } }.labelsHidden().pickerStyle(.segmented).accessibilityIdentifier("lighting-card-tab-picker") } }
 
@@ -276,12 +344,12 @@ struct LightingCard: View {
         }
     }
 
-    @ViewBuilder private func onboardControls() -> some View {
+    @ViewBuilder private func onboardControls(includePresetPicker: Bool = true) -> some View {
         lightingNotice(systemImage: "memorychip.fill", iconColor: actionAccent, text: "Onboard lighting is stored on the device and survives restart and reconnect.")
 
         if selected.supportsLightingBrightnessControls { brightnessControls().padding(.vertical, 2) }
 
-        onboardPresetPicker()
+        if includePresetPicker { onboardPresetPicker() }
         onboardEffectOptions()
         onboardColorControls()
     }
@@ -290,12 +358,16 @@ struct LightingCard: View {
         Card(title: "Lighting", accessibilityIdentifier: "lighting-card") {
             lightingSummaryRow()
 
-            if isExpanded {
+            if effectiveExpanded {
                 Rectangle().fill(Color.white.opacity(0.12)).frame(height: 1).padding(.vertical, 2)
 
-                tabPicker()
+                if isLightingOnly {
+                    unifiedLightingControls()
+                } else {
+                    tabPicker()
 
-                if activeTab == .advanced { advancedLightingControls() } else { onboardControls() }
+                    if activeTab == .advanced { advancedLightingControls() } else { onboardControls() }
+                }
             }
         }.background(RoundedRectangle(cornerRadius: 14).fill(LinearGradient(colors: lightingCardGradientColors, startPoint: .topLeading, endPoint: .bottomTrailing))).onAppear { selectedTab = preferredLightingTab }.onChange(of: selected.id) {
             selectedTab = preferredLightingTab
@@ -321,23 +393,27 @@ struct LightingCard: View {
                 withAnimation(.easeInOut(duration: 0.16)) { isExpanded.toggle() }
             } label: {
                 Label(isExpanded ? "Collapse" : "Expand", systemImage: isExpanded ? "chevron.up" : "chevron.down")
-            }.buttonStyle(.bordered).controlSize(.small).accessibilityIdentifier("lighting-card-expand-button")
+            }.buttonStyle(.bordered).controlSize(.small).accessibilityIdentifier("lighting-card-expand-button").opacity(isLightingOnly ? 0 : 1).disabled(isLightingOnly)
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    @ViewBuilder private func advancedLightingControls() -> some View {
+    @ViewBuilder private func advancedLightingControls() -> some View { softwareLightingControls(includePresetPicker: true) }
+
+    @ViewBuilder private func softwareLightingControls(includePresetPicker: Bool) -> some View {
         if selected.supportsSoftwareLightingEffects {
             VStack(alignment: .leading, spacing: 10) {
                 lightingNotice(systemImage: "bolt.horizontal.circle.fill", iconColor: actionAccent, text: "Advanced effects run only while OpenSnek is running.")
 
-                HStack(spacing: 12) {
-                    Text("Preset").font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(.white.opacity(0.82))
+                if includePresetPicker {
+                    HStack(spacing: 12) {
+                        Text("Preset").font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(.white.opacity(0.82))
 
-                    Spacer(minLength: 12)
+                        Spacer(minLength: 12)
 
-                    Picker("", selection: Binding(get: { editorStore.editableSoftwareLightingPreset }, set: { editorStore.updateEditableSoftwareLightingPreset($0) })) { ForEach(editorStore.visibleSoftwareLightingPresets) { preset in Text(preset.label).tag(preset) } }.labelsHidden().pickerStyle(
-                        .menu
-                    ).frame(width: 190, alignment: .trailing).accessibilityIdentifier("software-lighting-preset-picker")
+                        Picker("", selection: Binding(get: { editorStore.editableSoftwareLightingPreset }, set: { editorStore.updateEditableSoftwareLightingPreset($0) })) { ForEach(editorStore.visibleSoftwareLightingPresets) { preset in Text(preset.label).tag(preset) } }.labelsHidden().pickerStyle(
+                            .menu
+                        ).frame(width: 190, alignment: .trailing).accessibilityIdentifier("software-lighting-preset-picker")
+                    }
                 }
 
                 if editorStore.editableSoftwareLightingPreset.usesSpeedControl { softwareLightingSpeedControl() }
