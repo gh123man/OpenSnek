@@ -47,6 +47,7 @@ Button remap keyboard actions support modifier chords on shipped USB and Bluetoo
 | Lancehead Tournament Edition | `Contributor validated` | `No transport` | Contributor validated DPI (scalar, independent X/Y, live 5-stage table read without OpenRazer's `0xFF` stage transaction), poll-rate reads, and all four lighting zones; button remap is not mapped |
 | Huntsman Mini | `Contributor validated` | `No transport` | Keyboard: contributor validated backlight lighting, brightness, and that poll-rate reads return `status 0x05` (unsupported). No DPI hardware; key remap is not mapped |
 | Tartarus Pro | `Contributor validated` | `No transport` | Keypad: contributor validated backlight lighting and brightness (LED `0x00` and `0x05` alias the same register). Analog actuation and key remap have no public protocol; OpenSnek never switches this device into driver mode |
+| Mouse Dock | `Contributor validated` | `No transport` | Accessory: contributor validated single logo-LED static color, brightness, and spectrum/pulse writes over USB. No DPI, buttons, battery, or onboard profiles |
 
 ## Basilisk V3 USB Family Assumptions
 
@@ -268,6 +269,28 @@ USB PID `0x0244`, no Bluetooth transport. Keypad (`formFactor = .keypad`). Uses 
 Initial reads and reconnect recovery require lighting brightness but do not require unsupported DPI or poll-rate telemetry. Saved-settings restore and USB backend applies filter DPI, poll-rate, power-management, and remapping fields according to the device profile, preserving lighting even when a saved snapshot contains mouse-editor defaults.
 
 Unit coverage checks initial connection, no restore writes while disconnected, lighting restore after reconnect, and continued rejection of missing brightness telemetry. Maintainer hardware validation remains pending: select a saved lighting profile with restore-on-connect enabled, unplug and reconnect each device, and confirm the backlight returns without a disconnected status or unsupported mouse-command failures. On the Tartarus Pro, also verify ordinary analog/key input remains functional.
+
+## Razer Mouse Dock
+
+USB PID `0x007E`, no Bluetooth transport. Lighting-only accessory (`formFactor = .accessory`) with a single logo LED (`0x00`) driven by the extended-matrix effect family (`0x0F:0x02`) and brightness (`0x0F:0x04`). Ships transaction ID `0x1F` (contributor validated; OpenRazer sets `0x3F` for this device).
+
+| Feature Area | USB | BT | Notes |
+|---|---|---|---|
+| Overall transport status | `Contributor validated` | `No transport` | Lighting-only profile; contributor hardware validated static color and brightness with visual confirmation, and spectrum/off/pulse writes ACK with `status 0x02` over the 90-byte feature-report interface |
+| DPI stages + active stage | `Not shipped` | `No transport` | No DPI hardware; `supportsDPIControls` is false |
+| Independent X/Y DPI | `Not shipped` | `No transport` | No DPI hardware |
+| Poll rate | `Not shipped` | `No transport` | Not a mouse; `supportsPollRateControls` is false |
+| Sleep timeout | `Not shipped` | `No transport` | Charging accessory; no power management |
+| Low battery threshold | `Not shipped` | `No transport` | The dock reports no battery; `usb-battery-read` returns unavailable |
+| Battery telemetry | `Not shipped` | `No transport` | The docked mouse keeps reporting its own battery through its own transport |
+| Lighting: brightness + static color | `Contributor validated` | `No transport` | One zone: logo LED `0x00`; brightness and static color validated with write and visual confirmation |
+| Lighting: extra effects | `Contributor validated` | `No transport` | `off`, `static`, `spectrum`, and the pulse set ACK on contributor hardware; OpenRazer lists no wave or reactive effects for this dock, so they are not exposed |
+| Button remap: shipped editable slots | `Not shipped` | `No transport` | The dock has no buttons; the profile ships an empty button layout |
+| Button remap: unsupported slots | `Hidden` | `No transport` | No slots are documented |
+| Scroll controls | `Not shipped` | `No transport` | Not applicable to a dock |
+| Onboard hardware profiles | `Single slot` | `No transport` | Profile ships with `onboardProfileCount = 1` |
+
+Readback note: the dock does not answer the effect-state (`0x0F:0x82`) or brightness (`0x0F:0x84`) reads, so OpenSnek reports effect state and brightness as unavailable after reconnect. Writes are still accepted and take effect immediately.
 
 ## References
 

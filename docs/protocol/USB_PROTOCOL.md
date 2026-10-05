@@ -231,6 +231,11 @@ Contributor-validated Naga Pro slots (`0x008F` wired / `0x0090` receiver): body 
 - wheel tilt uses class-`0x0E` button IDs `0x09` / `0x0A` with default rate `0x8E`, rather than the Basilisk-family IDs `0x68` / `0x69`
 - full-profile reset must resolve every native block before sending its first write; otherwise the operation fails without partially resetting the profile
 
+Contributor-validated Razer Mouse Dock (`0x007E`): lighting-only accessory on the extended-matrix family.
+- single logo LED `0x00`; static color `0f 02` args `01 00 01 00 00 01 rr gg bb`, off `01 00 00 00 00 00`, spectrum `01 00 03 00 00 00`, pulse single `01 00 02 01 00 01 rr gg bb`
+- brightness `0f 04` args `01 00 <value>`; the dock does not answer the `0f 82` effect-state or `0f 84` brightness reads
+- writes validated with transaction `0x1F`; OpenRazer sets `0x3F` for this device
+
 Validated function block examples:
 - right click: `01 01 02 00 00 00 00`
 - back button (default for slot `0x04`): `01 01 04 00 00 00 00`

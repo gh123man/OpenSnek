@@ -16,6 +16,7 @@ Target device baseline:
 - Lancehead Tournament Edition (`USB PID 0x0060`, OpenRazer-backed USB profile only)
 - Huntsman Mini (`USB PID 0x0257`, keyboard, OpenRazer-backed USB lighting-only profile)
 - Tartarus Pro (`USB PID 0x0244`, keypad, OpenRazer-backed USB lighting-only profile)
+- Razer Mouse Dock (`USB PID 0x007E`, accessory, OpenRazer-backed USB lighting-only profile)
 
 Transport paths:
 - USB/2.4GHz: 90-byte HID report protocol

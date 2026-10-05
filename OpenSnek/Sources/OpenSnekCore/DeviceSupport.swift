@@ -585,7 +585,25 @@ public enum DeviceProfiles {
         usbLightingLEDIDs: [0x05], usbLightingZones: tartarusProUSBLightingZones, supportsLightingBrightnessControls: true, formFactor: .keypad, supportsDPIControls: false, supportsPollRateControls: false, supportsPowerManagementControls: false, supportsButtonRemapControls: false,
         usbBrightnessLEDIDs: [0x00], isLocallyValidated: false)
 
-    public static let all: [DeviceProfile] = [basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, orochiV2Bluetooth, nagaProUSB, nagaProBluetooth, basiliskUSB, lanceheadTEUSB, huntsmanMiniUSB, tartarusProUSB]
+    // MARK: - Razer Mouse Dock (accessory, 0x007E)
+
+    // OpenRazer-backed lighting accessory (razeraccessory_driver.c): extended-matrix effects
+    // on the single logo LED (0x00) plus brightness on 0x0F:0x04. Contributor hardware
+    // validation confirmed static color, spectrum, and brightness writes with transaction
+    // 0x1F; the dock does not answer the effect-state (0x0F:0x82) or brightness (0x0F:0x84)
+    // reads, so effect state and brightness report unavailable after reconnect. OpenRazer
+    // lists static, spectrum, breathing, and custom effects for this dock but no wave or
+    // reactive effects, so only the supported subset is exposed.
+    public static let mouseDockUSBLightingEffects: [LightingEffectKind] = [.off, .staticColor, .spectrum, .pulseRandom, .pulseSingle, .pulseDual]
+
+    public static let mouseDockUSBLightingZones: [USBLightingZoneDescriptor] = [USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x00])]
+
+    public static let mouseDockUSB = DeviceProfile(
+        id: .mouseDock, productName: "Mouse Dock", transport: .usb, supportedProducts: [0x007E], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: [], writableSlots: []), supportsAdvancedLightingEffects: true,
+        supportedLightingEffects: mouseDockUSBLightingEffects, usbLightingLEDIDs: [0x00], usbLightingZones: mouseDockUSBLightingZones, supportsLightingBrightnessControls: true, formFactor: .accessory, supportsDPIControls: false,
+        supportsPollRateControls: false, supportsPowerManagementControls: false, supportsButtonRemapControls: false, usbBrightnessLEDIDs: [0x00], isLocallyValidated: false)
+
+    public static let all: [DeviceProfile] = [basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, orochiV2Bluetooth, nagaProUSB, nagaProBluetooth, basiliskUSB, lanceheadTEUSB, huntsmanMiniUSB, tartarusProUSB, mouseDockUSB]
 
     public static func resolve(vendorID: Int, productID: Int, transport: DeviceTransportKind) -> DeviceProfile? { all.first(where: { $0.matches(vendorID: vendorID, productID: productID, transport: transport) }) }
 
@@ -610,9 +628,9 @@ public enum DeviceProfiles {
         case .nagaPro: return 20_000
         case .basilisk: return 16_000
         case .lanceheadTournamentEdition: return 16_000
-        // The Huntsman Mini and Tartarus Pro have no DPI hardware; their profiles
-        // disable DPI controls, so this value is never surfaced.
-        case .huntsmanMini, .tartarusPro: return defaultMaximumDPI
+        // The Huntsman Mini, Tartarus Pro, and Mouse Dock have no DPI hardware; their
+        // profiles disable DPI controls, so this value is never surfaced.
+        case .huntsmanMini, .tartarusPro, .mouseDock: return defaultMaximumDPI
         case nil: return defaultMaximumDPI
         }
     }
@@ -719,7 +737,7 @@ public enum DeviceProfiles {
     public static func supportsIndependentXYDPI(for profileID: DeviceProfileID?) -> Bool {
         switch profileID {
         case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basilisk, .lanceheadTournamentEdition: return true
-        case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .huntsmanMini, .tartarusPro, nil: return false
+        case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .huntsmanMini, .tartarusPro, .mouseDock, nil: return false
         }
     }
 

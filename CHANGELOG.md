@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Added
+- Added contributor-validated lighting support for the Razer Mouse Dock (`0x007E`): a single logo LED with static color, spectrum, and pulse effects plus brightness over USB.
+
 ## [1.3.0]
 
 ### Highlights
