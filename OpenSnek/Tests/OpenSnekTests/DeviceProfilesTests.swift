@@ -536,6 +536,8 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.supportsPowerManagementControls, false)
         XCTAssertEqual(profile?.supportsButtonRemapControls, false)
         XCTAssertEqual(profile?.supportsLightingBrightnessControls, true)
+        XCTAssertEqual(profile?.softwareLightingFrameLayout, .mouseDockUSB)
+        XCTAssertEqual(profile?.supportedSoftwareLightingPresets, [.batteryMeter])
         XCTAssertEqual(profile?.isLocallyValidated, false)
     }
 

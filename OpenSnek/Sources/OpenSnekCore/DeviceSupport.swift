@@ -599,8 +599,8 @@ public enum DeviceProfiles {
     public static let mouseDockUSBLightingZones: [USBLightingZoneDescriptor] = [USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x00])]
 
     public static let mouseDockUSB = DeviceProfile(
-        id: .mouseDock, productName: "Mouse Dock", transport: .usb, supportedProducts: [0x007E], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: [], writableSlots: []), supportsAdvancedLightingEffects: true,
-        supportedLightingEffects: mouseDockUSBLightingEffects, usbLightingLEDIDs: [0x00], usbLightingZones: mouseDockUSBLightingZones, supportsLightingBrightnessControls: true, formFactor: .accessory, supportsDPIControls: false,
+        id: .mouseDock, productName: "Mouse Dock", transport: .usb, supportedProducts: [0x007E], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: [], writableSlots: []), supportsAdvancedLightingEffects: true, supportedLightingEffects: mouseDockUSBLightingEffects,
+        usbLightingLEDIDs: [0x00], usbLightingZones: mouseDockUSBLightingZones, softwareLightingFrameLayout: .mouseDockUSB, supportedSoftwareLightingPresets: [.batteryMeter], supportsLightingBrightnessControls: true, formFactor: .accessory, supportsDPIControls: false,
         supportsPollRateControls: false, supportsPowerManagementControls: false, supportsButtonRemapControls: false, usbBrightnessLEDIDs: [0x00], isLocallyValidated: false)
 
     public static let all: [DeviceProfile] = [basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, orochiV2Bluetooth, nagaProUSB, nagaProBluetooth, basiliskUSB, lanceheadTEUSB, huntsmanMiniUSB, tartarusProUSB, mouseDockUSB]

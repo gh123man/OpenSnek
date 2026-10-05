@@ -285,6 +285,7 @@ USB PID `0x007E`, no Bluetooth transport. Lighting-only accessory (`formFactor =
 | Battery telemetry | `Not shipped` | `No transport` | The docked mouse keeps reporting its own battery through its own transport |
 | Lighting: brightness + static color | `Contributor validated` | `No transport` | One zone: logo LED `0x00`; brightness and static color validated with write and visual confirmation |
 | Lighting: extra effects | `Contributor validated` | `No transport` | `off`, `static`, `spectrum`, and the pulse set ACK on contributor hardware; OpenRazer lists no wave or reactive effects for this dock, so they are not exposed |
+| Lighting: Battery Meter preset | `Contributor validated` | `No transport` | Software lighting preset that mirrors the connected mouse's battery: configurable low/medium thresholds and low/medium/high palette colors, with the low color flashing below its threshold. The dock has no battery of its own, so it follows the first connected device that reports battery telemetry |
 | Button remap: shipped editable slots | `Not shipped` | `No transport` | The dock has no buttons; the profile ships an empty button layout |
 | Button remap: unsupported slots | `Hidden` | `No transport` | No slots are documented |
 | Scroll controls | `Not shipped` | `No transport` | Not applicable to a dock |

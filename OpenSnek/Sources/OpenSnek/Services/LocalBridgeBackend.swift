@@ -371,8 +371,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     func readLightingColor(device: MouseDevice) async throws -> RGBPatch? { try await client.readLightingColor(device: device) }
 
     func startSoftwareLighting(device: MouseDevice, request: SoftwareLightingEffectRequest) async throws -> SoftwareLightingEngineStatus {
-        let batteryPercent = cachedStateByDeviceID[device.id]?.battery_percent ?? reconnectSeedStateByDeviceID[device.id]?.battery_percent
-        let status = try await softwareLightingEngine.start(device: device, request: request, batteryPercent: batteryPercent)
+        let status = try await softwareLightingEngine.start(device: device, request: request, batteryPercent: softwareLightingBatteryPercent(for: device))
         handleSoftwareLightingStatus(status)
         return status
     }
@@ -683,7 +682,25 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         return merged
     }
 
-    private func updateSoftwareLightingBatteryPercent(deviceID: String, from state: MouseState) { Task { [softwareLightingEngine, batteryPercent = state.battery_percent] in await softwareLightingEngine.updateBatteryPercent(deviceID: deviceID, batteryPercent: batteryPercent) } }
+    private func updateSoftwareLightingBatteryPercent(deviceID: String, from state: MouseState) {
+        let resolvedPercent = state.battery_percent ?? softwareLightingBatteryPercent(for: cachedDevices.first(where: { $0.id == deviceID }))
+        let batteryFollowerIDs = state.battery_percent == nil ? [] : cachedDevices.filter { device in device.id != deviceID && isBatteryFollowAccessory(device) }.map(\.id)
+        Task { [softwareLightingEngine, batteryPercent = resolvedPercent, followerPercent = state.battery_percent, batteryFollowerIDs] in
+            await softwareLightingEngine.updateBatteryPercent(deviceID: deviceID, batteryPercent: batteryPercent)
+            if let followerPercent { for followerID in batteryFollowerIDs { await softwareLightingEngine.updateBatteryPercent(deviceID: followerID, batteryPercent: followerPercent) } }
+        }
+    }
+
+    /// Resolves the battery percent that drives a device's battery-meter lighting. Battery-less
+    /// accessories, such as the Mouse Dock, follow the first connected device that reports battery.
+    private func softwareLightingBatteryPercent(for device: MouseDevice?) -> Int? {
+        guard let device else { return nil }
+        if let own = cachedStateByDeviceID[device.id]?.battery_percent ?? reconnectSeedStateByDeviceID[device.id]?.battery_percent { return own }
+        guard isBatteryFollowAccessory(device) else { return nil }
+        return cachedDevices.filter { $0.id != device.id }.sorted { $0.id < $1.id }.compactMap { cachedStateByDeviceID[$0.id]?.battery_percent ?? reconnectSeedStateByDeviceID[$0.id]?.battery_percent }.first
+    }
+
+    private func isBatteryFollowAccessory(_ device: MouseDevice) -> Bool { DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?.formFactor == .accessory }
 
     private func recordUSBControlAvailability(_ availability: USBControlAvailability, for deviceID: String, updatedAt: Date, publishSnapshot: Bool) {
         let previousAvailability = usbControlAvailabilityByDeviceID[deviceID]
@@ -705,7 +722,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
 
     private func recoverSoftwareLightingAfterUSBReachable(deviceID: String) async {
         guard let device = cachedDevices.first(where: { $0.id == deviceID }), device.transport == .usb else { return }
-        let batteryPercent = cachedStateByDeviceID[deviceID]?.battery_percent ?? reconnectSeedStateByDeviceID[deviceID]?.battery_percent
+        let batteryPercent = softwareLightingBatteryPercent(for: device)
 
         do {
             let resumedStatus = try await softwareLightingEngine.resumeIfNeeded(device: device, batteryPercent: batteryPercent)
@@ -771,7 +788,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
 
     private func resumeSuspendedSoftwareLighting(for devices: [MouseDevice]) {
         guard !devices.isEmpty else { return }
-        let recoveryInputs = devices.map { device in (device: device, batteryPercent: cachedStateByDeviceID[device.id]?.battery_percent ?? reconnectSeedStateByDeviceID[device.id]?.battery_percent) }
+        let recoveryInputs = devices.map { device in (device: device, batteryPercent: softwareLightingBatteryPercent(for: device)) }
         Task { [softwareLightingEngine] in for input in recoveryInputs { _ = try? await softwareLightingEngine.resumeIfNeeded(device: input.device, batteryPercent: input.batteryPercent) } }
     }
 

@@ -343,6 +343,8 @@ struct LightingCard: View {
                 if editorStore.editableSoftwareLightingPreset.usesSpeedControl { softwareLightingSpeedControl() }
                 softwareLightingBrightnessControl()
 
+                if editorStore.editableSoftwareLightingPreset == .batteryMeter { softwareLightingBatteryThresholdControl() }
+
                 if editorStore.editableSoftwareLightingPreset.usesPaletteControls {
                     SoftwareLightingPaletteEditor(
                         preset: editorStore.editableSoftwareLightingPreset,
@@ -414,6 +416,28 @@ struct LightingCard: View {
             }
 
             Slider(value: Binding(get: { editorStore.editableSoftwareLightingBrightness * 100.0 }, set: { editorStore.editableSoftwareLightingBrightness = max(0.0, min(1.0, $0 / 100.0)) }), in: 0...100).tint(.white).accessibilityIdentifier("software-lighting-brightness-slider")
+        }
+    }
+
+    private func softwareLightingBatteryThresholdControl() -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Low battery below").font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(.white.opacity(0.82))
+                Spacer()
+                Text("\(editorStore.editableSoftwareLightingBatteryLowThreshold)%").font(.system(size: 13, weight: .black, design: .monospaced)).foregroundStyle(.white)
+            }
+
+            Slider(value: Binding(get: { Double(editorStore.editableSoftwareLightingBatteryLowThreshold) }, set: { editorStore.updateSoftwareLightingBatteryLowThreshold(Int($0.rounded())) }), in: 1...98).tint(.white).accessibilityIdentifier("software-lighting-battery-low-slider")
+
+            HStack {
+                Text("Medium battery below").font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(.white.opacity(0.82))
+                Spacer()
+                Text("\(editorStore.editableSoftwareLightingBatteryMediumThreshold)%").font(.system(size: 13, weight: .black, design: .monospaced)).foregroundStyle(.white)
+            }
+
+            Slider(value: Binding(get: { Double(editorStore.editableSoftwareLightingBatteryMediumThreshold) }, set: { editorStore.updateSoftwareLightingBatteryMediumThreshold(Int($0.rounded())) }), in: 2...99).tint(.white).accessibilityIdentifier("software-lighting-battery-medium-slider")
+
+            Text("Palette order sets the low, medium, and high battery colors. The low color flashes below its threshold.").font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundStyle(.white.opacity(0.58)).fixedSize(horizontal: false, vertical: true)
         }
     }
 }
