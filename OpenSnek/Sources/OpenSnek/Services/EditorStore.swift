@@ -59,6 +59,7 @@ import OpenSnekCore
     var editableSoftwareLightingBrightness = 1.0
     var editableSoftwareLightingBatteryLowThreshold = SoftwareLightingEffectRequest.defaultBatteryLowThreshold
     var editableSoftwareLightingBatteryMediumThreshold = SoftwareLightingEffectRequest.defaultBatteryMediumThreshold
+    var editableSoftwareLightingBatterySourceDeviceID: String?
     var editableSoftwareLightingPalettes: [SoftwareLightingPresetID: [RGBColor]] = [:]
     var editableSoftwareLightingApplyOnConnect = false
     var editableUSBLightingZoneID: String = "all"
@@ -592,14 +593,18 @@ import OpenSnekCore
         editableSoftwareLightingBrightness = request.intensity
         editableSoftwareLightingBatteryLowThreshold = request.resolvedBatteryLowThreshold
         editableSoftwareLightingBatteryMediumThreshold = request.resolvedBatteryMediumThreshold
+        editableSoftwareLightingBatterySourceDeviceID = request.batterySourceDeviceID
         editableSoftwareLightingPalettes[resolvedPreset] = resolvedPalette.map { RGBColor(r: $0.r, g: $0.g, b: $0.b) }
     }
 
     func softwareLightingEffectRequest() -> SoftwareLightingEffectRequest {
         let palette = editableSoftwareLightingPalette(for: editableSoftwareLightingPreset).map { RGBPatch(r: $0.r, g: $0.g, b: $0.b) }
         return SoftwareLightingEffectRequest(
-            presetID: editableSoftwareLightingPreset, intensity: editableSoftwareLightingBrightness, speed: editableSoftwareLightingSpeed, palette: palette, batteryLowThreshold: editableSoftwareLightingBatteryLowThreshold, batteryMediumThreshold: editableSoftwareLightingBatteryMediumThreshold)
+            presetID: editableSoftwareLightingPreset, intensity: editableSoftwareLightingBrightness, speed: editableSoftwareLightingSpeed, palette: palette, batteryLowThreshold: editableSoftwareLightingBatteryLowThreshold, batteryMediumThreshold: editableSoftwareLightingBatteryMediumThreshold,
+            batterySourceDeviceID: editableSoftwareLightingBatterySourceDeviceID)
     }
+
+    func updateSoftwareLightingBatterySourceDeviceID(_ deviceID: String?) { editableSoftwareLightingBatterySourceDeviceID = deviceID }
 
     func updateSoftwareLightingBatteryLowThreshold(_ value: Int) { editableSoftwareLightingBatteryLowThreshold = max(1, min(editableSoftwareLightingBatteryMediumThreshold - 1, value)) }
 

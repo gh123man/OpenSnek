@@ -12,7 +12,9 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
 
     public static let animatedPresets: [SoftwareLightingPresetID] = [.flame, .scrollingRainbow, .cometChase, .nightRider, .aurora, .jellybeans]
 
-    public static let basiliskV3ProPresets: [SoftwareLightingPresetID] = animatedPresets + [.batteryMeter]
+    public static let batteryMeterAndAnimatedPresets: [SoftwareLightingPresetID] = animatedPresets + [.batteryMeter]
+
+    public static let basiliskV3ProPresets: [SoftwareLightingPresetID] = batteryMeterAndAnimatedPresets
 
     public var id: String { rawValue }
 
@@ -91,8 +93,9 @@ public struct SoftwareLightingEffectRequest: Codable, Hashable, Sendable {
     public let palette: [RGBPatch]
     public let batteryLowThreshold: Int?
     public let batteryMediumThreshold: Int?
+    public let batterySourceDeviceID: String?
 
-    public init(presetID: SoftwareLightingPresetID, framesPerSecond: Int = 30, intensity: Double = 1.0, speed: Double? = nil, palette: [RGBPatch]? = nil, batteryLowThreshold: Int? = nil, batteryMediumThreshold: Int? = nil) {
+    public init(presetID: SoftwareLightingPresetID, framesPerSecond: Int = 30, intensity: Double = 1.0, speed: Double? = nil, palette: [RGBPatch]? = nil, batteryLowThreshold: Int? = nil, batteryMediumThreshold: Int? = nil, batterySourceDeviceID: String? = nil) {
         self.presetID = presetID
         self.framesPerSecond = max(1, min(30, framesPerSecond))
         self.intensity = max(0.0, min(1.0, intensity))
@@ -101,6 +104,7 @@ public struct SoftwareLightingEffectRequest: Codable, Hashable, Sendable {
         let low = max(1, min(98, batteryLowThreshold ?? Self.defaultBatteryLowThreshold))
         self.batteryLowThreshold = low
         self.batteryMediumThreshold = max(low + 1, min(99, batteryMediumThreshold ?? Self.defaultBatteryMediumThreshold))
+        self.batterySourceDeviceID = batterySourceDeviceID
     }
 
     public var resolvedBatteryLowThreshold: Int { batteryLowThreshold ?? Self.defaultBatteryLowThreshold }

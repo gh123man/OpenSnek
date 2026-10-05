@@ -6,7 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Added
 - Added contributor-validated lighting support for the Razer Mouse Dock (`0x007E`): a single logo LED with static color, spectrum, and pulse effects plus brightness over USB.
-- Added a configurable Battery Meter preset for software lighting: pick low and medium battery thresholds and the low/medium/high palette colors. The Razer Mouse Dock uses it to mirror the connected mouse's battery level, including the low-battery flash.
+- Added a configurable Battery Meter preset for software lighting: pick low and medium battery thresholds, the low/medium/high palette colors, and the battery source device. The Razer Mouse Dock uses it to mirror a connected mouse's battery level, including the low-battery flash, and also ships the animated OpenSnek software presets.
 
 ### Changed
 - Lighting-only devices (the Mouse Dock, Huntsman Mini, and Tartarus Pro) now show one full-width, always-expanded lighting card with a single mode picker instead of the collapsible Onboard/Advanced tabs.

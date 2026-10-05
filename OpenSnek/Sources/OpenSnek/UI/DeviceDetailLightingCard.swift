@@ -122,7 +122,7 @@ struct LightingCard: View {
             LightingSummaryInput(
                 supportsSoftwareLightingEffects: selected.supportsSoftwareLightingEffects, softwareLightingStatus: softwareLightingStatus, editableSoftwareLightingPreset: editorStore.editableSoftwareLightingPreset,
                 editableSoftwareLightingPalette: editorStore.editableSoftwareLightingPalette(for: editorStore.editableSoftwareLightingPreset), onboardEffectLabel: editorStore.editableLightingEffect.label, onboardColors: editorStore.lightingGradientDisplayColors,
-                fallbackColor: editorStore.editableColor, batteryState: editorStore.deviceStore.state), )
+                fallbackColor: editorStore.editableColor, batteryState: batteryMeterSourceState), )
     }
 
     private var advancedStatusText: String? {
@@ -382,9 +382,10 @@ struct LightingCard: View {
             Spacer(minLength: 10)
 
             if let batteryIcon = lightingSummaryBatteryIcon {
-                Image(systemName: batteryIcon.symbolName, variableValue: batteryIcon.variableValue).font(.system(size: 17, weight: .bold)).foregroundStyle(batteryIcon.accent == .low ? BatteryPresentation.lowBatteryColor : .white.opacity(0.82)).frame(width: 28, height: 18).accessibilityLabel(
-                    "Battery Meter"
-                ).accessibilityIdentifier("lighting-card-summary-battery-icon")
+                HStack(spacing: 6) {
+                    Image(systemName: batteryIcon.symbolName, variableValue: batteryIcon.variableValue)
+                    if let percent = lightingSummaryPresentation.batteryPercent { Text("\(percent)%").font(.system(size: 13, weight: .black, design: .monospaced)).foregroundStyle(.white.opacity(0.82)) }
+                }.font(.system(size: 17, weight: .bold)).foregroundStyle(batteryIcon.accent == .low ? BatteryPresentation.lowBatteryColor : .white.opacity(0.82)).frame(height: 18).accessibilityLabel("Battery Meter").accessibilityIdentifier("lighting-card-summary-battery-icon")
             } else {
                 HStack(spacing: -3) { ForEach(Array(lightingSummarySwatches.enumerated()), id: \.offset) { _, color in Circle().fill(Color(rgb: color)).frame(width: 15, height: 15).overlay(Circle().stroke(Color.white.opacity(0.62), lineWidth: 1)) } }.padding(.horizontal, 3).accessibilityHidden(true)
             }
@@ -495,8 +496,48 @@ struct LightingCard: View {
         }
     }
 
+    private var batterySourceCandidates: [MouseDevice] { editorStore.deviceStore.devices.filter { $0.id != selected.id }.sorted { $0.product_name < $1.product_name } }
+
+    private var showsBatterySourcePicker: Bool {
+        guard editorStore.editableSoftwareLightingPreset == .batteryMeter, !batterySourceCandidates.isEmpty else { return false }
+        return DeviceProfiles.resolve(vendorID: selected.vendor_id, productID: selected.product_id, transport: selected.transport)?.formFactor == .accessory
+    }
+
+    private var batteryMeterSourceState: MouseState? {
+        if let own = editorStore.deviceStore.state, own.battery_percent != nil { return own }
+        if let sourceID = editorStore.editableSoftwareLightingBatterySourceDeviceID, let source = editorStore.deviceStore.stateByDeviceID[sourceID] { return source }
+        return editorStore.deviceStore.devices.compactMap { editorStore.deviceStore.stateByDeviceID[$0.id] }.first(where: { $0.battery_percent != nil })
+    }
+
+    private func batterySourceLabel(_ device: MouseDevice) -> String {
+        guard let percent = editorStore.deviceStore.stateByDeviceID[device.id]?.battery_percent else { return device.product_name }
+        return "\(device.product_name) — \(percent)%"
+    }
+
+    private var batterySourceBinding: Binding<String?> {
+        Binding(
+            get: { editorStore.editableSoftwareLightingBatterySourceDeviceID },
+            set: { deviceID in
+                editorStore.updateSoftwareLightingBatterySourceDeviceID(deviceID)
+                if case .software = selectedLightingMode { Task { await editorStore.startSoftwareLighting() } }
+            })
+    }
+
     private func softwareLightingBatteryThresholdControl() -> some View {
         VStack(alignment: .leading, spacing: 8) {
+            if showsBatterySourcePicker {
+                HStack(spacing: 12) {
+                    Text("Battery source").font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(.white.opacity(0.82))
+
+                    Spacer(minLength: 12)
+
+                    Picker("", selection: batterySourceBinding) {
+                        Text("Automatic").tag(String?.none)
+                        ForEach(batterySourceCandidates) { device in Text(batterySourceLabel(device)).tag(String?.some(device.id)) }
+                    }.labelsHidden().pickerStyle(.menu).frame(width: 220, alignment: .trailing).accessibilityIdentifier("software-lighting-battery-source-picker")
+                }
+            }
+
             HStack {
                 Text("Low battery below").font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(.white.opacity(0.82))
                 Spacer()
@@ -538,6 +579,7 @@ struct LightingSummaryPresentation: Equatable {
     let title: String
     let swatches: [RGBColor]
     let batteryIcon: BatteryIconPresentation?
+    let batteryPercent: Int?
 
     static func make(_ input: LightingSummaryInput) -> LightingSummaryPresentation {
         if input.supportsSoftwareLightingEffects, let status = input.softwareLightingStatus, status.state != .stopped {
@@ -545,15 +587,17 @@ struct LightingSummaryPresentation: Equatable {
             if preset == .batteryMeter {
                 // Battery-less accessories (for example the Mouse Dock) follow another device's
                 // battery, so show the configured band colors instead of a fake battery level.
-                guard let batteryState = input.batteryState, batteryState.battery_percent != nil else { return LightingSummaryPresentation(title: preset.label, swatches: condensedSwatches(from: input.editableSoftwareLightingPalette, fallback: input.fallbackColor), batteryIcon: nil) }
-                return LightingSummaryPresentation(title: preset.label, swatches: [], batteryIcon: batteryIcon(for: batteryState))
+                guard let batteryState = input.batteryState, let batteryPercent = batteryState.battery_percent else {
+                    return LightingSummaryPresentation(title: preset.label, swatches: condensedSwatches(from: input.editableSoftwareLightingPalette, fallback: input.fallbackColor), batteryIcon: nil, batteryPercent: nil)
+                }
+                return LightingSummaryPresentation(title: preset.label, swatches: [], batteryIcon: batteryIcon(for: batteryState), batteryPercent: batteryPercent)
             }
 
             let palette = status.request?.palette.map { color in RGBColor(r: color.r, g: color.g, b: color.b) } ?? input.editableSoftwareLightingPalette
-            return LightingSummaryPresentation(title: preset.label, swatches: condensedSwatches(from: palette, fallback: input.fallbackColor), batteryIcon: nil)
+            return LightingSummaryPresentation(title: preset.label, swatches: condensedSwatches(from: palette, fallback: input.fallbackColor), batteryIcon: nil, batteryPercent: nil)
         }
 
-        return LightingSummaryPresentation(title: "Onboard \(input.onboardEffectLabel)", swatches: condensedSwatches(from: input.onboardColors, fallback: input.fallbackColor), batteryIcon: nil)
+        return LightingSummaryPresentation(title: "Onboard \(input.onboardEffectLabel)", swatches: condensedSwatches(from: input.onboardColors, fallback: input.fallbackColor), batteryIcon: nil, batteryPercent: nil)
     }
 
     private static func batteryIcon(for state: MouseState?) -> BatteryIconPresentation {

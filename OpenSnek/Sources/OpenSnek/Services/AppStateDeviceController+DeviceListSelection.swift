@@ -599,11 +599,13 @@ import OpenSnekHardware
         stateCacheByDeviceID[sourceDeviceID] = state
         lastUpdatedByDeviceID[sourceDeviceID] = updatedAt
         lastStateMutationAtByDeviceID[sourceDeviceID] = resolvedObservedAt
+        deviceStore.stateByDeviceID[sourceDeviceID] = state
 
         if presentationDeviceID != sourceDeviceID {
             stateCacheByDeviceID[presentationDeviceID] = state
             lastUpdatedByDeviceID[presentationDeviceID] = updatedAt
             lastStateMutationAtByDeviceID[presentationDeviceID] = resolvedObservedAt
+            deviceStore.stateByDeviceID[presentationDeviceID] = state
         }
 
         if deviceStore.selectedDeviceID == presentationDeviceID {

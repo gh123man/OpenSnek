@@ -93,6 +93,11 @@ final class SoftwareLightingRendererTests: XCTestCase {
         XCTAssertEqual(request.palette, [RGBPatch(r: 0, g: 128, b: 255)])
     }
 
+    func testSoftwareLightingRequestCarriesBatterySourceDevice() {
+        XCTAssertEqual(SoftwareLightingEffectRequest(presetID: .batteryMeter, batterySourceDeviceID: "usb-mouse-source").batterySourceDeviceID, "usb-mouse-source")
+        XCTAssertNil(SoftwareLightingEffectRequest(presetID: .batteryMeter).batterySourceDeviceID)
+    }
+
     func testBatteryMeterDefaultPaletteUsesThresholdColors() {
         XCTAssertEqual(SoftwareLightingPresetID.batteryMeter.label, "Battery Meter")
         XCTAssertEqual(SoftwareLightingPresetID.batteryMeter.defaultPalette, [RGBPatch(r: 255, g: 0, b: 0), RGBPatch(r: 255, g: 255, b: 0), RGBPatch(r: 255, g: 255, b: 255)])
@@ -130,7 +135,7 @@ final class SoftwareLightingRendererTests: XCTestCase {
 
         XCTAssertEqual(SoftwareLightingFrameLayout.mouseDockUSB.cellCount, 1)
         XCTAssertEqual(profile?.softwareLightingFrameLayout, .mouseDockUSB)
-        XCTAssertEqual(profile?.supportedSoftwareLightingPresets, [.batteryMeter])
+        XCTAssertEqual(profile?.supportedSoftwareLightingPresets, SoftwareLightingPresetID.batteryMeterAndAnimatedPresets)
     }
 
     func testFlameRendersNonUniformFlickerAcrossCells() {

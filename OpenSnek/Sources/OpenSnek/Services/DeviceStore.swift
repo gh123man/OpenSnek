@@ -11,6 +11,7 @@ import SwiftUI
     var devices: [MouseDevice] = []
     var selectedDeviceID: String?
     var state: MouseState?
+    var stateByDeviceID: [String: MouseState] = [:]
     var availableUpdate: ReleaseAvailability?
     var updateInstallState: SoftwareUpdateInstallState = .idle
     var isLoading = false
