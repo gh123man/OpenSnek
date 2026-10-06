@@ -328,6 +328,42 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.buttonLayout, DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x008F, transport: .usb)?.buttonLayout)
     }
 
+    func testResolveUSBProfileForNagaV2ProWireless() {
+        let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00A8, transport: .usb)
+        XCTAssertEqual(profile?.id, .nagaV2Pro)
+        XCTAssertEqual(profile?.productName, "Naga V2 Pro")
+        XCTAssertEqual(profile?.supportedProducts, [0x00A8])
+        XCTAssertEqual(profile?.usbTransactionID, 0x1F)
+        XCTAssertEqual(profile?.buttonLayout.writableSlots, [1, 2, 3, 4, 5, 9, 10, 52, 53, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82, 83, 84, 85])
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots.filter { $0.group == "Mouse" }.map(\.slot), [1, 2, 3, 9, 10, 52, 53])
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots.first(where: { $0.slot == 5 })?.group, "2-Button Panel")
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots.first(where: { $0.slot == 85 })?.group, "6-Button Panel")
+        XCTAssertEqual(profile?.buttonLayout.access(for: 83), .editable)
+        XCTAssertEqual(profile?.buttonLayout.access(for: 14), .protocolReadOnly)
+        XCTAssertEqual(profile?.buttonLayout.access(for: 96), .protocolReadOnly)
+        XCTAssertEqual(profile?.buttonLayout.access(for: 109), .protocolReadOnly)
+        XCTAssertEqual(profile?.supportsAdvancedLightingEffects, true)
+        XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual])
+        XCTAssertEqual(profile?.usbLightingLEDIDs, [0x04])
+        XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["logo"])
+        XCTAssertEqual(profile?.usbBrightnessLEDIDs, [0x00])
+        XCTAssertEqual(profile?.supportsLightingBrightnessControls, true)
+        XCTAssertEqual(profile?.supportsScrollModeControls, false)
+        XCTAssertEqual(profile?.onboardProfileSupport, .mappedCore)
+        XCTAssertEqual(profile?.onboardProfileCount, 5)
+        XCTAssertEqual(profile?.softwareLightingFrameLayout?.cellCount, 1)
+        XCTAssertEqual(profile?.supportedSoftwareLightingPresets, SoftwareLightingPresetID.animatedPresets)
+        XCTAssertEqual(profile?.isLocallyValidated, false)
+        XCTAssertFalse(ButtonBindingSupport.availableButtonBindingKinds(profileID: .nagaV2Pro).contains(.dpiClutch))
+        XCTAssertFalse(DeviceProfiles.supportsIndependentXYDPI(for: .nagaV2Pro))
+        XCTAssertEqual(DeviceProfiles.maximumDPI(for: .nagaV2Pro), 30_000)
+    }
+
+    func testNagaV2ProIsNotResolvedAsNagaPro() {
+        XCTAssertNil(DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00A8, transport: .bluetooth))
+        XCTAssertEqual(DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x0090, transport: .usb)?.id, .nagaPro)
+    }
+
     func testDPIRangesMatchSupportedProfiles() {
         XCTAssertEqual(DeviceProfiles.dpiRange(for: .basiliskV3XHyperspeed), 100...18_000)
         XCTAssertEqual(DeviceProfiles.dpiRange(for: .basiliskV3), 100...26_000)

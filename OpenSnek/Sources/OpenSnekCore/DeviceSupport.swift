@@ -513,6 +513,50 @@ public enum DeviceProfiles {
         id: .nagaPro, productName: "Naga Pro", transport: .bluetooth, supportedProducts: [0x0092], buttonLayout: ButtonSlotLayout(visibleSlots: nagaProUSBButtonSlots, writableSlots: nagaProUSBWritableSlots, documentedSlots: nagaProUSBDocumentedReadOnlySlots), supportsAdvancedLightingEffects: false,
         supportedLightingEffects: [], usbLightingLEDIDs: [0x01, 0x04], usbLightingZones: nagaProUSBLightingZones, supportsLightingBrightnessControls: true, onboardProfileSupport: .mappedCore, onboardProfileCount: 5, isLocallyValidated: false)
 
+    // MARK: - Razer Naga V2 Pro (2.4 GHz receiver, 0x00A8)
+
+    // Contributor-validated USB profile for the Naga V2 Pro wireless receiver. The body and side
+    // panel slot table matches the Naga Pro family, with two differences: the 6-button panel slots
+    // 80-85 all carry decoded keyboard defaults, and wheel tilt keeps the Basilisk-family button
+    // IDs 0x68 / 0x69. Lighting is the palm logo (LED 0x04) with whole-device brightness on LED
+    // 0x00; per-LED effects and custom frames are validated on the logo. The scroll-mode command is
+    // rejected (status 0x05), so scroll-mode controls stay hidden.
+    public static let nagaV2ProUSBButtonSlots: [ButtonSlotDescriptor] = [
+        ButtonSlotDescriptor(slot: 1, friendlyName: "Left Click", defaultKind: .leftClick, group: "Mouse"), ButtonSlotDescriptor(slot: 2, friendlyName: "Right Click", defaultKind: .rightClick, group: "Mouse"),
+        ButtonSlotDescriptor(slot: 3, friendlyName: "Middle Click", defaultKind: .middleClick, group: "Mouse"), ButtonSlotDescriptor(slot: 9, friendlyName: "Scroll Up", defaultKind: .scrollUp, group: "Mouse"),
+        ButtonSlotDescriptor(slot: 10, friendlyName: "Scroll Down", defaultKind: .scrollDown, group: "Mouse"), ButtonSlotDescriptor(slot: 52, friendlyName: "Wheel Tilt Left", defaultKind: .scrollLeft, group: "Mouse"),
+        ButtonSlotDescriptor(slot: 53, friendlyName: "Wheel Tilt Right", defaultKind: .scrollRight, group: "Mouse"),
+        // These slots have no dedicated buttons on the mouse body itself - they only respond when the 2-button panel is installed, and are reversed from panel label order (label 1 = slot 5, label 2 = slot 4).
+        ButtonSlotDescriptor(slot: 5, friendlyName: "Panel Button 1", defaultKind: .mouseForward, group: "2-Button Panel"), ButtonSlotDescriptor(slot: 4, friendlyName: "Panel Button 2", defaultKind: .mouseBack, group: "2-Button Panel"),
+        // 12-button panel labels are inferred to map straight to slots 64-75 (keyboard 1..9, 0, -, =) and 6-button panel labels to slots 80-85 (keyboard 1..6) from the firmware's native key order; the physical label order is not verified yet.
+        ButtonSlotDescriptor(slot: 64, friendlyName: "Side Button 1", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 65, friendlyName: "Side Button 2", defaultKind: .keyboardSimple, group: "12-Button Panel"),
+        ButtonSlotDescriptor(slot: 66, friendlyName: "Side Button 3", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 67, friendlyName: "Side Button 4", defaultKind: .keyboardSimple, group: "12-Button Panel"),
+        ButtonSlotDescriptor(slot: 68, friendlyName: "Side Button 5", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 69, friendlyName: "Side Button 6", defaultKind: .keyboardSimple, group: "12-Button Panel"),
+        ButtonSlotDescriptor(slot: 70, friendlyName: "Side Button 7", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 71, friendlyName: "Side Button 8", defaultKind: .keyboardSimple, group: "12-Button Panel"),
+        ButtonSlotDescriptor(slot: 72, friendlyName: "Side Button 9", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 73, friendlyName: "Side Button 10", defaultKind: .keyboardSimple, group: "12-Button Panel"),
+        ButtonSlotDescriptor(slot: 74, friendlyName: "Side Button 11", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 75, friendlyName: "Side Button 12", defaultKind: .keyboardSimple, group: "12-Button Panel"),
+        ButtonSlotDescriptor(slot: 80, friendlyName: "Side Button 1", defaultKind: .keyboardSimple, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 81, friendlyName: "Side Button 2", defaultKind: .keyboardSimple, group: "6-Button Panel"),
+        ButtonSlotDescriptor(slot: 82, friendlyName: "Side Button 3", defaultKind: .keyboardSimple, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 83, friendlyName: "Side Button 4", defaultKind: .keyboardSimple, group: "6-Button Panel"),
+        ButtonSlotDescriptor(slot: 84, friendlyName: "Side Button 5", defaultKind: .keyboardSimple, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 85, friendlyName: "Side Button 6", defaultKind: .keyboardSimple, group: "6-Button Panel")
+    ]
+
+    public static let nagaV2ProUSBWritableSlots: [Int] = [1, 2, 3, 4, 5, 9, 10, 52, 53, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82, 83, 84, 85]
+
+    public static let nagaV2ProUSBDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
+        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 14, friendlyName: "Extra Button 1", defaultKind: .default), access: .protocolReadOnly, note: "The native class-0x07 function block is not decoded yet, so OpenSnek preserves this button."),
+        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 96, friendlyName: "DPI Cycle", defaultKind: .default), access: .protocolReadOnly, note: "The native block matches the DPI-cycle action, but remap writes are not validated yet, so OpenSnek preserves this button."),
+        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 109, friendlyName: "Extra Button 3", defaultKind: .default), access: .protocolReadOnly, note: "The native class-0x12 function block is not decoded yet, so OpenSnek preserves this button.")
+    ]
+
+    public static let nagaV2ProUSBLightingEffects: [LightingEffectKind] = [.off, .staticColor, .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual]
+
+    public static let nagaV2ProUSBLightingZones: [USBLightingZoneDescriptor] = [USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x04])]
+
+    public static let nagaV2ProUSB = DeviceProfile(
+        id: .nagaV2Pro, productName: "Naga V2 Pro", transport: .usb, supportedProducts: [0x00A8], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: nagaV2ProUSBButtonSlots, writableSlots: nagaV2ProUSBWritableSlots, documentedSlots: nagaV2ProUSBDocumentedReadOnlySlots),
+        supportsAdvancedLightingEffects: true, supportedLightingEffects: nagaV2ProUSBLightingEffects, usbLightingLEDIDs: [0x04], usbLightingZones: nagaV2ProUSBLightingZones, softwareLightingFrameLayout: .nagaV2ProUSB, supportedSoftwareLightingPresets: SoftwareLightingPresetID.animatedPresets,
+        supportsLightingBrightnessControls: true, onboardProfileSupport: .mappedCore, onboardProfileCount: 5, usbBrightnessLEDIDs: [0x00], isLocallyValidated: false)
+
     // MARK: - Razer Basilisk (2017, 0x0064)
 
     // OpenRazer-backed USB profile (razermouse_driver.c): extended-matrix lighting on
@@ -585,7 +629,7 @@ public enum DeviceProfiles {
         usbLightingLEDIDs: [0x05], usbLightingZones: tartarusProUSBLightingZones, supportsLightingBrightnessControls: true, formFactor: .keypad, supportsDPIControls: false, supportsPollRateControls: false, supportsPowerManagementControls: false, supportsButtonRemapControls: false,
         usbBrightnessLEDIDs: [0x00], isLocallyValidated: false)
 
-    public static let all: [DeviceProfile] = [basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, orochiV2Bluetooth, nagaProUSB, nagaProBluetooth, basiliskUSB, lanceheadTEUSB, huntsmanMiniUSB, tartarusProUSB]
+    public static let all: [DeviceProfile] = [basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, orochiV2Bluetooth, nagaProUSB, nagaProBluetooth, nagaV2ProUSB, basiliskUSB, lanceheadTEUSB, huntsmanMiniUSB, tartarusProUSB]
 
     public static func resolve(vendorID: Int, productID: Int, transport: DeviceTransportKind) -> DeviceProfile? { all.first(where: { $0.matches(vendorID: vendorID, productID: productID, transport: transport) }) }
 
@@ -608,6 +652,7 @@ public enum DeviceProfiles {
         case .basiliskV335K: return 35_000
         case .orochiV2: return 18_000
         case .nagaPro: return 20_000
+        case .nagaV2Pro: return 30_000
         case .basilisk: return 16_000
         case .lanceheadTournamentEdition: return 16_000
         // The Huntsman Mini and Tartarus Pro have no DPI hardware; their profiles
@@ -719,7 +764,7 @@ public enum DeviceProfiles {
     public static func supportsIndependentXYDPI(for profileID: DeviceProfileID?) -> Bool {
         switch profileID {
         case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basilisk, .lanceheadTournamentEdition: return true
-        case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .huntsmanMini, .tartarusPro, nil: return false
+        case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .huntsmanMini, .tartarusPro, nil: return false
         }
     }
 

@@ -166,6 +166,12 @@ public struct SoftwareLightingFrameLayout: Codable, Hashable, Sendable {
     ]
 
     public static let basiliskV3ProUSB = SoftwareLightingFrameLayout(id: "basilisk_v3_family_usb_14_cell", label: "Basilisk V3-family USB 14-cell frame", cells: basiliskV3USBCells)
+
+    // The Naga V2 Pro exposes one visible lighting area (the palm logo) for custom frames; the
+    // device accepts a 1x3 matrix frame, but only the logo cell is lit with the 2-button panel.
+    private static let nagaV2ProUSBCells = [SoftwareLightingFrameCell(index: 0, id: "logo", label: "Logo")]
+
+    public static let nagaV2ProUSB = SoftwareLightingFrameLayout(id: "naga_v2_pro_usb_1_cell", label: "Naga V2 Pro USB logo cell", cells: nagaV2ProUSBCells)
 }
 
 /// Stores USB lighting frame patch data.
