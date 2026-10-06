@@ -107,7 +107,7 @@ struct ServiceMenuBarView: View {
     let editorStore: EditorStore
     let runtimeStore: RuntimeStore
 
-    private var showsDeviceControls: Bool { deviceStore.selectedDevice != nil && deviceStore.state != nil }
+    private var showsDeviceControls: Bool { deviceStore.selectedDevice != nil && deviceStore.state != nil && deviceStore.selectedDeviceSupportsDPIControls }
 
     private var controlsEnabled: Bool { deviceStore.selectedDeviceControlsEnabled }
 
@@ -130,6 +130,11 @@ struct ServiceMenuBarView: View {
                 }
             } else if let message = deviceStore.selectedDeviceInteractionMessage {
                 Text(message).font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
+            } else if deviceStore.selectedDeviceIsLightingOnly {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("This device has lighting controls only. Open OpenSnek to edit its lighting.").font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
+                    if let message = runtimeStore.compactStatusMessage { Text(message).font(.system(size: 11, weight: .bold, design: .rounded)).foregroundStyle(.secondary) }
+                }
             } else {
                 Text("Connect a supported mouse to edit DPI from the menu bar.").font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
             }
