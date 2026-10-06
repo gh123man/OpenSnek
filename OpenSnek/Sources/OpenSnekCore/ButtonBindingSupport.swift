@@ -19,14 +19,16 @@ public enum ButtonBindingSupport {
     private static let nagaProHorizontalScrollRightButtonID: UInt8 = 0x0A
 
     // Native Naga Pro side-panel defaults captured from the firmware's unassigned onboard banks
-    // (2.4 GHz receiver 1532:0090, firmware 0x00112100). The 12-button panel defaults to keyboard
-    // 1..9, 0, -, = and the 6-button panel defaults to keyboard 1..6. Native blocks declare
+    // (2.4 GHz receiver 1532:0090, firmware 0x00112100) and physically press-validated on the
+    // 12-button panel slots 64-75 and 6-button panel slots 80-85. The 12-button panel defaults to
+    // keyboard 1..9, 0, -, = and the 6-button panel to keyboard 1..6. Native blocks declare
     // function-data length 0x01 while keeping [class, length, modifiers, HID key] at bytes 0..3.
-    // See captures/usb/2026-10-05-naga-pro-native-default-banks/.
+    // See captures/usb/2026-10-05-naga-pro-native-default-banks/ and
+    // captures/usb/2026-10-06-naga-pro-side-panel-validation/.
     private static let nagaProNativeKeyboardKeyBySlot: [Int: UInt8] = [
         64: 0x1E, 65: 0x1F, 66: 0x20, 67: 0x21, 68: 0x22, 69: 0x23,
         70: 0x24, 71: 0x25, 72: 0x26, 73: 0x27, 74: 0x2D, 75: 0x2E,
-        80: 0x1E, 81: 0x1F, 82: 0x20
+        80: 0x1E, 81: 0x1F, 82: 0x20, 83: 0x21, 84: 0x22, 85: 0x23
     ]
 
     private static func nagaProNativeKeyboardBlock(hidKey: UInt8) -> [UInt8] {

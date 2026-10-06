@@ -481,10 +481,11 @@ public enum DeviceProfiles {
         ButtonSlotDescriptor(slot: 53, friendlyName: "Wheel Tilt Right", defaultKind: .scrollRight, group: "Mouse"),
         // These slots have no dedicated buttons on the mouse body itself - they only respond when the 2-button panel is installed, and are reversed from panel label order (label 1 = slot 5, label 2 = slot 4).
         ButtonSlotDescriptor(slot: 5, friendlyName: "Panel Button 1", defaultKind: .mouseForward, group: "2-Button Panel"), ButtonSlotDescriptor(slot: 4, friendlyName: "Panel Button 2", defaultKind: .mouseBack, group: "2-Button Panel"),
-        // Panel labels 1-3 map straight to slots 80-82, but labels 4-6 map in reverse order to slots 85, 84, 83. Slots 83-85 use an undecoded function-block class (0x03), so they remain read-only until that native behavior is understood.
+        // Physical press validation on the 6-button panel (2.4 GHz receiver, firmware 0x00112100) confirmed labels 1-6 map straight to slots 80-85 and every slot accepts remaps. The panel's printed numbering wraps around its physical layout, so position-based reading can look reversed.
         ButtonSlotDescriptor(slot: 80, friendlyName: "Side Button 1", defaultKind: .keyboardSimple, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 81, friendlyName: "Side Button 2", defaultKind: .keyboardSimple, group: "6-Button Panel"),
-        ButtonSlotDescriptor(slot: 82, friendlyName: "Side Button 3", defaultKind: .keyboardSimple, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 85, friendlyName: "Side Button 4", defaultKind: .default, group: "6-Button Panel"),
-        ButtonSlotDescriptor(slot: 84, friendlyName: "Side Button 5", defaultKind: .default, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 83, friendlyName: "Side Button 6", defaultKind: .default, group: "6-Button Panel"),
+        ButtonSlotDescriptor(slot: 82, friendlyName: "Side Button 3", defaultKind: .keyboardSimple, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 83, friendlyName: "Side Button 4", defaultKind: .keyboardSimple, group: "6-Button Panel"),
+        ButtonSlotDescriptor(slot: 84, friendlyName: "Side Button 5", defaultKind: .keyboardSimple, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 85, friendlyName: "Side Button 6", defaultKind: .keyboardSimple, group: "6-Button Panel"),
+        // Physical press validation also confirmed 12-button panel labels 1-12 map straight to slots 64-75 and emit keyboard 1..9, 0, -, =.
         ButtonSlotDescriptor(slot: 64, friendlyName: "Side Button 1", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 65, friendlyName: "Side Button 2", defaultKind: .keyboardSimple, group: "12-Button Panel"),
         ButtonSlotDescriptor(slot: 66, friendlyName: "Side Button 3", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 67, friendlyName: "Side Button 4", defaultKind: .keyboardSimple, group: "12-Button Panel"),
         ButtonSlotDescriptor(slot: 68, friendlyName: "Side Button 5", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 69, friendlyName: "Side Button 6", defaultKind: .keyboardSimple, group: "12-Button Panel"),
@@ -493,13 +494,10 @@ public enum DeviceProfiles {
         ButtonSlotDescriptor(slot: 74, friendlyName: "Side Button 11", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 75, friendlyName: "Side Button 12", defaultKind: .keyboardSimple, group: "12-Button Panel")
     ]
 
-    public static let nagaProUSBWritableSlots: [Int] = [1, 2, 3, 4, 5, 9, 10, 52, 53, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82]
+    public static let nagaProUSBWritableSlots: [Int] = [1, 2, 3, 4, 5, 9, 10, 52, 53, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82, 83, 84, 85]
 
     public static let nagaProUSBDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
-        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 14, friendlyName: "Scroll Mode Toggle", defaultKind: .default), access: .protocolReadOnly, note: "OpenSnek can see this button, but the mouse does not let apps remap it yet."),
-        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 83, friendlyName: "Side Button 6", defaultKind: .default, group: "6-Button Panel"), access: .protocolReadOnly, note: "The native class-0x03 function block is not decoded yet, so OpenSnek preserves this button."),
-        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 84, friendlyName: "Side Button 5", defaultKind: .default, group: "6-Button Panel"), access: .protocolReadOnly, note: "The native class-0x03 function block is not decoded yet, so OpenSnek preserves this button."),
-        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 85, friendlyName: "Side Button 4", defaultKind: .default, group: "6-Button Panel"), access: .protocolReadOnly, note: "The native class-0x03 function block is not decoded yet, so OpenSnek preserves this button.")
+        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 14, friendlyName: "Scroll Mode Toggle", defaultKind: .default), access: .protocolReadOnly, note: "OpenSnek can see this button, but the mouse does not let apps remap it yet.")
     ]
 
     public static let nagaProUSBLightingZones: [USBLightingZoneDescriptor] = [USBLightingZoneDescriptor(id: "scroll_wheel", label: "Scroll Wheel", ledIDs: [0x01]), USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x04])]

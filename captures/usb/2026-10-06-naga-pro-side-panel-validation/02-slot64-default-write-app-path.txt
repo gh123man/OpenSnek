@@ -1,0 +1,4 @@
+# App Default-path write on slot 64 (12-button panel label 1) - 10:02:10
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=64 block=0201001e000000 class=0x02 len=1 data=00
+readback profile=0 slot=64 block=0201001e000000 class=0x02 len=1 data=00
