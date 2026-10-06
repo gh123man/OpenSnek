@@ -245,6 +245,7 @@ public struct DeviceProfile: Hashable, Sendable {
     public let supportsIndependentXYDPI: Bool
     public let supportsScrollModeControls: Bool
     public let supportsLightingBrightnessControls: Bool
+    public let supportsLightingStateReads: Bool
     public let usesProjectedDPIStageWriteReadback: Bool
     public let onboardProfileSupport: OnboardProfileSupport
     public let onboardProfileCount: Int
@@ -259,7 +260,7 @@ public struct DeviceProfile: Hashable, Sendable {
     public init(
         id: DeviceProfileID, productName: String, transport: DeviceTransportKind, supportedProducts: Set<Int>, usbTransactionID: UInt8? = nil, buttonLayout: ButtonSlotLayout, supportsAdvancedLightingEffects: Bool, supportedLightingEffects: [LightingEffectKind] = LightingEffectKind.allCases,
         usbLightingLEDIDs: [UInt8] = [], usbLightingZones: [USBLightingZoneDescriptor] = [], softwareLightingFrameLayout: SoftwareLightingFrameLayout? = nil, supportedSoftwareLightingPresets: [SoftwareLightingPresetID] = [], passiveDPIInput: PassiveDPIInputDescriptor? = nil,
-        supportsIndependentXYDPI: Bool = false, supportsScrollModeControls: Bool = false, supportsLightingBrightnessControls: Bool = false, usesProjectedDPIStageWriteReadback: Bool = false, onboardProfileSupport: OnboardProfileSupport = .unavailable, onboardProfileCount: Int = 1,
+        supportsIndependentXYDPI: Bool = false, supportsScrollModeControls: Bool = false, supportsLightingBrightnessControls: Bool = false, supportsLightingStateReads: Bool = true, usesProjectedDPIStageWriteReadback: Bool = false, onboardProfileSupport: OnboardProfileSupport = .unavailable, onboardProfileCount: Int = 1,
         formFactor: DeviceFormFactor = .mouse, supportsDPIControls: Bool = true, supportsPollRateControls: Bool = true, supportsPowerManagementControls: Bool = true, supportsButtonRemapControls: Bool = true, usbBrightnessLEDIDs: [UInt8]? = nil, isLocallyValidated: Bool = true
     ) {
         self.id = id
@@ -278,6 +279,7 @@ public struct DeviceProfile: Hashable, Sendable {
         self.supportsIndependentXYDPI = supportsIndependentXYDPI
         self.supportsScrollModeControls = supportsScrollModeControls
         self.supportsLightingBrightnessControls = supportsLightingBrightnessControls
+        self.supportsLightingStateReads = supportsLightingStateReads
         self.usesProjectedDPIStageWriteReadback = usesProjectedDPIStageWriteReadback
         self.onboardProfileSupport = onboardProfileSupport
         self.onboardProfileCount = max(1, onboardProfileCount)
@@ -600,7 +602,7 @@ public enum DeviceProfiles {
 
     public static let mouseDockUSB = DeviceProfile(
         id: .mouseDock, productName: "Mouse Dock", transport: .usb, supportedProducts: [0x007E], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: [], writableSlots: []), supportsAdvancedLightingEffects: true, supportedLightingEffects: mouseDockUSBLightingEffects,
-        usbLightingLEDIDs: [0x00], usbLightingZones: mouseDockUSBLightingZones, softwareLightingFrameLayout: .mouseDockUSB, supportedSoftwareLightingPresets: SoftwareLightingPresetID.batteryMeterAndAnimatedPresets, supportsLightingBrightnessControls: true, formFactor: .accessory,
+        usbLightingLEDIDs: [0x00], usbLightingZones: mouseDockUSBLightingZones, softwareLightingFrameLayout: .mouseDockUSB, supportedSoftwareLightingPresets: SoftwareLightingPresetID.batteryMeterAndAnimatedPresets, supportsLightingBrightnessControls: true, supportsLightingStateReads: false, formFactor: .accessory,
         supportsDPIControls: false, supportsPollRateControls: false, supportsPowerManagementControls: false, supportsButtonRemapControls: false, usbBrightnessLEDIDs: [0x00], isLocallyValidated: false)
 
     public static let all: [DeviceProfile] = [basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, orochiV2Bluetooth, nagaProUSB, nagaProBluetooth, basiliskUSB, lanceheadTEUSB, huntsmanMiniUSB, tartarusProUSB, mouseDockUSB]

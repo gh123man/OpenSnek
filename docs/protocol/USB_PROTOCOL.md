@@ -235,6 +235,7 @@ Contributor-validated Razer Mouse Dock (`0x007E`): lighting-only accessory on th
 - single logo LED `0x00`; static color `0f 02` args `01 00 01 00 00 01 rr gg bb`, off `01 00 00 00 00 00`, spectrum `01 00 03 00 00 00`, pulse single `01 00 02 01 00 01 rr gg bb`
 - brightness `0f 04` args `01 00 <value>`; the dock does not answer the `0f 82` effect-state or `0f 84` brightness reads
 - writes validated with transaction `0x1F`; OpenRazer sets `0x3F` for this device
+- OpenSnek treats the unreadable `0f 82` / `0f 84` state as expected and keeps the dock connected instead of entering USB telemetry-unavailable backoff
 
 Validated function block examples:
 - right click: `01 01 02 00 00 00 00`

@@ -276,7 +276,7 @@ USB PID `0x007E`, no Bluetooth transport. Lighting-only accessory (`formFactor =
 
 | Feature Area | USB | BT | Notes |
 |---|---|---|---|
-| Overall transport status | `Contributor validated` | `No transport` | Lighting-only profile; contributor hardware validated static color and brightness with visual confirmation, and spectrum/off/pulse writes ACK with `status 0x02` over the 90-byte feature-report interface |
+| Overall transport status | `Contributor validated` | `No transport` | Lighting-only profile; contributor hardware validated static color and brightness with visual confirmation, and spectrum/off/pulse writes ACK with `status 0x02` over the 90-byte feature-report interface. OpenSnek keeps the dock connected despite its unreadable effect/brightness state |
 | DPI stages + active stage | `Not shipped` | `No transport` | No DPI hardware; `supportsDPIControls` is false |
 | Independent X/Y DPI | `Not shipped` | `No transport` | No DPI hardware |
 | Poll rate | `Not shipped` | `No transport` | Not a mouse; `supportsPollRateControls` is false |

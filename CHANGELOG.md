@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
-- Added contributor-validated lighting support for the Razer Mouse Dock (`0x007E`): a single logo LED with static color, spectrum, and pulse effects plus brightness over USB.
+- Added contributor-validated lighting support for the Razer Mouse Dock (`0x007E`): a single logo LED with static color, spectrum, and pulse effects plus brightness over USB. OpenSnek keeps the dock reported as connected even though the dock cannot read its effect/brightness state.
 - Added a configurable Battery Meter preset for software lighting: pick low and medium battery thresholds, the low/medium/high palette colors, and the battery source device. The Razer Mouse Dock uses it to mirror a connected mouse's battery level, including the low-battery flash, and also ships the animated OpenSnek software presets.
 
 ### Changed
