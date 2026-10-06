@@ -211,6 +211,7 @@ import OpenSnekHardware
         guard deviceStore.selectedDeviceID != deviceID else { return }
         optionalApplyController?.cancelPendingLocalEditsForSelectionChange()
         runtimeController.clearStatusItemTransientDpi()
+        runtimeController.noteServiceLocalSelection(deviceID: deviceID)
         deviceStore.selectedDeviceID = deviceID
         syncSelectedDevicePresentation(deviceID: deviceID)
         if let selectedDevice = deviceStore.selectedDevice {
