@@ -1,0 +1,39 @@
+# Naga Pro BLE native default read spot check - 2026-10-06 11:13:23
+# Device: Naga Pro over Bluetooth (macOS-connected, PID 0x0092), 2-button panel installed (reads are protocol-level).
+# Targets 3-5 are the unassigned stored banks that hold firmware-native side-panel defaults.
+
+## target 3 button-slot 64
+bt-profile-button-read stored-slot=2(target=3) slot=64 key=08 84 03 40 name="Naga Pro"
+payload[16]=40 00 02 02 01 01 00 00 1e 1e 00 00 00 00 00 00 decoded-function[7]=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+
+## target 3 button-slot 75
+bt-profile-button-read stored-slot=2(target=3) slot=75 key=08 84 03 4b name="Naga Pro"
+payload[16]=4b 00 02 02 01 01 00 00 2e 2e 00 00 00 00 00 00 decoded-function[7]=02 01 00 2e 00 00 00 block=0201002e000000 class=0x02 len=1 data=00
+
+## target 3 button-slot 83
+bt-profile-button-read stored-slot=2(target=3) slot=83 key=08 84 03 53 name="Naga Pro"
+payload[16]=53 00 02 02 01 01 00 00 21 21 00 00 00 00 00 00 decoded-function[7]=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+
+## target 3 button-slot 84
+bt-profile-button-read stored-slot=2(target=3) slot=84 key=08 84 03 54 name="Naga Pro"
+payload[16]=54 00 02 02 01 01 00 00 22 22 00 00 00 00 00 00 decoded-function[7]=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+
+## target 3 button-slot 85
+bt-profile-button-read stored-slot=2(target=3) slot=85 key=08 84 03 55 name="Naga Pro"
+payload[16]=55 00 02 02 01 01 00 00 23 23 00 00 00 00 00 00 decoded-function[7]=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+
+## target 4 button-slot 85
+bt-profile-button-read stored-slot=3(target=4) slot=85 key=08 84 04 55 name="Naga Pro"
+payload[16]=55 00 02 02 01 01 00 00 23 23 00 00 00 00 00 00 decoded-function[7]=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+
+## target 5 button-slot 75
+bt-profile-button-read stored-slot=4(target=5) slot=75 key=08 84 05 4b name="Naga Pro"
+payload=nil
+
+
+## target 5 button-slot 85 (retry, 10s timeout)
+# No payload on either attempt; status=0x03 frames. See README observations.
+bt-profile-button-read stored-slot=4(target=5) slot=85 key=08 84 05 55 name="Naga Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 23 23 00 00 00 00 00 00 e3 79 7d 77
+notify[1] len=20 req=0x30 status=0x03 len=0 30 00 00 00 00 00 00 03 23 23 00 00 00 00 00 00 e3 79 7d 77
+payload=nil

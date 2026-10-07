@@ -226,10 +226,12 @@ Observed control labels on `0x00CB`:
 - `0x6A`: profile button
 
 Contributor-validated Naga Pro slots (`0x008F` wired / `0x0090` receiver): body and 2-button-panel slots `0x01..0x05`, `0x09`, `0x0A`, `0x34`, `0x35`; 12-button-panel slots `0x40..0x4B`; and 6-button-panel slots `0x50..0x55`.
-- explicit remaps ship for `0x40..0x4B` and `0x50..0x52`, but their native factory blocks are not known, so `Default` is not offered
-- slots `0x53..0x55` use an undecoded native class-`0x03` function block and remain read-only
-- wheel tilt uses class-`0x0E` button IDs `0x09` / `0x0A` with default rate `0x8E`, rather than the Basilisk-family IDs `0x68` / `0x69`
-- full-profile reset must resolve every native block before sending its first write; otherwise the operation fails without partially resetting the profile
+- native factory blocks for `0x40..0x4B` and `0x50..0x55` were captured from the firmware's unassigned onboard banks (2.4 GHz receiver, firmware `0x00112100`; see `captures/usb/2026-10-05-naga-pro-native-default-banks/`); the 12-button panel defaults to keyboard `1..9`, `0`, `-`, `=` and the 6-button panel to keyboard `1..6`
+- native default blocks declare function-data length `0x01` while keeping the HID key in byte 3 (`02 01 00 <key>`); OpenSnek's keyboard writer still emits length `0x02` for explicit remaps
+- physical press validation confirmed labels map straight to slots for both panels: 12-button `0x40..0x4B` emits keyboard `1..9`, `0`, `-`, `=` and 6-button `0x50..0x55` emits keyboard `1..6`; slots `0x53..0x55` are writable, and the class-`0x03` block seen on another unit was not reproduced (see `captures/usb/2026-10-06-naga-pro-side-panel-validation/`)
+- wheel tilt uses class-`0x0E` button IDs `0x09` / `0x0A`; the shipped default is `0e 03 09 00 8e` (turbo), while the captured native bank holds `0e 01 09 00 14` (no turbo)
+- full-profile reset now resolves every native block for the writable slot set before sending its first write
+- a controlled HID capture (`captures/usb/2026-10-05-naga-pro-button-encoding-hid/`) shows a Synapse-written `01 01 01 04 e4` block emits mouse Button 1, while the native `01 01 04` block emits Button 4
 
 Contributor-validated Razer Mouse Dock (`0x007E`): lighting-only accessory on the extended-matrix family.
 - single logo LED `0x00`; static color `0f 02` args `01 00 01 00 00 01 rr gg bb`, off `01 00 00 00 00 00`, spectrum `01 00 03 00 00 00`, pulse single `01 00 02 01 00 01 rr gg bb`
@@ -238,6 +240,8 @@ Contributor-validated Razer Mouse Dock (`0x007E`): lighting-only accessory on th
 - OpenSnek treats the unreadable `0f 82` / `0f 84` state as expected and keeps the dock connected instead of entering USB telemetry-unavailable backoff
 
 Validated function block examples:
+- Naga Pro native default keyboard `1`: `02 01 00 1e 00 00 00`
+- Naga Pro native default scroll left: `0e 01 09 00 14 00 00`
 - right click: `01 01 02 00 00 00 00`
 - back button (default for slot `0x04`): `01 01 04 00 00 00 00`
 - keyboard key `A` (HID `0x04`): `02 02 00 04 00 00 00`
@@ -262,6 +266,7 @@ Client note:
 - On Basilisk V3 X HyperSpeed (`0x00B9`), the Hypershift / Boss-sniper control (`0x06`) rejects `0x02:0x8C` button reads with status `0x03`; do not treat it as part of the writable/readable USB button-function slot set.
 - Basilisk V3 Pro (`0x00AB`) and Basilisk V3 35K (`0x00CB`) `0x02:0x8C` reads do not use the simpler Basilisk V3 X payload shape. Observed extended-layout slots decode from `response[11..<18]`; treating `response[10...]` as the block causes false positives and mislabels on extra controls.
 - Always validate the echoed `profile` and `slot` bytes before decoding a `0x02:0x8C` read. This device will otherwise yield stale-looking success frames that can be mistaken for additional slots.
+- On Naga Pro, the `0x02:0x8C` response's byte 10 is the stored binding's hypershift/layer flag, not the requested-layer echo. The 7-byte function block always starts at `response[11]`; do not shift the window when that flag differs from the requested hypershift value. Synapse-configured Naga Pro profiles store flag `1` on body buttons, and the shifted window mislabels right-click, middle-click, and scroll buttons as left click. Other non-extended profiles retain the existing layer-echo check before trying this window, preserving older responses with a function block at `response[10]`.
 - Treat layered button writes as all-or-nothing at the client boundary: if a persistent-layer write is requested and fails, do not continue on to a direct/live write and do not surface the operation as success.
 - OpenSnek normalizes both `06 01 06 00 00 00 00` and the observed `0x60` variant `04 02 0F 7B 00 00 00` as the user-facing `DPI Cycle` action.
 - On the observed V3 Pro clutch slot (`0x0F`), the default block is not a simple mouse/keyboard payload; preserve `06 05 05 01 90 01 90` when restoring the native clutch behavior.
