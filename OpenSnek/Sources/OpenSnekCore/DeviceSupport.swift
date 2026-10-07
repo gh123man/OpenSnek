@@ -514,22 +514,35 @@ public enum DeviceProfiles {
         id: .nagaPro, productName: "Naga Pro", transport: .bluetooth, supportedProducts: [0x0092], buttonLayout: ButtonSlotLayout(visibleSlots: nagaProUSBButtonSlots, writableSlots: nagaProUSBWritableSlots, documentedSlots: nagaProUSBDocumentedReadOnlySlots), supportsAdvancedLightingEffects: false,
         supportedLightingEffects: [], usbLightingLEDIDs: [0x01, 0x04], usbLightingZones: nagaProUSBLightingZones, supportsLightingBrightnessControls: true, onboardProfileSupport: .mappedCore, onboardProfileCount: 5, isLocallyValidated: false)
 
-    // MARK: - Razer Naga V2 Pro (2.4 GHz receiver, 0x00A8)
+    // MARK: - Razer Naga V2 Pro (wired 0x00A7, 2.4 GHz receiver 0x00A8)
 
-    // Contributor-validated USB profile for the Naga V2 Pro wireless receiver. The body and side
-    // panel slot table matches the Naga Pro family, with two differences: the 6-button panel slots
-    // 80-85 all carry decoded keyboard defaults, and wheel tilt keeps the Basilisk-family button
-    // IDs 0x68 / 0x69. Lighting is the palm logo (LED 0x04) with whole-device brightness on LED
-    // 0x00; per-LED effects and custom frames are validated on the logo. The scroll-mode command is
-    // rejected (status 0x05), so scroll-mode controls stay hidden.
+    // Contributor-validated USB profile for the Naga V2 Pro wired cable and 2.4 GHz receiver.
+    // The body and side panel slot table matches the Naga Pro family, with two differences: the
+    // 6-button panel slots 80-85 all carry decoded keyboard defaults, and wheel tilt keeps the
+    // Basilisk-family button IDs 0x68 / 0x69. Physical press validation confirmed that the
+    // 12-button panel labels 1-12 map straight to slots 64-75 (keyboard 1..9, 0, -, =) and the
+    // 6-button panel labels 1-6 to slots 80-85 (keyboard 1..6). Slot 14 is the remappable bottom
+    // button and defaults to the class-0x07 DPI-cycle block. Lighting covers the palm logo
+    // (LED 0x04) and the 12-button side panel (LED 0x05) with whole-device brightness on LED 0x00;
+    // the 6- and 2-button plates have no lighting. The scroll-mode command is rejected
+    // (status 0x05), so scroll-mode controls stay hidden. See
+    // captures/usb/2026-10-07-naga-v2-pro-buttons/ and captures/ble/2026-10-07-naga-v2-pro-buttons/.
     public static let nagaV2ProUSBButtonSlots: [ButtonSlotDescriptor] = [
         ButtonSlotDescriptor(slot: 1, friendlyName: "Left Click", defaultKind: .leftClick, group: "Mouse"), ButtonSlotDescriptor(slot: 2, friendlyName: "Right Click", defaultKind: .rightClick, group: "Mouse"),
         ButtonSlotDescriptor(slot: 3, friendlyName: "Middle Click", defaultKind: .middleClick, group: "Mouse"), ButtonSlotDescriptor(slot: 9, friendlyName: "Scroll Up", defaultKind: .scrollUp, group: "Mouse"),
         ButtonSlotDescriptor(slot: 10, friendlyName: "Scroll Down", defaultKind: .scrollDown, group: "Mouse"), ButtonSlotDescriptor(slot: 52, friendlyName: "Wheel Tilt Left", defaultKind: .scrollLeft, group: "Mouse"),
         ButtonSlotDescriptor(slot: 53, friendlyName: "Wheel Tilt Right", defaultKind: .scrollRight, group: "Mouse"),
+        // Bottom button: remappable in Synapse and over the vendor protocol. Native default is the
+        // class-0x07 DPI-cycle block `07 01 04`; Synapse rewrites it as the class-0x06 `06 01 06`
+        // form for the same DPI-stage cycle action. Physical press validation staged a keyboard
+        // remap on this slot and the bottom button typed it.
+        ButtonSlotDescriptor(slot: 14, friendlyName: "Bottom Button", defaultKind: .dpiCycle, group: "Mouse"),
         // These slots have no dedicated buttons on the mouse body itself - they only respond when the 2-button panel is installed, and are reversed from panel label order (label 1 = slot 5, label 2 = slot 4).
         ButtonSlotDescriptor(slot: 5, friendlyName: "Panel Button 1", defaultKind: .mouseForward, group: "2-Button Panel"), ButtonSlotDescriptor(slot: 4, friendlyName: "Panel Button 2", defaultKind: .mouseBack, group: "2-Button Panel"),
-        // 12-button panel labels are inferred to map straight to slots 64-75 (keyboard 1..9, 0, -, =) and 6-button panel labels to slots 80-85 (keyboard 1..6) from the firmware's native key order; the physical label order is not verified yet.
+        // Physical press validation on the receiver and Bluetooth confirmed that the 12-button
+        // panel labels 1-12 map straight to slots 64-75 (keyboard 1..9, 0, -, =) and the 6-button
+        // panel labels 1-6 map straight to slots 80-85 (keyboard 1..6). The printed numbering wraps
+        // around the physical layout, so position-based reading can look reversed.
         ButtonSlotDescriptor(slot: 64, friendlyName: "Side Button 1", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 65, friendlyName: "Side Button 2", defaultKind: .keyboardSimple, group: "12-Button Panel"),
         ButtonSlotDescriptor(slot: 66, friendlyName: "Side Button 3", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 67, friendlyName: "Side Button 4", defaultKind: .keyboardSimple, group: "12-Button Panel"),
         ButtonSlotDescriptor(slot: 68, friendlyName: "Side Button 5", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 69, friendlyName: "Side Button 6", defaultKind: .keyboardSimple, group: "12-Button Panel"),
@@ -541,22 +554,38 @@ public enum DeviceProfiles {
         ButtonSlotDescriptor(slot: 84, friendlyName: "Side Button 5", defaultKind: .keyboardSimple, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 85, friendlyName: "Side Button 6", defaultKind: .keyboardSimple, group: "6-Button Panel")
     ]
 
-    public static let nagaV2ProUSBWritableSlots: [Int] = [1, 2, 3, 4, 5, 9, 10, 52, 53, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82, 83, 84, 85]
+    public static let nagaV2ProUSBWritableSlots: [Int] = [1, 2, 3, 4, 5, 9, 10, 14, 52, 53, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82, 83, 84, 85]
 
     public static let nagaV2ProUSBDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
-        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 14, friendlyName: "Extra Button 1", defaultKind: .default), access: .protocolReadOnly, note: "The native class-0x07 function block is not decoded yet, so OpenSnek preserves this button."),
-        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 96, friendlyName: "DPI Cycle", defaultKind: .default), access: .protocolReadOnly, note: "The native block matches the DPI-cycle action, but remap writes are not validated yet, so OpenSnek preserves this button."),
-        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 109, friendlyName: "Extra Button 3", defaultKind: .default), access: .protocolReadOnly, note: "The native class-0x12 function block is not decoded yet, so OpenSnek preserves this button.")
+        DocumentedButtonSlot(
+            descriptor: ButtonSlotDescriptor(slot: 96, friendlyName: "DPI Stage Down", defaultKind: .default), access: .protocolReadOnly,
+            note: "Rear top button. The native class-0x06 block implements DPI-stage cycling and the slot accepts writes, but OpenSnek preserves the factory binding until a dedicated DPI-stage binding kind ships."),
+        DocumentedButtonSlot(
+            descriptor: ButtonSlotDescriptor(slot: 109, friendlyName: "DPI Stage Up", defaultKind: .default), access: .protocolReadOnly,
+            note: "Forward top button. The native class-0x12 block implements DPI-stage cycling and the slot accepts writes, but OpenSnek preserves the factory binding until a dedicated DPI-stage binding kind ships.")
     ]
 
     public static let nagaV2ProUSBLightingEffects: [LightingEffectKind] = [.off, .staticColor, .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual]
 
-    public static let nagaV2ProUSBLightingZones: [USBLightingZoneDescriptor] = [USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x04])]
+    public static let nagaV2ProUSBLightingZones: [USBLightingZoneDescriptor] = [USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x04]), USBLightingZoneDescriptor(id: "side_panel", label: "Side Panel", ledIDs: [0x05])]
 
     public static let nagaV2ProUSB = DeviceProfile(
-        id: .nagaV2Pro, productName: "Naga V2 Pro", transport: .usb, supportedProducts: [0x00A8], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: nagaV2ProUSBButtonSlots, writableSlots: nagaV2ProUSBWritableSlots, documentedSlots: nagaV2ProUSBDocumentedReadOnlySlots),
-        supportsAdvancedLightingEffects: true, supportedLightingEffects: nagaV2ProUSBLightingEffects, usbLightingLEDIDs: [0x04], usbLightingZones: nagaV2ProUSBLightingZones, softwareLightingFrameLayout: .nagaV2ProUSB, supportedSoftwareLightingPresets: SoftwareLightingPresetID.animatedPresets,
+        id: .nagaV2Pro, productName: "Naga V2 Pro", transport: .usb, supportedProducts: [0x00A7, 0x00A8], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: nagaV2ProUSBButtonSlots, writableSlots: nagaV2ProUSBWritableSlots, documentedSlots: nagaV2ProUSBDocumentedReadOnlySlots),
+        supportsAdvancedLightingEffects: true, supportedLightingEffects: nagaV2ProUSBLightingEffects, usbLightingLEDIDs: [0x04, 0x05], usbLightingZones: nagaV2ProUSBLightingZones, softwareLightingFrameLayout: .nagaV2ProUSB, supportedSoftwareLightingPresets: SoftwareLightingPresetID.animatedPresets,
         supportsLightingBrightnessControls: true, onboardProfileSupport: .mappedCore, onboardProfileCount: 5, usbBrightnessLEDIDs: [0x00], isLocallyValidated: false)
+
+    // Contributor-validated Bluetooth profile for the Naga V2 Pro (vendor 0x068E, product 0x00A9).
+    // The vendor GATT service exposes the same button, DPI, battery, and lighting surface as the
+    // 2.4 GHz receiver. Button reads return the current and previous function blocks interleaved;
+    // wheel tilt keeps the Basilisk-family IDs 0x68/0x69. Static lighting covers the logo (0x04)
+    // and the 12-button side panel (0x05). Battery comes from the vendor keys 05 81 / 05 80, not
+    // the standard HID battery characteristic, which reports a stale 100%. Onboard profile CRUD
+    // stays on the USB profile: Bluetooth profile create/delete writes are not validated yet, and
+    // leaving mapped CRUD off also keeps battery/lighting generic polling enabled. See
+    // captures/ble/2026-10-07-naga-v2-pro-buttons/.
+    public static let nagaV2ProBluetooth = DeviceProfile(
+        id: .nagaV2Pro, productName: "Naga V2 Pro", transport: .bluetooth, supportedProducts: [0x00A9], buttonLayout: ButtonSlotLayout(visibleSlots: nagaV2ProUSBButtonSlots, writableSlots: nagaV2ProUSBWritableSlots, documentedSlots: nagaV2ProUSBDocumentedReadOnlySlots),
+        supportsAdvancedLightingEffects: false, supportedLightingEffects: [.staticColor], usbLightingLEDIDs: [0x04, 0x05], usbLightingZones: nagaV2ProUSBLightingZones, supportsLightingBrightnessControls: true, isLocallyValidated: false)
 
     // MARK: - Razer Basilisk (2017, 0x0064)
 
@@ -648,7 +677,9 @@ public enum DeviceProfiles {
         usbLightingLEDIDs: [0x00], usbLightingZones: mouseDockUSBLightingZones, softwareLightingFrameLayout: .mouseDockUSB, supportedSoftwareLightingPresets: SoftwareLightingPresetID.batteryMeterAndAnimatedPresets, supportsLightingBrightnessControls: true, supportsLightingStateReads: false,
         formFactor: .accessory, supportsDPIControls: false, supportsPollRateControls: false, supportsPowerManagementControls: false, supportsButtonRemapControls: false, usbBrightnessLEDIDs: [0x00], isLocallyValidated: false)
 
-    public static let all: [DeviceProfile] = [basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, orochiV2Bluetooth, nagaProUSB, nagaProBluetooth, nagaV2ProUSB, basiliskUSB, lanceheadTEUSB, huntsmanMiniUSB, tartarusProUSB, mouseDockUSB]
+    public static let all: [DeviceProfile] = [
+        basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, orochiV2Bluetooth, nagaProUSB, nagaProBluetooth, nagaV2ProUSB, nagaV2ProBluetooth, basiliskUSB, lanceheadTEUSB, huntsmanMiniUSB, tartarusProUSB, mouseDockUSB
+    ]
 
     public static func resolve(vendorID: Int, productID: Int, transport: DeviceTransportKind) -> DeviceProfile? { all.first(where: { $0.matches(vendorID: vendorID, productID: productID, transport: transport) }) }
 
