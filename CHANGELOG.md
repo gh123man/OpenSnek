@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [1.4.0-rc.1]
 
 ### Added
 - Added contributor-validated USB support for the Razer Naga V2 Pro (2.4 GHz receiver `0x00A8`): DPI stages and active stage, poll rate, battery, idle time, low-battery threshold, palm-logo lighting with brightness and effects, software lighting presets, and button remapping for the body, 2-button, 6-button, and 12-button side-panel slots. Three top buttons keep their factory bindings because their native function blocks are not decoded yet, and the side panels' physical label order is not verified yet.
