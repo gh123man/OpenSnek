@@ -43,6 +43,7 @@ Button remap keyboard actions support modifier chords on shipped USB and Bluetoo
 | Basilisk V3 35K | `Validated` | `No transport` | Shares the Basilisk V3 USB family configuration with mapped onboard profile CRUD; no Bluetooth transport |
 | Orochi V2 | `Not shipped` | `Contributor validated` | Contributor validated Bluetooth DPI stages, battery, and no-RGB behavior; button remap is profile-mapped pending hardware readback validation |
 | Naga Pro | `Contributor validated` | `Contributor validated` | Core controls and known-safe side-panel slots ship with captured native defaults; 12- and 6-button panel press validation remains pending |
+| Naga V2 Pro | `Contributor validated` | `No transport` | 2.4 GHz receiver profile ships DPI stages, battery, idle time, logo lighting with software presets, and side-panel remapping; three undecoded top buttons stay preserved, and side-panel lighting plus physical label order are unverified |
 | Basilisk (2017) | `Contributor validated` | `No transport` | Contributor validated DPI (scalar, independent X/Y, live 5-stage table), poll-rate reads, and logo/scroll lighting with restore-verified writes; button remap and onboard profiles are not mapped |
 | Lancehead Tournament Edition | `Contributor validated` | `No transport` | Contributor validated DPI (scalar, independent X/Y, live 5-stage table read without OpenRazer's `0xFF` stage transaction), poll-rate reads, and all four lighting zones; button remap is not mapped |
 | Huntsman Mini | `Contributor validated` | `No transport` | Keyboard: contributor validated backlight lighting, brightness, and that poll-rate reads return `status 0x05` (unsupported). No DPI hardware; key remap is not mapped |
@@ -174,6 +175,24 @@ Support is based on hardware validation reported by [varunyellina in PR #106](ht
 | Onboard hardware profiles | `Limited` | `Limited` | Five-slot mapped core profile workflows ship, and full button-profile reset now uses captured native side-panel defaults. The 12- and 6-button panels were physically press-validated in [PR #121](https://github.com/gh123man/OpenSnek/pull/121) |
 
 The remaining device-dependent work is tracked in [issue #56](https://github.com/gh123man/OpenSnek/issues/56).
+
+## Naga V2 Pro
+
+USB PID `0x00A8` (2.4 GHz receiver), firmware `0x02142000`, no Bluetooth transport. Support is based on hardware validation by [jpagh](https://github.com/jpagh) with the 2-button side panel installed.
+
+| Feature Area | USB | BT | Notes |
+|---|---|---|---|
+| Overall transport status | `Contributor validated` | `No transport` | The contributor exercised DPI, poll rate, battery, idle time, button remap, and lighting on physical hardware |
+| DPI stages + active stage | `Contributor validated` | `No transport` | Scalar DPI is capped at `30,000`; the live table and scalar write/readback were validated |
+| Independent X/Y DPI | `Scalar only` | `No transport` | The profile does not advertise independent X/Y editing |
+| Poll rate | `Contributor validated` | `No transport` | `1,000 Hz` read; a `500 Hz` write/readback with restore was validated |
+| Battery + power | `Contributor validated` | `No transport` | Battery level/charging, idle time (`07:83`), and low-battery threshold (`07:81`) all read; idle-time writes round-trip |
+| Lighting: brightness + effects | `Contributor validated` | `No transport` | OpenSnek exposes the palm-logo `0x04` zone with whole-device brightness on LED `0x00`. Off, static, spectrum, and pulse single were visually confirmed; wave, reactive, and the remaining pulse modes are ACK-verified only |
+| Lighting: software presets | `Contributor validated` | `No transport` | Custom frames (`0F:03`) render the animated OpenSnek presets to the logo; per-LED effect and brightness reads also answer while the device is awake |
+| Button remap: shipped editable slots | `Contributor validated` | `No transport` | Body slots `1-5`, `9`, `10`, `52`, `53` and side-panel slots `64-75` (12-button) and `80-85` (6-button) are editable; writes round-trip on `4`, `64`, `83`, and `85` |
+| Button remap: preserved slots | `Contributor validated` | `No transport` | Top buttons `0x0E`, `0x60`, and `0x6D` answer reads but their native function blocks are not decoded, so OpenSnek preserves them read-only |
+| Onboard hardware profiles | `Limited` | `No transport` | Five-slot mapped core profile workflows ship; the full-reset path covers every writable slot |
+| Side-panel lighting | `Unverified` | `No transport` | LED `0x05` accepts writes but no visible zone lit with the 2-button panel; the 6-button and 12-button panels' lighting and physical label order still need validation |
 ## Basilisk (2017)
 
 Support for this device and the Lancehead Tournament Edition below is based on hardware validation reported by [johnhenry in PR #114](https://github.com/gh123man/OpenSnek/pull/114).

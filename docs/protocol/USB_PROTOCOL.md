@@ -239,6 +239,8 @@ Contributor-validated Razer Mouse Dock (`0x007E`): lighting-only accessory on th
 - writes validated with transaction `0x1F`; OpenRazer sets `0x3F` for this device
 - OpenSnek treats the unreadable `0f 82` / `0f 84` state as expected and keeps the dock connected instead of entering USB telemetry-unavailable backoff
 
+Contributor-validated Naga V2 Pro slots (`0x00A8` receiver): the same `0x01..0x05`, `0x09`, `0x0A`, `0x34`, `0x35`, `0x40..0x4B`, and `0x50..0x55` table, plus preserved top buttons `0x0E`, `0x60`, and `0x6D`. See [Device-Specific Notes](#razer-naga-v2-pro-0x00a8-24-ghz-receiver).
+
 Validated function block examples:
 - Naga Pro native default keyboard `1`: `02 01 00 1e 00 00 00`
 - Naga Pro native default scroll left: `0e 01 09 00 14 00 00`
@@ -963,6 +965,29 @@ reliable on the local USB stack.
 - Do not write device mode `0x03` (driver mode) to this device. OpenRazer sets `DRIVER_MODE = False` for the Tartarus Pro because its analog optical switch input handling misbehaves in driver mode. OpenSnek only reads device mode.
 - Poll-rate reads (`00:85`) return `status 0x05` (command not supported) on contributor hardware.
 - Analog actuation (per-key actuation depth) has no public protocol; OpenRazer exposes lighting and macros only.
+
+### Razer Naga V2 Pro (0x00A8, 2.4 GHz receiver)
+
+| Setting | Value |
+|---------|-------|
+| USB VID:PID | `1532:00A8` (wireless receiver), firmware observed `0x02142000` |
+| Transaction ID | `0x1F` |
+| Max DPI | 30000 |
+| DPI Stages | live table via `04:86` (observed `1100/2200` with active token `2`); `04:85/05` write/readback validated |
+| Onboard Profiles | `05:80` -> `02`, `05:81` -> `05 01 02` (max `5`, assigned `1`, `2`), `05:84` -> active `01` |
+| Poll rate | `00:85` -> `01` (1000 Hz); `00:05` write/readback validated |
+| Battery | `07:80` -> charging flag + level (observed `00 7b`) |
+| Idle time | `07:83` -> `01 2c` (300 s); `07:03` write/readback validated |
+| Low battery threshold | `07:81` -> `0d` |
+| Scroll mode | `02:94` returns status `0x05` (not supported); scroll acceleration `02:96` reads `01 00` |
+| Lighting zones | palm logo LED `0x04`; whole-device brightness is addressed through LED `0x00` |
+| Validated lighting effects | off/static/spectrum/wave/reactive/breathing via extended matrix `0x0F 0x02`. Off, static, spectrum, and pulse single were visually confirmed; wave, reactive, and the remaining pulse modes were ACK-verified only |
+| Custom frames | `0x0F 0x03` renders a single logo cell (visually confirmed) and the device also ACKs a 3-cell row |
+| Lighting reads | `0x0F 0x82` effect and `0x0F 0x84` brightness reads succeed per LED while the wireless link is awake (observed effect `00`/`01` and brightness `ff`), but return `0x03` (failure) or `0x04` (timeout) once the device idles, so clients should treat those as transient |
+
+**Button table**: body and 2-button-panel slots `0x01..0x05`, `0x09`, `0x0A`; wheel tilt `0x34`/`0x35` (native `0e 01 68 00 14` / `0e 01 69 00 14`, keeping the Basilisk-family button IDs `0x68`/`0x69` rather than the Naga Pro's `0x09`/`0x0A`); 12-button-panel slots `0x40..0x4B`; 6-button-panel slots `0x50..0x55`. The byte-identical unassigned banks (profiles `03`/`04`/`05`) store both panels as length-`0x01` keyboard blocks (`02 01 00 1e` .. `02 01 00 2e` for the 12-button panel, `02 01 00 1e` .. `02 01 00 23` for the 6-button panel), so the HID key sits in byte 3. Write/readback with restore was validated on slots `0x04`, `0x40`, `0x53`, and `0x55`, and both the native `0e 01 ..` and turbo `0e 03 ..` wheel-tilt forms round-trip on `0x34`.
+
+**Preserved slots**: `0x0E` (native `07 01 04`), `0x60` (native `06 01 06`, matching the DPI-cycle action), and `0x6D` (native `12 01 04`) answer reads but their native function classes are not decoded, so OpenSnek keeps them read-only. The 6-button and 12-button panels' physical label order and side-panel lighting (LED `0x05`) are not validated yet.
 
 ### USB profile capability enforcement
 

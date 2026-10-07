@@ -222,6 +222,51 @@ final class USBButtonHydrationTests: XCTestCase {
         XCTAssertNotNil(ButtonBindingSupport.completeDefaultUSBFunctionBlocks(for: [80, 81, 82, 83, 84, 85], profileID: .nagaPro))
     }
 
+    func testNagaV2ProNativeKeyboardDefaultsCoverBothPanels() {
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 64, profileID: .nagaV2Pro), [0x02, 0x01, 0x00, 0x1E, 0x00, 0x00, 0x00])
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 74, profileID: .nagaV2Pro), [0x02, 0x01, 0x00, 0x2D, 0x00, 0x00, 0x00])
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 75, profileID: .nagaV2Pro), [0x02, 0x01, 0x00, 0x2E, 0x00, 0x00, 0x00])
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 80, profileID: .nagaV2Pro), [0x02, 0x01, 0x00, 0x1E, 0x00, 0x00, 0x00])
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 83, profileID: .nagaV2Pro), [0x02, 0x01, 0x00, 0x21, 0x00, 0x00, 0x00])
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 85, profileID: .nagaV2Pro), [0x02, 0x01, 0x00, 0x23, 0x00, 0x00, 0x00])
+    }
+
+    func testNagaV2ProNativeKeyboardBlocksDecodeWithLengthOneEncoding() {
+        // The firmware-native block matches the profile default, so it hydrates as "Default".
+        XCTAssertEqual(ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 85, functionBlock: [0x02, 0x01, 0x00, 0x23, 0x00, 0x00, 0x00], profileID: .nagaV2Pro)?.kind, .default)
+        // Any other length-0x01 keyboard block still has to decode its HID key from byte 3.
+        let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 85, functionBlock: [0x02, 0x01, 0x00, 0x2C, 0x00, 0x00, 0x00], profileID: .nagaV2Pro)
+        XCTAssertEqual(draft?.kind, .keyboardSimple)
+        XCTAssertEqual(draft?.hidKey, 0x2C)
+        XCTAssertEqual(draft?.hidModifiers, 0)
+    }
+
+    func testNagaV2ProWheelTiltDefaultsKeepBasiliskFamilyButtonIDs() {
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 52, profileID: .nagaV2Pro), [0x0E, 0x01, 0x68, 0x00, 0x14, 0x00, 0x00])
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 53, profileID: .nagaV2Pro), [0x0E, 0x01, 0x69, 0x00, 0x14, 0x00, 0x00])
+        XCTAssertEqual(ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 52, functionBlock: [0x0E, 0x01, 0x68, 0x00, 0x14, 0x00, 0x00], profileID: .nagaV2Pro)?.kind, .default)
+        let remapped = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 52, functionBlock: [0x0E, 0x03, 0x68, 0x00, 0x8E, 0x00, 0x00], profileID: .nagaV2Pro)
+        XCTAssertEqual(remapped?.kind, .scrollLeft)
+        XCTAssertEqual(remapped?.turboEnabled, true)
+    }
+
+    func testNagaV2ProWheelTiltRemapsUseTurboHorizontalScrollBlocks() {
+        XCTAssertEqual(ButtonBindingSupport.buildUSBFunctionBlock(slot: 52, kind: .scrollLeft, hidKey: 4, turboEnabled: false, turboRate: 0x8E, profileID: .nagaV2Pro), [0x0E, 0x03, 0x68, 0x00, 0x14, 0x00, 0x00])
+        XCTAssertEqual(ButtonBindingSupport.buildUSBFunctionBlock(slot: 53, kind: .scrollRight, hidKey: 4, turboEnabled: false, turboRate: 0x8E, profileID: .nagaV2Pro), [0x0E, 0x03, 0x69, 0x00, 0x14, 0x00, 0x00])
+    }
+
+    func testNagaV2ProFullProfileResetCoversEveryWritableSlot() {
+        XCTAssertNotNil(ButtonBindingSupport.completeDefaultUSBFunctionBlocks(for: DeviceProfiles.nagaV2ProUSBWritableSlots, profileID: .nagaV2Pro))
+        XCTAssertNil(ButtonBindingSupport.defaultUSBFunctionBlock(for: 14, profileID: .nagaV2Pro))
+        XCTAssertNil(ButtonBindingSupport.defaultUSBFunctionBlock(for: 109, profileID: .nagaV2Pro))
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 96, profileID: .nagaV2Pro), [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00])
+    }
+
+    func testNagaV2ProIsNotPartOfBasiliskV3FamilyDPIClutchSupport() {
+        XCTAssertNil(ButtonBindingSupport.semanticDefaultButtonBinding(for: 15, profileID: .nagaV2Pro))
+        XCTAssertFalse(ButtonBindingSupport.availableButtonBindingKinds(profileID: .nagaV2Pro).contains(.dpiClutch))
+    }
+
     func testBuildUSBFunctionBlockSupportsKeyboardShortcutModifiers() {
         let block = ButtonBindingSupport.buildUSBFunctionBlock(slot: 4, kind: .keyboardSimple, hidKey: 0x2F, hidModifiers: 0x08, turboEnabled: false, turboRate: 0x8E)
 

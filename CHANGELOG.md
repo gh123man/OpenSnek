@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- Added contributor-validated USB support for the Razer Naga V2 Pro (2.4 GHz receiver `0x00A8`): DPI stages and active stage, poll rate, battery, idle time, low-battery threshold, palm-logo lighting with brightness and effects, software lighting presets, and button remapping for the body, 2-button, 6-button, and 12-button side-panel slots. Three top buttons keep their factory bindings because their native function blocks are not decoded yet, and the side panels' physical label order is not verified yet.
 - Added contributor-validated lighting support for the Razer Mouse Dock (`0x007E`): a single logo LED with static color, spectrum, and pulse effects plus brightness over USB. OpenSnek keeps the dock reported as connected even though the dock cannot read its effect/brightness state.
 - Added a configurable Battery Meter preset for software lighting: pick low and medium battery thresholds, the low/medium/high palette colors, and the battery source device. The Razer Mouse Dock uses it to mirror a connected mouse's battery level, including the low-battery flash, and also ships the animated OpenSnek software presets.
 
