@@ -661,3 +661,34 @@ warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
 usb 1532:00a8:02142000:usb pid=0x00a8
 readback profile=0 slot=14 block=06010600000000 class=0x06 len=1 data=06
 profile=0 slot=14 hypershift=0 block=06010600000000 class=0x06 len=1 data=06
+
+=== slot 0x0E both-layer test (bottom button) ===
+original slot14 persistent=06010600000000 direct=06010600000000
+
+$ OpenSnekProbe usb-button-set --slot 14 --kind keyboard_simple --hid-key 20 --profile both   (q)
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00a8:02142000:usb pid=0x00a8
+readback profile=1 slot=14 block=02020014000000 class=0x02 len=2 data=0014
+readback profile=0 slot=14 block=02020014000000 class=0x02 len=2 data=0014
+profile=1 slot=14 hypershift=0 block=02020014000000 class=0x02 len=2 data=0014
+profile=0 slot=14 hypershift=0 block=02020014000000 class=0x02 len=2 data=0014
+
+=== slot 0x0E retry after Synapse closed ===
+profile=1 slot=14 hypershift=0 block=02020014000000 class=0x02 len=2 data=0014
+profile=0 slot=14 hypershift=0 block=02020014000000 class=0x02 len=2 data=0014
+
+$ re-stage q on both layers
+stage ok
+profile=1 slot=14 hypershift=0 block=02020014000000 class=0x02 len=2 data=0014
+profile=0 slot=14 hypershift=0 block=02020014000000 class=0x02 len=2 data=0014
+
+=== slot 0x0E factory-block test (07 01 04) ===
+$ stage 07010400000000 on both layers
+stage ok
+profile=1 slot=14 hypershift=0 block=07010400000000 class=0x07 len=1 data=04
+profile=0 slot=14 hypershift=0 block=07010400000000 class=0x07 len=1 data=04
+
+$ restore slot14 = 06010600000000 on both layers
+restore ok
+profile=1 slot=14 hypershift=0 block=06010600000000 class=0x06 len=1 data=06
+profile=0 slot=14 hypershift=0 block=06010600000000 class=0x06 len=1 data=06

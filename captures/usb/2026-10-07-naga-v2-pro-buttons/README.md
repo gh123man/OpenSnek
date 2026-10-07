@@ -129,3 +129,24 @@ the bottom control is not remappable through the vendor button table. The origin
 
 Slot `0x0E` stays documented read-only; its physical control on the V2 Pro remains unidentified
 (it may not be present on this model at all).
+
+## Slot 0x0E = bottom button (2026-10-07, live)
+
+Correcting the earlier "not the bottom button" note: the first two tests failed because Razer
+Synapse 4 for macOS was open and rewriting the device while the remap was staged. With Synapse
+closed:
+
+1. Staged keyboard `q` on both layers of slot `0x0E`; the bottom button typed `q` on each press.
+2. Staged the factory block `07 01 04`; the bottom button cycled DPI stages.
+3. Restored the owner's Synapse mapping `06 01 06` on both layers and verified.
+
+Conclusions:
+
+- Slot `0x0E` is the bottom button and it is fully remappable.
+- The factory block `07 01 04` (class `0x07`, data `0x04`) and Synapse's `06 01 06` (class
+  `0x06`, data `0x06`) both implement DPI-stage cycling. The Naga Pro v1 "Scroll Mode Toggle"
+  label for slot 14 is wrong for this device.
+- The app can promote slot `0x0E` to editable with a `Default` restore to `07 01 04`, and
+  decode class-`0x07` data-`0x04` as DPI cycle.
+- Synapse 4 for macOS holds the device and overrides concurrent probe writes; close it before
+  any vendor button write.
