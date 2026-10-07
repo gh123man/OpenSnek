@@ -87,3 +87,35 @@ The side-panel lighting investigation in `captures/ble/2026-10-07-naga-v2-pro-bu
 confirms two lit zones on both transports: logo LED `0x04` and 12-button side-panel LED `0x05`.
 The 6- and 2-button plates have no lighting, and there is no scroll-wheel zone. The shipped USB
 profile currently declares only the logo zone and should gain the side-panel zone for parity.
+
+## Wired USB pass (2026-10-07, direct cable)
+
+Device: Razer Naga V2 Pro wired, `1532:00A7`, location `0x02150000`.
+
+| Read | Result |
+| --- | --- |
+| USB id | `1532:00a7:02150000:usb` |
+| Firmware `00:81` | `01 03 00 00` (same shape as BLE; not the receiver's `0x02142000`) |
+| Serial `00:82` | `632511H24600722` |
+| Battery `07:80` | raw `0x45`, 27% (matches receiver/BLE/Synapse) |
+| Active profile | base (profile 1) |
+| Profile inventory | max 5, assigned 1/2; stored Jack (2) intact |
+
+Button surface is identical to the receiver: panel slots `64-75`/`80-85` carry native keyboard
+defaults, live slots `96`/`109` carry the F18/F19 remaps, wheel tilt is the PageUp/PageDown
+remap, and slots `14`/`96`/`109` match the receiver readings.
+
+Lighting: raw reads confirm both zones over the cable.
+
+| LED | Brightness (wired) |
+| --- | --- |
+| `0x04` logo | `0x59` |
+| `0x05` 12-button side panel | `0x59` |
+
+Both match the owner's Synapse green state, so the side-panel zone is available on wired,
+receiver, and Bluetooth alike.
+
+Write path: `usb-button-set --profile direct` on slot 64 staged `02 02 00 04` and restored
+`02 01 00 1e` byte-for-byte over the cable.
+
+Conclusion: the shipped USB profile should accept wired `0x00A7` alongside receiver `0x00A8`.
