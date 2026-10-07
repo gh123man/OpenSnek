@@ -167,6 +167,7 @@ import OpenSnekHardware
             AppLog.event("AppState", "applyDeviceList source=\(source) count=\(sorted.count) selected=\(deviceStore.selectedDeviceID ?? "nil")")
         }
         if environment.usesRemoteServiceTransport, previousSelectedID != deviceStore.selectedDeviceID { runtimeController.sendRemoteClientPresence() }
+        if environment.launchRole.isService, previousSelectedID != deviceStore.selectedDeviceID { runtimeController.publishServiceSelectedDevice() }
 
         if let selectedDevice = deviceStore.selectedDevice { requestSelectedDeviceRefreshIfNeeded(for: selectedDevice) }
         return changed
@@ -212,13 +213,31 @@ import OpenSnekHardware
         optionalApplyController?.cancelPendingLocalEditsForSelectionChange()
         runtimeController.clearStatusItemTransientDpi()
         runtimeController.noteServiceLocalSelection(deviceID: deviceID)
+        applySelectedDevicePresentation(deviceID)
+        if environment.usesRemoteServiceTransport {
+            runtimeController.noteRemoteClientSelection(deviceID: deviceID)
+            runtimeController.sendRemoteClientPresence(explicit: true)
+        } else if environment.launchRole.isService {
+            runtimeController.publishServiceSelectedDevice()
+        }
+    }
+
+    /// Adopts the background service's selected device in a remote client window.
+    func adoptRemoteServiceSelection(deviceID: String) {
+        guard !isTearingDown, deviceStore.selectedDeviceID != deviceID else { return }
+        optionalApplyController?.cancelPendingLocalEditsForSelectionChange()
+        applySelectedDevicePresentation(deviceID)
+        optionalRuntimeController?.sendRemoteClientPresence()
+    }
+
+    /// Applies a selected device to the shared presentation after selection authority is settled.
+    func applySelectedDevicePresentation(_ deviceID: String) {
         deviceStore.selectedDeviceID = deviceID
         syncSelectedDevicePresentation(deviceID: deviceID)
         if let selectedDevice = deviceStore.selectedDevice {
             requestSelectedDeviceRefreshIfNeeded(for: selectedDevice)
             Task { [weak self] in await self?.refreshConnectionDiagnostics(for: selectedDevice) }
         }
-        if environment.usesRemoteServiceTransport { runtimeController.sendRemoteClientPresence() }
     }
 
     func syncSelectedDevicePresentation(deviceID: String) {

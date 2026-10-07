@@ -31,6 +31,8 @@ import OpenSnekCore
     private var backendStateUpdatesTask: Task<Void, Never>?
     private var remoteClientPresenceByProcessID: [Int32: RemoteClientPresenceState] = [:]
     private var serviceLocalSelectionOverrideDeviceID: String?
+    private var pendingRemoteClientSelectionDeviceID: String?
+    private var latestServiceSnapshotSelectedDeviceID: String?
     private var lastRemoteClientPresencePingAt: Date = .distantPast
     private var statusItemTransientDpiResetTask: Task<Void, Never>?
     private var powerState: PowerState = .active
@@ -226,6 +228,39 @@ import OpenSnekCore
         serviceLocalSelectionOverrideDeviceID = deviceID
     }
 
+    /// Publishes the service's selected device so a newly launched app window can open on the
+    /// same device the menu bar is showing.
+    func publishServiceSelectedDevice() {
+        guard environment.launchRole.isService else { return }
+        Task { await environment.backend.updateServiceSelectedDeviceID(deviceStore.selectedDeviceID) }
+    }
+
+    /// Records a device pick made in a remote client window. The pick must survive snapshots the
+    /// service published before it processed the pick.
+    func noteRemoteClientSelection(deviceID: String) {
+        guard environment.usesRemoteServiceTransport else { return }
+        pendingRemoteClientSelectionDeviceID = deviceID
+    }
+
+    /// Resolves the selected device advertised by a service snapshot. Returns nil when the
+    /// snapshot predates the client's own pick and must not override it.
+    func preferredClientSelectedDeviceID(snapshotSelectedDeviceID: String?, availableDeviceIDs: Set<String>) -> String? {
+        guard environment.usesRemoteServiceTransport else { return nil }
+        guard let snapshotSelectedDeviceID, availableDeviceIDs.contains(snapshotSelectedDeviceID) else { return nil }
+        let previousSnapshotSelection = latestServiceSnapshotSelectedDeviceID
+        latestServiceSnapshotSelectedDeviceID = snapshotSelectedDeviceID
+        guard let pendingSelection = pendingRemoteClientSelectionDeviceID else { return snapshotSelectedDeviceID }
+        if pendingSelection == snapshotSelectedDeviceID {
+            pendingRemoteClientSelectionDeviceID = nil
+            return snapshotSelectedDeviceID
+        }
+        // The service has not echoed the local pick yet: ignore a snapshot still carrying the
+        // previous service selection, but adopt a selection the service actually moved to.
+        guard let previousSnapshotSelection, previousSnapshotSelection != snapshotSelectedDeviceID else { return nil }
+        pendingRemoteClientSelectionDeviceID = nil
+        return snapshotSelectedDeviceID
+    }
+
     func recordRemoteClientPresence(_ presence: CrossProcessClientPresence, now: Date = Date()) {
         guard environment.launchRole.isService else { return }
         guard presence.sourceProcessID > 0 else { return }
@@ -234,8 +269,9 @@ import OpenSnekCore
         let previous = remoteClientPresenceByProcessID[presence.sourceProcessID]
         remoteClientPresenceByProcessID[presence.sourceProcessID] = RemoteClientPresenceState(expiresAt: now.addingTimeInterval(2.5), selectedDeviceID: presence.selectedDeviceID)
         let selectedDeviceChanged = previous?.selectedDeviceID != presence.selectedDeviceID
-        // A remote client actively picking a different device hands selection authority back.
-        if selectedDeviceChanged { serviceLocalSelectionOverrideDeviceID = nil }
+        // A remote client deliberately picking a device hands selection authority back. A client
+        // booting up and announcing its default (or no) selection is not a pick.
+        if presence.isExplicitSelection { serviceLocalSelectionOverrideDeviceID = nil }
         if !hadActiveRemoteClients || selectedDeviceChanged { requestImmediateRuntimePoll(resetPollingDeadlines: true) }
     }
 
@@ -446,10 +482,10 @@ import OpenSnekCore
         NSApp.terminate(nil)
     }
 
-    func sendRemoteClientPresence() {
+    func sendRemoteClientPresence(explicit: Bool = false) {
         guard environment.usesRemoteServiceTransport else { return }
         lastRemoteClientPresencePingAt = Date()
-        Task { await environment.backend.updateRemoteClientPresence(sourceProcessID: Int32(ProcessInfo.processInfo.processIdentifier), selectedDeviceID: deviceStore.selectedDeviceID) }
+        Task { await environment.backend.updateRemoteClientPresence(sourceProcessID: Int32(ProcessInfo.processInfo.processIdentifier), selectedDeviceID: deviceStore.selectedDeviceID, isExplicitSelection: explicit) }
     }
 
     func handleSystemWillSleep(now: Date = Date()) {
@@ -579,7 +615,7 @@ import OpenSnekCore
         if environment.usesRemoteServiceTransport {
             if now.timeIntervalSince(lastRemoteClientPresencePingAt) >= 1.0 {
                 lastRemoteClientPresencePingAt = now
-                await environment.backend.updateRemoteClientPresence(sourceProcessID: Int32(ProcessInfo.processInfo.processIdentifier), selectedDeviceID: deviceStore.selectedDeviceID)
+                await environment.backend.updateRemoteClientPresence(sourceProcessID: Int32(ProcessInfo.processInfo.processIdentifier), selectedDeviceID: deviceStore.selectedDeviceID, isExplicitSelection: false)
             }
             clearTransientStatusIfExpired(now: now)
             return

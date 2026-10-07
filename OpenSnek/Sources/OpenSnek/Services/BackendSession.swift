@@ -24,7 +24,8 @@ protocol DeviceBackend: AnyObject, Sendable {
     func dpiUpdateTransportStatus(device: MouseDevice) async -> DpiUpdateTransportStatus
     func hidAccessStatus() async -> HIDAccessStatus
     func stateUpdates() async -> AsyncStream<BackendStateUpdate>
-    func updateRemoteClientPresence(sourceProcessID: Int32, selectedDeviceID: String?) async
+    func updateRemoteClientPresence(sourceProcessID: Int32, selectedDeviceID: String?, isExplicitSelection: Bool) async
+    func updateServiceSelectedDeviceID(_ deviceID: String?) async
     func apply(device: MouseDevice, patch: DevicePatch) async throws -> MouseState
     func listOnboardProfiles(device: MouseDevice) async throws -> OnboardProfileInventory
     func readOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileSnapshot
@@ -75,7 +76,7 @@ final actor BootstrapPendingBackend: DeviceBackend {
 
     func stateUpdates() async -> AsyncStream<BackendStateUpdate> { AsyncStream { _ in } }
 
-    func updateRemoteClientPresence(sourceProcessID _: Int32, selectedDeviceID _: String?) async {}
+    func updateRemoteClientPresence(sourceProcessID _: Int32, selectedDeviceID _: String?, isExplicitSelection _: Bool) async {}
 
     func apply(device _: MouseDevice, patch _: DevicePatch) async throws -> MouseState { throw BridgeError.commandFailed("Backend is still starting") }
 
@@ -123,7 +124,9 @@ extension DeviceBackend {
         return usesFastPolling ? .pollingFallback : .realTimeHID
     }
 
-    func updateRemoteClientPresence(sourceProcessID _: Int32, selectedDeviceID _: String?) async {}
+    func updateRemoteClientPresence(sourceProcessID _: Int32, selectedDeviceID _: String?, isExplicitSelection _: Bool) async {}
+
+    func updateServiceSelectedDeviceID(_ deviceID: String?) async {}
 
     func listOnboardProfiles(device _: MouseDevice) async throws -> OnboardProfileInventory { throw BridgeError.commandFailed("Onboard profile CRUD is not supported by this backend.") }
 
@@ -205,10 +208,11 @@ struct SharedServiceSnapshot: Codable, Sendable {
     let observedAtByDeviceID: [String: Date]
     let softwareLightingStatusByDeviceID: [String: SoftwareLightingEngineStatus]
     let usbControlAvailabilityByDeviceID: [String: USBControlAvailability]
+    let selectedDeviceID: String?
 
     init(
         devices: [MouseDevice], stateByDeviceID: [String: MouseState], lastUpdatedByDeviceID: [String: Date], observedAtByDeviceID: [String: Date] = [:], softwareLightingStatusByDeviceID: [String: SoftwareLightingEngineStatus] = [:],
-        usbControlAvailabilityByDeviceID: [String: USBControlAvailability] = [:]
+        usbControlAvailabilityByDeviceID: [String: USBControlAvailability] = [:], selectedDeviceID: String? = nil
     ) {
         self.devices = devices
         self.stateByDeviceID = stateByDeviceID
@@ -216,6 +220,7 @@ struct SharedServiceSnapshot: Codable, Sendable {
         self.observedAtByDeviceID = observedAtByDeviceID
         self.softwareLightingStatusByDeviceID = softwareLightingStatusByDeviceID
         self.usbControlAvailabilityByDeviceID = usbControlAvailabilityByDeviceID
+        self.selectedDeviceID = selectedDeviceID
     }
 
     /// Defines coding keys for serialized data.
@@ -226,6 +231,7 @@ struct SharedServiceSnapshot: Codable, Sendable {
         case observedAtByDeviceID
         case softwareLightingStatusByDeviceID
         case usbControlAvailabilityByDeviceID
+        case selectedDeviceID
     }
 
     init(from decoder: Decoder) throws {
@@ -236,6 +242,7 @@ struct SharedServiceSnapshot: Codable, Sendable {
         observedAtByDeviceID = try container.decodeIfPresent([String: Date].self, forKey: .observedAtByDeviceID) ?? [:]
         softwareLightingStatusByDeviceID = try container.decodeIfPresent([String: SoftwareLightingEngineStatus].self, forKey: .softwareLightingStatusByDeviceID) ?? [:]
         usbControlAvailabilityByDeviceID = try container.decodeIfPresent([String: USBControlAvailability].self, forKey: .usbControlAvailabilityByDeviceID) ?? [:]
+        selectedDeviceID = try container.decodeIfPresent(String.self, forKey: .selectedDeviceID)
     }
 }
 
@@ -243,6 +250,30 @@ struct SharedServiceSnapshot: Codable, Sendable {
 struct CrossProcessClientPresence: Codable, Sendable {
     let sourceProcessID: Int32
     let selectedDeviceID: String?
+    /// True only when the user picked this device in a remote client window. Boot-time and
+    /// periodic presence updates carry the client's current selection but are not deliberate
+    /// picks, so they must not take selection authority from the service menu bar.
+    let isExplicitSelection: Bool
+
+    init(sourceProcessID: Int32, selectedDeviceID: String?, isExplicitSelection: Bool = false) {
+        self.sourceProcessID = sourceProcessID
+        self.selectedDeviceID = selectedDeviceID
+        self.isExplicitSelection = isExplicitSelection
+    }
+
+    /// Defines coding keys for serialized data.
+    private enum CodingKeys: String, CodingKey {
+        case sourceProcessID
+        case selectedDeviceID
+        case isExplicitSelection
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        sourceProcessID = try container.decode(Int32.self, forKey: .sourceProcessID)
+        selectedDeviceID = try container.decodeIfPresent(String.self, forKey: .selectedDeviceID)
+        isExplicitSelection = try container.decodeIfPresent(Bool.self, forKey: .isExplicitSelection) ?? false
+    }
 }
 
 /// Defines backend state update values.

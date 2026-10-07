@@ -31,6 +31,11 @@ import OpenSnekHardware
         let deviceListChanged = shouldApplyDeviceList ? applyDeviceList(snapshot.devices, source: "subscription") : false
         didApplySnapshotChange = didApplySnapshotChange || deviceListChanged
 
+        if let runtimeController = optionalRuntimeController, let serviceSelectedDeviceID = runtimeController.preferredClientSelectedDeviceID(snapshotSelectedDeviceID: snapshot.selectedDeviceID, availableDeviceIDs: liveIDs), serviceSelectedDeviceID != deviceStore.selectedDeviceID {
+            adoptRemoteServiceSelection(deviceID: serviceSelectedDeviceID)
+            didApplySnapshotChange = true
+        }
+
         for (deviceID, remoteState) in snapshot.stateByDeviceID where remoteState.device.transport == .usb && snapshot.usbControlAvailabilityByDeviceID[deviceID]?.blocksUSBControlInteraction != true { clearUSBPhysicalConnectSettling(for: deviceID) }
         scheduleRemoteSnapshotSoftwareLightingAutoStart(for: snapshot.devices)
 

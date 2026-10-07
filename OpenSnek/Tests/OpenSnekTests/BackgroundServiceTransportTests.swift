@@ -123,7 +123,7 @@ final class BackgroundServiceTransportTests: XCTestCase {
         let expectedProcessID = Int32(ProcessInfo.processInfo.processIdentifier)
         try await waitUntil { await recorder.hasPresence(for: expectedProcessID) }
 
-        await serviceBackend.updateRemoteClientPresence(sourceProcessID: expectedProcessID, selectedDeviceID: backend.device.id)
+        await serviceBackend.updateRemoteClientPresence(sourceProcessID: expectedProcessID, selectedDeviceID: backend.device.id, isExplicitSelection: false)
 
         try await waitUntil { await recorder.selectedDeviceID(for: expectedProcessID) == backend.device.id }
 
