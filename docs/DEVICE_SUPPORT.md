@@ -42,7 +42,7 @@ Button remap keyboard actions support modifier chords on shipped USB and Bluetoo
 | Basilisk V3 Pro | `Validated` | `Validated` | Ships mapped onboard profile CRUD on USB and Bluetooth; Bluetooth keeps lighting static-only, hides poll-rate and threshold controls, and does not ship clutch/profile-button remap |
 | Basilisk V3 35K | `Validated` | `No transport` | Shares the Basilisk V3 USB family configuration with mapped onboard profile CRUD; no Bluetooth transport |
 | Orochi V2 | `Not shipped` | `Contributor validated` | Contributor validated Bluetooth DPI stages, battery, and no-RGB behavior; button remap is profile-mapped pending hardware readback validation |
-| Naga Pro | `Contributor validated` | `Contributor validated` | Core controls and known-safe side-panel slots ship; unknown native defaults and class-`0x03` panel actions remain preserved |
+| Naga Pro | `Contributor validated` | `Contributor validated` | Core controls and known-safe side-panel slots ship with captured native defaults; 12- and 6-button panel press validation remains pending |
 | Basilisk (2017) | `Contributor validated` | `No transport` | Contributor validated DPI (scalar, independent X/Y, live 5-stage table), poll-rate reads, and logo/scroll lighting with restore-verified writes; button remap and onboard profiles are not mapped |
 | Lancehead Tournament Edition | `Contributor validated` | `No transport` | Contributor validated DPI (scalar, independent X/Y, live 5-stage table read without OpenRazer's `0xFF` stage transaction), poll-rate reads, and all four lighting zones; button remap is not mapped |
 | Huntsman Mini | `Contributor validated` | `No transport` | Keyboard: contributor validated backlight lighting, brightness, and that poll-rate reads return `status 0x05` (unsupported). No DPI hardware; key remap is not mapped |
@@ -160,7 +160,7 @@ Bluetooth PID `0x0095`; 2.4 GHz HyperSpeed dongle path not yet shipped.
 
 USB PIDs `0x008F` (wired) / `0x0090` (2.4 GHz receiver), Bluetooth PID `0x0092`.
 
-Support is based on hardware validation reported by [varunyellina in PR #106](https://github.com/gh123man/OpenSnek/pull/106); OpenSnek maintainers do not currently possess this device.
+Support is based on hardware validation reported by [varunyellina in PR #106](https://github.com/gh123man/OpenSnek/pull/106), with side-panel defaults and physical press validation contributed by [jpagh in PR #121](https://github.com/gh123man/OpenSnek/pull/121); OpenSnek maintainers do not currently possess this device.
 
 | Feature Area | USB | BT | Notes |
 |---|---|---|---|
@@ -168,9 +168,9 @@ Support is based on hardware validation reported by [varunyellina in PR #106](ht
 | DPI stages + active stage | `Contributor validated` | `Contributor validated` | Scalar DPI is capped at `20,000` |
 | Independent X/Y DPI | `Scalar only` | `Scalar only` | The Naga Pro profile intentionally does not advertise independent X/Y editing |
 | Lighting: brightness + static color | `Contributor validated` | `Contributor validated` | OpenSnek exposes scroll-wheel `0x01` and logo `0x04` zones; advanced effects are not claimed |
-| Button remap: shipped editable slots | `Limited` | `Limited` | Body/2-button-panel slots `1-5`, `9`, `10`, `52`, `53`; 12-button panel slots `64-75`; and known 6-button panel slots `80-82` are editable |
-| Button remap: preserved slots | `Limited` | `Limited` | Slots `83-85` use an undecoded native class-`0x03` block and remain read-only. Side-panel slots `64-75` and `80-82` allow explicit remaps but do not offer `Default` until their factory blocks are captured |
-| Onboard hardware profiles | `Limited` | `Limited` | Five-slot mapped core profile workflows ship, but OpenSnek omits unknown side-panel defaults from synthesized/replaced profiles and refuses a full reset unless every writable slot has a known factory block |
+| Button remap: shipped editable slots | `Limited` | `Limited` | Body/2-button-panel slots `1-5`, `9`, `10`, `52`, `53`; 12-button panel slots `64-75`; and 6-button panel slots `80-85` are editable with captured native `Default` blocks |
+| Button remap: preserved slots | `Limited` | `Limited` | Only the scroll-mode toggle (slot `14`) is preserved read-only; every side-panel slot now accepts remaps |
+| Onboard hardware profiles | `Limited` | `Limited` | Five-slot mapped core profile workflows ship, and full button-profile reset now uses captured native side-panel defaults. The 12- and 6-button panels were physically press-validated in [PR #121](https://github.com/gh123man/OpenSnek/pull/121) |
 
 The remaining device-dependent work is tracked in [issue #56](https://github.com/gh123man/OpenSnek/issues/56).
 ## Basilisk (2017)

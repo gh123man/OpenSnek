@@ -198,11 +198,12 @@ Validated by the PR contributor over Bluetooth:
 Validated on physical hardware by [varunyellina in PR #106](https://github.com/gh123man/OpenSnek/pull/106), not by an OpenSnek maintainer:
 - wired USB, the 2.4 GHz receiver, and Bluetooth all resolve to the shared Naga Pro profile with a `20,000` DPI ceiling and five mapped onboard profile slots
 - the three swappable panels share one firmware slot table; the UI groups body controls, the 2-button panel, the 6-button panel, and the 12-button panel while only the installed panel is physically active
-- contributor-tested explicit remaps ship for body/2-button-panel slots `1-5`, `9`, `10`, `52`, `53`, 12-button slots `64-75`, and 6-button slots `80-82`
+- contributor-tested explicit remaps ship for body/2-button-panel slots `1-5`, `9`, `10`, `52`, `53`, 12-button slots `64-75`, and 6-button slots `80-85`
 - Naga Pro wheel tilt uses class-`0x0E` button IDs `0x09` / `0x0A`, not the Basilisk-family `0x68` / `0x69`; the Bluetooth writer deliberately reuses the Naga USB function-block encoder
-- native factory blocks for slots `64-75` and `80-82` have not been captured, so OpenSnek permits explicit remaps but hides `Default` and omits those defaults from synthesized profile content
-- slots `83-85` read as an undecoded class-`0x03` action and remain read-only; full button-profile reset is rejected before any write while any writable slot lacks a known factory block
-- remaining device-dependent capture and validation work stays open in [issue #56](https://github.com/gh123man/OpenSnek/issues/56)
+- native factory blocks for slots `64-75` and `80-85` were captured from the firmware's unassigned onboard banks on a second unit, so `Default` restore and full button-profile reset now resolve every writable slot
+- the captured defaults use function-data length `0x01` (`02 01 00 <key>`) with the HID key in byte 3; the 12-button panel defaults to keyboard `1..9`, `0`, `-`, `=`, and the 6-button panel to `1..6`
+- physical press validation confirmed the 12- and 6-button panels emit their staged native keys in physical label order, and slots `83-85` were promoted to editable after the 6-button panel's buttons emitted keyboard `4` / `5` / `6`; the class-`0x03` block seen on the original contributor's unit was not reproduced
+- `Default` restore through the app write path was physically confirmed on 12-button slot `64`
 
 ## Validation Checklist
 

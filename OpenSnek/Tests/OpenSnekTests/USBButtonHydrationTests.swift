@@ -186,14 +186,40 @@ final class USBButtonHydrationTests: XCTestCase {
         XCTAssertEqual(draft?.hidModifiers, 0)
     }
 
+    func testNagaProNativePanelDefaultsMatchCapturedFirmwareBlocks() {
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 64, profileID: .nagaPro), [0x02, 0x01, 0x00, 0x1E, 0x00, 0x00, 0x00])
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 73, profileID: .nagaPro), [0x02, 0x01, 0x00, 0x27, 0x00, 0x00, 0x00])
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 74, profileID: .nagaPro), [0x02, 0x01, 0x00, 0x2D, 0x00, 0x00, 0x00])
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 75, profileID: .nagaPro), [0x02, 0x01, 0x00, 0x2E, 0x00, 0x00, 0x00])
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 80, profileID: .nagaPro), [0x02, 0x01, 0x00, 0x1E, 0x00, 0x00, 0x00])
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 82, profileID: .nagaPro), [0x02, 0x01, 0x00, 0x20, 0x00, 0x00, 0x00])
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 83, profileID: .nagaPro), [0x02, 0x01, 0x00, 0x21, 0x00, 0x00, 0x00])
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 84, profileID: .nagaPro), [0x02, 0x01, 0x00, 0x22, 0x00, 0x00, 0x00])
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 85, profileID: .nagaPro), [0x02, 0x01, 0x00, 0x23, 0x00, 0x00, 0x00])
+        XCTAssertNil(ButtonBindingSupport.defaultUSBFunctionBlock(for: 64, profileID: .basiliskV3Pro))
+    }
+
+    func testNagaProNativePanelDefaultBlocksNormalizeToDefault() {
+        let nativeDefault: [UInt8] = [0x02, 0x01, 0x00, 0x1E, 0x00, 0x00, 0x00]
+        XCTAssertEqual(ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 64, functionBlock: nativeDefault, profileID: .nagaPro)?.kind, .default)
+    }
+
+    func testNativeLengthOneKeyboardBlockDecodesKeyFromByteThree() {
+        let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 64, functionBlock: [0x02, 0x01, 0x08, 0x2F, 0x00, 0x00, 0x00], profileID: .nagaPro)
+        XCTAssertEqual(draft?.kind, .keyboardSimple)
+        XCTAssertEqual(draft?.hidKey, 0x2F)
+        XCTAssertEqual(draft?.hidModifiers, 0x08)
+    }
+
     func testNagaProIsNotPartOfBasiliskV3FamilyDPIClutchSupport() {
         XCTAssertNil(ButtonBindingSupport.semanticDefaultButtonBinding(for: 15, profileID: .nagaPro))
         XCTAssertFalse(ButtonBindingSupport.availableButtonBindingKinds(profileID: .nagaPro).contains(.dpiClutch))
     }
 
-    func testNagaProFullProfileResetRequiresMissingNativeDefaults() {
-        XCTAssertNil(ButtonBindingSupport.completeDefaultUSBFunctionBlocks(for: DeviceProfiles.nagaProUSBWritableSlots, profileID: .nagaPro))
+    func testNagaProFullProfileResetHasCompleteNativeDefaults() {
+        XCTAssertNotNil(ButtonBindingSupport.completeDefaultUSBFunctionBlocks(for: DeviceProfiles.nagaProUSBWritableSlots, profileID: .nagaPro))
         XCTAssertNotNil(ButtonBindingSupport.completeDefaultUSBFunctionBlocks(for: [1, 2, 3, 4, 5, 9, 10, 52, 53], profileID: .nagaPro))
+        XCTAssertNotNil(ButtonBindingSupport.completeDefaultUSBFunctionBlocks(for: [80, 81, 82, 83, 84, 85], profileID: .nagaPro))
     }
 
     func testBuildUSBFunctionBlockSupportsKeyboardShortcutModifiers() {
