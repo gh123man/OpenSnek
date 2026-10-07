@@ -455,3 +455,134 @@ notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 1e 1e 00 00 
 notify[1] len=20 req=0x30 status=0x02 len=16 30 10 00 00 00 00 00 02 1e 1e 00 00 00 00 00 00 50 72 00 00
 notify[2] len=20 req=0x40 status=0x00 len=0 40 00 02 02 01 01 00 00 1e 1e 00 00 00 00 00 00 50 72 00 00
 payload[16]=40 00 02 02 01 01 00 00 1e 1e 00 00 00 00 00 00 decoded-function[7]=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+
+$ OpenSnekProbe bt-lighting-info --name Naga V2 Pro
+bt profile="unknown" name="Naga V2 Pro"
+supported-led-ids=0x04,0x05
+zone id=led_04 label="LED 0x04" ledIDs=[0x04]
+zone id=led_05 label="LED 0x05" ledIDs=[0x05]
+lighting zone=led_04 label="LED 0x04" led=0x04 brightness=0 color=read_failed
+lighting zone=led_05 label="LED 0x05" led=0x05 brightness=0 color=read_failed
+
+$ OpenSnekProbe bt-lighting-read --name Naga V2 Pro
+lighting zone=led_04 label="LED 0x04" led=0x04 brightness=0 color=read_failed
+lighting zone=led_05 label="LED 0x05" led=0x05 brightness=0 color=read_failed
+
+$ OpenSnekProbe bt-raw-read --key 10850004 --name Naga V2 Pro --timeout-ms 10000
+bt-raw-read req=0x30 key=10 85 00 04 name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 1e 1e 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02 1e 1e 00 00 00 00 00 00 50 72 00 00
+notify[2] len=20 req=0x00 status=0x02 len=1 00 01 00 00 00 00 00 02 1e 1e 00 00 00 00 00 00 50 72 00 00
+payload[1]: 00
+
+$ OpenSnekProbe bt-raw-read --key 10850005 --name Naga V2 Pro --timeout-ms 10000
+bt-raw-read req=0x30 key=10 85 00 05 name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 1e 1e 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02 1e 1e 00 00 00 00 00 00 50 72 00 00
+notify[2] len=20 req=0x00 status=0x02 len=1 00 01 00 00 00 00 00 02 1e 1e 00 00 00 00 00 00 50 72 00 00
+payload[1]: 00
+
+$ OpenSnekProbe bt-raw-write --key 10050004 --payload ff --name Naga V2 Pro --timeout-ms 10000
+bt-raw-write req=0x30 key=10 05 00 04 payload=ff name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 1e 1e 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x02 len=0 30 00 00 00 00 00 00 02 1e 1e 00 00 00 00 00 00 50 72 00 00
+ack status=0x02 payloadLength=0
+
+$ OpenSnekProbe bt-raw-write --key 10050005 --payload ff --name Naga V2 Pro --timeout-ms 10000
+bt-raw-write req=0x30 key=10 05 00 05 payload=ff name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 1e 1e 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x02 len=0 30 00 00 00 00 00 00 02 1e 1e 00 00 00 00 00 00 50 72 00 00
+ack status=0x02 payloadLength=0
+
+$ OpenSnekProbe bt-raw-write --key 10030004 --payload 01000001ff00000000 --name Naga V2 Pro --timeout-ms 10000
+bt-raw-write req=0x30 key=10 03 00 04 payload=01 00 00 01 ff 00 00 00 00 name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 1e 1e 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x02 len=0 30 00 00 00 00 00 00 02 1e 1e 00 00 00 00 00 00 50 72 00 00
+ack status=0x02 payloadLength=0
+
+$ OpenSnekProbe bt-raw-write --key 10030005 --payload 0100000100ff000000 --name Naga V2 Pro --timeout-ms 10000
+bt-raw-write req=0x30 key=10 03 00 05 payload=01 00 00 01 00 ff 00 00 00 name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 1e 1e 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x02 len=0 30 00 00 00 00 00 00 02 1e 1e 00 00 00 00 00 00 50 72 00 00
+ack status=0x02 payloadLength=0
+
+$ OpenSnekProbe bt-raw-read --key 10830005 --name Naga V2 Pro --timeout-ms 10000
+bt-raw-read req=0x30 key=10 83 00 05 name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 1e 1e 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x02 len=10 30 0a 00 00 00 00 00 02 1e 1e 00 00 00 00 00 00 50 72 00 00
+notify[2] len=20 req=0x01 status=0x00 len=0 01 00 00 01 00 ff 00 00 00 00 00 00 00 00 00 00 50 72 00 00
+payload[10]: 01 00 00 01 00 ff 00 00 00 00
+
+$ OpenSnekProbe bt-raw-write --key 10050105 --payload ff --name Naga V2 Pro --timeout-ms 10000
+bt-raw-write req=0x30 key=10 05 01 05 payload=ff name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x02 len=0 30 00 00 00 00 00 00 02 00 00 00 00 00 00 00 00 50 72 00 00
+ack status=0x02 payloadLength=0
+
+$ OpenSnekProbe bt-raw-write --key 10030105 --payload 0100000100ff000000 --name Naga V2 Pro --timeout-ms 10000
+bt-raw-write req=0x30 key=10 03 01 05 payload=01 00 00 01 00 ff 00 00 00 name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x02 len=0 30 00 00 00 00 00 00 02 00 00 00 00 00 00 00 00 50 72 00 00
+ack status=0x02 payloadLength=0
+
+$ OpenSnekProbe bt-raw-read --key 10830105 --name Naga V2 Pro --timeout-ms 10000
+bt-raw-read req=0x30 key=10 83 01 05 name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x02 len=10 30 0a 00 00 00 00 00 02 00 00 00 00 00 00 00 00 50 72 00 00
+notify[2] len=20 req=0x01 status=0x00 len=0 01 00 00 01 00 ff 00 00 00 00 00 00 00 00 00 00 50 72 00 00
+payload[10]: 01 00 00 01 00 ff 00 00 00 00
+
+=== LED ID sweep (zone state 10 83 00 <led>, brightness 10 85 00 <led>) ===
+led=0x00 state=payload[10]: 01 00 00 01 ff 00 00 00 00 00 brightness=payload: nil
+led=0x01 state=payload: nil brightness=payload: nil
+led=0x02 state=payload: nil brightness=payload: nil
+led=0x03 state=payload: nil brightness=payload: nil
+led=0x04 state=payload[10]: 01 00 00 01 ff 00 00 00 00 00 brightness=payload[1]: ff
+led=0x05 state=payload[10]: 01 00 00 01 00 ff 00 00 00 00 brightness=payload[1]: ff
+led=0x06 state=payload: nil brightness=payload: nil
+led=0x07 state=payload: nil brightness=payload: nil
+led=0x08 state=payload: nil brightness=payload: nil
+led=0x09 state=payload: nil brightness=payload: nil
+led=0x0a state=payload[0]:  brightness=payload[0]: 
+led=0x0b state=payload: nil brightness=payload: nil
+led=0x0c state=payload: nil brightness=payload: nil
+led=0x0d state=payload: nil brightness=payload: nil
+led=0x0e state=payload: nil brightness=payload: nil
+led=0x0f state=payload: nil brightness=payload: nil
+led=0x10 state=payload: nil brightness=payload: nil
+
+$ OpenSnekProbe bt-raw-write --key 10050001 --payload ff --name Naga V2 Pro --timeout-ms 10000
+bt-raw-write req=0x30 key=10 05 00 01 payload=ff name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x03 len=0 30 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 50 72 00 00
+ack status=0x03 payloadLength=0
+
+$ OpenSnekProbe bt-raw-write --key 10030001 --payload 010000010000ff000000 --name Naga V2 Pro --timeout-ms 10000
+bt-raw-write req=0x30 key=10 03 00 01 payload=01 00 00 01 00 00 ff 00 00 00 name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x03 len=0 30 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 50 72 00 00
+ack status=0x03 payloadLength=0
+
+$ OpenSnekProbe bt-raw-write --key 1005000a --payload ff --name Naga V2 Pro --timeout-ms 10000
+bt-raw-write req=0x30 key=10 05 00 0a payload=ff name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x02 len=0 30 00 00 00 00 00 00 02 00 00 00 00 00 00 00 00 50 72 00 00
+ack status=0x02 payloadLength=0
+
+$ OpenSnekProbe bt-raw-write --key 1003000a --payload 01000001ffff00000000 --name Naga V2 Pro --timeout-ms 10000
+bt-raw-write req=0x30 key=10 03 00 0a payload=01 00 00 01 ff ff 00 00 00 00 name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x02 len=0 30 00 00 00 00 00 00 02 00 00 00 00 00 00 00 00 50 72 00 00
+ack status=0x02 payloadLength=0
+
+$ OpenSnekProbe bt-raw-read --key 10830001 --name Naga V2 Pro --timeout-ms 10000
+bt-raw-read req=0x30 key=10 83 00 01 name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x03 len=0 30 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 50 72 00 00
+payload: nil
+
+$ OpenSnekProbe bt-raw-read --key 1083000a --name Naga V2 Pro --timeout-ms 10000
+bt-raw-read req=0x30 key=10 83 00 0a name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x02 len=0 30 00 00 00 00 00 00 02 00 00 00 00 00 00 00 00 50 72 00 00
+payload[0]: 

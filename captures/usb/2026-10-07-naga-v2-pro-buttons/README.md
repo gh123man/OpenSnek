@@ -80,3 +80,10 @@ Notes:
   Toggle"). The physical control for it was not identified in this session.
 - Probe note: `usb-button-set --hid-key` parses decimal, not hex; use `usb-button-set-raw --hex`
   for exact function blocks.
+
+## Lighting follow-up (cross-reference)
+
+The side-panel lighting investigation in `captures/ble/2026-10-07-naga-v2-pro-buttons/README.md`
+confirms two lit zones on both transports: logo LED `0x04` and 12-button side-panel LED `0x05`.
+The 6- and 2-button plates have no lighting, and there is no scroll-wheel zone. The shipped USB
+profile currently declares only the logo zone and should gain the side-panel zone for parity.

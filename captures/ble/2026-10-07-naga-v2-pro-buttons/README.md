@@ -89,3 +89,28 @@ behavior was affected (target 3 is unassigned).
 With the 6-button panel installed, pressing printed labels 1..6 in a text field typed
 `123456` over Bluetooth, matching the 2.4 GHz receiver capture. Button output parity between
 transports is confirmed for the panel slots.
+
+## Side-panel lighting investigation (2026-10-07, live)
+
+Wrote static colors to each responsive LED on the live target and checked visually:
+
+| LED | Result |
+| --- | --- |
+| `0x04` | Palm snake logo (red confirmed). |
+| `0x05` | 12-button side-panel lighting (green confirmed). |
+| `0x0A` | Writes ACK and read back empty; no visible zone. Treat as unused/write-only. |
+| `0x00` | Whole-device/aggregate state; not an independent visible zone. |
+| `0x01`-`0x03`, `0x06`-`0x09`, `0x0B`-`0x10` | Unsupported (`status 0x03` / no payload). |
+
+Panel behavior:
+
+- The 12-button plate lights through LED `0x05`.
+- The 6-button plate has no lighting at all (owner checked physically; Synapse exposes no zone).
+- The 2-button plate has no lighting.
+- The Naga V2 Pro has no scroll-wheel lighting; Synapse exposes no scroll-wheel zone (owner
+  verified in Synapse 4).
+
+Implication for support: both transports expose the same two real zones. The USB profile
+currently declares only the logo (`0x04`); it should also declare a `side_panel` zone on
+`0x05`, gated to the 12-button plate if available. The Bluetooth profile should declare both
+from the start.
