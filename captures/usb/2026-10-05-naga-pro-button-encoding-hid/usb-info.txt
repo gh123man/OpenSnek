@@ -1,0 +1,2 @@
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:0090:00112100:usb pid=0x0090

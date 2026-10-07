@@ -1,0 +1,24 @@
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb-input-values candidates=5 duration=20.0s
+candidate[0] 1532:0090:00112100:usb pid=0x0090 loc=0x00112100 usage=0x01:0x02 input=8 feature=90 score=125 name=Razer Naga Pro
+candidate[1] 1532:0090:00112100:usb pid=0x0090 loc=0x00112100 usage=0x59:0x01 input=1 feature=51 score=51 name=Razer Naga Pro
+candidate[2] 1532:0090:00112100:usb pid=0x0090 loc=0x00112100 usage=0x59:0x01 input=1 feature=51 score=51 name=Razer Naga Pro
+candidate[3] 1532:0090:00112100:usb pid=0x0090 loc=0x00112100 usage=0x01:0x06 input=16 feature=1 score=1 name=Razer Naga Pro
+candidate[4] 1532:0090:00112100:usb pid=0x0090 loc=0x00112100 usage=0x01:0x06 input=8 feature=0 score=0 name=Razer Naga Pro
+[+1.736s] candidate[0] deviceUsage=0x01:0x02 element=0x0001:0x0031 reportID=0 value=0
+[+1.737s] candidate[0] deviceUsage=0x01:0x02 element=0x0001:0x0030 reportID=0 value=0
+[+1.737s] candidate[0] deviceUsage=0x01:0x02 element=0x0001:0x0038 reportID=0 value=0
+[+1.737s] candidate[0] deviceUsage=0x01:0x02 element=0x0009:0x0001 reportID=0 value=1
+[+1.831s] candidate[0] deviceUsage=0x01:0x02 element=0x0001:0x0031 reportID=0 value=0
+[+1.832s] candidate[0] deviceUsage=0x01:0x02 element=0x0001:0x0030 reportID=0 value=0
+[+1.832s] candidate[0] deviceUsage=0x01:0x02 element=0x0001:0x0038 reportID=0 value=0
+[+1.832s] candidate[0] deviceUsage=0x01:0x02 element=0x0009:0x0001 reportID=0 value=0
+[+2.744s] candidate[0] deviceUsage=0x01:0x02 element=0x0001:0x0031 reportID=0 value=0
+[+2.744s] candidate[0] deviceUsage=0x01:0x02 element=0x0001:0x0030 reportID=0 value=0
+[+2.744s] candidate[0] deviceUsage=0x01:0x02 element=0x0001:0x0038 reportID=0 value=0
+[+2.744s] candidate[0] deviceUsage=0x01:0x02 element=0x0009:0x0002 reportID=0 value=1
+[+2.843s] candidate[0] deviceUsage=0x01:0x02 element=0x0001:0x0031 reportID=0 value=0
+[+2.843s] candidate[0] deviceUsage=0x01:0x02 element=0x0001:0x0030 reportID=0 value=0
+[+2.843s] candidate[0] deviceUsage=0x01:0x02 element=0x0001:0x0038 reportID=0 value=0
+[+2.844s] candidate[0] deviceUsage=0x01:0x02 element=0x0009:0x0002 reportID=0 value=0
+usb-input-values complete events=16

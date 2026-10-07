@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- Fixed Naga Pro USB button reads decoding a shifted function-block window when a stored binding's hypershift/layer flag differs from the requested layer, which displayed right-click, middle-click, and scroll buttons as Left Click on Synapse-configured profiles.
 - Naga Pro side-panel buttons (`64-75`, `80-85`) now offer `Default` restore, remapping, and full button-profile reset, using native default blocks captured from the firmware's unassigned onboard banks. The 12- and 6-button panel defaults were physically press-validated, so slots `83-85` are no longer read-only.
 
 ## [1.3.0]

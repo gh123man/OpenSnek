@@ -25,15 +25,9 @@ public enum ButtonBindingSupport {
     // function-data length 0x01 while keeping [class, length, modifiers, HID key] at bytes 0..3.
     // See captures/usb/2026-10-05-naga-pro-native-default-banks/ and
     // captures/usb/2026-10-06-naga-pro-side-panel-validation/.
-    private static let nagaProNativeKeyboardKeyBySlot: [Int: UInt8] = [
-        64: 0x1E, 65: 0x1F, 66: 0x20, 67: 0x21, 68: 0x22, 69: 0x23,
-        70: 0x24, 71: 0x25, 72: 0x26, 73: 0x27, 74: 0x2D, 75: 0x2E,
-        80: 0x1E, 81: 0x1F, 82: 0x20, 83: 0x21, 84: 0x22, 85: 0x23
-    ]
+    private static let nagaProNativeKeyboardKeyBySlot: [Int: UInt8] = [64: 0x1E, 65: 0x1F, 66: 0x20, 67: 0x21, 68: 0x22, 69: 0x23, 70: 0x24, 71: 0x25, 72: 0x26, 73: 0x27, 74: 0x2D, 75: 0x2E, 80: 0x1E, 81: 0x1F, 82: 0x20, 83: 0x21, 84: 0x22, 85: 0x23]
 
-    private static func nagaProNativeKeyboardBlock(hidKey: UInt8) -> [UInt8] {
-        [0x02, 0x01, 0x00, hidKey, 0x00, 0x00, 0x00]
-    }
+    private static func nagaProNativeKeyboardBlock(hidKey: UInt8) -> [UInt8] { [0x02, 0x01, 0x00, hidKey, 0x00, 0x00, 0x00] }
 
     private static func horizontalScrollButtonID(for kind: ButtonBindingKind, profileID: DeviceProfileID?) -> UInt8? {
         switch kind {
@@ -213,8 +207,11 @@ public enum ButtonBindingSupport {
 
         if usesExtendedBasiliskUSBReadLayout(profileID) { return Array(response[11..<18]) }
 
+        // Naga Pro returns the stored layer flag at byte 10, which need not match the request.
+        // Keep the layer-echo check for other profiles: a flagless keyboard shortcut can also
+        // parse at byte 11, silently changing its key and modifiers instead of using the fallback.
         var candidates: [[UInt8]] = []
-        if response[10] == hypershift { candidates.append(Array(response[11..<18])) }
+        if profileID == .nagaPro || response[10] == hypershift { candidates.append(Array(response[11..<18])) }
         candidates.append(Array(response[10..<17]))
 
         if let defaultBlock = defaultUSBFunctionBlock(for: Int(slot), profileID: profileID), let matchedDefault = candidates.first(where: { $0 == defaultBlock }) { return matchedDefault }
@@ -316,9 +313,7 @@ public enum ButtonBindingSupport {
             }
         default: break
         }
-        if profileID == .nagaPro, let hidKey = nagaProNativeKeyboardKeyBySlot[slot] {
-            return nagaProNativeKeyboardBlock(hidKey: hidKey)
-        }
+        if profileID == .nagaPro, let hidKey = nagaProNativeKeyboardKeyBySlot[slot] { return nagaProNativeKeyboardBlock(hidKey: hidKey) }
         switch slot {
         case 1: return [0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00]
         case 2: return [0x01, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00]
