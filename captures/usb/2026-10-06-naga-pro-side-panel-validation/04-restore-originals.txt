@@ -1,0 +1,110 @@
+# Restore pre-session mappings - 10:09:13
+# slot 64 <- 02020059000000
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=64 block=02020059000000 class=0x02 len=2 data=0059
+readback profile=0 slot=64 block=02020059000000 class=0x02 len=2 data=0059
+# slot 65 <- 0202005a000000
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=65 block=0202005a000000 class=0x02 len=2 data=005a
+readback profile=0 slot=65 block=0202005a000000 class=0x02 len=2 data=005a
+# slot 66 <- 0202005b000000
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=66 block=0202005b000000 class=0x02 len=2 data=005b
+readback profile=0 slot=66 block=0202005b000000 class=0x02 len=2 data=005b
+# slot 67 <- 0202005c000000
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=67 block=0202005c000000 class=0x02 len=2 data=005c
+readback profile=0 slot=67 block=0202005c000000 class=0x02 len=2 data=005c
+# slot 68 <- 0202005d000000
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=68 block=0202005d000000 class=0x02 len=2 data=005d
+readback profile=0 slot=68 block=0202005d000000 class=0x02 len=2 data=005d
+# slot 69 <- 0202005e000000
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=69 block=0202005e000000 class=0x02 len=2 data=005e
+readback profile=0 slot=69 block=0202005e000000 class=0x02 len=2 data=005e
+# slot 70 <- 0202005f000000
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=70 block=0202005f000000 class=0x02 len=2 data=005f
+readback profile=0 slot=70 block=0202005f000000 class=0x02 len=2 data=005f
+# slot 71 <- 02020060000000
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=71 block=02020060000000 class=0x02 len=2 data=0060
+readback profile=0 slot=71 block=02020060000000 class=0x02 len=2 data=0060
+# slot 72 <- 02020061000000
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=72 block=02020061000000 class=0x02 len=2 data=0061
+readback profile=0 slot=72 block=02020061000000 class=0x02 len=2 data=0061
+# slot 73 <- 02020062000000
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=73 block=02020062000000 class=0x02 len=2 data=0062
+readback profile=0 slot=73 block=02020062000000 class=0x02 len=2 data=0062
+# slot 74 <- 01010400000000
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=74 block=01010400000000 class=0x01 len=1 data=04
+readback profile=0 slot=74 block=01010400000000 class=0x01 len=1 data=04
+# slot 75 <- 01010500000000
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=75 block=01010500000000 class=0x01 len=1 data=05
+readback profile=0 slot=75 block=01010500000000 class=0x01 len=1 data=05
+# slot 80 <- 01010500000000
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=80 block=01010500000000 class=0x01 len=1 data=05
+readback profile=0 slot=80 block=01010500000000 class=0x01 len=1 data=05
+# slot 81 <- 01010400000000
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=81 block=01010400000000 class=0x01 len=1 data=04
+readback profile=0 slot=81 block=01010400000000 class=0x01 len=1 data=04
+# slot 82 <- 0202001f000000
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=82 block=0202001f000000 class=0x02 len=2 data=001f
+readback profile=0 slot=82 block=0202001f000000 class=0x02 len=2 data=001f
+# slot 83 <- 0e030200420000
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=83 block=0e030200420000 class=0x0e len=3 data=020042
+readback profile=0 slot=83 block=0e030200420000 class=0x0e len=3 data=020042
+# slot 84 <- 0e030100420000
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=84 block=0e030100420000 class=0x0e len=3 data=010042
+readback profile=0 slot=84 block=0e030100420000 class=0x0e len=3 data=010042
+# slot 85 <- 0202001e000000
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=85 block=0202001e000000 class=0x02 len=2 data=001e
+readback profile=0 slot=85 block=0202001e000000 class=0x02 len=2 data=001e
+# readback after restore
+profile=1 slot=64 hypershift=0 block=02020059000000 class=0x02 len=2 data=0059
+profile=0 slot=64 hypershift=0 block=02020059000000 class=0x02 len=2 data=0059
+profile=1 slot=65 hypershift=0 block=0202005a000000 class=0x02 len=2 data=005a
+profile=0 slot=65 hypershift=0 block=0202005a000000 class=0x02 len=2 data=005a
+profile=1 slot=66 hypershift=0 block=0202005b000000 class=0x02 len=2 data=005b
+profile=0 slot=66 hypershift=0 block=0202005b000000 class=0x02 len=2 data=005b
+profile=1 slot=67 hypershift=0 block=0202005c000000 class=0x02 len=2 data=005c
+profile=0 slot=67 hypershift=0 block=0202005c000000 class=0x02 len=2 data=005c
+profile=1 slot=68 hypershift=0 block=0202005d000000 class=0x02 len=2 data=005d
+profile=0 slot=68 hypershift=0 block=0202005d000000 class=0x02 len=2 data=005d
+profile=1 slot=69 hypershift=0 block=0202005e000000 class=0x02 len=2 data=005e
+profile=0 slot=69 hypershift=0 block=0202005e000000 class=0x02 len=2 data=005e
+profile=1 slot=70 hypershift=0 block=0202005f000000 class=0x02 len=2 data=005f
+profile=0 slot=70 hypershift=0 block=0202005f000000 class=0x02 len=2 data=005f
+profile=1 slot=71 hypershift=0 block=02020060000000 class=0x02 len=2 data=0060
+profile=0 slot=71 hypershift=0 block=02020060000000 class=0x02 len=2 data=0060
+profile=1 slot=72 hypershift=0 block=02020061000000 class=0x02 len=2 data=0061
+profile=0 slot=72 hypershift=0 block=02020061000000 class=0x02 len=2 data=0061
+profile=1 slot=73 hypershift=0 block=02020062000000 class=0x02 len=2 data=0062
+profile=0 slot=73 hypershift=0 block=02020062000000 class=0x02 len=2 data=0062
+profile=1 slot=74 hypershift=0 block=01010400000000 class=0x01 len=1 data=04
+profile=0 slot=74 hypershift=0 block=01010400000000 class=0x01 len=1 data=04
+profile=1 slot=75 hypershift=0 block=01010500000000 class=0x01 len=1 data=05
+profile=0 slot=75 hypershift=0 block=01010500000000 class=0x01 len=1 data=05
+profile=1 slot=80 hypershift=0 block=01010500000000 class=0x01 len=1 data=05
+profile=0 slot=80 hypershift=0 block=01010500000000 class=0x01 len=1 data=05
+profile=1 slot=81 hypershift=0 block=01010400000000 class=0x01 len=1 data=04
+profile=0 slot=81 hypershift=0 block=01010400000000 class=0x01 len=1 data=04
+profile=1 slot=82 hypershift=0 block=0202001f000000 class=0x02 len=2 data=001f
+profile=0 slot=82 hypershift=0 block=0202001f000000 class=0x02 len=2 data=001f
+profile=1 slot=83 hypershift=0 block=0e030200420000 class=0x0e len=3 data=020042
+profile=0 slot=83 hypershift=0 block=0e030200420000 class=0x0e len=3 data=020042
+profile=1 slot=84 hypershift=0 block=0e030100420000 class=0x0e len=3 data=010042
+profile=0 slot=84 hypershift=0 block=0e030100420000 class=0x0e len=3 data=010042
+profile=1 slot=85 hypershift=0 block=0202001e000000 class=0x02 len=2 data=001e
+profile=0 slot=85 hypershift=0 block=0202001e000000 class=0x02 len=2 data=001e

@@ -1,0 +1,82 @@
+# Naga Pro (1532:0090) native block-form write test - 2026-10-05
+#
+# Goal: prove whether the native default-block encoding `02 01 00 <HID key>` emits the key in
+# byte 3 (which the current parser cannot decode; it reads byte 1 as a data length and falls back
+# to key 0x04 'A').
+#
+# Panel: 2-button side plate. Slots 4 and 5 are the only side buttons physically present.
+# The background OpenSnek service was paused for the test and restarted afterwards.
+
+## 1. Original mappings, persistent (0x01) + direct (0x00) layers
+
+$ swift run --package-path OpenSnek OpenSnekProbe usb-button-read --pid 0x0090 --slot 4 --profile both
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=4 hypershift=0 block=01010104e40000 class=0x01 len=1 data=01
+profile=0 slot=4 hypershift=0 block=01010104e40000 class=0x01 len=1 data=01
+
+$ swift run --package-path OpenSnek OpenSnekProbe usb-button-read --pid 0x0090 --slot 5 --profile both
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=5 hypershift=0 block=01010105e40000 class=0x01 len=1 data=01
+profile=0 slot=5 hypershift=0 block=01010105e40000 class=0x01 len=1 data=01
+
+## 2. Write native keyboard block for key '1' to slot 4
+
+$ swift run --package-path OpenSnek OpenSnekProbe usb-button-set-raw --pid 0x0090 --slot 4 --hex 0201001e000000 --profile both
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=4 block=0201001e000000 class=0x02 len=1 data=00
+readback profile=0 slot=4 block=0201001e000000 class=0x02 len=1 data=00
+
+## 3. Write native keyboard block for key '2' to slot 5
+
+$ swift run --package-path OpenSnek OpenSnekProbe usb-button-set-raw --pid 0x0090 --slot 5 --hex 0201001f000000 --profile both
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=5 block=0201001f000000 class=0x02 len=1 data=00
+readback profile=0 slot=5 block=0201001f000000 class=0x02 len=1 data=00
+
+## 4. Physical press result (TextEdit document, user-observed)
+
+- front side button (slot 5, native block `02 01 00 1f`) -> typed `2`
+- rear side button (slot 4, native block `02 01 00 1e`) -> typed `1`
+
+Conclusion: the firmware emits the key from byte 3. The current parser's decode
+(`class 0x02, len 1, data [0x00]` -> HID key clamped to `0x04` = `'A'`) is wrong for the native form.
+The result also matches the existing profile label mapping: panel label 1 = slot 5, panel label 2 = slot 4.
+
+## 5. Restore originals and verify
+
+$ swift run --package-path OpenSnek OpenSnekProbe usb-button-set-raw --pid 0x0090 --slot 4 --hex 01010104e40000 --profile both
+readback profile=1 slot=4 block=01010104e40000 class=0x01 len=1 data=01
+readback profile=0 slot=4 block=01010104e40000 class=0x01 len=1 data=01
+
+$ swift run --package-path OpenSnek OpenSnekProbe usb-button-set-raw --pid 0x0090 --slot 5 --hex 01010105e40000 --profile both
+readback profile=1 slot=5 block=01010105e40000 class=0x01 len=1 data=01
+readback profile=0 slot=5 block=01010105e40000 class=0x01 len=1 data=01
+
+$ swift run --package-path OpenSnek OpenSnekProbe usb-button-read --pid 0x0090 --slot 4 --profile both
+profile=1 slot=4 hypershift=0 block=01010104e40000 class=0x01 len=1 data=01
+profile=0 slot=4 hypershift=0 block=01010104e40000 class=0x01 len=1 data=01
+
+$ swift run --package-path OpenSnek OpenSnekProbe usb-button-read --pid 0x0090 --slot 5 --profile both
+profile=1 slot=5 hypershift=0 block=01010105e40000 class=0x01 len=1 data=01
+profile=0 slot=5 hypershift=0 block=01010105e40000 class=0x01 len=1 data=01
+
+## 6. Default-path validation through the new native default block
+
+After implementing the native defaults, the same write path the app uses for `Default`
+(`ButtonBindingSupport.buildUSBFunctionBlock(kind: .default)`) was validated on slot 64:
+
+$ swift run --package-path OpenSnek OpenSnekProbe usb-button-read --pid 0x0090 --slot 64 --profile both
+profile=1 slot=64 hypershift=0 block=02020059000000 class=0x02 len=2 data=0059
+profile=0 slot=64 hypershift=0 block=02020059000000 class=0x02 len=2 data=0059
+
+$ swift run --package-path OpenSnek OpenSnekProbe usb-button-set --pid 0x0090 --slot 64 --kind default --profile both
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=64 block=0201001e000000 class=0x02 len=1 data=00
+readback profile=0 slot=64 block=0201001e000000 class=0x02 len=1 data=00
+
+$ swift run --package-path OpenSnek OpenSnekProbe usb-button-set-raw --pid 0x0090 --slot 64 --hex 02020059000000 --profile both
+readback profile=1 slot=64 block=02020059000000 class=0x02 len=2 data=0059
+readback profile=0 slot=64 block=02020059000000 class=0x02 len=2 data=0059
+
+Physical press of slot 64 was not possible here (2-button panel only); the keyboard `1` behavior of
+the same `02 01 00 1e` block was proven in section 4 on slot 4.

@@ -1,0 +1,28 @@
+# Stage native 12-button defaults (keyboard 1..=) on slots 64-75 - 2026-10-06 09:53:37
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=64 block=0201001e000000 class=0x02 len=1 data=00
+error: USB raw button write did not return success
+usb 1532:0090:00112100:usb pid=0x0090
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=66 block=02010020000000 class=0x02 len=1 data=00
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=67 block=02010021000000 class=0x02 len=1 data=00
+readback profile=0 slot=67 block=02010021000000 class=0x02 len=1 data=00
+error: USB raw button write did not return success
+usb 1532:0090:00112100:usb pid=0x0090
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=69 block=02010023000000 class=0x02 len=1 data=00
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=70 block=02010024000000 class=0x02 len=1 data=00
+readback profile=0 slot=70 block=02010024000000 class=0x02 len=1 data=00
+error: USB raw button write did not return success
+usb 1532:0090:00112100:usb pid=0x0090
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=72 block=02010026000000 class=0x02 len=1 data=00
+readback profile=0 slot=72 block=02010026000000 class=0x02 len=1 data=00
+error: USB raw button write did not return success
+usb 1532:0090:00112100:usb pid=0x0090
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=74 block=0201002d000000 class=0x02 len=1 data=00
+error: USB raw button write did not return success
+usb 1532:0090:00112100:usb pid=0x0090
