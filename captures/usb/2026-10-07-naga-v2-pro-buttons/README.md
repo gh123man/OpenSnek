@@ -119,3 +119,13 @@ Write path: `usb-button-set --profile direct` on slot 64 staged `02 02 00 04` an
 `02 01 00 1e` byte-for-byte over the cable.
 
 Conclusion: the shipped USB profile should accept wired `0x00A7` alongside receiver `0x00A8`.
+
+## Slot 0x0E / bottom button test (2026-10-07, live)
+
+Staged keyboard `q` on the live direct layer of slot `0x0E` and pressed the bottom button.
+The button kept cycling DPI instead of typing `q`, so slot `0x0E` is not the bottom button and
+the bottom control is not remappable through the vendor button table. The original block
+(`06 01 06`, DPI cycle) was restored and verified.
+
+Slot `0x0E` stays documented read-only; its physical control on the V2 Pro remains unidentified
+(it may not be present on this model at all).

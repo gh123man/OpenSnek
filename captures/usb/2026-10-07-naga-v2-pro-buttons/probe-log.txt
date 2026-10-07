@@ -646,3 +646,18 @@ $ OpenSnekProbe usb-button-read --slot 64 --profile direct --pid 0x00a7
 warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
 usb 1532:00a7:02150000:usb pid=0x00a7
 profile=0 slot=64 hypershift=0 block=0201001e000000 class=0x02 len=1 data=00
+
+=== bottom-button / slot 0x0E identification ===
+original direct slot14=06010600000000
+
+$ OpenSnekProbe usb-button-set --slot 14 --kind keyboard_simple --hid-key 20 --profile direct   (q)
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00a8:02142000:usb pid=0x00a8
+readback profile=0 slot=14 block=02020014000000 class=0x02 len=2 data=0014
+profile=0 slot=14 hypershift=0 block=02020014000000 class=0x02 len=2 data=0014
+
+$ restore slot14 direct=06010600000000
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00a8:02142000:usb pid=0x00a8
+readback profile=0 slot=14 block=06010600000000 class=0x06 len=1 data=06
+profile=0 slot=14 hypershift=0 block=06010600000000 class=0x06 len=1 data=06
