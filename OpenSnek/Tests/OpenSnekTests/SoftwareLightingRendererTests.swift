@@ -8,8 +8,10 @@ final class SoftwareLightingRendererTests: XCTestCase {
         XCTAssertEqual(layout.cellCount, 14)
         XCTAssertEqual(
             layout.cells.map(\.id),
-            ["logo", "scroll_wheel", "underglow_left_front", "underglow_left_2", "underglow_left_3", "underglow_left_4", "underglow_left_rear", "underglow_right_rear", "underglow_right_2", "underglow_right_3", "underglow_right_middle", "underglow_right_front", "underglow_tail_1", "underglow_tail_2"]
-        )
+            [
+                "logo", "scroll_wheel", "underglow_left_front", "underglow_left_2", "underglow_left_3", "underglow_left_4", "underglow_left_rear", "underglow_right_rear", "underglow_right_2", "underglow_right_3", "underglow_right_middle", "underglow_right_front", "underglow_tail_1",
+                "underglow_tail_2"
+            ])
     }
 
     func testNagaV2ProLayoutMatchesSingleLogoCell() {
@@ -101,12 +103,49 @@ final class SoftwareLightingRendererTests: XCTestCase {
         XCTAssertEqual(request.palette, [RGBPatch(r: 0, g: 128, b: 255)])
     }
 
+    func testSoftwareLightingRequestCarriesBatterySourceDevice() {
+        XCTAssertEqual(SoftwareLightingEffectRequest(presetID: .batteryMeter, batterySourceDeviceID: "usb-mouse-source").batterySourceDeviceID, "usb-mouse-source")
+        XCTAssertNil(SoftwareLightingEffectRequest(presetID: .batteryMeter).batterySourceDeviceID)
+    }
+
     func testBatteryMeterDefaultPaletteUsesThresholdColors() {
         XCTAssertEqual(SoftwareLightingPresetID.batteryMeter.label, "Battery Meter")
         XCTAssertEqual(SoftwareLightingPresetID.batteryMeter.defaultPalette, [RGBPatch(r: 255, g: 0, b: 0), RGBPatch(r: 255, g: 255, b: 0), RGBPatch(r: 255, g: 255, b: 255)])
         XCTAssertFalse(SoftwareLightingPresetID.batteryMeter.isAnimated)
-        XCTAssertFalse(SoftwareLightingPresetID.batteryMeter.usesPaletteControls)
+        XCTAssertTrue(SoftwareLightingPresetID.batteryMeter.usesPaletteControls)
         XCTAssertFalse(SoftwareLightingPresetID.batteryMeter.usesSpeedControl)
+    }
+
+    func testBatteryMeterUsesConfiguredThresholdsAndPalette() {
+        let palette = [RGBPatch(r: 10, g: 0, b: 0), RGBPatch(r: 0, g: 20, b: 0), RGBPatch(r: 0, g: 0, b: 30)]
+        let request = SoftwareLightingEffectRequest(presetID: .batteryMeter, palette: palette, batteryLowThreshold: 40, batteryMediumThreshold: 70)
+
+        let lowFrame = SoftwareLightingRenderer.render(request: request, layout: .mouseDockUSB, elapsedTime: 0.0, batteryPercent: 39)
+        let mediumFrame = SoftwareLightingRenderer.render(request: request, layout: .mouseDockUSB, elapsedTime: 0.0, batteryPercent: 50)
+        let highFrame = SoftwareLightingRenderer.render(request: request, layout: .mouseDockUSB, elapsedTime: 0.0, batteryPercent: 90)
+
+        XCTAssertEqual(lowFrame.colors, [palette[0]])
+        XCTAssertEqual(mediumFrame.colors, [palette[1]])
+        XCTAssertEqual(highFrame.colors, [palette[2]])
+    }
+
+    func testBatteryMeterFlashesConfiguredLowColorOnSingleCellLayout() {
+        let palette = [RGBPatch(r: 12, g: 0, b: 0), RGBPatch(r: 0, g: 24, b: 0), RGBPatch(r: 0, g: 0, b: 36)]
+        let request = SoftwareLightingEffectRequest(presetID: .batteryMeter, palette: palette, batteryLowThreshold: 25, batteryMediumThreshold: 60)
+
+        let onFrame = SoftwareLightingRenderer.render(request: request, layout: .mouseDockUSB, elapsedTime: 0.0, batteryPercent: 10)
+        let offFrame = SoftwareLightingRenderer.render(request: request, layout: .mouseDockUSB, elapsedTime: 0.5, batteryPercent: 10)
+
+        XCTAssertEqual(onFrame.colors, [palette[0]])
+        XCTAssertEqual(offFrame.colors, [RGBPatch(r: 0, g: 0, b: 0)])
+    }
+
+    func testMouseDockSupportsBatteryMeterSoftwareLighting() {
+        let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x007E, transport: .usb)
+
+        XCTAssertEqual(SoftwareLightingFrameLayout.mouseDockUSB.cellCount, 1)
+        XCTAssertEqual(profile?.softwareLightingFrameLayout, .mouseDockUSB)
+        XCTAssertEqual(profile?.supportedSoftwareLightingPresets, SoftwareLightingPresetID.batteryMeterAndAnimatedPresets)
     }
 
     func testFlameRendersNonUniformFlickerAcrossCells() {

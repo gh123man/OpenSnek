@@ -42,12 +42,13 @@ Button remap keyboard actions support modifier chords on shipped USB and Bluetoo
 | Basilisk V3 Pro | `Validated` | `Validated` | Ships mapped onboard profile CRUD on USB and Bluetooth; Bluetooth keeps lighting static-only, hides poll-rate and threshold controls, and does not ship clutch/profile-button remap |
 | Basilisk V3 35K | `Validated` | `No transport` | Shares the Basilisk V3 USB family configuration with mapped onboard profile CRUD; no Bluetooth transport |
 | Orochi V2 | `Not shipped` | `Contributor validated` | Contributor validated Bluetooth DPI stages, battery, and no-RGB behavior; button remap is profile-mapped pending hardware readback validation |
-| Naga Pro | `Contributor validated` | `Contributor validated` | Core controls and known-safe side-panel slots ship; unknown native defaults and class-`0x03` panel actions remain preserved |
+| Naga Pro | `Contributor validated` | `Contributor validated` | Core controls and known-safe side-panel slots ship with captured native defaults; 12- and 6-button panel press validation remains pending |
 | Naga V2 Pro | `Contributor validated` | `No transport` | 2.4 GHz receiver profile ships DPI stages, battery, idle time, logo lighting with software presets, and side-panel remapping; three undecoded top buttons stay preserved, and side-panel lighting plus physical label order are unverified |
 | Basilisk (2017) | `Contributor validated` | `No transport` | Contributor validated DPI (scalar, independent X/Y, live 5-stage table), poll-rate reads, and logo/scroll lighting with restore-verified writes; button remap and onboard profiles are not mapped |
 | Lancehead Tournament Edition | `Contributor validated` | `No transport` | Contributor validated DPI (scalar, independent X/Y, live 5-stage table read without OpenRazer's `0xFF` stage transaction), poll-rate reads, and all four lighting zones; button remap is not mapped |
 | Huntsman Mini | `Contributor validated` | `No transport` | Keyboard: contributor validated backlight lighting, brightness, and that poll-rate reads return `status 0x05` (unsupported). No DPI hardware; key remap is not mapped |
 | Tartarus Pro | `Contributor validated` | `No transport` | Keypad: contributor validated backlight lighting and brightness (LED `0x00` and `0x05` alias the same register). Analog actuation and key remap have no public protocol; OpenSnek never switches this device into driver mode |
+| Mouse Dock | `Contributor validated` | `No transport` | Accessory: contributor validated single logo-LED static color, brightness, and spectrum/pulse writes over USB. No DPI, buttons, battery, or onboard profiles |
 
 ## Basilisk V3 USB Family Assumptions
 
@@ -161,7 +162,7 @@ Bluetooth PID `0x0095`; 2.4 GHz HyperSpeed dongle path not yet shipped.
 
 USB PIDs `0x008F` (wired) / `0x0090` (2.4 GHz receiver), Bluetooth PID `0x0092`.
 
-Support is based on hardware validation reported by [varunyellina in PR #106](https://github.com/gh123man/OpenSnek/pull/106); OpenSnek maintainers do not currently possess this device.
+Support is based on hardware validation reported by [varunyellina in PR #106](https://github.com/gh123man/OpenSnek/pull/106), with side-panel defaults and physical press validation contributed by [jpagh in PR #121](https://github.com/gh123man/OpenSnek/pull/121); OpenSnek maintainers do not currently possess this device.
 
 | Feature Area | USB | BT | Notes |
 |---|---|---|---|
@@ -169,9 +170,9 @@ Support is based on hardware validation reported by [varunyellina in PR #106](ht
 | DPI stages + active stage | `Contributor validated` | `Contributor validated` | Scalar DPI is capped at `20,000` |
 | Independent X/Y DPI | `Scalar only` | `Scalar only` | The Naga Pro profile intentionally does not advertise independent X/Y editing |
 | Lighting: brightness + static color | `Contributor validated` | `Contributor validated` | OpenSnek exposes scroll-wheel `0x01` and logo `0x04` zones; advanced effects are not claimed |
-| Button remap: shipped editable slots | `Limited` | `Limited` | Body/2-button-panel slots `1-5`, `9`, `10`, `52`, `53`; 12-button panel slots `64-75`; and known 6-button panel slots `80-82` are editable |
-| Button remap: preserved slots | `Limited` | `Limited` | Slots `83-85` use an undecoded native class-`0x03` block and remain read-only. Side-panel slots `64-75` and `80-82` allow explicit remaps but do not offer `Default` until their factory blocks are captured |
-| Onboard hardware profiles | `Limited` | `Limited` | Five-slot mapped core profile workflows ship, but OpenSnek omits unknown side-panel defaults from synthesized/replaced profiles and refuses a full reset unless every writable slot has a known factory block |
+| Button remap: shipped editable slots | `Limited` | `Limited` | Body/2-button-panel slots `1-5`, `9`, `10`, `52`, `53`; 12-button panel slots `64-75`; and 6-button panel slots `80-85` are editable with captured native `Default` blocks |
+| Button remap: preserved slots | `Limited` | `Limited` | Only the scroll-mode toggle (slot `14`) is preserved read-only; every side-panel slot now accepts remaps |
+| Onboard hardware profiles | `Limited` | `Limited` | Five-slot mapped core profile workflows ship, and full button-profile reset now uses captured native side-panel defaults. The 12- and 6-button panels were physically press-validated in [PR #121](https://github.com/gh123man/OpenSnek/pull/121) |
 
 The remaining device-dependent work is tracked in [issue #56](https://github.com/gh123man/OpenSnek/issues/56).
 
@@ -287,6 +288,30 @@ USB PID `0x0244`, no Bluetooth transport. Keypad (`formFactor = .keypad`). Uses 
 Initial reads and reconnect recovery require lighting brightness but do not require unsupported DPI or poll-rate telemetry. Saved-settings restore and USB backend applies filter DPI, poll-rate, power-management, and remapping fields according to the device profile, preserving lighting even when a saved snapshot contains mouse-editor defaults.
 
 Unit coverage checks initial connection, no restore writes while disconnected, lighting restore after reconnect, and continued rejection of missing brightness telemetry. Maintainer hardware validation remains pending: select a saved lighting profile with restore-on-connect enabled, unplug and reconnect each device, and confirm the backlight returns without a disconnected status or unsupported mouse-command failures. On the Tartarus Pro, also verify ordinary analog/key input remains functional.
+
+## Razer Mouse Dock
+
+USB PID `0x007E`, no Bluetooth transport. Lighting-only accessory (`formFactor = .accessory`) with a single logo LED (`0x00`) driven by the extended-matrix effect family (`0x0F:0x02`) and brightness (`0x0F:0x04`). Ships transaction ID `0x1F` (contributor validated; OpenRazer sets `0x3F` for this device).
+
+| Feature Area | USB | BT | Notes |
+|---|---|---|---|
+| Overall transport status | `Contributor validated` | `No transport` | Lighting-only profile; contributor hardware validated static color and brightness with visual confirmation, and spectrum/off/pulse writes ACK with `status 0x02` over the 90-byte feature-report interface. OpenSnek keeps the dock connected despite its unreadable effect/brightness state |
+| DPI stages + active stage | `Not shipped` | `No transport` | No DPI hardware; `supportsDPIControls` is false |
+| Independent X/Y DPI | `Not shipped` | `No transport` | No DPI hardware |
+| Poll rate | `Not shipped` | `No transport` | Not a mouse; `supportsPollRateControls` is false |
+| Sleep timeout | `Not shipped` | `No transport` | Charging accessory; no power management |
+| Low battery threshold | `Not shipped` | `No transport` | The dock reports no battery; `usb-battery-read` returns unavailable |
+| Battery telemetry | `Not shipped` | `No transport` | The docked mouse keeps reporting its own battery through its own transport |
+| Lighting: brightness + static color | `Contributor validated` | `No transport` | One zone: logo LED `0x00`; brightness and static color validated with write and visual confirmation |
+| Lighting: extra effects | `Contributor validated` | `No transport` | `off`, `static`, `spectrum`, and the pulse set ACK on contributor hardware; OpenRazer lists no wave or reactive effects for this dock, so they are not exposed |
+| Lighting: Battery Meter preset | `Contributor validated` | `No transport` | Software lighting preset that mirrors a connected mouse's battery: configurable low/medium thresholds, low/medium/high palette colors, and a selectable battery source device (defaults to the first connected device that reports battery telemetry). The low color flashes below its threshold |
+| Lighting: software presets | `Contributor validated` | `No transport` | The animated OpenSnek software presets (flame, scrolling rainbow, comet chase, night rider, aurora, jellybeans) render to the single logo cell via custom frames |
+| Button remap: shipped editable slots | `Not shipped` | `No transport` | The dock has no buttons; the profile ships an empty button layout |
+| Button remap: unsupported slots | `Hidden` | `No transport` | No slots are documented |
+| Scroll controls | `Not shipped` | `No transport` | Not applicable to a dock |
+| Onboard hardware profiles | `Single slot` | `No transport` | Profile ships with `onboardProfileCount = 1` |
+
+Readback note: the dock does not answer the effect-state (`0x0F:0x82`) or brightness (`0x0F:0x84`) reads, so OpenSnek reports effect state and brightness as unavailable after reconnect. Writes are still accepted and take effect immediately.
 
 ## References
 

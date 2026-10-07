@@ -23,7 +23,7 @@ public enum ButtonBindingSupport {
     // 1..9, 0, -, = and the 6-button panel defaults to keyboard 1..6, both using the same
     // length-0x01 keyboard encoding as the Naga Pro. Unlike the Naga Pro, the V2 Pro keeps the
     // Basilisk-family wheel-tilt button IDs 0x68 / 0x69 at its native default.
-    // See captures/usb/2026-10-05-naga-v2-pro-wireless/.
+    // See captures/usb/2026-10-06-naga-v2-pro-wireless/.
     private static let nagaV2ProNativeKeyboardKeyBySlot: [Int: UInt8] = [64: 0x1E, 65: 0x1F, 66: 0x20, 67: 0x21, 68: 0x22, 69: 0x23, 70: 0x24, 71: 0x25, 72: 0x26, 73: 0x27, 74: 0x2D, 75: 0x2E, 80: 0x1E, 81: 0x1F, 82: 0x20, 83: 0x21, 84: 0x22, 85: 0x23]
 
     private static let nagaV2ProNativeHorizontalScrollRate: UInt8 = 0x14
@@ -31,6 +31,17 @@ public enum ButtonBindingSupport {
     private static func nagaV2ProNativeKeyboardBlock(hidKey: UInt8) -> [UInt8] { [0x02, 0x01, 0x00, hidKey, 0x00, 0x00, 0x00] }
 
     private static func nagaV2ProNativeHorizontalScrollBlock(buttonID: UInt8) -> [UInt8] { [0x0E, 0x01, buttonID, 0x00, nagaV2ProNativeHorizontalScrollRate, 0x00, 0x00] }
+
+    // Native Naga Pro side-panel defaults captured from the firmware's unassigned onboard banks
+    // (2.4 GHz receiver 1532:0090, firmware 0x00112100) and physically press-validated on the
+    // 12-button panel slots 64-75 and 6-button panel slots 80-85. The 12-button panel defaults to
+    // keyboard 1..9, 0, -, = and the 6-button panel to keyboard 1..6. Native blocks declare
+    // function-data length 0x01 while keeping [class, length, modifiers, HID key] at bytes 0..3.
+    // See captures/usb/2026-10-05-naga-pro-native-default-banks/ and
+    // captures/usb/2026-10-06-naga-pro-side-panel-validation/.
+    private static let nagaProNativeKeyboardKeyBySlot: [Int: UInt8] = [64: 0x1E, 65: 0x1F, 66: 0x20, 67: 0x21, 68: 0x22, 69: 0x23, 70: 0x24, 71: 0x25, 72: 0x26, 73: 0x27, 74: 0x2D, 75: 0x2E, 80: 0x1E, 81: 0x1F, 82: 0x20, 83: 0x21, 84: 0x22, 85: 0x23]
+
+    private static func nagaProNativeKeyboardBlock(hidKey: UInt8) -> [UInt8] { [0x02, 0x01, 0x00, hidKey, 0x00, 0x00, 0x00] }
 
     private static func horizontalScrollButtonID(for kind: ButtonBindingKind, profileID: DeviceProfileID?) -> UInt8? {
         switch kind {
@@ -93,7 +104,7 @@ public enum ButtonBindingSupport {
     private static func isBasiliskV3Family(_ profileID: DeviceProfileID?) -> Bool {
         switch profileID {
         case .basiliskV3, .basiliskV3Pro, .basiliskV335K: return true
-        case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .none: return false
+        case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .mouseDock, .none: return false
         }
     }
 
@@ -108,7 +119,7 @@ public enum ButtonBindingSupport {
     public static func defaultDPIClutchDPI(for profileID: DeviceProfileID?) -> Int? {
         switch profileID {
         case .basiliskV3, .basiliskV3Pro, .basiliskV335K: return defaultBasiliskDPIClutchDPI
-        case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .none: return nil
+        case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .mouseDock, .none: return nil
         }
     }
 
@@ -134,7 +145,7 @@ public enum ButtonBindingSupport {
         case 96:
             switch profileID {
             case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .basilisk, .lanceheadTournamentEdition, .none: return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
-            case .huntsmanMini, .tartarusPro: return nil
+            case .huntsmanMini, .tartarusPro, .mouseDock: return nil
             }
         default: return nil
         }
@@ -192,7 +203,7 @@ public enum ButtonBindingSupport {
             // Native default blocks declare function-data length 0x01 while still placing the HID key
             // in byte 3. The Naga Pro and Naga V2 Pro native banks both store `02 01 00 1e` for
             // keyboard `1`, so fall back to byte 3 when the declared length omits the key.
-            // See captures/usb/2026-10-05-naga-v2-pro-wireless/ and
+            // See captures/usb/2026-10-06-naga-v2-pro-wireless/ and
             // captures/usb/2026-10-05-naga-pro-native-default-banks/.
             let hidModifiers = Int(data[0])
             let hidKey = data.count >= 2 ? Int(data[1]) : Int(functionBlock[3])
@@ -217,8 +228,11 @@ public enum ButtonBindingSupport {
 
         if usesExtendedBasiliskUSBReadLayout(profileID) { return Array(response[11..<18]) }
 
+        // Naga Pro returns the stored layer flag at byte 10, which need not match the request.
+        // Keep the layer-echo check for other profiles: a flagless keyboard shortcut can also
+        // parse at byte 11, silently changing its key and modifiers instead of using the fallback.
         var candidates: [[UInt8]] = []
-        if response[10] == hypershift { candidates.append(Array(response[11..<18])) }
+        if profileID == .nagaPro || response[10] == hypershift { candidates.append(Array(response[11..<18])) }
         candidates.append(Array(response[10..<17]))
 
         if let defaultBlock = defaultUSBFunctionBlock(for: Int(slot), profileID: profileID), let matchedDefault = candidates.first(where: { $0 == defaultBlock }) { return matchedDefault }
@@ -318,10 +332,11 @@ public enum ButtonBindingSupport {
             case .basiliskV3, .basiliskV335K: return [0x04, 0x02, 0x0F, 0x7B, 0x00, 0x00, 0x00]
             case .basiliskV3Pro: return [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
             case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .basilisk, .lanceheadTournamentEdition, .none: return [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
-            case .huntsmanMini, .tartarusPro: return nil
+            case .huntsmanMini, .tartarusPro, .mouseDock: return nil
             }
         default: break
         }
+        if profileID == .nagaPro, let hidKey = nagaProNativeKeyboardKeyBySlot[slot] { return nagaProNativeKeyboardBlock(hidKey: hidKey) }
         if profileID == .nagaV2Pro, let hidKey = nagaV2ProNativeKeyboardKeyBySlot[slot] { return nagaV2ProNativeKeyboardBlock(hidKey: hidKey) }
         switch slot {
         case 1: return [0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00]
@@ -366,7 +381,7 @@ public enum ButtonBindingSupport {
         case .nagaPro: return DeviceProfiles.nagaProUSBButtonSlots
         case .nagaV2Pro: return DeviceProfiles.nagaV2ProUSBButtonSlots
         case .basilisk, .lanceheadTournamentEdition: return ButtonSlotDescriptor.defaults
-        case .huntsmanMini, .tartarusPro: return []
+        case .huntsmanMini, .tartarusPro, .mouseDock: return []
         }
     }
 

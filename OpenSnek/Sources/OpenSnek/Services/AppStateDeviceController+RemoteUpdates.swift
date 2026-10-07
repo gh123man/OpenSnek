@@ -85,6 +85,7 @@ import OpenSnekHardware
                 stateCacheByDeviceID[deviceID] = remoteState
                 lastUpdatedByDeviceID[deviceID] = snapshotUpdatedAt
             }
+            deviceStore.stateByDeviceID[deviceID] = remoteState
             lastStateMutationAtByDeviceID[deviceID] = snapshotUpdatedAt
             if clearConnectionFailureState(sourceDeviceID: deviceID, presentationDeviceID: deviceID) { didApplySnapshotChange = true }
         }

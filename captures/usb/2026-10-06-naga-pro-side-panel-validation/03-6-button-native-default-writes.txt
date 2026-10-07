@@ -1,0 +1,32 @@
+# Stage native 6-button defaults (keyboard 1..6) on slots 80-85 - 10:02:19
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=80 block=0201001e000000 class=0x02 len=1 data=00
+readback profile=0 slot=80 block=0201001e000000 class=0x02 len=1 data=00
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=81 block=0201001f000000 class=0x02 len=1 data=00
+readback profile=0 slot=81 block=0201001f000000 class=0x02 len=1 data=00
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=82 block=02010020000000 class=0x02 len=1 data=00
+readback profile=0 slot=82 block=02010020000000 class=0x02 len=1 data=00
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=83 block=02010021000000 class=0x02 len=1 data=00
+readback profile=0 slot=83 block=02010021000000 class=0x02 len=1 data=00
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=84 block=02010022000000 class=0x02 len=1 data=00
+readback profile=0 slot=84 block=02010022000000 class=0x02 len=1 data=00
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=85 block=02010023000000 class=0x02 len=1 data=00
+readback profile=0 slot=85 block=02010023000000 class=0x02 len=1 data=00
+# readback
+profile=1 slot=80 hypershift=0 block=0201001e000000 class=0x02 len=1 data=00
+profile=0 slot=80 hypershift=0 block=0201001e000000 class=0x02 len=1 data=00
+profile=1 slot=81 hypershift=0 block=0201001f000000 class=0x02 len=1 data=00
+profile=0 slot=81 hypershift=0 block=0201001f000000 class=0x02 len=1 data=00
+profile=1 slot=82 hypershift=0 block=02010020000000 class=0x02 len=1 data=00
+profile=0 slot=82 hypershift=0 block=02010020000000 class=0x02 len=1 data=00
+profile=1 slot=83 hypershift=0 block=02010021000000 class=0x02 len=1 data=00
+profile=0 slot=83 hypershift=0 block=02010021000000 class=0x02 len=1 data=00
+profile=1 slot=84 hypershift=0 block=02010022000000 class=0x02 len=1 data=00
+profile=0 slot=84 hypershift=0 block=02010022000000 class=0x02 len=1 data=00
+profile=1 slot=85 hypershift=0 block=02010023000000 class=0x02 len=1 data=00
+profile=0 slot=85 hypershift=0 block=02010023000000 class=0x02 len=1 data=00

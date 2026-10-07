@@ -1,0 +1,20 @@
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=4 block=01010400000000 class=0x01 len=1 data=04
+readback profile=0 slot=4 block=01010400000000 class=0x01 len=1 data=04
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=5 block=01010500000000 class=0x01 len=1 data=05
+readback profile=0 slot=5 block=01010500000000 class=0x01 len=1 data=05
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=4 block=01010104e40000 class=0x01 len=1 data=01
+readback profile=0 slot=4 block=01010104e40000 class=0x01 len=1 data=01
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=4 block=01010400000000 class=0x01 len=1 data=04
+readback profile=0 slot=4 block=01010400000000 class=0x01 len=1 data=04
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:0090:00112100:usb pid=0x0090
+readback profile=1 slot=5 block=01010500000000 class=0x01 len=1 data=05
+readback profile=0 slot=5 block=01010500000000 class=0x01 len=1 data=05

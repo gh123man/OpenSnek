@@ -107,11 +107,16 @@ struct ServiceMenuBarView: View {
     let editorStore: EditorStore
     let runtimeStore: RuntimeStore
 
-    private var showsDeviceControls: Bool { deviceStore.selectedDevice != nil && deviceStore.state != nil }
+    private var showsDeviceControls: Bool { deviceStore.selectedDevice != nil && deviceStore.state != nil && deviceStore.selectedDeviceSupportsDPIControls }
 
     private var controlsEnabled: Bool { deviceStore.selectedDeviceControlsEnabled }
 
     private var showsDevicePicker: Bool { deviceStore.devices.count > 1 }
+
+    /// Renders menu message text that wraps to multiple lines instead of truncating inside the panel.
+    private func menuMessage(_ message: String, weight: Font.Weight = .medium) -> some View {
+        Text(message).font(.system(size: 11, weight: weight, design: .rounded)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -119,19 +124,24 @@ struct ServiceMenuBarView: View {
             statusRow
             if showsDeviceControls {
                 VStack(alignment: .leading, spacing: 10) {
-                    if !controlsEnabled, let message = deviceStore.selectedDeviceInteractionMessage { Text(message).font(.system(size: 11, weight: .bold, design: .rounded)).foregroundStyle(.secondary) }
+                    if !controlsEnabled, let message = deviceStore.selectedDeviceInteractionMessage { menuMessage(message, weight: .bold) }
 
                     VStack(alignment: .leading, spacing: 14) {
                         stagePicker
                         dpiSlider
                     }.disabled(!controlsEnabled).opacity(controlsEnabled ? 1.0 : 0.45)
 
-                    if let message = runtimeStore.compactStatusMessage { Text(message).font(.system(size: 11, weight: .bold, design: .rounded)).foregroundStyle(.secondary) }
+                    if let message = runtimeStore.compactStatusMessage { menuMessage(message, weight: .bold) }
                 }
             } else if let message = deviceStore.selectedDeviceInteractionMessage {
-                Text(message).font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
+                menuMessage(message)
+            } else if deviceStore.selectedDeviceIsLightingOnly {
+                VStack(alignment: .leading, spacing: 10) {
+                    menuMessage("This device has lighting controls only. Open OpenSnek to edit its lighting.")
+                    if let message = runtimeStore.compactStatusMessage { menuMessage(message, weight: .bold) }
+                }
             } else {
-                Text("Connect a supported mouse to edit DPI from the menu bar.").font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
+                menuMessage("Connect a supported mouse to edit DPI from the menu bar.")
             }
             Divider()
             actionRow("Show OpenSnek", systemImage: "rectangle.on.rectangle") { runtimeStore.openFullAppFromService() }

@@ -1,0 +1,8 @@
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=4 hypershift=0 block=01010400000000 class=0x01 len=1 data=04
+profile=0 slot=4 hypershift=0 block=01010400000000 class=0x01 len=1 data=04
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=5 hypershift=0 block=01010500000000 class=0x01 len=1 data=05
+profile=0 slot=5 hypershift=0 block=01010500000000 class=0x01 len=1 data=05

@@ -245,6 +245,7 @@ public struct DeviceProfile: Hashable, Sendable {
     public let supportsIndependentXYDPI: Bool
     public let supportsScrollModeControls: Bool
     public let supportsLightingBrightnessControls: Bool
+    public let supportsLightingStateReads: Bool
     public let usesProjectedDPIStageWriteReadback: Bool
     public let onboardProfileSupport: OnboardProfileSupport
     public let onboardProfileCount: Int
@@ -259,8 +260,9 @@ public struct DeviceProfile: Hashable, Sendable {
     public init(
         id: DeviceProfileID, productName: String, transport: DeviceTransportKind, supportedProducts: Set<Int>, usbTransactionID: UInt8? = nil, buttonLayout: ButtonSlotLayout, supportsAdvancedLightingEffects: Bool, supportedLightingEffects: [LightingEffectKind] = LightingEffectKind.allCases,
         usbLightingLEDIDs: [UInt8] = [], usbLightingZones: [USBLightingZoneDescriptor] = [], softwareLightingFrameLayout: SoftwareLightingFrameLayout? = nil, supportedSoftwareLightingPresets: [SoftwareLightingPresetID] = [], passiveDPIInput: PassiveDPIInputDescriptor? = nil,
-        supportsIndependentXYDPI: Bool = false, supportsScrollModeControls: Bool = false, supportsLightingBrightnessControls: Bool = false, usesProjectedDPIStageWriteReadback: Bool = false, onboardProfileSupport: OnboardProfileSupport = .unavailable, onboardProfileCount: Int = 1,
-        formFactor: DeviceFormFactor = .mouse, supportsDPIControls: Bool = true, supportsPollRateControls: Bool = true, supportsPowerManagementControls: Bool = true, supportsButtonRemapControls: Bool = true, usbBrightnessLEDIDs: [UInt8]? = nil, isLocallyValidated: Bool = true
+        supportsIndependentXYDPI: Bool = false, supportsScrollModeControls: Bool = false, supportsLightingBrightnessControls: Bool = false, supportsLightingStateReads: Bool = true, usesProjectedDPIStageWriteReadback: Bool = false, onboardProfileSupport: OnboardProfileSupport = .unavailable,
+        onboardProfileCount: Int = 1, formFactor: DeviceFormFactor = .mouse, supportsDPIControls: Bool = true, supportsPollRateControls: Bool = true, supportsPowerManagementControls: Bool = true, supportsButtonRemapControls: Bool = true, usbBrightnessLEDIDs: [UInt8]? = nil,
+        isLocallyValidated: Bool = true
     ) {
         self.id = id
         self.productName = productName
@@ -278,6 +280,7 @@ public struct DeviceProfile: Hashable, Sendable {
         self.supportsIndependentXYDPI = supportsIndependentXYDPI
         self.supportsScrollModeControls = supportsScrollModeControls
         self.supportsLightingBrightnessControls = supportsLightingBrightnessControls
+        self.supportsLightingStateReads = supportsLightingStateReads
         self.usesProjectedDPIStageWriteReadback = usesProjectedDPIStageWriteReadback
         self.onboardProfileSupport = onboardProfileSupport
         self.onboardProfileCount = max(1, onboardProfileCount)
@@ -481,10 +484,11 @@ public enum DeviceProfiles {
         ButtonSlotDescriptor(slot: 53, friendlyName: "Wheel Tilt Right", defaultKind: .scrollRight, group: "Mouse"),
         // These slots have no dedicated buttons on the mouse body itself - they only respond when the 2-button panel is installed, and are reversed from panel label order (label 1 = slot 5, label 2 = slot 4).
         ButtonSlotDescriptor(slot: 5, friendlyName: "Panel Button 1", defaultKind: .mouseForward, group: "2-Button Panel"), ButtonSlotDescriptor(slot: 4, friendlyName: "Panel Button 2", defaultKind: .mouseBack, group: "2-Button Panel"),
-        // Panel labels 1-3 map straight to slots 80-82, but labels 4-6 map in reverse order to slots 85, 84, 83. Slots 83-85 use an undecoded function-block class (0x03), so they remain read-only until that native behavior is understood.
+        // Physical press validation on the 6-button panel (2.4 GHz receiver, firmware 0x00112100) confirmed labels 1-6 map straight to slots 80-85 and every slot accepts remaps. The panel's printed numbering wraps around its physical layout, so position-based reading can look reversed.
         ButtonSlotDescriptor(slot: 80, friendlyName: "Side Button 1", defaultKind: .keyboardSimple, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 81, friendlyName: "Side Button 2", defaultKind: .keyboardSimple, group: "6-Button Panel"),
-        ButtonSlotDescriptor(slot: 82, friendlyName: "Side Button 3", defaultKind: .keyboardSimple, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 85, friendlyName: "Side Button 4", defaultKind: .default, group: "6-Button Panel"),
-        ButtonSlotDescriptor(slot: 84, friendlyName: "Side Button 5", defaultKind: .default, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 83, friendlyName: "Side Button 6", defaultKind: .default, group: "6-Button Panel"),
+        ButtonSlotDescriptor(slot: 82, friendlyName: "Side Button 3", defaultKind: .keyboardSimple, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 83, friendlyName: "Side Button 4", defaultKind: .keyboardSimple, group: "6-Button Panel"),
+        ButtonSlotDescriptor(slot: 84, friendlyName: "Side Button 5", defaultKind: .keyboardSimple, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 85, friendlyName: "Side Button 6", defaultKind: .keyboardSimple, group: "6-Button Panel"),
+        // Physical press validation also confirmed 12-button panel labels 1-12 map straight to slots 64-75 and emit keyboard 1..9, 0, -, =.
         ButtonSlotDescriptor(slot: 64, friendlyName: "Side Button 1", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 65, friendlyName: "Side Button 2", defaultKind: .keyboardSimple, group: "12-Button Panel"),
         ButtonSlotDescriptor(slot: 66, friendlyName: "Side Button 3", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 67, friendlyName: "Side Button 4", defaultKind: .keyboardSimple, group: "12-Button Panel"),
         ButtonSlotDescriptor(slot: 68, friendlyName: "Side Button 5", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 69, friendlyName: "Side Button 6", defaultKind: .keyboardSimple, group: "12-Button Panel"),
@@ -493,13 +497,10 @@ public enum DeviceProfiles {
         ButtonSlotDescriptor(slot: 74, friendlyName: "Side Button 11", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 75, friendlyName: "Side Button 12", defaultKind: .keyboardSimple, group: "12-Button Panel")
     ]
 
-    public static let nagaProUSBWritableSlots: [Int] = [1, 2, 3, 4, 5, 9, 10, 52, 53, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82]
+    public static let nagaProUSBWritableSlots: [Int] = [1, 2, 3, 4, 5, 9, 10, 52, 53, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82, 83, 84, 85]
 
     public static let nagaProUSBDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
-        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 14, friendlyName: "Scroll Mode Toggle", defaultKind: .default), access: .protocolReadOnly, note: "OpenSnek can see this button, but the mouse does not let apps remap it yet."),
-        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 83, friendlyName: "Side Button 6", defaultKind: .default, group: "6-Button Panel"), access: .protocolReadOnly, note: "The native class-0x03 function block is not decoded yet, so OpenSnek preserves this button."),
-        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 84, friendlyName: "Side Button 5", defaultKind: .default, group: "6-Button Panel"), access: .protocolReadOnly, note: "The native class-0x03 function block is not decoded yet, so OpenSnek preserves this button."),
-        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 85, friendlyName: "Side Button 4", defaultKind: .default, group: "6-Button Panel"), access: .protocolReadOnly, note: "The native class-0x03 function block is not decoded yet, so OpenSnek preserves this button.")
+        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 14, friendlyName: "Scroll Mode Toggle", defaultKind: .default), access: .protocolReadOnly, note: "OpenSnek can see this button, but the mouse does not let apps remap it yet.")
     ]
 
     public static let nagaProUSBLightingZones: [USBLightingZoneDescriptor] = [USBLightingZoneDescriptor(id: "scroll_wheel", label: "Scroll Wheel", ledIDs: [0x01]), USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x04])]
@@ -629,7 +630,25 @@ public enum DeviceProfiles {
         usbLightingLEDIDs: [0x05], usbLightingZones: tartarusProUSBLightingZones, supportsLightingBrightnessControls: true, formFactor: .keypad, supportsDPIControls: false, supportsPollRateControls: false, supportsPowerManagementControls: false, supportsButtonRemapControls: false,
         usbBrightnessLEDIDs: [0x00], isLocallyValidated: false)
 
-    public static let all: [DeviceProfile] = [basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, orochiV2Bluetooth, nagaProUSB, nagaProBluetooth, nagaV2ProUSB, basiliskUSB, lanceheadTEUSB, huntsmanMiniUSB, tartarusProUSB]
+    // MARK: - Razer Mouse Dock (accessory, 0x007E)
+
+    // OpenRazer-backed lighting accessory (razeraccessory_driver.c): extended-matrix effects
+    // on the single logo LED (0x00) plus brightness on 0x0F:0x04. Contributor hardware
+    // validation confirmed static color, spectrum, and brightness writes with transaction
+    // 0x1F; the dock does not answer the effect-state (0x0F:0x82) or brightness (0x0F:0x84)
+    // reads, so effect state and brightness report unavailable after reconnect. OpenRazer
+    // lists static, spectrum, breathing, and custom effects for this dock but no wave or
+    // reactive effects, so only the supported subset is exposed.
+    public static let mouseDockUSBLightingEffects: [LightingEffectKind] = [.off, .staticColor, .spectrum, .pulseRandom, .pulseSingle, .pulseDual]
+
+    public static let mouseDockUSBLightingZones: [USBLightingZoneDescriptor] = [USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x00])]
+
+    public static let mouseDockUSB = DeviceProfile(
+        id: .mouseDock, productName: "Mouse Dock", transport: .usb, supportedProducts: [0x007E], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: [], writableSlots: []), supportsAdvancedLightingEffects: true, supportedLightingEffects: mouseDockUSBLightingEffects,
+        usbLightingLEDIDs: [0x00], usbLightingZones: mouseDockUSBLightingZones, softwareLightingFrameLayout: .mouseDockUSB, supportedSoftwareLightingPresets: SoftwareLightingPresetID.batteryMeterAndAnimatedPresets, supportsLightingBrightnessControls: true, supportsLightingStateReads: false,
+        formFactor: .accessory, supportsDPIControls: false, supportsPollRateControls: false, supportsPowerManagementControls: false, supportsButtonRemapControls: false, usbBrightnessLEDIDs: [0x00], isLocallyValidated: false)
+
+    public static let all: [DeviceProfile] = [basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, orochiV2Bluetooth, nagaProUSB, nagaProBluetooth, nagaV2ProUSB, basiliskUSB, lanceheadTEUSB, huntsmanMiniUSB, tartarusProUSB, mouseDockUSB]
 
     public static func resolve(vendorID: Int, productID: Int, transport: DeviceTransportKind) -> DeviceProfile? { all.first(where: { $0.matches(vendorID: vendorID, productID: productID, transport: transport) }) }
 
@@ -655,9 +674,9 @@ public enum DeviceProfiles {
         case .nagaV2Pro: return 30_000
         case .basilisk: return 16_000
         case .lanceheadTournamentEdition: return 16_000
-        // The Huntsman Mini and Tartarus Pro have no DPI hardware; their profiles
-        // disable DPI controls, so this value is never surfaced.
-        case .huntsmanMini, .tartarusPro: return defaultMaximumDPI
+        // The Huntsman Mini, Tartarus Pro, and Mouse Dock have no DPI hardware; their
+        // profiles disable DPI controls, so this value is never surfaced.
+        case .huntsmanMini, .tartarusPro, .mouseDock: return defaultMaximumDPI
         case nil: return defaultMaximumDPI
         }
     }
@@ -764,7 +783,7 @@ public enum DeviceProfiles {
     public static func supportsIndependentXYDPI(for profileID: DeviceProfileID?) -> Bool {
         switch profileID {
         case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basilisk, .lanceheadTournamentEdition: return true
-        case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .huntsmanMini, .tartarusPro, nil: return false
+        case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .huntsmanMini, .tartarusPro, .mouseDock, nil: return false
         }
     }
 

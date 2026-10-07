@@ -41,6 +41,7 @@ public enum DeviceProfileID: String, Codable, Hashable, Sendable {
     case lanceheadTournamentEdition = "lancehead_tournament_edition"
     case huntsmanMini = "huntsman_mini"
     case tartarusPro = "tartarus_pro"
+    case mouseDock = "mouse_dock"
 }
 
 /// Defines device form factor values.
@@ -48,6 +49,7 @@ public enum DeviceFormFactor: String, Codable, Hashable, Sendable {
     case mouse
     case keyboard
     case keypad
+    case accessory
 }
 
 /// Stores device identity data.

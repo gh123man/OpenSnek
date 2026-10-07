@@ -30,6 +30,7 @@ import OpenSnekCore
     private var backendStateUpdatesBootstrapTask: Task<Void, Never>?
     private var backendStateUpdatesTask: Task<Void, Never>?
     private var remoteClientPresenceByProcessID: [Int32: RemoteClientPresenceState] = [:]
+    private var serviceLocalSelectionOverrideDeviceID: String?
     private var lastRemoteClientPresencePingAt: Date = .distantPast
     private var statusItemTransientDpiResetTask: Task<Void, Never>?
     private var powerState: PowerState = .active
@@ -186,6 +187,7 @@ import OpenSnekCore
         guard pollingProfile(at: now) == .serviceInteractive else { return [] }
 
         let liveIDs = Set(deviceStore.devices.map(\.id))
+        if let serviceLocalSelectionOverrideDeviceID, liveIDs.contains(serviceLocalSelectionOverrideDeviceID) { return [serviceLocalSelectionOverrideDeviceID] }
         let remoteSelectedDeviceIDs = uniqueDeviceIDs(activeRemoteSelectedDeviceIDs(at: now))
         if !remoteSelectedDeviceIDs.isEmpty { return remoteSelectedDeviceIDs.filter { liveIDs.contains($0) } }
 
@@ -196,6 +198,8 @@ import OpenSnekCore
 
     func preferredServiceSelectedDeviceID(availableDeviceIDs: Set<String>, currentSelectedDeviceID: String?, now: Date = Date()) -> String? {
         guard environment.launchRole.isService else { return nil }
+
+        if let serviceLocalSelectionOverrideDeviceID, serviceLocalSelectionOverrideDeviceID == currentSelectedDeviceID, availableDeviceIDs.contains(serviceLocalSelectionOverrideDeviceID) { return currentSelectedDeviceID }
 
         let remoteSelectedDeviceIDs = uniqueDeviceIDs(activeRemoteSelectedDeviceIDs(at: now))
         guard !remoteSelectedDeviceIDs.isEmpty else { return nil }
@@ -214,6 +218,14 @@ import OpenSnekCore
         return remoteSelectedDeviceIDs.contains(deviceID)
     }
 
+    /// Records an explicit device pick made from the service menu bar. The pick outranks remote
+    /// client presence for selection and fast polling until a remote client changes its own
+    /// selection.
+    func noteServiceLocalSelection(deviceID: String?) {
+        guard environment.launchRole.isService else { return }
+        serviceLocalSelectionOverrideDeviceID = deviceID
+    }
+
     func recordRemoteClientPresence(_ presence: CrossProcessClientPresence, now: Date = Date()) {
         guard environment.launchRole.isService else { return }
         guard presence.sourceProcessID > 0 else { return }
@@ -222,6 +234,8 @@ import OpenSnekCore
         let previous = remoteClientPresenceByProcessID[presence.sourceProcessID]
         remoteClientPresenceByProcessID[presence.sourceProcessID] = RemoteClientPresenceState(expiresAt: now.addingTimeInterval(2.5), selectedDeviceID: presence.selectedDeviceID)
         let selectedDeviceChanged = previous?.selectedDeviceID != presence.selectedDeviceID
+        // A remote client actively picking a different device hands selection authority back.
+        if selectedDeviceChanged { serviceLocalSelectionOverrideDeviceID = nil }
         if !hadActiveRemoteClients || selectedDeviceChanged { requestImmediateRuntimePoll(resetPollingDeadlines: true) }
     }
 

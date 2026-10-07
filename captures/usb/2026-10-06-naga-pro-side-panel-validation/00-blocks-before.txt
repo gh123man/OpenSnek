@@ -1,0 +1,82 @@
+# Naga Pro (1532:0090) live blocks before side-panel validation - 2026-10-06 09:52:45
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=1 hypershift=0 block=01010101050000 class=0x01 len=1 data=01
+profile=0 slot=1 hypershift=0 block=01010101050000 class=0x01 len=1 data=01
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=2 hypershift=0 block=01010102050000 class=0x01 len=1 data=01
+profile=0 slot=2 hypershift=0 block=01010102050000 class=0x01 len=1 data=01
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=3 hypershift=0 block=01010103050000 class=0x01 len=1 data=01
+profile=0 slot=3 hypershift=0 block=01010103050000 class=0x01 len=1 data=01
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=4 hypershift=0 block=01010400000000 class=0x01 len=1 data=04
+profile=0 slot=4 hypershift=0 block=01010400000000 class=0x01 len=1 data=04
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=5 hypershift=0 block=01010500000000 class=0x01 len=1 data=05
+profile=0 slot=5 hypershift=0 block=01010500000000 class=0x01 len=1 data=05
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=9 hypershift=0 block=01010109e40000 class=0x01 len=1 data=01
+profile=0 slot=9 hypershift=0 block=01010109e40000 class=0x01 len=1 data=01
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=10 hypershift=0 block=0101010ae40000 class=0x01 len=1 data=01
+profile=0 slot=10 hypershift=0 block=0101010ae40000 class=0x01 len=1 data=01
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=52 hypershift=0 block=0d04004b008e00 class=0x0d len=4 data=004b008e
+profile=0 slot=52 hypershift=0 block=0d04004b008e00 class=0x0d len=4 data=004b008e
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=53 hypershift=0 block=0d04004e008e00 class=0x0d len=4 data=004e008e
+profile=0 slot=53 hypershift=0 block=0d04004e008e00 class=0x0d len=4 data=004e008e
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=64 hypershift=0 block=02020059000000 class=0x02 len=2 data=0059
+profile=0 slot=64 hypershift=0 block=02020059000000 class=0x02 len=2 data=0059
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=65 hypershift=0 block=0202005a000000 class=0x02 len=2 data=005a
+profile=0 slot=65 hypershift=0 block=0202005a000000 class=0x02 len=2 data=005a
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=66 hypershift=0 block=0202005b000000 class=0x02 len=2 data=005b
+profile=0 slot=66 hypershift=0 block=0202005b000000 class=0x02 len=2 data=005b
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=67 hypershift=0 block=0202005c000000 class=0x02 len=2 data=005c
+profile=0 slot=67 hypershift=0 block=0202005c000000 class=0x02 len=2 data=005c
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=68 hypershift=0 block=0202005d000000 class=0x02 len=2 data=005d
+profile=0 slot=68 hypershift=0 block=0202005d000000 class=0x02 len=2 data=005d
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=69 hypershift=0 block=0202005e000000 class=0x02 len=2 data=005e
+profile=0 slot=69 hypershift=0 block=0202005e000000 class=0x02 len=2 data=005e
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=70 hypershift=0 block=0202005f000000 class=0x02 len=2 data=005f
+profile=0 slot=70 hypershift=0 block=0202005f000000 class=0x02 len=2 data=005f
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=71 hypershift=0 block=02020060000000 class=0x02 len=2 data=0060
+profile=0 slot=71 hypershift=0 block=02020060000000 class=0x02 len=2 data=0060
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=72 hypershift=0 block=02020061000000 class=0x02 len=2 data=0061
+profile=0 slot=72 hypershift=0 block=02020061000000 class=0x02 len=2 data=0061
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=73 hypershift=0 block=02020062000000 class=0x02 len=2 data=0062
+profile=0 slot=73 hypershift=0 block=02020062000000 class=0x02 len=2 data=0062
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=74 hypershift=0 block=01010400000000 class=0x01 len=1 data=04
+profile=0 slot=74 hypershift=0 block=01010400000000 class=0x01 len=1 data=04
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=75 hypershift=0 block=01010500000000 class=0x01 len=1 data=05
+profile=0 slot=75 hypershift=0 block=01010500000000 class=0x01 len=1 data=05
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=80 hypershift=0 block=01010500000000 class=0x01 len=1 data=05
+profile=0 slot=80 hypershift=0 block=01010500000000 class=0x01 len=1 data=05
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=81 hypershift=0 block=01010400000000 class=0x01 len=1 data=04
+profile=0 slot=81 hypershift=0 block=01010400000000 class=0x01 len=1 data=04
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=82 hypershift=0 block=0202001f000000 class=0x02 len=2 data=001f
+profile=0 slot=82 hypershift=0 block=0202001f000000 class=0x02 len=2 data=001f
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=83 hypershift=0 block=0e030200420000 class=0x0e len=3 data=020042
+profile=0 slot=83 hypershift=0 block=0e030200420000 class=0x0e len=3 data=020042
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=84 hypershift=0 block=0e030100420000 class=0x0e len=3 data=010042
+profile=0 slot=84 hypershift=0 block=0e030100420000 class=0x0e len=3 data=010042
+usb 1532:0090:00112100:usb pid=0x0090
+profile=1 slot=85 hypershift=0 block=0202001e000000 class=0x02 len=2 data=001e
+profile=0 slot=85 hypershift=0 block=0202001e000000 class=0x02 len=2 data=001e

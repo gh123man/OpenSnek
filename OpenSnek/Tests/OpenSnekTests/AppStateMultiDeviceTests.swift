@@ -253,9 +253,10 @@ struct MultiDeviceTestIdentity {
     let locationID: Int
 }
 
-func makeTestDevice(id: String, productName: String, identity: MultiDeviceTestIdentity, profile: DeviceProfileID) -> MouseDevice {
-    MouseDevice(
-        id: id, vendor_id: 0x1532, product_id: identity.transport == .bluetooth ? 0x00BA : 0x00AB, product_name: productName, transport: identity.transport, path_b64: "", serial: identity.serial, firmware: "1.0.0", location_id: identity.locationID, profile_id: profile,
+func makeTestDevice(id: String, productName: String, identity: MultiDeviceTestIdentity, profile: DeviceProfileID, productID: Int? = nil) -> MouseDevice {
+    let resolvedProductID = productID ?? (identity.transport == .bluetooth ? 0x00BA : 0x00AB)
+    return MouseDevice(
+        id: id, vendor_id: 0x1532, product_id: resolvedProductID, product_name: productName, transport: identity.transport, path_b64: "", serial: identity.serial, firmware: "1.0.0", location_id: identity.locationID, profile_id: profile,
         supports_advanced_lighting_effects: true, onboard_profile_count: 1)
 }
 
