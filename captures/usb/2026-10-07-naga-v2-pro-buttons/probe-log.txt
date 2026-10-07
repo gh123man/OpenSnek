@@ -1,0 +1,336 @@
+
+$ OpenSnekProbe usb-info --pid 0x00a8
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00a8:02143000:usb pid=0x00a8
+
+$ OpenSnekProbe usb-battery-read --pid 0x00a8
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00a8:02143000:usb pid=0x00a8
+battery charging=no raw=0x45 percent=27
+
+$ OpenSnekProbe usb-profile-active-read --pid 0x00a8
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb-profile-active-read 1532:00a8:02143000:usb pid=0x00a8
+active-profile class=05 cmd=84 value=1 base(profile=1)
+
+$ OpenSnekProbe usb-profile-read --pid 0x00a8 --profiles 1,2,3,4,5 --button-slots 1,2,3,4,5,9,10,14,52,53,64,65,66,67,68,69,70,71,72,73,74,75,80,81,82,83,84,85,96,109 --include-effective on
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb-profile-read 1532:00a8:02143000:usb pid=0x00a8 profiles=1,2,3,4,5 buttonSlots=1,2,3,4,5,9,10,14,52,53,64,65,66,67,68,69,70,71,72,73,74,75,80,81,82,83,84,85,96,109 includeEffective=on
+summary class=00 cmd=87 payload=01 03 00 activeHint=1 countHint=0
+profile-count class=05 cmd=80 value=2
+profile-inventory class=05 cmd=81 maxProfile=0x05 assigned=[0x01,0x02]
+active-profile class=05 cmd=84 value=1 base(profile=1)
+lighting-leds ids=0x04
+dpi-scalar effective(profile=0) pair=2200x2200 raw=00 08 98 08 98 00 00
+dpi-stages effective(profile=0) activeToken=0x02 stageIDs=[0x01,0x02] pairs=[1100x1100,2200x2200] raw=00 02 02 01 04 4c 04 4c 00 00 02 08 98 08 98 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+brightness effective(profile=0) zone=logo led=0x04 value=255 raw=00 04 ff
+button effective(profile=0) slot=1 raw=01 01 01 00 00 00 00 block=01010100000000 class=0x01 len=1 data=01
+button effective(profile=0) slot=2 raw=01 01 02 00 00 00 00 block=01010200000000 class=0x01 len=1 data=02
+button effective(profile=0) slot=3 raw=01 01 03 00 00 00 00 block=01010300000000 class=0x01 len=1 data=03
+button effective(profile=0) slot=4 raw=01 01 04 00 00 00 00 block=01010400000000 class=0x01 len=1 data=04
+button effective(profile=0) slot=5 raw=01 01 05 00 00 00 00 block=01010500000000 class=0x01 len=1 data=05
+button effective(profile=0) slot=9 raw=01 01 09 00 00 00 00 block=01010900000000 class=0x01 len=1 data=09
+button effective(profile=0) slot=10 raw=01 01 0a 00 00 00 00 block=01010a00000000 class=0x01 len=1 data=0a
+button effective(profile=0) slot=14 raw=07 01 04 00 00 00 00 block=07010400000000 class=0x07 len=1 data=04
+button effective(profile=0) slot=52 raw=0d 04 00 4b 00 32 00 block=0d04004b003200 class=0x0d len=4 data=004b0032
+button effective(profile=0) slot=53 raw=0d 04 00 4e 00 32 00 block=0d04004e003200 class=0x0d len=4 data=004e0032
+button effective(profile=0) slot=64 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=65 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=66 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=67 raw=02 02 00 21 00 00 00 block=02020021000000 class=0x02 len=2 data=0021
+button effective(profile=0) slot=68 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=69 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=70 raw=02 01 00 24 00 00 00 block=02010024000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=71 raw=02 01 00 25 00 00 00 block=02010025000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=72 raw=02 01 00 26 00 00 00 block=02010026000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=73 raw=02 01 00 27 00 00 00 block=02010027000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=74 raw=02 01 00 2d 00 00 00 block=0201002d000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=75 raw=02 01 00 2e 00 00 00 block=0201002e000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=80 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=81 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=82 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=83 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=84 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=85 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=96 raw=06 01 06 00 00 00 00 block=06010600000000 class=0x06 len=1 data=06
+button effective(profile=0) slot=109 raw=12 01 04 00 00 00 00 block=12010400000000 class=0x12 len=1 data=04
+dpi-scalar base(profile=1) pair=2200x2200 raw=01 08 98 08 98 00 00
+dpi-stages base(profile=1) activeToken=0x02 stageIDs=[0x01,0x02] pairs=[1100x1100,2200x2200] raw=01 02 02 01 04 4c 04 4c 00 00 02 08 98 08 98 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+brightness base(profile=1) zone=logo led=0x04 value=255 raw=01 04 ff
+button base(profile=1) slot=1 raw=01 01 01 00 00 00 00 block=01010100000000 class=0x01 len=1 data=01
+button base(profile=1) slot=2 raw=01 01 02 00 00 00 00 block=01010200000000 class=0x01 len=1 data=02
+button base(profile=1) slot=3 raw=01 01 03 00 00 00 00 block=01010300000000 class=0x01 len=1 data=03
+button base(profile=1) slot=4 raw=01 01 04 00 00 00 00 block=01010400000000 class=0x01 len=1 data=04
+button base(profile=1) slot=5 raw=01 01 05 00 00 00 00 block=01010500000000 class=0x01 len=1 data=05
+button base(profile=1) slot=9 raw=01 01 09 00 00 00 00 block=01010900000000 class=0x01 len=1 data=09
+button base(profile=1) slot=10 raw=01 01 0a 00 00 00 00 block=01010a00000000 class=0x01 len=1 data=0a
+button base(profile=1) slot=14 raw=07 01 04 00 00 00 00 block=07010400000000 class=0x07 len=1 data=04
+button base(profile=1) slot=52 raw=0d 04 00 4b 00 32 00 block=0d04004b003200 class=0x0d len=4 data=004b0032
+button base(profile=1) slot=53 raw=0d 04 00 4e 00 32 00 block=0d04004e003200 class=0x0d len=4 data=004e0032
+button base(profile=1) slot=64 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button base(profile=1) slot=65 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button base(profile=1) slot=66 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button base(profile=1) slot=67 raw=02 02 00 21 00 00 00 block=02020021000000 class=0x02 len=2 data=0021
+button base(profile=1) slot=68 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button base(profile=1) slot=69 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button base(profile=1) slot=70 raw=02 01 00 24 00 00 00 block=02010024000000 class=0x02 len=1 data=00
+button base(profile=1) slot=71 raw=02 01 00 25 00 00 00 block=02010025000000 class=0x02 len=1 data=00
+button base(profile=1) slot=72 raw=02 01 00 26 00 00 00 block=02010026000000 class=0x02 len=1 data=00
+button base(profile=1) slot=73 raw=02 01 00 27 00 00 00 block=02010027000000 class=0x02 len=1 data=00
+button base(profile=1) slot=74 raw=02 01 00 2d 00 00 00 block=0201002d000000 class=0x02 len=1 data=00
+button base(profile=1) slot=75 raw=02 01 00 2e 00 00 00 block=0201002e000000 class=0x02 len=1 data=00
+button base(profile=1) slot=80 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button base(profile=1) slot=81 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button base(profile=1) slot=82 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button base(profile=1) slot=83 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button base(profile=1) slot=84 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button base(profile=1) slot=85 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button base(profile=1) slot=96 raw=06 01 06 00 00 00 00 block=06010600000000 class=0x06 len=1 data=06
+button base(profile=1) slot=109 raw=12 01 04 00 00 00 00 block=12010400000000 class=0x12 len=1 data=04
+metadata stored-slot=1(profile=2) chunks=4 offsets=[0x0000,0x004b,0x0096,0x00e1] uuid=598ccd52-4836-45af-89ce-2b398a25e135 name="Jack" owner=5150bee08b6f847bef575d7f8893426041ee836d2f2419209d053c021b910ecc
+dpi-scalar stored-slot=1(profile=2) pair=2200x2200 raw=02 08 98 08 98 00 00
+dpi-stages stored-slot=1(profile=2) activeToken=0x02 stageIDs=[0x01,0x02] pairs=[1100x1100,2200x2200] raw=02 02 02 01 04 4c 04 4c 00 00 02 08 98 08 98 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+brightness stored-slot=1(profile=2) zone=logo led=0x04 value=0 raw=02 04 00
+button stored-slot=1(profile=2) slot=1 raw=01 01 01 00 00 00 00 block=01010100000000 class=0x01 len=1 data=01
+button stored-slot=1(profile=2) slot=2 raw=01 01 02 00 00 00 00 block=01010200000000 class=0x01 len=1 data=02
+button stored-slot=1(profile=2) slot=3 raw=01 01 03 00 00 00 00 block=01010300000000 class=0x01 len=1 data=03
+button stored-slot=1(profile=2) slot=4 raw=01 01 04 00 00 00 00 block=01010400000000 class=0x01 len=1 data=04
+button stored-slot=1(profile=2) slot=5 raw=01 01 05 00 00 00 00 block=01010500000000 class=0x01 len=1 data=05
+button stored-slot=1(profile=2) slot=9 raw=01 01 09 00 00 00 00 block=01010900000000 class=0x01 len=1 data=09
+button stored-slot=1(profile=2) slot=10 raw=01 01 0a 00 00 00 00 block=01010a00000000 class=0x01 len=1 data=0a
+button stored-slot=1(profile=2) slot=14 raw=06 01 06 00 00 00 00 block=06010600000000 class=0x06 len=1 data=06
+button stored-slot=1(profile=2) slot=52 raw=0d 04 00 4b 00 32 00 block=0d04004b003200 class=0x0d len=4 data=004b0032
+button stored-slot=1(profile=2) slot=53 raw=0d 04 00 4e 00 32 00 block=0d04004e003200 class=0x0d len=4 data=004e0032
+button stored-slot=1(profile=2) slot=64 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=65 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=66 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=67 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=68 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=69 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=70 raw=02 01 00 24 00 00 00 block=02010024000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=71 raw=02 01 00 25 00 00 00 block=02010025000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=72 raw=02 01 00 26 00 00 00 block=02010026000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=73 raw=02 01 00 27 00 00 00 block=02010027000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=74 raw=02 01 00 2d 00 00 00 block=0201002d000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=75 raw=02 01 00 2e 00 00 00 block=0201002e000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=80 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=81 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=82 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=83 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=84 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=85 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=96 raw=02 02 00 6e 00 00 00 block=0202006e000000 class=0x02 len=2 data=006e
+button stored-slot=1(profile=2) slot=109 raw=02 02 00 6d 00 00 00 block=0202006d000000 class=0x02 len=2 data=006d
+metadata stored-slot=2(profile=3) read_failed
+dpi-scalar stored-slot=2(profile=3) pair=1600x1600 raw=03 06 40 06 40 00 00
+dpi-stages stored-slot=2(profile=3) activeToken=0x03 stageIDs=[0x01,0x02,0x03,0x04,0x05] pairs=[400x400,800x800,1600x1600,3200x3200,6400x6400] raw=03 03 05 01 01 90 01 90 01 90 02 03 20 03 20 03 20 03 06 40 06 40 06 40 04 0c 80 0c 80 0c 80 05 19 00 19 00 19 00
+brightness stored-slot=2(profile=3) zone=logo led=0x04 value=85 raw=03 04 55
+button stored-slot=2(profile=3) slot=1 raw=01 01 01 00 00 00 00 block=01010100000000 class=0x01 len=1 data=01
+button stored-slot=2(profile=3) slot=2 raw=01 01 02 00 00 00 00 block=01010200000000 class=0x01 len=1 data=02
+button stored-slot=2(profile=3) slot=3 raw=01 01 03 00 00 00 00 block=01010300000000 class=0x01 len=1 data=03
+button stored-slot=2(profile=3) slot=4 raw=01 01 04 00 00 00 00 block=01010400000000 class=0x01 len=1 data=04
+button stored-slot=2(profile=3) slot=5 raw=01 01 05 00 00 00 00 block=01010500000000 class=0x01 len=1 data=05
+button stored-slot=2(profile=3) slot=9 raw=01 01 09 00 00 00 00 block=01010900000000 class=0x01 len=1 data=09
+button stored-slot=2(profile=3) slot=10 raw=01 01 0a 00 00 00 00 block=01010a00000000 class=0x01 len=1 data=0a
+button stored-slot=2(profile=3) slot=14 raw=07 01 04 00 00 00 00 block=07010400000000 class=0x07 len=1 data=04
+button stored-slot=2(profile=3) slot=52 raw=0e 01 68 00 14 00 00 block=0e016800140000 class=0x0e len=1 data=68
+button stored-slot=2(profile=3) slot=53 raw=0e 01 69 00 14 00 00 block=0e016900140000 class=0x0e len=1 data=69
+button stored-slot=2(profile=3) slot=64 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=65 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=66 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=67 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=68 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=69 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=70 raw=02 01 00 24 00 00 00 block=02010024000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=71 raw=02 01 00 25 00 00 00 block=02010025000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=72 raw=02 01 00 26 00 00 00 block=02010026000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=73 raw=02 01 00 27 00 00 00 block=02010027000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=74 raw=02 01 00 2d 00 00 00 block=0201002d000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=75 raw=02 01 00 2e 00 00 00 block=0201002e000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=80 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=81 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=82 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=83 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=84 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=85 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=96 raw=06 01 06 00 00 00 00 block=06010600000000 class=0x06 len=1 data=06
+button stored-slot=2(profile=3) slot=109 raw=12 01 04 00 00 00 00 block=12010400000000 class=0x12 len=1 data=04
+metadata stored-slot=3(profile=4) read_failed
+dpi-scalar stored-slot=3(profile=4) pair=1600x1600 raw=04 06 40 06 40 00 00
+dpi-stages stored-slot=3(profile=4) activeToken=0x03 stageIDs=[0x01,0x02,0x03,0x04,0x05] pairs=[400x400,800x800,1600x1600,3200x3200,6400x6400] raw=04 03 05 01 01 90 01 90 01 90 02 03 20 03 20 03 20 03 06 40 06 40 06 40 04 0c 80 0c 80 0c 80 05 19 00 19 00 19 00
+brightness stored-slot=3(profile=4) zone=logo led=0x04 value=85 raw=04 04 55
+button stored-slot=3(profile=4) slot=1 raw=01 01 01 00 00 00 00 block=01010100000000 class=0x01 len=1 data=01
+button stored-slot=3(profile=4) slot=2 raw=01 01 02 00 00 00 00 block=01010200000000 class=0x01 len=1 data=02
+button stored-slot=3(profile=4) slot=3 raw=01 01 03 00 00 00 00 block=01010300000000 class=0x01 len=1 data=03
+button stored-slot=3(profile=4) slot=4 raw=01 01 04 00 00 00 00 block=01010400000000 class=0x01 len=1 data=04
+button stored-slot=3(profile=4) slot=5 raw=01 01 05 00 00 00 00 block=01010500000000 class=0x01 len=1 data=05
+button stored-slot=3(profile=4) slot=9 raw=01 01 09 00 00 00 00 block=01010900000000 class=0x01 len=1 data=09
+button stored-slot=3(profile=4) slot=10 raw=01 01 0a 00 00 00 00 block=01010a00000000 class=0x01 len=1 data=0a
+button stored-slot=3(profile=4) slot=14 raw=07 01 04 00 00 00 00 block=07010400000000 class=0x07 len=1 data=04
+button stored-slot=3(profile=4) slot=52 raw=0e 01 68 00 14 00 00 block=0e016800140000 class=0x0e len=1 data=68
+button stored-slot=3(profile=4) slot=53 raw=0e 01 69 00 14 00 00 block=0e016900140000 class=0x0e len=1 data=69
+button stored-slot=3(profile=4) slot=64 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=65 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=66 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=67 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=68 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=69 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=70 raw=02 01 00 24 00 00 00 block=02010024000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=71 raw=02 01 00 25 00 00 00 block=02010025000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=72 raw=02 01 00 26 00 00 00 block=02010026000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=73 raw=02 01 00 27 00 00 00 block=02010027000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=74 raw=02 01 00 2d 00 00 00 block=0201002d000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=75 raw=02 01 00 2e 00 00 00 block=0201002e000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=80 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=81 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=82 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=83 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=84 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=85 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=96 raw=06 01 06 00 00 00 00 block=06010600000000 class=0x06 len=1 data=06
+button stored-slot=3(profile=4) slot=109 raw=12 01 04 00 00 00 00 block=12010400000000 class=0x12 len=1 data=04
+metadata stored-slot=4(profile=5) read_failed
+dpi-scalar stored-slot=4(profile=5) pair=1600x1600 raw=05 06 40 06 40 00 00
+dpi-stages stored-slot=4(profile=5) activeToken=0x03 stageIDs=[0x01,0x02,0x03,0x04,0x05] pairs=[400x400,800x800,1600x1600,3200x3200,6400x6400] raw=05 03 05 01 01 90 01 90 01 90 02 03 20 03 20 03 20 03 06 40 06 40 06 40 04 0c 80 0c 80 0c 80 05 19 00 19 00 19 00
+brightness stored-slot=4(profile=5) zone=logo led=0x04 value=85 raw=05 04 55
+button stored-slot=4(profile=5) slot=1 raw=01 01 01 00 00 00 00 block=01010100000000 class=0x01 len=1 data=01
+button stored-slot=4(profile=5) slot=2 raw=01 01 02 00 00 00 00 block=01010200000000 class=0x01 len=1 data=02
+button stored-slot=4(profile=5) slot=3 raw=01 01 03 00 00 00 00 block=01010300000000 class=0x01 len=1 data=03
+button stored-slot=4(profile=5) slot=4 raw=01 01 04 00 00 00 00 block=01010400000000 class=0x01 len=1 data=04
+button stored-slot=4(profile=5) slot=5 raw=01 01 05 00 00 00 00 block=01010500000000 class=0x01 len=1 data=05
+button stored-slot=4(profile=5) slot=9 raw=01 01 09 00 00 00 00 block=01010900000000 class=0x01 len=1 data=09
+button stored-slot=4(profile=5) slot=10 raw=01 01 0a 00 00 00 00 block=01010a00000000 class=0x01 len=1 data=0a
+button stored-slot=4(profile=5) slot=14 raw=07 01 04 00 00 00 00 block=07010400000000 class=0x07 len=1 data=04
+button stored-slot=4(profile=5) slot=52 raw=0e 01 68 00 14 00 00 block=0e016800140000 class=0x0e len=1 data=68
+button stored-slot=4(profile=5) slot=53 raw=0e 01 69 00 14 00 00 block=0e016900140000 class=0x0e len=1 data=69
+button stored-slot=4(profile=5) slot=64 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=65 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=66 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=67 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=68 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=69 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=70 raw=02 01 00 24 00 00 00 block=02010024000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=71 raw=02 01 00 25 00 00 00 block=02010025000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=72 raw=02 01 00 26 00 00 00 block=02010026000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=73 raw=02 01 00 27 00 00 00 block=02010027000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=74 raw=02 01 00 2d 00 00 00 block=0201002d000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=75 raw=02 01 00 2e 00 00 00 block=0201002e000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=80 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=81 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=82 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=83 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=84 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=85 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=96 raw=06 01 06 00 00 00 00 block=06010600000000 class=0x06 len=1 data=06
+button stored-slot=4(profile=5) slot=109 raw=12 01 04 00 00 00 00 block=12010400000000 class=0x12 len=1 data=04
+fingerprint effective=effective(profile=0) match=base(profile=1)
+
+$ OpenSnekProbe usb-button-read --slot 14 --profile both --pid 0x00a8
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00a8:02143000:usb pid=0x00a8
+profile=1 slot=14 hypershift=0 block=07010400000000 class=0x07 len=1 data=04
+profile=0 slot=14 hypershift=0 block=07010400000000 class=0x07 len=1 data=04
+
+$ OpenSnekProbe usb-button-read --slot 14 --profile both --hypershift 1 --pid 0x00a8
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00a8:02143000:usb pid=0x00a8
+profile=1 slot=14 hypershift=1 block=00070104000000 class=0x00 len=5 data=0104000000
+profile=0 slot=14 hypershift=1 block=00070104000000 class=0x00 len=5 data=0104000000
+
+$ OpenSnekProbe usb-button-read --slot 52 --profile both --pid 0x00a8
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00a8:02143000:usb pid=0x00a8
+profile=1 slot=52 hypershift=0 block=0d04004b003200 class=0x0d len=4 data=004b0032
+profile=0 slot=52 hypershift=0 block=0d04004b003200 class=0x0d len=4 data=004b0032
+
+$ OpenSnekProbe usb-button-read --slot 52 --profile both --hypershift 1 --pid 0x00a8
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00a8:02143000:usb pid=0x00a8
+profile=1 slot=52 hypershift=1 block=000e0168001400 class=0x00 len=5 data=0168001400
+profile=0 slot=52 hypershift=1 block=000e0168001400 class=0x00 len=5 data=0168001400
+
+$ OpenSnekProbe usb-button-read --slot 53 --profile both --pid 0x00a8
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00a8:02143000:usb pid=0x00a8
+profile=1 slot=53 hypershift=0 block=0d04004e003200 class=0x0d len=4 data=004e0032
+profile=0 slot=53 hypershift=0 block=0d04004e003200 class=0x0d len=4 data=004e0032
+
+$ OpenSnekProbe usb-button-read --slot 53 --profile both --hypershift 1 --pid 0x00a8
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00a8:02143000:usb pid=0x00a8
+profile=1 slot=53 hypershift=1 block=000e0169001400 class=0x00 len=5 data=0169001400
+profile=0 slot=53 hypershift=1 block=000e0169001400 class=0x00 len=5 data=0169001400
+
+$ OpenSnekProbe usb-button-read --slot 96 --profile both --pid 0x00a8
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00a8:02143000:usb pid=0x00a8
+profile=1 slot=96 hypershift=0 block=06010600000000 class=0x06 len=1 data=06
+profile=0 slot=96 hypershift=0 block=06010600000000 class=0x06 len=1 data=06
+
+$ OpenSnekProbe usb-button-read --slot 96 --profile both --hypershift 1 --pid 0x00a8
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00a8:02143000:usb pid=0x00a8
+profile=1 slot=96 hypershift=1 block=00060106000000 class=0x00 len=5 data=0106000000
+profile=0 slot=96 hypershift=1 block=00060106000000 class=0x00 len=5 data=0106000000
+
+$ OpenSnekProbe usb-button-read --slot 109 --profile both --pid 0x00a8
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00a8:02143000:usb pid=0x00a8
+profile=1 slot=109 hypershift=0 block=12010400000000 class=0x12 len=1 data=04
+profile=0 slot=109 hypershift=0 block=12010400000000 class=0x12 len=1 data=04
+
+$ OpenSnekProbe usb-button-read --slot 109 --profile both --hypershift 1 --pid 0x00a8
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00a8:02143000:usb pid=0x00a8
+profile=1 slot=109 hypershift=1 block=00120104000000 class=0x00 len=5 data=0104000000
+profile=0 slot=109 hypershift=1 block=00120104000000 class=0x00 len=5 data=0104000000
+
+$ OpenSnekProbe dpi-read   (baseline before top-button press test)
+error: BT vendor timeout
+dpi-scalar effective(profile=0) pair=2200x2200 raw=00 08 98 08 98 00 00
+dpi-stages effective(profile=0) activeToken=0x02 stageIDs=[0x01,0x02] pairs=[1100x1100,2200x2200] raw=00 02 02 01 04 4c 04 4c 00 00 02 08 98 08 98 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+dpi-scalar base(profile=1) pair=2200x2200 raw=01 08 98 08 98 00 00
+dpi-stages base(profile=1) activeToken=0x02 stageIDs=[0x01,0x02] pairs=[1100x1100,2200x2200] raw=01 02 02 01 04 4c 04 4c 00 00 02 08 98 08 98 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+$ OpenSnekProbe usb-profile-read --profiles 0   (after forward top button press)
+dpi-stages effective(profile=0) activeToken=0x02 stageIDs=[0x01,0x02] pairs=[1100x1100,2200x2200] raw=00 02 02 01 04 4c 04 4c 00 00 02 08 98 08 98 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+$ OpenSnekProbe usb-profile-active-read   (after forward press)
+usb-profile-active-read 1532:00a8:02143000:usb pid=0x00a8
+active-profile class=05 cmd=84 value=1 base(profile=1)
+
+$ OpenSnekProbe usb-button-read --slot 11 --profile both
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00a8:02143000:usb pid=0x00a8
+profile=1 slot=11 hypershift=0 read_failed
+profile=0 slot=11 hypershift=0 read_failed
+
+$ OpenSnekProbe usb-button-read --slot 12 --profile both
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00a8:02143000:usb pid=0x00a8
+profile=1 slot=12 hypershift=0 read_failed
+profile=0 slot=12 hypershift=0 read_failed
+
+$ OpenSnekProbe usb-profile-read --profiles 0,1   (after forward top button x2-3)
+dpi-scalar effective(profile=0) pair=2200x2200 raw=00 08 98 08 98 00 00
+dpi-stages effective(profile=0) activeToken=0x02 stageIDs=[0x01,0x02] pairs=[1100x1100,2200x2200] raw=00 02 02 01 04 4c 04 4c 00 00 02 08 98 08 98 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+dpi-scalar base(profile=1) pair=2200x2200 raw=01 08 98 08 98 00 00
+dpi-stages base(profile=1) activeToken=0x02 stageIDs=[0x01,0x02] pairs=[1100x1100,2200x2200] raw=01 02 02 01 04 4c 04 4c 00 00 02 08 98 08 98 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+$ OpenSnekProbe usb-profile-active-read   (after user clarified top buttons are not DPI-mapped)
+usb-profile-active-read 1532:00a8:02143000:usb pid=0x00a8
+active-profile class=05 cmd=84 value=1 base(profile=1)
+96 0202006e000000
+109 0202006d000000
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00a8:02143000:usb pid=0x00a8
+readback profile=0 slot=96 block=02020004000000 class=0x02 len=2 data=0004
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00a8:02143000:usb pid=0x00a8
+readback profile=0 slot=109 block=02020004000000 class=0x02 len=2 data=0004
+profile=0 slot=96 hypershift=0 block=02020004000000 class=0x02 len=2 data=0004
+profile=0 slot=109 hypershift=0 block=02020004000000 class=0x02 len=2 data=0004
+readback profile=0 slot=96 block=0202006e000000 class=0x02 len=2 data=006e
+readback profile=0 slot=109 block=0202006d000000 class=0x02 len=2 data=006d
+profile=0 slot=96 hypershift=0 block=0202006e000000 class=0x02 len=2 data=006e
+profile=0 slot=109 hypershift=0 block=0202006d000000 class=0x02 len=2 data=006d

@@ -1,0 +1,457 @@
+
+$ OpenSnekProbe bt-info
+bt connected-peripherals: none
+
+$ OpenSnekProbe bt-raw-read --key 00810000 --name Naga V2 Pro --timeout-ms 10000
+bt-raw-read req=0x30 key=00 81 00 00 name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 00 02 98 08 98 08 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x02 len=4 30 04 00 00 00 00 00 02 00 02 98 08 98 08 00 00 50 72 00 00
+notify[2] len=20 req=0x01 status=0x02 len=3 01 03 00 00 00 00 00 02 00 02 98 08 98 08 00 00 50 72 00 00
+payload[4]: 01 03 00 00
+
+$ OpenSnekProbe bt-raw-read --key 00820000 --name Naga V2 Pro --timeout-ms 10000
+bt-raw-read req=0x30 key=00 82 00 00 name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 00 02 98 08 98 08 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x05 len=0 30 00 00 00 00 00 00 05 00 02 98 08 98 08 00 00 50 72 00 00
+payload: nil
+
+$ OpenSnekProbe bt-profile-read --stored-slots 1,2,3,4 --button-slots 1,2,3,4,5,9,10,14,52,53,64,65,66,67,68,69,70,71,72,73,74,75,80,81,82,83,84,85,96,109 --include-live-buttons on --name Naga V2 Pro --timeout-ms 10000
+bt-profile-read name="Naga V2 Pro" targets=2,3,4,5 buttonSlots=1,2,3,4,5,9,10,14,52,53,64,65,66,67,68,69,70,71,72,73,74,75,80,81,82,83,84,85,96,109
+inventory key=03 80 00 00 payload=01 02
+active-target key=03 82 00 00 payload=01 target=live-projection(target=1)
+target hardware-active(target=0) scalar=1100x1100 stages=[1100x1100,2200x2200,1600x1600,3200x3200,6400x6400] token=0x01 rawScalar=4c 04 4c 04 00 00 rawStages=4c 04 4c 04 00 00 98 08 98 08 00 00 40 06 40 06 00 00 80 0c 80 0c 00 00 00 19 00 19 00 00 rawToken=01
+target stored-slot=1(target=2) scalar=2200x2200 stages=[1100x1100,2200x2200,2200x2200,3200x3200,6400x6400] token=0x02 rawScalar=98 08 98 08 00 00 rawStages=4c 04 4c 04 00 00 98 08 98 08 00 00 98 08 98 08 00 00 80 0c 80 0c 00 00 00 19 00 19 00 00 rawToken=02
+target stored-slot=2(target=3) scalar=1600x1600 stages=[400x400,800x800,1600x1600,3200x3200,6400x6400] token=0x03 rawScalar=40 06 40 06 00 00 rawStages=90 01 90 01 90 01 20 03 20 03 20 03 40 06 40 06 40 06 80 0c 80 0c 80 0c 00 19 00 19 00 19 rawToken=03
+target stored-slot=3(target=4) scalar=1600x1600 stages=[400x400,800x800,1600x1600,3200x3200,6400x6400] token=0x03 rawScalar=40 06 40 06 00 00 rawStages=90 01 90 01 90 01 20 03 20 03 20 03 40 06 40 06 40 06 80 0c 80 0c 80 0c 00 19 00 19 00 19 rawToken=03
+target stored-slot=4(target=5) scalar=1600x1600 stages=[400x400,800x800,1600x1600,3200x3200,6400x6400] token=0x03 rawScalar=40 06 40 06 00 00 rawStages=90 01 90 01 90 01 20 03 20 03 20 03 40 06 40 06 40 06 80 0c 80 0c 80 0c 00 19 00 19 00 19 rawToken=03
+fingerprint active=[1100x1100,2200x2200,1600x1600,3200x3200,6400x6400] match=none
+lighting-leds ids=0x04,0x05
+lighting hardware-active(target=0) led=0x04 brightness=0 rawBrightness=00 color=unparsed rawState=03 00 00 00 02 00 6d 00 00 00
+lighting hardware-active(target=0) led=0x05 brightness=0 rawBrightness=00 color=unparsed rawState=03 00 00 00 02 00 6d 00 00 00
+lighting live-projection(target=1) led=0x04 brightness=0 rawBrightness=00 color=unparsed rawState=03 00 00 00 02 00 6d 00 00 00
+lighting live-projection(target=1) led=0x05 brightness=0 rawBrightness=00 color=unparsed rawState=03 00 00 00 02 00 6d 00 00 00
+lighting stored-slot=1(target=2) led=0x04 brightness=0 rawBrightness=00 color=unparsed rawState=03 01 28 00 00 00 00 00 00 00
+lighting stored-slot=1(target=2) led=0x05 brightness=0 rawBrightness=00 color=unparsed rawState=03 01 28 00 00 00 00 00 00 00
+lighting stored-slot=2(target=3) led=0x04 brightness=85 rawBrightness=55 color=unparsed rawState=03 01 28 01 00 ff 00 00 ff 00
+lighting stored-slot=2(target=3) led=0x05 brightness=85 rawBrightness=55 color=unparsed rawState=03 01 28 01 00 ff 00 00 ff 00
+lighting stored-slot=3(target=4) led=0x04 brightness=85 rawBrightness=55 color=unparsed rawState=03 01 28 01 00 ff 00 00 ff 00
+lighting stored-slot=3(target=4) led=0x05 brightness=85 rawBrightness=55 color=unparsed rawState=03 01 28 01 00 ff 00 00 ff 00
+lighting stored-slot=4(target=5) led=0x04 brightness=85 rawBrightness=55 color=unparsed rawState=03 01 28 01 00 ff 00 00 ff 00
+lighting stored-slot=4(target=5) led=0x05 brightness=85 rawBrightness=55 color=unparsed rawState=03 01 28 01 00 ff 00 00 ff 00
+button hardware-active(target=0) slot=1 key=08 84 00 01
+payload[16]=01 00 01 01 01 01 01 01 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 01 00 00 00 00 block=01010100000000 class=0x01 len=1 data=01
+button hardware-active(target=0) slot=2 key=08 84 00 02
+payload[16]=02 00 01 01 01 01 02 02 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 02 00 00 00 00 block=01010200000000 class=0x01 len=1 data=02
+button hardware-active(target=0) slot=3 key=08 84 00 03
+payload[16]=03 00 01 01 01 01 03 03 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 03 00 00 00 00 block=01010300000000 class=0x01 len=1 data=03
+button hardware-active(target=0) slot=4 key=08 84 00 04
+payload[16]=04 00 01 01 01 01 04 04 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 04 00 00 00 00 block=01010400000000 class=0x01 len=1 data=04
+button hardware-active(target=0) slot=5 key=08 84 00 05
+payload[16]=05 00 01 01 01 01 05 05 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 05 00 00 00 00 block=01010500000000 class=0x01 len=1 data=05
+button hardware-active(target=0) slot=9 key=08 84 00 09
+payload[16]=09 00 01 01 01 01 09 09 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 09 00 00 00 00 block=01010900000000 class=0x01 len=1 data=09
+button hardware-active(target=0) slot=10 key=08 84 00 0a
+payload[16]=0a 00 01 01 01 01 0a 0a 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 0a 00 00 00 00 block=01010a00000000 class=0x01 len=1 data=0a
+button hardware-active(target=0) slot=14 key=08 84 00 0e
+payload[16]=0e 00 06 07 01 01 06 04 00 00 00 00 00 00 00 00 decoded-even-lane[7]=06 01 06 00 00 00 00 block=06010600000000 class=0x06 len=1 data=06 decoded-odd-lane[7]=07 01 04 00 00 00 00 block=07010400000000 class=0x07 len=1 data=04
+button hardware-active(target=0) slot=52 key=08 84 00 34
+payload[16]=34 00 0d 0e 04 01 00 68 4b 00 00 14 32 00 00 00 decoded-even-lane[7]=0d 04 00 4b 00 32 00 block=0d04004b003200 class=0x0d len=4 data=004b0032 decoded-odd-lane[7]=0e 01 68 00 14 00 00 block=0e016800140000 class=0x0e len=1 data=68
+button hardware-active(target=0) slot=53 key=08 84 00 35
+payload[16]=35 00 0d 0e 04 01 00 69 4e 00 00 14 32 00 00 00 decoded-even-lane[7]=0d 04 00 4e 00 32 00 block=0d04004e003200 class=0x0d len=4 data=004e0032 decoded-odd-lane[7]=0e 01 69 00 14 00 00 block=0e016900140000 class=0x0e len=1 data=69
+button hardware-active(target=0) slot=64 key=08 84 00 40
+payload[16]=40 00 02 02 01 01 00 00 1e 1e 00 00 00 00 00 00 decoded-function[7]=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button hardware-active(target=0) slot=65 key=08 84 00 41
+payload[16]=41 00 02 02 01 01 00 00 1f 1f 00 00 00 00 00 00 decoded-function[7]=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button hardware-active(target=0) slot=66 key=08 84 00 42
+payload[16]=42 00 02 02 01 01 00 00 20 20 00 00 00 00 00 00 decoded-function[7]=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button hardware-active(target=0) slot=67 key=08 84 00 43
+payload[16]=43 00 02 02 02 01 00 00 21 21 00 00 00 00 00 00 decoded-even-lane[7]=02 02 00 21 00 00 00 block=02020021000000 class=0x02 len=2 data=0021 decoded-odd-lane[7]=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button hardware-active(target=0) slot=68 key=08 84 00 44
+payload[16]=44 00 02 02 01 01 00 00 22 22 00 00 00 00 00 00 decoded-function[7]=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button hardware-active(target=0) slot=69 key=08 84 00 45
+payload[16]=45 00 02 02 01 01 00 00 23 23 00 00 00 00 00 00 decoded-function[7]=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button hardware-active(target=0) slot=70 key=08 84 00 46
+payload[16]=46 00 02 02 01 01 00 00 24 24 00 00 00 00 00 00 decoded-function[7]=02 01 00 24 00 00 00 block=02010024000000 class=0x02 len=1 data=00
+button hardware-active(target=0) slot=71 key=08 84 00 47
+payload[16]=47 00 02 02 01 01 00 00 25 25 00 00 00 00 00 00 decoded-function[7]=02 01 00 25 00 00 00 block=02010025000000 class=0x02 len=1 data=00
+button hardware-active(target=0) slot=72 key=08 84 00 48
+payload[16]=48 00 02 02 01 01 00 00 26 26 00 00 00 00 00 00 decoded-function[7]=02 01 00 26 00 00 00 block=02010026000000 class=0x02 len=1 data=00
+button hardware-active(target=0) slot=73 key=08 84 00 49
+payload[16]=49 00 02 02 01 01 00 00 27 27 00 00 00 00 00 00 decoded-function[7]=02 01 00 27 00 00 00 block=02010027000000 class=0x02 len=1 data=00
+button hardware-active(target=0) slot=74 key=08 84 00 4a
+payload[16]=4a 00 02 02 01 01 00 00 2d 2d 00 00 00 00 00 00 decoded-function[7]=02 01 00 2d 00 00 00 block=0201002d000000 class=0x02 len=1 data=00
+button hardware-active(target=0) slot=75 key=08 84 00 4b
+payload[16]=4b 00 02 02 01 01 00 00 2e 2e 00 00 00 00 00 00 decoded-function[7]=02 01 00 2e 00 00 00 block=0201002e000000 class=0x02 len=1 data=00
+button hardware-active(target=0) slot=80 key=08 84 00 50
+payload[16]=50 00 02 02 01 01 00 00 1e 1e 00 00 00 00 00 00 decoded-function[7]=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button hardware-active(target=0) slot=81 key=08 84 00 51
+payload[16]=51 00 02 02 01 01 00 00 1f 1f 00 00 00 00 00 00 decoded-function[7]=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button hardware-active(target=0) slot=82 key=08 84 00 52
+payload[16]=52 00 02 02 01 01 00 00 20 20 00 00 00 00 00 00 decoded-function[7]=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button hardware-active(target=0) slot=83 key=08 84 00 53
+payload[16]=53 00 02 02 01 01 00 00 21 21 00 00 00 00 00 00 decoded-function[7]=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button hardware-active(target=0) slot=84 key=08 84 00 54
+payload[16]=54 00 02 02 01 01 00 00 22 22 00 00 00 00 00 00 decoded-function[7]=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button hardware-active(target=0) slot=85 key=08 84 00 55
+payload[16]=55 00 02 02 01 01 00 00 23 23 00 00 00 00 00 00 decoded-function[7]=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button hardware-active(target=0) slot=96 key=08 84 00 60
+payload[16]=60 00 02 06 02 01 00 06 6e 00 00 00 00 00 00 00 decoded-even-lane[7]=02 02 00 6e 00 00 00 block=0202006e000000 class=0x02 len=2 data=006e decoded-odd-lane[7]=06 01 06 00 00 00 00 block=06010600000000 class=0x06 len=1 data=06
+button hardware-active(target=0) slot=109 key=08 84 00 6d
+payload[16]=6d 00 02 12 02 01 00 04 6d 00 00 00 00 00 00 00 decoded-even-lane[7]=02 02 00 6d 00 00 00 block=0202006d000000 class=0x02 len=2 data=006d decoded-odd-lane[7]=12 01 04 00 00 00 00 block=12010400000000 class=0x12 len=1 data=04
+button live-projection(target=1) slot=1 key=08 84 01 01
+payload[16]=01 00 01 01 01 01 01 01 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 01 00 00 00 00 block=01010100000000 class=0x01 len=1 data=01
+button live-projection(target=1) slot=2 key=08 84 01 02
+payload[16]=02 00 01 01 01 01 02 02 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 02 00 00 00 00 block=01010200000000 class=0x01 len=1 data=02
+button live-projection(target=1) slot=3 key=08 84 01 03
+payload[16]=03 00 01 01 01 01 03 03 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 03 00 00 00 00 block=01010300000000 class=0x01 len=1 data=03
+button live-projection(target=1) slot=4 key=08 84 01 04
+payload[16]=04 00 01 01 01 01 04 04 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 04 00 00 00 00 block=01010400000000 class=0x01 len=1 data=04
+button live-projection(target=1) slot=5 key=08 84 01 05
+payload[16]=05 00 01 01 01 01 05 05 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 05 00 00 00 00 block=01010500000000 class=0x01 len=1 data=05
+button live-projection(target=1) slot=9 key=08 84 01 09
+payload[16]=09 00 01 01 01 01 09 09 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 09 00 00 00 00 block=01010900000000 class=0x01 len=1 data=09
+button live-projection(target=1) slot=10 key=08 84 01 0a
+payload[16]=0a 00 01 01 01 01 0a 0a 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 0a 00 00 00 00 block=01010a00000000 class=0x01 len=1 data=0a
+button live-projection(target=1) slot=14 key=08 84 01 0e
+payload[16]=0e 00 06 07 01 01 06 04 00 00 00 00 00 00 00 00 decoded-even-lane[7]=06 01 06 00 00 00 00 block=06010600000000 class=0x06 len=1 data=06 decoded-odd-lane[7]=07 01 04 00 00 00 00 block=07010400000000 class=0x07 len=1 data=04
+button live-projection(target=1) slot=52 key=08 84 01 34
+payload[16]=34 00 0d 0e 04 01 00 68 4b 00 00 14 32 00 00 00 decoded-even-lane[7]=0d 04 00 4b 00 32 00 block=0d04004b003200 class=0x0d len=4 data=004b0032 decoded-odd-lane[7]=0e 01 68 00 14 00 00 block=0e016800140000 class=0x0e len=1 data=68
+button live-projection(target=1) slot=53 key=08 84 01 35
+payload[16]=35 00 0d 0e 04 01 00 69 4e 00 00 14 32 00 00 00 decoded-even-lane[7]=0d 04 00 4e 00 32 00 block=0d04004e003200 class=0x0d len=4 data=004e0032 decoded-odd-lane[7]=0e 01 69 00 14 00 00 block=0e016900140000 class=0x0e len=1 data=69
+button live-projection(target=1) slot=64 key=08 84 01 40
+payload[16]=40 00 02 02 01 01 00 00 1e 1e 00 00 00 00 00 00 decoded-function[7]=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button live-projection(target=1) slot=65 key=08 84 01 41
+payload[16]=41 00 02 02 01 01 00 00 1f 1f 00 00 00 00 00 00 decoded-function[7]=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button live-projection(target=1) slot=66 key=08 84 01 42
+payload[16]=42 00 02 02 01 01 00 00 20 20 00 00 00 00 00 00 decoded-function[7]=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button live-projection(target=1) slot=67 key=08 84 01 43
+payload[16]=43 00 02 02 02 01 00 00 21 21 00 00 00 00 00 00 decoded-even-lane[7]=02 02 00 21 00 00 00 block=02020021000000 class=0x02 len=2 data=0021 decoded-odd-lane[7]=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button live-projection(target=1) slot=68 key=08 84 01 44
+payload[16]=44 00 02 02 01 01 00 00 22 22 00 00 00 00 00 00 decoded-function[7]=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button live-projection(target=1) slot=69 key=08 84 01 45
+payload[16]=45 00 02 02 01 01 00 00 23 23 00 00 00 00 00 00 decoded-function[7]=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button live-projection(target=1) slot=70 key=08 84 01 46
+payload[16]=46 00 02 02 01 01 00 00 24 24 00 00 00 00 00 00 decoded-function[7]=02 01 00 24 00 00 00 block=02010024000000 class=0x02 len=1 data=00
+button live-projection(target=1) slot=71 key=08 84 01 47
+payload[16]=47 00 02 02 01 01 00 00 25 25 00 00 00 00 00 00 decoded-function[7]=02 01 00 25 00 00 00 block=02010025000000 class=0x02 len=1 data=00
+button live-projection(target=1) slot=72 key=08 84 01 48
+payload[16]=48 00 02 02 01 01 00 00 26 26 00 00 00 00 00 00 decoded-function[7]=02 01 00 26 00 00 00 block=02010026000000 class=0x02 len=1 data=00
+button live-projection(target=1) slot=73 key=08 84 01 49
+payload[16]=49 00 02 02 01 01 00 00 27 27 00 00 00 00 00 00 decoded-function[7]=02 01 00 27 00 00 00 block=02010027000000 class=0x02 len=1 data=00
+button live-projection(target=1) slot=74 key=08 84 01 4a
+payload[16]=4a 00 02 02 01 01 00 00 2d 2d 00 00 00 00 00 00 decoded-function[7]=02 01 00 2d 00 00 00 block=0201002d000000 class=0x02 len=1 data=00
+button live-projection(target=1) slot=75 key=08 84 01 4b
+payload[16]=4b 00 02 02 01 01 00 00 2e 2e 00 00 00 00 00 00 decoded-function[7]=02 01 00 2e 00 00 00 block=0201002e000000 class=0x02 len=1 data=00
+button live-projection(target=1) slot=80 key=08 84 01 50
+payload[16]=50 00 02 02 01 01 00 00 1e 1e 00 00 00 00 00 00 decoded-function[7]=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button live-projection(target=1) slot=81 key=08 84 01 51
+payload[16]=51 00 02 02 01 01 00 00 1f 1f 00 00 00 00 00 00 decoded-function[7]=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button live-projection(target=1) slot=82 key=08 84 01 52
+payload[16]=52 00 02 02 01 01 00 00 20 20 00 00 00 00 00 00 decoded-function[7]=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button live-projection(target=1) slot=83 key=08 84 01 53
+payload[16]=53 00 02 02 01 01 00 00 21 21 00 00 00 00 00 00 decoded-function[7]=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button live-projection(target=1) slot=84 key=08 84 01 54
+payload[16]=54 00 02 02 01 01 00 00 22 22 00 00 00 00 00 00 decoded-function[7]=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button live-projection(target=1) slot=85 key=08 84 01 55
+payload[16]=55 00 02 02 01 01 00 00 23 23 00 00 00 00 00 00 decoded-function[7]=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button live-projection(target=1) slot=96 key=08 84 01 60
+payload[16]=60 00 02 06 02 01 00 06 6e 00 00 00 00 00 00 00 decoded-even-lane[7]=02 02 00 6e 00 00 00 block=0202006e000000 class=0x02 len=2 data=006e decoded-odd-lane[7]=06 01 06 00 00 00 00 block=06010600000000 class=0x06 len=1 data=06
+button live-projection(target=1) slot=109 key=08 84 01 6d
+payload[16]=6d 00 02 12 02 01 00 04 6d 00 00 00 00 00 00 00 decoded-even-lane[7]=02 02 00 6d 00 00 00 block=0202006d000000 class=0x02 len=2 data=006d decoded-odd-lane[7]=12 01 04 00 00 00 00 block=12010400000000 class=0x12 len=1 data=04
+button stored-slot=1(target=2) slot=1 key=08 84 02 01
+payload[16]=01 00 01 01 01 01 01 01 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 01 00 00 00 00 block=01010100000000 class=0x01 len=1 data=01
+button stored-slot=1(target=2) slot=2 key=08 84 02 02
+payload[16]=02 00 01 01 01 01 02 02 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 02 00 00 00 00 block=01010200000000 class=0x01 len=1 data=02
+button stored-slot=1(target=2) slot=3 key=08 84 02 03
+payload[16]=03 00 01 01 01 01 03 03 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 03 00 00 00 00 block=01010300000000 class=0x01 len=1 data=03
+button stored-slot=1(target=2) slot=4 key=08 84 02 04
+payload[16]=04 00 01 01 01 01 04 04 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 04 00 00 00 00 block=01010400000000 class=0x01 len=1 data=04
+button stored-slot=1(target=2) slot=5 key=08 84 02 05
+payload[16]=05 00 01 01 01 01 05 05 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 05 00 00 00 00 block=01010500000000 class=0x01 len=1 data=05
+button stored-slot=1(target=2) slot=9 key=08 84 02 09
+payload[16]=09 00 01 01 01 01 09 09 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 09 00 00 00 00 block=01010900000000 class=0x01 len=1 data=09
+button stored-slot=1(target=2) slot=10 key=08 84 02 0a
+payload[16]=0a 00 01 01 01 01 0a 0a 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 0a 00 00 00 00 block=01010a00000000 class=0x01 len=1 data=0a
+button stored-slot=1(target=2) slot=14 key=08 84 02 0e
+payload[16]=0e 00 06 07 01 01 06 04 00 00 00 00 00 00 00 00 decoded-even-lane[7]=06 01 06 00 00 00 00 block=06010600000000 class=0x06 len=1 data=06 decoded-odd-lane[7]=07 01 04 00 00 00 00 block=07010400000000 class=0x07 len=1 data=04
+button stored-slot=1(target=2) slot=52 key=08 84 02 34
+payload[16]=34 00 0d 0e 04 01 00 68 4b 00 00 14 32 00 00 00 decoded-even-lane[7]=0d 04 00 4b 00 32 00 block=0d04004b003200 class=0x0d len=4 data=004b0032 decoded-odd-lane[7]=0e 01 68 00 14 00 00 block=0e016800140000 class=0x0e len=1 data=68
+button stored-slot=1(target=2) slot=53 key=08 84 02 35
+payload[16]=35 00 0d 0e 04 01 00 69 4e 00 00 14 32 00 00 00 decoded-even-lane[7]=0d 04 00 4e 00 32 00 block=0d04004e003200 class=0x0d len=4 data=004e0032 decoded-odd-lane[7]=0e 01 69 00 14 00 00 block=0e016900140000 class=0x0e len=1 data=69
+button stored-slot=1(target=2) slot=64 key=08 84 02 40
+payload[16]=40 00 02 02 01 01 00 00 1e 1e 00 00 00 00 00 00 decoded-function[7]=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=1(target=2) slot=65 key=08 84 02 41
+payload[16]=41 00 02 02 01 01 00 00 1f 1f 00 00 00 00 00 00 decoded-function[7]=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=1(target=2) slot=66 key=08 84 02 42
+payload[16]=42 00 02 02 01 01 00 00 20 20 00 00 00 00 00 00 decoded-function[7]=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=1(target=2) slot=67 key=08 84 02 43
+payload[16]=43 00 02 02 01 01 00 00 21 21 00 00 00 00 00 00 decoded-function[7]=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=1(target=2) slot=68 key=08 84 02 44
+payload[16]=44 00 02 02 01 01 00 00 22 22 00 00 00 00 00 00 decoded-function[7]=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=1(target=2) slot=69 key=08 84 02 45
+payload[16]=45 00 02 02 01 01 00 00 23 23 00 00 00 00 00 00 decoded-function[7]=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=1(target=2) slot=70 key=08 84 02 46
+payload[16]=46 00 02 02 01 01 00 00 24 24 00 00 00 00 00 00 decoded-function[7]=02 01 00 24 00 00 00 block=02010024000000 class=0x02 len=1 data=00
+button stored-slot=1(target=2) slot=71 key=08 84 02 47
+payload[16]=47 00 02 02 01 01 00 00 25 25 00 00 00 00 00 00 decoded-function[7]=02 01 00 25 00 00 00 block=02010025000000 class=0x02 len=1 data=00
+button stored-slot=1(target=2) slot=72 key=08 84 02 48
+payload[16]=48 00 02 02 01 01 00 00 26 26 00 00 00 00 00 00 decoded-function[7]=02 01 00 26 00 00 00 block=02010026000000 class=0x02 len=1 data=00
+button stored-slot=1(target=2) slot=73 key=08 84 02 49
+payload[16]=49 00 02 02 01 01 00 00 27 27 00 00 00 00 00 00 decoded-function[7]=02 01 00 27 00 00 00 block=02010027000000 class=0x02 len=1 data=00
+button stored-slot=1(target=2) slot=74 key=08 84 02 4a
+payload[20]=4a 00 02 02 01 01 00 00 2d 2d 00 00 00 00 00 00 50 72 00 00 decoded-function[7]=02 01 00 2d 00 00 00 block=0201002d000000 class=0x02 len=1 data=00
+button stored-slot=1(target=2) slot=75 key=08 84 02 4b
+payload=nil
+button stored-slot=1(target=2) slot=80 key=08 84 02 50
+payload=nil
+button stored-slot=1(target=2) slot=81 key=08 84 02 51
+payload[20]=51 00 02 02 01 01 00 00 1f 1f 00 00 00 00 00 00 50 72 00 00 decoded-function[7]=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=1(target=2) slot=82 key=08 84 02 52
+payload=nil
+button stored-slot=1(target=2) slot=83 key=08 84 02 53
+payload[16]=09 00 00 00 00 00 00 01 00 02 98 08 98 08 00 00 decoded-function[7]=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=1(target=2) slot=84 key=08 84 02 54
+payload=nil
+button stored-slot=1(target=2) slot=85 key=08 84 02 55
+payload[16]=1a 00 00 00 00 00 00 01 00 02 98 08 98 08 00 00 decoded-function[7]=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=1(target=2) slot=96 key=08 84 02 60
+payload[16]=1b 00 00 00 00 00 00 01 23 23 00 00 00 00 00 00 decoded-even-lane[7]=02 02 00 6e 00 00 00 block=0202006e000000 class=0x02 len=2 data=006e decoded-odd-lane[7]=06 01 06 00 00 00 00 block=06010600000000 class=0x06 len=1 data=06
+button stored-slot=1(target=2) slot=109 key=08 84 02 6d
+payload[16]=1c 00 00 00 00 00 00 01 6e 00 00 00 00 00 00 00 decoded-even-lane[7]=02 02 00 6d 00 00 00 block=0202006d000000 class=0x02 len=2 data=006d decoded-odd-lane[7]=12 01 04 00 00 00 00 block=12010400000000 class=0x12 len=1 data=04
+button stored-slot=2(target=3) slot=1 key=08 84 03 01
+payload[16]=1d 00 00 00 00 00 00 01 6d 00 00 00 00 00 00 00 decoded-function[7]=01 01 01 00 00 00 00 block=01010100000000 class=0x01 len=1 data=01
+button stored-slot=2(target=3) slot=2 key=08 84 03 02
+payload=nil
+button stored-slot=2(target=3) slot=3 key=08 84 03 03
+payload[16]=01 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 03 00 00 00 00 block=01010300000000 class=0x01 len=1 data=03
+button stored-slot=2(target=3) slot=4 key=08 84 03 04
+payload[16]=02 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 04 00 00 00 00 block=01010400000000 class=0x01 len=1 data=04
+button stored-slot=2(target=3) slot=5 key=08 84 03 05
+payload[16]=03 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 05 00 00 00 00 block=01010500000000 class=0x01 len=1 data=05
+button stored-slot=2(target=3) slot=9 key=08 84 03 09
+payload[16]=04 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 09 00 00 00 00 block=01010900000000 class=0x01 len=1 data=09
+button stored-slot=2(target=3) slot=10 key=08 84 03 0a
+payload[16]=05 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 0a 00 00 00 00 block=01010a00000000 class=0x01 len=1 data=0a
+button stored-slot=2(target=3) slot=14 key=08 84 03 0e
+payload[16]=06 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 decoded-function[7]=07 01 04 00 00 00 00 block=07010400000000 class=0x07 len=1 data=04
+button stored-slot=2(target=3) slot=52 key=08 84 03 34
+payload[16]=07 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 decoded-function[7]=0e 01 68 00 14 00 00 block=0e016800140000 class=0x0e len=1 data=68
+button stored-slot=2(target=3) slot=53 key=08 84 03 35
+payload[16]=08 00 00 00 00 00 00 01 00 00 14 14 00 00 00 00 decoded-function[7]=0e 01 69 00 14 00 00 block=0e016900140000 class=0x0e len=1 data=69
+button stored-slot=2(target=3) slot=64 key=08 84 03 40
+payload[16]=40 00 02 02 01 01 00 00 1e 1e 00 00 00 00 00 00 decoded-function[7]=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=2(target=3) slot=65 key=08 84 03 41
+payload[16]=41 00 02 02 01 01 00 00 1f 1f 00 00 00 00 00 00 decoded-function[7]=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=2(target=3) slot=66 key=08 84 03 42
+payload[16]=42 00 02 02 01 01 00 00 20 20 00 00 00 00 00 00 decoded-function[7]=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=2(target=3) slot=67 key=08 84 03 43
+payload[16]=43 00 02 02 01 01 00 00 21 21 00 00 00 00 00 00 decoded-function[7]=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=2(target=3) slot=68 key=08 84 03 44
+payload[16]=44 00 02 02 01 01 00 00 22 22 00 00 00 00 00 00 decoded-function[7]=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=2(target=3) slot=69 key=08 84 03 45
+payload[16]=45 00 02 02 01 01 00 00 23 23 00 00 00 00 00 00 decoded-function[7]=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=2(target=3) slot=70 key=08 84 03 46
+payload[16]=46 00 02 02 01 01 00 00 24 24 00 00 00 00 00 00 decoded-function[7]=02 01 00 24 00 00 00 block=02010024000000 class=0x02 len=1 data=00
+button stored-slot=2(target=3) slot=71 key=08 84 03 47
+payload[16]=47 00 02 02 01 01 00 00 25 25 00 00 00 00 00 00 decoded-function[7]=02 01 00 25 00 00 00 block=02010025000000 class=0x02 len=1 data=00
+button stored-slot=2(target=3) slot=72 key=08 84 03 48
+payload[16]=48 00 02 02 01 01 00 00 26 26 00 00 00 00 00 00 decoded-function[7]=02 01 00 26 00 00 00 block=02010026000000 class=0x02 len=1 data=00
+button stored-slot=2(target=3) slot=73 key=08 84 03 49
+payload[16]=49 00 02 02 01 01 00 00 27 27 00 00 00 00 00 00 decoded-function[7]=02 01 00 27 00 00 00 block=02010027000000 class=0x02 len=1 data=00
+button stored-slot=2(target=3) slot=74 key=08 84 03 4a
+payload[16]=4a 00 02 02 01 01 00 00 2d 2d 00 00 00 00 00 00 decoded-function[7]=02 01 00 2d 00 00 00 block=0201002d000000 class=0x02 len=1 data=00
+button stored-slot=2(target=3) slot=75 key=08 84 03 4b
+payload[16]=4b 00 02 02 01 01 00 00 2e 2e 00 00 00 00 00 00 decoded-function[7]=02 01 00 2e 00 00 00 block=0201002e000000 class=0x02 len=1 data=00
+button stored-slot=2(target=3) slot=80 key=08 84 03 50
+payload[16]=50 00 02 02 01 01 00 00 1e 1e 00 00 00 00 00 00 decoded-function[7]=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=2(target=3) slot=81 key=08 84 03 51
+payload[16]=51 00 02 02 01 01 00 00 1f 1f 00 00 00 00 00 00 decoded-function[7]=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=2(target=3) slot=82 key=08 84 03 52
+payload[16]=52 00 02 02 01 01 00 00 20 20 00 00 00 00 00 00 decoded-function[7]=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=2(target=3) slot=83 key=08 84 03 53
+payload[16]=53 00 02 02 01 01 00 00 21 21 00 00 00 00 00 00 decoded-function[7]=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=2(target=3) slot=84 key=08 84 03 54
+payload[16]=54 00 02 02 01 01 00 00 22 22 00 00 00 00 00 00 decoded-function[7]=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=2(target=3) slot=85 key=08 84 03 55
+payload[16]=55 00 02 02 01 01 00 00 23 23 00 00 00 00 00 00 decoded-function[7]=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=2(target=3) slot=96 key=08 84 03 60
+payload[16]=60 00 06 06 01 01 06 06 00 00 00 00 00 00 00 00 decoded-function[7]=06 01 06 00 00 00 00 block=06010600000000 class=0x06 len=1 data=06
+button stored-slot=2(target=3) slot=109 key=08 84 03 6d
+payload[16]=6d 00 12 12 01 01 04 04 00 00 00 00 00 00 00 00 decoded-function[7]=12 01 04 00 00 00 00 block=12010400000000 class=0x12 len=1 data=04
+button stored-slot=3(target=4) slot=1 key=08 84 04 01
+payload[16]=01 00 01 01 01 01 01 01 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 01 00 00 00 00 block=01010100000000 class=0x01 len=1 data=01
+button stored-slot=3(target=4) slot=2 key=08 84 04 02
+payload[16]=02 00 01 01 01 01 02 02 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 02 00 00 00 00 block=01010200000000 class=0x01 len=1 data=02
+button stored-slot=3(target=4) slot=3 key=08 84 04 03
+payload[16]=03 00 01 01 01 01 03 03 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 03 00 00 00 00 block=01010300000000 class=0x01 len=1 data=03
+button stored-slot=3(target=4) slot=4 key=08 84 04 04
+payload[16]=04 00 01 01 01 01 04 04 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 04 00 00 00 00 block=01010400000000 class=0x01 len=1 data=04
+button stored-slot=3(target=4) slot=5 key=08 84 04 05
+payload[16]=05 00 01 01 01 01 05 05 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 05 00 00 00 00 block=01010500000000 class=0x01 len=1 data=05
+button stored-slot=3(target=4) slot=9 key=08 84 04 09
+payload[16]=09 00 01 01 01 01 09 09 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 09 00 00 00 00 block=01010900000000 class=0x01 len=1 data=09
+button stored-slot=3(target=4) slot=10 key=08 84 04 0a
+payload[16]=0a 00 01 01 01 01 0a 0a 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 0a 00 00 00 00 block=01010a00000000 class=0x01 len=1 data=0a
+button stored-slot=3(target=4) slot=14 key=08 84 04 0e
+payload[16]=0e 00 07 07 01 01 04 04 00 00 00 00 00 00 00 00 decoded-function[7]=07 01 04 00 00 00 00 block=07010400000000 class=0x07 len=1 data=04
+button stored-slot=3(target=4) slot=52 key=08 84 04 34
+payload[16]=34 00 0e 0e 01 01 68 68 00 00 14 14 00 00 00 00 decoded-function[7]=0e 01 68 00 14 00 00 block=0e016800140000 class=0x0e len=1 data=68
+button stored-slot=3(target=4) slot=53 key=08 84 04 35
+payload[16]=35 00 0e 0e 01 01 69 69 00 00 14 14 00 00 00 00 decoded-function[7]=0e 01 69 00 14 00 00 block=0e016900140000 class=0x0e len=1 data=69
+button stored-slot=3(target=4) slot=64 key=08 84 04 40
+payload[16]=40 00 02 02 01 01 00 00 1e 1e 00 00 00 00 00 00 decoded-function[7]=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=3(target=4) slot=65 key=08 84 04 41
+payload[16]=41 00 02 02 01 01 00 00 1f 1f 00 00 00 00 00 00 decoded-function[7]=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=3(target=4) slot=66 key=08 84 04 42
+payload[16]=42 00 02 02 01 01 00 00 20 20 00 00 00 00 00 00 decoded-function[7]=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=3(target=4) slot=67 key=08 84 04 43
+payload[16]=43 00 02 02 01 01 00 00 21 21 00 00 00 00 00 00 decoded-function[7]=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=3(target=4) slot=68 key=08 84 04 44
+payload[16]=44 00 02 02 01 01 00 00 22 22 00 00 00 00 00 00 decoded-function[7]=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=3(target=4) slot=69 key=08 84 04 45
+payload[16]=45 00 02 02 01 01 00 00 23 23 00 00 00 00 00 00 decoded-function[7]=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=3(target=4) slot=70 key=08 84 04 46
+payload[16]=46 00 02 02 01 01 00 00 24 24 00 00 00 00 00 00 decoded-function[7]=02 01 00 24 00 00 00 block=02010024000000 class=0x02 len=1 data=00
+button stored-slot=3(target=4) slot=71 key=08 84 04 47
+payload[16]=47 00 02 02 01 01 00 00 25 25 00 00 00 00 00 00 decoded-function[7]=02 01 00 25 00 00 00 block=02010025000000 class=0x02 len=1 data=00
+button stored-slot=3(target=4) slot=72 key=08 84 04 48
+payload[16]=48 00 02 02 01 01 00 00 26 26 00 00 00 00 00 00 decoded-function[7]=02 01 00 26 00 00 00 block=02010026000000 class=0x02 len=1 data=00
+button stored-slot=3(target=4) slot=73 key=08 84 04 49
+payload[16]=49 00 02 02 01 01 00 00 27 27 00 00 00 00 00 00 decoded-function[7]=02 01 00 27 00 00 00 block=02010027000000 class=0x02 len=1 data=00
+button stored-slot=3(target=4) slot=74 key=08 84 04 4a
+payload[16]=4a 00 02 02 01 01 00 00 2d 2d 00 00 00 00 00 00 decoded-function[7]=02 01 00 2d 00 00 00 block=0201002d000000 class=0x02 len=1 data=00
+button stored-slot=3(target=4) slot=75 key=08 84 04 4b
+payload[16]=4b 00 02 02 01 01 00 00 2e 2e 00 00 00 00 00 00 decoded-function[7]=02 01 00 2e 00 00 00 block=0201002e000000 class=0x02 len=1 data=00
+button stored-slot=3(target=4) slot=80 key=08 84 04 50
+payload[16]=50 00 02 02 01 01 00 00 1e 1e 00 00 00 00 00 00 decoded-function[7]=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=3(target=4) slot=81 key=08 84 04 51
+payload[16]=51 00 02 02 01 01 00 00 1f 1f 00 00 00 00 00 00 decoded-function[7]=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=3(target=4) slot=82 key=08 84 04 52
+payload[16]=52 00 02 02 01 01 00 00 20 20 00 00 00 00 00 00 decoded-function[7]=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=3(target=4) slot=83 key=08 84 04 53
+payload[16]=53 00 02 02 01 01 00 00 21 21 00 00 00 00 00 00 decoded-function[7]=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=3(target=4) slot=84 key=08 84 04 54
+payload[16]=54 00 02 02 01 01 00 00 22 22 00 00 00 00 00 00 decoded-function[7]=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=3(target=4) slot=85 key=08 84 04 55
+payload[16]=55 00 02 02 01 01 00 00 23 23 00 00 00 00 00 00 decoded-function[7]=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=3(target=4) slot=96 key=08 84 04 60
+payload[16]=60 00 06 06 01 01 06 06 00 00 00 00 00 00 00 00 decoded-function[7]=06 01 06 00 00 00 00 block=06010600000000 class=0x06 len=1 data=06
+button stored-slot=3(target=4) slot=109 key=08 84 04 6d
+payload[16]=6d 00 12 12 01 01 04 04 00 00 00 00 00 00 00 00 decoded-function[7]=12 01 04 00 00 00 00 block=12010400000000 class=0x12 len=1 data=04
+button stored-slot=4(target=5) slot=1 key=08 84 05 01
+payload[16]=01 00 01 01 01 01 01 01 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 01 00 00 00 00 block=01010100000000 class=0x01 len=1 data=01
+button stored-slot=4(target=5) slot=2 key=08 84 05 02
+payload[16]=02 00 01 01 01 01 02 02 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 02 00 00 00 00 block=01010200000000 class=0x01 len=1 data=02
+button stored-slot=4(target=5) slot=3 key=08 84 05 03
+payload[16]=03 00 01 01 01 01 03 03 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 03 00 00 00 00 block=01010300000000 class=0x01 len=1 data=03
+button stored-slot=4(target=5) slot=4 key=08 84 05 04
+payload[16]=04 00 01 01 01 01 04 04 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 04 00 00 00 00 block=01010400000000 class=0x01 len=1 data=04
+button stored-slot=4(target=5) slot=5 key=08 84 05 05
+payload[16]=05 00 01 01 01 01 05 05 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 05 00 00 00 00 block=01010500000000 class=0x01 len=1 data=05
+button stored-slot=4(target=5) slot=9 key=08 84 05 09
+payload[16]=09 00 01 01 01 01 09 09 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 09 00 00 00 00 block=01010900000000 class=0x01 len=1 data=09
+button stored-slot=4(target=5) slot=10 key=08 84 05 0a
+payload[16]=0a 00 01 01 01 01 0a 0a 00 00 00 00 00 00 00 00 decoded-function[7]=01 01 0a 00 00 00 00 block=01010a00000000 class=0x01 len=1 data=0a
+button stored-slot=4(target=5) slot=14 key=08 84 05 0e
+payload[16]=0e 00 07 07 01 01 04 04 00 00 00 00 00 00 00 00 decoded-function[7]=07 01 04 00 00 00 00 block=07010400000000 class=0x07 len=1 data=04
+button stored-slot=4(target=5) slot=52 key=08 84 05 34
+payload[16]=34 00 0e 0e 01 01 68 68 00 00 14 14 00 00 00 00 decoded-function[7]=0e 01 68 00 14 00 00 block=0e016800140000 class=0x0e len=1 data=68
+button stored-slot=4(target=5) slot=53 key=08 84 05 35
+payload[16]=35 00 0e 0e 01 01 69 69 00 00 14 14 00 00 00 00 decoded-function[7]=0e 01 69 00 14 00 00 block=0e016900140000 class=0x0e len=1 data=69
+button stored-slot=4(target=5) slot=64 key=08 84 05 40
+payload[16]=40 00 02 02 01 01 00 00 1e 1e 00 00 00 00 00 00 decoded-function[7]=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=4(target=5) slot=65 key=08 84 05 41
+payload[16]=41 00 02 02 01 01 00 00 1f 1f 00 00 00 00 00 00 decoded-function[7]=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=4(target=5) slot=66 key=08 84 05 42
+payload[16]=42 00 02 02 01 01 00 00 20 20 00 00 00 00 00 00 decoded-function[7]=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=4(target=5) slot=67 key=08 84 05 43
+payload[16]=43 00 02 02 01 01 00 00 21 21 00 00 00 00 00 00 decoded-function[7]=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=4(target=5) slot=68 key=08 84 05 44
+payload[16]=44 00 02 02 01 01 00 00 22 22 00 00 00 00 00 00 decoded-function[7]=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=4(target=5) slot=69 key=08 84 05 45
+payload[16]=45 00 02 02 01 01 00 00 23 23 00 00 00 00 00 00 decoded-function[7]=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=4(target=5) slot=70 key=08 84 05 46
+payload[16]=46 00 02 02 01 01 00 00 24 24 00 00 00 00 00 00 decoded-function[7]=02 01 00 24 00 00 00 block=02010024000000 class=0x02 len=1 data=00
+button stored-slot=4(target=5) slot=71 key=08 84 05 47
+payload[16]=47 00 02 02 01 01 00 00 25 25 00 00 00 00 00 00 decoded-function[7]=02 01 00 25 00 00 00 block=02010025000000 class=0x02 len=1 data=00
+button stored-slot=4(target=5) slot=72 key=08 84 05 48
+payload[16]=48 00 02 02 01 01 00 00 26 26 00 00 00 00 00 00 decoded-function[7]=02 01 00 26 00 00 00 block=02010026000000 class=0x02 len=1 data=00
+button stored-slot=4(target=5) slot=73 key=08 84 05 49
+payload[16]=49 00 02 02 01 01 00 00 27 27 00 00 00 00 00 00 decoded-function[7]=02 01 00 27 00 00 00 block=02010027000000 class=0x02 len=1 data=00
+button stored-slot=4(target=5) slot=74 key=08 84 05 4a
+payload[16]=4a 00 02 02 01 01 00 00 2d 2d 00 00 00 00 00 00 decoded-function[7]=02 01 00 2d 00 00 00 block=0201002d000000 class=0x02 len=1 data=00
+button stored-slot=4(target=5) slot=75 key=08 84 05 4b
+payload[16]=4b 00 02 02 01 01 00 00 2e 2e 00 00 00 00 00 00 decoded-function[7]=02 01 00 2e 00 00 00 block=0201002e000000 class=0x02 len=1 data=00
+button stored-slot=4(target=5) slot=80 key=08 84 05 50
+payload[16]=50 00 02 02 01 01 00 00 1e 1e 00 00 00 00 00 00 decoded-function[7]=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=4(target=5) slot=81 key=08 84 05 51
+payload[16]=51 00 02 02 01 01 00 00 1f 1f 00 00 00 00 00 00 decoded-function[7]=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=4(target=5) slot=82 key=08 84 05 52
+payload[16]=52 00 02 02 01 01 00 00 20 20 00 00 00 00 00 00 decoded-function[7]=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=4(target=5) slot=83 key=08 84 05 53
+payload[16]=53 00 02 02 01 01 00 00 21 21 00 00 00 00 00 00 decoded-function[7]=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=4(target=5) slot=84 key=08 84 05 54
+payload[16]=54 00 02 02 01 01 00 00 22 22 00 00 00 00 00 00 decoded-function[7]=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=4(target=5) slot=85 key=08 84 05 55
+payload[16]=55 00 02 02 01 01 00 00 23 23 00 00 00 00 00 00 decoded-function[7]=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=4(target=5) slot=96 key=08 84 05 60
+payload[16]=60 00 06 06 01 01 06 06 00 00 00 00 00 00 00 00 decoded-function[7]=06 01 06 00 00 00 00 block=06010600000000 class=0x06 len=1 data=06
+button stored-slot=4(target=5) slot=109 key=08 84 05 6d
+payload[16]=6d 00 12 12 01 01 04 04 00 00 00 00 00 00 00 00 decoded-function[7]=12 01 04 00 00 00 00 block=12010400000000 class=0x12 len=1 data=04
+
+$ OpenSnekProbe bt-raw-read --key 07800000 --name Naga V2 Pro --timeout-ms 10000
+bt-raw-read req=0x30 key=07 80 00 00 name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x05 len=0 30 00 00 00 00 00 00 05 00 00 00 00 00 00 00 00 50 72 00 00
+payload: nil
+
+$ OpenSnekProbe bt-raw-read --key 07810000 --name Naga V2 Pro --timeout-ms 10000
+bt-raw-read req=0x30 key=07 81 00 00 name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x05 len=0 30 00 00 00 00 00 00 05 00 00 00 00 00 00 00 00 50 72 00 00
+payload: nil
+
+$ OpenSnekProbe bt-raw-read --key 05810001 --name Naga V2 Pro --timeout-ms 10000
+bt-raw-read req=0x30 key=05 81 00 01 name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02 00 00 00 00 00 00 00 00 50 72 00 00
+notify[2] len=20 req=0x45 status=0x02 len=1 45 01 00 00 00 00 00 02 00 00 00 00 00 00 00 00 50 72 00 00
+payload[1]: 45
+
+$ OpenSnekProbe bt-raw-read --key 05800001 --name Naga V2 Pro --timeout-ms 10000
+bt-raw-read req=0x30 key=05 80 00 01 name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02 00 00 00 00 00 00 00 00 50 72 00 00
+notify[2] len=20 req=0x01 status=0x02 len=1 01 01 00 00 00 00 00 02 00 00 00 00 00 00 00 00 50 72 00 00
+payload[1]: 01
+
+$ OpenSnekProbe bt-profile-button-read --stored-slot 2 --button-slot 64 --name Naga V2 Pro --timeout-ms 10000
+bt-profile-button-read stored-slot=2(target=3) slot=64 key=08 84 03 40 name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x02 len=16 30 10 00 00 00 00 00 02 00 00 00 00 00 00 00 00 50 72 00 00
+notify[2] len=20 req=0x40 status=0x00 len=0 40 00 02 02 01 01 00 00 1e 1e 00 00 00 00 00 00 50 72 00 00
+payload[16]=40 00 02 02 01 01 00 00 1e 1e 00 00 00 00 00 00 decoded-function[7]=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+
+$ OpenSnekProbe bt-profile-button-set --stored-slot 2 --button-slot 64 --kind keyboard_simple --hid-key 0x1d --yes --name Naga V2 Pro --timeout-ms 10000
+bt-profile-button-set stored-slot=2(target=3) slot=64 key=08 04 03 40 payload=03 40 00 02 02 00 1d 00 00 00 status=0x02
+readback stored-slot=2(target=3) slot=64
+payload[16]=40 00 02 02 02 01 00 00 1d 1e 00 00 00 00 00 00 decoded-even-lane[7]=02 02 00 1d 00 00 00 block=0202001d000000 class=0x02 len=2 data=001d decoded-odd-lane[7]=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+
+$ OpenSnekProbe bt-profile-button-read --stored-slot 2 --button-slot 64 --name Naga V2 Pro --timeout-ms 10000
+bt-profile-button-read stored-slot=2(target=3) slot=64 key=08 84 03 40 name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 1d 1e 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x02 len=16 30 10 00 00 00 00 00 02 1d 1e 00 00 00 00 00 00 50 72 00 00
+notify[2] len=20 req=0x40 status=0x00 len=0 40 00 02 02 02 01 00 00 1d 1e 00 00 00 00 00 00 50 72 00 00
+payload[16]=40 00 02 02 02 01 00 00 1d 1e 00 00 00 00 00 00 decoded-even-lane[7]=02 02 00 1d 00 00 00 block=0202001d000000 class=0x02 len=2 data=001d decoded-odd-lane[7]=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+
+$ OpenSnekProbe bt-profile-button-set --stored-slot 2 --button-slot 64 --payload 0340000201001e000000 --yes --name Naga V2 Pro --timeout-ms 10000
+bt-profile-button-set stored-slot=2(target=3) slot=64 key=08 04 03 40 payload=03 40 00 02 01 00 1e 00 00 00 status=0x02
+readback stored-slot=2(target=3) slot=64
+payload[16]=40 00 02 02 01 01 00 00 1e 1e 00 00 00 00 00 00 decoded-function[7]=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+
+$ OpenSnekProbe bt-profile-button-read --stored-slot 2 --button-slot 64 --name Naga V2 Pro --timeout-ms 10000
+bt-profile-button-read stored-slot=2(target=3) slot=64 key=08 84 03 40 name="Naga V2 Pro"
+notify[0] len=20 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03 1e 1e 00 00 00 00 00 00 50 72 00 00
+notify[1] len=20 req=0x30 status=0x02 len=16 30 10 00 00 00 00 00 02 1e 1e 00 00 00 00 00 00 50 72 00 00
+notify[2] len=20 req=0x40 status=0x00 len=0 40 00 02 02 01 01 00 00 1e 1e 00 00 00 00 00 00 50 72 00 00
+payload[16]=40 00 02 02 01 01 00 00 1e 1e 00 00 00 00 00 00 decoded-function[7]=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
