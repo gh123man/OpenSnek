@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Fixed
-- Fixed the menu bar device pick being reverted when the OpenSnek window was opened afterwards. Clicking Show OpenSnek after picking a device in the menu bar now opens the window on that device and keeps the menu bar on it instead of snapping both back to the previous device.
+- Fixed the menu bar device pick being reverted when the OpenSnek window was opened afterwards. Clicking Show OpenSnek after picking a device in the menu bar now opens the window on that device and keeps the menu bar on it instead of snapping both back to the previous device. Rapid window picks stay on the latest selected device while earlier service acknowledgments are in flight.
 
 ## [1.4.0-rc.1]
 

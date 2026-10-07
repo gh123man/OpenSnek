@@ -257,7 +257,8 @@ final class RemoteServiceSnapshotConnectivityTests: XCTestCase {
         XCTAssertEqual(selectionWhilePending, alphaDevice.id)
 
         // The service echoes the local pick.
-        let alphaSnapshot = makeSelectionSnapshot(devices: [alphaDevice, betaDevice], selectedDeviceID: alphaDevice.id)
+        let presence = await MainActor.run { appState.runtimeController.remoteClientPresence(explicit: true) }
+        let alphaSnapshot = makeSelectionSnapshot(devices: [alphaDevice, betaDevice], selectedDeviceID: alphaDevice.id, acknowledging: presence)
         await MainActor.run { appState.deviceStore.applyRemoteServiceSnapshot(alphaSnapshot) }
         let selectionAfterEcho = await MainActor.run { appState.deviceStore.selectedDeviceID }
         XCTAssertEqual(selectionAfterEcho, alphaDevice.id)
@@ -268,9 +269,65 @@ final class RemoteServiceSnapshotConnectivityTests: XCTestCase {
         XCTAssertEqual(selectionAfterServiceMove, betaDevice.id)
     }
 
-    private func makeSelectionSnapshot(devices: [MouseDevice], selectedDeviceID: String?) -> SharedServiceSnapshot {
+    func testDelayedEchoOfEarlierPickDoesNotOverrideLatestPick() async {
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: SnapshotTestRemoteBackend(), autoStart: false) }
+        let alphaDevice = makeSnapshotDevice(id: "alpha-device", productName: "Alpha Mouse", identity: SnapshotDeviceIdentity(transport: .usb, serial: "ALPHA", locationID: 1), profile: .basiliskV3Pro)
+        let betaDevice = makeSnapshotDevice(id: "beta-device", productName: "Beta Mouse", identity: SnapshotDeviceIdentity(transport: .usb, serial: "BETA", locationID: 2), profile: .basiliskV3Pro)
+        let devices = [alphaDevice, betaDevice]
+        let initialSnapshot = makeSelectionSnapshot(devices: devices, selectedDeviceID: alphaDevice.id)
+        await MainActor.run { appState.deviceStore.applyRemoteServiceSnapshot(initialSnapshot) }
+        let betaPick = await MainActor.run {
+            appState.deviceStore.selectDevice(betaDevice.id)
+            return appState.runtimeController.remoteClientPresence(explicit: true)
+        }
+        let alphaPick = await MainActor.run {
+            appState.deviceStore.selectDevice(alphaDevice.id)
+            return appState.runtimeController.remoteClientPresence(explicit: true)
+        }
+
+        // Even a stale A snapshot must not acknowledge the latest A pick by identity alone.
+        await MainActor.run { appState.deviceStore.applyRemoteServiceSnapshot(initialSnapshot) }
+        let delayedBetaEcho = makeSelectionSnapshot(devices: devices, selectedDeviceID: betaDevice.id, acknowledging: betaPick)
+        await MainActor.run { appState.deviceStore.applyRemoteServiceSnapshot(delayedBetaEcho) }
+        let pendingSelection = await MainActor.run { appState.deviceStore.selectedDeviceID }
+        XCTAssertEqual(pendingSelection, alphaDevice.id)
+
+        let alphaEcho = makeSelectionSnapshot(devices: devices, selectedDeviceID: alphaDevice.id, acknowledging: alphaPick)
+        await MainActor.run { appState.deviceStore.applyRemoteServiceSnapshot(alphaEcho) }
+        let laterMenuPick = makeSelectionSnapshot(devices: devices, selectedDeviceID: betaDevice.id, acknowledging: alphaPick)
+        await MainActor.run { appState.deviceStore.applyRemoteServiceSnapshot(laterMenuPick) }
+        let laterSelection = await MainActor.run { appState.deviceStore.selectedDeviceID }
+        XCTAssertEqual(laterSelection, betaDevice.id)
+    }
+
+    func testPendingPickDoesNotBlockSelectionAfterDeviceDisconnectAndReconnect() async {
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: SnapshotTestRemoteBackend(), autoStart: false) }
+        let alphaDevice = makeSnapshotDevice(id: "alpha-device", productName: "Alpha Mouse", identity: SnapshotDeviceIdentity(transport: .usb, serial: "ALPHA", locationID: 1), profile: .basiliskV3Pro)
+        let betaDevice = makeSnapshotDevice(id: "beta-device", productName: "Beta Mouse", identity: SnapshotDeviceIdentity(transport: .usb, serial: "BETA", locationID: 2), profile: .basiliskV3Pro)
+        let initialSnapshot = makeSelectionSnapshot(devices: [alphaDevice, betaDevice], selectedDeviceID: alphaDevice.id)
+        await MainActor.run {
+            appState.deviceStore.applyRemoteServiceSnapshot(initialSnapshot)
+            appState.deviceStore.selectDevice(betaDevice.id)
+        }
+        let disconnectedSnapshot = makeSelectionSnapshot(devices: [alphaDevice], selectedDeviceID: alphaDevice.id)
+        await MainActor.run { appState.deviceStore.applyRemoteServiceSnapshot(disconnectedSnapshot) }
+        let disconnectedSelection = await MainActor.run { appState.deviceStore.selectedDeviceID }
+        XCTAssertEqual(disconnectedSelection, alphaDevice.id)
+
+        let reconnectedSnapshot = makeSelectionSnapshot(devices: [alphaDevice, betaDevice], selectedDeviceID: betaDevice.id)
+        await MainActor.run { appState.deviceStore.applyRemoteServiceSnapshot(reconnectedSnapshot) }
+        let reconnectedSelection = await MainActor.run { appState.deviceStore.selectedDeviceID }
+        XCTAssertEqual(reconnectedSelection, betaDevice.id)
+        await MainActor.run { appState.deviceStore.applyRemoteServiceSnapshot(initialSnapshot) }
+        let laterSelection = await MainActor.run { appState.deviceStore.selectedDeviceID }
+        XCTAssertEqual(laterSelection, alphaDevice.id)
+    }
+
+    private func makeSelectionSnapshot(devices: [MouseDevice], selectedDeviceID: String?, acknowledging presence: CrossProcessClientPresence? = nil) -> SharedServiceSnapshot {
         let updatedAt = Date(timeIntervalSince1970: 1_773_520_000)
         let states = Dictionary(uniqueKeysWithValues: devices.map { device in (device.id, makeSnapshotState(device: device, connection: device.transport == .usb ? "usb" : "bluetooth", batteryPercent: 80, dpiValues: [800, 1600], activeStage: 0)) })
-        return SharedServiceSnapshot(devices: devices, stateByDeviceID: states, lastUpdatedByDeviceID: Dictionary(uniqueKeysWithValues: devices.map { ($0.id, updatedAt) }), selectedDeviceID: selectedDeviceID)
+        return SharedServiceSnapshot(
+            devices: devices, stateByDeviceID: states, lastUpdatedByDeviceID: Dictionary(uniqueKeysWithValues: devices.map { ($0.id, updatedAt) }), selectedDeviceID: selectedDeviceID,
+            acknowledgedSelections: presence.flatMap { presence in presence.selectionRequestID.map { [presence.sourceProcessID: $0] } } ?? [:])
     }
 }

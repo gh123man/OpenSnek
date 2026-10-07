@@ -44,8 +44,7 @@ final actor IPCDeviceBackend: HIDAccessRefreshControllingBackend, ApplyOptionsSu
         return await remoteSubscription.makeStream()
     }
 
-    func updateRemoteClientPresence(sourceProcessID: Int32, selectedDeviceID: String?, isExplicitSelection: Bool) async {
-        let presence = CrossProcessClientPresence(sourceProcessID: sourceProcessID, selectedDeviceID: selectedDeviceID, isExplicitSelection: isExplicitSelection)
+    func updateRemoteClientPresence(_ presence: CrossProcessClientPresence) async {
         latestRemoteClientPresence = presence
         guard let remoteSubscription else { return }
         await remoteSubscription.updatePresence(presence)

@@ -31,7 +31,7 @@ import OpenSnekHardware
         let deviceListChanged = shouldApplyDeviceList ? applyDeviceList(snapshot.devices, source: "subscription") : false
         didApplySnapshotChange = didApplySnapshotChange || deviceListChanged
 
-        if let runtimeController = optionalRuntimeController, let serviceSelectedDeviceID = runtimeController.preferredClientSelectedDeviceID(snapshotSelectedDeviceID: snapshot.selectedDeviceID, availableDeviceIDs: liveIDs), serviceSelectedDeviceID != deviceStore.selectedDeviceID {
+        if let runtimeController = optionalRuntimeController, let serviceSelectedDeviceID = runtimeController.preferredClientSelectedDeviceID(snapshot: snapshot, availableDeviceIDs: liveIDs), serviceSelectedDeviceID != deviceStore.selectedDeviceID {
             adoptRemoteServiceSelection(deviceID: serviceSelectedDeviceID)
             didApplySnapshotChange = true
         }
