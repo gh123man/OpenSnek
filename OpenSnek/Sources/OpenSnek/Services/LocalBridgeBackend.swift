@@ -31,6 +31,8 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     private var activeBluetoothWarmupKeys: Set<String> = []
     private var activeApplyCount = 0
     private var maxConcurrentApplyCount = 0
+    private var serviceSelectedDeviceID: String?
+    private var acknowledgedSelections: [Int32: UUID] = [:]
 
     nonisolated var usesRemoteServiceTransport: Bool { false }
 
@@ -805,6 +807,14 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         Task { [softwareLightingEngine] in for input in recoveryInputs { _ = try? await softwareLightingEngine.resumeIfNeeded(device: input.device, batteryPercent: input.batteryPercent) } }
     }
 
+    func updateServiceSelectedDeviceID(_ deviceID: String?, acknowledgedSelections: [Int32: UUID]) async {
+        guard OpenSnekProcessRole.current.isService else { return }
+        guard serviceSelectedDeviceID != deviceID || self.acknowledgedSelections != acknowledgedSelections else { return }
+        serviceSelectedDeviceID = deviceID
+        self.acknowledgedSelections = acknowledgedSelections
+        publishSnapshotIfService()
+    }
+
     private func publishSnapshotIfService() {
         guard OpenSnekProcessRole.current.isService else { return }
         let liveIDs = Set(cachedDevices.map(\.id))
@@ -812,7 +822,8 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
             .snapshot(
                 SharedServiceSnapshot(
                     devices: cachedDevices, stateByDeviceID: cachedStateByDeviceID.filter { liveIDs.contains($0.key) }, lastUpdatedByDeviceID: cachedStateAtByDeviceID.filter { liveIDs.contains($0.key) }, observedAtByDeviceID: latestObservedAtByDeviceID(liveIDs: liveIDs),
-                    softwareLightingStatusByDeviceID: softwareLightingStatusByDeviceID.filter { liveIDs.contains($0.key) }, usbControlAvailabilityByDeviceID: usbControlAvailabilityByDeviceID.filter { liveIDs.contains($0.key) })))
+                    softwareLightingStatusByDeviceID: softwareLightingStatusByDeviceID.filter { liveIDs.contains($0.key) }, usbControlAvailabilityByDeviceID: usbControlAvailabilityByDeviceID.filter { liveIDs.contains($0.key) }, selectedDeviceID: serviceSelectedDeviceID,
+                    acknowledgedSelections: acknowledgedSelections)))
     }
 
     private func latestObservedAtByDeviceID(liveIDs: Set<String>) -> [String: Date] {

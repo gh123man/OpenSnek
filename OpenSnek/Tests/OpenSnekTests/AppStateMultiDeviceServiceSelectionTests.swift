@@ -328,14 +328,14 @@ final class AppStateMultiDeviceServiceSelectionTests: XCTestCase {
 
         // A deliberate remote selection change hands selection authority back to the app client.
         await MainActor.run {
-            appState.runtimeStore.recordRemoteClientPresence(CrossProcessClientPresence(sourceProcessID: 101, selectedDeviceID: alphaDevice.id), now: Date())
+            appState.runtimeStore.recordRemoteClientPresence(CrossProcessClientPresence(sourceProcessID: 101, selectedDeviceID: alphaDevice.id, isExplicitSelection: true), now: Date())
             _ = appState.deviceController.applyDeviceList([alphaDevice, betaDevice], source: "subscription")
         }
         let selectionAfterRemoteChange = await MainActor.run { appState.deviceStore.selectedDeviceID }
         XCTAssertEqual(selectionAfterRemoteChange, alphaDevice.id)
 
         await MainActor.run {
-            appState.runtimeStore.recordRemoteClientPresence(CrossProcessClientPresence(sourceProcessID: 101, selectedDeviceID: betaDevice.id), now: Date())
+            appState.runtimeStore.recordRemoteClientPresence(CrossProcessClientPresence(sourceProcessID: 101, selectedDeviceID: betaDevice.id, isExplicitSelection: true), now: Date())
             _ = appState.deviceController.applyDeviceList([alphaDevice, betaDevice], source: "subscription")
         }
         let selectionAfterSecondRemoteChange = await MainActor.run { appState.deviceStore.selectedDeviceID }
@@ -364,4 +364,77 @@ final class AppStateMultiDeviceServiceSelectionTests: XCTestCase {
         XCTAssertEqual(activeDeviceIDs.first, alphaDevice.id)
         XCTAssertTrue(activeDeviceIDs.contains(betaDevice.id))
     }
+
+    func testServiceMenuSelectionSurvivesNewlyLaunchedClientPresence() async {
+        let alphaDevice = makeTestDevice(id: "alpha-device", productName: "Alpha Mouse", identity: MultiDeviceTestIdentity(transport: .usb, serial: "ALPHA", locationID: 1), profile: .basiliskV3Pro)
+        let betaDevice = makeTestDevice(id: "beta-device", productName: "Beta Mouse", identity: MultiDeviceTestIdentity(transport: .usb, serial: "BETA", locationID: 2), profile: .basiliskV3Pro)
+        let backend = MultiDeviceStubBackend(
+            devices: [alphaDevice, betaDevice],
+            stateByDeviceID: [
+                alphaDevice.id: makeTestState(device: alphaDevice, connection: "usb", batteryPercent: 81, dpiValues: [800, 1600, 2400], activeStage: 0), betaDevice.id: makeTestState(device: betaDevice, connection: "usb", batteryPercent: 77, dpiValues: [1000, 2000, 3000], activeStage: 0)
+            ])
+        let appState = await MainActor.run { AppState(launchRole: .service, backend: backend, autoStart: false) }
+
+        await MainActor.run {
+            appState.deviceStore.devices = [alphaDevice, betaDevice]
+            appState.deviceStore.selectedDeviceID = betaDevice.id
+            appState.deviceStore.selectDevice(alphaDevice.id)
+            _ = appState.deviceController.applyDeviceList([alphaDevice, betaDevice], source: "subscription")
+        }
+        let selectionAfterMenuPick = await MainActor.run { appState.deviceStore.selectedDeviceID }
+        XCTAssertEqual(selectionAfterMenuPick, alphaDevice.id)
+
+        // "Show OpenSnek" launches a fresh app process. Its subscription registers with no
+        // selection, then its boot-time default arrives; neither is a deliberate pick.
+        await MainActor.run {
+            appState.runtimeStore.recordRemoteClientPresence(CrossProcessClientPresence(sourceProcessID: 202, selectedDeviceID: nil), now: Date())
+            appState.runtimeStore.recordRemoteClientPresence(CrossProcessClientPresence(sourceProcessID: 202, selectedDeviceID: betaDevice.id), now: Date())
+            _ = appState.deviceController.applyDeviceList([alphaDevice, betaDevice], source: "subscription")
+        }
+        let selectionAfterClientLaunch = await MainActor.run { appState.deviceStore.selectedDeviceID }
+        XCTAssertEqual(selectionAfterClientLaunch, alphaDevice.id)
+
+        // A deliberate pick in the window hands selection authority back to the client.
+        await MainActor.run {
+            appState.runtimeStore.recordRemoteClientPresence(CrossProcessClientPresence(sourceProcessID: 202, selectedDeviceID: betaDevice.id, isExplicitSelection: true), now: Date())
+            _ = appState.deviceController.applyDeviceList([alphaDevice, betaDevice], source: "subscription")
+        }
+        let selectionAfterExplicitPick = await MainActor.run { appState.deviceStore.selectedDeviceID }
+        XCTAssertEqual(selectionAfterExplicitPick, betaDevice.id)
+    }
+    func testExplicitPickPublishesAcknowledgmentEvenWhenSelectionIsUnchanged() async throws {
+        let device = makeTestDevice(id: "alpha-device", productName: "Alpha Mouse", identity: MultiDeviceTestIdentity(transport: .usb, serial: "ALPHA", locationID: 1), profile: .basiliskV3Pro)
+        let backend = MultiDeviceStubBackend(devices: [device], stateByDeviceID: [:])
+        let appState = await MainActor.run { AppState(launchRole: .service, backend: backend, autoStart: false) }
+        let requestID = UUID()
+        await MainActor.run {
+            appState.deviceStore.devices = [device]
+            appState.deviceStore.selectedDeviceID = device.id
+            appState.runtimeStore.recordRemoteClientPresence(CrossProcessClientPresence(sourceProcessID: 202, selectedDeviceID: device.id, isExplicitSelection: true, selectionRequestID: requestID))
+        }
+        try await waitForAppStateCondition(timeout: 2.0) { await backend.publishedSelection()?.acknowledgedSelections?[202] == requestID }
+        let snapshot = await backend.publishedSelection()
+        XCTAssertEqual(snapshot?.selectedDeviceID, device.id)
+    }
+
+    func testPendingPickIsAcknowledgedAfterClientReconnect() async throws {
+        let alphaDevice = makeTestDevice(id: "alpha-device", productName: "Alpha Mouse", identity: MultiDeviceTestIdentity(transport: .usb, serial: "ALPHA", locationID: 1), profile: .basiliskV3Pro)
+        let betaDevice = makeTestDevice(id: "beta-device", productName: "Beta Mouse", identity: MultiDeviceTestIdentity(transport: .usb, serial: "BETA", locationID: 2), profile: .basiliskV3Pro)
+        let backend = MultiDeviceStubBackend(devices: [alphaDevice, betaDevice], stateByDeviceID: [:])
+        let appState = await MainActor.run { AppState(launchRole: .service, backend: backend, autoStart: false) }
+        let requestID = UUID()
+        await MainActor.run {
+            appState.deviceStore.devices = [alphaDevice, betaDevice]
+            appState.deviceStore.selectedDeviceID = alphaDevice.id
+            appState.runtimeStore.recordRemoteClientPresence(CrossProcessClientPresence(sourceProcessID: 202, selectedDeviceID: alphaDevice.id))
+            appState.runtimeController.clearRemoteClientPresence(processID: 202)
+            appState.deviceStore.selectDevice(betaDevice.id)
+            // On reconnect the pending window pick arrives in a heartbeat, not another click.
+            appState.runtimeStore.recordRemoteClientPresence(CrossProcessClientPresence(sourceProcessID: 202, selectedDeviceID: alphaDevice.id, selectionRequestID: requestID))
+        }
+        try await waitForAppStateCondition(timeout: 2.0) { await backend.publishedSelection()?.acknowledgedSelections?[202] == requestID }
+        let snapshot = await backend.publishedSelection()
+        XCTAssertEqual(snapshot?.selectedDeviceID, alphaDevice.id)
+    }
+
 }

@@ -13,6 +13,7 @@ actor MultiDeviceStubBackend: DeviceBackend {
     private var stateByDeviceID: [String: MouseState]
     private var fastByDeviceID: [String: DpiFastSnapshot]
     private var readOrder: [String] = []
+    private var selectionSnapshot: SharedServiceSnapshot?
 
     init(devices: [MouseDevice], stateByDeviceID: [String: MouseState]) {
         self.devices = devices
@@ -41,6 +42,12 @@ actor MultiDeviceStubBackend: DeviceBackend {
     func readLightingColor(device _: MouseDevice) async throws -> RGBPatch? { nil }
 
     func debugUSBReadButtonBinding(device _: MouseDevice, slot _: Int, profile _: Int) async throws -> [UInt8]? { nil }
+
+    func updateServiceSelectedDeviceID(_ deviceID: String?, acknowledgedSelections: [Int32: UUID]) async {
+        selectionSnapshot = SharedServiceSnapshot(devices: devices, stateByDeviceID: stateByDeviceID, lastUpdatedByDeviceID: [:], selectedDeviceID: deviceID, acknowledgedSelections: acknowledgedSelections)
+    }
+
+    func publishedSelection() -> SharedServiceSnapshot? { selectionSnapshot }
 
     func recordedReadOrder() -> [String] { readOrder }
 

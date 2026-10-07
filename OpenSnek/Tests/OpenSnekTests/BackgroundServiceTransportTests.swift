@@ -86,7 +86,8 @@ final class BackgroundServiceTransportTests: XCTestCase {
 
         try await waitUntil { await recorder.hasPresence(for: Int32(ProcessInfo.processInfo.processIdentifier)) }
 
-        let snapshot = await backend.snapshot(updatedAt: Date(timeIntervalSince1970: 1_774_000_000))
+        let acknowledgments = [Int32(ProcessInfo.processInfo.processIdentifier): UUID()]
+        let snapshot = await backend.snapshot(updatedAt: Date(timeIntervalSince1970: 1_774_000_000), acknowledgedSelections: acknowledgments)
         await backend.emit(.snapshot(snapshot))
 
         guard let update = await receivedUpdate else {
@@ -96,6 +97,8 @@ final class BackgroundServiceTransportTests: XCTestCase {
         switch update {
         case .snapshot(let receivedSnapshot):
             XCTAssertEqual(receivedSnapshot.devices.map(\.id), [snapshot.devices[0].id])
+            XCTAssertEqual(receivedSnapshot.selectedDeviceID, snapshot.devices[0].id)
+            XCTAssertEqual(receivedSnapshot.acknowledgedSelections, acknowledgments)
             XCTAssertEqual(receivedSnapshot.stateByDeviceID[snapshot.devices[0].id]?.dpi?.x, snapshot.stateByDeviceID[snapshot.devices[0].id]?.dpi?.x)
         default: XCTFail("Expected snapshot update, got \(update)")
         }
@@ -123,9 +126,12 @@ final class BackgroundServiceTransportTests: XCTestCase {
         let expectedProcessID = Int32(ProcessInfo.processInfo.processIdentifier)
         try await waitUntil { await recorder.hasPresence(for: expectedProcessID) }
 
-        await serviceBackend.updateRemoteClientPresence(sourceProcessID: expectedProcessID, selectedDeviceID: backend.device.id)
+        let requestID = UUID()
+        await serviceBackend.updateRemoteClientPresence(CrossProcessClientPresence(sourceProcessID: expectedProcessID, selectedDeviceID: backend.device.id, isExplicitSelection: true, selectionRequestID: requestID))
 
         try await waitUntil { await recorder.selectedDeviceID(for: expectedProcessID) == backend.device.id }
+        let receivedRequestID = await recorder.selectionRequestID(for: expectedProcessID)
+        XCTAssertEqual(receivedRequestID, requestID)
 
         consumer.cancel()
         _ = await consumer.result
@@ -250,7 +256,9 @@ private actor StubServiceBackend: HIDAccessRefreshControllingBackend {
 
     func emit(_ update: BackendStateUpdate) { stateUpdatesContinuation.yield(update) }
 
-    func snapshot(updatedAt: Date) -> SharedServiceSnapshot { SharedServiceSnapshot(devices: [device], stateByDeviceID: [device.id: state], lastUpdatedByDeviceID: [device.id: updatedAt], softwareLightingStatusByDeviceID: softwareLightingStatusByDeviceID) }
+    func snapshot(updatedAt: Date, acknowledgedSelections: [Int32: UUID] = [:]) -> SharedServiceSnapshot {
+        SharedServiceSnapshot(devices: [device], stateByDeviceID: [device.id: state], lastUpdatedByDeviceID: [device.id: updatedAt], softwareLightingStatusByDeviceID: softwareLightingStatusByDeviceID, selectedDeviceID: device.id, acknowledgedSelections: acknowledgedSelections)
+    }
 
     func apply(device _: MouseDevice, patch: DevicePatch) async throws -> MouseState {
         let nextValues = patch.dpiStages ?? state.dpi_stages.values
@@ -305,6 +313,8 @@ private actor RemotePresenceRecorder {
     func hasPresence(for processID: Int32) -> Bool { latestPresenceByProcessID[processID] != nil }
 
     func selectedDeviceID(for processID: Int32) -> String? { latestPresenceByProcessID[processID]?.selectedDeviceID }
+
+    func selectionRequestID(for processID: Int32) -> UUID? { latestPresenceByProcessID[processID]?.selectionRequestID }
 
     func didDisconnect(processID: Int32) -> Bool { disconnectedProcessIDs.contains(processID) }
 }
