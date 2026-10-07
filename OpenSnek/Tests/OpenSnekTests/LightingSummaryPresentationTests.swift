@@ -28,6 +28,29 @@ final class LightingSummaryPresentationTests: XCTestCase {
         XCTAssertEqual(presentation.swatches, [RGBColor(r: 1, g: 2, b: 3)])
         XCTAssertNil(presentation.batteryIcon)
     }
+    func testSuspendedBatteryMeterSummaryKeepsPresetInsteadOfOnboardFallback() {
+        let bandColors = [RGBColor(r: 255, g: 0, b: 0), RGBColor(r: 255, g: 255, b: 0), RGBColor(r: 0, g: 255, b: 0)]
+        let presentation = LightingSummaryPresentation.make(
+            LightingSummaryInput(
+                supportsSoftwareLightingEffects: true, softwareLightingStatus: SoftwareLightingEngineStatus(deviceID: "lighting-summary-device", state: .suspended, request: SoftwareLightingEffectRequest(presetID: .batteryMeter), message: "suspended"), editableSoftwareLightingPreset: .batteryMeter,
+                editableSoftwareLightingPalette: bandColors, onboardEffectLabel: "Static", onboardColors: [RGBColor(r: 0, g: 255, b: 0)], fallbackColor: RGBColor(r: 0, g: 255, b: 0), batteryState: nil))
+
+        XCTAssertEqual(presentation.title, "Battery Meter")
+        XCTAssertEqual(presentation.swatches, bandColors)
+        XCTAssertNil(presentation.batteryIcon)
+    }
+
+    func testBatteryMeterSummaryWithoutBatteryUsesBandColors() {
+        let bandColors = [RGBColor(r: 255, g: 0, b: 0), RGBColor(r: 255, g: 255, b: 0), RGBColor(r: 0, g: 0, b: 255)]
+        let presentation = LightingSummaryPresentation.make(
+            LightingSummaryInput(
+                supportsSoftwareLightingEffects: true, softwareLightingStatus: SoftwareLightingEngineStatus(deviceID: "lighting-summary-device", state: .running, request: SoftwareLightingEffectRequest(presetID: .batteryMeter)), editableSoftwareLightingPreset: .batteryMeter,
+                editableSoftwareLightingPalette: bandColors, onboardEffectLabel: "Static", onboardColors: [RGBColor(r: 0, g: 255, b: 0)], fallbackColor: RGBColor(r: 0, g: 255, b: 0), batteryState: nil))
+
+        XCTAssertEqual(presentation.title, "Battery Meter")
+        XCTAssertEqual(presentation.swatches, bandColors)
+        XCTAssertNil(presentation.batteryIcon)
+    }
 }
 
 private func makeLightingSummaryState(batteryPercent: Int) -> MouseState {

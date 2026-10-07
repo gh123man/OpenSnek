@@ -12,7 +12,9 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
 
     public static let animatedPresets: [SoftwareLightingPresetID] = [.flame, .scrollingRainbow, .cometChase, .nightRider, .aurora, .jellybeans]
 
-    public static let basiliskV3ProPresets: [SoftwareLightingPresetID] = animatedPresets + [.batteryMeter]
+    public static let batteryMeterAndAnimatedPresets: [SoftwareLightingPresetID] = animatedPresets + [.batteryMeter]
+
+    public static let basiliskV3ProPresets: [SoftwareLightingPresetID] = batteryMeterAndAnimatedPresets
 
     public var id: String { rawValue }
 
@@ -63,8 +65,7 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
 
     public var usesPaletteControls: Bool {
         switch self {
-        case .batteryMeter: return false
-        case .flame, .scrollingRainbow, .cometChase, .nightRider, .aurora, .jellybeans: return true
+        case .flame, .scrollingRainbow, .cometChase, .nightRider, .aurora, .jellybeans, .batteryMeter: return true
         }
     }
 
@@ -73,7 +74,8 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
     public var maximumPaletteColorCount: Int {
         switch self {
         case .nightRider: return 1
-        case .flame, .scrollingRainbow, .cometChase, .aurora, .jellybeans, .batteryMeter: return SoftwareLightingEffectRequest.maximumPaletteColorCount
+        case .batteryMeter: return 3
+        case .flame, .scrollingRainbow, .cometChase, .aurora, .jellybeans: return SoftwareLightingEffectRequest.maximumPaletteColorCount
         }
     }
 }
@@ -81,20 +83,33 @@ public enum SoftwareLightingPresetID: String, CaseIterable, Codable, Hashable, I
 /// Carries software lighting effect request data.
 public struct SoftwareLightingEffectRequest: Codable, Hashable, Sendable {
     public static let maximumPaletteColorCount = 8
+    public static let defaultBatteryLowThreshold = 15
+    public static let defaultBatteryMediumThreshold = 30
 
     public let presetID: SoftwareLightingPresetID
     public let framesPerSecond: Int
     public let intensity: Double
     public let speed: Double
     public let palette: [RGBPatch]
+    public let batteryLowThreshold: Int?
+    public let batteryMediumThreshold: Int?
+    public let batterySourceDeviceID: String?
 
-    public init(presetID: SoftwareLightingPresetID, framesPerSecond: Int = 30, intensity: Double = 1.0, speed: Double? = nil, palette: [RGBPatch]? = nil) {
+    public init(presetID: SoftwareLightingPresetID, framesPerSecond: Int = 30, intensity: Double = 1.0, speed: Double? = nil, palette: [RGBPatch]? = nil, batteryLowThreshold: Int? = nil, batteryMediumThreshold: Int? = nil, batterySourceDeviceID: String? = nil) {
         self.presetID = presetID
         self.framesPerSecond = max(1, min(30, framesPerSecond))
         self.intensity = max(0.0, min(1.0, intensity))
         self.speed = max(0.0, min(2.0, speed ?? presetID.defaultSpeed))
         self.palette = Self.normalizedPalette(palette ?? presetID.defaultPalette, fallback: presetID.defaultPalette, maximumColorCount: presetID.maximumPaletteColorCount)
+        let low = max(1, min(98, batteryLowThreshold ?? Self.defaultBatteryLowThreshold))
+        self.batteryLowThreshold = low
+        self.batteryMediumThreshold = max(low + 1, min(99, batteryMediumThreshold ?? Self.defaultBatteryMediumThreshold))
+        self.batterySourceDeviceID = batterySourceDeviceID
     }
+
+    public var resolvedBatteryLowThreshold: Int { batteryLowThreshold ?? Self.defaultBatteryLowThreshold }
+
+    public var resolvedBatteryMediumThreshold: Int { max(resolvedBatteryLowThreshold + 1, batteryMediumThreshold ?? Self.defaultBatteryMediumThreshold) }
 
     private static func normalizedPalette(_ palette: [RGBPatch], fallback: [RGBPatch], maximumColorCount: Int) -> [RGBPatch] {
         let source = palette.isEmpty ? fallback : palette
@@ -166,6 +181,8 @@ public struct SoftwareLightingFrameLayout: Codable, Hashable, Sendable {
     ]
 
     public static let basiliskV3ProUSB = SoftwareLightingFrameLayout(id: "basilisk_v3_family_usb_14_cell", label: "Basilisk V3-family USB 14-cell frame", cells: basiliskV3USBCells)
+
+    public static let mouseDockUSB = SoftwareLightingFrameLayout(id: "mouse_dock_usb_single_cell", label: "Mouse Dock USB single-cell frame", cells: [SoftwareLightingFrameCell(index: 0, id: "logo", label: "Logo")])
 }
 
 /// Stores USB lighting frame patch data.
@@ -211,13 +228,20 @@ public enum SoftwareLightingRenderer {
         let time: TimeInterval
         let intensity: Double
         let batteryPercent: Int?
+        let batteryLowThreshold: Int
+        let batteryMediumThreshold: Int
     }
 
     public static func render(request: SoftwareLightingEffectRequest, layout: SoftwareLightingFrameLayout, elapsedTime: TimeInterval, batteryPercent: Int? = nil) -> USBLightingFramePatch {
         let renderTime = max(0, elapsedTime)
         let animationTime: TimeInterval
         if request.presetID == .batteryMeter { animationTime = renderTime } else { animationTime = renderTime * request.speed * request.presetID.renderSpeedMultiplier }
-        let colors = (0..<layout.cellCount).map { index in color(RenderSample(preset: request.presetID, palette: request.palette, index: index, count: layout.cellCount, time: animationTime, intensity: request.intensity, batteryPercent: batteryPercent)) }
+        let colors = (0..<layout.cellCount).map { index in
+            color(
+                RenderSample(
+                    preset: request.presetID, palette: request.palette, index: index, count: layout.cellCount, time: animationTime, intensity: request.intensity, batteryPercent: batteryPercent, batteryLowThreshold: request.resolvedBatteryLowThreshold,
+                    batteryMediumThreshold: request.resolvedBatteryMediumThreshold))
+        }
         return USBLightingFramePatch(colors: colors)
     }
 
@@ -229,29 +253,48 @@ public enum SoftwareLightingRenderer {
         case .nightRider: return nightRider(palette: sample.palette, index: sample.index, count: sample.count, time: sample.time, intensity: sample.intensity)
         case .aurora: return aurora(palette: sample.palette, index: sample.index, count: sample.count, time: sample.time, intensity: sample.intensity)
         case .jellybeans: return jellybeans(palette: sample.palette, index: sample.index, count: sample.count, time: sample.time, intensity: sample.intensity)
-        case .batteryMeter: return batteryMeter(index: sample.index, count: sample.count, time: sample.time, batteryPercent: sample.batteryPercent, intensity: sample.intensity)
+        case .batteryMeter:
+            return batteryMeter(BatteryMeterInput(index: sample.index, count: sample.count, time: sample.time, batteryPercent: sample.batteryPercent, palette: sample.palette, lowThreshold: sample.batteryLowThreshold, mediumThreshold: sample.batteryMediumThreshold, intensity: sample.intensity))
         }
     }
 
-    private static func batteryMeter(index: Int, count: Int, time: TimeInterval, batteryPercent: Int?, intensity: Double) -> RGBPatch {
-        let stripStartIndex = count > 2 ? 2 : 0
-        if index < stripStartIndex { return scaledColor(RGBPatch(r: 255, g: 255, b: 255), scale: intensity) }
+    /// Stores battery meter render input data.
+    private struct BatteryMeterInput {
+        let index: Int
+        let count: Int
+        let time: TimeInterval
+        let batteryPercent: Int?
+        let palette: [RGBPatch]
+        let lowThreshold: Int
+        let mediumThreshold: Int
+        let intensity: Double
+    }
 
-        guard let batteryPercent else { return RGBPatch(r: 0, g: 0, b: 0) }
+    private static func batteryMeter(_ input: BatteryMeterInput) -> RGBPatch {
+        let stripStartIndex = input.count > 2 ? 2 : 0
+        if input.index < stripStartIndex { return scaledColor(RGBPatch(r: 255, g: 255, b: 255), scale: input.intensity) }
+
+        guard let batteryPercent = input.batteryPercent else { return RGBPatch(r: 0, g: 0, b: 0) }
         let percent = max(0, min(100, batteryPercent))
-        let stripCellCount = max(1, count - stripStartIndex)
-        let stripIndex = index - stripStartIndex
+        let stripCellCount = max(1, input.count - stripStartIndex)
+        let stripIndex = input.index - stripStartIndex
         let progress = batteryMeterProgress(percent: percent, stripCellCount: stripCellCount)
         let fullCellCount = Int(floor(progress))
         let partialCellScale = progress - Double(fullCellCount)
 
+        let lowColor = input.palette.first ?? RGBPatch(r: 255, g: 0, b: 0)
+        let mediumColor = input.palette.count > 1 ? input.palette[1] : RGBPatch(r: 255, g: 255, b: 0)
+        let highColor = input.palette.count > 2 ? input.palette[2] : RGBPatch(r: 255, g: 255, b: 255)
         let color: RGBPatch
-        if percent < 15 { color = RGBPatch(r: 255, g: 0, b: 0) } else if percent < 30 { color = RGBPatch(r: 255, g: 255, b: 0) } else { color = RGBPatch(r: 255, g: 255, b: 255) }
+        if percent < input.lowThreshold { color = lowColor } else if percent < input.mediumThreshold { color = mediumColor } else { color = highColor }
 
-        if percent < 15, !batteryMeterLowFlashIsOn(time: time) { return RGBPatch(r: 0, g: 0, b: 0) }
+        if percent < input.lowThreshold, !batteryMeterLowFlashIsOn(time: input.time) { return RGBPatch(r: 0, g: 0, b: 0) }
 
-        if stripIndex < fullCellCount { return scaledColor(color, scale: intensity) }
-        if stripIndex == fullCellCount, partialCellScale > 0, fullCellCount < stripCellCount { return scaledColor(color, scale: intensity * partialCellScale) }
+        // A single-cell layout has no gauge to fill, so show the band color at full intensity.
+        if input.count == 1 { return scaledColor(color, scale: input.intensity) }
+
+        if stripIndex < fullCellCount { return scaledColor(color, scale: input.intensity) }
+        if stripIndex == fullCellCount, partialCellScale > 0, fullCellCount < stripCellCount { return scaledColor(color, scale: input.intensity * partialCellScale) }
         return RGBPatch(r: 0, g: 0, b: 0)
     }
 

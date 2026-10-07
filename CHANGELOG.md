@@ -4,7 +4,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Added contributor-validated lighting support for the Razer Mouse Dock (`0x007E`): a single logo LED with static color, spectrum, and pulse effects plus brightness over USB. OpenSnek keeps the dock reported as connected even though the dock cannot read its effect/brightness state.
+- Added a configurable Battery Meter preset for software lighting: pick low and medium battery thresholds, the low/medium/high palette colors, and the battery source device. The Razer Mouse Dock uses it to mirror a connected mouse's battery level, including the low-battery flash, and also ships the animated OpenSnek software presets.
+
+### Changed
+- Lighting-only devices (the Mouse Dock, Huntsman Mini, and Tartarus Pro) now show one full-width, always-expanded lighting card with a single mode picker instead of the collapsible Onboard/Advanced tabs.
+
 ### Fixed
+- Fixed the menu bar showing DPI stage and slider controls for lighting-only devices (the Mouse Dock, Huntsman Mini, and Tartarus Pro).
+- Fixed the menu bar device picker so a device selected there stays selected while the OpenSnek window is also open, instead of snapping back to the window's selection.
+- Fixed menu bar status messages truncating instead of wrapping.
 - Fixed Naga Pro USB button reads decoding a shifted function-block window when a stored binding's hypershift/layer flag differs from the requested layer, which displayed right-click, middle-click, and scroll buttons as Left Click on Synapse-configured profiles.
 - Naga Pro side-panel buttons (`64-75`, `80-85`) now offer `Default` restore, remapping, and full button-profile reset, using native default blocks captured from the firmware's unassigned onboard banks. The 12- and 6-button panel defaults were physically press-validated, so slots `83-85` are no longer read-only.
 

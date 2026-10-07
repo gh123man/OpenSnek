@@ -15,6 +15,29 @@ final class LightingOnlyDeviceGatingTests: XCTestCase {
         XCTAssertFalse(makeKeypadDevice().supportsDPIControls)
     }
 
+    func testMenuBarDpiControlsAreHiddenForLightingOnlyDevices() async {
+        let dock = makeTestDevice(
+            id: "usb-mouse-dock-menu-gating", productName: "Mouse Dock", identity: MultiDeviceTestIdentity(transport: .usb, serial: "USB-MOUSE-DOCK-MENU", locationID: 1), profile: .mouseDock, productID: 0x007E)
+        let mouse = makeTestDevice(id: "usb-v3pro-menu-gating", productName: "Razer Basilisk V3 Pro", identity: MultiDeviceTestIdentity(transport: .usb, serial: "USB-V3PRO-MENU", locationID: 2), profile: .basiliskV3Pro)
+        let backend = AppStateRefactorStubBackend(devices: [dock, mouse], stateByDeviceID: [:])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
+
+        await MainActor.run {
+            appState.deviceStore.devices = [dock, mouse]
+            appState.deviceStore.selectedDeviceID = dock.id
+        }
+        let dockSupportsDPI = await MainActor.run { appState.deviceStore.selectedDeviceSupportsDPIControls }
+        let dockIsLightingOnly = await MainActor.run { appState.deviceStore.selectedDeviceIsLightingOnly }
+        XCTAssertFalse(dockSupportsDPI)
+        XCTAssertTrue(dockIsLightingOnly)
+
+        await MainActor.run { appState.deviceStore.selectedDeviceID = mouse.id }
+        let mouseSupportsDPI = await MainActor.run { appState.deviceStore.selectedDeviceSupportsDPIControls }
+        let mouseIsLightingOnly = await MainActor.run { appState.deviceStore.selectedDeviceIsLightingOnly }
+        XCTAssertTrue(mouseSupportsDPI)
+        XCTAssertFalse(mouseIsLightingOnly)
+    }
+
     func testFastDPIPollingIsDisabledForLightingOnlyDevices() {
         let keyboard = makeKeyboardDevice()
         let keypad = makeKeypadDevice()

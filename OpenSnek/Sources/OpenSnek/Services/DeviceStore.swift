@@ -11,6 +11,7 @@ import SwiftUI
     var devices: [MouseDevice] = []
     var selectedDeviceID: String?
     var state: MouseState?
+    var stateByDeviceID: [String: MouseState] = [:]
     var availableUpdate: ReleaseAvailability?
     var updateInstallState: SoftwareUpdateInstallState = .idle
     var isLoading = false
@@ -94,6 +95,17 @@ import SwiftUI
     var selectedDeviceSupportsPassiveDPIInput: Bool {
         guard let selectedDevice else { return false }
         return resolvedProfile(for: selectedDevice)?.passiveDPIInput != nil
+    }
+
+    /// Whether the menu bar should offer DPI editing for the selected device. Lighting-only
+    /// devices (the Mouse Dock, Huntsman Mini, Tartarus Pro) have no DPI controls to edit.
+    var selectedDeviceSupportsDPIControls: Bool { selectedDevice?.supportsDPIControls == true }
+
+    /// Whether the selected device is a connected lighting-only device that the menu bar can
+    /// point at the full app instead of showing DPI controls.
+    var selectedDeviceIsLightingOnly: Bool {
+        guard let selectedDevice else { return false }
+        return !selectedDevice.supportsDPIControls && selectedDevice.showsLightingControls
     }
 
     var selectedSoftwareLightingStatus: SoftwareLightingEngineStatus? {

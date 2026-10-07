@@ -260,7 +260,7 @@ final class DevicePreferenceStoreTests: XCTestCase {
 
         let store = DevicePreferenceStore(defaults: defaults)
         let device = MouseDevice(id: "usb-software-lighting-preferences", vendor_id: 0x1532, product_id: 0x00AB, product_name: "Basilisk V3 Pro", transport: .usb, path_b64: "", serial: "SOFTWARE-LIGHTING-PREFS", firmware: nil, profile_id: .basiliskV3Pro)
-        let request = SoftwareLightingEffectRequest(presetID: .aurora, framesPerSecond: 24, intensity: 0.75, speed: 1.35, palette: [RGBPatch(r: 11, g: 22, b: 33), RGBPatch(r: 44, g: 55, b: 66)])
+        let request = SoftwareLightingEffectRequest(presetID: .aurora, framesPerSecond: 24, intensity: 0.75, speed: 1.35, palette: [RGBPatch(r: 11, g: 22, b: 33), RGBPatch(r: 44, g: 55, b: 66)], batterySourceDeviceID: "usb-mouse-source")
 
         XCTAssertFalse(store.loadSoftwareLightingApplyOnConnect(device: device))
 

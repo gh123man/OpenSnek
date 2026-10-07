@@ -524,6 +524,28 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile?.isLocallyValidated, false)
     }
 
+    func testResolveUSBProfileForMouseDock() {
+        let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x007E, transport: .usb)
+        XCTAssertEqual(profile?.id, .mouseDock)
+        XCTAssertEqual(profile?.formFactor, .accessory)
+        XCTAssertEqual(profile?.usbTransactionID, 0x1F)
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots, [])
+        XCTAssertEqual(profile?.buttonLayout.writableSlots, [])
+        XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .spectrum, .pulseRandom, .pulseSingle, .pulseDual])
+        XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["logo"])
+        XCTAssertEqual(profile?.allUSBLightingLEDIDs, [0x00])
+        XCTAssertEqual(profile?.allUSBBrightnessLEDIDs, [0x00])
+        XCTAssertEqual(profile?.supportsDPIControls, false)
+        XCTAssertEqual(profile?.supportsPollRateControls, false)
+        XCTAssertEqual(profile?.supportsPowerManagementControls, false)
+        XCTAssertEqual(profile?.supportsButtonRemapControls, false)
+        XCTAssertEqual(profile?.supportsLightingBrightnessControls, true)
+        XCTAssertEqual(profile?.supportsLightingStateReads, false)
+        XCTAssertEqual(profile?.softwareLightingFrameLayout, .mouseDockUSB)
+        XCTAssertEqual(profile?.supportedSoftwareLightingPresets, SoftwareLightingPresetID.batteryMeterAndAnimatedPresets)
+        XCTAssertEqual(profile?.isLocallyValidated, false)
+    }
+
     func testBrightnessLEDIDsDefaultToLightingLEDIDsUnlessOverridden() {
         for profile in DeviceProfiles.all where profile.usbBrightnessLEDIDs == nil { XCTAssertEqual(profile.allUSBBrightnessLEDIDs, profile.allUSBLightingLEDIDs, "profile \(profile.id) \(profile.transport)") }
 
