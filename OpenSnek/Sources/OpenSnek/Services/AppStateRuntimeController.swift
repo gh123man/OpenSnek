@@ -199,6 +199,21 @@ import OpenSnekCore
         return Array(deviceStore.devices.prefix(1)).map(\.id)
     }
 
+    /// Device IDs whose battery telemetry drives a running Battery Meter accessory. They are
+    /// refreshed alongside the selected device so a meter notices its source going unreachable even
+    /// while that source is not selected.
+    func softwareLightingBatterySourceDeviceIDs() -> [String] { Self.softwareLightingBatterySourceDeviceIDs(statuses: deviceStore.softwareLightingStatusByDeviceID, devices: deviceStore.devices, stateByDeviceID: deviceStore.stateByDeviceID) }
+
+    nonisolated static func softwareLightingBatterySourceDeviceIDs(statuses: [String: SoftwareLightingEngineStatus], devices: [MouseDevice], stateByDeviceID: [String: MouseState]) -> [String] {
+        let runningMeters = statuses.values.filter { $0.state == .running }.compactMap(\.request).filter { $0.presetID == .batteryMeter }
+        guard !runningMeters.isEmpty else { return [] }
+        let liveIDs = Set(devices.map(\.id))
+        var sourceIDs = Set(runningMeters.compactMap(\.batterySourceDeviceID))
+        // Automatic selection can follow any connected device with a battery reading.
+        if runningMeters.contains(where: { $0.batterySourceDeviceID == nil }) { sourceIDs.formUnion(devices.filter { stateByDeviceID[$0.id]?.battery_percent != nil }.map(\.id)) }
+        return sourceIDs.intersection(liveIDs).sorted()
+    }
+
     func preferredServiceSelectedDeviceID(availableDeviceIDs: Set<String>, currentSelectedDeviceID: String?, now: Date = Date()) -> String? {
         guard environment.launchRole.isService else { return nil }
 
@@ -649,15 +664,18 @@ import OpenSnekCore
 
             if now.timeIntervalSince(lastRefreshStatePollAt) >= effectiveRefreshStateInterval {
                 lastRefreshStatePollAt = now
+                let batterySourceDeviceIDs = softwareLightingBatterySourceDeviceIDs()
                 if environment.launchRole.isService {
                     if profile == .serviceInteractive {
-                        let priorityDeviceIDs = serviceInteractivePriorityDeviceIDs(at: now)
+                        let priorityDeviceIDs = uniqueDeviceIDs(serviceInteractivePriorityDeviceIDs(at: now) + batterySourceDeviceIDs)
                         if !priorityDeviceIDs.isEmpty { await deviceController.refreshDeviceStates(deviceIDs: priorityDeviceIDs) }
                     } else {
                         await deviceController.refreshAllDeviceStates()
                     }
-                } else {
+                } else if batterySourceDeviceIDs.isEmpty {
                     await deviceController.refreshState()
+                } else {
+                    await deviceController.refreshDeviceStates(deviceIDs: uniqueDeviceIDs([deviceStore.selectedDeviceID].compactMap { $0 } + batterySourceDeviceIDs))
                 }
             }
 

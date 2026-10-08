@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Fixed the Battery Meter preset on battery-less accessories, such as the Razer Mouse Dock, ignoring an explicitly selected Battery source. When the selected source was offline the card and the dock lighting silently fell back to another connected device's battery; the selected source is now always honored and is never replaced by another device. A source that is no longer connected or reachable reads as unavailable instead of reusing its last value: the card shows a "Battery unavailable" indicator and the meter goes dark. Running meters also refresh their source in the background, so a mouse going away is noticed without having to select it again.
+
 ## [1.4.0-rc.2]
 
 ### Fixed
