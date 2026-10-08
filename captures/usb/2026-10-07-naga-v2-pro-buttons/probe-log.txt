@@ -692,3 +692,30 @@ $ restore slot14 = 06010600000000 on both layers
 restore ok
 profile=1 slot=14 hypershift=0 block=06010600000000 class=0x06 len=1 data=06
 profile=0 slot=14 hypershift=0 block=06010600000000 class=0x06 len=1 data=06
+
+=== bottom button factory-block profile-cycle test ===
+backup slot14 persistent= direct=
+staged 07 01 04 on both layers
+usb-profile-active-read 1532:00a8:02142000:usb pid=0x00a8
+active-profile class=05 cmd=84 read_failed
+dpi-stages effective(profile=0) read_failed
+profile=1 slot=14 hypershift=0 read_failed
+profile=0 slot=14 hypershift=0 read_failed
+active-profile class=05 cmd=84 read_failed
+dpi-stages effective(profile=0) read_failed
+
+=== bottom-button factory test, link awake ===
+profile=1 slot=14 hypershift=0 block=06010600000000 class=0x06 len=1 data=06
+profile=0 slot=14 hypershift=0 block=06010600000000 class=0x06 len=1 data=06
+profile=1 slot=14 hypershift=0 block=07010400000000 class=0x07 len=1 data=04
+profile=0 slot=14 hypershift=0 block=07010400000000 class=0x07 len=1 data=04
+active-profile class=05 cmd=84 value=1 base(profile=1)
+dpi-stages effective(profile=0) activeToken=0x02 stageIDs=[0x01,0x02] pairs=[1100x1100,2200x2200] raw=00 02 02 01 04 4c 04 4c 00 00 02 08 98 08 98 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+=== after bottom-button press with factory block ===
+active-profile class=05 cmd=84 value=2 stored-slot=1(profile=2)
+dpi-stages effective(profile=0) activeToken=0x02 stageIDs=[0x01,0x02] pairs=[1100x1100,2200x2200] raw=00 02 02 01 04 4c 04 4c 00 00 02 08 98 08 98 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+profile=1 slot=14 hypershift=0 block=06010600000000 class=0x06 len=1 data=06
+profile=0 slot=14 hypershift=0 block=06010600000000 class=0x06 len=1 data=06
+usb-profile-active-set 1532:00a8:02142000:usb pid=0x00a8 profile=1 base(profile=1)
+active-profile-set command=05:04 accepted=yes before=2 after=1

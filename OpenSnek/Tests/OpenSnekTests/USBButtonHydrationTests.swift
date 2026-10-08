@@ -262,11 +262,11 @@ final class USBButtonHydrationTests: XCTestCase {
         XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 96, profileID: .nagaV2Pro), [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00])
     }
 
-    func testNagaV2ProBottomButtonDefaultRestoresClass07DPIBlock() {
+    func testNagaV2ProBottomButtonDefaultRestoresProfileCycleBlock() {
         XCTAssertTrue(ButtonBindingSupport.supportsDefaultRestore(for: 14, profileID: .nagaV2Pro))
         XCTAssertEqual(ButtonBindingSupport.usbFunctionBlockForWrite(slot: 14, draft: ButtonBindingDraft(kind: .default, hidKey: 4, turboEnabled: false, turboRate: ButtonBindingSupport.defaultTurboRate), profileID: .nagaV2Pro), [0x07, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00])
         XCTAssertEqual(ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 14, functionBlock: [0x07, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00], profileID: .nagaV2Pro)?.kind, .default)
-        // Synapse rewrites the same DPI-cycle action as the class-0x06 form.
+        // Synapse remaps the button to DPI-stage cycling as the class-0x06 form.
         XCTAssertEqual(ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 14, functionBlock: [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00], profileID: .nagaV2Pro)?.kind, .dpiCycle)
         XCTAssertNil(ButtonBindingSupport.defaultUSBFunctionBlock(for: 14, profileID: .nagaPro))
     }

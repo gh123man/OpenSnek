@@ -327,8 +327,8 @@ public enum ButtonBindingSupport {
         case 53 where profileID == .nagaPro: return basiliskV3FamilyHorizontalScrollBlock(buttonID: nagaProHorizontalScrollRightButtonID, turboRate: defaultTurboRate)
         case 52 where profileID == .nagaV2Pro: return nagaV2ProNativeHorizontalScrollBlock(buttonID: horizontalScrollLeftButtonID)
         case 53 where profileID == .nagaV2Pro: return nagaV2ProNativeHorizontalScrollBlock(buttonID: horizontalScrollRightButtonID)
-        // Bottom button factory block. It cycles DPI stages with the class-0x07 encoding; Synapse
-        // rewrites it as the class-0x06 `06 01 06` form for the same action.
+        // Bottom button factory block; cycles onboard profiles. Synapse rewrites the class-0x06
+        // `06 01 06` form when the button is remapped to DPI-stage cycling.
         case 14 where profileID == .nagaV2Pro: return [0x07, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00]
         case 96:
             switch profileID {

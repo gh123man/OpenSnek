@@ -137,16 +137,16 @@ Synapse 4 for macOS was open and rewriting the device while the remap was staged
 closed:
 
 1. Staged keyboard `q` on both layers of slot `0x0E`; the bottom button typed `q` on each press.
-2. Staged the factory block `07 01 04`; the bottom button cycled DPI stages.
+2. Staged the factory block `07 01 04`; the bottom button changed the active onboard profile
+   (confirmed by the active-profile read in the follow-up test below).
 3. Restored the owner's Synapse mapping `06 01 06` on both layers and verified.
 
 Conclusions:
 
 - Slot `0x0E` is the bottom button and it is fully remappable.
-- The factory block `07 01 04` (class `0x07`, data `0x04`) and Synapse's `06 01 06` (class
-  `0x06`, data `0x06`) both implement DPI-stage cycling. The Naga Pro v1 "Scroll Mode Toggle"
-  label for slot 14 is wrong for this device.
-- The app can promote slot `0x0E` to editable with a `Default` restore to `07 01 04`, and
-  decode class-`0x07` data-`0x04` as DPI cycle.
+- The factory block `07 01 04` (class `0x07`, data `0x04`) cycles onboard profiles: staging it
+  and pressing the bottom button moved the active profile from 1 to 2 while the DPI stage token
+  stayed put. Synapse's `06 01 06` remap is DPI-stage cycling.
+- The app promotes slot `0x0E` to editable with a `Default` restore to `07 01 04`.
 - Synapse 4 for macOS holds the device and overrides concurrent probe writes; close it before
   any vendor button write.

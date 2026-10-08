@@ -10,7 +10,7 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 - Naga V2 Pro side-panel labels are now physically verified: 12-button panel labels `1-12` map straight to slots `64-75` and 6-button panel labels `1-6` to slots `80-85`.
-- The Naga V2 Pro bottom button (slot `0x0E`) is now editable with `Default` restore to its factory DPI-cycle block. The rear and forward top buttons are labeled DPI Stage Down/Up and stay preserved read-only until a dedicated DPI-stage binding kind ships.
+- The Naga V2 Pro bottom button (slot `0x0E`) is now editable with `Default` restore to its factory onboard-profile-cycle block. The rear and forward top buttons are labeled DPI Stage Down/Up and stay preserved read-only until a dedicated DPI-stage binding kind ships.
 
 ## [1.4.0-rc.2]
 
