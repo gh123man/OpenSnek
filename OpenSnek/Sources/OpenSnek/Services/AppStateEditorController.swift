@@ -28,6 +28,11 @@ import OpenSnekCore
     var projectedOnboardProfileMetadataByDeviceID: [String: [Int: OnboardProfileMetadata]] = [:]
     var currentOnboardProfileSnapshotByDeviceID: [String: OnboardProfileSnapshot] = [:]
     var onboardProfileLightingColorsByDeviceID: [String: [String: RGBColor]] = [:]
+    /// Device/profile pair whose onboard lighting was last hydrated into the editor. Onboard
+    /// profiles only model static colors, so an advanced effect the user applied is preserved while
+    /// hydration stays on the same pair and reset to Static when it moves to another device or
+    /// onboard profile.
+    var lastLightingHydrationKey: String?
     var selectedOnboardProfileIDByDeviceID: [String: Int] = [:]
     var selectedSingleSlotProfileNameByDeviceID: [String: String] = [:]
     var singleSlotProfileApplySyncSuppressedDeviceIDs: Set<String> = []
@@ -274,12 +279,14 @@ import OpenSnekCore
             cancelOnboardProfileButtonHydration(deviceID: deviceID)
         }
         if let hydratedButtonBindingsKey, let hydratedDeviceID = hydratedButtonBindingsKey.split(separator: "#").first, removedDeviceIDs.contains(String(hydratedDeviceID)) { self.hydratedButtonBindingsKey = nil }
+        if let lastLightingHydrationKey, let hydratedDeviceID = lastLightingHydrationKey.split(separator: "#").first, removedDeviceIDs.contains(String(hydratedDeviceID)) { self.lastLightingHydrationKey = nil }
         bumpUSBButtonProfilesRevision()
         bumpOnboardProfilesRevision()
     }
 
     func invalidateOnboardProfileState(for deviceIDs: Set<String>) {
         guard !deviceIDs.isEmpty else { return }
+        if let lastLightingHydrationKey, let hydratedDeviceID = lastLightingHydrationKey.split(separator: "#").first, deviceIDs.contains(String(hydratedDeviceID)) { self.lastLightingHydrationKey = nil }
         onboardProfileInventoryByDeviceID = onboardProfileInventoryByDeviceID.filter { key, _ in !deviceIDs.contains(key) }
         projectedOnboardProfileMetadataByDeviceID = projectedOnboardProfileMetadataByDeviceID.filter { key, _ in !deviceIDs.contains(key) }
         currentOnboardProfileSnapshotByDeviceID = currentOnboardProfileSnapshotByDeviceID.filter { key, _ in !deviceIDs.contains(key) }

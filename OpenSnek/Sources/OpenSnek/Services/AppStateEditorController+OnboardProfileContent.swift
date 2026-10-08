@@ -219,7 +219,9 @@ private struct ProjectedOnboardDPIState {
         }
 
         onboardProfileLightingColorsByDeviceID[device.id] = zoneColors
-        editorStore.editableLightingEffect = .staticColor
+        let hydrationKey = "\(device.id)#\(snapshot.profileID)"
+        if lastLightingHydrationKey != hydrationKey { editorStore.editableLightingEffect = .staticColor }
+        lastLightingHydrationKey = hydrationKey
 
         let visibleZoneIDs = editorStore.visibleUSBLightingZones.map(\.id)
         let currentZoneID = normalizedLightingZoneID(for: device, preferredZoneID: editorStore.editableUSBLightingZoneID)

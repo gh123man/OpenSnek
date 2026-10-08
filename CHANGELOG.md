@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Fixed the onboard lighting effect picker reverting to Static while the device kept running an applied effect such as Spectrum. Onboard profiles only store static colors, so the periodic editor hydration now keeps the effect the user applied for the current device and profile instead of overwriting it; re-selecting Static after another effect now applies as expected.
+
 ## [1.4.0-rc.2]
 
 ### Fixed
