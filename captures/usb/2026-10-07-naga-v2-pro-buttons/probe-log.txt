@@ -719,3 +719,11 @@ profile=1 slot=14 hypershift=0 block=06010600000000 class=0x06 len=1 data=06
 profile=0 slot=14 hypershift=0 block=06010600000000 class=0x06 len=1 data=06
 usb-profile-active-set 1532:00a8:02142000:usb pid=0x00a8 profile=1 base(profile=1)
 active-profile-set command=05:04 accepted=yes before=2 after=1
+
+=== USB charging-status raw evidence (2026-10-08, cabled + charging) ===
+$ OpenSnekProbe usb-raw --class 0x07 --cmd 0x80 --size 0x02 --pid 0x00a7
+response[90]: 02 1f 00 00 00 02 07 80 00 7d 00 ...
+$ OpenSnekProbe usb-raw --class 0x07 --cmd 0x84 --size 0x02 --pid 0x00a7
+response[90]: 02 1f 00 00 00 02 07 84 00 01 00 ...
+$ OpenSnekProbe usb-battery-read --pid 0x00a7
+battery charging=yes raw=0x88 percent=53

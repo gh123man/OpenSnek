@@ -150,3 +150,22 @@ Conclusions:
 - The app promotes slot `0x0E` to editable with a `Default` restore to `07 01 04`.
 - Synapse 4 for macOS holds the device and overrides concurrent probe writes; close it before
   any vendor button write.
+
+## USB charging-status protocol note (2026-10-08)
+
+While the mouse was cabled and charging, the battery-level command `07:80` returned
+`00 7d` (unused first argument + level `0x7d` = 49%), and the dedicated charging command
+`07:84` returned `00 01` (second argument `0x01` = charging):
+
+```
+$ usb-raw --class 0x07 --cmd 0x80 --size 0x02
+response[90]: 02 1f 00 00 00 02 07 80 00 7d 00 ...
+
+$ usb-raw --class 0x07 --cmd 0x84 --size 0x02
+response[90]: 02 1f 00 00 00 02 07 84 00 01 00 ...
+```
+
+OpenRazer splits the same way (`razer_chroma_misc_get_battery_level` = `07:80`,
+`razer_chroma_misc_get_charging_status` = `07:84`). OpenSnek previously read byte 8 of the
+`07:80` response as the charging flag, which is always `0x00`, so the charging icon never
+appeared.
