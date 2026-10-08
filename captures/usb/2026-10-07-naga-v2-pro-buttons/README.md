@@ -169,3 +169,18 @@ OpenRazer splits the same way (`razer_chroma_misc_get_battery_level` = `07:80`,
 `razer_chroma_misc_get_charging_status` = `07:84`). OpenSnek previously read byte 8 of the
 `07:80` response as the charging flag, which is always `0x00`, so the charging icon never
 appeared.
+
+## Charging indicator note (2026-10-08)
+
+While cabled and charging, the palm logo periodically flashes a random color for a fraction of a
+second (observed roughly every 10 seconds). This is firmware charging/battery indication, not a
+lighting effect and not host-controllable:
+
+- Across ~200 samples spanning the flashes, the active onboard profile stored effect stayed `00`
+  (Off) and the `0F:84` brightness register never changed.
+- The flashes stopped when the mouse was switched to its 2.4 GHz wireless link (not charging).
+- No OpenSnek process (app or background service) was running while the flashes were observed, and
+  the device never re-enumerated during the samples.
+
+Writing an effect or brightness change does not suppress the flash; only unplugging or running on
+wireless does.
