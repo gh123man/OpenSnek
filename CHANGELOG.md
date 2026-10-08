@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Fixed the Basilisk V3 X HyperSpeed showing the wrong battery percentage over Bluetooth when the raw value was 100 or lower (for example 82% instead of 32%). The raw value is now always read on its 0-255 scale for this device.
+
 ## [1.4.0-rc.2]
 
 ### Fixed

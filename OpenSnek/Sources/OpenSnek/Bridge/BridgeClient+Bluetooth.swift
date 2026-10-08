@@ -32,7 +32,13 @@ extension BridgeClient {
     func btNotifySummary(_ notifies: [Data]) -> String { notifies.map(btHex).joined(separator: " | ") }
 
     static func resolveBluetoothBatteryState(device: MouseDevice, vendorRaw: Int?, vendorStatus: Int?, usbFallback: (Int, Bool)?) -> BluetoothBatteryState {
-        let vendorPercent = vendorRaw.map { raw in raw <= 100 ? raw : Int((Double(raw) / 255.0) * 100.0) }
+        // Basilisk V3 X HyperSpeed over Bluetooth reports the vendor battery value on a 0...255 scale even when it is <= 100
+        // (on hardware: raw 0x52 = 82 -> 32%, matching the standard BLE Battery Service 0x2A19 and macOS).
+        let isV3XBluetooth = device.transport == .bluetooth && (device.profile_id == .basiliskV3XHyperspeed || device.product_id == 0x00BA)
+        let vendorPercent = vendorRaw.map { raw in
+            if isV3XBluetooth { return Int((Double(min(max(raw, 0), 255)) / 255.0 * 100.0).rounded()) }
+            return raw <= 100 ? raw : Int((Double(raw) / 255.0) * 100.0)
+        }
         let charging: Bool?
         if device.transport == .bluetooth, device.profile_id == .basiliskV3XHyperspeed || device.product_id == 0x00BA {
             charging = false

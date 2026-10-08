@@ -946,6 +946,7 @@ Current Swift interpretation:
 - `batteryRaw`:
   - if `<= 100`, treat as direct percentage
   - else scale `0...255` to `0...100`
+  - exception: on Basilisk V3 X HyperSpeed Bluetooth (`0x00BA`), always scale `0...255` to `0...100`, because that device reports values at or below 100 on the same `0...255` scale (observed raw `0x52` = 82 while the standard BLE Battery Service `0x2A19` and macOS reported 32%)
 - on Basilisk V3 Pro Bluetooth (`0x00AC`), OpenSnek currently ignores `batteryStatus` for charging UI because the status bit does not reliably mean `charging`; charging only comes from an available USB fallback session
 - on Basilisk V3 X HyperSpeed Bluetooth (`0x00BA`), OpenSnek ignores `batteryStatus` for charging UI and reports `not charging` because that device is AA-powered
 
