@@ -201,7 +201,7 @@ extension OpenSnekProbe {
         case "usb-battery-read":
             let usb = try USBProbeClient(productID: try parseOptionalUSBPID(commandArgs))
             print("usb \(usb.describe())")
-            if let battery = try usb.readBattery() { print("battery charging=\(battery.charging ? "yes" : "no") " + "raw=0x\(String(format: "%02x", battery.rawLevel)) " + "percent=\(battery.percent)") } else { print("battery: unavailable") }
+            if let battery = try usb.readBattery() { print("battery charging=\(battery.charging.map { $0 ? "yes" : "no" } ?? "unknown") " + "raw=0x\(String(format: "%02x", battery.rawLevel)) " + "percent=\(battery.percent)") } else { print("battery: unavailable") }
         default: return false
         }
         return true

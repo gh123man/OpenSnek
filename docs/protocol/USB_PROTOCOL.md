@@ -458,10 +458,23 @@ do not use the summary register as the active profile ID on this device.
 ```
 Command:  Class 0x07, ID 0x80, Size 0x02
 Args:     (none)
-Response: args[0] = charging (0x00=no, 0x01=yes)
+Response: args[0] = unused/reserved
           args[1] = level (0-255, map to 0-100%)
 TxnID:    0x1F
 ```
+
+#### Get Charging Status
+```
+Command:  Class 0x07, ID 0x84, Size 0x02
+Args:     (none)
+Response: args[1] = charging (0x00=no, 0x01=yes)
+TxnID:    0x1F
+```
+
+Charging is a separate command from the battery level. Reading the battery-level response's first
+argument as a charging flag always returns `0x00` on modern mice, including the Naga V2 Pro; use
+`0x07:0x84` and its second argument instead. OpenRazer splits the same way
+(`razer_chroma_misc_get_battery_level` vs `razer_chroma_misc_get_charging_status`).
 
 #### Get/Set Idle Time
 ```
@@ -848,7 +861,7 @@ reliable on the local USB stack.
 | DPI XY | `04:85/05` | HID fallback + staged vendor path | Implemented in both scripts | BLE direct set still stack-dependent outside vendor staged path |
 | DPI stages | `04:86/06` | `0B84` / `0B04` + op `0x26` | Implemented in both scripts | Mostly covered |
 | Poll rate | `00:85/05` | No stable vendor mapping yet | Implemented in both scripts via HID path | Need BLE vendor mapping for reliable parity |
-| Battery | `07:80` | Battery Service + observed vendor read key | Implemented in both scripts | Need unified source preference and charging semantics on BLE |
+| Battery | `07:80` level + `07:84` charging | Battery Service + observed vendor read key | Implemented in both scripts | Need unified source preference and charging semantics on BLE |
 | Idle time | `07:83/03` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
 | Low battery threshold | `07:81/01` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
 | Scroll mode | `02:94/14` | Not mapped | Implemented in both scripts via HID path | Need BLE vendor mapping |
@@ -976,7 +989,7 @@ reliable on the local USB stack.
 | DPI Stages | live table via `04:86` (observed `1100/2200` with active token `2`); `04:85/05` write/readback validated |
 | Onboard Profiles | `05:80` -> `02`, `05:81` -> `05 01 02` (max `5`, assigned `1`, `2`), `05:84` -> active `01` |
 | Poll rate | `00:85` -> `01` (1000 Hz); `00:05` write/readback validated |
-| Battery | `07:80` -> charging flag + level (observed `00 7b`) |
+| Battery | level via `07:80` (observed `00 7b`); charging via `07:84` |
 | Idle time | `07:83` -> `01 2c` (300 s); `07:03` write/readback validated |
 | Low battery threshold | `07:81` -> `0d` |
 | Scroll mode | `02:94` returns status `0x05` (not supported); scroll acceleration `02:96` reads `01 00` |

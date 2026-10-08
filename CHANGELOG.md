@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Fixed the battery indicator never showing the charging bolt on USB mice that report charging through the dedicated `0x07:0x84` command, including the Naga V2 Pro. OpenSnek previously read an unused byte of the battery-level response, so a charging mouse looked like it was on battery.
+
 ## [1.4.0-rc.2]
 
 ### Fixed

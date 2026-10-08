@@ -406,11 +406,18 @@ extension BridgeClient {
         return r[0] == 0x02
     }
 
-    func getBattery(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> (Int, Bool)? {
-        guard let r = try perform(session, device, classID: 0x07, cmdID: 0x80, size: 0x02), r[0] == 0x02 else { return nil }
-        let charging = r[8] == 0x01
-        let pct = Int((Double(r[9]) / 255.0) * 100.0)
-        return (pct, charging)
+    func getBattery(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> (Int, Bool?)? {
+        guard let response = try perform(session, device, classID: 0x07, cmdID: 0x80, size: 0x02), let percent = USBHIDProtocol.parseBatteryLevelPercent(response) else { return nil }
+        let charging = try getChargingStatus(session, device)
+        return (percent, charging)
+    }
+
+    /// Charging is reported by a separate misc command (`0x07:0x84`). The battery-level response's
+    /// first argument is unused on modern mice, so reading it always returned "not charging".
+    /// Returns nil when the device rejects the command.
+    func getChargingStatus(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> Bool? {
+        let response = try perform(session, device, classID: 0x07, cmdID: 0x84, size: 0x02)
+        return response.flatMap(USBHIDProtocol.parseChargingStatus)
     }
 
     func getSerial(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> String? {
