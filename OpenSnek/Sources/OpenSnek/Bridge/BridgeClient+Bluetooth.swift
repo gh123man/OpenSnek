@@ -34,10 +34,14 @@ extension BridgeClient {
     func btNotifySummary(_ notifies: [Data]) -> String { notifies.map(btHex).joined(separator: " | ") }
 
     static func resolveBluetoothBatteryState(device: MouseDevice, vendorRaw: Int?, vendorStatus: Int?, usbFallback: (Int, Bool)?) -> BluetoothBatteryState {
-        // The Naga V2 Pro reports a 0-255 battery byte (0x45 = 27%), matching the USB path. The
-        // shared heuristic treats values <= 100 as direct percentages, which would misreport it.
-        let usesByteScaleBattery = device.transport == .bluetooth && (device.profile_id == .nagaV2Pro || device.product_id == 0x00A9)
-        let vendorPercent = vendorRaw.map { raw in (usesByteScaleBattery || raw > 100) ? Int((Double(raw) / 255.0) * 100.0) : raw }
+        // Both devices report a 0-255 byte even below 100. Preserve HyperSpeed's rounded
+        // conversion and the Naga V2 Pro's USB-compatible truncation.
+        let isV3XBluetooth = device.transport == .bluetooth && (device.profile_id == .basiliskV3XHyperspeed || device.product_id == 0x00BA)
+        let isNagaV2Bluetooth = device.transport == .bluetooth && (device.profile_id == .nagaV2Pro || device.product_id == 0x00A9)
+        let vendorPercent = vendorRaw.map { raw in
+            if isV3XBluetooth { return Int((Double(min(max(raw, 0), 255)) / 255.0 * 100.0).rounded()) }
+            return (isNagaV2Bluetooth || raw > 100) ? Int((Double(raw) / 255.0) * 100.0) : raw
+        }
         let charging: Bool?
         if device.transport == .bluetooth, device.profile_id == .basiliskV3XHyperspeed || device.product_id == 0x00BA {
             charging = false

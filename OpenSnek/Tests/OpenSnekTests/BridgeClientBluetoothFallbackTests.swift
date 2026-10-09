@@ -34,8 +34,16 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
     func testResolveBluetoothBatteryStateForcesNotChargingForBasiliskV3XBluetooth() {
         let resolved = BridgeClient.resolveBluetoothBatteryState(device: makeBluetoothDevice(productID: 0x00BA, profileID: .basiliskV3XHyperspeed), vendorRaw: 77, vendorStatus: 1, usbFallback: (12, true))
 
-        XCTAssertEqual(resolved.percent, 77)
+        XCTAssertEqual(resolved.percent, 30)
         XCTAssertEqual(resolved.charging, false)
+    }
+
+    func testResolveBluetoothBatteryStateScalesBasiliskV3XRawOn255Scale() {
+        let device = makeBluetoothDevice(productID: 0x00BA, profileID: .basiliskV3XHyperspeed)
+        XCTAssertEqual(BridgeClient.resolveBluetoothBatteryState(device: device, vendorRaw: 82, vendorStatus: 1, usbFallback: nil).percent, 32)
+        XCTAssertEqual(BridgeClient.resolveBluetoothBatteryState(device: device, vendorRaw: 87, vendorStatus: 1, usbFallback: nil).percent, 34)
+        XCTAssertEqual(BridgeClient.resolveBluetoothBatteryState(device: device, vendorRaw: 255, vendorStatus: 1, usbFallback: nil).percent, 100)
+        XCTAssertEqual(BridgeClient.resolveBluetoothBatteryState(device: device, vendorRaw: 0, vendorStatus: 1, usbFallback: nil).percent, 0)
     }
 
     func testResolveBluetoothBatteryStateForcesNotChargingForOrochiV2Bluetooth() {
