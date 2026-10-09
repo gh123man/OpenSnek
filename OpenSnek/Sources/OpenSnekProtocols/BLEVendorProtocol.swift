@@ -404,7 +404,7 @@ public enum BLEVendorProtocol {
 
     public static func buildButtonPayload(slot: UInt8, kind: ButtonBindingKind, hidKey: UInt8?, hidModifiers: UInt8 = 0, turboEnabled: Bool = false, turboRate: UInt16? = nil, clutchDPI: Int? = nil, profileID: DeviceProfileID? = nil) -> Data {
         let clampedTurboRate = max(UInt16(1), min(UInt16(0x00FF), turboRate ?? 0x008E))
-        if profileID == .nagaPro {
+        if profileID == .nagaPro || profileID == .nagaV2Pro {
             let draft = ButtonBindingDraft(kind: kind, hidKey: Int(hidKey ?? 0x04), hidModifiers: Int(hidModifiers), turboEnabled: turboEnabled, turboRate: Int(clampedTurboRate), clutchDPI: clutchDPI)
             return buildRawFunctionBlockPayload(slot: slot, functionBlock: ButtonBindingSupport.usbFunctionBlockForWrite(slot: Int(slot), draft: draft, profileID: profileID))
         }

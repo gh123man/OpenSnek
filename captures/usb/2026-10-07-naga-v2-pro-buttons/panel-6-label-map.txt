@@ -1,0 +1,18 @@
+# 6-button panel physical label order - 2026-10-07 live session
+
+Method: native live bindings (no writes). Pressed the panel's printed labels 1..6
+in order in a text field and recorded the typed output.
+
+typed_sequence: 123456
+
+mapping: straight
+  label 1 -> slot 80 -> keyboard 1
+  label 2 -> slot 81 -> keyboard 2
+  label 3 -> slot 82 -> keyboard 3
+  label 4 -> slot 83 -> keyboard 4
+  label 5 -> slot 84 -> keyboard 5
+  label 6 -> slot 85 -> keyboard 6
+
+The printed numbering wraps around the physical button layout (same quirk noted for the
+Naga Pro v1 in captures/usb/2026-10-06-naga-pro-side-panel-validation). Pressing labels in
+printed numeric order maps straight to slots 80-85.

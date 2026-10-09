@@ -17,6 +17,20 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
         XCTAssertEqual(resolved.charging, false)
     }
 
+    func testResolveBluetoothBatteryStateScalesNagaV2ProByteRaw() {
+        let resolved = BridgeClient.resolveBluetoothBatteryState(device: makeBluetoothDevice(productID: 0x00A9, profileID: .nagaV2Pro), vendorRaw: 0x45, vendorStatus: 1, usbFallback: nil)
+
+        XCTAssertEqual(resolved.percent, 27)
+        XCTAssertNil(resolved.charging)
+    }
+
+    func testResolveBluetoothBatteryStateUsesUSBFallbackChargingForNagaV2Pro() {
+        let resolved = BridgeClient.resolveBluetoothBatteryState(device: makeBluetoothDevice(productID: 0x00A9, profileID: .nagaV2Pro), vendorRaw: 0x45, vendorStatus: 1, usbFallback: (27, false))
+
+        XCTAssertEqual(resolved.percent, 27)
+        XCTAssertEqual(resolved.charging, false)
+    }
+
     func testResolveBluetoothBatteryStateForcesNotChargingForBasiliskV3XBluetooth() {
         let resolved = BridgeClient.resolveBluetoothBatteryState(device: makeBluetoothDevice(productID: 0x00BA, profileID: .basiliskV3XHyperspeed), vendorRaw: 77, vendorStatus: 1, usbFallback: (12, true))
 
