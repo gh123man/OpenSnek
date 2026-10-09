@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [1.4.0-rc.3]
 
 ### Added
 - Added contributor-validated wired USB (`0x00A7`) and Bluetooth (`0x00A9`) support for the Razer Naga V2 Pro. Wired and Bluetooth expose the same DPI stages, battery, and button surface as the 2.4 GHz receiver; Bluetooth reads battery from the vendor protocol because the standard HID battery characteristic reports a stale 100%.
