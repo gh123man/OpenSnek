@@ -13,8 +13,10 @@ final class LightingSummaryPresentationTests: XCTestCase {
 
         XCTAssertEqual(presentation.title, "Battery Meter")
         XCTAssertEqual(presentation.swatches, [])
-        XCTAssertEqual(presentation.batteryIcon?.symbolName, "battery.75percent")
-        XCTAssertEqual(presentation.batteryIcon?.variableValue, 0.75)
+        guard case let .level(batteryIcon, percent) = presentation.batteryIndicator else { return XCTFail("expected a battery level indicator") }
+        XCTAssertEqual(batteryIcon.symbolName, "battery.75percent")
+        XCTAssertEqual(batteryIcon.variableValue, 0.75)
+        XCTAssertEqual(percent, 74)
     }
 
     func testRunningSoftwareLightingSummaryUsesRunningRequestPalette() {
@@ -26,7 +28,7 @@ final class LightingSummaryPresentationTests: XCTestCase {
 
         XCTAssertEqual(presentation.title, "Aurora")
         XCTAssertEqual(presentation.swatches, [RGBColor(r: 1, g: 2, b: 3)])
-        XCTAssertNil(presentation.batteryIcon)
+        XCTAssertEqual(presentation.batteryIndicator, .hidden)
     }
     func testSuspendedBatteryMeterSummaryKeepsPresetInsteadOfOnboardFallback() {
         let bandColors = [RGBColor(r: 255, g: 0, b: 0), RGBColor(r: 255, g: 255, b: 0), RGBColor(r: 0, g: 255, b: 0)]
@@ -36,11 +38,11 @@ final class LightingSummaryPresentationTests: XCTestCase {
                 editableSoftwareLightingPalette: bandColors, onboardEffectLabel: "Static", onboardColors: [RGBColor(r: 0, g: 255, b: 0)], fallbackColor: RGBColor(r: 0, g: 255, b: 0), batteryState: nil))
 
         XCTAssertEqual(presentation.title, "Battery Meter")
-        XCTAssertEqual(presentation.swatches, bandColors)
-        XCTAssertNil(presentation.batteryIcon)
+        XCTAssertEqual(presentation.swatches, [])
+        XCTAssertEqual(presentation.batteryIndicator, .unavailable)
     }
 
-    func testBatteryMeterSummaryWithoutBatteryUsesBandColors() {
+    func testBatteryMeterSummaryWithoutBatteryShowsUnavailableState() {
         let bandColors = [RGBColor(r: 255, g: 0, b: 0), RGBColor(r: 255, g: 255, b: 0), RGBColor(r: 0, g: 0, b: 255)]
         let presentation = LightingSummaryPresentation.make(
             LightingSummaryInput(
@@ -48,8 +50,8 @@ final class LightingSummaryPresentationTests: XCTestCase {
                 editableSoftwareLightingPalette: bandColors, onboardEffectLabel: "Static", onboardColors: [RGBColor(r: 0, g: 255, b: 0)], fallbackColor: RGBColor(r: 0, g: 255, b: 0), batteryState: nil))
 
         XCTAssertEqual(presentation.title, "Battery Meter")
-        XCTAssertEqual(presentation.swatches, bandColors)
-        XCTAssertNil(presentation.batteryIcon)
+        XCTAssertEqual(presentation.swatches, [])
+        XCTAssertEqual(presentation.batteryIndicator, .unavailable)
     }
 }
 

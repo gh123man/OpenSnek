@@ -246,6 +246,40 @@ final class BLEVendorProtocolTests: XCTestCase {
         XCTAssertEqual(Array(rightPayload), [0x01, 0x35, 0x00, 0x0E, 0x03, 0x0A, 0x00, 0x8E, 0x00, 0x00])
     }
 
+    func testNagaV2ProBluetoothUsesNagaV2FunctionBlocks() {
+        let panelDefault = BLEVendorProtocol.buildButtonPayload(slot: 0x40, kind: .default, hidKey: nil, profileID: .nagaV2Pro)
+        let bottomDefault = BLEVendorProtocol.buildButtonPayload(slot: 0x0E, kind: .default, hidKey: nil, profileID: .nagaV2Pro)
+        let tiltLeft = BLEVendorProtocol.buildButtonPayload(slot: 0x34, kind: .scrollLeft, hidKey: nil, profileID: .nagaV2Pro)
+        let tiltRight = BLEVendorProtocol.buildButtonPayload(slot: 0x35, kind: .scrollRight, hidKey: nil, profileID: .nagaV2Pro)
+        let keyboard = BLEVendorProtocol.buildButtonPayload(slot: 0x40, kind: .keyboardSimple, hidKey: 0x1D, profileID: .nagaV2Pro)
+
+        XCTAssertEqual(Array(panelDefault), [0x01, 0x40, 0x00, 0x02, 0x01, 0x00, 0x1E, 0x00, 0x00, 0x00])
+        XCTAssertEqual(Array(bottomDefault), [0x01, 0x0E, 0x00, 0x07, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00])
+        XCTAssertEqual(Array(tiltLeft), [0x01, 0x34, 0x00, 0x0E, 0x03, 0x68, 0x00, 0x14, 0x00, 0x00])
+        XCTAssertEqual(Array(tiltRight), [0x01, 0x35, 0x00, 0x0E, 0x03, 0x69, 0x00, 0x14, 0x00, 0x00])
+        XCTAssertEqual(Array(keyboard), [0x01, 0x40, 0x00, 0x02, 0x02, 0x00, 0x1D, 0x00, 0x00, 0x00])
+    }
+
+    func testNagaV2ProBluetoothTopButtonReadDecodesLiveLane() {
+        // Hardware-active read for the rear top button: even lane F19 remap, odd lane native DPI cycle.
+        let payload = Data([0x60, 0x00, 0x02, 0x06, 0x02, 0x01, 0x00, 0x06, 0x6E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+        let block = BLEVendorProtocol.extractBluetoothFunctionBlock(payload: payload, target: 0x00, slot: 0x60, profileID: .nagaV2Pro)
+        let draft = block.flatMap { ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 96, functionBlock: $0, profileID: .nagaV2Pro) }
+
+        XCTAssertEqual(block, [0x02, 0x02, 0x00, 0x6E, 0x00, 0x00, 0x00])
+        XCTAssertEqual(draft?.kind, .keyboardSimple)
+        XCTAssertEqual(draft?.hidKey, 0x6E)
+    }
+
+    func testNagaV2ProBluetoothBottomButtonReadDecodesFactoryDefault() {
+        let payload = Data([0x0E, 0x00, 0x07, 0x07, 0x01, 0x01, 0x04, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+        let block = BLEVendorProtocol.extractBluetoothFunctionBlock(payload: payload, target: 0x00, slot: 0x0E, profileID: .nagaV2Pro)
+        let draft = block.flatMap { ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 14, functionBlock: $0, profileID: .nagaV2Pro) }
+
+        XCTAssertEqual(block, [0x07, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00])
+        XCTAssertEqual(draft?.kind, .default)
+    }
+
     func testButtonPayloadMouseBack() {
         let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x05, kind: .mouseBack, hidKey: nil)
         XCTAssertEqual(Array(payload), [0x01, 0x05, 0x00, 0x01, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00])

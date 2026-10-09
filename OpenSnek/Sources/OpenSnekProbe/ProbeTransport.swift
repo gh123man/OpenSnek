@@ -69,7 +69,7 @@ struct USBLightingConcurrencyProbeResult: Sendable {
 
 /// Stores USB battery read result data.
 struct USBBatteryReadResult: Sendable {
-    let charging: Bool
+    let charging: Bool?
     let rawLevel: UInt8
     let percent: Int
 }

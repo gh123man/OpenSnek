@@ -1,0 +1,22 @@
+# 12-button panel physical label order - 2026-10-07 live session
+
+Method: native live bindings (no writes). Pressed the panel's printed labels 1..12
+in order in a text field and recorded the typed output.
+
+typed_sequence: 1234567890-=
+
+mapping: straight
+  label 1  -> slot 64 -> keyboard 1
+  label 2  -> slot 65 -> keyboard 2
+  label 3  -> slot 66 -> keyboard 3
+  label 4  -> slot 67 -> keyboard 4
+  label 5  -> slot 68 -> keyboard 5
+  label 6  -> slot 69 -> keyboard 6
+  label 7  -> slot 70 -> keyboard 7
+  label 8  -> slot 71 -> keyboard 8
+  label 9  -> slot 72 -> keyboard 9
+  label 10 -> slot 73 -> keyboard 0
+  label 11 -> slot 74 -> keyboard -
+  label 12 -> slot 75 -> keyboard =
+
+This corrects the PR #124 note that the 12-button panel label order was unverified.

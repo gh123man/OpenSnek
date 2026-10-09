@@ -694,7 +694,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
             state.battery_percent == nil
             ? []
             : cachedDevices.filter { device in
-                guard device.id != deviceID, isBatteryFollowAccessory(device) else { return false }
+                guard device.id != deviceID, Self.isBatteryFollowAccessory(device) else { return false }
                 guard let followerSourceID = softwareLightingStatusByDeviceID[device.id]?.request?.batterySourceDeviceID else { return true }
                 return followerSourceID == deviceID
             }.map(\.id)
@@ -708,14 +708,40 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     /// accessories, such as the Mouse Dock, follow the configured source device when one is set,
     /// otherwise the first connected device that reports battery.
     private func softwareLightingBatteryPercent(for device: MouseDevice?, sourceDeviceID: String? = nil) -> Int? {
-        guard let device else { return nil }
-        if let own = cachedStateByDeviceID[device.id]?.battery_percent ?? reconnectSeedStateByDeviceID[device.id]?.battery_percent { return own }
-        guard isBatteryFollowAccessory(device) else { return nil }
-        if let sourceDeviceID, let source = cachedStateByDeviceID[sourceDeviceID]?.battery_percent ?? reconnectSeedStateByDeviceID[sourceDeviceID]?.battery_percent { return source }
-        return cachedDevices.filter { $0.id != device.id }.sorted { $0.id < $1.id }.compactMap { cachedStateByDeviceID[$0.id]?.battery_percent ?? reconnectSeedStateByDeviceID[$0.id]?.battery_percent }.first
+        let unreachableDeviceIDs = Set(usbControlAvailabilityByDeviceID.filter { $0.value.blocksUSBControlInteraction }.keys)
+        return Self.resolveSoftwareLightingBatteryPercent(
+            SoftwareLightingBatteryResolutionInput(device: device, sourceDeviceID: sourceDeviceID, cachedDevices: cachedDevices, cachedStateByDeviceID: cachedStateByDeviceID, reconnectSeedStateByDeviceID: reconnectSeedStateByDeviceID, unreachableDeviceIDs: unreachableDeviceIDs))
     }
 
-    private func isBatteryFollowAccessory(_ device: MouseDevice) -> Bool { DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?.formFactor == .accessory }
+    /// Inputs for resolving the battery percent that drives a device's battery-meter lighting.
+    struct SoftwareLightingBatteryResolutionInput {
+        let device: MouseDevice?
+        var sourceDeviceID: String?
+        let cachedDevices: [MouseDevice]
+        let cachedStateByDeviceID: [String: MouseState]
+        var reconnectSeedStateByDeviceID: [String: MouseState] = [:]
+        var unreachableDeviceIDs: Set<String> = []
+    }
+
+    /// Battery resolution rule shared by the lighting engine and its tests.
+    ///
+    /// The device's own battery wins, falling back to its last known value while it reconnects. An
+    /// explicitly selected source is honored even while offline, using only its current reading: a
+    /// source that is no longer seen or reachable reports unavailable instead of its last value and
+    /// is never replaced by another device's battery. Automatic selection (no explicit source) uses
+    /// the lowest device ID that currently reports a battery and is reachable.
+    static func resolveSoftwareLightingBatteryPercent(_ input: SoftwareLightingBatteryResolutionInput) -> Int? {
+        guard let device = input.device else { return nil }
+        if let own = input.cachedStateByDeviceID[device.id]?.battery_percent ?? input.reconnectSeedStateByDeviceID[device.id]?.battery_percent { return own }
+        guard isBatteryFollowAccessory(device) else { return nil }
+        if let sourceDeviceID = input.sourceDeviceID {
+            guard !input.unreachableDeviceIDs.contains(sourceDeviceID) else { return nil }
+            return input.cachedStateByDeviceID[sourceDeviceID]?.battery_percent
+        }
+        return input.cachedDevices.filter { $0.id != device.id && !input.unreachableDeviceIDs.contains($0.id) }.sorted { $0.id < $1.id }.compactMap { input.cachedStateByDeviceID[$0.id]?.battery_percent }.first
+    }
+
+    static func isBatteryFollowAccessory(_ device: MouseDevice) -> Bool { DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?.formFactor == .accessory }
 
     private func recordUSBControlAvailability(_ availability: USBControlAvailability, for deviceID: String, updatedAt: Date, publishSnapshot: Bool) {
         let previousAvailability = usbControlAvailabilityByDeviceID[deviceID]
@@ -726,6 +752,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         usbControlAvailabilityByDeviceID[deviceID] = availability
         AppLog.debug("Backend", "usbControlAvailability device=\(deviceID) availability=\(availability.rawValue)")
         publishStateUpdate(.usbControlAvailability(deviceID: deviceID, availability: availability, updatedAt: updatedAt))
+        refreshSoftwareLightingBatteryPercents()
         if previousAvailability != .receiverPresentMouseReachable, availability == .receiverPresentMouseReachable { scheduleSoftwareLightingUSBRecovery(for: deviceID) }
         if publishSnapshot { publishSnapshotIfService() }
     }
@@ -772,6 +799,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         purgeCaches(forRemovedDeviceIDs: previousIDs.subtracting(nextIDs))
         cachedDevices = devices
         cachedDevicesAt = updatedAt
+        refreshSoftwareLightingBatteryPercents()
         if publishUpdate { publishStateUpdate(.deviceList(devices, updatedAt: updatedAt)) }
         resumeSuspendedSoftwareLighting(for: devices)
     }
@@ -785,6 +813,19 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         cachedFastAtByDeviceID.removeValue(forKey: deviceID)
         softwareLightingUSBReachabilityProbeAtByDeviceID.removeValue(forKey: deviceID)
         bluetoothControlReadyDeviceIDs.remove(deviceID)
+        refreshSoftwareLightingBatteryPercents()
+    }
+
+    /// Re-pushes the resolved battery percent to every running battery-meter accessory after a
+    /// device list or telemetry change, so a meter follows a source that is currently seen instead
+    /// of retaining the value of a device that disappeared.
+    private func refreshSoftwareLightingBatteryPercents() {
+        let updates = cachedDevices.compactMap { device -> (deviceID: String, percent: Int?)? in
+            guard Self.isBatteryFollowAccessory(device), let status = softwareLightingStatusByDeviceID[device.id], status.state != .stopped else { return nil }
+            return (device.id, softwareLightingBatteryPercent(for: device, sourceDeviceID: status.request?.batterySourceDeviceID))
+        }
+        guard !updates.isEmpty else { return }
+        Task { [softwareLightingEngine] in for update in updates { await softwareLightingEngine.updateBatteryPercent(deviceID: update.deviceID, batteryPercent: update.percent) } }
     }
 
     private func purgeCaches(forRemovedDeviceIDs removedDeviceIDs: Set<String>) {
