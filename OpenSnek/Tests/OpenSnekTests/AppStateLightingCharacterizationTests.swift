@@ -334,4 +334,32 @@ final class AppStateLightingCharacterizationTests: XCTestCase {
         XCTAssertEqual(applyCount, 0)
     }
 
+    // Onboard profiles only model static colors, so a repeating hydration used to revert an applied
+    // advanced effect (for example Spectrum) to Static in the editor. The picker then showed Static
+    // while the device kept running the effect, which made re-picking Static a no-op.
+    func testOnboardLightingHydrationPreservesAppliedAdvancedEffect() async throws {
+        let device = makeRefactorMultiZoneUSBLightingDevice(id: "usb-effect-hydration-device", serial: "USB-EFFECT-HYDRATION-\(UUID().uuidString)")
+        defer { clearRefactorPreferences(for: device) }
+
+        let backend = AppStateRefactorStubBackend(devices: [], stateByDeviceID: [:])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
+        await MainActor.run { _ = appState.deviceController.applyDeviceList([device], source: "refresh") }
+
+        await MainActor.run {
+            appState.editorController.hydrateEditableLighting(from: makeEffectHydrationSnapshot(profileID: 1), device: device)
+            XCTAssertEqual(appState.editorStore.editableLightingEffect, .staticColor)
+
+            appState.editorStore.editableLightingEffect = .spectrum
+            appState.editorController.hydrateEditableLighting(from: makeEffectHydrationSnapshot(profileID: 1), device: device)
+            XCTAssertEqual(appState.editorStore.editableLightingEffect, .spectrum, "hydrating the same device and profile must keep the effect the user applied")
+
+            appState.editorController.hydrateEditableLighting(from: makeEffectHydrationSnapshot(profileID: 2), device: device)
+            XCTAssertEqual(appState.editorStore.editableLightingEffect, .staticColor, "hydrating another onboard profile must re-hydrate the effect")
+        }
+    }
+
+}
+
+private func makeEffectHydrationSnapshot(profileID: Int) -> OnboardProfileSnapshot {
+    OnboardProfileSnapshot(profileID: profileID, metadata: OnboardProfileMetadata(name: "Profile \(profileID)"), staticColorByLEDID: [0x01: RGBPatch(r: 255, g: 0, b: 0), 0x04: RGBPatch(r: 0, g: 255, b: 0), 0x0A: RGBPatch(r: 0, g: 0, b: 255)])
 }
