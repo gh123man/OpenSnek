@@ -593,6 +593,15 @@ Contributor-validated Naga Pro Bluetooth exception (`PID 0x0092`):
 - wheel tilt on slots `0x34` / `0x35` uses raw blocks `0e0309008e0000` / `0e030a008e0000`, so Naga writes must not reuse the Basilisk `0x68` / `0x69` encoder
 - side-panel slots now offer `Default` and remapping, including 6-button slots `0x53..0x55`, after their native factory blocks were captured and physically press-validated on the receiver path; the same native blocks read back over Bluetooth from the unassigned stored banks (see `captures/ble/2026-10-06-naga-pro-native-default-read/`)
 
+Contributor-validated Naga V2 Pro Bluetooth (vendor `0x068E`, PID `0x00A9`):
+- the device resolves through the shared Naga V2 Pro profile and uses the same seven-byte function-block encoding as its USB paths
+- button reads (`08 84 <target> <slot>`) return the current and previous function blocks interleaved byte-by-byte when they differ, and the duplicated-byte form when they match; clients must decode both
+- wheel tilt on slots `0x34` / `0x35` uses the Basilisk-family IDs `0x68` / `0x69` (not the Naga Pro's `0x09` / `0x0A`)
+- lighting uses the per-zone keys `10 83` / `10 03` for color and `10 85` / `10 05` for brightness on LEDs `0x04` (palm logo) and `0x05` (12-button side panel)
+- battery raw `05 81 00 01` is a 0-255 byte (`0x45` = 27%); the standard HID battery characteristic reports a stale 100%, and `05 80 00 01` does not reliably indicate charging, so charging comes from a USB fallback session when one exists
+- stored-bank writes accept the 10-byte `01 <slot> 00 <block>` payload form and restore byte-for-byte (validated on target 3, slot `0x40`)
+- see `captures/ble/2026-10-07-naga-v2-pro-buttons/`
+
 #### 6.5.2 Mouse Button IDs Used by Swift
 
 | Meaning | Button ID |
@@ -946,6 +955,7 @@ Current Swift interpretation:
 - `batteryRaw`:
   - if `<= 100`, treat as direct percentage
   - else scale `0...255` to `0...100`
+  - exception: on Basilisk V3 X HyperSpeed Bluetooth (`0x00BA`), always scale `0...255` to `0...100`, because that device reports values at or below 100 on the same `0...255` scale (observed raw `0x52` = 82 while the standard BLE Battery Service `0x2A19` and macOS reported 32%)
 - on Basilisk V3 Pro Bluetooth (`0x00AC`), OpenSnek currently ignores `batteryStatus` for charging UI because the status bit does not reliably mean `charging`; charging only comes from an available USB fallback session
 - on Basilisk V3 X HyperSpeed Bluetooth (`0x00BA`), OpenSnek ignores `batteryStatus` for charging UI and reports `not charging` because that device is AA-powered
 
