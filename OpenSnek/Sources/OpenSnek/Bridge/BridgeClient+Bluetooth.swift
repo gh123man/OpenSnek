@@ -11,7 +11,9 @@ extension BridgeClient {
         let charging: Bool?
     }
 
-    func isBluetoothV3ProLightingDevice(_ device: MouseDevice) -> Bool { device.transport == .bluetooth && (device.profile_id == .basiliskV3Pro || device.product_id == 0x00AC) }
+    /// Whether this Bluetooth device uses the per-zone state lighting surface (`10 83`/`10 03`
+    /// color, `10 85`/`10 05` brightness) instead of the legacy single-frame lighting keys.
+    func usesBluetoothZoneStateLighting(_ device: MouseDevice) -> Bool { device.transport == .bluetooth && (device.profile_id == .basiliskV3Pro || device.product_id == 0x00AC || device.profile_id == .nagaV2Pro || device.product_id == 0x00A9) }
 
     func bluetoothLightingLEDIDs(device: MouseDevice, override: [UInt8]? = nil) -> [UInt8] {
         let profileLEDIDs = DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?.lightingLEDIDs()
@@ -31,14 +33,24 @@ extension BridgeClient {
 
     func btNotifySummary(_ notifies: [Data]) -> String { notifies.map(btHex).joined(separator: " | ") }
 
-    static func resolveBluetoothBatteryState(device: MouseDevice, vendorRaw: Int?, vendorStatus: Int?, usbFallback: (Int, Bool)?) -> BluetoothBatteryState {
-        let vendorPercent = vendorRaw.map { raw in raw <= 100 ? raw : Int((Double(raw) / 255.0) * 100.0) }
+    static func resolveBluetoothBatteryState(device: MouseDevice, vendorRaw: Int?, vendorStatus: Int?, usbFallback: (Int, Bool?)?) -> BluetoothBatteryState {
+        // Both devices report a 0-255 byte even below 100. Preserve HyperSpeed's rounded
+        // conversion and the Naga V2 Pro's USB-compatible truncation.
+        let isV3XBluetooth = device.transport == .bluetooth && (device.profile_id == .basiliskV3XHyperspeed || device.product_id == 0x00BA)
+        let isNagaV2Bluetooth = device.transport == .bluetooth && (device.profile_id == .nagaV2Pro || device.product_id == 0x00A9)
+        let vendorPercent = vendorRaw.map { raw in
+            if isV3XBluetooth { return Int((Double(min(max(raw, 0), 255)) / 255.0 * 100.0).rounded()) }
+            return (isNagaV2Bluetooth || raw > 100) ? Int((Double(raw) / 255.0) * 100.0) : raw
+        }
         let charging: Bool?
         if device.transport == .bluetooth, device.profile_id == .basiliskV3XHyperspeed || device.product_id == 0x00BA {
             charging = false
         } else if device.transport == .bluetooth, device.profile_id == .orochiV2 || device.product_id == 0x0095 {
             charging = false
         } else if device.transport == .bluetooth, device.profile_id == .basiliskV3Pro || device.product_id == 0x00AC {
+            charging = usbFallback?.1
+        } else if device.transport == .bluetooth, device.profile_id == .nagaV2Pro || device.product_id == 0x00A9 {
+            // The vendor status bit is unreliable on this family; only trust a USB fallback session.
             charging = usbFallback?.1
         } else {
             charging = vendorStatus.map { $0 == 1 } ?? usbFallback?.1
@@ -48,7 +60,7 @@ extension BridgeClient {
     }
 
     func btGetLightingValue(device: MouseDevice, ledIDs: [UInt8]? = nil) async throws -> Int? {
-        if isBluetoothV3ProLightingDevice(device) {
+        if usesBluetoothZoneStateLighting(device) {
             let ids = bluetoothLightingLEDIDs(device: device, override: ledIDs)
             var values: [(UInt8, Int)] = []
             for ledID in ids { if let value = try await btGetScalar(device: device, key: .lightingBrightnessGet(ledID: ledID), size: 1) { values.append((ledID, value)) } }
@@ -62,7 +74,7 @@ extension BridgeClient {
 
     func btReadLightingColor(device: MouseDevice, ledID: UInt8) async throws -> RGBPatch? {
         let key: BLEVendorProtocol.Key
-        if isBluetoothV3ProLightingDevice(device) { key = .lightingZoneStateGet(ledID: ledID) } else { key = .lightingFrameGet }
+        if usesBluetoothZoneStateLighting(device) { key = .lightingZoneStateGet(ledID: ledID) } else { key = .lightingFrameGet }
 
         let req = nextBTReq()
         let header = BLEVendorProtocol.buildReadHeader(req: req, key: key)
@@ -305,7 +317,7 @@ extension BridgeClient {
 
     func btSetLightingValue(device: MouseDevice, value: Int) async throws -> Bool {
         let clamped = max(0, min(255, value))
-        if isBluetoothV3ProLightingDevice(device) {
+        if usesBluetoothZoneStateLighting(device) {
             var wroteAny = false
             for ledID in bluetoothLightingLEDIDs(device: device) {
                 let wrote = try await btSetScalar(device: device, key: .lightingBrightnessSet(ledID: ledID), value: clamped, size: 1, payloadLength: 0x01)
@@ -319,7 +331,7 @@ extension BridgeClient {
     }
 
     func btSetLightingRGB(device: MouseDevice, r: Int, g: Int, b: Int, ledIDs: [UInt8]? = nil) async throws -> Bool {
-        if isBluetoothV3ProLightingDevice(device) {
+        if usesBluetoothZoneStateLighting(device) {
             let payload = BLEVendorProtocol.buildV3ProLightingZoneStatePayload(r: r, g: g, b: b)
             var wroteAny = false
             for ledID in bluetoothLightingLEDIDs(device: device, override: ledIDs) {

@@ -4,8 +4,18 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Added contributor-validated wired USB (`0x00A7`) and Bluetooth (`0x00A9`) support for the Razer Naga V2 Pro. Wired and Bluetooth expose the same DPI stages, battery, and button surface as the 2.4 GHz receiver; Bluetooth reads battery from the vendor protocol because the standard HID battery characteristic reports a stale 100%.
+- Added side-panel lighting for the Naga V2 Pro: the 12-button side plate is now a second lighting zone (`0x05`) alongside the palm logo (`0x04`) on wired, receiver, and Bluetooth. The 6- and 2-button plates have no lighting.
+
+### Changed
+- Naga V2 Pro side-panel labels are now physically verified: 12-button panel labels `1-12` map straight to slots `64-75` and 6-button panel labels `1-6` to slots `80-85`.
+- The Naga V2 Pro bottom button (slot `0x0E`) is now editable with `Default` restore to its factory onboard-profile-cycle block. The rear and forward top buttons are labeled DPI Stage Down/Up and stay preserved read-only until a dedicated DPI-stage binding kind ships.
+
 ### Fixed
 - Fixed the Battery Meter preset on battery-less accessories, such as the Razer Mouse Dock, ignoring an explicitly selected Battery source. When the selected source was offline the card and the dock lighting silently fell back to another connected device's battery; the selected source is now always honored and is never replaced by another device. A source that is no longer connected or reachable reads as unavailable instead of reusing its last value: the card shows a "Battery unavailable" indicator and the meter goes dark. Running meters also refresh their source in the background, so a mouse going away is noticed without having to select it again.
+- Fixed the battery indicator never showing the charging bolt on USB mice that report charging through the dedicated `0x07:0x84` command, including the Naga V2 Pro. OpenSnek previously read an unused byte of the battery-level response, so a charging mouse looked like it was on battery.
+- Fixed the Basilisk V3 X HyperSpeed showing the wrong battery percentage over Bluetooth when the raw value was 100 or lower (for example 82% instead of 32%). The raw value is now always read on its 0-255 scale for this device.
 
 ## [1.4.0-rc.2]
 

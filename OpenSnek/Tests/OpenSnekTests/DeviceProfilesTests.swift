@@ -336,20 +336,20 @@ final class DeviceProfilesTests: XCTestCase {
         let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00A8, transport: .usb)
         XCTAssertEqual(profile?.id, .nagaV2Pro)
         XCTAssertEqual(profile?.productName, "Naga V2 Pro")
-        XCTAssertEqual(profile?.supportedProducts, [0x00A8])
+        XCTAssertEqual(profile?.supportedProducts, [0x00A7, 0x00A8])
         XCTAssertEqual(profile?.usbTransactionID, 0x1F)
-        XCTAssertEqual(profile?.buttonLayout.writableSlots, [1, 2, 3, 4, 5, 9, 10, 52, 53, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82, 83, 84, 85])
-        XCTAssertEqual(profile?.buttonLayout.visibleSlots.filter { $0.group == "Mouse" }.map(\.slot), [1, 2, 3, 9, 10, 52, 53])
+        XCTAssertEqual(profile?.buttonLayout.writableSlots, [1, 2, 3, 4, 5, 9, 10, 14, 52, 53, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82, 83, 84, 85])
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots.filter { $0.group == "Mouse" }.map(\.slot), [1, 2, 3, 9, 10, 52, 53, 14])
         XCTAssertEqual(profile?.buttonLayout.visibleSlots.first(where: { $0.slot == 5 })?.group, "2-Button Panel")
         XCTAssertEqual(profile?.buttonLayout.visibleSlots.first(where: { $0.slot == 85 })?.group, "6-Button Panel")
         XCTAssertEqual(profile?.buttonLayout.access(for: 83), .editable)
-        XCTAssertEqual(profile?.buttonLayout.access(for: 14), .protocolReadOnly)
+        XCTAssertEqual(profile?.buttonLayout.access(for: 14), .editable)
         XCTAssertEqual(profile?.buttonLayout.access(for: 96), .protocolReadOnly)
         XCTAssertEqual(profile?.buttonLayout.access(for: 109), .protocolReadOnly)
         XCTAssertEqual(profile?.supportsAdvancedLightingEffects, true)
         XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual])
-        XCTAssertEqual(profile?.usbLightingLEDIDs, [0x04])
-        XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["logo"])
+        XCTAssertEqual(profile?.usbLightingLEDIDs, [0x04, 0x05])
+        XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["logo", "side_panel"])
         XCTAssertEqual(profile?.usbBrightnessLEDIDs, [0x00])
         XCTAssertEqual(profile?.supportsLightingBrightnessControls, true)
         XCTAssertEqual(profile?.supportsScrollModeControls, false)
@@ -363,9 +363,39 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(DeviceProfiles.maximumDPI(for: .nagaV2Pro), 30_000)
     }
 
+    func testResolveUSBProfileForNagaV2ProWired() {
+        let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00A7, transport: .usb)
+        XCTAssertEqual(profile?.id, .nagaV2Pro)
+        XCTAssertEqual(profile?.buttonLayout, DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00A8, transport: .usb)?.buttonLayout)
+    }
+
+    func testResolveBluetoothProfileForNagaV2Pro() {
+        let profile = DeviceProfiles.resolve(vendorID: 0x068E, productID: 0x00A9, transport: .bluetooth)
+        XCTAssertEqual(profile?.id, .nagaV2Pro)
+        XCTAssertEqual(profile?.productName, "Naga V2 Pro")
+        XCTAssertEqual(profile?.supportedProducts, [0x00A9])
+        XCTAssertEqual(profile?.buttonLayout.writableSlots, DeviceProfiles.nagaV2ProUSBWritableSlots)
+        XCTAssertEqual(profile?.buttonLayout.access(for: 14), .editable)
+        XCTAssertEqual(profile?.usbLightingLEDIDs, [0x04, 0x05])
+        XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["logo", "side_panel"])
+        XCTAssertEqual(profile?.supportedLightingEffects, [.staticColor])
+        XCTAssertEqual(profile?.supportsLightingBrightnessControls, true)
+        // Bluetooth profile CRUD is not validated yet; leaving mapped CRUD off keeps the generic
+        // battery/lighting polling path enabled for the BT profile.
+        XCTAssertEqual(profile?.onboardProfileSupport, .unavailable)
+    }
+
     func testNagaV2ProIsNotResolvedAsNagaPro() {
         XCTAssertNil(DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00A8, transport: .bluetooth))
         XCTAssertEqual(DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x0090, transport: .usb)?.id, .nagaPro)
+        XCTAssertEqual(DeviceProfiles.resolve(vendorID: 0x068E, productID: 0x00A9, transport: .bluetooth)?.id, .nagaV2Pro)
+        XCTAssertNil(DeviceProfiles.resolve(vendorID: 0x068E, productID: 0x00A9, transport: .usb))
+    }
+
+    func testResolveBluetoothFallbackForNagaV2Pro() {
+        XCTAssertEqual(DeviceProfiles.resolveBluetoothFallback(name: "Naga V2 Pro")?.id, .nagaV2Pro)
+        XCTAssertEqual(DeviceProfiles.resolveBluetoothFallback(name: "Razer Naga V2 Pro")?.id, .nagaV2Pro)
+        XCTAssertEqual(DeviceProfiles.resolveBluetoothFallback(name: "Naga Pro")?.id, .nagaPro)
     }
 
     func testDPIRangesMatchSupportedProfiles() {

@@ -166,6 +166,21 @@ public enum USBHIDProtocol {
         return response[88] == crc(for: response)
     }
 
+    /// Parses the `0x07:0x80` battery-level response. Argument 1 (report byte 9) is the 0-255
+    /// level; the first argument is unused on modern mice.
+    public static func parseBatteryLevelPercent(_ response: [UInt8]) -> Int? {
+        guard response.count > 9, response[0] == 0x02 else { return nil }
+        return Int((Double(response[9]) / 255.0) * 100.0)
+    }
+
+    /// Parses the `0x07:0x84` charging-status response. Argument 1 (report byte 9) is `0x01` while
+    /// charging. Charging is a separate command from the battery level: the level response's first
+    /// argument does not carry the flag. OpenRazer reads the same argument.
+    public static func parseChargingStatus(_ response: [UInt8]) -> Bool? {
+        guard response.count > 9, response[0] == 0x02 else { return nil }
+        return response[9] == 0x01
+    }
+
     public static func onboardProfileMetadataReadArgs(slot: UInt8, offset: Int, totalLength: Int = onboardProfileMetadataLength) -> [UInt8] {
         let clampedOffset = max(0, min(0xFFFF, offset))
         let clampedLength = max(0, min(0xFFFF, totalLength))

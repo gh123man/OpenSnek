@@ -601,7 +601,7 @@ actor BridgeClient {
 
     func readLightingColor(device: MouseDevice) async throws -> RGBPatch? {
         guard device.transport == .bluetooth else { return nil }
-        if isBluetoothV3ProLightingDevice(device) {
+        if usesBluetoothZoneStateLighting(device) {
             let ledIDs = bluetoothLightingLEDIDs(device: device)
             var colors: [(UInt8, RGBPatch)] = []
             for ledID in ledIDs { if let color = try await btReadLightingColor(device: device, ledID: ledID) { colors.append((ledID, color)) } }

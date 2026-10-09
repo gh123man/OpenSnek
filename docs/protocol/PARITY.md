@@ -11,6 +11,7 @@ Target device baseline:
 - Basilisk V3 Pro Bluetooth (`BT PID 0x00AC`)
 - Basilisk V3 35K (`USB PID 0x00CB`)
 - Orochi V2 Bluetooth (`BT PID 0x0095`)
+- Naga V2 Pro (`USB PIDs 0x00A7, 0x00A8`, `BT PID 0x00A9`)
 - Naga Pro (`USB PIDs 0x008F, 0x0090`, `BT PID 0x0092`, contributor validated)
 - Basilisk 2017 (`USB PID 0x0064`, OpenRazer-backed USB profile only)
 - Lancehead Tournament Edition (`USB PID 0x0060`, OpenRazer-backed USB profile only)
@@ -205,6 +206,16 @@ Validated on physical hardware by [varunyellina in PR #106](https://github.com/g
 - the captured defaults use function-data length `0x01` (`02 01 00 <key>`) with the HID key in byte 3; the 12-button panel defaults to keyboard `1..9`, `0`, `-`, `=`, and the 6-button panel to `1..6`
 - physical press validation confirmed the 12- and 6-button panels emit their staged native keys in physical label order, and slots `83-85` were promoted to editable after the 6-button panel's buttons emitted keyboard `4` / `5` / `6`; the class-`0x03` block seen on the original contributor's unit was not reproduced
 - `Default` restore through the app write path was physically confirmed on 12-button slot `64`
+
+## Contributor-Validated Device Profile (Naga V2 Pro, USB PIDs `0x00A7` / `0x00A8`, BT PID `0x00A9`)
+
+Validated on physical hardware by [jpagh](https://github.com/jpagh), not by an OpenSnek maintainer:
+- wired USB and the 2.4 GHz receiver resolve to the shared Naga V2 Pro profile with a `30,000` DPI ceiling and five mapped onboard profile slots; Bluetooth uses the same button, DPI, battery, and lighting surface but keeps profile CRUD hidden because create/delete writes are not validated yet
+- the three swappable panels share one firmware slot table; press validation confirmed 12-button labels `1-12` map straight to slots `64-75` and 6-button labels `1-6` to slots `80-85`
+- body slots `1-5`, `9`, `10`, `14`, `52`, `53` and panel slots `64-75` / `80-85` are editable; the bottom button (`0x0E`) is remappable with `Default` restore to `07 01 04`
+- top buttons `0x60` / `0x6D` accept writes but stay read-only until a dedicated DPI-stage binding kind ships
+- lighting has two zones: palm logo `0x04` and 12-button side panel `0x05`; the 6- and 2-button plates are unlit, and the device has no scroll-wheel zone
+- Bluetooth button reads interleave the current and previous function blocks, and the Bluetooth battery raw byte is 0-255 (`0x45` = 27%), matching Synapse rather than the stale HID battery characteristic
 
 ## Validation Checklist
 

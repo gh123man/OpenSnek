@@ -222,12 +222,10 @@ final class USBProbeClient: @unchecked Sendable {
     }
 
     func readBattery() throws -> USBBatteryReadResult? {
-        guard let response = try session.perform(classID: 0x07, cmdID: 0x80, size: 0x02, args: []), response[0] == 0x02, response.count > 9 else { return nil }
+        guard let response = try session.perform(classID: 0x07, cmdID: 0x80, size: 0x02, args: []), let percent = USBHIDProtocol.parseBatteryLevelPercent(response) else { return nil }
 
-        let charging = response[8] == 0x01
-        let rawLevel = response[9]
-        let percent = Int((Double(rawLevel) / 255.0) * 100.0)
-        return USBBatteryReadResult(charging: charging, rawLevel: rawLevel, percent: percent)
+        let chargingResponse = try session.perform(classID: 0x07, cmdID: 0x84, size: 0x02, args: [])
+        return USBBatteryReadResult(charging: chargingResponse.flatMap(USBHIDProtocol.parseChargingStatus), rawLevel: response[9], percent: percent)
     }
 
     func profileLightingTargets() -> [USBLightingTargetDescriptor] { lightingTargets(zoneID: nil) ?? [USBLightingTargetDescriptor(zoneID: "led_01", zoneLabel: "LED 0x01", ledID: 0x01)] }
