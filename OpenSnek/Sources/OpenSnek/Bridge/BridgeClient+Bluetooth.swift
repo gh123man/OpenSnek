@@ -33,7 +33,7 @@ extension BridgeClient {
 
     func btNotifySummary(_ notifies: [Data]) -> String { notifies.map(btHex).joined(separator: " | ") }
 
-    static func resolveBluetoothBatteryState(device: MouseDevice, vendorRaw: Int?, vendorStatus: Int?, usbFallback: (Int, Bool)?) -> BluetoothBatteryState {
+    static func resolveBluetoothBatteryState(device: MouseDevice, vendorRaw: Int?, vendorStatus: Int?, usbFallback: (Int, Bool?)?) -> BluetoothBatteryState {
         // Both devices report a 0-255 byte even below 100. Preserve HyperSpeed's rounded
         // conversion and the Naga V2 Pro's USB-compatible truncation.
         let isV3XBluetooth = device.transport == .bluetooth && (device.profile_id == .basiliskV3XHyperspeed || device.product_id == 0x00BA)

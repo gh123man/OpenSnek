@@ -19,6 +19,32 @@ final class USBHIDProtocolTests: XCTestCase {
         XCTAssertFalse(USBHIDProtocol.isValidResponse(response, txn: 0x1F, classID: 0x07, cmdID: 0x80))
     }
 
+    func testParseBatteryLevelPercentUsesSecondArgument() {
+        let response = batteryResponse(cmd: 0x80, args: [0x00, 0x7D])
+
+        XCTAssertEqual(USBHIDProtocol.parseBatteryLevelPercent(response), 49)
+    }
+
+    func testParseChargingStatusUsesSeparateCommandSecondArgument() {
+        XCTAssertEqual(USBHIDProtocol.parseChargingStatus(batteryResponse(cmd: 0x84, args: [0x00, 0x01])), true)
+        XCTAssertEqual(USBHIDProtocol.parseChargingStatus(batteryResponse(cmd: 0x84, args: [0x00, 0x00])), false)
+    }
+
+    func testParseChargingStatusRejectsFailureAndShortResponses() {
+        var failure = batteryResponse(cmd: 0x84, args: [0x00, 0x01])
+        failure[0] = 0x03
+
+        XCTAssertNil(USBHIDProtocol.parseChargingStatus(failure))
+        XCTAssertNil(USBHIDProtocol.parseChargingStatus([0x02, 0x1F]))
+        XCTAssertNil(USBHIDProtocol.parseBatteryLevelPercent([0x02, 0x1F]))
+    }
+
+    private func batteryResponse(cmd: UInt8, args: [UInt8]) -> [UInt8] {
+        var response = USBHIDProtocol.createReport(txn: 0x1F, classID: 0x07, cmdID: cmd, size: UInt8(args.count), args: args)
+        response[0] = 0x02
+        return response
+    }
+
     func testOnboardProfileMetadataReadArgsUseOpenRazerChunkHeaderOrder() {
         XCTAssertEqual(USBHIDProtocol.onboardProfileMetadataChunkDataLength, 0x4B)
         XCTAssertEqual(USBHIDProtocol.onboardProfileMetadataChunkOffsets, [0x0000, 0x004B, 0x0096, 0x00E1])

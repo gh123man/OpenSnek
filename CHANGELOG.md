@@ -13,6 +13,7 @@ All notable changes to this project are documented in this file.
 - The Naga V2 Pro bottom button (slot `0x0E`) is now editable with `Default` restore to its factory onboard-profile-cycle block. The rear and forward top buttons are labeled DPI Stage Down/Up and stay preserved read-only until a dedicated DPI-stage binding kind ships.
 
 ### Fixed
+- Fixed the battery indicator never showing the charging bolt on USB mice that report charging through the dedicated `0x07:0x84` command, including the Naga V2 Pro. OpenSnek previously read an unused byte of the battery-level response, so a charging mouse looked like it was on battery.
 - Fixed the Basilisk V3 X HyperSpeed showing the wrong battery percentage over Bluetooth when the raw value was 100 or lower (for example 82% instead of 32%). The raw value is now always read on its 0-255 scale for this device.
 
 ## [1.4.0-rc.2]
