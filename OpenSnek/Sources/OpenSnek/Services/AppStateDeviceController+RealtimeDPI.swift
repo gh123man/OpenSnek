@@ -128,6 +128,7 @@ import OpenSnekHardware
         let previous = usbControlAvailabilityByDeviceID[deviceID]
         guard previous != availability else { return }
         usbControlAvailabilityByDeviceID[deviceID] = availability
+        deviceStore.usbControlAvailabilityByDeviceID[deviceID] = availability
         AppLog.debug("AppState", "usbControlAvailability device=\(deviceID) previous=\(previous?.rawValue ?? "nil") next=\(availability.rawValue)")
         deviceStore.invalidateConnectionDiagnostics()
     }

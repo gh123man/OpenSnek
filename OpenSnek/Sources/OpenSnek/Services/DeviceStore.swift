@@ -12,6 +12,9 @@ import SwiftUI
     var selectedDeviceID: String?
     var state: MouseState?
     var stateByDeviceID: [String: MouseState] = [:]
+    /// Mirrors the controller's USB control availability so views can react to a device dropping
+    /// off the USB link without losing its last known state.
+    var usbControlAvailabilityByDeviceID: [String: USBControlAvailability] = [:]
     var availableUpdate: ReleaseAvailability?
     var updateInstallState: SoftwareUpdateInstallState = .idle
     var isLoading = false
@@ -68,6 +71,9 @@ import SwiftUI
         guard let selectedDeviceID else { return nil }
         return devices.first(where: { $0.id == selectedDeviceID })
     }
+
+    /// Device IDs that are present but cannot currently be reached over USB.
+    var usbUnavailableDeviceIDs: Set<String> { Set(usbControlAvailabilityByDeviceID.filter { $0.value.blocksUSBControlInteraction }.keys) }
 
     var usesRemoteServiceTransport: Bool { environment.usesRemoteServiceTransport }
 
