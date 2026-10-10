@@ -188,3 +188,32 @@ Fail patterns:
 
 - repeated mirrored last-slot values after multi-stage writes
 - stale-read masking that never converges
+
+### USB connection-state diagnosis
+
+A USB device that flips between Connected and Reconnecting while DPI, stages, and poll rate read successfully usually returned a state missing one supported telemetry field; the missing field is misread as an unavailable device. Enable debug logging first and restore `warning` afterwards:
+
+```bash
+defaults write io.opensnek.OpenSnek openSnek.logLevel -string debug
+defaults write io.opensnek.OpenSnek openSnek.logLevel -string warning
+```
+
+Useful greps:
+
+```bash
+tail -n 300 ~/Library/Logs/OpenSnek/open-snek.log | rg "readState usb|partial usb telemetry treated unavailable|refreshState backoff|usbControlAvailability"
+```
+
+Fail pattern (Naga V2 Pro brightness example):
+
+- `readState usb ... elapsed=` succeeds
+- `refreshState partial usb telemetry treated unavailable` follows immediately
+- `refreshState backoff ... until=...` repeats and the status indicator cycles
+
+When that pattern appears, probe the missing register directly before touching recovery logic. For brightness, check which LED answers `0F:84`:
+
+```bash
+swift run --package-path OpenSnek OpenSnekProbe usb-raw --class 0x0f --cmd 0x84 --size 0x03 --args 01,04,00 --pid 0x00a8
+```
+
+Byte 0 is the status: `0x02` success (value in byte 10), `0x03` failure, `0x04` timeout. On the Naga V2 Pro, args `01 00 00` return `0x03` while `01 04 00` return `0x02`; the profile fixes that with `usbBrightnessReadLEDIDs` in `DeviceSupport.swift` instead of weakening the telemetry check. A `0x04` timeout can simply mean the mouse is asleep; wake it before treating a read as a rejection.

@@ -523,7 +523,7 @@ Args:     [0] = storage/profile ID, [1] = enabled (0x00/0x01)
 
 ### Class 0x0F - Scroll LED Brightness and Effects
 
-Validated on Basilisk V3 X HyperSpeed (`0x00B9`), Basilisk V3 Pro (`0x00AB`), and Basilisk V3 35K (`0x00CB`) over USB.
+Validated on Basilisk V3 X HyperSpeed (`0x00B9`), Basilisk V3 Pro (`0x00AB`), and Basilisk V3 35K (`0x00CB`) over USB. The Naga V2 Pro, Tartarus Pro, and Mouse Dock also use this class with device-specific read addressing; see the client note below.
 
 #### Get/Set Scroll LED Brightness
 ```
@@ -550,6 +550,11 @@ Client note:
 - For whole-device USB lighting on Basilisk V3 Pro and Basilisk V3 35K, apply brightness/effect writes to all validated LED IDs (`0x01`, `0x04`, and `0x0A`).
 - On the attached Basilisk V3 35K, brightness reads on `0x0F:0x84` succeed for both storage `0x00` and `0x01`. OpenSnek now treats the 35K as part of the shared Basilisk V3 USB mapped profile family, so profile-scoped lighting should use the same guarded `0x0F` storage/profile IDs as the V3 Pro path unless hardware validation proves a device-specific exception.
 - On the attached Basilisk V3 Pro on June 16, 2026, brightness reads on `0x0F:0x84` succeeded for storage/profile IDs `0..5` and all validated LED IDs. Storage `3` returned `0x60`, matching the Bluetooth-recreated target-`3` profile, while the other banks returned `0x54`. Treat brightness as profile-scoped on this device. Changed-value `0x0F:0x04` stored-bank write/readback with restore is validated on profile `5`, and those values persisted across USB reconnect. Cross-transport readback and power-cycle persistence still need guarded validation before shipping.
+
+Client note (read vs write addressing):
+- The whole-device write address is not always readable. The Naga V2 Pro addresses brightness writes at LED `0x00`, but `0F:84` reads at `0x00` return status `0x03` while logo LED `0x04` returns status `0x02` (brightness `0x58`). Never assume a write target can be reused as a read target.
+- Other profiles that override the brightness write target are safe as-is: the Tartarus Pro keeps LED `0x00` for both because `0x00` and `0x05` alias the same register, and the Mouse Dock does not answer `0F:84` at all but sets `supportsLightingStateReads: false` so the missing value is expected.
+- OpenSnek splits the addresses per profile in `OpenSnekCore/DeviceSupport.swift`: `usbBrightnessLEDIDs` is the write target, and the optional `usbBrightnessReadLEDIDs` overrides the read target (defaulting to the write target). Missing brightness telemetry on an otherwise responsive USB device is treated as incomplete telemetry, not a disconnect. If a device cycles Connected/Reconnecting while DPI reads succeed, probe which LED answers `0F:84` before changing recovery logic; `docs/development/VALIDATION.md` has the log greps and probe command.
 
 #### Get/Set Scroll LED Effects
 ```
