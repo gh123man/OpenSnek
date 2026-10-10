@@ -621,6 +621,23 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(overridden.allUSBBrightnessLEDIDs, [0x00])
     }
 
+    func testBrightnessReadLEDIDsPreserveExistingAddressingUnlessOverridden() {
+        for profile in DeviceProfiles.all where profile.usbBrightnessReadLEDIDs == nil { XCTAssertEqual(profile.allUSBBrightnessReadLEDIDs, profile.allUSBBrightnessLEDIDs, "profile \(profile.id) \(profile.transport)") }
+        let emptyOverride = DeviceProfile(
+            id: .orochiV2, productName: "Empty Read Override", transport: .usb, supportedProducts: [0x7778], buttonLayout: ButtonSlotLayout(visibleSlots: [], writableSlots: []), supportsAdvancedLightingEffects: true, usbLightingLEDIDs: [0x05], usbBrightnessLEDIDs: [0x00], usbBrightnessReadLEDIDs: []
+        )
+        XCTAssertEqual(emptyOverride.allUSBBrightnessReadLEDIDs, [0x00])
+    }
+
+    func testNagaV2ProBrightnessReadsLogoButWritesWholeDeviceOnBothUSBTransports() throws {
+        for productID in [0x00A7, 0x00A8] {
+            let profile = try XCTUnwrap(DeviceProfiles.resolve(vendorID: 0x1532, productID: productID, transport: .usb))
+            XCTAssertEqual(profile.allUSBBrightnessReadLEDIDs, [0x04])
+            XCTAssertEqual(profile.allUSBBrightnessLEDIDs, [0x00])
+            XCTAssertTrue(profile.supportsLightingStateReads)
+        }
+    }
+
     func testPersistenceKeysIgnorePlaceholderZeroSerial() {
         let device = MouseDevice(id: "dev", vendor_id: 0x1532, product_id: 0x00AB, product_name: "Mouse", transport: .usb, path_b64: "", serial: "000000000000", firmware: nil)
 

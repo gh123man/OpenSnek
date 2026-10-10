@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Fixed the Naga V2 Pro appearing disconnected or repeatedly reconnecting over USB at startup and after recovery, including when only the menu bar is open. Brightness reads now use the logo LED address while whole-device brightness writes retain their separate address.
+
 ## [1.4.0-rc.3]
 
 ### Added
