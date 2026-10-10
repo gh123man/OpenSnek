@@ -254,7 +254,10 @@ public struct DeviceProfile: Hashable, Sendable {
     public let supportsPollRateControls: Bool
     public let supportsPowerManagementControls: Bool
     public let supportsButtonRemapControls: Bool
+    /// Brightness write targets, also used for reads unless the profile overrides them.
     public let usbBrightnessLEDIDs: [UInt8]?
+    /// Separate read targets for devices whose whole-device write address cannot be read.
+    public let usbBrightnessReadLEDIDs: [UInt8]?
     public let isLocallyValidated: Bool
 
     public init(
@@ -262,7 +265,7 @@ public struct DeviceProfile: Hashable, Sendable {
         usbLightingLEDIDs: [UInt8] = [], usbLightingZones: [USBLightingZoneDescriptor] = [], softwareLightingFrameLayout: SoftwareLightingFrameLayout? = nil, supportedSoftwareLightingPresets: [SoftwareLightingPresetID] = [], passiveDPIInput: PassiveDPIInputDescriptor? = nil,
         supportsIndependentXYDPI: Bool = false, supportsScrollModeControls: Bool = false, supportsLightingBrightnessControls: Bool = false, supportsLightingStateReads: Bool = true, usesProjectedDPIStageWriteReadback: Bool = false, onboardProfileSupport: OnboardProfileSupport = .unavailable,
         onboardProfileCount: Int = 1, formFactor: DeviceFormFactor = .mouse, supportsDPIControls: Bool = true, supportsPollRateControls: Bool = true, supportsPowerManagementControls: Bool = true, supportsButtonRemapControls: Bool = true, usbBrightnessLEDIDs: [UInt8]? = nil,
-        isLocallyValidated: Bool = true
+        usbBrightnessReadLEDIDs: [UInt8]? = nil, isLocallyValidated: Bool = true
     ) {
         self.id = id
         self.productName = productName
@@ -290,6 +293,7 @@ public struct DeviceProfile: Hashable, Sendable {
         self.supportsPowerManagementControls = supportsPowerManagementControls
         self.supportsButtonRemapControls = supportsButtonRemapControls
         self.usbBrightnessLEDIDs = usbBrightnessLEDIDs
+        self.usbBrightnessReadLEDIDs = usbBrightnessReadLEDIDs
         self.isLocallyValidated = isLocallyValidated
     }
 
@@ -307,6 +311,11 @@ public struct DeviceProfile: Hashable, Sendable {
     public var allUSBBrightnessLEDIDs: [UInt8] {
         guard let usbBrightnessLEDIDs, !usbBrightnessLEDIDs.isEmpty else { return allUSBLightingLEDIDs }
         return usbBrightnessLEDIDs
+    }
+
+    public var allUSBBrightnessReadLEDIDs: [UInt8] {
+        guard let usbBrightnessReadLEDIDs, !usbBrightnessReadLEDIDs.isEmpty else { return allUSBBrightnessLEDIDs }
+        return usbBrightnessReadLEDIDs
     }
 
     public func lightingZone(id zoneID: String) -> USBLightingZoneDescriptor? { usbLightingZones.first(where: { $0.id == zoneID }) }
@@ -523,8 +532,9 @@ public enum DeviceProfiles {
     // 12-button panel labels 1-12 map straight to slots 64-75 (keyboard 1..9, 0, -, =) and the
     // 6-button panel labels 1-6 to slots 80-85 (keyboard 1..6). Slot 14 is the remappable bottom
     // button and its factory block cycles onboard profiles. Lighting covers the palm logo
-    // (LED 0x04) and the 12-button side panel (LED 0x05) with whole-device brightness on LED 0x00;
-    // the 6- and 2-button plates have no lighting. The scroll-mode command is rejected
+    // (LED 0x04) and the 12-button side panel (LED 0x05). Brightness writes use LED 0x00,
+    // but reads must use the logo LED 0x04: reading LED 0x00 is rejected even while awake.
+    // The 6- and 2-button plates have no lighting. The scroll-mode command is rejected
     // (status 0x05), so scroll-mode controls stay hidden. See
     // captures/usb/2026-10-07-naga-v2-pro-buttons/ and captures/ble/2026-10-07-naga-v2-pro-buttons/.
     public static let nagaV2ProUSBButtonSlots: [ButtonSlotDescriptor] = [
@@ -572,7 +582,7 @@ public enum DeviceProfiles {
     public static let nagaV2ProUSB = DeviceProfile(
         id: .nagaV2Pro, productName: "Naga V2 Pro", transport: .usb, supportedProducts: [0x00A7, 0x00A8], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: nagaV2ProUSBButtonSlots, writableSlots: nagaV2ProUSBWritableSlots, documentedSlots: nagaV2ProUSBDocumentedReadOnlySlots),
         supportsAdvancedLightingEffects: true, supportedLightingEffects: nagaV2ProUSBLightingEffects, usbLightingLEDIDs: [0x04, 0x05], usbLightingZones: nagaV2ProUSBLightingZones, softwareLightingFrameLayout: .nagaV2ProUSB, supportedSoftwareLightingPresets: SoftwareLightingPresetID.animatedPresets,
-        supportsLightingBrightnessControls: true, onboardProfileSupport: .mappedCore, onboardProfileCount: 5, usbBrightnessLEDIDs: [0x00], isLocallyValidated: false)
+        supportsLightingBrightnessControls: true, onboardProfileSupport: .mappedCore, onboardProfileCount: 5, usbBrightnessLEDIDs: [0x00], usbBrightnessReadLEDIDs: [0x04], isLocallyValidated: false)
 
     // Contributor-validated Bluetooth profile for the Naga V2 Pro (vendor 0x068E, product 0x00A9).
     // The vendor GATT service exposes the same button, DPI, battery, and lighting surface as the

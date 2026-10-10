@@ -523,7 +523,7 @@ Args:     [0] = storage/profile ID, [1] = enabled (0x00/0x01)
 
 ### Class 0x0F - Scroll LED Brightness and Effects
 
-Validated on Basilisk V3 X HyperSpeed (`0x00B9`), Basilisk V3 Pro (`0x00AB`), and Basilisk V3 35K (`0x00CB`) over USB.
+Validated on Basilisk V3 X HyperSpeed (`0x00B9`), Basilisk V3 Pro (`0x00AB`), and Basilisk V3 35K (`0x00CB`) over USB. The Naga V2 Pro, Tartarus Pro, and Mouse Dock also use this class with device-specific read addressing; see the client note below.
 
 #### Get/Set Scroll LED Brightness
 ```
@@ -550,6 +550,11 @@ Client note:
 - For whole-device USB lighting on Basilisk V3 Pro and Basilisk V3 35K, apply brightness/effect writes to all validated LED IDs (`0x01`, `0x04`, and `0x0A`).
 - On the attached Basilisk V3 35K, brightness reads on `0x0F:0x84` succeed for both storage `0x00` and `0x01`. OpenSnek now treats the 35K as part of the shared Basilisk V3 USB mapped profile family, so profile-scoped lighting should use the same guarded `0x0F` storage/profile IDs as the V3 Pro path unless hardware validation proves a device-specific exception.
 - On the attached Basilisk V3 Pro on June 16, 2026, brightness reads on `0x0F:0x84` succeeded for storage/profile IDs `0..5` and all validated LED IDs. Storage `3` returned `0x60`, matching the Bluetooth-recreated target-`3` profile, while the other banks returned `0x54`. Treat brightness as profile-scoped on this device. Changed-value `0x0F:0x04` stored-bank write/readback with restore is validated on profile `5`, and those values persisted across USB reconnect. Cross-transport readback and power-cycle persistence still need guarded validation before shipping.
+
+Client note (read vs write addressing):
+- The whole-device write address is not always readable. The Naga V2 Pro addresses brightness writes at LED `0x00`, but `0F:84` reads at `0x00` return status `0x03` while logo LED `0x04` returns status `0x02` (brightness `0x58`). Never assume a write target can be reused as a read target.
+- Other profiles that override the brightness write target are safe as-is: the Tartarus Pro keeps LED `0x00` for both because `0x00` and `0x05` alias the same register, and the Mouse Dock does not answer `0F:84` at all but sets `supportsLightingStateReads: false` so the missing value is expected.
+- OpenSnek splits the addresses per profile in `OpenSnekCore/DeviceSupport.swift`: `usbBrightnessLEDIDs` is the write target, and the optional `usbBrightnessReadLEDIDs` overrides the read target (defaulting to the write target). Missing brightness telemetry on an otherwise responsive USB device is treated as incomplete telemetry, not a disconnect. If a device cycles Connected/Reconnecting while DPI reads succeed, probe which LED answers `0F:84` before changing recovery logic; `docs/development/VALIDATION.md` has the log greps and probe command.
 
 #### Get/Set Scroll LED Effects
 ```
@@ -993,10 +998,16 @@ reliable on the local USB stack.
 | Idle time | `07:83` -> `01 2c` (300 s); `07:03` write/readback validated |
 | Low battery threshold | `07:81` -> `0d` |
 | Scroll mode | `02:94` returns status `0x05` (not supported); scroll acceleration `02:96` reads `01 00` |
-| Lighting zones | palm logo LED `0x04` and 12-button side-panel LED `0x05`; whole-device brightness is addressed through LED `0x00`. The 6- and 2-button plates have no lighting, and the device has no scroll-wheel zone |
+| Lighting zones | palm logo LED `0x04` and 12-button side-panel LED `0x05`; whole-device brightness **writes** use LED `0x00`, but brightness **reads** use logo LED `0x04`. The 6- and 2-button plates have no lighting, and the device has no scroll-wheel zone |
 | Validated lighting effects | off/static/spectrum/wave/reactive/breathing via extended matrix `0x0F 0x02`. Off, static, spectrum, and pulse single were visually confirmed; wave, reactive, and the remaining pulse modes were ACK-verified only |
 | Custom frames | `0x0F 0x03` renders a single logo cell (visually confirmed) and the device also ACKs a 3-cell row |
 | Lighting reads | `0x0F 0x82` effect and `0x0F 0x84` brightness reads succeed per LED while the wireless link is awake (observed effect `00`/`01` and brightness `ff`), but return `0x03` (failure) or `0x04` (timeout) once the device idles, so clients should treat those as transient |
+
+Read-only maintainer receiver validation of the rc.3 startup/recovery loop confirmed that `0F:84` args `01 00 00` returns status `0x03` even while DPI, stages, and poll rate read successfully. The same command with args `01 04 00` succeeds (status `0x02`, brightness `0x58`). Do not use the whole-device write target as a read target or interpret its rejection as a wireless disconnect. The USB profile has separate brightness read targets, defaulting to the existing write targets on other devices. Naga reads the always-present logo, independent of the installed side panel; brightness writes remain `0F:04` args `01 00 <value>`. Genuine missing telemetry still enters recovery; no command retries are added.
+
+Maintainer validation on the fixed branch build (2026-10-10, receiver `0x00A8`): the read-only `NagaUSBBrightnessRecoveryTests/testHardwareNagaStateIncludesBrightness` gate passed with live brightness, DPI stages, poll rate, and Connected service presentation. With the main window closed, the maintainer confirmed stable menu-bar Connected status without flashing, unavailable/Connected transitions after receiver unplug/replug, and recovery after switching the mouse off and back to 2.4 GHz. Recovery was quick; the receiver-replug case completed as soon as the mouse moved. No precise recovery latency was measured.
+
+For future full-app checks, repeat those steps and also test a fresh service-only launch before opening the main window. Physical wired USB recovery and natural idle-sleep wake were not tested in this session; automated captured-response tests cover startup, unplug/replug, and telemetry-loss recovery for the shared USB profile.
 
 **Button table**: body and 2-button-panel slots `0x01..0x05`, `0x09`, `0x0A`; wheel tilt `0x34`/`0x35` (native `0e 01 68 00 14` / `0e 01 69 00 14`, keeping the Basilisk-family button IDs `0x68`/`0x69` rather than the Naga Pro's `0x09`/`0x0A`); 12-button-panel slots `0x40..0x4B`; 6-button-panel slots `0x50..0x55`. The byte-identical unassigned banks (profiles `03`/`04`/`05`) store both panels as length-`0x01` keyboard blocks (`02 01 00 1e` .. `02 01 00 2e` for the 12-button panel, `02 01 00 1e` .. `02 01 00 23` for the 6-button panel), so the HID key sits in byte 3. Write/readback with restore was validated on slots `0x04`, `0x40`, `0x53`, and `0x55`, and both the native `0e 01 ..` and turbo `0e 03 ..` wheel-tilt forms round-trip on `0x34`. Physical press validation confirmed 12-button labels `1-12` map straight to slots `0x40..0x4B` (keyboard `1..9`, `0`, `-`, `=`) and 6-button labels `1-6` to slots `0x50..0x55` (keyboard `1..6`) on both the receiver and Bluetooth. Slot `0x0E` is the remappable bottom button; its factory block is the class-`0x07` `07 01 04`, which cycles onboard profiles, and Synapse rewrites `06 01 06` when the button is remapped to DPI-stage cycling.
 

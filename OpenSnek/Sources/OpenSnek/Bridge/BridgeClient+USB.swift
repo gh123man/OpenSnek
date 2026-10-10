@@ -512,24 +512,30 @@ extension BridgeClient {
         return r[0] == 0x02
     }
 
-    func usbDeviceProfile(for device: MouseDevice) -> DeviceProfile? { DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport) }
+    nonisolated func usbDeviceProfile(for device: MouseDevice) -> DeviceProfile? { DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport) }
 
-    func usbLightingLEDIDs(for device: MouseDevice, override: [UInt8]? = nil) -> [UInt8] {
+    nonisolated func usbLightingLEDIDs(for device: MouseDevice, override: [UInt8]? = nil) -> [UInt8] {
         let ids = override ?? usbDeviceProfile(for: device)?.allUSBLightingLEDIDs ?? [0x01]
         return ids.isEmpty ? [0x01] : ids
     }
 
-    func usbBrightnessLEDIDs(for device: MouseDevice) -> [UInt8] {
+    nonisolated func usbBrightnessLEDIDs(for device: MouseDevice) -> [UInt8] {
         guard let profile = usbDeviceProfile(for: device) else { return usbLightingLEDIDs(for: device) }
         return profile.allUSBBrightnessLEDIDs
     }
 
-    func getScrollLEDBrightness(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> Int? {
+    nonisolated func usbBrightnessReadLEDIDs(for device: MouseDevice) -> [UInt8] {
+        guard let profile = usbDeviceProfile(for: device) else { return usbLightingLEDIDs(for: device) }
+        return profile.allUSBBrightnessReadLEDIDs
+    }
+
+    func getScrollLEDBrightness(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> Int? { try readUSBBrightness(device: device) { ledID in try perform(session, device, classID: 0x0F, cmdID: 0x84, size: 0x03, args: [0x01, ledID]) } }
+
+    nonisolated func readUSBBrightness(device: MouseDevice, readResponse: (UInt8) throws -> [UInt8]?) rethrows -> Int? {
         var values: [Int] = []
-        for ledID in usbBrightnessLEDIDs(for: device) {
-            let args: [UInt8] = [0x01, ledID]
-            guard let r = try perform(session, device, classID: 0x0F, cmdID: 0x84, size: 0x03, args: args), r[0] == 0x02 else { continue }
-            values.append(Int(r[10]))
+        for ledID in usbBrightnessReadLEDIDs(for: device) {
+            guard let response = try readResponse(ledID), response[0] == 0x02 else { continue }
+            values.append(Int(response[10]))
         }
         return values.max()
     }
