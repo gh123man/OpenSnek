@@ -1071,7 +1071,7 @@ Software effects retain cached settings to avoid a full settings sweep competing
 | Poll rate | `00:85` -> `01` (1000 Hz); `00:05` write/readback validated |
 | Battery | level via `07:80` (observed `00 a4`); charging via `07:84` |
 | Idle time | `07:83` -> `01 2c` (300 s); `07:03` write/readback validated |
-| Scroll mode | `02:94` returns status `0x05` (not supported); scroll acceleration `02:96` and smart reel `02:97` read `00` |
+| Scroll mode | `02:94` returns status `0x05` (not supported); scroll acceleration `02:96` and smart reel `02:97` answer `00`. These are wire observations only: OpenSnek ships no scroll-wheel adjustment for this profile (`supportsScrollModeControls` is false), and the wheel mode has no readout, so only slot `6A`'s factory action changes it |
 | Lighting zones | scroll wheel `0x01`, palm logo `0x04`, and side panel `0x05`, matching Razer's "Logo, Scroll Wheel and 12 button side plate". LEDs `0x00` and `0x06`-`0xFF` are rejected. Brightness reads and writes (`0F:84`/`0F:04`) succeed per zone; no separate whole-device write address is needed |
 | Validated lighting effects | off/static/spectrum/wave/reactive/breathing via extended matrix `0F:02`. Off, static, spectrum, wave, reactive, and pulse single were visually confirmed; the remaining pulse modes were ACK-verified |
 | Button slots | `01`-`05`, `09`, `0A`, `0B` (front index), `0C` (rear index), `0E` (profile), `34`/`35` (wheel tilt), `39` (pinky), `40`-`4B` (12-button plate), `50`-`55` (6-button plate), `6A` (front scroll-wheel button), `80` (rear scroll-wheel button). Every slot round-tripped a same-value write on both the live (`00`) and persistent (`01`) layers |

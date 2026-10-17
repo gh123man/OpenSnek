@@ -29,7 +29,7 @@ three zones, and factory button bindings.
 | Low battery threshold | `07:81` | `4d` |
 | Idle time | `07:83` | `01 2c` = 300 s; `07:03` write `360` -> readback -> restore validated |
 | Scroll mode | `02:94` | status `0x05` (not supported), so scroll-mode controls stay hidden |
-| Scroll acceleration / smart reel | `02:96` / `02:97` | `00` / `00` |
+| Scroll acceleration / smart reel | `02:96` / `02:97` | `00` / `00` (device answers only; OpenSnek exposes no scroll controls for this profile) |
 | Onboard profiles | `05:80` / `05:81` / `05:84` / `00:87` | count `01`, inventory `05 01` (max `5`, assigned `1`), active `1`, summary `01 01 00` |
 | Onboard profile metadata | `05:88` slots `02`-`05`, offsets `0x0000`/`0x0080`/`0x0100` | every read answers status `0x03`, so onboard profile CRUD ships disabled |
 | Onboard profile writes | stored slot `4` (`profile=5`) | same-value DPI scalar, DPI stages, and brightness writes all round-trip (`status=ok`) even though metadata cannot be read |
