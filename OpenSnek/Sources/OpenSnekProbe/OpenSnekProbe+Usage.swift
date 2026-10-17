@@ -43,6 +43,7 @@ extension OpenSnekProbe {
           OpenSnekProbe usb-input-listen [--pid 0x00ab] [--duration 15] [--max-reports 0]
           OpenSnekProbe usb-input-values [--pid 0x00ab] [--duration 15] [--max-reports 0]
           OpenSnekProbe usb-button-read --slot 4 [--profile default|direct|both] [--pid 0x00ab]
+          OpenSnekProbe usb-button-inventory [--pid 0x00ab]
           OpenSnekProbe usb-button-set --slot 4 --kind right_click [--profile both] [--hid-key 4] [--turbo on|off] [--turbo-rate 142] [--clutch-dpi 400] [--pid 0x00ab]
           OpenSnekProbe usb-button-set-raw --slot 4 --hex 01010200000000 [--profile default|direct|both] [--pid 0x00ab]
           OpenSnekProbe usb-raw --class 0x02 --cmd 0x8C --size 0x0A [--args 01,04,00,00,00,00,00,00,00,00] [--txn 0xFF] [--pid 0x00ab]

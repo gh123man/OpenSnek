@@ -51,12 +51,37 @@ three zones, and factory button bindings.
 | `0x40`-`0x4B` | `02 01 00 1e` .. `02 01 00 2e` | 12-button plate: keyboard `1..9, 0, -, =` |
 | `0x50`-`0x55` | `02 01 00 1e` .. `02 01 00 23` | 6-button plate: keyboard `1..6` |
 | `0x6A` | `12 01 01` | front scroll-wheel button |
+| `0x80` | `00 01 00` | rear scroll-wheel button (factory wheel-mode toggle) |
+
+### Finding slot `0x80` (128): use the device's own inventory
+
+A read sweep of every slot `1..255` reported slot `0x80` as a null-looking `00 01 00 00 00 00 00`
+block, and slot `0x80` is *after* the last slot the sweep's candidate list covered meaningfully, so it
+was initially dismissed as padding. Press-validating the neighbouring slots produced no match for the
+rear behind-the-wheel button, which looked like a firmware-only control.
+
+The device actually publishes its own mappable-button inventory on `02:84`: a count byte followed by
+one slot ID per mappable button. `OpenSnekProbe usb-button-inventory` reads it:
+
+```
+button-inventory class=02 cmd=84 count=33
+slots=[1,2,11,12,14,3,52,53,106,57,128,66,65,64,69,68,67,72,71,70,75,74,73,80,81,82,83,84,85,5,4,9,10]
+```
+
+That is exactly the 32 slots the read sweep found plus slot `128`. The eleven body buttons
+(`1,2,3,11,12,14,52,53,57,106,128`) also match Razer's published `23 / 17 / 13` programmable-button
+counts, since `23 - 12 = 17 - 6 = 13 - 2 = 11`.
+
+Binding slot `128` to a keyboard key made the rear wheel button type that key, and the wheel mode
+stopped toggling, so the factory action and the binding share one slot. Writing `00 01 00 00 00 00 00`
+back restored the wheel-mode toggle and was verified by readback on both layers.
 
 Method: every slot from `1` to `255` was read on the effective profile, then candidate slots were
 temporarily rebound to distinct keyboard keys and pressed physically. The owner reported
 `front index: a, back index: b, front scroll: d, pinky: c, profile button on bottom: e`, with the
-**rear** behind-the-wheel button typing nothing. All temporary bindings were restored to the
-factory blocks above and verified on both the live (`0x00`) and persistent (`0x01`) layers.
+**rear** behind-the-wheel button typing nothing at the time because its slot had not been bound yet.
+All temporary bindings were restored to the factory blocks above and verified on both the live
+(`0x00`) and persistent (`0x01`) layers.
 
 Notes:
 
@@ -64,23 +89,24 @@ Notes:
   body buttons, so the 2-button plate reuses the Naga Pro family's slots `0x04`/`0x05` while the 6-
   and 12-button plates keep slots `80-85` and `64-75`.
 - Slots `0x06`-`0x08`, `0x0D`, `0x0F`-`0x33`, `0x36`-`0x38`, `0x3A`-`0x3F`, `0x4C`-`0x4F`,
-  `0x56`-`0x5F`, `0x61`-`0x69`, `0x6B`-`0x7F`, and `0x81`-`0xFF` do not exist on this device
-  (reads rejected). Slot `0x80` answers a null `00 01 00 00 00 00 00` block.
+  `0x56`-`0x5F`, `0x61`-`0x69`, `0x6B`-`0x7F`, and `0x81`-`0xFF` are absent from the inventory and
+  do not answer reads.
 - Every slot in the table round-tripped a same-value write on **both** the live and persistent
   layers, so the shipped profile treats the whole table as editable.
-- The two index-finger buttons and the scroll-wheel button carry vendor-specific factory actions
-  (`DPI` and the wheel mode), so they have no semantic default binding and keep their factory block
-  as the Default restore target.
+- The two index-finger buttons, both scroll-wheel buttons, the pinky button, and the underside
+  profile button carry vendor-specific factory actions, so they have no semantic default binding and
+  keep their factory block as the Default restore target.
 
-### The rear behind-the-wheel button is not a remappable slot
+## Side plates
 
-The rear button switches the wheel between tactile, free-spin, and smart-reel behavior. It did not
-answer reads for any slot `1..255`, and rebinding slots `0x04`/`0x05` to keyboard actions did not
-make it type, so it is not addressable through the per-profile button table. The device also rejects
-the protocol scroll-mode pair (`02:94` returns status `0x05`). Razer's product material describes the
-mode switching as automatic based on scroll speed with a Synapse-tunable responsiveness level, which
-matches a device-level control rather than a per-profile binding. OpenSnek therefore does not expose
-it and does not guess a slot for it.
+The owner has all three plates. The 6-button plate matches the Naga V2 Pro layout, and **neither the
+6-button nor the 2-button plate has any lighting**, so the side-panel LED `0x05` zone only lights the
+12-button plate. The firmware answers for every plate's slots regardless of which plate is fitted
+(the inventory above was read with the 12-button plate installed), and it does not report which plate
+is fitted.
+
+The 2-button plate's reversed label mapping (label 1 = slot `0x05`, label 2 = slot `0x04`) is still
+inherited from the Naga Pro family rather than re-validated on this device.
 
 ## Lighting
 
@@ -95,11 +121,14 @@ it and does not guess a slot for it.
 
 ## Gaps
 
-- The 6-button and 2-button plates were not physically available during this pass, so their label
-  order and the 2-button plate's reversed label mapping are inherited from the Naga Pro family
-  rather than re-validated here.
-- Only the 2.4 GHz receiver identity (`0x00E8`) was observed. A wired-cable identity for the Naga
-  V3 Pro has not been seen yet, so the profile claims only the receiver PID.
+- The 6-button and 2-button plates were not press-validated on this device. The owner reports the
+  6-button plate matches the Naga V2 Pro layout and that neither plate has lighting, so the 2-button
+  plate's reversed label mapping is still inherited from the Naga Pro family.
 - Onboard profile metadata reads are rejected, so profile name/owner/UUID round-tripping and
   profile create/delete remain unvalidated. Stored-bank DPI, stage, and brightness writes do work.
 - Software lighting custom frames (`0f:03`) were not exercised on this device.
+- The wheel mode (tactile / free-spin / smart-reel) and its responsiveness level have no identified
+  command pair yet: `02:94` is rejected. A candidate baseline of the other class-`0x00`, `0x02`,
+  `0x07`, `0x0B`, and `0x0F` reads is recorded in [probe-log.txt](probe-log.txt), but it has not been
+  diffed across a mode toggle, so a matching command may still be among those candidates. Toggling
+  the mode currently requires slot `128`'s factory action.

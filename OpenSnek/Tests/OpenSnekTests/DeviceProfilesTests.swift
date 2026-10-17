@@ -773,11 +773,12 @@ final class DeviceProfilesTests: XCTestCase {
     func testNagaV3ProExposesBodyPlateAndVendorSlots() throws {
         let profile = try XCTUnwrap(DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00E8, transport: .usb))
 
-        XCTAssertEqual(profile.buttonLayout.visibleSlots.filter { $0.group == "Mouse" }.map(\.slot), [1, 2, 3, 9, 10, 11, 12, 52, 53, 57, 106, 14])
+        XCTAssertEqual(profile.buttonLayout.visibleSlots.filter { $0.group == "Mouse" }.map(\.slot), [1, 2, 3, 9, 10, 11, 12, 52, 53, 57, 106, 128, 14])
         XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 11 })?.friendlyName, "Index Button 1")
         XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 12 })?.friendlyName, "Index Button 2")
         XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 57 })?.friendlyName, "Pinky Button")
-        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 106 })?.friendlyName, "Scroll Wheel Button")
+        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 106 })?.friendlyName, "Scroll Button (front)")
+        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 128 })?.friendlyName, "Scroll Mode Button")
         XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 14 })?.friendlyName, "Profile Button")
         XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 5 })?.group, "2-Button Panel")
         XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 85 })?.group, "6-Button Panel")
@@ -791,7 +792,10 @@ final class DeviceProfilesTests: XCTestCase {
         let profileID = DeviceProfileID.nagaV3Pro
         let expected: [Int: [UInt8]] = [
             11: [0x06, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00], 12: [0x06, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00], 14: [0x07, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00], 57: [0x0C, 0x01, 0x39, 0x00, 0x00, 0x00, 0x00], 106: [0x12, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00], 52: [0x0E, 0x01, 0x68, 0x00, 0x14, 0x00, 0x00],
-            53: [0x0E, 0x01, 0x69, 0x00, 0x14, 0x00, 0x00], 64: [0x02, 0x01, 0x00, 0x1E, 0x00, 0x00, 0x00], 75: [0x02, 0x01, 0x00, 0x2E, 0x00, 0x00, 0x00], 80: [0x02, 0x01, 0x00, 0x1E, 0x00, 0x00, 0x00], 85: [0x02, 0x01, 0x00, 0x23, 0x00, 0x00, 0x00], 1: [0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00]
+            53: [0x0E, 0x01, 0x69, 0x00, 0x14, 0x00, 0x00], 64: [0x02, 0x01, 0x00, 0x1E, 0x00, 0x00, 0x00], 75: [0x02, 0x01, 0x00, 0x2E, 0x00, 0x00, 0x00], 80: [0x02, 0x01, 0x00, 0x1E, 0x00, 0x00, 0x00], 85: [0x02, 0x01, 0x00, 0x23, 0x00, 0x00, 0x00], 1: [0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00],
+            // The rear scroll-wheel button ships a class-0x00 factory block whose action is the
+            // firmware wheel-mode toggle, so Default restores the toggle after a remap.
+            128: [0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00]
         ]
         for (slot, block) in expected {
             XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: slot, profileID: profileID), block, "slot \(slot)")

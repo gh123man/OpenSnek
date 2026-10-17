@@ -346,6 +346,10 @@ extension OpenSnekProbe {
                 print(String(format: "[+%.3fs] candidate[%d] deviceUsage=%@ element=%@ reportID=%d value=%d", event.elapsedSeconds, event.candidateIndex, event.deviceUsageLabel, event.elementUsageLabel, event.reportID, event.integerValue))
             }
             print("usb-input-values complete events=\(eventCount)")
+        case "usb-button-inventory":
+            let usb = try USBProbeClient(productID: try parseOptionalUSBPID(commandArgs))
+            print("usb \(usb.describe())")
+            if let slots = try usb.readButtonInventory() { print("button-inventory class=02 cmd=84 count=\(slots.count) slots=[\(slots.map(String.init).joined(separator: ","))]") } else { print("button-inventory class=02 cmd=84 read_failed") }
         case "usb-button-read":
             let parsed = try parseUSBButtonReadArgs(commandArgs)
             let usb = try USBProbeClient(productID: parsed.productID)

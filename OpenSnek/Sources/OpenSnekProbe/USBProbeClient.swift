@@ -397,6 +397,17 @@ final class USBProbeClient: @unchecked Sendable {
         try session.perform(classID: classID, cmdID: cmdID, size: size, args: args, transactionID: preferredTransactionID, responseAttempts: responseAttempts, responseDelayUs: responseDelayUs)
     }
 
+    /// Reads the device's own mappable-button inventory (`02:84`). The response is a count byte
+    /// followed by one slot ID per mappable button, which lets a profile be cross-checked against
+    /// the firmware instead of relying on a hand-built slot table.
+    func readButtonInventory() throws -> [UInt8]? {
+        guard let response = try perform(classID: 0x02, cmdID: 0x84, size: 0x05, args: [0x00, 0x00, 0x00, 0x00, 0x00]), response[0] == 0x02, response.count >= 88 else { return nil }
+        let payload = Array(response[8..<88])
+        guard let count = payload.first, count > 0 else { return nil }
+        let slots = Array(payload.dropFirst().prefix(Int(count)))
+        return slots.isEmpty ? nil : slots
+    }
+
     private func readLightingBrightness(ledID: UInt8) throws -> Int? {
         let args: [UInt8] = [0x01, ledID, 0x00]
         guard let response = try perform(classID: 0x0F, cmdID: 0x84, size: 0x03, args: args), response[0] == 0x02, response.count > 10 else { return nil }

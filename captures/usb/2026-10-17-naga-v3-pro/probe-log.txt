@@ -611,3 +611,44 @@ $ OpenSnekProbe usb-button-read --slot 106 --profile both --pid 0x00e8
 usb 1532:00e8:02150000:usb pid=0x00e8
 profile=1 slot=106 hypershift=0 block=12010100000000 class=0x12 len=1 data=01
 profile=0 slot=106 hypershift=0 block=12010100000000 class=0x12 len=1 data=01
+
+### Mappable-button inventory (02:84) — resolves the rear scroll-wheel button
+$ OpenSnekProbe usb-button-inventory --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+button-inventory class=02 cmd=84 count=33 slots=[1,2,11,12,14,3,52,53,106,57,128,66,65,64,69,68,67,72,71,70,75,74,73,80,81,82,83,84,85,5,4,9,10]
+
+### Slot 0x80/128 press validation: bind keyboard z (02 02 00 1d), read back, restore factory
+before (factory wheel-mode action):
+profile=1 slot=128 hypershift=0 block=00010000000000 class=0x00 len=1 data=00
+profile=0 slot=128 hypershift=0 block=00010000000000 class=0x00 len=1 data=00
+after binding keyboard z:
+readback profile=1 slot=128 block=0202001d000000 class=0x02 len=2 data=001d
+readback profile=0 slot=128 block=0202001d000000 class=0x02 len=2 data=001d
+owner pressed the rear behind-the-wheel button: it typed 'z' and the wheel mode stopped toggling
+restored factory block 00 01 00 00 00 00 00:
+readback profile=1 slot=128 block=00010000000000 class=0x00 len=1 data=00
+readback profile=0 slot=128 block=00010000000000 class=0x00 len=1 data=00
+
+### Wheel-mode state candidate baseline (recorded only; not yet diffed across a mode toggle)
+0x00:0x8d 02| 01 00 00 00 00 00
+0x00:0x8e 02| 00 01 00 00 00 00
+0x00:0x91 02| 01 01 00 00 00 00
+0x00:0x92 02| 36 33 32 36 33 34
+0x00:0x93 02| 01 01 00 00 00 00
+0x00:0x95 02| 45 f9 96 02 45 f9
+0x00:0x97 02| 45 f9 96 02 45 f9
+0x00:0x9f 02| 01 ff ff ff 00 00
+0x02:0x82 02| 01 1c 01 1c 00 00
+0x02:0x96 02| 00 00 00 00 00 00
+0x02:0x97 02| 00 00 00 00 00 00
+0x02:0x98 02| 19 00 00 00 00 00
+0x07:0x8d 02| 00 00 28 01 9c 01
+0x07:0x92 02| 50 00 00 00 00 00
+0x07:0x93 02| 00 01 01 00 00 00
+0x0b:0x80 02| 01 04 00 00 00 00
+0x0b:0x85 02| 00 00 01 00 00 00
+0x0b:0x8b 02| 00 00 00 00 00 00
+0x0b:0x8e 02| 04 00 00 00 08 12
+0x0f:0x96 02| 01 00 00 00 00 00
+0x0f:0x97 02| 00 00 00 00 00 00
+0x0f:0x98 02| 14 19 19 33 40 40

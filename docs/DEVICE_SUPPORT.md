@@ -229,15 +229,21 @@ hardware. A wired-cable identity has not been observed yet, so only the receiver
 | DPI ceiling | `Contributor validated` | `No transport` | The firmware stores any value without clamping, so the published Focus Pro 50K ceiling of `50,000` is the authoritative limit |
 | Poll rate | `Contributor validated` | `No transport` | `1,000 Hz` read; a `500 Hz` write/readback with restore was validated. Razer lists this mouse as a `1,000 Hz` device, so no higher rates are offered |
 | Battery + power | `Contributor validated` | `No transport` | `07:80` level plus `07:84` charging; idle time `07:83` read and `07:03` write/readback with restore validated |
-| Lighting: brightness + effects | `Contributor validated` | `No transport` | Three zones: scroll wheel `0x01`, logo `0x04`, and side panel `0x05`, matching Razer's published zone list. Brightness reads and writes round-trip per zone. Static, wave, and a breathing effect were visually confirmed; all eight listed effects were ACK-verified |
-| Button remap: shipped editable slots | `Contributor validated` | `No transport` | Body slots `1-5`, `9`, `10`, `11`, `12`, `14`, `52`, `53`, `57`, `106` plus plate slots `64-75` (12-button), `80-85` (6-button), and `4`/`5` (2-button). Every slot round-tripped a same-value write on both the live and persistent layers |
-| Button remap: physical labels | `Contributor validated` | `No transport` | Press validation on the 12-button plate: slot `11` front index button, `12` rear index button, `57` pinky button, `106` front scroll-wheel button, `14` underside profile button |
-| Scroll-mode button | `Not shipped` | `No transport` | The rear behind-the-wheel button toggles the wheel between tactile, free-spin, and smart-reel modes. It is not addressable through any slot `1-255`, and the device rejects the protocol scroll-mode pair (`02:94` returns `0x05`), so OpenSnek does not expose it |
+| Lighting: brightness + effects | `Contributor validated` | `No transport` | Three zones: scroll wheel `0x01`, logo `0x04`, and side panel `0x05`, matching Razer's published zone list. Brightness reads and writes round-trip per zone. Static, wave, and a breathing effect were visually confirmed; all eight listed effects were ACK-verified. The 6- and 2-button plates have no lighting at all, so LED `0x05` only lights the 12-button plate |
+| Button remap: shipped editable slots | `Contributor validated` | `No transport` | Body slots `1-5`, `9`, `10`, `11`, `12`, `14`, `52`, `53`, `57`, `106`, `128` plus plate slots `64-75` (12-button), `80-85` (6-button), and `4`/`5` (2-button). Every slot round-tripped a same-value write on both the live and persistent layers |
+| Button remap: physical labels | `Contributor validated` | `No transport` | Press validation on the 12-button plate: slot `11` front index button, `12` rear index button, `57` pinky button, `106` front scroll-wheel button, `128` rear scroll-wheel button, `14` underside profile button |
+| Button inventory cross-check | `Contributor validated` | `No transport` | The device publishes its own mappable-button inventory (`02:84`): a count byte followed by one slot per button. It reports exactly the 33 slots above, which is how slot `128` was found after a read sweep had missed it |
+| Scroll mode button | `Contributor validated` | `No transport` | The rear behind-the-wheel button (slot `128`) toggles the wheel between tactile, free-spin, and smart-reel modes and is fully remappable. Remapping it replaces the toggle; **Default** restores it, because its factory block is the class-`0x00` action `00 01 00`. The wheel mode itself is not exposed as a setting: the device rejects the protocol scroll-mode pair (`02:94` returns `0x05`) |
 | Onboard hardware profiles | `Hidden` | `No transport` | The device supports five stored banks and accepts stored-bank DPI, stage, and brightness writes, but every metadata read (`05:88`) answers status `0x03`, so the CRUD/activation surface that needs names and owners stays hidden |
 
-Double-check before shipping physical-plate claims: the 6-button and 2-button plates were not
-available during this pass, so their label order and the 2-button plate's reversed label mapping are
-inherited from the Naga Pro family rather than re-validated on this device.
+Plate note: the owner has all three plates installed at various times. The 6-button plate matches the
+Naga V2 Pro layout and neither the 6- nor the 2-button plate has lighting. The 2-button plate's
+reversed label mapping (label 1 = slot `5`, label 2 = slot `4`) is still inherited from the Naga Pro
+family rather than re-validated on this device, and the firmware does not report which plate is
+fitted.
+
+Bring-up note: prefer `OpenSnekProbe usb-button-inventory` over a hand-built slot table when adding a
+new device. The inventory is what caught slot `128` here.
 
 ## Basilisk (2017)
 

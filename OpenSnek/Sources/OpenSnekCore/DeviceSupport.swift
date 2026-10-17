@@ -618,27 +618,29 @@ public enum DeviceProfiles {
 
     // Contributor-validated USB profile for the Naga V3 Pro's 2.4 GHz receiver. The body carries
     // eleven buttons around a swappable side plate: left/right/middle click, scroll up/down, wheel
-    // tilt, two index-finger buttons, a pinky button, and the underside profile button. Razer's
-    // 23 / 17 / 13 programmable-button counts confirm the model (23 - 12 = 17 - 6 = 13 - 2 = 11
-    // body buttons), so the 2-button plate reuses the Naga Pro family's slots 4/5 while the 6- and
-    // 12-button plates keep slots 80-85 and 64-75. Physical press validation on the owner's unit:
-    // slot 11 = front index button, 12 = rear index button, 57 = pinky button, 106 = front
-    // scroll-wheel button, 14 = underside profile button. The rear behind-the-wheel button is the
-    // firmware wheel-mode toggle (tactile / free-spin): it is not addressable through any slot
-    // 1..255 and the device rejects the scroll-mode command pair (02:94 returns status 0x05).
-    // Onboard profile metadata reads (05:88) are rejected with status 0x03 on every offset, so
-    // DPI, lighting, and button edits go through the live keys instead of the stored-profile
-    // transaction. See captures/usb/2026-10-17-naga-v3-pro/.
+    // tilt, two index-finger buttons, a pinky button, and the two scroll-wheel buttons. Razer's
+    // 23 / 17 / 13 programmable-button counts match the model exactly (23 - 12 = 17 - 6 = 13 - 2 = 11
+    // body buttons), and the device's own mappable-button inventory (`02:84`, 33 slots) lists
+    // precisely these plus the plate slots, so the slot table below is cross-checked against the
+    // firmware rather than inferred. Physical press validation on the owner's unit: slot 11 = front
+    // index button, 12 = rear index button, 57 = pinky button, 106 = front scroll-wheel button,
+    // 128 = rear scroll-wheel button, 14 = underside profile button. Binding a key to slot 128
+    // replaces its factory wheel-mode action (tactile / free-spin / smart-reel); Default restores
+    // the toggle. The device rejects the protocol scroll-mode command pair (02:94 returns status
+    // 0x05), so the wheel mode itself is not exposed as a setting. Onboard profile metadata reads
+    // (05:88) are rejected with status 0x03 on every offset, so DPI, lighting, and button edits go
+    // through the live keys instead of the stored-profile transaction.
+    // See captures/usb/2026-10-17-naga-v3-pro/.
     public static let nagaV3ProUSBButtonSlots: [ButtonSlotDescriptor] = [
         ButtonSlotDescriptor(slot: 1, friendlyName: "Left Click", defaultKind: .leftClick, group: "Mouse"), ButtonSlotDescriptor(slot: 2, friendlyName: "Right Click", defaultKind: .rightClick, group: "Mouse"),
         ButtonSlotDescriptor(slot: 3, friendlyName: "Middle Click", defaultKind: .middleClick, group: "Mouse"), ButtonSlotDescriptor(slot: 9, friendlyName: "Scroll Up", defaultKind: .scrollUp, group: "Mouse"),
         ButtonSlotDescriptor(slot: 10, friendlyName: "Scroll Down", defaultKind: .scrollDown, group: "Mouse"),
-        // The index-finger and scroll-wheel buttons ship vendor-specific actions (DPI and wheel
+        // The index-finger and scroll-wheel buttons ship vendor-specific actions (DPI and the wheel
         // mode), so they have no semantic default binding and keep their factory blocks.
         ButtonSlotDescriptor(slot: 11, friendlyName: "Index Button 1", defaultKind: .default, group: "Mouse"), ButtonSlotDescriptor(slot: 12, friendlyName: "Index Button 2", defaultKind: .default, group: "Mouse"),
         ButtonSlotDescriptor(slot: 52, friendlyName: "Wheel Tilt Left", defaultKind: .scrollLeft, group: "Mouse"), ButtonSlotDescriptor(slot: 53, friendlyName: "Wheel Tilt Right", defaultKind: .scrollRight, group: "Mouse"),
-        ButtonSlotDescriptor(slot: 57, friendlyName: "Pinky Button", defaultKind: .default, group: "Mouse"), ButtonSlotDescriptor(slot: 106, friendlyName: "Scroll Wheel Button", defaultKind: .default, group: "Mouse"),
-        ButtonSlotDescriptor(slot: 14, friendlyName: "Profile Button", defaultKind: .default, group: "Mouse"),
+        ButtonSlotDescriptor(slot: 57, friendlyName: "Pinky Button", defaultKind: .default, group: "Mouse"), ButtonSlotDescriptor(slot: 106, friendlyName: "Scroll Button (front)", defaultKind: .default, group: "Mouse"),
+        ButtonSlotDescriptor(slot: 128, friendlyName: "Scroll Mode Button", defaultKind: .default, group: "Mouse"), ButtonSlotDescriptor(slot: 14, friendlyName: "Profile Button", defaultKind: .default, group: "Mouse"),
         // Only one plate is physically installed at a time; the firmware still answers for every
         // plate's slots. Physical press validation confirmed the plate labels run straight through.
         ButtonSlotDescriptor(slot: 5, friendlyName: "Panel Button 1", defaultKind: .mouseForward, group: "2-Button Panel"), ButtonSlotDescriptor(slot: 4, friendlyName: "Panel Button 2", defaultKind: .mouseBack, group: "2-Button Panel"),
@@ -659,7 +661,10 @@ public enum DeviceProfiles {
 
     // Razer lists the lighting as "Logo, Scroll Wheel and 12 button side plate". Per-zone static and
     // effect writes plus brightness read/write were validated on every LED; the wheel, logo, and
-    // plate zones were visually confirmed. See captures/usb/2026-10-17-naga-v3-pro/.
+    // plate zones were visually confirmed. The 6- and 2-button side plates have no lighting at all
+    // (reported by the plate owner), so LED 0x05 only ever lights the 12-button plate; the device
+    // does not report which plate is fitted, so the zone stays exposed for every plate.
+    // See captures/usb/2026-10-17-naga-v3-pro/.
     public static let nagaV3ProUSBLightingZones: [USBLightingZoneDescriptor] = [
         USBLightingZoneDescriptor(id: "scroll_wheel", label: "Scroll Wheel", ledIDs: [0x01]), USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x04]), USBLightingZoneDescriptor(id: "side_panel", label: "Side Panel", ledIDs: [0x05])
     ]
