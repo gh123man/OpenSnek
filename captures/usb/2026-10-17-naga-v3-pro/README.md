@@ -141,13 +141,15 @@ was read with the 12-button plate installed), and it does not report which plate
   [wheel-mode-post-press.txt](wheel-mode-post-press.txt)). Only `07:85` moved (`00 03 23` ->
   `00 03 24`), and a follow-up correlation killed it as a mode readout: it read `00 03 23` while the
   wheel was free-spinning and stayed `00 03 23` across a press that the owner confirmed changed the
-  wheel to notched. So the mode has no identified readout, `07:85` must not be used as one, and the
-  mode can only be changed with slot `106`'s factory action.
+  wheel to notched. So the mode has no identified readout, `07:85` must not be used as one, and
+  OpenSnek has no way to read or change the mode. The settings themselves are real and stay
+  adjustable outside OpenSnek, with slot `106`'s factory action or Synapse on Windows.
 
 ### Next instrument: a Windows Synapse capture
 
-Synapse for macOS does not support this mouse, so the mode and its five responsiveness levels can
-only be observed from a host Razer supports. A USB capture there would settle it:
+Synapse for macOS does not support this mouse, so its wheel settings can only be observed from a host
+Razer supports. Those settings are adjustable outside OpenSnek today, and a USB capture there would
+let the app read and change them rather than deferring to the hardware button:
 
 1. On a Windows host, install Razer Synapse plus Wireshark with USBPcap, and filter to the mouse's
    VID/PID.
