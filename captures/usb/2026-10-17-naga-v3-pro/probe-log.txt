@@ -652,3 +652,18 @@ readback profile=0 slot=128 block=00010000000000 class=0x00 len=1 data=00
 0x0f:0x96 02| 01 00 00 00 00 00
 0x0f:0x97 02| 00 00 00 00 00 00
 0x0f:0x98 02| 14 19 19 33 40 40
+
+### Corrected understanding of the two scroll-wheel buttons (owner re-test 2026-10-17)
+Owner: 'the front of the two buttons seems to cycle through the scroll wheel modes, but the rear button
+didn't seem to do anything, and it might not have even before.'
+Binding slot 106 -> a key makes the FRONT button type that key; binding slot 128 -> a key makes the REAR button type that key.
+So the wheel-mode cycle is slot 106's factory class-0x12 action, and slot 128 ships the class-0x00 no-action form.
+
+Factory blocks after restore:
+profile=1 slot=4 hypershift=0 block=01010400000000
+profile=1 slot=5 hypershift=0 block=01010500000000
+profile=1 slot=106 hypershift=0 block=12010100000000
+profile=1 slot=128 hypershift=0 block=00010000000000
+
+### Wheel-mode command hunt: candidate diff across the owner's button mashing
+No candidate in the 22-command set changed value (inconclusive: the mode may have cycled an even number of times).

@@ -233,14 +233,15 @@ hardware. A wired-cable identity has not been observed yet, so only the receiver
 | Button remap: shipped editable slots | `Contributor validated` | `No transport` | Body slots `1-5`, `9`, `10`, `11`, `12`, `14`, `52`, `53`, `57`, `106`, `128` plus plate slots `64-75` (12-button), `80-85` (6-button), and `4`/`5` (2-button). Every slot round-tripped a same-value write on both the live and persistent layers |
 | Button remap: physical labels | `Contributor validated` | `No transport` | Press validation on the 12-button plate: slot `11` front index button, `12` rear index button, `57` pinky button, `106` front scroll-wheel button, `128` rear scroll-wheel button, `14` underside profile button |
 | Button inventory cross-check | `Contributor validated` | `No transport` | The device publishes its own mappable-button inventory (`02:84`): a count byte followed by one slot per button. It reports exactly the 33 slots above, which is how slot `128` was found after a read sweep had missed it |
-| Scroll mode button | `Contributor validated` | `No transport` | The rear behind-the-wheel button (slot `128`) toggles the wheel between tactile, free-spin, and smart-reel modes and is fully remappable. Remapping it replaces the toggle; **Default** restores it, because its factory block is the class-`0x00` action `00 01 00`. The wheel mode itself is not exposed as a setting: the device rejects the protocol scroll-mode pair (`02:94` returns `0x05`) |
+| Scroll wheel mode button | `Contributor validated` | `No transport` | The front scroll-wheel button (slot `106`) ships the class-`0x12` action that cycles the wheel's tactile / free-spin / smart-reel modes. It is remappable like any other button, and remapping it replaces that cycle, so **Default** is what restores it. The rear scroll-wheel button (slot `128`) ships the class-`0x00` no-action form and does nothing by default, but is remappable too. The wheel mode itself is not exposed as a setting: the device rejects the protocol scroll-mode pair (`02:94` returns `0x05`) |
 | Onboard hardware profiles | `Hidden` | `No transport` | The device supports five stored banks and accepts stored-bank DPI, stage, and brightness writes, but every metadata read (`05:88`) answers status `0x03`, so the CRUD/activation surface that needs names and owners stays hidden |
 
-Plate note: the owner has all three plates installed at various times. The 6-button plate matches the
-Naga V2 Pro layout and neither the 6- nor the 2-button plate has lighting. The 2-button plate's
-reversed label mapping (label 1 = slot `5`, label 2 = slot `4`) is still inherited from the Naga Pro
-family rather than re-validated on this device, and the firmware does not report which plate is
-fitted.
+Plate note: the owner has all three plates. Press validation on the 2-button plate confirmed the same
+reversed mapping the Naga Pro family uses — the forward button is slot `5` and the rear button is slot
+`4` — and the plate has no printed labels, so the app's "Panel Button 1/2" names follow physical
+position. The 6-button plate matches the Naga V2 Pro layout, and **neither the 6- nor the 2-button
+plate has any lighting**, so LED `0x05` only lights the 12-button plate. The firmware does not report
+which plate is fitted.
 
 Bring-up note: prefer `OpenSnekProbe usb-button-inventory` over a hand-built slot table when adding a
 new device. The inventory is what caught slot `128` here.

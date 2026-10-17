@@ -777,8 +777,8 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 11 })?.friendlyName, "Index Button 1")
         XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 12 })?.friendlyName, "Index Button 2")
         XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 57 })?.friendlyName, "Pinky Button")
-        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 106 })?.friendlyName, "Scroll Button (front)")
-        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 128 })?.friendlyName, "Scroll Mode Button")
+        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 106 })?.friendlyName, "Scroll Wheel Mode Button")
+        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 128 })?.friendlyName, "Scroll Button (rear)")
         XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 14 })?.friendlyName, "Profile Button")
         XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 5 })?.group, "2-Button Panel")
         XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 85 })?.group, "6-Button Panel")
@@ -793,8 +793,8 @@ final class DeviceProfilesTests: XCTestCase {
         let expected: [Int: [UInt8]] = [
             11: [0x06, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00], 12: [0x06, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00], 14: [0x07, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00], 57: [0x0C, 0x01, 0x39, 0x00, 0x00, 0x00, 0x00], 106: [0x12, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00], 52: [0x0E, 0x01, 0x68, 0x00, 0x14, 0x00, 0x00],
             53: [0x0E, 0x01, 0x69, 0x00, 0x14, 0x00, 0x00], 64: [0x02, 0x01, 0x00, 0x1E, 0x00, 0x00, 0x00], 75: [0x02, 0x01, 0x00, 0x2E, 0x00, 0x00, 0x00], 80: [0x02, 0x01, 0x00, 0x1E, 0x00, 0x00, 0x00], 85: [0x02, 0x01, 0x00, 0x23, 0x00, 0x00, 0x00], 1: [0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00],
-            // The rear scroll-wheel button ships a class-0x00 factory block whose action is the
-            // firmware wheel-mode toggle, so Default restores the toggle after a remap.
+            // The rear scroll-wheel button ships the class-0x00 no-action form, so Default restores
+            // "does nothing" rather than a wheel-mode toggle (that action lives on slot 106).
             128: [0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00]
         ]
         for (slot, block) in expected {

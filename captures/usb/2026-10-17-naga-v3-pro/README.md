@@ -50,8 +50,8 @@ three zones, and factory button bindings.
 | `0x39` | `0c 01 39` | pinky button |
 | `0x40`-`0x4B` | `02 01 00 1e` .. `02 01 00 2e` | 12-button plate: keyboard `1..9, 0, -, =` |
 | `0x50`-`0x55` | `02 01 00 1e` .. `02 01 00 23` | 6-button plate: keyboard `1..6` |
-| `0x6A` | `12 01 01` | front scroll-wheel button |
-| `0x80` | `00 01 00` | rear scroll-wheel button (factory wheel-mode toggle) |
+| `0x6A` | `12 01 01` | front scroll-wheel button (cycles the wheel mode) |
+| `0x80` | `00 01 00` | rear scroll-wheel button (no action by default) |
 
 ### Finding slot `0x80` (128): use the device's own inventory
 
@@ -72,9 +72,12 @@ That is exactly the 32 slots the read sweep found plus slot `128`. The eleven bo
 (`1,2,3,11,12,14,52,53,57,106,128`) also match Razer's published `23 / 17 / 13` programmable-button
 counts, since `23 - 12 = 17 - 6 = 13 - 2 = 11`.
 
-Binding slot `128` to a keyboard key made the rear wheel button type that key, and the wheel mode
-stopped toggling, so the factory action and the binding share one slot. Writing `00 01 00 00 00 00 00`
-back restored the wheel-mode toggle and was verified by readback on both layers.
+Binding slot `128` to a keyboard key made the rear wheel button type that key, so the button is
+remappable and the slot is real. A later, more careful owner pass corrected which button carries the
+wheel-mode cycle: it is the **front** button (slot `0x6A`/`106`, factory `12 01 01`, a class-`0x12`
+action), while the **rear** button ships the class-`0x00` no-action form and does nothing by default.
+Writing the factory blocks back (`12 01 01` for slot `106`, `00 01 00` for slot `128`) restored both
+behaviors and was verified by readback on both layers.
 
 Method: every slot from `1` to `255` was read on the effective profile, then candidate slots were
 temporarily rebound to distinct keyboard keys and pressed physically. The owner reported
@@ -99,14 +102,17 @@ Notes:
 
 ## Side plates
 
-The owner has all three plates. The 6-button plate matches the Naga V2 Pro layout, and **neither the
-6-button nor the 2-button plate has any lighting**, so the side-panel LED `0x05` zone only lights the
-12-button plate. The firmware answers for every plate's slots regardless of which plate is fitted
-(the inventory above was read with the 12-button plate installed), and it does not report which plate
-is fitted.
+The owner has all three plates.
 
-The 2-button plate's reversed label mapping (label 1 = slot `0x05`, label 2 = slot `0x04`) is still
-inherited from the Naga Pro family rather than re-validated on this device.
+- **2-button plate — press-validated.** The plate has no printed labels. With slot `4` bound to `j`
+  and slot `5` bound to `k`, the forward button typed `k` and the rear button typed `j`, confirming
+  the Naga Pro family's reversed mapping (forward = slot `05`, rear = slot `04`).
+- **6-button plate** matches the Naga V2 Pro layout (labels 1-6 → slots `80`-`85`).
+- **Lighting:** neither the 6-button nor the 2-button plate has any lighting, so the side-panel LED
+  `0x05` zone only lights the 12-button plate.
+
+The firmware answers for every plate's slots regardless of which plate is fitted (the inventory above
+was read with the 12-button plate installed), and it does not report which plate is fitted.
 
 ## Lighting
 
@@ -121,14 +127,13 @@ inherited from the Naga Pro family rather than re-validated on this device.
 
 ## Gaps
 
-- The 6-button and 2-button plates were not press-validated on this device. The owner reports the
-  6-button plate matches the Naga V2 Pro layout and that neither plate has lighting, so the 2-button
-  plate's reversed label mapping is still inherited from the Naga Pro family.
+- The 6-button plate's label order is inherited from the Naga V2 Pro rather than press-validated on
+  this device; the owner confirms the layout matches.
 - Onboard profile metadata reads are rejected, so profile name/owner/UUID round-tripping and
   profile create/delete remain unvalidated. Stored-bank DPI, stage, and brightness writes do work.
 - Software lighting custom frames (`0f:03`) were not exercised on this device.
-- The wheel mode (tactile / free-spin / smart-reel) and its responsiveness level have no identified
-  command pair yet: `02:94` is rejected. A candidate baseline of the other class-`0x00`, `0x02`,
-  `0x07`, `0x0B`, and `0x0F` reads is recorded in [probe-log.txt](probe-log.txt), but it has not been
-  diffed across a mode toggle, so a matching command may still be among those candidates. Toggling
-  the mode currently requires slot `128`'s factory action.
+- The wheel mode (tactile / free-spin / smart-reel) and its responsiveness level still have no
+  identified command pair: `02:94` is rejected, and a 22-command candidate baseline did not change
+  across the owner's mode cycling. That diff is inconclusive because an even number of cycles would
+  restore the original value, so a reading may still exist among the candidates recorded in
+  [probe-log.txt](probe-log.txt). Toggling the mode still requires slot `106`'s factory action.
