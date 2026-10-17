@@ -1,0 +1,613 @@
+# Naga V3 Pro (0x00E8) read-only probe log — 2026-10-17
+# Host: macOS 27.0.1 (arm64)
+# Device enumerates as 'Razer Naga V3 Pro' 1532:00E8, bcdDevice 0x0100, serial 632634H38609522
+# Transport for this pass: USB (2.4 GHz receiver attached to Razer Mouse Dock Pro 0x00A4)
+### Identity
+
+$ OpenSnekProbe usb-raw --class 0x00 --cmd 0x82 --size 0x16 --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+response: nil
+
+$ OpenSnekProbe usb-raw --class 0x00 --cmd 0x81 --size 0x02 --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+response[90]: 02 1f 00 00 00 02 00 81 01 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 83 00
+
+$ OpenSnekProbe usb-raw --class 0x00 --cmd 0x84 --size 0x02 --args 00,00 --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+response[90]: 02 1f 00 00 00 02 00 84 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 86 00
+
+$ OpenSnekProbe usb-raw --class 0x00 --cmd 0x85 --size 0x01 --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+response[90]: 02 1f 00 00 00 01 00 85 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 85 00
+### DPI
+
+$ OpenSnekProbe usb-raw --class 0x04 --cmd 0x85 --size 0x07 --args 01,00,00,00,00,00,00 --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+response[90]: 02 1f 00 00 00 07 04 85 01 06 40 06 40 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 87 00
+
+$ OpenSnekProbe usb-raw --class 0x04 --cmd 0x86 --size 0x26 --args 01,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00 --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+response[90]: 02 1f 00 00 00 26 04 86 01 03 05 01 01 90 01 90 01 90 02 03 20 03 20 03 20 03 06 40 06 40 06 40 04 0c 80 0c 80 0c 80 05 19 00 19 00 19 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 c3 00
+### Power
+
+$ OpenSnekProbe usb-raw --class 0x07 --cmd 0x80 --size 0x01 --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+response[90]: 02 1f 00 00 00 01 07 80 00 a4 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 22 00
+
+$ OpenSnekProbe usb-raw --class 0x07 --cmd 0x84 --size 0x01 --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+response[90]: 02 1f 00 00 00 01 07 84 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 82 00
+
+$ OpenSnekProbe usb-raw --class 0x07 --cmd 0x81 --size 0x01 --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+response[90]: 02 1f 00 00 00 01 07 81 4d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ca 00
+
+$ OpenSnekProbe usb-raw --class 0x07 --cmd 0x83 --size 0x02 --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+response[90]: 02 1f 00 00 00 02 07 83 01 2c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ab 00
+### Onboard profiles
+
+$ OpenSnekProbe usb-raw --class 0x00 --cmd 0x87 --size 0x01 --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+response[90]: 02 1f 00 00 00 01 00 87 01 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 86 00
+
+$ OpenSnekProbe usb-raw --class 0x05 --cmd 0x80 --size 0x01 --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+response[90]: 02 1f 00 00 00 01 05 80 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 85 00
+
+$ OpenSnekProbe usb-raw --class 0x05 --cmd 0x81 --size 0x01 --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+response[90]: 02 1f 00 00 00 02 05 81 05 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 82 00
+
+$ OpenSnekProbe usb-raw --class 0x05 --cmd 0x84 --size 0x01 --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+response[90]: 02 1f 00 00 00 01 05 84 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 81 00
+### Scroll
+
+$ OpenSnekProbe usb-raw --class 0x02 --cmd 0x94 --size 0x01 --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+response[90]: 05 1f 00 00 00 01 02 94 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 97 00
+
+$ OpenSnekProbe usb-raw --class 0x02 --cmd 0x96 --size 0x01 --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+response[90]: 02 1f 00 00 00 01 02 96 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 95 00
+
+$ OpenSnekProbe usb-raw --class 0x02 --cmd 0x97 --size 0x01 --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+response[90]: 02 1f 00 00 00 01 02 97 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 94 00
+
+### Parsed profile + button sweep (read-only)
+$ OpenSnekProbe usb-profile-read --profiles 2,3,4,5 --include-effective on --button-slots 1,2,3,4,5,6,9,10,11,12,14,15,52,53,60,61,64,65,66,67,68,69,70,71,72,73,74,75,80,81,82,83,84,85,96,106,109 --pid 0x00e8
+usb-profile-read 1532:00e8:02150000:usb pid=0x00e8 profiles=2,3,4,5 buttonSlots=1,2,3,4,5,6,9,10,11,12,14,15,52,53,60,61,64,65,66,67,68,69,70,71,72,73,74,75,80,81,82,83,84,85,96,106,109 includeEffective=on
+summary class=00 cmd=87 payload=01 01 00 activeHint=1 countHint=0
+profile-count class=05 cmd=80 value=1
+profile-inventory class=05 cmd=81 maxProfile=0x05 assigned=[0x01]
+active-profile class=05 cmd=84 value=1 base(profile=1)
+lighting-leds ids=0x01
+dpi-scalar effective(profile=0) pair=1600x1600 raw=00 06 40 06 40 00 00
+dpi-stages effective(profile=0) activeToken=0x03 stageIDs=[0x01,0x02,0x03,0x04,0x05] pairs=[400x400,800x800,1600x1600,3200x3200,6400x6400] raw=00 03 05 01 01 90 01 90 01 90 02 03 20 03 20 03 20 03 06 40 06 40 06 40 04 0c 80 0c 80 0c 80 05 19 00 19 00 19 00
+brightness effective(profile=0) zone=led_01 led=0x01 value=85 raw=00 01 55
+button effective(profile=0) slot=1 raw=01 01 01 00 00 00 00 block=01010100000000 class=0x01 len=1 data=01
+button effective(profile=0) slot=2 raw=01 01 02 00 00 00 00 block=01010200000000 class=0x01 len=1 data=02
+button effective(profile=0) slot=3 raw=01 01 03 00 00 00 00 block=01010300000000 class=0x01 len=1 data=03
+button effective(profile=0) slot=4 raw=01 01 04 00 00 00 00 block=01010400000000 class=0x01 len=1 data=04
+button effective(profile=0) slot=5 raw=01 01 05 00 00 00 00 block=01010500000000 class=0x01 len=1 data=05
+button effective(profile=0) slot=6 read_failed
+button effective(profile=0) slot=9 raw=01 01 09 00 00 00 00 block=01010900000000 class=0x01 len=1 data=09
+button effective(profile=0) slot=10 raw=01 01 0a 00 00 00 00 block=01010a00000000 class=0x01 len=1 data=0a
+button effective(profile=0) slot=11 raw=06 01 01 00 00 00 00 block=06010100000000 class=0x06 len=1 data=01
+button effective(profile=0) slot=12 raw=06 01 02 00 00 00 00 block=06010200000000 class=0x06 len=1 data=02
+button effective(profile=0) slot=14 raw=07 01 04 00 00 00 00 block=07010400000000 class=0x07 len=1 data=04
+button effective(profile=0) slot=15 read_failed
+button effective(profile=0) slot=52 raw=0e 01 68 00 14 00 00 block=0e016800140000 class=0x0e len=1 data=68
+button effective(profile=0) slot=53 raw=0e 01 69 00 14 00 00 block=0e016900140000 class=0x0e len=1 data=69
+button effective(profile=0) slot=60 read_failed
+button effective(profile=0) slot=61 read_failed
+button effective(profile=0) slot=64 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=65 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=66 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=67 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=68 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=69 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=70 raw=02 01 00 24 00 00 00 block=02010024000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=71 raw=02 01 00 25 00 00 00 block=02010025000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=72 raw=02 01 00 26 00 00 00 block=02010026000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=73 raw=02 01 00 27 00 00 00 block=02010027000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=74 raw=02 01 00 2d 00 00 00 block=0201002d000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=75 raw=02 01 00 2e 00 00 00 block=0201002e000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=80 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=81 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=82 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=83 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=84 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=85 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button effective(profile=0) slot=96 read_failed
+button effective(profile=0) slot=106 raw=12 01 01 00 00 00 00 block=12010100000000 class=0x12 len=1 data=01
+button effective(profile=0) slot=109 read_failed
+dpi-scalar base(profile=1) pair=1600x1600 raw=01 06 40 06 40 00 00
+dpi-stages base(profile=1) activeToken=0x03 stageIDs=[0x01,0x02,0x03,0x04,0x05] pairs=[400x400,800x800,1600x1600,3200x3200,6400x6400] raw=01 03 05 01 01 90 01 90 01 90 02 03 20 03 20 03 20 03 06 40 06 40 06 40 04 0c 80 0c 80 0c 80 05 19 00 19 00 19 00
+brightness base(profile=1) zone=led_01 led=0x01 value=85 raw=01 01 55
+button base(profile=1) slot=1 raw=01 01 01 00 00 00 00 block=01010100000000 class=0x01 len=1 data=01
+button base(profile=1) slot=2 raw=01 01 02 00 00 00 00 block=01010200000000 class=0x01 len=1 data=02
+button base(profile=1) slot=3 raw=01 01 03 00 00 00 00 block=01010300000000 class=0x01 len=1 data=03
+button base(profile=1) slot=4 raw=01 01 04 00 00 00 00 block=01010400000000 class=0x01 len=1 data=04
+button base(profile=1) slot=5 raw=01 01 05 00 00 00 00 block=01010500000000 class=0x01 len=1 data=05
+button base(profile=1) slot=6 read_failed
+button base(profile=1) slot=9 raw=01 01 09 00 00 00 00 block=01010900000000 class=0x01 len=1 data=09
+button base(profile=1) slot=10 raw=01 01 0a 00 00 00 00 block=01010a00000000 class=0x01 len=1 data=0a
+button base(profile=1) slot=11 raw=06 01 01 00 00 00 00 block=06010100000000 class=0x06 len=1 data=01
+button base(profile=1) slot=12 raw=06 01 02 00 00 00 00 block=06010200000000 class=0x06 len=1 data=02
+button base(profile=1) slot=14 raw=07 01 04 00 00 00 00 block=07010400000000 class=0x07 len=1 data=04
+button base(profile=1) slot=15 read_failed
+button base(profile=1) slot=52 raw=0e 01 68 00 14 00 00 block=0e016800140000 class=0x0e len=1 data=68
+button base(profile=1) slot=53 raw=0e 01 69 00 14 00 00 block=0e016900140000 class=0x0e len=1 data=69
+button base(profile=1) slot=60 read_failed
+button base(profile=1) slot=61 read_failed
+button base(profile=1) slot=64 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button base(profile=1) slot=65 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button base(profile=1) slot=66 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button base(profile=1) slot=67 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button base(profile=1) slot=68 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button base(profile=1) slot=69 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button base(profile=1) slot=70 raw=02 01 00 24 00 00 00 block=02010024000000 class=0x02 len=1 data=00
+button base(profile=1) slot=71 raw=02 01 00 25 00 00 00 block=02010025000000 class=0x02 len=1 data=00
+button base(profile=1) slot=72 raw=02 01 00 26 00 00 00 block=02010026000000 class=0x02 len=1 data=00
+button base(profile=1) slot=73 raw=02 01 00 27 00 00 00 block=02010027000000 class=0x02 len=1 data=00
+button base(profile=1) slot=74 raw=02 01 00 2d 00 00 00 block=0201002d000000 class=0x02 len=1 data=00
+button base(profile=1) slot=75 raw=02 01 00 2e 00 00 00 block=0201002e000000 class=0x02 len=1 data=00
+button base(profile=1) slot=80 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button base(profile=1) slot=81 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button base(profile=1) slot=82 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button base(profile=1) slot=83 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button base(profile=1) slot=84 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button base(profile=1) slot=85 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button base(profile=1) slot=96 read_failed
+button base(profile=1) slot=106 raw=12 01 01 00 00 00 00 block=12010100000000 class=0x12 len=1 data=01
+button base(profile=1) slot=109 read_failed
+metadata stored-slot=1(profile=2) read_failed
+dpi-scalar stored-slot=1(profile=2) pair=1600x1600 raw=02 06 40 06 40 00 00
+dpi-stages stored-slot=1(profile=2) activeToken=0x03 stageIDs=[0x01,0x02,0x03,0x04,0x05] pairs=[400x400,800x800,1600x1600,3200x3200,6400x6400] raw=02 03 05 01 01 90 01 90 01 90 02 03 20 03 20 03 20 03 06 40 06 40 06 40 04 0c 80 0c 80 0c 80 05 19 00 19 00 19 00
+brightness stored-slot=1(profile=2) zone=led_01 led=0x01 value=85 raw=02 01 55
+button stored-slot=1(profile=2) slot=1 raw=01 01 01 00 00 00 00 block=01010100000000 class=0x01 len=1 data=01
+button stored-slot=1(profile=2) slot=2 raw=01 01 02 00 00 00 00 block=01010200000000 class=0x01 len=1 data=02
+button stored-slot=1(profile=2) slot=3 raw=01 01 03 00 00 00 00 block=01010300000000 class=0x01 len=1 data=03
+button stored-slot=1(profile=2) slot=4 raw=01 01 04 00 00 00 00 block=01010400000000 class=0x01 len=1 data=04
+button stored-slot=1(profile=2) slot=5 raw=01 01 05 00 00 00 00 block=01010500000000 class=0x01 len=1 data=05
+button stored-slot=1(profile=2) slot=6 read_failed
+button stored-slot=1(profile=2) slot=9 raw=01 01 09 00 00 00 00 block=01010900000000 class=0x01 len=1 data=09
+button stored-slot=1(profile=2) slot=10 raw=01 01 0a 00 00 00 00 block=01010a00000000 class=0x01 len=1 data=0a
+button stored-slot=1(profile=2) slot=11 raw=06 01 01 00 00 00 00 block=06010100000000 class=0x06 len=1 data=01
+button stored-slot=1(profile=2) slot=12 raw=06 01 02 00 00 00 00 block=06010200000000 class=0x06 len=1 data=02
+button stored-slot=1(profile=2) slot=14 raw=07 01 04 00 00 00 00 block=07010400000000 class=0x07 len=1 data=04
+button stored-slot=1(profile=2) slot=15 read_failed
+button stored-slot=1(profile=2) slot=52 raw=0e 01 68 00 14 00 00 block=0e016800140000 class=0x0e len=1 data=68
+button stored-slot=1(profile=2) slot=53 raw=0e 01 69 00 14 00 00 block=0e016900140000 class=0x0e len=1 data=69
+button stored-slot=1(profile=2) slot=60 read_failed
+button stored-slot=1(profile=2) slot=61 read_failed
+button stored-slot=1(profile=2) slot=64 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=65 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=66 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=67 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=68 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=69 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=70 raw=02 01 00 24 00 00 00 block=02010024000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=71 raw=02 01 00 25 00 00 00 block=02010025000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=72 raw=02 01 00 26 00 00 00 block=02010026000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=73 raw=02 01 00 27 00 00 00 block=02010027000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=74 raw=02 01 00 2d 00 00 00 block=0201002d000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=75 raw=02 01 00 2e 00 00 00 block=0201002e000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=80 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=81 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=82 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=83 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=84 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=85 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=1(profile=2) slot=96 read_failed
+button stored-slot=1(profile=2) slot=106 raw=12 01 01 00 00 00 00 block=12010100000000 class=0x12 len=1 data=01
+button stored-slot=1(profile=2) slot=109 read_failed
+metadata stored-slot=2(profile=3) read_failed
+dpi-scalar stored-slot=2(profile=3) pair=1600x1600 raw=03 06 40 06 40 00 00
+dpi-stages stored-slot=2(profile=3) activeToken=0x03 stageIDs=[0x01,0x02,0x03,0x04,0x05] pairs=[400x400,800x800,1600x1600,3200x3200,6400x6400] raw=03 03 05 01 01 90 01 90 01 90 02 03 20 03 20 03 20 03 06 40 06 40 06 40 04 0c 80 0c 80 0c 80 05 19 00 19 00 19 00
+brightness stored-slot=2(profile=3) zone=led_01 led=0x01 value=85 raw=03 01 55
+button stored-slot=2(profile=3) slot=1 raw=01 01 01 00 00 00 00 block=01010100000000 class=0x01 len=1 data=01
+button stored-slot=2(profile=3) slot=2 raw=01 01 02 00 00 00 00 block=01010200000000 class=0x01 len=1 data=02
+button stored-slot=2(profile=3) slot=3 raw=01 01 03 00 00 00 00 block=01010300000000 class=0x01 len=1 data=03
+button stored-slot=2(profile=3) slot=4 raw=01 01 04 00 00 00 00 block=01010400000000 class=0x01 len=1 data=04
+button stored-slot=2(profile=3) slot=5 raw=01 01 05 00 00 00 00 block=01010500000000 class=0x01 len=1 data=05
+button stored-slot=2(profile=3) slot=6 read_failed
+button stored-slot=2(profile=3) slot=9 raw=01 01 09 00 00 00 00 block=01010900000000 class=0x01 len=1 data=09
+button stored-slot=2(profile=3) slot=10 raw=01 01 0a 00 00 00 00 block=01010a00000000 class=0x01 len=1 data=0a
+button stored-slot=2(profile=3) slot=11 raw=06 01 01 00 00 00 00 block=06010100000000 class=0x06 len=1 data=01
+button stored-slot=2(profile=3) slot=12 raw=06 01 02 00 00 00 00 block=06010200000000 class=0x06 len=1 data=02
+button stored-slot=2(profile=3) slot=14 raw=07 01 04 00 00 00 00 block=07010400000000 class=0x07 len=1 data=04
+button stored-slot=2(profile=3) slot=15 read_failed
+button stored-slot=2(profile=3) slot=52 raw=0e 01 68 00 14 00 00 block=0e016800140000 class=0x0e len=1 data=68
+button stored-slot=2(profile=3) slot=53 raw=0e 01 69 00 14 00 00 block=0e016900140000 class=0x0e len=1 data=69
+button stored-slot=2(profile=3) slot=60 read_failed
+button stored-slot=2(profile=3) slot=61 read_failed
+button stored-slot=2(profile=3) slot=64 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=65 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=66 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=67 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=68 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=69 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=70 raw=02 01 00 24 00 00 00 block=02010024000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=71 raw=02 01 00 25 00 00 00 block=02010025000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=72 raw=02 01 00 26 00 00 00 block=02010026000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=73 raw=02 01 00 27 00 00 00 block=02010027000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=74 raw=02 01 00 2d 00 00 00 block=0201002d000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=75 raw=02 01 00 2e 00 00 00 block=0201002e000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=80 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=81 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=82 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=83 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=84 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=85 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=2(profile=3) slot=96 read_failed
+button stored-slot=2(profile=3) slot=106 raw=12 01 01 00 00 00 00 block=12010100000000 class=0x12 len=1 data=01
+button stored-slot=2(profile=3) slot=109 read_failed
+metadata stored-slot=3(profile=4) read_failed
+dpi-scalar stored-slot=3(profile=4) pair=1600x1600 raw=04 06 40 06 40 00 00
+dpi-stages stored-slot=3(profile=4) activeToken=0x03 stageIDs=[0x01,0x02,0x03,0x04,0x05] pairs=[400x400,800x800,1600x1600,3200x3200,6400x6400] raw=04 03 05 01 01 90 01 90 01 90 02 03 20 03 20 03 20 03 06 40 06 40 06 40 04 0c 80 0c 80 0c 80 05 19 00 19 00 19 00
+brightness stored-slot=3(profile=4) zone=led_01 led=0x01 value=85 raw=04 01 55
+button stored-slot=3(profile=4) slot=1 raw=01 01 01 00 00 00 00 block=01010100000000 class=0x01 len=1 data=01
+button stored-slot=3(profile=4) slot=2 raw=01 01 02 00 00 00 00 block=01010200000000 class=0x01 len=1 data=02
+button stored-slot=3(profile=4) slot=3 raw=01 01 03 00 00 00 00 block=01010300000000 class=0x01 len=1 data=03
+button stored-slot=3(profile=4) slot=4 raw=01 01 04 00 00 00 00 block=01010400000000 class=0x01 len=1 data=04
+button stored-slot=3(profile=4) slot=5 raw=01 01 05 00 00 00 00 block=01010500000000 class=0x01 len=1 data=05
+button stored-slot=3(profile=4) slot=6 read_failed
+button stored-slot=3(profile=4) slot=9 raw=01 01 09 00 00 00 00 block=01010900000000 class=0x01 len=1 data=09
+button stored-slot=3(profile=4) slot=10 raw=01 01 0a 00 00 00 00 block=01010a00000000 class=0x01 len=1 data=0a
+button stored-slot=3(profile=4) slot=11 raw=06 01 01 00 00 00 00 block=06010100000000 class=0x06 len=1 data=01
+button stored-slot=3(profile=4) slot=12 raw=06 01 02 00 00 00 00 block=06010200000000 class=0x06 len=1 data=02
+button stored-slot=3(profile=4) slot=14 raw=07 01 04 00 00 00 00 block=07010400000000 class=0x07 len=1 data=04
+button stored-slot=3(profile=4) slot=15 read_failed
+button stored-slot=3(profile=4) slot=52 raw=0e 01 68 00 14 00 00 block=0e016800140000 class=0x0e len=1 data=68
+button stored-slot=3(profile=4) slot=53 raw=0e 01 69 00 14 00 00 block=0e016900140000 class=0x0e len=1 data=69
+button stored-slot=3(profile=4) slot=60 read_failed
+button stored-slot=3(profile=4) slot=61 read_failed
+button stored-slot=3(profile=4) slot=64 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=65 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=66 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=67 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=68 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=69 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=70 raw=02 01 00 24 00 00 00 block=02010024000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=71 raw=02 01 00 25 00 00 00 block=02010025000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=72 raw=02 01 00 26 00 00 00 block=02010026000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=73 raw=02 01 00 27 00 00 00 block=02010027000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=74 raw=02 01 00 2d 00 00 00 block=0201002d000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=75 raw=02 01 00 2e 00 00 00 block=0201002e000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=80 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=81 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=82 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=83 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=84 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=85 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=3(profile=4) slot=96 read_failed
+button stored-slot=3(profile=4) slot=106 raw=12 01 01 00 00 00 00 block=12010100000000 class=0x12 len=1 data=01
+button stored-slot=3(profile=4) slot=109 read_failed
+metadata stored-slot=4(profile=5) read_failed
+dpi-scalar stored-slot=4(profile=5) pair=1600x1600 raw=05 06 40 06 40 00 00
+dpi-stages stored-slot=4(profile=5) activeToken=0x03 stageIDs=[0x01,0x02,0x03,0x04,0x05] pairs=[400x400,800x800,1600x1600,3200x3200,6400x6400] raw=05 03 05 01 01 90 01 90 01 90 02 03 20 03 20 03 20 03 06 40 06 40 06 40 04 0c 80 0c 80 0c 80 05 19 00 19 00 19 00
+brightness stored-slot=4(profile=5) zone=led_01 led=0x01 value=85 raw=05 01 55
+button stored-slot=4(profile=5) slot=1 raw=01 01 01 00 00 00 00 block=01010100000000 class=0x01 len=1 data=01
+button stored-slot=4(profile=5) slot=2 raw=01 01 02 00 00 00 00 block=01010200000000 class=0x01 len=1 data=02
+button stored-slot=4(profile=5) slot=3 raw=01 01 03 00 00 00 00 block=01010300000000 class=0x01 len=1 data=03
+button stored-slot=4(profile=5) slot=4 raw=01 01 04 00 00 00 00 block=01010400000000 class=0x01 len=1 data=04
+button stored-slot=4(profile=5) slot=5 raw=01 01 05 00 00 00 00 block=01010500000000 class=0x01 len=1 data=05
+button stored-slot=4(profile=5) slot=6 read_failed
+button stored-slot=4(profile=5) slot=9 raw=01 01 09 00 00 00 00 block=01010900000000 class=0x01 len=1 data=09
+button stored-slot=4(profile=5) slot=10 raw=01 01 0a 00 00 00 00 block=01010a00000000 class=0x01 len=1 data=0a
+button stored-slot=4(profile=5) slot=11 raw=06 01 01 00 00 00 00 block=06010100000000 class=0x06 len=1 data=01
+button stored-slot=4(profile=5) slot=12 raw=06 01 02 00 00 00 00 block=06010200000000 class=0x06 len=1 data=02
+button stored-slot=4(profile=5) slot=14 raw=07 01 04 00 00 00 00 block=07010400000000 class=0x07 len=1 data=04
+button stored-slot=4(profile=5) slot=15 read_failed
+button stored-slot=4(profile=5) slot=52 raw=0e 01 68 00 14 00 00 block=0e016800140000 class=0x0e len=1 data=68
+button stored-slot=4(profile=5) slot=53 raw=0e 01 69 00 14 00 00 block=0e016900140000 class=0x0e len=1 data=69
+button stored-slot=4(profile=5) slot=60 read_failed
+button stored-slot=4(profile=5) slot=61 read_failed
+button stored-slot=4(profile=5) slot=64 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=65 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=66 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=67 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=68 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=69 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=70 raw=02 01 00 24 00 00 00 block=02010024000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=71 raw=02 01 00 25 00 00 00 block=02010025000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=72 raw=02 01 00 26 00 00 00 block=02010026000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=73 raw=02 01 00 27 00 00 00 block=02010027000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=74 raw=02 01 00 2d 00 00 00 block=0201002d000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=75 raw=02 01 00 2e 00 00 00 block=0201002e000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=80 raw=02 01 00 1e 00 00 00 block=0201001e000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=81 raw=02 01 00 1f 00 00 00 block=0201001f000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=82 raw=02 01 00 20 00 00 00 block=02010020000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=83 raw=02 01 00 21 00 00 00 block=02010021000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=84 raw=02 01 00 22 00 00 00 block=02010022000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=85 raw=02 01 00 23 00 00 00 block=02010023000000 class=0x02 len=1 data=00
+button stored-slot=4(profile=5) slot=96 read_failed
+button stored-slot=4(profile=5) slot=106 raw=12 01 01 00 00 00 00 block=12010100000000 class=0x12 len=1 data=01
+button stored-slot=4(profile=5) slot=109 read_failed
+fingerprint effective=effective(profile=0) ambiguous=[stored-slot=1(profile=2), stored-slot=2(profile=3), stored-slot=3(profile=4), stored-slot=4(profile=5)]
+
+### Guarded write / readback / restore pass (each write followed by readback + restore)
+
+-- DPI scalar (04:05 write, 04:85 read)
+baseline                                       response[90]: 02 1f 00 00 00 07 04 85 01 06 40 06 40 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 87 00
+write 1700x1700                                response[90]: 02 1f 00 00 00 07 04 05 01 06 a4 06 a4 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 07 00
+readback                                       response[90]: 02 1f 00 00 00 07 04 85 01 06 a4 06 a4 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 87 00
+restore 1600x1600                              response[90]: 02 1f 00 00 00 07 04 05 01 06 40 06 40 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 07 00
+readback-after-restore                         response[90]: 02 1f 00 00 00 07 04 85 01 06 40 06 40 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 87 00
+
+-- DPI stages same-value write (04:06 write/read, storage 01)
+baseline                                       response[90]: 02 1f 00 00 00 26 04 86 01 03 05 01 01 90 01 90 01 90 02 03 20 03 20 03 20 03 06 40 06 40 06 40 04 0c 80 0c 80 0c 80 05 19 00 19 00 19 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 c3 00
+same-value write                               response[90]: 02 1f 00 00 00 26 04 06 01 03 05 01 01 90 01 90 01 90 02 03 20 03 20 03 20 03 06 40 06 40 06 40 04 0c 80 0c 80 0c 80 05 19 00 19 00 19 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 43 00
+readback                                       response[90]: 02 1f 00 00 00 26 04 86 01 03 05 01 01 90 01 90 01 90 02 03 20 03 20 03 20 03 06 40 06 40 06 40 04 0c 80 0c 80 0c 80 05 19 00 19 00 19 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 c3 00
+
+-- Poll rate (00:05 write, 00:85 read): 01=1000Hz 02=500Hz 08=125Hz
+baseline                                       response[90]: 02 1f 00 00 00 01 00 85 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 85 00
+write 500Hz (02)                               response[90]: 02 1f 00 00 00 01 00 05 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 06 00
+readback                                       response[90]: 02 1f 00 00 00 01 00 85 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 86 00
+restore 1000Hz (01)                            response[90]: 02 1f 00 00 00 01 00 05 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 05 00
+readback-after-restore                         response[90]: 02 1f 00 00 00 01 00 85 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 85 00
+
+-- Idle time (07:03 write, 07:83 read)
+baseline                                       response[90]: 02 1f 00 00 00 02 07 83 01 2c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ab 00
+write 360s (0168)                              response[90]: 02 1f 00 00 00 02 07 03 01 68 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 6f 00
+readback                                       response[90]: 02 1f 00 00 00 02 07 83 01 68 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ef 00
+restore 300s (012c)                            response[90]: 02 1f 00 00 00 02 07 03 01 2c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 2b 00
+readback-after-restore                         response[90]: 02 1f 00 00 00 02 07 83 01 2c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ab 00
+
+-- Lighting brightness write/readback/restore (0F:04 write, 0F:84 read)
+LED 0x01 baseline   dd
+LED 0x01 write 100  response[90]: 02 1f 00 00 00 03 0f 04 01 01 64 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 6c 00
+LED 0x01 readback   response[90]: 02 1f 00 00 00 03 0f 84 01 01 64 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ec 00
+LED 0x01 restore 85 response[90]: 02 1f 00 00 00 03 0f 04 01 01 55 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 5d 00
+LED 0x01 readback   response[90]: 02 1f 00 00 00 03 0f 84 01 01 55 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 dd 00
+LED 0x04 baseline   d8
+LED 0x04 write 100  response[90]: 02 1f 00 00 00 03 0f 04 01 04 64 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 69 00
+LED 0x04 readback   response[90]: 02 1f 00 00 00 03 0f 84 01 04 64 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 e9 00
+LED 0x04 restore 85 response[90]: 02 1f 00 00 00 03 0f 04 01 04 55 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 58 00
+LED 0x04 readback   response[90]: 02 1f 00 00 00 03 0f 84 01 04 55 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 d8 00
+LED 0x05 baseline   d9
+LED 0x05 write 100  response[90]: 02 1f 00 00 00 03 0f 04 01 05 64 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 68 00
+LED 0x05 readback   response[90]: 02 1f 00 00 00 03 0f 84 01 05 64 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 e8 00
+LED 0x05 restore 85 response[90]: 02 1f 00 00 00 03 0f 04 01 05 55 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 59 00
+LED 0x05 readback   response[90]: 02 1f 00 00 00 03 0f 84 01 05 55 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 d9 00
+
+-- Switch to per-LED static color for physical zone identification (0F:02)
+LED 0x01 -> red   ff0000  response[90]: 02 1f 00 00 00 09 0f 02 01 01 01 00 00 01 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 fb 00
+LED 0x04 -> green 00ff00  response[90]: 02 1f 00 00 00 09 0f 02 01 04 01 00 00 01 00 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 fe 00
+LED 0x05 -> blue  0000ff  response[90]: 02 1f 00 00 00 09 0f 02 01 05 01 00 00 01 00 00 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ff 00
+LED 0x01 effect readback  response[90]: 02 1f 00 00 00 0c 0f 82 00 01 01 00 00 01 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 7f 00
+LED 0x04 effect readback  response[90]: 02 1f 00 00 00 0c 0f 82 00 04 01 00 00 01 00 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 7a 00
+LED 0x05 effect readback  response[90]: 02 1f 00 00 00 0c 0f 82 00 05 01 00 00 01 00 00 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 7b 00
+
+-- Button write/readback/restore (slot 64 = 12-button panel label 1, live layer 00 + persistent 01)
+baseline          profile=1 slot=64 hypershift=0 block=0201001e000000 class=0x02 len=1 data=00 profile=0 slot=64 hypershift=0 block=0201001e000000 class=0x02 len=1 data=00 
+write keyboard a  2
+profile=1 slot=64 hypershift=0 block=02020004000000 class=0x02 len=2 data=0004
+profile=0 slot=64 hypershift=0 block=02020004000000 class=0x02 len=2 data=0004
+restore native    2
+profile=1 slot=64 hypershift=0 block=0201001e000000 class=0x02 len=1 data=00
+profile=0 slot=64 hypershift=0 block=0201001e000000 class=0x02 len=1 data=00
+
+-- Temporary keyboard test bindings for physical slot identification (restored at the end)
+   slot 11 -> keyboard a (04), slot 12 -> b (05), slot 57 -> c (06), slot 106 -> d (07)
+write slot 11  key 0x04: 2
+write slot 12  key 0x05: 2
+write slot 57  key 0x06: 2
+write slot 106 key 0x07: 2
+readback:
+profile=1 slot=11 hypershift=0 block=02020004000000
+profile=0 slot=11 hypershift=0 block=02020004000000
+profile=1 slot=12 hypershift=0 block=02020004000000
+profile=0 slot=12 hypershift=0 block=02020004000000
+profile=1 slot=57 hypershift=0 block=02020004000000
+profile=0 slot=57 hypershift=0 block=02020004000000
+profile=1 slot=106 hypershift=0 block=02020004000000
+profile=0 slot=106 hypershift=0 block=02020004000000
+
+### Mouse Dock Pro 0x00A4 after replug — transaction sweep (SET_REPORT now succeeds)
+txn 0xFF serial(00:82)      response[90]: 02 ff 00 00 00 16 00 82 36 33 32 36 31 36 55 34 34 32 30 31 33 30 37 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 c0 00
+txn 0xFF firmware(00:81)    response[90]: 02 ff 00 00 00 02 00 81 02 01 02 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 83 00
+txn 0xFF devicemode(00:84)  response[90]: 02 ff 00 00 00 02 00 84 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 86 00
+txn 0x1F serial(00:82)      response[90]: 04 1f 00 00 00 16 00 82 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 94 00
+txn 0x1F firmware(00:81)    response[90]: 04 1f 00 00 00 02 00 81 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 83 00
+txn 0x1F devicemode(00:84)  response[90]: 04 1f 00 00 00 02 00 84 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 86 00
+txn 0x3F serial(00:82)      response[90]: 04 3f 00 00 00 16 00 82 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 94 00
+txn 0x3F firmware(00:81)    response[90]: 04 3f 00 00 00 02 00 81 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 83 00
+txn 0x3F devicemode(00:84)  response[90]: 04 3f 00 00 00 02 00 84 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 86 00
+
+### Dock brightness reads (0F:84, storage 01) at txn 0xFF
+LED 0x00  response[90]: 02 ff 00 00 00 03 0f 84 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 89 00
+LED 0x01  response[90]: 03 ff 00 00 00 03 0f 84 01 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 88 00
+LED 0x02  response[90]: 03 ff 00 00 00 03 0f 84 01 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 8b 00
+LED 0x03  response[90]: 03 ff 00 00 00 03 0f 84 01 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 8a 00
+LED 0x04  response[90]: 03 ff 00 00 00 03 0f 84 01 04 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 8d 00
+LED 0x05  response[90]: 03 ff 00 00 00 03 0f 84 01 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 8c 00
+LED 0x06  response[90]: 03 ff 00 00 00 03 0f 84 01 06 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 8f 00
+LED 0x07  response[90]: 03 ff 00 00 00 03 0f 84 01 07 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 8e 00
+LED 0x08  response[90]: 03 ff 00 00 00 03 0f 84 01 08 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 81 00
+
+### Dock effect-state reads (0F:82, size 0x0C) at txn 0xFF
+LED 0x00  response[90]: 02 ff 00 00 00 0c 0f 82 01 0f 03 01 28 01 ff ff ff ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 a4 00
+LED 0x01  response[90]: 03 ff 00 00 00 0c 0f 82 01 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 81 00
+LED 0x02  response[90]: 03 ff 00 00 00 0c 0f 82 01 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 82 00
+LED 0x03  response[90]: 03 ff 00 00 00 0c 0f 82 01 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 83 00
+
+### Dock stored (storage 00) brightness read
+LED 0x00 storage 00  response[90]: 02 ff 00 00 00 03 0f 84 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 88 00
+LED 0x00 storage 01  response[90]: 02 ff 00 00 00 03 0f 84 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 89 00
+
+### Dock write tests at txn 0xFF (baseline brightness read = 00, effect = spectrum 03 01 28 01 + ffffff x6)
+brightness write 255   response[90]: 02 ff 00 00 00 03 0f 04 01 00 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 f6 00
+brightness readback    response[90]: 02 ff 00 00 00 03 0f 84 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 89 00
+
+-- effect writes (0F:02) and readbacks
+off                    response[90]: 02 ff 00 00 00 06 0f 02 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 0a 00
+  readback             response[90]: 02 ff 00 00 00 0c 0f 82 01 0f 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 8f 00
+static ff8000          response[90]: 02 ff 00 00 00 09 0f 02 01 00 01 00 00 01 ff 80 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 7a 00
+  readback             response[90]: 02 ff 00 00 00 0c 0f 82 01 0f 01 00 00 01 ff 80 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 f0 00
+spectrum               response[90]: 02 ff 00 00 00 06 0f 02 01 00 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 09 00
+wave dir1              response[90]: 02 ff 00 00 00 06 0f 02 01 00 04 01 28 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 27 00
+wave dir2              response[90]: 02 ff 00 00 00 06 0f 02 01 00 04 02 28 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 24 00
+reactive               response[90]: 02 ff 00 00 00 09 0f 02 01 00 05 00 02 01 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 fc 00
+breath random          response[90]: 02 ff 00 00 00 06 0f 02 01 00 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 08 00
+breath single          response[90]: 02 ff 00 00 00 09 0f 02 01 00 02 01 00 01 00 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 f8 00
+breath dual            response[90]: 02 ff 00 00 00 0c 0f 02 01 00 02 02 00 02 ff 00 00 00 00 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00
+storage 00 static      response[90]: 02 ff 00 00 00 09 0f 02 00 00 01 00 00 01 00 00 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 fb 00
+
+### DPI ceiling confirmation (write -> readback -> restore)
+requested 50000  (c350) write status: 02
+                readback: 0xc30x50
+requested 60000  (ea60) write status: 02
+                readback: 0xea0x60
+restore 1600 write status: 02
+final readback: 0x060x40
+
+### Dock custom-frame / row writes (0F:03) — OpenRazer declares a 1x8 matrix
+1-cell row (1 color)   response[90]: 02 ff 00 00 00 08 0f 03 01 00 00 00 00 ff 00 00 00 00 00 00 
+4-cell row             response[90]: 02 ff 00 00 00 11 0f 03 01 00 00 03 00 ff 00 00 00 ff 00 00 
+8-cell row             response[90]: 02 ff 00 00 00 1d 0f 03 01 00 00 07 00 ff 00 00 00 ff 00 00 
+
+### Dock effect set staging (for the visual check)
+wave dir1 write        response[90]: 02 ff 00 00 00 06 0f 02 01 00 04 01 28 00 00 00 00 00 00 00 
+wave readback          response[90]: 02 ff 00 00 00 0c 0f 82 01 0f 04 01 28 00 00 00 00 00 00 00 
+
+### Same-value button write validation (read native block -> write it back -> readback)
+slot   native             result
+1      01010100000000     ok (persistent+live)
+2      01010200000000     ok (persistent+live)
+3      01010300000000     ok (persistent+live)
+4      01010400000000     ok (persistent+live)
+5      01010500000000     ok (persistent+live)
+9      01010900000000     ok (persistent+live)
+10     01010a00000000     ok (persistent+live)
+11     06010100000000     ok (persistent+live)
+12     06010200000000     ok (persistent+live)
+14     07010400000000     ok (persistent+live)
+52     0e016800140000     ok (persistent+live)
+53     0e016900140000     ok (persistent+live)
+57     0c013900000000     ok (persistent+live)
+64     0201001e000000     ok (persistent+live)
+65     0201001f000000     ok (persistent+live)
+66     02010020000000     ok (persistent+live)
+67     02010021000000     ok (persistent+live)
+68     02010022000000     ok (persistent+live)
+69     02010023000000     ok (persistent+live)
+70     02010024000000     ok (persistent+live)
+71     02010025000000     ok (persistent+live)
+72     02010026000000     ok (persistent+live)
+73     02010027000000     ok (persistent+live)
+74     0201002d000000     ok (persistent+live)
+75     0201002e000000     ok (persistent+live)
+80     0201001e000000     ok (persistent+live)
+81     0201001f000000     ok (persistent+live)
+82     02010020000000     ok (persistent+live)
+83     02010021000000     ok (persistent+live)
+84     02010022000000     ok (persistent+live)
+85     02010023000000     ok (persistent+live)
+106    12010100000000     ok (persistent+live)
+
+### Lighting effect validation per zone (0F:02 write -> 0F:82 readback)
+off            write status 02
+static         write status 02
+spectrum       write status 02
+wave           write status 02
+reactive       write status 02
+pulse_random   write status 02
+pulse_single   write status 02
+pulse_dual     write status 02
+
+-- per-LED readback of the final state (pulse_dual) then restore spectrum on all three zones
+LED 0x01  2 1f 00 00 00 0c 0f 82 00 01 0
+LED 0x04  2 1f 00 00 00 0c 0f 82 00 04 0
+LED 0x05  2 1f 00 00 00 0c 0f 82 00 05 0
+restore spectrum LED 0x01 status 02
+restore spectrum LED 0x04 status 02
+restore spectrum LED 0x05 status 02
+
+### Independent X/Y DPI (write X=800 Y=1600, readback, restore)
+write status 02
+readback      1f 00 00 00 07 0
+restore      02
+final         1f 00 00 00 07 0
+
+### re-captured with full payloads
+XY write 800x1600  -> 2 1f 00 00 00 07 04 05 01 03 20 0
+XY readback         <- 2 1f 00 00 00 07 04 85 01 03 20 0
+XY restore 1600x1600-> 2 1f 00 00 00 07 04 05 01 06 40 0
+XY readback final   <- 2 1f 00 00 00 07 04 85 01 06 40 0
+pulse_dual LED 0x01 write  -> 2 1f 00 00 00 0c 0f 02 01 01 02 0
+pulse_dual LED 0x01 read   <- 2 1f 00 00 00 0c 0f 82 00 01 02 0
+spectrum  LED 0x01 restore -> 2 1f 00 00 00 06 0f 02 01 01 03 0
+spectrum  LED 0x01 read    <- 2 1f 00 00 00 0c 0f 82 00 01 03 0
+pulse_dual LED 0x04 write  -> 2 1f 00 00 00 0c 0f 02 01 04 02 0
+pulse_dual LED 0x04 read   <- 2 1f 00 00 00 0c 0f 82 00 04 02 0
+spectrum  LED 0x04 restore -> 2 1f 00 00 00 06 0f 02 01 04 03 0
+spectrum  LED 0x04 read    <- 2 1f 00 00 00 0c 0f 82 00 04 03 0
+pulse_dual LED 0x05 write  -> 2 1f 00 00 00 0c 0f 02 01 05 02 0
+pulse_dual LED 0x05 read   <- 2 1f 00 00 00 0c 0f 82 00 05 02 0
+spectrum  LED 0x05 restore -> 2 1f 00 00 00 06 0f 02 01 05 03 0
+spectrum  LED 0x05 read    <- 2 1f 00 00 00 0c 0f 82 00 05 03 0
+
+### Onboard profile write validation (same-value writes with restore, stored slot 4/profile 5)
+usb-profile-verify-writes 1532:00e8:02150000:usb pid=0x00e8 profile=5
+verify-write dpi-scalar stored-slot=4(profile=5) before=1600x1600 after=1600x1600 rawBefore=05 06 40 06 40 00 00 rawAfter=05 06 40 06 40 00 00 status=ok
+verify-write dpi-stages stored-slot=4(profile=5) beforeToken=0x03 afterToken=0x03 before=[400x400,800x800,1600x1600,3200x3200,6400x6400] after=[400x400,800x800,1600x1600,3200x3200,6400x6400] status=ok
+verify-write brightness stored-slot=4(profile=5) zone=led_01 led=0x01 before=85 after=85 rawBefore=05 01 55 rawAfter=05 01 55 status=ok
+
+### Onboard profile activation (active 1 -> 2 -> restore 1)
+active before  value=1
+active after 2 value=1
+active restored value=1
+live DPI stage token after round trip: 0 00 26 04
+
+### Profile-driven hardware validation (Naga V3 Pro 0x00E8)
+
+$ OpenSnekProbe usb-battery-read --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+battery charging=no raw=0x9c percent=61
+
+$ OpenSnekProbe usb-lighting-read --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+brightness zone=scroll_wheel label="Scroll Wheel" led=0x01 value=85
+brightness zone=logo label="Logo" led=0x04 value=85
+brightness zone=side_panel label="Side Plate" led=0x05 value=85
+
+$ OpenSnekProbe usb-lighting-brightness --value 100 --zone logo --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+write-brightness zone=logo label="Logo" led=0x04 args=01 04 64 status=ok
+brightness zone=logo label="Logo" led=0x04 value=100
+
+$ OpenSnekProbe usb-lighting-read --zone logo --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+brightness zone=logo label="Logo" led=0x04 value=100
+
+$ OpenSnekProbe usb-lighting-brightness --value 85 --zone logo --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+write-brightness zone=logo label="Logo" led=0x04 args=01 04 55 status=ok
+brightness zone=logo label="Logo" led=0x04 value=85
+
+$ OpenSnekProbe usb-lighting-read --zone logo --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+brightness zone=logo label="Logo" led=0x04 value=85
+
+$ OpenSnekProbe usb-lighting-effect --kind wave --zone side_panel --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+write-wave zone=side_panel label="Side Plate" led=0x05 args=01 05 04 01 28 00 status=ok
+
+$ OpenSnekProbe usb-lighting-effect --kind spectrum --zone side_panel --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+write-spectrum zone=side_panel label="Side Plate" led=0x05 args=01 05 03 00 00 00 status=ok
+
+$ OpenSnekProbe usb-button-read --slot 57 --profile both --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+profile=1 slot=57 hypershift=0 block=0c013900000000 class=0x0c len=1 data=39
+profile=0 slot=57 hypershift=0 block=0c013900000000 class=0x0c len=1 data=39
+
+$ OpenSnekProbe usb-button-read --slot 106 --profile both --pid 0x00e8
+usb 1532:00e8:02150000:usb pid=0x00e8
+profile=1 slot=106 hypershift=0 block=12010100000000 class=0x12 len=1 data=01
+profile=0 slot=106 hypershift=0 block=12010100000000 class=0x12 len=1 data=01

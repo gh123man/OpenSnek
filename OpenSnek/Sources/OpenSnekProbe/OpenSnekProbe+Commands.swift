@@ -379,7 +379,7 @@ extension OpenSnekProbe {
             let parsed = try parseUSBRawArgs(commandArgs)
             let usb = try USBProbeClient(productID: parsed.productID)
             print("usb \(usb.describe())")
-            let response = try usb.rawCommand(classID: parsed.classID, cmdID: parsed.cmdID, size: parsed.size, args: parsed.args, responseAttempts: parsed.responseAttempts, responseDelayUs: parsed.responseDelayUs)
+            let response = try usb.rawCommand(classID: parsed.classID, cmdID: parsed.cmdID, size: parsed.size, args: parsed.args, transactionID: parsed.transactionID, responseAttempts: parsed.responseAttempts, responseDelayUs: parsed.responseDelayUs)
             if let response {
                 let hex = response.map { String(format: "%02x", $0) }.joined(separator: " ")
                 print("response[\(response.count)]: \(hex)")

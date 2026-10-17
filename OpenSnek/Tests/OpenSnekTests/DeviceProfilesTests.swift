@@ -719,6 +719,97 @@ final class DeviceProfilesTests: XCTestCase {
         }
     }
 
+    func testResolveUSBProfileForMouseDockPro() {
+        let profile = DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00A4, transport: .usb)
+        XCTAssertEqual(profile?.id, .mouseDockPro)
+        XCTAssertEqual(profile?.productName, "Mouse Dock Pro")
+        XCTAssertEqual(profile?.formFactor, .accessory)
+        // The dock ignores 0x1F and 0x3F entirely: every request with those transaction IDs
+        // answers status 0x04, so the profile pins the only ID the dock accepts.
+        XCTAssertEqual(profile?.usbTransactionID, 0xFF)
+        XCTAssertEqual(profile?.buttonLayout.visibleSlots, [])
+        XCTAssertEqual(profile?.buttonLayout.writableSlots, [])
+        XCTAssertEqual(profile?.supportedLightingEffects, [.off, .staticColor, .wave, .spectrum, .pulseRandom, .pulseSingle, .pulseDual])
+        XCTAssertEqual(profile?.usbLightingZones.map(\.id), ["logo"])
+        XCTAssertEqual(profile?.allUSBLightingLEDIDs, [0x00])
+        XCTAssertEqual(profile?.allUSBBrightnessLEDIDs, [0x00])
+        // 0F:84 only reports the stored value at LED 0x0F, so reads and writes use different LEDs.
+        XCTAssertEqual(profile?.allUSBBrightnessReadLEDIDs, [0x0F])
+        XCTAssertEqual(profile?.supportsDPIControls, false)
+        XCTAssertEqual(profile?.supportsPollRateControls, false)
+        XCTAssertEqual(profile?.supportsPowerManagementControls, false)
+        XCTAssertEqual(profile?.supportsButtonRemapControls, false)
+        XCTAssertEqual(profile?.supportsLightingBrightnessControls, true)
+        XCTAssertTrue(try XCTUnwrap(profile).supportsLightingStateReads)
+        // Per-cell rendering of the dock's 1x8 row is not mapped yet, so no frame layout ships.
+        XCTAssertNil(profile?.softwareLightingFrameLayout)
+        XCTAssertEqual(profile?.supportedSoftwareLightingPresets, [])
+        XCTAssertEqual(profile?.isLocallyValidated, false)
+    }
+
+    func testResolveUSBProfileForNagaV3ProReceiver() throws {
+        let profile = try XCTUnwrap(DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00E8, transport: .usb))
+        XCTAssertEqual(profile.id, .nagaV3Pro)
+        XCTAssertEqual(profile.productName, "Naga V3 Pro")
+        XCTAssertEqual(profile.usbTransactionID, 0x1F)
+        // Focus Pro 50K Optical Sensor Gen-3. The firmware stores any value without clamping, so the
+        // published ceiling is the authoritative limit.
+        XCTAssertEqual(DeviceProfiles.maximumDPI(for: .nagaV3Pro), 50_000)
+        XCTAssertTrue(profile.supportsIndependentXYDPI)
+        XCTAssertTrue(DeviceProfiles.supportsIndependentXYDPI(for: profile.id))
+        XCTAssertEqual(profile.supportsLightingBrightnessControls, true)
+        XCTAssertTrue(profile.supportsLightingStateReads)
+        XCTAssertEqual(profile.supportedLightingEffects, [.off, .staticColor, .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual])
+        XCTAssertEqual(profile.usbLightingLEDIDs, [0x01, 0x04, 0x05])
+        XCTAssertEqual(profile.usbLightingZones.map(\.id), ["scroll_wheel", "logo", "side_panel"])
+        XCTAssertEqual(profile.usbLightingZones.map(\.label), ["Scroll Wheel", "Logo", "Side Panel"])
+        // Metadata reads (05:88) answer status 0x03 on every offset, so onboard profile CRUD stays off.
+        XCTAssertEqual(profile.onboardProfileSupport, .unavailable)
+        XCTAssertEqual(profile.onboardProfileCount, 1)
+        XCTAssertEqual(profile.isLocallyValidated, false)
+        XCTAssertFalse(ButtonBindingSupport.availableButtonBindingKinds(profileID: profile.id).contains(.dpiClutch))
+    }
+
+    func testNagaV3ProExposesBodyPlateAndVendorSlots() throws {
+        let profile = try XCTUnwrap(DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00E8, transport: .usb))
+
+        XCTAssertEqual(profile.buttonLayout.visibleSlots.filter { $0.group == "Mouse" }.map(\.slot), [1, 2, 3, 9, 10, 11, 12, 52, 53, 57, 106, 14])
+        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 11 })?.friendlyName, "Index Button 1")
+        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 12 })?.friendlyName, "Index Button 2")
+        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 57 })?.friendlyName, "Pinky Button")
+        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 106 })?.friendlyName, "Scroll Wheel Button")
+        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 14 })?.friendlyName, "Profile Button")
+        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 5 })?.group, "2-Button Panel")
+        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 85 })?.group, "6-Button Panel")
+        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 75 })?.group, "12-Button Panel")
+
+        // Every slot in the table round-tripped a same-value write on both the live and persistent layers.
+        XCTAssertEqual(profile.buttonLayout.writableSlots, profile.buttonLayout.visibleSlots.map(\.slot).sorted())
+    }
+
+    func testNagaV3ProFactoryBlocksAreRestorableDefaults() throws {
+        let profileID = DeviceProfileID.nagaV3Pro
+        let expected: [Int: [UInt8]] = [
+            11: [0x06, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00], 12: [0x06, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00], 14: [0x07, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00], 57: [0x0C, 0x01, 0x39, 0x00, 0x00, 0x00, 0x00], 106: [0x12, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00], 52: [0x0E, 0x01, 0x68, 0x00, 0x14, 0x00, 0x00],
+            53: [0x0E, 0x01, 0x69, 0x00, 0x14, 0x00, 0x00], 64: [0x02, 0x01, 0x00, 0x1E, 0x00, 0x00, 0x00], 75: [0x02, 0x01, 0x00, 0x2E, 0x00, 0x00, 0x00], 80: [0x02, 0x01, 0x00, 0x1E, 0x00, 0x00, 0x00], 85: [0x02, 0x01, 0x00, 0x23, 0x00, 0x00, 0x00], 1: [0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00]
+        ]
+        for (slot, block) in expected {
+            XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: slot, profileID: profileID), block, "slot \(slot)")
+            XCTAssertTrue(ButtonBindingSupport.supportsDefaultRestore(for: slot, profileID: profileID), "slot \(slot)")
+            XCTAssertNotNil(ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: slot, functionBlock: block, profileID: profileID), "slot \(slot)")
+        }
+
+        // Slot 96 belongs to the Basilisk and Naga V2 Pro families, not to this device.
+        XCTAssertNil(ButtonBindingSupport.defaultUSBFunctionBlock(for: 96, profileID: profileID))
+        XCTAssertFalse(ButtonBindingSupport.supportsDefaultRestore(for: 96, profileID: profileID))
+    }
+
+    func testNagaV3ProDoesNotExposeBasiliskClutchOrScrollMode() {
+        XCTAssertNil(ButtonBindingSupport.defaultDPIClutchDPI(for: .nagaV3Pro))
+        XCTAssertFalse(DeviceProfiles.supportsIndependentXYDPI(for: DeviceProfileID.mouseDockPro))
+        XCTAssertEqual(DeviceProfiles.maximumDPI(for: .mouseDockPro), DeviceProfiles.defaultMaximumDPI)
+    }
+
     func testPersistenceKeysIgnorePlaceholderZeroSerial() {
         let device = MouseDevice(id: "dev", vendor_id: 0x1532, product_id: 0x00AB, product_name: "Mouse", transport: .usb, path_b64: "", serial: "000000000000", firmware: nil)
 

@@ -18,30 +18,35 @@ public enum ButtonBindingSupport {
     private static let nagaProHorizontalScrollLeftButtonID: UInt8 = 0x09
     private static let nagaProHorizontalScrollRightButtonID: UInt8 = 0x0A
 
-    // Native Naga V2 Pro side-panel defaults captured from the firmware's unassigned onboard banks
-    // (2.4 GHz receiver 1532:00A8, firmware 0x02142000). The 12-button panel defaults to keyboard
-    // 1..9, 0, -, = and the 6-button panel defaults to keyboard 1..6, both using the same
-    // length-0x01 keyboard encoding as the Naga Pro. Unlike the Naga Pro, the V2 Pro keeps the
-    // Basilisk-family wheel-tilt button IDs 0x68 / 0x69 at its native default.
-    // See captures/usb/2026-10-06-naga-v2-pro-wireless/.
-    private static let nagaV2ProNativeKeyboardKeyBySlot: [Int: UInt8] = [64: 0x1E, 65: 0x1F, 66: 0x20, 67: 0x21, 68: 0x22, 69: 0x23, 70: 0x24, 71: 0x25, 72: 0x26, 73: 0x27, 74: 0x2D, 75: 0x2E, 80: 0x1E, 81: 0x1F, 82: 0x20, 83: 0x21, 84: 0x22, 85: 0x23]
+    // Native Naga-family side-plate defaults, captured from the firmware's unassigned onboard banks:
+    // Naga Pro (2.4 GHz receiver 1532:0090, firmware 0x00112100), Naga V2 Pro (1532:00A8, firmware
+    // 0x02142000), and Naga V3 Pro (1532:00E8, firmware 0x02010201). All three answer the same
+    // length-0x01 keyboard encoding, where the 12-button plate defaults to keyboard 1..9, 0, -, =
+    // and the 6-button plate to keyboard 1..6. Native blocks declare a function-data length of 0x01
+    // while still placing the HID key in byte 3, and the Naga family keeps the Basilisk-family
+    // wheel-tilt button IDs 0x68 / 0x69.
+    // See captures/usb/2026-10-05-naga-pro-native-default-banks/,
+    // captures/usb/2026-10-06-naga-pro-side-panel-validation/,
+    // captures/usb/2026-10-06-naga-v2-pro-wireless/, and captures/usb/2026-10-17-naga-v3-pro/.
+    private static let nagaFamilyNativeKeyboardKeyBySlot: [Int: UInt8] = [64: 0x1E, 65: 0x1F, 66: 0x20, 67: 0x21, 68: 0x22, 69: 0x23, 70: 0x24, 71: 0x25, 72: 0x26, 73: 0x27, 74: 0x2D, 75: 0x2E, 80: 0x1E, 81: 0x1F, 82: 0x20, 83: 0x21, 84: 0x22, 85: 0x23]
 
-    private static let nagaV2ProNativeHorizontalScrollRate: UInt8 = 0x14
+    private static let nagaFamilyNativeHorizontalScrollRate: UInt8 = 0x14
 
-    private static func nagaV2ProNativeKeyboardBlock(hidKey: UInt8) -> [UInt8] { [0x02, 0x01, 0x00, hidKey, 0x00, 0x00, 0x00] }
+    private static func nagaFamilyNativeKeyboardBlock(hidKey: UInt8) -> [UInt8] { [0x02, 0x01, 0x00, hidKey, 0x00, 0x00, 0x00] }
 
-    private static func nagaV2ProNativeHorizontalScrollBlock(buttonID: UInt8) -> [UInt8] { [0x0E, 0x01, buttonID, 0x00, nagaV2ProNativeHorizontalScrollRate, 0x00, 0x00] }
+    private static func nagaFamilyNativeHorizontalScrollBlock(buttonID: UInt8) -> [UInt8] { [0x0E, 0x01, buttonID, 0x00, nagaFamilyNativeHorizontalScrollRate, 0x00, 0x00] }
 
-    // Native Naga Pro side-panel defaults captured from the firmware's unassigned onboard banks
-    // (2.4 GHz receiver 1532:0090, firmware 0x00112100) and physically press-validated on the
-    // 12-button panel slots 64-75 and 6-button panel slots 80-85. The 12-button panel defaults to
-    // keyboard 1..9, 0, -, = and the 6-button panel to keyboard 1..6. Native blocks declare
-    // function-data length 0x01 while keeping [class, length, modifiers, HID key] at bytes 0..3.
-    // See captures/usb/2026-10-05-naga-pro-native-default-banks/ and
-    // captures/usb/2026-10-06-naga-pro-side-panel-validation/.
-    private static let nagaProNativeKeyboardKeyBySlot: [Int: UInt8] = [64: 0x1E, 65: 0x1F, 66: 0x20, 67: 0x21, 68: 0x22, 69: 0x23, 70: 0x24, 71: 0x25, 72: 0x26, 73: 0x27, 74: 0x2D, 75: 0x2E, 80: 0x1E, 81: 0x1F, 82: 0x20, 83: 0x21, 84: 0x22, 85: 0x23]
-
-    private static func nagaProNativeKeyboardBlock(hidKey: UInt8) -> [UInt8] { [0x02, 0x01, 0x00, hidKey, 0x00, 0x00, 0x00] }
+    // Naga V3 Pro factory blocks for the body buttons that carry vendor-specific actions. Physical
+    // press validation identified each one (see captures/usb/2026-10-17-naga-v3-pro/), and every
+    // slot round-tripped a same-value write on both the live and persistent layers, so these stay
+    // editable and keep their factory block as the restore target.
+    private static let nagaV3ProNativeBlockBySlot: [Int: [UInt8]] = [
+        11: [0x06, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00],  // front index-finger button (factory DPI action)
+        12: [0x06, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00],  // rear index-finger button (factory DPI action)
+        14: [0x07, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00],  // underside profile button (factory onboard-profile cycle)
+        57: [0x0C, 0x01, 0x39, 0x00, 0x00, 0x00, 0x00],  // pinky button
+        106: [0x12, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00]  // front scroll-wheel button
+    ]
 
     private static func horizontalScrollButtonID(for kind: ButtonBindingKind, profileID: DeviceProfileID?) -> UInt8? {
         switch kind {
@@ -99,12 +104,19 @@ public enum ButtonBindingSupport {
     // The Naga family writes wheel tilt as a class-0x0E horizontal-scroll block. The Naga V2 Pro
     // accepts both the firmware-native length-0x01 block and the turbo length-0x03 block; remaps use
     // the same turbo-capable form as the Basilisk family, which the attached device round-trips.
-    private static func supportsTurboHorizontalScrollBlocks(_ profileID: DeviceProfileID?) -> Bool { isBasiliskV3Family(profileID) || profileID == .nagaPro || profileID == .nagaV2Pro }
+    private static func supportsTurboHorizontalScrollBlocks(_ profileID: DeviceProfileID?) -> Bool { isBasiliskV3Family(profileID) || isNagaFamily(profileID) }
+
+    private static func isNagaFamily(_ profileID: DeviceProfileID?) -> Bool {
+        switch profileID {
+        case .nagaPro, .nagaV2Pro, .nagaV3Pro: return true
+        case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3Pro35K, .basiliskV3XHyperspeed, .orochiV2, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro, .none: return false
+        }
+    }
 
     private static func isBasiliskV3Family(_ profileID: DeviceProfileID?) -> Bool {
         switch profileID {
         case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3Pro35K: return true
-        case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .mouseDock, .none: return false
+        case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .nagaV3Pro, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro, .none: return false
         }
     }
 
@@ -119,7 +131,7 @@ public enum ButtonBindingSupport {
     public static func defaultDPIClutchDPI(for profileID: DeviceProfileID?) -> Int? {
         switch profileID {
         case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3Pro35K: return defaultBasiliskDPIClutchDPI
-        case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .mouseDock, .none: return nil
+        case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .nagaV3Pro, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro, .none: return nil
         }
     }
 
@@ -145,7 +157,7 @@ public enum ButtonBindingSupport {
         case 96:
             switch profileID {
             case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3Pro35K, .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .basilisk, .lanceheadTournamentEdition, .none: return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
-            case .huntsmanMini, .tartarusPro, .mouseDock: return nil
+            case .nagaV3Pro, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro: return nil
             }
         default: return nil
         }
@@ -322,10 +334,12 @@ public enum ButtonBindingSupport {
         case 15 where profileID == .basiliskV3Pro: return basiliskDPIClutchBlock(profileID: .basiliskV3Pro)
         case 52 where usesExtendedBasiliskUSBReadLayout(profileID): return basiliskV3FamilyHorizontalScrollBlock(buttonID: horizontalScrollLeftButtonID)
         case 53 where usesExtendedBasiliskUSBReadLayout(profileID): return basiliskV3FamilyHorizontalScrollBlock(buttonID: horizontalScrollRightButtonID)
+        // The Naga Pro's factory tilt blocks use the turbo length-0x03 form, unlike the V2 and V3
+        // Pro's firmware-native length-0x01 form.
         case 52 where profileID == .nagaPro: return basiliskV3FamilyHorizontalScrollBlock(buttonID: nagaProHorizontalScrollLeftButtonID, turboRate: defaultTurboRate)
         case 53 where profileID == .nagaPro: return basiliskV3FamilyHorizontalScrollBlock(buttonID: nagaProHorizontalScrollRightButtonID, turboRate: defaultTurboRate)
-        case 52 where profileID == .nagaV2Pro: return nagaV2ProNativeHorizontalScrollBlock(buttonID: horizontalScrollLeftButtonID)
-        case 53 where profileID == .nagaV2Pro: return nagaV2ProNativeHorizontalScrollBlock(buttonID: horizontalScrollRightButtonID)
+        case 52 where profileID == .nagaV2Pro || profileID == .nagaV3Pro: return nagaFamilyNativeHorizontalScrollBlock(buttonID: horizontalScrollLeftButtonID)
+        case 53 where profileID == .nagaV2Pro || profileID == .nagaV3Pro: return nagaFamilyNativeHorizontalScrollBlock(buttonID: horizontalScrollRightButtonID)
         // Bottom button factory block; cycles onboard profiles. Synapse rewrites the class-0x06
         // `06 01 06` form when the button is remapped to DPI-stage cycling.
         case 14 where profileID == .nagaV2Pro: return [0x07, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00]
@@ -334,12 +348,12 @@ public enum ButtonBindingSupport {
             case .basiliskV3, .basiliskV335K: return [0x04, 0x02, 0x0F, 0x7B, 0x00, 0x00, 0x00]
             case .basiliskV3Pro, .basiliskV3Pro35K: return [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
             case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .basilisk, .lanceheadTournamentEdition, .none: return [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
-            case .huntsmanMini, .tartarusPro, .mouseDock: return nil
+            case .nagaV3Pro, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro: return nil
             }
         default: break
         }
-        if profileID == .nagaPro, let hidKey = nagaProNativeKeyboardKeyBySlot[slot] { return nagaProNativeKeyboardBlock(hidKey: hidKey) }
-        if profileID == .nagaV2Pro, let hidKey = nagaV2ProNativeKeyboardKeyBySlot[slot] { return nagaV2ProNativeKeyboardBlock(hidKey: hidKey) }
+        if isNagaFamily(profileID), let hidKey = nagaFamilyNativeKeyboardKeyBySlot[slot] { return nagaFamilyNativeKeyboardBlock(hidKey: hidKey) }
+        if profileID == .nagaV3Pro, let factoryBlock = nagaV3ProNativeBlockBySlot[slot] { return factoryBlock }
         switch slot {
         case 1: return [0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00]
         case 2: return [0x01, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00]
@@ -382,8 +396,9 @@ public enum ButtonBindingSupport {
         case .orochiV2: return DeviceProfiles.orochiV2BluetoothButtonSlots
         case .nagaPro: return DeviceProfiles.nagaProUSBButtonSlots
         case .nagaV2Pro: return DeviceProfiles.nagaV2ProUSBButtonSlots
+        case .nagaV3Pro: return DeviceProfiles.nagaV3ProUSBButtonSlots
         case .basilisk, .lanceheadTournamentEdition: return ButtonSlotDescriptor.defaults
-        case .huntsmanMini, .tartarusPro, .mouseDock: return []
+        case .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro: return []
         }
     }
 
@@ -396,7 +411,7 @@ public enum ButtonBindingSupport {
     private static func usesCompactBasiliskDPIClutchDefault(_ profileID: DeviceProfileID?) -> Bool {
         switch profileID {
         case .basiliskV3, .basiliskV335K, .basiliskV3Pro35K: return true
-        case .basiliskV3Pro, .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .mouseDock, .none: return false
+        case .basiliskV3Pro, .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .nagaV3Pro, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro, .none: return false
         }
     }
 }

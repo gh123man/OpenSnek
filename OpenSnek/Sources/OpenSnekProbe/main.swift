@@ -216,6 +216,8 @@ struct ProbeUSBRawArgs {
     let cmdID: UInt8
     let size: UInt8
     let args: [UInt8]
+    /// Explicit transaction ID for accessories such as the Mouse Dock Pro, which ignore the default 0x1F.
+    let transactionID: UInt8?
     let responseAttempts: Int
     let responseDelayUs: useconds_t
     let productID: Int?

@@ -14,11 +14,13 @@ Target device baseline:
 - Orochi V2 Bluetooth (`BT PID 0x0095`)
 - Naga V2 Pro (`USB PIDs 0x00A7, 0x00A8`, `BT PID 0x00A9`)
 - Naga Pro (`USB PIDs 0x008F, 0x0090`, `BT PID 0x0092`, contributor validated)
+- Naga V3 Pro (`USB PID 0x00E8` 2.4 GHz receiver, contributor validated)
 - Basilisk 2017 (`USB PID 0x0064`, OpenRazer-backed USB profile only)
 - Lancehead Tournament Edition (`USB PID 0x0060`, OpenRazer-backed USB profile only)
 - Huntsman Mini (`USB PID 0x0257`, keyboard, OpenRazer-backed USB lighting-only profile)
 - Tartarus Pro (`USB PID 0x0244`, keypad, OpenRazer-backed USB lighting-only profile)
 - Razer Mouse Dock (`USB PID 0x007E`, accessory, OpenRazer-backed USB lighting-only profile)
+- Razer Mouse Dock Pro (`USB PID 0x00A4`, accessory, USB lighting-only profile; answers only transaction ID `0xFF`)
 
 Transport paths:
 - USB/2.4GHz: 90-byte HID report protocol

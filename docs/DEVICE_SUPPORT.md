@@ -45,11 +45,13 @@ Button remap keyboard actions support modifier chords on shipped USB and Bluetoo
 | Orochi V2 | `Not shipped` | `Contributor validated` | Contributor validated Bluetooth DPI stages, battery, and no-RGB behavior; button remap is profile-mapped pending hardware readback validation |
 | Naga Pro | `Contributor validated` | `Contributor validated` | Core controls and known-safe side-panel slots ship with captured native defaults; 12- and 6-button panel press validation remains pending |
 | Naga V2 Pro | `Contributor validated` | `Contributor validated` | Wired `0x00A7`, 2.4 GHz receiver `0x00A8`, and Bluetooth `0x00A9` share DPI stages, battery, side-panel remapping, and logo + 12-button side-panel lighting; side-panel label order is press-validated, the bottom button is remappable, and the two top DPI buttons stay preserved read-only |
+| Naga V3 Pro | `Contributor validated` | `Not shipped` | 2.4 GHz receiver `0x00E8` only; ships DPI up to the published `50,000` ceiling with independent X/Y, three lighting zones (scroll wheel, logo, side panel), the full 2/6/12-button plate slot table, and press-validated body buttons. Onboard profile CRUD stays hidden because the device rejects metadata reads, and the rear behind-the-wheel scroll-mode button is not a remappable slot |
 | Basilisk (2017) | `Contributor validated` | `No transport` | Contributor validated DPI (scalar, independent X/Y, live 5-stage table), poll-rate reads, and logo/scroll lighting with restore-verified writes; button remap and onboard profiles are not mapped |
 | Lancehead Tournament Edition | `Contributor validated` | `No transport` | Contributor validated DPI (scalar, independent X/Y, live 5-stage table read without OpenRazer's `0xFF` stage transaction), poll-rate reads, and all four lighting zones; button remap is not mapped |
 | Huntsman Mini | `Contributor validated` | `No transport` | Keyboard: contributor validated backlight lighting, brightness, and that poll-rate reads return `status 0x05` (unsupported). No DPI hardware; key remap is not mapped |
 | Tartarus Pro | `Contributor validated` | `No transport` | Keypad: contributor validated backlight lighting and brightness (LED `0x00` and `0x05` alias the same register). Analog actuation and key remap have no public protocol; OpenSnek never switches this device into driver mode |
 | Mouse Dock | `Contributor validated` | `No transport` | Accessory: contributor validated single logo-LED static color, brightness, and spectrum/pulse writes over USB. No DPI, buttons, battery, or onboard profiles |
+| Mouse Dock Pro | `Contributor validated` | `No transport` | Accessory: contributor validated logo-LED brightness, static color, wave, spectrum, and breathing writes over USB, with working brightness telemetry. Answers only transaction ID `0xFF` and reads brightness at LED `0x0F` instead of the `0x00` write address; per-cell custom-frame mapping is still unmapped |
 
 ## Basilisk V3 USB Family Assumptions
 
@@ -213,6 +215,30 @@ USB PIDs `0x00A7` (wired) / `0x00A8` (2.4 GHz receiver), Bluetooth vendor `0x068
 | Button remap: preserved slots | `Contributor validated` | `Contributor validated` | Top buttons `0x60` (DPI stage down) and `0x6D` (DPI stage up) answer reads and accept writes but stay read-only until a dedicated DPI-stage binding kind ships |
 | Onboard hardware profiles | `Limited` | `Not exposed` | Five-slot mapped core profile workflows ship over USB; the full-reset path covers every writable slot. Bluetooth profile CRUD stays hidden because create/delete writes are not validated yet |
 | Side-panel physical labels | `Contributor validated` | `Contributor validated` | Press validation confirmed 12-button labels `1-12` → slots `64-75` and 6-button labels `1-6` → slots `80-85` on the receiver and Bluetooth |
+## Naga V3 Pro
+
+USB PID `0x00E8` (2.4 GHz receiver). Support is based on hardware validation on the reporting
+contributor's unit with the 12-button plate installed; it has not been validated on maintainer
+hardware. A wired-cable identity has not been observed yet, so only the receiver PID is claimed.
+
+| Feature Area | USB | BT | Notes |
+|---|---|---|---|
+| Overall transport status | `Contributor validated` | `No transport` | Receiver identity `0x00E8`, firmware `0x02010201`, transaction ID `0x1F` |
+| DPI stages + active stage | `Contributor validated` | `No transport` | Five live stages read back as `400/800/1600/3200/6400` with active token `0x03`; scalar and same-value stage writes round-trip |
+| Independent X/Y DPI | `Contributor validated` | `No transport` | `800x1600` writes and reads back as `03 20 06 40`, so `supportsIndependentXYDPI` ships enabled |
+| DPI ceiling | `Contributor validated` | `No transport` | The firmware stores any value without clamping, so the published Focus Pro 50K ceiling of `50,000` is the authoritative limit |
+| Poll rate | `Contributor validated` | `No transport` | `1,000 Hz` read; a `500 Hz` write/readback with restore was validated. Razer lists this mouse as a `1,000 Hz` device, so no higher rates are offered |
+| Battery + power | `Contributor validated` | `No transport` | `07:80` level plus `07:84` charging; idle time `07:83` read and `07:03` write/readback with restore validated |
+| Lighting: brightness + effects | `Contributor validated` | `No transport` | Three zones: scroll wheel `0x01`, logo `0x04`, and side panel `0x05`, matching Razer's published zone list. Brightness reads and writes round-trip per zone. Static, wave, and a breathing effect were visually confirmed; all eight listed effects were ACK-verified |
+| Button remap: shipped editable slots | `Contributor validated` | `No transport` | Body slots `1-5`, `9`, `10`, `11`, `12`, `14`, `52`, `53`, `57`, `106` plus plate slots `64-75` (12-button), `80-85` (6-button), and `4`/`5` (2-button). Every slot round-tripped a same-value write on both the live and persistent layers |
+| Button remap: physical labels | `Contributor validated` | `No transport` | Press validation on the 12-button plate: slot `11` front index button, `12` rear index button, `57` pinky button, `106` front scroll-wheel button, `14` underside profile button |
+| Scroll-mode button | `Not shipped` | `No transport` | The rear behind-the-wheel button toggles the wheel between tactile, free-spin, and smart-reel modes. It is not addressable through any slot `1-255`, and the device rejects the protocol scroll-mode pair (`02:94` returns `0x05`), so OpenSnek does not expose it |
+| Onboard hardware profiles | `Hidden` | `No transport` | The device supports five stored banks and accepts stored-bank DPI, stage, and brightness writes, but every metadata read (`05:88`) answers status `0x03`, so the CRUD/activation surface that needs names and owners stays hidden |
+
+Double-check before shipping physical-plate claims: the 6-button and 2-button plates were not
+available during this pass, so their label order and the 2-button plate's reversed label mapping are
+inherited from the Naga Pro family rather than re-validated on this device.
+
 ## Basilisk (2017)
 
 Support for this device and the Lancehead Tournament Edition below is based on hardware validation reported by [johnhenry in PR #114](https://github.com/gh123man/OpenSnek/pull/114).
@@ -332,6 +358,41 @@ USB PID `0x007E`, no Bluetooth transport. Lighting-only accessory (`formFactor =
 | Onboard hardware profiles | `Single slot` | `No transport` | Profile ships with `onboardProfileCount = 1` |
 
 Readback note: the dock does not answer the effect-state (`0x0F:0x82`) or brightness (`0x0F:0x84`) reads, so OpenSnek reports effect state and brightness as unavailable after reconnect. Writes are still accepted and take effect immediately.
+
+## Razer Mouse Dock Pro
+
+USB PID `0x00A4`, no Bluetooth transport. Lighting-only accessory (`formFactor = .accessory`) with
+a single logo LED (`0x00`) driven by the extended-matrix effect family (`0x0F:0x02`) and brightness
+(`0x0F:0x04`).
+
+This dock is **not** interchangeable with the original Mouse Dock: it answers only transaction ID
+`0xFF` (OpenRazer sets the same value), and every request sent with `0x1F` or `0x3F` returns status
+`0x04`. The shipped profile pins `usbTransactionID: 0xFF`.
+
+| Feature Area | USB | BT | Notes |
+|---|---|---|---|
+| Overall transport status | `Contributor validated` | `No transport` | Lighting-only profile; contributor hardware validated with visual confirmation of static color, wave, and breathing, and ACK-verified spectrum and pulse effects |
+| DPI stages + active stage | `Not shipped` | `No transport` | No DPI hardware; `supportsDPIControls` is false |
+| Independent X/Y DPI | `Not shipped` | `No transport` | No DPI hardware |
+| Poll rate | `Not shipped` | `No transport` | Not a mouse; `supportsPollRateControls` is false |
+| Sleep timeout | `Not shipped` | `No transport` | Charging accessory; no power management |
+| Low battery threshold | `Not shipped` | `No transport` | The dock reports no battery |
+| Battery telemetry | `Not shipped` | `No transport` | A docked mouse keeps reporting its own battery through its own transport |
+| Lighting: brightness + static color | `Contributor validated` | `No transport` | One zone: logo LED `0x00`. Brightness writes and reads were both validated with restore; reads use LED `0x0F` while writes use `0x00`, so the profile splits the write and read addresses |
+| Lighting: extra effects | `Contributor validated` | `No transport` | `off`, `static`, `spectrum`, `wave`, and the pulse set ship. Wave is supported here (unlike the original Mouse Dock) with both directions, and breathing was visually confirmed. `reactive` is not in OpenRazer's method list for this device and is not exposed |
+| Lighting: software presets | `Not shipped` | `No transport` | OpenRazer declares a `1x8` matrix and the dock ACKs 1-, 4-, and 8-cell row writes, but per-cell rendering is not mapped yet, so no frame layout ships |
+| Button remap: shipped editable slots | `Not shipped` | `No transport` | The dock has no buttons; the profile ships an empty button layout |
+| Scroll controls | `Not shipped` | `No transport` | Not applicable to a dock |
+| Onboard hardware profiles | `Single slot` | `No transport` | Profile ships with `onboardProfileCount = 1` |
+
+Service note: if the dock opens cleanly but every write fails with `kIOReturnTimeout`
+(`0xE00002D6`) across all report IDs and both feature and output report types, treat it as a stale
+HID session and replug the dock before changing protocol logic. Removing Razer Synapse alone did not
+clear that state during this pass; the replug did.
+
+Addressing note: `0F:84` reads at LED `0x00` always answer `00`, which looks like a dark dock even at
+full brightness. The stored value is readable at LED `0x0F`, and `0F:82` echoes LED `0x0F` no matter
+which LED was requested, so associate effect responses with the requested LED rather than that echo.
 
 ## References
 

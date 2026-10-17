@@ -614,6 +614,61 @@ public enum DeviceProfiles {
         id: .nagaV2Pro, productName: "Naga V2 Pro", transport: .bluetooth, supportedProducts: [0x00A9], buttonLayout: ButtonSlotLayout(visibleSlots: nagaV2ProUSBButtonSlots, writableSlots: nagaV2ProUSBWritableSlots, documentedSlots: nagaV2ProUSBDocumentedReadOnlySlots),
         supportsAdvancedLightingEffects: false, supportedLightingEffects: [.staticColor], usbLightingLEDIDs: [0x04, 0x05], usbLightingZones: nagaV2ProUSBLightingZones, supportsLightingBrightnessControls: true, isLocallyValidated: false)
 
+    // MARK: - Razer Naga V3 Pro (2.4 GHz receiver 0x00E8)
+
+    // Contributor-validated USB profile for the Naga V3 Pro's 2.4 GHz receiver. The body carries
+    // eleven buttons around a swappable side plate: left/right/middle click, scroll up/down, wheel
+    // tilt, two index-finger buttons, a pinky button, and the underside profile button. Razer's
+    // 23 / 17 / 13 programmable-button counts confirm the model (23 - 12 = 17 - 6 = 13 - 2 = 11
+    // body buttons), so the 2-button plate reuses the Naga Pro family's slots 4/5 while the 6- and
+    // 12-button plates keep slots 80-85 and 64-75. Physical press validation on the owner's unit:
+    // slot 11 = front index button, 12 = rear index button, 57 = pinky button, 106 = front
+    // scroll-wheel button, 14 = underside profile button. The rear behind-the-wheel button is the
+    // firmware wheel-mode toggle (tactile / free-spin): it is not addressable through any slot
+    // 1..255 and the device rejects the scroll-mode command pair (02:94 returns status 0x05).
+    // Onboard profile metadata reads (05:88) are rejected with status 0x03 on every offset, so
+    // DPI, lighting, and button edits go through the live keys instead of the stored-profile
+    // transaction. See captures/usb/2026-10-17-naga-v3-pro/.
+    public static let nagaV3ProUSBButtonSlots: [ButtonSlotDescriptor] = [
+        ButtonSlotDescriptor(slot: 1, friendlyName: "Left Click", defaultKind: .leftClick, group: "Mouse"), ButtonSlotDescriptor(slot: 2, friendlyName: "Right Click", defaultKind: .rightClick, group: "Mouse"),
+        ButtonSlotDescriptor(slot: 3, friendlyName: "Middle Click", defaultKind: .middleClick, group: "Mouse"), ButtonSlotDescriptor(slot: 9, friendlyName: "Scroll Up", defaultKind: .scrollUp, group: "Mouse"),
+        ButtonSlotDescriptor(slot: 10, friendlyName: "Scroll Down", defaultKind: .scrollDown, group: "Mouse"),
+        // The index-finger and scroll-wheel buttons ship vendor-specific actions (DPI and wheel
+        // mode), so they have no semantic default binding and keep their factory blocks.
+        ButtonSlotDescriptor(slot: 11, friendlyName: "Index Button 1", defaultKind: .default, group: "Mouse"), ButtonSlotDescriptor(slot: 12, friendlyName: "Index Button 2", defaultKind: .default, group: "Mouse"),
+        ButtonSlotDescriptor(slot: 52, friendlyName: "Wheel Tilt Left", defaultKind: .scrollLeft, group: "Mouse"), ButtonSlotDescriptor(slot: 53, friendlyName: "Wheel Tilt Right", defaultKind: .scrollRight, group: "Mouse"),
+        ButtonSlotDescriptor(slot: 57, friendlyName: "Pinky Button", defaultKind: .default, group: "Mouse"), ButtonSlotDescriptor(slot: 106, friendlyName: "Scroll Wheel Button", defaultKind: .default, group: "Mouse"),
+        ButtonSlotDescriptor(slot: 14, friendlyName: "Profile Button", defaultKind: .default, group: "Mouse"),
+        // Only one plate is physically installed at a time; the firmware still answers for every
+        // plate's slots. Physical press validation confirmed the plate labels run straight through.
+        ButtonSlotDescriptor(slot: 5, friendlyName: "Panel Button 1", defaultKind: .mouseForward, group: "2-Button Panel"), ButtonSlotDescriptor(slot: 4, friendlyName: "Panel Button 2", defaultKind: .mouseBack, group: "2-Button Panel"),
+        ButtonSlotDescriptor(slot: 80, friendlyName: "Side Button 1", defaultKind: .keyboardSimple, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 81, friendlyName: "Side Button 2", defaultKind: .keyboardSimple, group: "6-Button Panel"),
+        ButtonSlotDescriptor(slot: 82, friendlyName: "Side Button 3", defaultKind: .keyboardSimple, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 83, friendlyName: "Side Button 4", defaultKind: .keyboardSimple, group: "6-Button Panel"),
+        ButtonSlotDescriptor(slot: 84, friendlyName: "Side Button 5", defaultKind: .keyboardSimple, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 85, friendlyName: "Side Button 6", defaultKind: .keyboardSimple, group: "6-Button Panel"),
+        ButtonSlotDescriptor(slot: 64, friendlyName: "Side Button 1", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 65, friendlyName: "Side Button 2", defaultKind: .keyboardSimple, group: "12-Button Panel"),
+        ButtonSlotDescriptor(slot: 66, friendlyName: "Side Button 3", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 67, friendlyName: "Side Button 4", defaultKind: .keyboardSimple, group: "12-Button Panel"),
+        ButtonSlotDescriptor(slot: 68, friendlyName: "Side Button 5", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 69, friendlyName: "Side Button 6", defaultKind: .keyboardSimple, group: "12-Button Panel"),
+        ButtonSlotDescriptor(slot: 70, friendlyName: "Side Button 7", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 71, friendlyName: "Side Button 8", defaultKind: .keyboardSimple, group: "12-Button Panel"),
+        ButtonSlotDescriptor(slot: 72, friendlyName: "Side Button 9", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 73, friendlyName: "Side Button 10", defaultKind: .keyboardSimple, group: "12-Button Panel"),
+        ButtonSlotDescriptor(slot: 74, friendlyName: "Side Button 11", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 75, friendlyName: "Side Button 12", defaultKind: .keyboardSimple, group: "12-Button Panel")
+    ]
+
+    public static let nagaV3ProUSBWritableSlots: [Int] = nagaV3ProUSBButtonSlots.map(\.slot)
+
+    public static let nagaV3ProUSBLightingEffects: [LightingEffectKind] = [.off, .staticColor, .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual]
+
+    // Razer lists the lighting as "Logo, Scroll Wheel and 12 button side plate". Per-zone static and
+    // effect writes plus brightness read/write were validated on every LED; the wheel, logo, and
+    // plate zones were visually confirmed. See captures/usb/2026-10-17-naga-v3-pro/.
+    public static let nagaV3ProUSBLightingZones: [USBLightingZoneDescriptor] = [
+        USBLightingZoneDescriptor(id: "scroll_wheel", label: "Scroll Wheel", ledIDs: [0x01]), USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x04]), USBLightingZoneDescriptor(id: "side_panel", label: "Side Panel", ledIDs: [0x05])
+    ]
+
+    public static let nagaV3ProUSB = DeviceProfile(
+        id: .nagaV3Pro, productName: "Naga V3 Pro", transport: .usb, supportedProducts: [0x00E8], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: nagaV3ProUSBButtonSlots, writableSlots: nagaV3ProUSBWritableSlots), supportsAdvancedLightingEffects: true,
+        supportedLightingEffects: nagaV3ProUSBLightingEffects, usbLightingLEDIDs: [0x01, 0x04, 0x05], usbLightingZones: nagaV3ProUSBLightingZones, supportsIndependentXYDPI: true, supportsLightingBrightnessControls: true, onboardProfileSupport: .unavailable, onboardProfileCount: 1,
+        isLocallyValidated: false)
+
     // MARK: - Razer Basilisk (2017, 0x0064)
 
     // OpenRazer-backed USB profile (razermouse_driver.c): extended-matrix lighting on
@@ -704,9 +759,34 @@ public enum DeviceProfiles {
         usbLightingLEDIDs: [0x00], usbLightingZones: mouseDockUSBLightingZones, softwareLightingFrameLayout: .mouseDockUSB, supportedSoftwareLightingPresets: SoftwareLightingPresetID.batteryMeterAndAnimatedPresets, supportsLightingBrightnessControls: true, supportsLightingStateReads: false,
         formFactor: .accessory, supportsDPIControls: false, supportsPollRateControls: false, supportsPowerManagementControls: false, supportsButtonRemapControls: false, usbBrightnessLEDIDs: [0x00], isLocallyValidated: false)
 
+    // MARK: - Razer Mouse Dock Pro (accessory, 0x00A4)
+
+    // Contributor-validated single-zone lighting accessory. Unlike the original Mouse Dock, the
+    // Mouse Dock Pro answers only transaction ID 0xFF: every request sent with 0x1F or 0x3F returns
+    // status 0x04. Effects and brightness writes are addressed through LED 0x00 (OpenRazer's
+    // ZERO_LED) and LED 0x01..0x08 are rejected. Brightness *reads* are the exception: 0F:84 always
+    // reports 00 at LED 0x00 but tracks the written value at LED 0x0F, so the profile splits the
+    // read address from the write address the same way the Naga V2 Pro does. The 0F:82 effect-state
+    // read echoes LED 0x0F regardless of the requested LED, so callers must associate responses by
+    // the requested LED instead of that echo. Static red and a wave effect were visually confirmed
+    // on the owner's dock, and a breathing effect was visually confirmed separately. A 1x8 row
+    // write (0F:03) is ACKed, but per-cell rendering is not mapped yet, so the dock ships without a
+    // software-lighting frame layout. See captures/usb/2026-10-17-mouse-dock-pro/.
+    public static let mouseDockProUSBLightingEffects: [LightingEffectKind] = [.off, .staticColor, .wave, .spectrum, .pulseRandom, .pulseSingle, .pulseDual]
+
+    public static let mouseDockProUSBLightingZones: [USBLightingZoneDescriptor] = [USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x00])]
+
+    /// Brightness reads live at a different LED than writes on the Mouse Dock Pro.
+    private static let mouseDockProUSBBrightnessReadLEDIDs: [UInt8] = [0x0F]
+
+    public static let mouseDockProUSB = DeviceProfile(
+        id: .mouseDockPro, productName: "Mouse Dock Pro", transport: .usb, supportedProducts: [0x00A4], usbTransactionID: 0xFF, buttonLayout: ButtonSlotLayout(visibleSlots: [], writableSlots: []), supportsAdvancedLightingEffects: true, supportedLightingEffects: mouseDockProUSBLightingEffects,
+        usbLightingLEDIDs: [0x00], usbLightingZones: mouseDockProUSBLightingZones, supportsLightingBrightnessControls: true, formFactor: .accessory, supportsDPIControls: false, supportsPollRateControls: false, supportsPowerManagementControls: false, supportsButtonRemapControls: false,
+        usbBrightnessLEDIDs: [0x00], usbBrightnessReadLEDIDs: mouseDockProUSBBrightnessReadLEDIDs, isLocallyValidated: false)
+
     public static let all: [DeviceProfile] = [
-        basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, basiliskV3Pro35KPhantomGreenBluetooth, orochiV2Bluetooth, nagaProUSB, nagaProBluetooth, nagaV2ProUSB, nagaV2ProBluetooth, basiliskUSB, lanceheadTEUSB, huntsmanMiniUSB,
-        tartarusProUSB, mouseDockUSB
+        basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, basiliskV3Pro35KPhantomGreenBluetooth, orochiV2Bluetooth, nagaProUSB, nagaProBluetooth, nagaV2ProUSB, nagaV2ProBluetooth, nagaV3ProUSB, basiliskUSB, lanceheadTEUSB,
+        huntsmanMiniUSB, tartarusProUSB, mouseDockUSB, mouseDockProUSB
     ]
 
     public static func resolve(vendorID: Int, productID: Int, transport: DeviceTransportKind) -> DeviceProfile? { all.first(where: { $0.matches(vendorID: vendorID, productID: productID, transport: transport) }) }
@@ -727,11 +807,14 @@ public enum DeviceProfiles {
         case .orochiV2: return 18_000
         case .nagaPro: return 20_000
         case .nagaV2Pro: return 30_000
+        // Focus Pro 50K Optical Sensor Gen-3. The firmware stores any value without clamping, so the
+        // published 50,000 DPI ceiling is the authoritative limit.
+        case .nagaV3Pro: return 50_000
         case .basilisk: return 16_000
         case .lanceheadTournamentEdition: return 16_000
-        // The Huntsman Mini, Tartarus Pro, and Mouse Dock have no DPI hardware; their
+        // The Huntsman Mini, Tartarus Pro, and both Mouse Docks have no DPI hardware; their
         // profiles disable DPI controls, so this value is never surfaced.
-        case .huntsmanMini, .tartarusPro, .mouseDock: return defaultMaximumDPI
+        case .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro: return defaultMaximumDPI
         case nil: return defaultMaximumDPI
         }
     }
@@ -837,8 +920,8 @@ public enum DeviceProfiles {
 
     public static func supportsIndependentXYDPI(for profileID: DeviceProfileID?) -> Bool {
         switch profileID {
-        case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3Pro35K, .basilisk, .lanceheadTournamentEdition: return true
-        case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .huntsmanMini, .tartarusPro, .mouseDock, nil: return false
+        case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3Pro35K, .nagaV3Pro, .basilisk, .lanceheadTournamentEdition: return true
+        case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro, nil: return false
         }
     }
 
