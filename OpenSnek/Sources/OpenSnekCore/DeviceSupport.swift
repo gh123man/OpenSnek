@@ -525,8 +525,13 @@ public enum DeviceProfiles {
 
     public static let nagaProUSBWritableSlots: [Int] = [1, 2, 3, 4, 5, 9, 10, 52, 53, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82, 83, 84, 85]
 
+    // The underside profile button cycles the saved onboard profiles. The device owner confirmed
+    // that this is the bottom button on every Naga, and both the Naga V2 Pro and Naga V3 Pro carry it
+    // at slot 14 with the same `07 01 04` profile-cycle factory block. It stays read-only until a
+    // remap is validated on the device. See
+    // captures/usb/2026-10-06-naga-pro-side-panel-validation/README.md.
     public static let nagaProUSBDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
-        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 14, friendlyName: "Scroll Mode Toggle", defaultKind: .default), access: .protocolReadOnly, note: "OpenSnek can see this button, but the mouse does not let apps remap it yet.")
+        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 14, friendlyName: "Profile Button", defaultKind: .default), access: .protocolReadOnly, note: "Cycles the saved onboard profiles. OpenSnek can see this button, but remapping it is not validated yet.")
     ]
 
     public static let nagaProUSBLightingZones: [USBLightingZoneDescriptor] = [USBLightingZoneDescriptor(id: "scroll_wheel", label: "Scroll Wheel", ledIDs: [0x01]), USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x04])]

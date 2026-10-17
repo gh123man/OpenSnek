@@ -193,7 +193,7 @@ Support is based on hardware validation reported by [varunyellina in PR #106](ht
 | Independent X/Y DPI | `Scalar only` | `Scalar only` | The Naga Pro profile intentionally does not advertise independent X/Y editing |
 | Lighting: brightness + static color | `Contributor validated` | `Contributor validated` | OpenSnek exposes scroll-wheel `0x01` and logo `0x04` zones; advanced effects are not claimed |
 | Button remap: shipped editable slots | `Limited` | `Limited` | Body/2-button-panel slots `1-5`, `9`, `10`, `52`, `53`; 12-button panel slots `64-75`; and 6-button panel slots `80-85` are editable with captured native `Default` blocks. The 2-button panel is press-validated: forward = slot `5` (mouse button 5), rear = slot `4` (mouse button 4) |
-| Button remap: preserved slots | `Limited` | `Limited` | Only the scroll-mode toggle (slot `14`) is preserved read-only; every side-panel slot now accepts remaps |
+| Button remap: preserved slots | `Limited` | `Limited` | Only the underside profile button (slot `14`), which cycles the saved onboard profiles, is preserved read-only; every side-panel slot now accepts remaps |
 | Onboard hardware profiles | `Limited` | `Limited` | Five-slot mapped core profile workflows ship, and full button-profile reset now uses captured native side-panel defaults. The 12- and 6-button panels were physically press-validated in [PR #121](https://github.com/gh123man/OpenSnek/pull/121), and the 2-button panel on 2026-10-17 |
 | Button inventory cross-check | `Contributor validated` | `No transport` | `02:84` reports 30 mappable slots, exactly matching the shipped `nagaProUSBButtonSlots` table, so the profile has no missing slots |
 
@@ -219,9 +219,10 @@ USB PIDs `0x00A7` (wired) / `0x00A8` (2.4 GHz receiver), Bluetooth vendor `0x068
 | Side-panel physical labels | `Contributor validated` | `Contributor validated` | Press validation confirmed 12-button labels `1-12` → slots `64-75` and 6-button labels `1-6` → slots `80-85` on the receiver and Bluetooth |
 ## Naga V3 Pro
 
-USB PID `0x00E8` (2.4 GHz receiver). Support is based on hardware validation on the reporting
-contributor's unit with the 12-button plate installed; it has not been validated on maintainer
-hardware. A wired-cable identity has not been observed yet, so only the receiver PID is claimed.
+USB PIDs `0x00E8` (2.4 GHz receiver). Support is based on hardware validation by
+[jpagh](https://github.com/jpagh); the profile carries `isLocallyValidated: false` because it has not
+been validated on maintainer hardware. A wired-cable identity has not been observed yet, so only the
+receiver PID is claimed.
 
 | Feature Area | USB | BT | Notes |
 |---|---|---|---|
@@ -374,7 +375,8 @@ Readback note: the dock does not answer the effect-state (`0x0F:0x82`) or bright
 
 USB PID `0x00A4`, no Bluetooth transport. Lighting-only accessory (`formFactor = .accessory`) with
 a single logo LED (`0x00`) driven by the extended-matrix effect family (`0x0F:0x02`) and brightness
-(`0x0F:0x04`).
+(`0x0F:0x04`). Support is based on hardware validation by [jpagh](https://github.com/jpagh) and has
+not been validated on maintainer hardware.
 
 This dock is **not** interchangeable with the original Mouse Dock: it answers only transaction ID
 `0xFF` (OpenRazer sets the same value), and every request sent with `0x1F` or `0x3F` returns status

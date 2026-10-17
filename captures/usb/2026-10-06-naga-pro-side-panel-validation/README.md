@@ -105,20 +105,21 @@ That is exactly the 30 slots `nagaProUSBButtonSlots` / `nagaProUSBWritableSlots`
 shipped profile needs no change. The Naga V3 Pro's list is 33 slots, adding the pinky button (`57`)
 and both scroll-wheel buttons (`106`, `128`).
 
-### Open question: is slot 14 really a "Scroll Mode Toggle"?
+### Slot 14 is the underside profile button, not a scroll-mode toggle
 
-The shipped `nagaProUSBDocumentedReadOnlySlots` labels slot `14` as `Scroll Mode Toggle` with
-`protocolReadOnly` access, so the app shows that row for a Naga Pro. Two things cast doubt on it,
-and it is left unchanged because neither is conclusive:
+`nagaProUSBDocumentedReadOnlySlots` used to label slot `14` as `Scroll Mode Toggle`, which the app
+showed as a row for this device. That was wrong. The device owner (who is also the contributor behind
+the original Naga Pro profile work) confirmed that the button on the bottom of every Naga is the
+profile button that cycles the saved onboard profiles, and that no Naga here changes the wheel
+between free-spinning and notched. The Naga V2 Pro and Naga V3 Pro both carry that button at slot
+`14` with the same `07 01 04` profile-cycle factory block, so the three profiles now agree.
 
-- The owner reports that this mouse's buttons do not switch the wheel between free-spinning and
-  notched, i.e. there is no adjustable scroll type to toggle, and doubts slot `14` is such a button.
-- On the Naga V2 Pro, slot `14` is a different, editable button — the underside profile button with
-  factory block `07 01 04` (onboard profile cycling). The two profiles therefore disagree about what
-  slot `14` is, and one of them is wrong.
+Still to verify on a woken receiver, recorded here rather than assumed:
 
-Not verified while writing this: the Naga Pro answered its 30-slot inventory (which does list slot
-`14`, so it is a mappable button) while awake, but by the time slot `14` was read the receiver had
-idled out and every slot, including slot `1`, returned `read_failed`. Reading slot `14`'s factory
-block on a woken receiver, and pressing the physical button, would settle both the name and whether
-the slot should be editable like the V2 Pro's.
+- Read slot `14`'s factory block and confirm it is `07 01 04`. The receiver idled out before that
+  read landed: the 30-slot inventory answered while the mouse was awake and does list slot `14`, but
+  by the time slot `14` was read every slot, including slot `1`, returned `read_failed`.
+- Press the underside button with slot `14` bound to a keyboard key to confirm the slot is that
+  button.
+- Decide whether the slot should be editable like the Naga V2 Pro's, which requires a same-value
+  write and readback on a woken device.
