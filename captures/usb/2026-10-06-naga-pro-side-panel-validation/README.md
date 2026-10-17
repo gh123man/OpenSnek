@@ -104,3 +104,21 @@ count=30 slots=[1,2,3,52,53,14,11,12,64,65,66,67,68,69,70,71,72,73,74,75,80,81,8
 That is exactly the 30 slots `nagaProUSBButtonSlots` / `nagaProUSBWritableSlots` already ship, so the
 shipped profile needs no change. The Naga V3 Pro's list is 33 slots, adding the pinky button (`57`)
 and both scroll-wheel buttons (`106`, `128`).
+
+### Open question: is slot 14 really a "Scroll Mode Toggle"?
+
+The shipped `nagaProUSBDocumentedReadOnlySlots` labels slot `14` as `Scroll Mode Toggle` with
+`protocolReadOnly` access, so the app shows that row for a Naga Pro. Two things cast doubt on it,
+and it is left unchanged because neither is conclusive:
+
+- The owner reports that this mouse's buttons do not switch the wheel between free-spinning and
+  notched, i.e. there is no adjustable scroll type to toggle, and doubts slot `14` is such a button.
+- On the Naga V2 Pro, slot `14` is a different, editable button — the underside profile button with
+  factory block `07 01 04` (onboard profile cycling). The two profiles therefore disagree about what
+  slot `14` is, and one of them is wrong.
+
+Not verified while writing this: the Naga Pro answered its 30-slot inventory (which does list slot
+`14`, so it is a mappable button) while awake, but by the time slot `14` was read the receiver had
+idled out and every slot, including slot `1`, returned `read_failed`. Reading slot `14`'s factory
+block on a woken receiver, and pressing the physical button, would settle both the name and whether
+the slot should be editable like the V2 Pro's.
