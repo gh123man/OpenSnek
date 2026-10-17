@@ -667,3 +667,27 @@ profile=1 slot=128 hypershift=0 block=00010000000000
 
 ### Wheel-mode command hunt: candidate diff across the owner's button mashing
 No candidate in the 22-command set changed value (inconclusive: the mode may have cycled an even number of times).
+
+### Wheel-mode register found: 0x07:0x85 moved 00 03 23 -> 00 03 24 after one front-button press
+-- read variants
+  07:85 args 00      st=02 payload=00 03 24 00 00 00 
+  07:85 args 01      st=02 payload=00 03 24 00 00 00 
+  07:85 args 02      st=02 payload=00 03 24 00 00 00 
+  07:85 args 00 00   st=02 payload=00 03 24 00 00 00 
+-- same-value write test on 07:05 (write current value back)
+  write 00 03 24     st=05 payload=00 03 24 00 00 00 
+  readback           st=02 payload=00 03 24 00 00 00 
+
+### Wheel-mode readout hunt — negative result (2026-10-17)
+Candidate set: every (class, cmd) pair the device answers with status 02, sampled with args 00 or 01.
+  -> wheel-mode-candidates.txt (80 commands)
+  -> wheel-mode-pre-press.txt / wheel-mode-post-press.txt: full 80-command digest before and after ONE front-button press
+Only 0x07:0x85 moved across that press: 00 03 23 -> 00 03 24.
+
+Follow-up correlation (the decisive step):
+  07:85 = 00 03 23 while the owner reported the wheel FREES-spinning
+  owner pressed the FRONT button once; the owner reported the wheel then NOTCHED
+  07:85 = 00 03 23 unchanged, stable across three reads
+So 07:85 moves on some events but does not track the physical wheel mode, and must not be used as a
+mode readout. No command in the 80-command candidate set corresponds to the mode.
+Current conclusion: the tactile / free-spin / smart-reel mode is firmware-internal; pass toggles it.

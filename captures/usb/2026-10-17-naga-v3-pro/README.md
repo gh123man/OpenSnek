@@ -132,8 +132,13 @@ was read with the 12-button plate installed), and it does not report which plate
 - Onboard profile metadata reads are rejected, so profile name/owner/UUID round-tripping and
   profile create/delete remain unvalidated. Stored-bank DPI, stage, and brightness writes do work.
 - Software lighting custom frames (`0f:03`) were not exercised on this device.
-- The wheel mode (tactile / free-spin / smart-reel) and its responsiveness level still have no
-  identified command pair: `02:94` is rejected, and a 22-command candidate baseline did not change
-  across the owner's mode cycling. That diff is inconclusive because an even number of cycles would
-  restore the original value, so a reading may still exist among the candidates recorded in
-  [probe-log.txt](probe-log.txt). Toggling the mode still requires slot `106`'s factory action.
+- **The wheel mode (tactile / free-spin / smart-reel) is not readable.** Every `(class, cmd)` pair the
+  device answers with status `0x02` was collected ([wheel-mode-candidates.txt](wheel-mode-candidates.txt),
+  80 commands) and digested before and after a single front-button press
+  ([wheel-mode-pre-press.txt](wheel-mode-pre-press.txt) /
+  [wheel-mode-post-press.txt](wheel-mode-post-press.txt)). Only `07:85` moved (`00 03 23` ->
+  `00 03 24`), and a follow-up correlation killed it as a mode readout: it read `00 03 23` while the
+  wheel was free-spinning and stayed `00 03 23` across a press that the owner confirmed changed the
+  wheel to notched. So the mode has no identified readout, `07:85` must not be used as one, and the
+  mode can only be changed with slot `106`'s factory action. A Windows Synapse capture is the
+  realistic next instrument, because Synapse for macOS does not support this mouse.
