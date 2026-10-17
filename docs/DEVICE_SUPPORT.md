@@ -43,9 +43,9 @@ Button remap keyboard actions support modifier chords on shipped USB and Bluetoo
 | Basilisk V3 35K | `Validated` | `No transport` | Shares the Basilisk V3 USB family configuration with mapped onboard profile CRUD; no Bluetooth transport |
 | Basilisk V3 Pro 35K Phantom Green Edition | `Not shipped` | `Contributor validated` | Bluetooth reuses the Basilisk V3 Pro vendor keys with a `35,000` DPI ceiling and two lighting zones (no logo LED); profile CRUD stays hidden because the device rejects metadata reads, and live changes reset on power cycle |
 | Orochi V2 | `Not shipped` | `Contributor validated` | Contributor validated Bluetooth DPI stages, battery, and no-RGB behavior; button remap is profile-mapped pending hardware readback validation |
-| Naga Pro | `Contributor validated` | `Contributor validated` | Core controls and known-safe side-panel slots ship with captured native defaults; 12- and 6-button panel press validation remains pending |
+| Naga Pro | `Contributor validated` | `Contributor validated` | Core controls and known-safe side-panel slots ship with captured native defaults; all three side panels have been physically press-validated (12- and 6-button in PR #121, 2-button in the 2026-10-17 capture addendum), and the shipped slot table was cross-checked against the device's own mappable-button inventory |
 | Naga V2 Pro | `Contributor validated` | `Contributor validated` | Wired `0x00A7`, 2.4 GHz receiver `0x00A8`, and Bluetooth `0x00A9` share DPI stages, battery, side-panel remapping, and logo + 12-button side-panel lighting; side-panel label order is press-validated, the bottom button is remappable, and the two top DPI buttons stay preserved read-only |
-| Naga V3 Pro | `Contributor validated` | `Not shipped` | 2.4 GHz receiver `0x00E8` only; ships DPI up to the published `50,000` ceiling with independent X/Y, three lighting zones (scroll wheel, logo, side panel), the full 2/6/12-button plate slot table, and press-validated body buttons. Onboard profile CRUD stays hidden because the device rejects metadata reads, and the rear behind-the-wheel scroll-mode button is not a remappable slot |
+| Naga V3 Pro | `Contributor validated` | `Not shipped` | 2.4 GHz receiver `0x00E8` only; ships DPI up to the published `50,000` ceiling with independent X/Y, three lighting zones (scroll wheel, logo, side panel), the full 2/6/12-button plate slot table, and press-validated body buttons including both scroll-wheel buttons. Onboard profile CRUD stays hidden because the device rejects metadata reads, and the wheel's tactile/free-spin/smart-reel mode has no readout, so it is only changeable with the front scroll button's factory action |
 | Basilisk (2017) | `Contributor validated` | `No transport` | Contributor validated DPI (scalar, independent X/Y, live 5-stage table), poll-rate reads, and logo/scroll lighting with restore-verified writes; button remap and onboard profiles are not mapped |
 | Lancehead Tournament Edition | `Contributor validated` | `No transport` | Contributor validated DPI (scalar, independent X/Y, live 5-stage table read without OpenRazer's `0xFF` stage transaction), poll-rate reads, and all four lighting zones; button remap is not mapped |
 | Huntsman Mini | `Contributor validated` | `No transport` | Keyboard: contributor validated backlight lighting, brightness, and that poll-rate reads return `status 0x05` (unsupported). No DPI hardware; key remap is not mapped |
@@ -184,7 +184,7 @@ Bluetooth PID `0x0095`; 2.4 GHz HyperSpeed dongle path not yet shipped.
 
 USB PIDs `0x008F` (wired) / `0x0090` (2.4 GHz receiver), Bluetooth PID `0x0092`.
 
-Support is based on hardware validation reported by [varunyellina in PR #106](https://github.com/gh123man/OpenSnek/pull/106), with side-panel defaults and physical press validation contributed by [jpagh in PR #121](https://github.com/gh123man/OpenSnek/pull/121); OpenSnek maintainers do not currently possess this device.
+Support is based on hardware validation reported by [varunyellina in PR #106](https://github.com/gh123man/OpenSnek/pull/106), with side-panel defaults and physical press validation contributed by [jpagh in PR #121](https://github.com/gh123man/OpenSnek/pull/121); OpenSnek maintainers do not currently possess this device. A later contributor session on a `0x0090` receiver added 2-button-panel press validation and an inventory cross-check; see the [2026-10-17 addendum](../captures/usb/2026-10-06-naga-pro-side-panel-validation/README.md).
 
 | Feature Area | USB | BT | Notes |
 |---|---|---|---|
@@ -192,9 +192,10 @@ Support is based on hardware validation reported by [varunyellina in PR #106](ht
 | DPI stages + active stage | `Contributor validated` | `Contributor validated` | Scalar DPI is capped at `20,000` |
 | Independent X/Y DPI | `Scalar only` | `Scalar only` | The Naga Pro profile intentionally does not advertise independent X/Y editing |
 | Lighting: brightness + static color | `Contributor validated` | `Contributor validated` | OpenSnek exposes scroll-wheel `0x01` and logo `0x04` zones; advanced effects are not claimed |
-| Button remap: shipped editable slots | `Limited` | `Limited` | Body/2-button-panel slots `1-5`, `9`, `10`, `52`, `53`; 12-button panel slots `64-75`; and 6-button panel slots `80-85` are editable with captured native `Default` blocks |
+| Button remap: shipped editable slots | `Limited` | `Limited` | Body/2-button-panel slots `1-5`, `9`, `10`, `52`, `53`; 12-button panel slots `64-75`; and 6-button panel slots `80-85` are editable with captured native `Default` blocks. The 2-button panel is press-validated: forward = slot `5` (mouse button 5), rear = slot `4` (mouse button 4) |
 | Button remap: preserved slots | `Limited` | `Limited` | Only the scroll-mode toggle (slot `14`) is preserved read-only; every side-panel slot now accepts remaps |
-| Onboard hardware profiles | `Limited` | `Limited` | Five-slot mapped core profile workflows ship, and full button-profile reset now uses captured native side-panel defaults. The 12- and 6-button panels were physically press-validated in [PR #121](https://github.com/gh123man/OpenSnek/pull/121) |
+| Onboard hardware profiles | `Limited` | `Limited` | Five-slot mapped core profile workflows ship, and full button-profile reset now uses captured native side-panel defaults. The 12- and 6-button panels were physically press-validated in [PR #121](https://github.com/gh123man/OpenSnek/pull/121), and the 2-button panel on 2026-10-17 |
+| Button inventory cross-check | `Contributor validated` | `No transport` | `02:84` reports 30 mappable slots, exactly matching the shipped `nagaProUSBButtonSlots` table, so the profile has no missing slots |
 
 The remaining device-dependent work is tracked in [issue #56](https://github.com/gh123man/OpenSnek/issues/56).
 
@@ -238,7 +239,8 @@ hardware. A wired-cable identity has not been observed yet, so only the receiver
 
 Plate note: the owner has all three plates. Press validation on the 2-button plate confirmed the same
 reversed mapping the Naga Pro family uses — the forward button is slot `5` and the rear button is slot
-`4` — and the plate has no printed labels, so the app's "Panel Button 1/2" names follow physical
+`4` — and the same test on a Naga Pro (`0x0090`) receiver produced the identical result, so the family
+agrees. The plate has no printed labels, so the app's "Panel Button 1/2" names follow physical
 position. The 6-button plate matches the Naga V2 Pro layout, and **neither the 6- nor the 2-button
 plate has any lighting**, so LED `0x05` only lights the 12-button plate. The firmware does not report
 which plate is fitted.

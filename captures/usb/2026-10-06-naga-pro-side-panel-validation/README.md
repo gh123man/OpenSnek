@@ -66,3 +66,41 @@ available. This session covers:
 - `02-slot64-default-write-app-path.txt` - app `Default` write path on slot `64`
 - `03-6-button-native-default-writes.txt` - staged 6-button defaults and readbacks
 - `04-restore-originals.txt` - restore writes and final readback for slots `64-75` and `80-85`
+
+---
+
+## Addendum: 2-button panel press validation (2026-10-17)
+
+The original session validated the 12- and 6-button panels because only the 2-button panel was
+available before; this addendum closes the reverse gap on the same unit (still `1532:0090`), during
+the Naga V3 Pro bring-up.
+
+Method: `usb-button-set` bound slot `4` to keyboard `j` (`0x0D`) and slot `5` to keyboard `k`
+(`0x0E`) on both the persistent and direct profiles. The owner pressed the 2-button panel's forward
+button and then its rear button in a blank TextEdit document.
+
+| Physical button | Typed | Slot | Factory block |
+| --- | --- | --- | --- |
+| Forward (front) | `k` | `5` | `01 01 05` (mouse button 5 / forward) |
+| Rear | `j` | `4` | `01 01 04` (mouse button 4 / back) |
+
+So the 2-button panel really is reversed relative to physical order, which is what the shipped
+profile's `Panel Button 1` = slot `5` / `Panel Button 2` = slot `4` naming already encodes. Both
+slots were restored to their factory blocks and read back on both profiles.
+
+The Naga V3 Pro was pressed through the same test in
+[captures/usb/2026-10-17-naga-v3-pro/](../2026-10-17-naga-v3-pro/) and produced the identical
+mapping, so the whole Naga Pro family agrees here.
+
+### Inventory cross-check
+
+`OpenSnekProbe usb-button-inventory` (new, reads `02:84`) reports the Naga Pro's own mappable-button
+list as 30 slots:
+
+```
+count=30 slots=[1,2,3,52,53,14,11,12,64,65,66,67,68,69,70,71,72,73,74,75,80,81,82,83,84,85,5,4,9,10]
+```
+
+That is exactly the 30 slots `nagaProUSBButtonSlots` / `nagaProUSBWritableSlots` already ship, so the
+shipped profile needs no change. The Naga V3 Pro's list is 33 slots, adding the pinky button (`57`)
+and both scroll-wheel buttons (`106`, `128`).

@@ -106,7 +106,9 @@ The owner has all three plates.
 
 - **2-button plate — press-validated.** The plate has no printed labels. With slot `4` bound to `j`
   and slot `5` bound to `k`, the forward button typed `k` and the rear button typed `j`, confirming
-  the Naga Pro family's reversed mapping (forward = slot `05`, rear = slot `04`).
+  the Naga Pro family's reversed mapping (forward = slot `05`, rear = slot `04`). The same test on a
+  Naga Pro receiver (`0x0090`, 2-button plate) produced the identical `kj` result, and that device's
+  own inventory matches its shipped profile, so the family mapping is consistent.
 - **6-button plate** matches the Naga V2 Pro layout (labels 1-6 → slots `80`-`85`).
 - **Lighting:** neither the 6-button nor the 2-button plate has any lighting, so the side-panel LED
   `0x05` zone only lights the 12-button plate.
@@ -140,5 +142,21 @@ was read with the 12-button plate installed), and it does not report which plate
   `00 03 24`), and a follow-up correlation killed it as a mode readout: it read `00 03 23` while the
   wheel was free-spinning and stayed `00 03 23` across a press that the owner confirmed changed the
   wheel to notched. So the mode has no identified readout, `07:85` must not be used as one, and the
-  mode can only be changed with slot `106`'s factory action. A Windows Synapse capture is the
-  realistic next instrument, because Synapse for macOS does not support this mouse.
+  mode can only be changed with slot `106`'s factory action.
+
+### Next instrument: a Windows Synapse capture
+
+Synapse for macOS does not support this mouse, so the mode and its five responsiveness levels can
+only be observed from a host Razer supports. A USB capture there would settle it:
+
+1. On a Windows host, install Razer Synapse plus Wireshark with USBPcap, and filter to the mouse's
+   VID/PID.
+2. Capture an idle baseline, then change the wheel mode through each mode from Synapse's UI, then
+   move the responsiveness slider through all five levels.
+3. Compare those writes against [wheel-mode-candidates.txt](wheel-mode-candidates.txt) — 80 commands
+   this firmware answers — paying attention to `02:94` (rejected here, status `0x05`), `07:85`,
+   `02:98`, and the class-`0x06` block that all answered. Look for a setter whose value tracks the
+   mode, plus a separate level.
+
+If that turns up a pair, the profile can expose the mode as a real setting; until then it stays
+button-only.
