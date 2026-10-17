@@ -12,7 +12,7 @@
 
 ![Screenshot](/docs/media/screenshot.png)
 
-OpenSnek is an open source native macOS app for configuring supported Razer mice over USB or Bluetooth, with early lighting-only support for select Razer keyboards and keypads.
+OpenSnek is an open source native macOS app for configuring supported Razer mice over USB or Bluetooth, with early lighting-only support for select Razer keyboards, keypads, and charging accessories.
 
 ## Highlights
 
@@ -27,7 +27,7 @@ OpenSnek is an open source native macOS app for configuring supported Razer mice
 
 ## Supported Devices
 
-Support is transport-specific. A mouse may be supported over USB, Bluetooth, or both, depending on what has been captured, tested, and validated in the app.
+Support is transport-specific. A device may be supported over USB, Bluetooth, or both, depending on what has been captured, tested, and validated in the app.
 
 | Device | USB | Bluetooth | Notes |
 |---|---|---|---|
@@ -37,10 +37,15 @@ Support is transport-specific. A mouse may be supported over USB, Bluetooth, or 
 | Basilisk V3 35K | Validated | No | Shares the Basilisk V3 USB family configuration |
 | Basilisk V3 Pro 35K Phantom Green Edition | Not yet | Contributor validated | Contributor validated Bluetooth DPI stages, battery, two-zone lighting (no logo LED), and button remap. Onboard profile CRUD stays hidden and Bluetooth changes reset on power cycle; use restore-on-connect |
 | Orochi V2 | Not yet | Contributor validated | Contributor validated Bluetooth DPI stages and battery; button remap is profile-mapped pending hardware readback validation. 2.4 GHz HyperSpeed dongle not yet supported. Mouse has no RGB lighting. |
+| Naga Pro | Contributor validated | Contributor validated | All three side panels (2-button, 6-button, 12-button) press-validated with captured native defaults, and five-slot onboard profile workflows ship. The scroll-mode toggle (slot `14`) stays read-only |
+| Naga V2 Pro | Contributor validated | Contributor validated | Wired, 2.4 GHz receiver, and Bluetooth share DPI stages, battery, side-panel remapping, and logo + 12-button side-panel lighting. The 6- and 2-button plates have no lighting, and the two top DPI buttons stay preserved read-only |
+| Naga V3 Pro | Contributor validated | Not yet | 2.4 GHz receiver `0x00E8` only so far. DPI up to the published `50,000` ceiling with independent X/Y, three lighting zones, and both scroll-wheel buttons remappable. Onboard profile CRUD stays hidden because the device rejects metadata reads, and the wheel's tactile/free-spin/smart-reel mode has no readout, so only the front scroll button's factory action changes it. Wired and Bluetooth use unobserved IDs |
 | Basilisk (2017) | Contributor validated | No | Contributor validated DPI (scalar, X/Y, live 5-stage table), poll-rate reads, and logo/scroll lighting; button remap not yet mapped |
 | Lancehead Tournament Edition | Contributor validated | No | Contributor validated DPI (scalar, X/Y, live 5-stage table), poll-rate reads, and all four lighting zones; button remap not yet mapped |
 | Huntsman Mini | Contributor validated | No | Keyboard: contributor validated backlight lighting and brightness. First non-mouse profile; key remap not supported |
 | Tartarus Pro | Contributor validated | No | Keypad: contributor validated backlight lighting and brightness. Analog actuation and key remap have no public protocol |
+| Mouse Dock | Contributor validated | No | Accessory: one logo LED with static color, brightness, and spectrum/pulse writes. No DPI, buttons, battery, or onboard profiles |
+| Mouse Dock Pro | Contributor validated | No | Accessory: one logo LED with brightness, static color, wave, spectrum, and breathing. Answers only transaction ID `0xFF` and reads brightness at a different address than it writes; per-cell custom frames are not mapped yet |
 
 Status key:
 - `Validated` = supported and locally capture/test validated in OpenSnek
