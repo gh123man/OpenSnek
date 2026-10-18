@@ -17,9 +17,10 @@ class ValidationReceiptTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        self.git_environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True, env=self.git_environment)
         (self.root / "source.swift").write_text("original")
-        subprocess.run(["git", "-C", str(self.root), "add", "source.swift"], check=True)
+        subprocess.run(["git", "-C", str(self.root), "add", "source.swift"], check=True, env=self.git_environment)
         self.context = {"toolchain": "fixture", "hardware": "0"}
 
     def test_identical_source_and_environment_can_reuse_success(self):
@@ -53,6 +54,11 @@ class ValidationReceiptTests(unittest.TestCase):
             before = receipt.tool_context()
             with mock.patch.dict(os.environ, {"PATH": str(self.root) + os.pathsep + os.environ["PATH"]}):
                 self.assertEqual(before, receipt.tool_context())
+
+    def test_hook_git_environment_cannot_redirect_source_fingerprint(self):
+        before = receipt.fingerprint(self.root, self.context)
+        with mock.patch.dict(os.environ, {"GIT_DIR": str(self.root / "missing.git")}):
+            self.assertEqual(receipt.fingerprint(self.root, self.context), before)
 
     def test_fresh_run_invalidates_old_success_before_checks(self):
         before = receipt.fingerprint(self.root, self.context)

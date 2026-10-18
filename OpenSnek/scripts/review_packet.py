@@ -2,13 +2,15 @@
 """Create a self-contained, pinned review packet outside the checkout."""
 import argparse
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
 
 
 def git(root, *args):
-    return subprocess.check_output(["git", "-C", str(root), *args], stderr=subprocess.PIPE)
+    return subprocess.check_output(["git", "-C", str(root), *args], stderr=subprocess.PIPE,
+        env={key: value for key, value in os.environ.items() if not key.startswith("GIT_")})
 
 
 def create_packet(root, base, head, output, specs):

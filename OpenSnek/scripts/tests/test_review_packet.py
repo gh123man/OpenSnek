@@ -1,5 +1,7 @@
 import importlib.util
 import json
+import os
+from unittest import mock
 from pathlib import Path
 import subprocess
 import tempfile
@@ -29,7 +31,8 @@ class ReviewPacketTests(unittest.TestCase):
 
     def git(self, *args):
         return subprocess.check_output(["git", "-c", "core.hooksPath=/dev/null",
-            "-c", "commit.gpgsign=false", "-C", str(self.root), *args], text=True)
+            "-c", "commit.gpgsign=false", "-C", str(self.root), *args], text=True,
+            env={key: value for key, value in os.environ.items() if not key.startswith("GIT_")})
 
     def commit(self):
         self.git("add", ".")
@@ -44,6 +47,11 @@ class ReviewPacketTests(unittest.TestCase):
         self.assertNotEqual(metadata["head_sha"], self.git("rev-parse", "HEAD").strip())
         self.assertEqual(json.loads((self.output / "review.json").read_text())["base_sha"], self.base)
         self.assertEqual((self.output / "changes.diff").read_text(), patch)
+
+    def test_hook_git_environment_cannot_redirect_the_packet_repository(self):
+        with mock.patch.dict(os.environ, {"GIT_DIR": str(self.root / "missing.git"), "GIT_WORK_TREE": "/missing"}):
+            metadata = review_packet.create_packet(self.root, self.base, "HEAD", self.output, [])
+        self.assertEqual(metadata["base_sha"], self.base)
 
     def test_dirty_checkout_and_repo_local_output_are_rejected(self):
         with self.assertRaises(ValueError):

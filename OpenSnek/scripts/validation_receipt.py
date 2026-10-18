@@ -16,7 +16,8 @@ MAX_AGE_SECONDS = 3600
 
 
 def git(root, *args):
-    return subprocess.check_output(["git", "-C", str(root), *args])
+    return subprocess.check_output(["git", "-C", str(root), *args],
+        env={key: value for key, value in os.environ.items() if not key.startswith("GIT_")})
 
 
 def fingerprint(root, context):
