@@ -49,7 +49,7 @@ actor ProbeBridge {
         guard let targets = try await bluetoothLightingTargets(preferredPeripheralName: preferredPeripheralName, zoneID: zoneID) else { return nil }
 
         let profile = await bluetoothLightingProfile(preferredPeripheralName: preferredPeripheralName)
-        let usesZoneState = profile?.id.isBasiliskV3ProFamily == true
+        let usesZoneState = profile?.id.usesBluetoothZoneStateLighting == true
         var results: [BTLightingReadResult] = []
         results.reserveCapacity(targets.count)
 
@@ -95,7 +95,7 @@ actor ProbeBridge {
         guard let targets = try await bluetoothLightingTargets(preferredPeripheralName: preferredPeripheralName, zoneID: zoneID) else { return nil }
 
         let profile = await bluetoothLightingProfile(preferredPeripheralName: preferredPeripheralName)
-        let usesZoneState = profile?.id.isBasiliskV3ProFamily == true
+        let usesZoneState = profile?.id.usesBluetoothZoneStateLighting == true
         let v3ProPayload = Array(BLEVendorProtocol.buildV3ProLightingZoneStatePayload(r: color.r, g: color.g, b: color.b))
         let legacyPayload: [UInt8] = [0x04, 0x00, 0x00, 0x00, 0x00, UInt8(max(0, min(255, color.r))), UInt8(max(0, min(255, color.g))), UInt8(max(0, min(255, color.b)))]
 
@@ -147,10 +147,12 @@ actor ProbeBridge {
 
     func setDpi(active: Int, values: [Int]) async throws -> DpiSnapshot {
         let current = try await readDpi()
+        let peripheral = await vendor.currentPeripheralSummary()
+        let profileID = DeviceProfiles.resolveBluetoothFallback(name: peripheral?.name)?.id
         let count = DeviceProfiles.clampDpiStageCount(values.count)
-        let mergedSlots = BLEVendorProtocol.mergedStageSlots(currentSlots: current.slots, requestedCount: count, requestedValues: values)
+        let mergedSlots = BLEVendorProtocol.mergedStageSlots(currentSlots: current.slots, requestedCount: count, requestedValues: values, profileID: profileID)
         let expected = DpiSnapshot(active: max(0, min(count - 1, active)), count: count, slots: mergedSlots, stageIDs: current.stageIDs, marker: current.marker)
-        let payload = BLEVendorProtocol.buildDpiStagePayload(active: expected.active, count: expected.count, slots: expected.slots, marker: expected.marker, stageIDs: expected.stageIDs)
+        let payload = BLEVendorProtocol.buildDpiStagePayload(active: expected.active, count: expected.count, slots: expected.slots, marker: expected.marker, stageIDs: expected.stageIDs, profileID: profileID)
 
         let req = nextReq()
         let header = BLEVendorProtocol.buildWriteHeader(req: req, payloadLength: 0x26, key: .dpiStagesSet)

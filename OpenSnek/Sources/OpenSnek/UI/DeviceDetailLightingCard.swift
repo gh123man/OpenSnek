@@ -27,10 +27,7 @@ struct LightingCard: View {
     /// Derived from the editor store so the picker can never disagree with the static-apply target.
     private var onboardZoneMode: LightingZoneEditMode {
         get { LightingZoneEditMode(zoneID: editorStore.editableUSBLightingZoneID) }
-        nonmutating set {
-            let zoneIDs = editorStore.visibleUSBLightingZones.map(\.id)
-            editorStore.editableUSBLightingZoneID = newValue.resolvedZoneID(currentZoneID: editorStore.editableUSBLightingZoneID, availableZoneIDs: zoneIDs)
-        }
+        nonmutating set { editorStore.updateLightingZoneEditMode(newValue) }
     }
 
     @State private var isExpanded = false

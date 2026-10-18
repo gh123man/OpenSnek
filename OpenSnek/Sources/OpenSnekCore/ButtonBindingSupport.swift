@@ -109,12 +109,7 @@ public enum ButtonBindingSupport {
 
     private static func usesNativeNagaHorizontalScrollDefaults(_ profileID: DeviceProfileID?) -> Bool { profileID == .nagaV2Pro || profileID == .nagaV3Pro }
 
-    private static func isNagaFamily(_ profileID: DeviceProfileID?) -> Bool {
-        switch profileID {
-        case .nagaPro, .nagaV2Pro, .nagaV3Pro: return true
-        case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3Pro35K, .basiliskV3XHyperspeed, .orochiV2, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro, .none: return false
-        }
-    }
+    private static func isNagaFamily(_ profileID: DeviceProfileID?) -> Bool { profileID?.isNagaFamily == true }
 
     private static func isBasiliskV3Family(_ profileID: DeviceProfileID?) -> Bool {
         switch profileID {

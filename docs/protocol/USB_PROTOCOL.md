@@ -1058,11 +1058,11 @@ Shipped per-profile IDs (`DeviceProfile.usbTransactionID`): Mouse Dock Pro (`0x0
 
 Software effects retain cached settings to avoid a full settings sweep competing with frame writes. Battery telemetry is read independently with serialized `07:80` and `07:84` commands every 30 seconds while a battery-capable USB device runs an effect. A USB availability transition or physical reconnect makes the next scheduled sample due immediately. Battery reads preserve the latest DPI and lighting state and publish the resulting battery state to service clients. Failed commands are not retried; a later scheduled sample or reconnect provides the next opportunity. Maintainer hardware validation of natural mouse sleep/wake with effects running remains pending.
 
-### Razer Naga V3 Pro (0x00E8, 2.4 GHz receiver)
+### Razer Naga V3 Pro (0x00E7 wired, 0x00E8 receiver)
 
 | Setting | Value |
 |---------|-------|
-| USB VID:PID | `1532:00E8` (2.4 GHz receiver); firmware `0x02010201`, serial `632634H38609522` |
+| USB VID:PID | `1532:00E7` (wired), `1532:00E8` (2.4 GHz receiver); wired firmware response bytes `01 01 00 00` |
 | Transaction ID | `0x1F` |
 | Max DPI | 50000 (Focus Pro 50K Optical Sensor Gen-3). The firmware echoes any stored value without clamping, so the published ceiling is the authoritative limit |
 | DPI stages | `04:86` -> active token `0x03`, count `5`, stages `400/800/1600/3200/6400`; `04:05`/`04:85` scalar and stage writes round-trip, including independent X/Y (`800x1600` reads back as `03 20 06 40`) |
@@ -1080,6 +1080,13 @@ Software effects retain cached settings to avoid a full settings sweep competing
 | 2-button plate | Press validation: the forward button is slot `05` and the rear button is slot `04`, matching the Naga Pro family's reversed mapping. The plate has no printed labels. Neither the 2- nor the 6-button plate has lighting |
 
 Button reads return the layer flag at byte 10 and the 7-byte function block at bytes `11..17`, matching the shared non-Basilisk read layout.
+
+The [wired follow-up](../../captures/usb/2026-10-18-naga-v3-pro-wired/README.md) confirmed the
+same 33-slot inventory and body-button defaults, three-zone lighting reads, charging telemetry,
+and changed-value poll-rate, X/Y DPI, sleep-timeout, and brightness write/readback/restore.
+A same-value stage write preserved the complete table and stage IDs. Wired metadata `05:88`
+(slot 1, offset 0) also returned `0x03`; scroll mode `02:94` returned `0x05`. Receiver-only
+observations above (such as the exhaustive stored-bank checks) are not repeated wired claims.
 
 ### Razer Mouse Dock Pro (0x00A4)
 

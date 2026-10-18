@@ -621,9 +621,9 @@ public enum DeviceProfiles {
         id: .nagaV2Pro, productName: "Naga V2 Pro", transport: .bluetooth, supportedProducts: [0x00A9], buttonLayout: ButtonSlotLayout(visibleSlots: nagaV2ProUSBButtonSlots, writableSlots: nagaV2ProUSBWritableSlots, documentedSlots: nagaV2ProUSBDocumentedReadOnlySlots),
         supportsAdvancedLightingEffects: false, supportedLightingEffects: [.staticColor], usbLightingLEDIDs: [0x04, 0x05], usbLightingZones: nagaV2ProUSBLightingZones, supportsLightingBrightnessControls: true, isLocallyValidated: false)
 
-    // MARK: - Razer Naga V3 Pro (2.4 GHz receiver 0x00E8)
+    // MARK: - Razer Naga V3 Pro (wired 0x00E7, 2.4 GHz receiver 0x00E8)
 
-    // Contributor-validated USB profile for the Naga V3 Pro's 2.4 GHz receiver. The body carries
+    // Contributor-validated USB profile for the Naga V3 Pro's wired and 2.4 GHz connections. The body carries
     // eleven buttons around a swappable side plate: left/right/middle click, scroll up/down, wheel
     // tilt, two index-finger buttons, a pinky button, and the two scroll-wheel buttons. Razer's
     // 23 / 17 / 13 programmable-button counts match the model exactly (23 - 12 = 17 - 6 = 13 - 2 = 11
@@ -680,9 +680,17 @@ public enum DeviceProfiles {
     ]
 
     public static let nagaV3ProUSB = DeviceProfile(
-        id: .nagaV3Pro, productName: "Naga V3 Pro", transport: .usb, supportedProducts: [0x00E8], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: nagaV3ProUSBButtonSlots, writableSlots: nagaV3ProUSBWritableSlots), supportsAdvancedLightingEffects: true,
+        id: .nagaV3Pro, productName: "Naga V3 Pro", transport: .usb, supportedProducts: [0x00E7, 0x00E8], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: nagaV3ProUSBButtonSlots, writableSlots: nagaV3ProUSBWritableSlots), supportsAdvancedLightingEffects: true,
         supportedLightingEffects: nagaV3ProUSBLightingEffects, usbLightingLEDIDs: [0x01, 0x04, 0x05], usbLightingZones: nagaV3ProUSBLightingZones, supportsIndependentXYDPI: true, supportsLightingBrightnessControls: true, onboardProfileSupport: .unavailable, onboardProfileCount: 1,
         isLocallyValidated: false)
+
+    // Contributor-validated BLE identity and live vendor keys: three-zone effects/color/brightness,
+    // five X/Y DPI stages, power timeout, and interleaved Naga button function blocks.
+    // No Bluetooth poll-rate or profile CRUD support is claimed. See the 2026-10-18 BLE capture.
+    public static let nagaV3ProBluetooth = DeviceProfile(
+        id: .nagaV3Pro, productName: "Naga V3 Pro", transport: .bluetooth, supportedProducts: [0x00E9], buttonLayout: ButtonSlotLayout(visibleSlots: nagaV3ProUSBButtonSlots, writableSlots: nagaV3ProUSBWritableSlots),
+        supportsAdvancedLightingEffects: true, supportedLightingEffects: nagaV3ProUSBLightingEffects, usbLightingLEDIDs: [0x01, 0x04, 0x05], usbLightingZones: nagaV3ProUSBLightingZones, supportsIndependentXYDPI: true,
+        supportsLightingBrightnessControls: true, supportsPollRateControls: false, isLocallyValidated: false)
 
     // MARK: - Razer Basilisk (2017, 0x0064)
 
@@ -800,7 +808,7 @@ public enum DeviceProfiles {
         usbBrightnessLEDIDs: [0x00], usbBrightnessReadLEDIDs: mouseDockProUSBBrightnessReadLEDIDs, isLocallyValidated: false)
 
     public static let all: [DeviceProfile] = [
-        basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, basiliskV3Pro35KPhantomGreenBluetooth, orochiV2Bluetooth, nagaProUSB, nagaProBluetooth, nagaV2ProUSB, nagaV2ProBluetooth, nagaV3ProUSB, basiliskUSB, lanceheadTEUSB,
+        basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, basiliskV3Pro35KPhantomGreenBluetooth, orochiV2Bluetooth, nagaProUSB, nagaProBluetooth, nagaV2ProUSB, nagaV2ProBluetooth, nagaV3ProUSB, nagaV3ProBluetooth, basiliskUSB, lanceheadTEUSB,
         huntsmanMiniUSB, tartarusProUSB, mouseDockUSB, mouseDockProUSB
     ]
 

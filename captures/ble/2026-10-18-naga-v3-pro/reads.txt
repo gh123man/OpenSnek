@@ -1,0 +1,157 @@
+$ OpenSnekProbe bt-raw-read --key 05810001 --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=05 81 00 01 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02
+notify[2] len=1 c7
+payload[1]: c7
+
+exit=0
+
+$ OpenSnekProbe bt-raw-read --key 05800001 --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=05 80 00 01 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02
+notify[2] len=1 01
+payload[1]: 01
+
+exit=0
+
+$ OpenSnekProbe bt-raw-read --key 05840000 --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=05 84 00 00 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=2 30 02 00 00 00 00 00 02
+notify[2] len=2 3c 00
+payload[2]: 3c 00
+
+exit=0
+
+$ OpenSnekProbe bt-raw-read --key 10800001 --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=10 80 00 01 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=3 30 03 00 00 00 00 00 02
+notify[2] len=3 04 01 05
+payload[3]: 04 01 05
+
+exit=0
+
+$ OpenSnekProbe bt-raw-read --key 10850101 --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=10 85 01 01 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02
+notify[2] len=1 55
+payload[1]: 55
+
+exit=0
+
+$ OpenSnekProbe bt-raw-read --key 10850104 --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=10 85 01 04 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02
+notify[2] len=1 55
+payload[1]: 55
+
+exit=0
+
+$ OpenSnekProbe bt-raw-read --key 10850105 --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=10 85 01 05 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02
+notify[2] len=1 55
+payload[1]: 55
+
+exit=0
+
+$ OpenSnekProbe bt-raw-read --key 10830001 --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=10 83 00 01 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=10 30 0a 00 00 00 00 00 02
+notify[2] len=10 req=0x01 status=0x00 len=0 01 00 00 01 00 ff 00 00 00 00
+payload[10]: 01 00 00 01 00 ff 00 00 00 00
+
+exit=0
+
+$ OpenSnekProbe bt-raw-read --key 10830004 --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=10 83 00 04 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=10 30 0a 00 00 00 00 00 02
+notify[2] len=10 req=0x01 status=0x00 len=0 01 00 00 01 00 ff 00 00 00 00
+payload[10]: 01 00 00 01 00 ff 00 00 00 00
+
+exit=0
+
+$ OpenSnekProbe bt-raw-read --key 10830005 --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=10 83 00 05 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=10 30 0a 00 00 00 00 00 02
+notify[2] len=10 req=0x01 status=0x00 len=0 01 00 00 01 00 ff 00 00 00 00
+payload[10]: 01 00 00 01 00 ff 00 00 00 00
+
+exit=0
+
+$ OpenSnekProbe bt-raw-read --key 0884010b --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=08 84 01 0b name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=16 30 10 00 00 00 00 00 02
+notify[2] len=16 req=0x0b status=0x01 len=0 0b 00 06 06 01 01 01 01 00 00 00 00 00 00 00 00
+payload[16]: 0b 00 06 06 01 01 01 01 00 00 00 00 00 00 00 00
+decoded-button-function[7]: 06 01 01 00 00 00 00
+
+exit=0
+
+$ OpenSnekProbe bt-raw-read --key 0884010c --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=08 84 01 0c name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=16 30 10 00 00 00 00 00 02
+notify[2] len=16 req=0x0c status=0x02 len=0 0c 00 06 06 01 01 02 02 00 00 00 00 00 00 00 00
+payload[16]: 0c 00 06 06 01 01 02 02 00 00 00 00 00 00 00 00
+decoded-button-function[7]: 06 01 02 00 00 00 00
+
+exit=0
+
+$ OpenSnekProbe bt-raw-read --key 0884010e --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=08 84 01 0e name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=16 30 10 00 00 00 00 00 02
+notify[2] len=16 req=0x0e status=0x04 len=0 0e 00 07 07 01 01 04 04 00 00 00 00 00 00 00 00
+payload[16]: 0e 00 07 07 01 01 04 04 00 00 00 00 00 00 00 00
+decoded-button-function[7]: 07 01 04 00 00 00 00
+
+exit=0
+
+$ OpenSnekProbe bt-raw-read --key 0884016a --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=08 84 01 6a name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=16 30 10 00 00 00 00 00 02
+notify[2] len=16 req=0x6a status=0x01 len=0 6a 00 12 12 01 01 01 01 00 00 00 00 00 00 00 00
+payload[16]: 6a 00 12 12 01 01 01 01 00 00 00 00 00 00 00 00
+decoded-button-function[7]: 12 01 01 00 00 00 00
+
+exit=0
+
+$ OpenSnekProbe bt-raw-read --key 08840180 --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=08 84 01 80 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=16 30 10 00 00 00 00 00 02
+notify[2] len=16 req=0x80 status=0x00 len=0 80 00 00 00 01 01 00 00 00 00 00 00 00 00 00 00
+payload[16]: 80 00 00 00 01 01 00 00 00 00 00 00 00 00 00 00
+decoded-button-function[7]: 00 01 00 00 00 00 00
+
+exit=0
+
+$ OpenSnekProbe bt-raw-read --key 03800000 --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=03 80 00 00 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02
+notify[2] len=1 01
+payload[1]: 01
+
+exit=0
+
+$ OpenSnekProbe bt-raw-read --key 03820100 --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=03 82 01 00 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02
+notify[2] len=1 01
+payload[1]: 01
+
+exit=0

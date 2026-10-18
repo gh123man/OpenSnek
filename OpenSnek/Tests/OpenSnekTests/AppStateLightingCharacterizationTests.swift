@@ -86,6 +86,57 @@ final class AppStateLightingCharacterizationTests: XCTestCase {
         XCTAssertNil(staticPatch.usbLightingZoneLEDIDs, "A nil zone filter targets every device LED, not only the scroll wheel")
     }
 
+    func testSelectingAllZonesAppliesFirstZoneColorWithoutColorEdit() async throws {
+        let device = makeRefactorMultiZoneUSBLightingDevice(id: "usb-enter-all-zones-device", serial: "USB-ENTER-ALL-\(UUID().uuidString)")
+        defer { clearRefactorPreferences(for: device) }
+        let displayedColor = RGBColor(r: 111, g: 122, b: 133)
+        let preferenceStore = DevicePreferenceStore()
+        preferenceStore.persistLightingColor(RGBColor(r: 10, g: 20, b: 30), device: device)
+        preferenceStore.persistLightingColor(displayedColor, device: device, zoneID: "scroll_wheel")
+        let backend = AppStateRefactorStubBackend(devices: [device], stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 79, dpiValues: [800, 1600, 3200], activeStage: 1))])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
+        await appState.deviceStore.refreshDevices()
+
+        await MainActor.run {
+            appState.editorStore.updateUSBLightingZoneID("logo")
+            appState.editorStore.editableColor = RGBColor(r: 255, g: 0, b: 0)
+            appState.editorStore.updateLightingZoneEditMode(.allZones)
+        }
+        try await waitForRefactorCondition { await backend.applyCount() == 1 }
+
+        let patches = await backend.recordedPatches()
+        let patch = try XCTUnwrap(patches.first)
+        XCTAssertEqual(patch.lightingEffect?.kind, .staticColor)
+        XCTAssertEqual(patch.lightingEffect?.primary, RGBPatch(r: 111, g: 122, b: 133))
+        XCTAssertNil(patch.usbLightingZoneLEDIDs)
+        let selectedZone = await MainActor.run { appState.editorStore.editableUSBLightingZoneID }
+        XCTAssertEqual(selectedZone, "all")
+        let editorColor = await MainActor.run { appState.editorStore.editableColor }
+        XCTAssertEqual(editorColor, displayedColor)
+        XCTAssertEqual(preferenceStore.loadPersistedLightingColor(device: device, zoneID: "logo"), displayedColor)
+        XCTAssertEqual(preferenceStore.loadPersistedLightingColor(device: device, zoneID: "scroll_wheel"), displayedColor)
+        XCTAssertEqual(preferenceStore.loadPersistedLightingColor(device: device, zoneID: "underglow"), displayedColor)
+    }
+
+    func testSelectingIndividualZonesDoesNotApplyColor() async throws {
+        let device = makeRefactorMultiZoneUSBLightingDevice(id: "usb-enter-individual-zones-device", serial: "USB-ENTER-INDIVIDUAL-\(UUID().uuidString)")
+        defer { clearRefactorPreferences(for: device) }
+        let backend = AppStateRefactorStubBackend(devices: [device], stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 79, dpiValues: [800, 1600, 3200], activeStage: 1))])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
+        await appState.deviceStore.refreshDevices()
+        await MainActor.run {
+            appState.editorStore.updateUSBLightingZoneID("all")
+            appState.editorStore.updateLightingZoneEditMode(.individualZones)
+        }
+
+        let debounceObservationWindow: UInt64 = 350_000_000
+        try await Task.sleep(nanoseconds: debounceObservationWindow)
+        let selectedZone = await MainActor.run { appState.editorStore.editableUSBLightingZoneID }
+        let patches = await backend.recordedPatches()
+        XCTAssertEqual(selectedZone, "scroll_wheel")
+        XCTAssertTrue(patches.isEmpty, "Navigating to individual zones must not recolor the device")
+    }
+
     func testIndividualZoneStaticEffectApplyTargetsOnlySelectedLED() async throws {
         let device = makeRefactorMultiZoneUSBLightingDevice(id: "usb-individual-zone-effect-device", serial: "USB-INDIVIDUAL-EFFECT-\(UUID().uuidString)")
         defer { clearRefactorPreferences(for: device) }

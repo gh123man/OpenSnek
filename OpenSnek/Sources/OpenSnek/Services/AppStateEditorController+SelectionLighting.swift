@@ -300,6 +300,18 @@ import OpenSnekCore
         if kind != .staticColor { editorStore.editableUSBLightingZoneID = "all" } else { ensureEditableStaticLightingZoneSelection() }
     }
 
+    func updateLightingZoneEditMode(_ mode: LightingZoneEditMode) {
+        guard editorStore.editableLightingEffect == .staticColor else { return }
+        let zoneIDs = editorStore.visibleUSBLightingZones.map(\.id)
+        let zoneID = mode.resolvedZoneID(currentZoneID: editorStore.editableUSBLightingZoneID, availableZoneIDs: zoneIDs)
+        guard zoneID != editorStore.editableUSBLightingZoneID else { return }
+        // Resolve before changing scope so the first zone keeps its current displayed color,
+        // including an in-flight edit. Never seed All Zones from the last-edited lower zone.
+        if mode == .allZones, let firstZoneColor = lightingGradientDisplayColors().first { editorStore.editableColor = firstZoneColor }
+        editorStore.editableUSBLightingZoneID = zoneID
+        if mode == .allZones { applyController.scheduleAutoApplyCurrentStaticColorToAllZones() }
+    }
+
     func updateUSBLightingZoneID(_ zoneID: String) {
         let resolvedZoneID: String
         if let selectedDevice = deviceStore.selectedDevice {

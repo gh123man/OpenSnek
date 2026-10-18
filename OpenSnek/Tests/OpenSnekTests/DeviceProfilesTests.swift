@@ -772,6 +772,34 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertFalse(ButtonBindingSupport.availableButtonBindingKinds(profileID: profile.id).contains(.dpiClutch))
     }
 
+    func testResolveWiredNagaV3ProUsesSameProfileAsReceiver() throws {
+        let wired = try XCTUnwrap(DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00E7, transport: .usb))
+        let receiver = try XCTUnwrap(DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00E8, transport: .usb))
+        XCTAssertEqual(wired.id, .nagaV3Pro)
+        XCTAssertEqual(wired.supportedProducts, [0x00E7, 0x00E8])
+        XCTAssertEqual(wired.buttonLayout.visibleSlots, receiver.buttonLayout.visibleSlots)
+        XCTAssertEqual(wired.buttonLayout.writableSlots, receiver.buttonLayout.writableSlots)
+        XCTAssertEqual(wired.usbTransactionID, receiver.usbTransactionID)
+        XCTAssertEqual(wired.usbLightingZones, receiver.usbLightingZones)
+        XCTAssertEqual(wired.onboardProfileSupport, .unavailable)
+        XCTAssertFalse(wired.isLocallyValidated)
+    }
+
+    func testResolveBluetoothNagaV3ProUsesThreeZoneEffectProfile() throws {
+        let profile = try XCTUnwrap(DeviceProfiles.resolve(vendorID: 0x068E, productID: 0x00E9, transport: .bluetooth))
+        XCTAssertEqual(profile.id, .nagaV3Pro)
+        XCTAssertEqual(DeviceProfiles.resolveBluetoothFallback(name: "Naga V3 Pro")?.id, .nagaV3Pro)
+        XCTAssertEqual(profile.buttonLayout.visibleSlots, DeviceProfiles.nagaV3ProUSBButtonSlots)
+        XCTAssertEqual(profile.buttonLayout.writableSlots, DeviceProfiles.nagaV3ProUSBWritableSlots.sorted())
+        XCTAssertEqual(profile.usbLightingZones, DeviceProfiles.nagaV3ProUSBLightingZones)
+        XCTAssertTrue(profile.supportsIndependentXYDPI)
+        XCTAssertEqual(profile.supportedLightingEffects, DeviceProfiles.nagaV3ProUSBLightingEffects)
+        XCTAssertTrue(profile.supportsAdvancedLightingEffects)
+        XCTAssertFalse(profile.supportsPollRateControls)
+        XCTAssertFalse(profile.supportsMappedOnboardProfileCRUD)
+        XCTAssertFalse(profile.isLocallyValidated)
+    }
+
     func testNagaV3ProExposesBodyPlateAndVendorSlots() throws {
         let profile = try XCTUnwrap(DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00E8, transport: .usb))
 

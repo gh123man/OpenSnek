@@ -13,7 +13,11 @@ extension BridgeClient {
 
     /// Whether this Bluetooth device uses the per-zone state lighting surface (`10 83`/`10 03`
     /// color, `10 85`/`10 05` brightness) instead of the legacy single-frame lighting keys.
-    func usesBluetoothZoneStateLighting(_ device: MouseDevice) -> Bool { device.transport == .bluetooth && (Self.isBasiliskV3ProFamilyBluetooth(device) || device.profile_id == .nagaV2Pro || device.product_id == 0x00A9) }
+    func usesBluetoothZoneStateLighting(_ device: MouseDevice) -> Bool {
+        guard device.transport == .bluetooth else { return false }
+        let profileID = device.profile_id ?? DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?.id
+        return profileID?.usesBluetoothZoneStateLighting == true
+    }
 
     nonisolated static func isBasiliskV3ProFamilyBluetooth(_ device: MouseDevice) -> Bool {
         guard device.transport == .bluetooth else { return false }
@@ -40,15 +44,15 @@ extension BridgeClient {
     func btNotifySummary(_ notifies: [Data]) -> String { notifies.map(btHex).joined(separator: " | ") }
 
     static func resolveBluetoothBatteryState(device: MouseDevice, vendorRaw: Int?, vendorStatus: Int?, usbFallback: (Int, Bool?)?) -> BluetoothBatteryState {
-        // Both devices report a 0-255 byte even below 100. Preserve HyperSpeed's rounded
-        // conversion and the Naga V2 Pro's USB-compatible truncation.
+        // Preserve HyperSpeed's rounded conversion and the Naga models' USB-compatible truncation.
         let isV3XBluetooth = device.transport == .bluetooth && (device.profile_id == .basiliskV3XHyperspeed || device.product_id == 0x00BA)
-        let isNagaV2Bluetooth = device.transport == .bluetooth && (device.profile_id == .nagaV2Pro || device.product_id == 0x00A9)
+        let profileID = device.profile_id ?? DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?.id
+        let usesNagaBattery = device.transport == .bluetooth && profileID?.usesNagaBluetoothBatteryTelemetry == true
         // The V3 Pro 35K reported raw 0x7B over Bluetooth, so its byte is on the 0-255 scale even below 100.
         let isV3Pro35KBluetooth = device.transport == .bluetooth && (device.profile_id == .basiliskV3Pro35K || device.product_id == 0x00D8)
         let vendorPercent = vendorRaw.map { raw in
             if isV3XBluetooth { return Int((Double(min(max(raw, 0), 255)) / 255.0 * 100.0).rounded()) }
-            return (isNagaV2Bluetooth || isV3Pro35KBluetooth || raw > 100) ? Int((Double(raw) / 255.0) * 100.0) : raw
+            return (usesNagaBattery || isV3Pro35KBluetooth || raw > 100) ? Int((Double(raw) / 255.0) * 100.0) : raw
         }
         let charging: Bool?
         if device.transport == .bluetooth, device.profile_id == .basiliskV3XHyperspeed || device.product_id == 0x00BA {
@@ -57,7 +61,7 @@ extension BridgeClient {
             charging = false
         } else if isBasiliskV3ProFamilyBluetooth(device) {
             charging = usbFallback?.1
-        } else if device.transport == .bluetooth, device.profile_id == .nagaV2Pro || device.product_id == 0x00A9 {
+        } else if usesNagaBattery {
             // The vendor status bit is unreliable on this family; only trust a USB fallback session.
             charging = usbFallback?.1
         } else {
@@ -302,9 +306,9 @@ extension BridgeClient {
         let defaultStageIDs = (1...DeviceProfiles.maximumDpiStageCount).map(UInt8.init)
         let currentStageIDs = Array((current?.stageIDs ?? defaultStageIDs).prefix(DeviceProfiles.maximumDpiStageCount))
         let requestedPairs = pairs ?? values.map { DpiPair(x: $0, y: $0) }
-        let mergedPairs = BLEVendorProtocol.mergedStagePairs(currentPairs: currentPairs, requestedCount: count, requestedPairs: requestedPairs)
+        let mergedPairs = BLEVendorProtocol.mergedStagePairs(currentPairs: currentPairs, requestedCount: count, requestedPairs: requestedPairs, profileID: device.profile_id)
 
-        let payload = BLEVendorProtocol.buildDpiStagePayload(active: active, count: count, pairs: mergedPairs, marker: marker, stageIDs: currentStageIDs)
+        let payload = BLEVendorProtocol.buildDpiStagePayload(active: active, count: count, pairs: mergedPairs, marker: marker, stageIDs: currentStageIDs, profileID: device.profile_id)
         let req = nextBTReq()
         let header = BLEVendorProtocol.buildWriteHeader(req: req, payloadLength: 0x26, key: .dpiStagesSet)
         let notifies = try await btExchange([header, payload.prefix(20), payload.suffix(from: 20)], timeout: 0.9, device: device)
@@ -360,11 +364,23 @@ extension BridgeClient {
     }
 
     func btApplyLightingEffectFallback(device: MouseDevice, effect: LightingEffectPatch, ledIDs: [UInt8]? = nil) async throws -> Bool {
+        if device.profile_id == .nagaV3Pro { return try await btSetZoneLightingEffect(device: device, effect: effect, ledIDs: ledIDs) }
         switch effect.kind {
         case .off: return try await btSetLightingValue(device: device, value: 0)
         case .staticColor: return try await btSetLightingRGB(device: device, r: effect.primary.r, g: effect.primary.g, b: effect.primary.b, ledIDs: ledIDs)
         case .spectrum, .wave, .reactive, .pulseRandom, .pulseSingle, .pulseDual: return false
         }
+    }
+
+    private func btSetZoneLightingEffect(device: MouseDevice, effect: LightingEffectPatch, ledIDs: [UInt8]?) async throws -> Bool {
+        let payload = BLEVendorProtocol.buildBluetoothZoneEffectPayload(effect: effect)
+        for ledID in bluetoothLightingLEDIDs(device: device, override: ledIDs) {
+            let req = nextBTReq()
+            let header = BLEVendorProtocol.buildWriteHeader(req: req, payloadLength: UInt8(payload.count), key: .lightingZoneStateSet(ledID: ledID))
+            let notifies = try await btExchange([header, payload], timeout: 0.9, device: device)
+            guard btAckSuccess(notifies: notifies, req: req) else { throw BridgeError.commandFailed("Bluetooth lighting effect rejected for LED \(ledID)") }
+        }
+        return true
     }
 
     func parseLightingRGB(payload: Data) -> RGBPatch? {

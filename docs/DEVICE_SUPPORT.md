@@ -45,7 +45,7 @@ Button remap keyboard actions support modifier chords on shipped USB and Bluetoo
 | Orochi V2 | `Not shipped` | `Contributor validated` | Contributor validated Bluetooth DPI stages, battery, and no-RGB behavior; button remap is profile-mapped pending hardware readback validation |
 | Naga Pro | `Contributor validated` | `Contributor validated` | Core controls and known-safe side-panel slots ship with captured native defaults; all three side panels have been physically press-validated (12- and 6-button in PR #121, 2-button in the 2026-10-17 capture addendum), and the shipped slot table was cross-checked against the device's own mappable-button inventory |
 | Naga V2 Pro | `Contributor validated` | `Contributor validated` | Wired `0x00A7`, 2.4 GHz receiver `0x00A8`, and Bluetooth `0x00A9` share DPI stages, battery, side-panel remapping, and logo + 12-button side-panel lighting; side-panel label order is press-validated, the bottom button is remappable, and the two top DPI buttons stay preserved read-only |
-| Naga V3 Pro | `Contributor validated` | `Not shipped` | 2.4 GHz receiver `0x00E8` only; ships DPI up to the published `50,000` ceiling with independent X/Y, three lighting zones (scroll wheel, logo, side panel), the full 2/6/12-button plate slot table, and press-validated body buttons including both scroll-wheel buttons. Onboard profile CRUD stays hidden because the device rejects metadata reads, and the wheel's tactile/free-spin/smart-reel mode has no readout, so it is only changeable with the front scroll button's factory action |
+| Naga V3 Pro | `Contributor validated` | `Contributor validated` | Wired USB `0x00E7`, 2.4 GHz receiver `0x00E8`, and Bluetooth `0x00E9`; ships DPI up to the published `50,000` ceiling with independent X/Y, three lighting zones (scroll wheel, logo, side panel), the full 2/6/12-button plate slot table, and press-validated body buttons including both scroll-wheel buttons. Onboard profile CRUD stays hidden because the device rejects metadata reads, and the wheel's tactile/free-spin/smart-reel mode has no readout, so it is only changeable with the front scroll button's factory action |
 | Basilisk (2017) | `Contributor validated` | `No transport` | Contributor validated DPI (scalar, independent X/Y, live 5-stage table), poll-rate reads, and logo/scroll lighting with restore-verified writes; button remap and onboard profiles are not mapped |
 | Lancehead Tournament Edition | `Contributor validated` | `No transport` | Contributor validated DPI (scalar, independent X/Y, live 5-stage table read without OpenRazer's `0xFF` stage transaction), poll-rate reads, and all four lighting zones; button remap is not mapped |
 | Huntsman Mini | `Contributor validated` | `No transport` | Keyboard: contributor validated backlight lighting, brightness, and that poll-rate reads return `status 0x05` (unsupported). No DPI hardware; key remap is not mapped |
@@ -219,31 +219,37 @@ USB PIDs `0x00A7` (wired) / `0x00A8` (2.4 GHz receiver), Bluetooth vendor `0x068
 | Side-panel physical labels | `Contributor validated` | `Contributor validated` | Press validation confirmed 12-button labels `1-12` → slots `64-75` and 6-button labels `1-6` → slots `80-85` on the receiver and Bluetooth |
 ## Naga V3 Pro
 
-USB PIDs `0x00E8` (2.4 GHz receiver). Support is based on hardware validation by
+USB PIDs `0x00E7` (wired) and `0x00E8` (2.4 GHz receiver); Bluetooth `068E:00E9`.
+Support is based on hardware validation by
 [jpagh](https://github.com/jpagh); the profile carries `isLocallyValidated: false` because it has not
-been validated on maintainer hardware. A wired-cable identity has not been observed yet, so only the
-receiver PID is claimed.
+been validated on maintainer hardware. The wired follow-up confirmed the same transaction ID,
+button inventory/defaults, and three lighting zones, with reversible poll-rate, X/Y DPI,
+sleep-timeout, and per-zone brightness writes; see
+[the wired capture](../captures/usb/2026-10-18-naga-v3-pro-wired/README.md).
+The [Bluetooth capture](../captures/ble/2026-10-18-naga-v3-pro/README.md) records
+stage/power/lighting read-write-restore, button remap/Default, eight visually checked effects,
+and off/on plus finite idle/wake recovery. Bluetooth poll rate and profile CRUD remain hidden.
 
 | Feature Area | USB | BT | Notes |
 |---|---|---|---|
-| Overall transport status | `Contributor validated` | `No transport` | Receiver identity `0x00E8`, firmware `0x02010201`, transaction ID `0x1F` |
-| DPI stages + active stage | `Contributor validated` | `No transport` | Five live stages read back as `400/800/1600/3200/6400` with active token `0x03`; scalar and same-value stage writes round-trip |
-| Independent X/Y DPI | `Contributor validated` | `No transport` | `800x1600` writes and reads back as `03 20 06 40`, so `supportsIndependentXYDPI` ships enabled |
-| DPI ceiling | `Contributor validated` | `No transport` | The firmware stores any value without clamping, so the published Focus Pro 50K ceiling of `50,000` is the authoritative limit |
-| Poll rate | `Contributor validated` | `No transport` | `1,000 Hz` read; a `500 Hz` write/readback with restore was validated. Razer lists this mouse as a `1,000 Hz` device, so no higher rates are offered |
-| Battery + power | `Contributor validated` | `No transport` | `07:80` level plus `07:84` charging; idle time `07:83` read and `07:03` write/readback with restore validated |
-| Lighting: brightness + effects | `Contributor validated` | `No transport` | Three zones: scroll wheel `0x01`, logo `0x04`, and side panel `0x05`, matching Razer's published zone list. Brightness reads and writes round-trip per zone. Static, wave, and a breathing effect were visually confirmed; all eight listed effects were ACK-verified. The 6- and 2-button plates have no lighting at all, so LED `0x05` only lights the 12-button plate |
-| Button remap: shipped editable slots | `Contributor validated` | `No transport` | Body slots `1-5`, `9`, `10`, `11`, `12`, `14`, `52`, `53`, `57`, `106`, `128` plus plate slots `64-75` (12-button), `80-85` (6-button), and `4`/`5` (2-button). Every slot round-tripped a same-value write on both the live and persistent layers |
-| Button remap: physical labels | `Contributor validated` | `No transport` | Press validation on the 12-button plate: slot `11` front index button, `12` rear index button, `57` pinky button, `106` front scroll-wheel button, `128` rear scroll-wheel button, `14` underside profile button |
-| Button inventory cross-check | `Contributor validated` | `No transport` | The device publishes its own mappable-button inventory (`02:84`): a count byte followed by one slot per button. It reports exactly the 33 slots above, which is how slot `128` was found after a read sweep had missed it |
-| Scroll wheel mode button | `Contributor validated` | `No transport` | The front scroll-wheel button (slot `106`) ships the class-`0x12` action that cycles the wheel's tactile / free-spin / smart-reel modes. It is remappable like any other button, and remapping it replaces that cycle, so **Default** is what restores it. The rear scroll-wheel button (slot `128`) ships the class-`0x00` no-action form and does nothing by default, but is remappable too. Changing the mouse's wheel settings is not something OpenSnek can do today; see the Scroll controls row below.
-| Scroll controls (wheel mode / acceleration / smart reel) | `Not shipped` | `No transport` | OpenSnek provides no way to read or change this mouse's adjustable wheel settings. `supportsScrollModeControls` is false, so the profile never populates wheel mode, scroll acceleration, or smart reel, the Scroll Controls card never appears, and no apply patch can include them. The firmware also rejects the scroll-mode pair (`02:94` returns `0x05`) and exposes no wheel-mode readout. The settings themselves still exist and stay adjustable outside OpenSnek, with the front scroll button (slot `106`) or Synapse on Windows |
-| Onboard hardware profiles | `Hidden` | `No transport` | The device supports five stored banks and accepts stored-bank DPI, stage, and brightness writes, but every metadata read (`05:88`) answers status `0x03`, so the CRUD/activation surface that needs names and owners stays hidden |
+| Overall transport status | `Contributor validated` | `Contributor validated` | USB uses transaction ID `0x1F`; BLE `00E9` uses the vendor GATT service and eight-byte notify headers |
+| DPI stages + active stage | `Contributor validated` | `Contributor validated` | Five stages, preserving stage IDs and active token. The latest wired/BLE baseline includes a 50,000-DPI fifth stage; BLE hardware multi/single-stage stability sequence passed with baseline restored |
+| Independent X/Y DPI | `Contributor validated` | `Contributor validated` | USB `800x1600` and BLE `1700x1800` changed writes read back and restore; both profile paths enable independent X/Y |
+| DPI ceiling | `Contributor validated` | `Contributor validated` | Published Focus Pro 50K ceiling `50,000`; BLE merge/write paths use the profile ceiling rather than a hard-coded 30,000 clamp |
+| Poll rate | `Contributor validated` | `Not shipped` | USB 1000 → 500 → 1000 Hz read/write/restore. No Bluetooth poll-rate command is claimed |
+| Battery + power | `Contributor validated` | `Contributor validated` | USB level/charging and sleep-timeout writes; BLE byte-scaled vendor battery and sleep timeout. BLE charging status is unreliable and stays unknown without USB fallback |
+| Lighting: brightness + effects | `Contributor validated` | `Contributor validated` | Scroll wheel `01`, logo `04`, side panel `05`; per-zone brightness and static writes restored. All eight effects visually checked over BLE. The 6-/2-button plates have no lighting |
+| Button remap: shipped editable slots | `Contributor validated` | `Contributor validated` | Shared 33-slot layout. USB every slot same-value write/readback; BLE body-default reads plus rear-scroll changed writes/restore on live and persistent targets, with UI key/Default physically checked. Not an exhaustive BLE slot sweep |
+| Button remap: physical labels | `Contributor validated` | `Contributor validated` | Shared physical front/rear labels and IDs: index `11/12`, scroll `106/128`, underside profile `14`, pinky `57`; original physical mapping established on USB |
+| Button inventory cross-check | `Contributor validated` | `Inherited layout` | USB `02:84` reports 33 slots. No independent BLE inventory sweep is claimed |
+| Scroll wheel mode button | `Contributor validated` | `Profile mapped` | Front scroll button `106` factory block `12 01 01` cycles wheel mode; rear `128` factory block `00 01 00` does nothing. Both defaults read over BLE; rear changed remap/Default physically checked over BLE; front cycle restore physically checked over USB |
+| Scroll controls (wheel mode / acceleration / smart reel) | `Not shipped` | `Not shipped` | No identified setting readout/control; USB scroll-mode query rejects with status `05`. Use the front button's factory action or Synapse |
+| Onboard hardware profiles | `Hidden` | `Hidden` | USB metadata reads reject; BLE profile CRUD not validated. Stored-bank USB findings are not claims about BLE profile support |
 
 Plate note: the owner has all three plates. Press validation on the 2-button plate confirmed the same
 reversed mapping the Naga Pro family uses — the forward button is slot `5` and the rear button is slot
 `4` — and the same test on a Naga Pro (`0x0090`) receiver produced the identical result, so the family
-agrees. The plate has no printed labels, so the app's "Panel Button 1/2" names follow physical
+agrees. The plate has no printed labels, so the app uses "Panel Button (front/rear)" names following physical
 position. The 6-button plate matches the Naga V2 Pro layout, and **neither the 6- nor the 2-button
 plate has any lighting**, so LED `0x05` only lights the 12-button plate. The firmware does not report
 which plate is fitted.

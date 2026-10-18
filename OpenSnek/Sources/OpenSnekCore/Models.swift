@@ -47,10 +47,33 @@ public enum DeviceProfileID: String, Codable, Hashable, Sendable {
     case mouseDockPro = "mouse_dock_pro"
 }
 
-/// Groups profile IDs that share Basilisk V3 Pro hardware behavior.
+/// Groups profile IDs that share protocol behavior; per-device capabilities remain on the profile.
 extension DeviceProfileID {
-    /// The Basilisk V3 Pro 35K shares the Basilisk V3 Pro button layout and Bluetooth vendor keys
-    /// (zone-state lighting, battery, button binds). Per-variant differences such as lighting zones,
+    /// Naga button writes preserve the firmware's raw USB-style function blocks over BLE.
+    public var isNagaFamily: Bool {
+        switch self {
+        case .nagaPro, .nagaV2Pro, .nagaV3Pro: return true
+        default: return false
+        }
+    }
+
+    /// Per-zone BLE lighting uses state keys instead of the legacy single-frame color key.
+    public var usesBluetoothZoneStateLighting: Bool {
+        switch self {
+        case .basiliskV3Pro, .basiliskV3Pro35K, .nagaV2Pro, .nagaV3Pro: return true
+        default: return false
+        }
+    }
+
+    /// These Naga models expose a byte-scaled battery level and an unreliable charging status.
+    public var usesNagaBluetoothBatteryTelemetry: Bool {
+        switch self {
+        case .nagaV2Pro, .nagaV3Pro: return true
+        default: return false
+        }
+    }
+
+    /// The Basilisk V3 Pro 35K shares the V3 Pro layout and vendor keys. Per-variant zones,
     /// factory button blocks, and onboard-profile support live on the device profile instead.
     public var isBasiliskV3ProFamily: Bool {
         switch self {

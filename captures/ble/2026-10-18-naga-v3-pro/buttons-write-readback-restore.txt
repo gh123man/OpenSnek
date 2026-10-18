@@ -1,0 +1,72 @@
+$ OpenSnek/.build/debug/OpenSnekProbe bt-raw-read --key 08840080 --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=08 84 00 80 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=16 30 10 00 00 00 00 00 02
+notify[2] len=16 req=0x80 status=0x00 len=0 80 00 00 00 01 01 00 00 00 00 00 00 00 00 00 00
+payload[16]: 80 00 00 00 01 01 00 00 00 00 00 00 00 00 00 00
+decoded-button-function[7]: 00 01 00 00 00 00 00
+
+$ OpenSnek/.build/debug/OpenSnekProbe bt-raw-write --key 08040080 --name Naga V3 Pro --timeout-ms 3000 --payload 00800002020004000000
+bt-raw-write req=0x30 key=08 04 00 80 payload=00 80 00 02 02 00 04 00 00 00 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=0 30 00 00 00 00 00 00 02
+ack status=0x02 payloadLength=0
+
+$ OpenSnek/.build/debug/OpenSnekProbe bt-raw-read --key 08840080 --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=08 84 00 80 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=16 30 10 00 00 00 00 00 02
+notify[2] len=16 req=0x80 status=0x00 len=0 80 00 02 00 02 01 00 00 04 00 00 00 00 00 00 00
+payload[16]: 80 00 02 00 02 01 00 00 04 00 00 00 00 00 00 00
+
+$ OpenSnek/.build/debug/OpenSnekProbe bt-raw-write --key 08040080 --name Naga V3 Pro --timeout-ms 3000 --payload 00800000010000000000
+bt-raw-write req=0x30 key=08 04 00 80 payload=00 80 00 00 01 00 00 00 00 00 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=0 30 00 00 00 00 00 00 02
+ack status=0x02 payloadLength=0
+
+$ OpenSnek/.build/debug/OpenSnekProbe bt-raw-read --key 08840080 --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=08 84 00 80 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=16 30 10 00 00 00 00 00 02
+notify[2] len=16 req=0x80 status=0x00 len=0 80 00 00 00 01 01 00 00 00 00 00 00 00 00 00 00
+payload[16]: 80 00 00 00 01 01 00 00 00 00 00 00 00 00 00 00
+decoded-button-function[7]: 00 01 00 00 00 00 00
+
+PASS rear scroll button target 0: changed key readback and exact restore
+$ OpenSnek/.build/debug/OpenSnekProbe bt-raw-read --key 08840180 --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=08 84 01 80 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=16 30 10 00 00 00 00 00 02
+notify[2] len=16 req=0x80 status=0x00 len=0 80 00 00 00 01 01 00 00 00 00 00 00 00 00 00 00
+payload[16]: 80 00 00 00 01 01 00 00 00 00 00 00 00 00 00 00
+decoded-button-function[7]: 00 01 00 00 00 00 00
+
+$ OpenSnek/.build/debug/OpenSnekProbe bt-raw-write --key 08040180 --name Naga V3 Pro --timeout-ms 3000 --payload 01800002020004000000
+bt-raw-write req=0x30 key=08 04 01 80 payload=01 80 00 02 02 00 04 00 00 00 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=0 30 00 00 00 00 00 00 02
+ack status=0x02 payloadLength=0
+
+$ OpenSnek/.build/debug/OpenSnekProbe bt-raw-read --key 08840180 --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=08 84 01 80 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=16 30 10 00 00 00 00 00 02
+notify[2] len=16 req=0x80 status=0x00 len=0 80 00 02 00 02 01 00 00 04 00 00 00 00 00 00 00
+payload[16]: 80 00 02 00 02 01 00 00 04 00 00 00 00 00 00 00
+
+$ OpenSnek/.build/debug/OpenSnekProbe bt-raw-write --key 08040180 --name Naga V3 Pro --timeout-ms 3000 --payload 01800000010000000000
+bt-raw-write req=0x30 key=08 04 01 80 payload=01 80 00 00 01 00 00 00 00 00 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=0 30 00 00 00 00 00 00 02
+ack status=0x02 payloadLength=0
+
+$ OpenSnek/.build/debug/OpenSnekProbe bt-raw-read --key 08840180 --name Naga V3 Pro --timeout-ms 3000
+bt-raw-read req=0x30 key=08 84 01 80 name="Naga V3 Pro"
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=16 30 10 00 00 00 00 00 02
+notify[2] len=16 req=0x80 status=0x00 len=0 80 00 00 00 01 01 00 00 00 00 00 00 00 00 00 00
+payload[16]: 80 00 00 00 01 01 00 00 00 00 00 00 00 00 00 00
+decoded-button-function[7]: 00 01 00 00 00 00 00
+
+PASS rear scroll button target 1: changed key readback and exact restore
