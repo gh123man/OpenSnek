@@ -776,13 +776,15 @@ final class DeviceProfilesTests: XCTestCase {
         let profile = try XCTUnwrap(DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00E8, transport: .usb))
 
         XCTAssertEqual(profile.buttonLayout.visibleSlots.filter { $0.group == "Mouse" }.map(\.slot), [1, 2, 3, 9, 10, 11, 12, 52, 53, 57, 106, 128, 14])
-        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 11 })?.friendlyName, "Index Button 1")
-        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 12 })?.friendlyName, "Index Button 2")
+        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 11 })?.friendlyName, "Index Button (front)")
+        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 12 })?.friendlyName, "Index Button (rear)")
         XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 57 })?.friendlyName, "Pinky Button")
-        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 106 })?.friendlyName, "Scroll Wheel Mode Button")
+        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 106 })?.friendlyName, "Scroll Button (front)")
         XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 128 })?.friendlyName, "Scroll Button (rear)")
         XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 14 })?.friendlyName, "Profile Button")
         XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 5 })?.group, "2-Button Panel")
+        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 5 })?.friendlyName, "Panel Button (front)")
+        XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 4 })?.friendlyName, "Panel Button (rear)")
         XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 85 })?.group, "6-Button Panel")
         XCTAssertEqual(profile.buttonLayout.visibleSlots.first(where: { $0.slot == 75 })?.group, "12-Button Panel")
 

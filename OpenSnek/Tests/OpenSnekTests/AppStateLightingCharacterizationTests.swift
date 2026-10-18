@@ -59,6 +59,55 @@ final class AppStateLightingCharacterizationTests: XCTestCase {
         XCTAssertEqual(allZones, "all")
     }
 
+    func testAllZonesOffThenStaticKeepsSelectionAndAppliesToEveryZone() async throws {
+        let device = makeRefactorMultiZoneUSBLightingDevice(id: "usb-all-zones-effect-device", serial: "USB-ALL-ZONES-EFFECT-\(UUID().uuidString)")
+        defer { clearRefactorPreferences(for: device) }
+        let backend = AppStateRefactorStubBackend(devices: [device], stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 79, dpiValues: [800, 1600, 3200], activeStage: 1))])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
+        await appState.deviceStore.refreshDevices()
+
+        await MainActor.run {
+            appState.editorStore.updateUSBLightingZoneID("all")
+            appState.editorStore.updateLightingEffect(.off)
+        }
+        await appState.applyController.applyLightingEffect()
+        try await waitForRefactorCondition { await backend.applyCount() == 1 }
+
+        await MainActor.run { appState.editorStore.updateLightingEffect(.staticColor) }
+        await appState.applyController.applyLightingEffect()
+        try await waitForRefactorCondition { await backend.applyCount() == 2 }
+
+        let selectedZone = await MainActor.run { appState.editorStore.editableUSBLightingZoneID }
+        let patches = await backend.recordedPatches()
+        let staticPatch = try XCTUnwrap(patches.last)
+        XCTAssertEqual(selectedZone, "all")
+        XCTAssertEqual(patches.first?.lightingEffect?.kind, .off)
+        XCTAssertEqual(staticPatch.lightingEffect?.kind, .staticColor)
+        XCTAssertNil(staticPatch.usbLightingZoneLEDIDs, "A nil zone filter targets every device LED, not only the scroll wheel")
+    }
+
+    func testIndividualZoneStaticEffectApplyTargetsOnlySelectedLED() async throws {
+        let device = makeRefactorMultiZoneUSBLightingDevice(id: "usb-individual-zone-effect-device", serial: "USB-INDIVIDUAL-EFFECT-\(UUID().uuidString)")
+        defer { clearRefactorPreferences(for: device) }
+        let backend = AppStateRefactorStubBackend(devices: [device], stateByDeviceID: [device.id: makeRefactorTestState(device: device, telemetry: RefactorTestStateTelemetry(connection: "usb", batteryPercent: 79, dpiValues: [800, 1600, 3200], activeStage: 1))])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
+        await appState.deviceStore.refreshDevices()
+
+        await MainActor.run {
+            appState.editorStore.updateUSBLightingZoneID("logo")
+            appState.editorStore.updateLightingEffect(.staticColor)
+        }
+        await appState.applyController.applyLightingEffect()
+        try await waitForRefactorCondition { await backend.applyCount() == 1 }
+
+        let selectedZone = await MainActor.run { appState.editorStore.editableUSBLightingZoneID }
+        let patches = await backend.recordedPatches()
+        let patch = try XCTUnwrap(patches.first)
+        XCTAssertEqual(selectedZone, "logo")
+        XCTAssertEqual(patch.lightingEffect?.kind, .staticColor)
+        XCTAssertEqual(patch.usbLightingZoneLEDIDs, [0x04])
+    }
+
     func testLightingGradientUsesActualZoneColorsInVisibleOrder() async throws {
         let device = makeRefactorMultiZoneUSBLightingDevice(id: "usb-lighting-gradient-zones-device", serial: "USB-GRADIENT-ZONES-\(UUID().uuidString)")
         let wheelColor = RGBColor(r: 255, g: 0, b: 0)
@@ -112,7 +161,7 @@ final class AppStateLightingCharacterizationTests: XCTestCase {
         XCTAssertEqual(gradientColors, [wheelColor, logoColor, underglowColor])
     }
 
-    func testUSBStaticMultiZonePresentationDoesNotLeaveEditorOnAllZones() async throws {
+    func testUSBStaticMultiZonePresentationPreservesPersistedAllZonesSelection() async throws {
         let device = makeRefactorMultiZoneUSBLightingDevice(id: "usb-multizone-static-presentation-device", serial: "USB-MULTIZONE-\(UUID().uuidString)")
         let globalColor = RGBColor(r: 10, g: 20, b: 30)
         let preferenceStore = DevicePreferenceStore()
@@ -128,7 +177,7 @@ final class AppStateLightingCharacterizationTests: XCTestCase {
         let editableZone = await MainActor.run { appState.editorStore.editableUSBLightingZoneID }
         let editableColor = await MainActor.run { appState.editorStore.editableColor }
 
-        XCTAssertEqual(editableZone, "scroll_wheel")
+        XCTAssertEqual(editableZone, "all")
         XCTAssertEqual(editableColor, globalColor)
     }
 

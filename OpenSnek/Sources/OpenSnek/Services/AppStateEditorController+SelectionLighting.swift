@@ -226,7 +226,9 @@ import OpenSnekCore
 
         let visibleZoneIDs = Set(editorStore.visibleUSBLightingZones.map(\.id))
         let currentZoneID = editorStore.editableUSBLightingZoneID
-        guard currentZoneID == "all" || !visibleZoneIDs.contains(currentZoneID) else { return }
+        // All Zones is a valid static scope, including after an effect change or hydration.
+        // Only repair stale zone IDs; narrowing "all" here silently drops LEDs from the apply.
+        guard currentZoneID != "all", !visibleZoneIDs.contains(currentZoneID) else { return }
 
         if let selectedDevice = deviceStore.selectedDevice {
             updateUSBLightingZoneID(defaultEditableStaticLightingZoneID(for: selectedDevice))

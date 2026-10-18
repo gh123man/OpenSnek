@@ -646,13 +646,14 @@ public enum DeviceProfiles {
         ButtonSlotDescriptor(slot: 10, friendlyName: "Scroll Down", defaultKind: .scrollDown, group: "Mouse"),
         // The index-finger and scroll-wheel buttons ship vendor-specific actions (DPI and the wheel
         // mode cycle), so they have no semantic default binding and keep their factory blocks.
-        ButtonSlotDescriptor(slot: 11, friendlyName: "Index Button 1", defaultKind: .default, group: "Mouse"), ButtonSlotDescriptor(slot: 12, friendlyName: "Index Button 2", defaultKind: .default, group: "Mouse"),
+        // Use physical positions rather than factory actions so paired buttons remain identifiable after remapping.
+        ButtonSlotDescriptor(slot: 11, friendlyName: "Index Button (front)", defaultKind: .default, group: "Mouse"), ButtonSlotDescriptor(slot: 12, friendlyName: "Index Button (rear)", defaultKind: .default, group: "Mouse"),
         ButtonSlotDescriptor(slot: 52, friendlyName: "Wheel Tilt Left", defaultKind: .scrollLeft, group: "Mouse"), ButtonSlotDescriptor(slot: 53, friendlyName: "Wheel Tilt Right", defaultKind: .scrollRight, group: "Mouse"),
-        ButtonSlotDescriptor(slot: 57, friendlyName: "Pinky Button", defaultKind: .default, group: "Mouse"), ButtonSlotDescriptor(slot: 106, friendlyName: "Scroll Wheel Mode Button", defaultKind: .default, group: "Mouse"),
+        ButtonSlotDescriptor(slot: 57, friendlyName: "Pinky Button", defaultKind: .default, group: "Mouse"), ButtonSlotDescriptor(slot: 106, friendlyName: "Scroll Button (front)", defaultKind: .default, group: "Mouse"),
         ButtonSlotDescriptor(slot: 128, friendlyName: "Scroll Button (rear)", defaultKind: .default, group: "Mouse"), ButtonSlotDescriptor(slot: 14, friendlyName: "Profile Button", defaultKind: .default, group: "Mouse"),
         // Only one plate is physically installed at a time; the firmware still answers for every
-        // plate's slots. Physical press validation confirmed the plate labels run straight through.
-        ButtonSlotDescriptor(slot: 5, friendlyName: "Panel Button 1", defaultKind: .mouseForward, group: "2-Button Panel"), ButtonSlotDescriptor(slot: 4, friendlyName: "Panel Button 2", defaultKind: .mouseBack, group: "2-Button Panel"),
+        // plate's slots. The unnumbered 2-button plate uses positions; numbered plates retain their labels.
+        ButtonSlotDescriptor(slot: 5, friendlyName: "Panel Button (front)", defaultKind: .mouseForward, group: "2-Button Panel"), ButtonSlotDescriptor(slot: 4, friendlyName: "Panel Button (rear)", defaultKind: .mouseBack, group: "2-Button Panel"),
         ButtonSlotDescriptor(slot: 80, friendlyName: "Side Button 1", defaultKind: .keyboardSimple, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 81, friendlyName: "Side Button 2", defaultKind: .keyboardSimple, group: "6-Button Panel"),
         ButtonSlotDescriptor(slot: 82, friendlyName: "Side Button 3", defaultKind: .keyboardSimple, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 83, friendlyName: "Side Button 4", defaultKind: .keyboardSimple, group: "6-Button Panel"),
         ButtonSlotDescriptor(slot: 84, friendlyName: "Side Button 5", defaultKind: .keyboardSimple, group: "6-Button Panel"), ButtonSlotDescriptor(slot: 85, friendlyName: "Side Button 6", defaultKind: .keyboardSimple, group: "6-Button Panel"),

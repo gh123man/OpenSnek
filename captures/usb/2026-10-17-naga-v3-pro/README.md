@@ -127,6 +127,12 @@ was read with the 12-button plate installed), and it does not report which plate
 | Effect rendering | `0f:02` per LED | visually confirmed by the owner: wheel wave, logo pulse single (breathing), side panel reactive all animate |
 | Static restore | `0f:02` `01 <led> 03 00 00 00` | spectrum restored on all three zones at the end of the pass |
 
+## App validation follow-up
+
+See [the 2026-10-18 app validation](app-validation-2026-10-18.md) for the owner-confirmed
+All Zones Off → Static correction, UI button remap and Default restore, receiver
+unplug/replug recovery, and approximately two-minute idle/wake check.
+
 ## Gaps
 
 - The 6-button plate's label order is inherited from the Naga V2 Pro rather than press-validated on

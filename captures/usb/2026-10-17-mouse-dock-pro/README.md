@@ -72,6 +72,12 @@ being accepted.
 - Brightness writes and reads both ship. Writes use LED `0x00` and reads use LED `0x0F`, so the
   profile sets `usbBrightnessLEDIDs` and `usbBrightnessReadLEDIDs` separately.
 
+## App validation follow-up
+
+In the [2026-10-18 app pass](../2026-10-17-naga-v3-pro/app-validation-2026-10-18.md),
+the owner confirmed dock removal and recovery after unplug/replug, with brightness
+still readable afterward. This did not exercise the dock's receiver or charging handoff.
+
 ## Gaps
 
 - Per-cell rendering of the 1x8 row is not mapped, so the dock ships **without** a
