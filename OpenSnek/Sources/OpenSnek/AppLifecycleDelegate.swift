@@ -47,8 +47,11 @@ import AppKit
         let path = arguments[index + 1]
         guard path.hasPrefix("/") else { return }
         let windows = NSApp.windows.filter { $0.canBecomeMain }
-        windows.forEach { $0.makeKeyAndOrderFront(nil) }
-        let visibleCount = windows.filter(\.isVisible).count
+        windows.forEach {
+            if $0.isMiniaturized { $0.deminiaturize(nil) }
+            $0.makeKeyAndOrderFront(nil)
+        }
+        let visibleCount = windows.filter { $0.isVisible && !$0.isMiniaturized }.count
         if visibleCount > 0 {
             do { _ = try AppLaunchReceipt.write(to: URL(fileURLWithPath: path), role: OpenSnekProcessRole.current, visibleWindowCount: visibleCount) } catch { AppLog.warning("App", "Launch receipt failed: \(error.localizedDescription)") }
             return
