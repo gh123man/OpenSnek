@@ -204,8 +204,7 @@ import OpenSnekCore
 
     func currentUSBLightingZoneLEDIDs() -> [UInt8]? {
         guard editorStore.editableLightingEffect == .staticColor else { return nil }
-        guard editorStore.editableUSBLightingZoneID != "all" else { return nil }
-        return editorStore.visibleUSBLightingZones.first(where: { $0.id == editorStore.editableUSBLightingZoneID })?.ledIDs
+        return LightingZoneEditMode.staticColorLEDIDs(zoneID: editorStore.editableUSBLightingZoneID, zones: editorStore.visibleUSBLightingZones)
     }
 
     func lightingGradientDisplayColors() -> [RGBColor] {

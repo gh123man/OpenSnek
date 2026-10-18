@@ -24,7 +24,15 @@ struct LightingCard: View {
     let isLightingOnly: Bool
 
     @State private var selectedTab: LightingCardTab = .onboard
-    @State private var onboardZoneMode: LightingZoneEditMode = .allZones
+    /// Derived from the editor store so the picker can never disagree with the static-apply target.
+    private var onboardZoneMode: LightingZoneEditMode {
+        get { LightingZoneEditMode(zoneID: editorStore.editableUSBLightingZoneID) }
+        nonmutating set {
+            let zoneIDs = editorStore.visibleUSBLightingZones.map(\.id)
+            editorStore.editableUSBLightingZoneID = newValue.resolvedZoneID(currentZoneID: editorStore.editableUSBLightingZoneID, availableZoneIDs: zoneIDs)
+        }
+    }
+
     @State private var isExpanded = false
 
     /// Defines the single-picker modes shown for lighting-only devices.
@@ -676,16 +684,3 @@ struct LightingSummaryInput {
 }
 
 /// Defines lighting zone edit mode values.
-private enum LightingZoneEditMode: String, CaseIterable, Identifiable {
-    case allZones
-    case individualZones
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .allZones: return "All Zones"
-        case .individualZones: return "Individual Zones"
-        }
-    }
-}

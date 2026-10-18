@@ -105,8 +105,8 @@ struct ContentView: View {
         if shouldSuppressTelemetryNoticeDuringConnectionRecovery { return false }
         if shouldSuppressUSBTelemetryLimitedNotice { return false }
         if deviceStore.warningMessage != nil { return true }
-        guard let state = deviceStore.state else { return false }
-        return state.dpi_stages.values == nil || state.poll_rate == nil || state.led_value == nil
+        guard let state = deviceStore.state, let device = deviceStore.selectedDevice else { return false }
+        return ContentNoticePresentation.shouldShowUSBTelemetryLimitedCallout(state: state, profile: DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport))
     }
 
     private var usbCalloutTitle: String {
@@ -422,6 +422,12 @@ enum ContentNoticePresentation {
         guard selectedTransport == .usb, let warningMessage else { return false }
         return warningMessage.hasPrefix("USB telemetry is incomplete")
     }
+
+    /// Whether the selected USB device should surface the "USB Telemetry Limited" callout.
+    ///
+    /// This uses the same profile-aware rule as the telemetry warning, so a lighting-only accessory
+    /// or keyboard whose profile omits mouse telemetry is not flagged for telemetry it never had.
+    static func shouldShowUSBTelemetryLimitedCallout(state: MouseState, profile: DeviceProfile?) -> Bool { !USBTelemetryExpectation.missingTelemetry(state: state, profile: profile).isEmpty }
 }
 
 /// Stores notice action data.
