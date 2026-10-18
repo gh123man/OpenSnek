@@ -184,7 +184,7 @@ Bluetooth PID `0x0095`; 2.4 GHz HyperSpeed dongle path not yet shipped.
 
 USB PIDs `0x008F` (wired) / `0x0090` (2.4 GHz receiver), Bluetooth PID `0x0092`.
 
-Support is based on hardware validation reported by [varunyellina in PR #106](https://github.com/gh123man/OpenSnek/pull/106), with side-panel defaults and physical press validation contributed by [jpagh in PR #121](https://github.com/gh123man/OpenSnek/pull/121); OpenSnek maintainers do not currently possess this device. A later contributor session on a `0x0090` receiver added 2-button-panel press validation and an inventory cross-check; see the [2026-10-17 addendum](../captures/usb/2026-10-06-naga-pro-side-panel-validation/README.md).
+Support is based on hardware validation reported by [varunyellina in PR #106](https://github.com/gh123man/OpenSnek/pull/106), with side-panel defaults and physical press validation contributed by [jpagh in PR #121](https://github.com/gh123man/OpenSnek/pull/121); OpenSnek maintainers do not currently possess this device. A later contributor session on a `0x0090` receiver added 2-button-panel press validation, an inventory cross-check, and the underside profile button's factory block, which made slot `14` editable; see the [2026-10-17 addendum](../captures/usb/2026-10-06-naga-pro-side-panel-validation/README.md).
 
 | Feature Area | USB | BT | Notes |
 |---|---|---|---|
@@ -192,8 +192,8 @@ Support is based on hardware validation reported by [varunyellina in PR #106](ht
 | DPI stages + active stage | `Contributor validated` | `Contributor validated` | Scalar DPI is capped at `20,000` |
 | Independent X/Y DPI | `Scalar only` | `Scalar only` | The Naga Pro profile intentionally does not advertise independent X/Y editing |
 | Lighting: brightness + static color | `Contributor validated` | `Contributor validated` | OpenSnek exposes scroll-wheel `0x01` and logo `0x04` zones; advanced effects are not claimed |
-| Button remap: shipped editable slots | `Limited` | `Limited` | Body/2-button-panel slots `1-5`, `9`, `10`, `52`, `53`; 12-button panel slots `64-75`; and 6-button panel slots `80-85` are editable with captured native `Default` blocks. The 2-button panel is press-validated: forward = slot `5` (mouse button 5), rear = slot `4` (mouse button 4) |
-| Button remap: preserved slots | `Limited` | `Limited` | Only the underside profile button (slot `14`), which cycles the saved onboard profiles, is preserved read-only; every side-panel slot now accepts remaps |
+| Button remap: shipped editable slots | `Limited` | `Limited` | Body/2-button-panel slots `1-5`, `9`, `10`, `14`, `52`, `53`; 12-button panel slots `64-75`; and 6-button panel slots `80-85` are editable with captured native `Default` blocks. The 2-button panel is press-validated: forward = slot `5` (mouse button 5), rear = slot `4` (mouse button 4) |
+| Button remap: preserved slots | None | None | Every mappable slot is editable. The underside profile button (slot `14`) cycles the saved onboard profiles; its unassigned banks hold the factory `07 01 04` block, which `Default` restores, and the slot round-trips remaps |
 | Onboard hardware profiles | `Limited` | `Limited` | Five-slot mapped core profile workflows ship, and full button-profile reset now uses captured native side-panel defaults. The 12- and 6-button panels were physically press-validated in [PR #121](https://github.com/gh123man/OpenSnek/pull/121), and the 2-button panel on 2026-10-17 |
 | Button inventory cross-check | `Contributor validated` | `No transport` | `02:84` reports 30 mappable slots, exactly matching the shipped `nagaProUSBButtonSlots` table, so the profile has no missing slots |
 

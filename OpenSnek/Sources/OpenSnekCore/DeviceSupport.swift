@@ -508,6 +508,12 @@ public enum DeviceProfiles {
         ButtonSlotDescriptor(slot: 10, friendlyName: "Scroll Down", defaultKind: .scrollDown, group: "Mouse"), ButtonSlotDescriptor(slot: 11, friendlyName: "DPI Down", defaultKind: .default, group: "Mouse"),
         ButtonSlotDescriptor(slot: 12, friendlyName: "DPI Up", defaultKind: .default, group: "Mouse"), ButtonSlotDescriptor(slot: 52, friendlyName: "Wheel Tilt Left", defaultKind: .scrollLeft, group: "Mouse"),
         ButtonSlotDescriptor(slot: 53, friendlyName: "Wheel Tilt Right", defaultKind: .scrollRight, group: "Mouse"),
+        // The underside button cycles the saved onboard profiles. Its unassigned banks hold the
+        // factory block `07 01 04` (the same profile-cycle action the Naga V2 Pro and Naga V3 Pro
+        // ship at this slot), while this unit's live layers hold a remapped `06 01 06`, so the slot
+        // demonstrably accepts writes. Contributor validation on the receiver (2026-10-17):
+        // captures/usb/2026-10-06-naga-pro-side-panel-validation/README.md.
+        ButtonSlotDescriptor(slot: 14, friendlyName: "Profile Button", defaultKind: .default, group: "Mouse"),
         // These slots have no dedicated buttons on the mouse body itself - they only respond when the 2-button panel is installed, and are reversed from panel label order (label 1 = slot 5, label 2 = slot 4).
         ButtonSlotDescriptor(slot: 5, friendlyName: "Panel Button 1", defaultKind: .mouseForward, group: "2-Button Panel"), ButtonSlotDescriptor(slot: 4, friendlyName: "Panel Button 2", defaultKind: .mouseBack, group: "2-Button Panel"),
         // Physical press validation on the 6-button panel (2.4 GHz receiver, firmware 0x00112100) confirmed labels 1-6 map straight to slots 80-85 and every slot accepts remaps. The panel's printed numbering wraps around its physical layout, so position-based reading can look reversed.
@@ -523,16 +529,11 @@ public enum DeviceProfiles {
         ButtonSlotDescriptor(slot: 74, friendlyName: "Side Button 11", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 75, friendlyName: "Side Button 12", defaultKind: .keyboardSimple, group: "12-Button Panel")
     ]
 
-    public static let nagaProUSBWritableSlots: [Int] = [1, 2, 3, 4, 5, 9, 10, 52, 53, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82, 83, 84, 85]
+    public static let nagaProUSBWritableSlots: [Int] = [1, 2, 3, 4, 5, 9, 10, 14, 52, 53, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82, 83, 84, 85]
 
-    // The underside profile button cycles the saved onboard profiles. The device owner confirmed
-    // that this is the bottom button on every Naga, and both the Naga V2 Pro and Naga V3 Pro carry it
-    // at slot 14 with the same `07 01 04` profile-cycle factory block. It stays read-only until a
-    // remap is validated on the device. See
-    // captures/usb/2026-10-06-naga-pro-side-panel-validation/README.md.
-    public static let nagaProUSBDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
-        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 14, friendlyName: "Profile Button", defaultKind: .default), access: .protocolReadOnly, note: "Cycles the saved onboard profiles. OpenSnek can see this button, but remapping it is not validated yet.")
-    ]
+    // Every mappable Naga Pro slot is editable: the device's own inventory reports 30 slots and each
+    // one round-trips a same-value write, including the underside profile button at slot 14.
+    public static let nagaProUSBDocumentedReadOnlySlots: [DocumentedButtonSlot] = []
 
     public static let nagaProUSBLightingZones: [USBLightingZoneDescriptor] = [USBLightingZoneDescriptor(id: "scroll_wheel", label: "Scroll Wheel", ledIDs: [0x01]), USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x04])]
 

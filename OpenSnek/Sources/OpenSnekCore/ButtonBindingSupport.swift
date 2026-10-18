@@ -342,8 +342,9 @@ public enum ButtonBindingSupport {
         case 52 where profileID == .nagaV2Pro || profileID == .nagaV3Pro: return nagaFamilyNativeHorizontalScrollBlock(buttonID: horizontalScrollLeftButtonID)
         case 53 where profileID == .nagaV2Pro || profileID == .nagaV3Pro: return nagaFamilyNativeHorizontalScrollBlock(buttonID: horizontalScrollRightButtonID)
         // Bottom button factory block; cycles onboard profiles. Synapse rewrites the class-0x06
-        // `06 01 06` form when the button is remapped to DPI-stage cycling.
-        case 14 where profileID == .nagaV2Pro: return [0x07, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00]
+        // `06 01 06` form when the button is remapped to DPI-stage cycling. Both Naga families ship
+        // this button at slot 14; the Naga Pro's unassigned banks hold the same `07 01 04` block.
+        case 14 where profileID == .nagaV2Pro || profileID == .nagaV3Pro || profileID == .nagaPro: return [0x07, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00]
         case 96:
             switch profileID {
             case .basiliskV3, .basiliskV335K: return [0x04, 0x02, 0x0F, 0x7B, 0x00, 0x00, 0x00]

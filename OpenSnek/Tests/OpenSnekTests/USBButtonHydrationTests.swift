@@ -268,7 +268,15 @@ final class USBButtonHydrationTests: XCTestCase {
         XCTAssertEqual(ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 14, functionBlock: [0x07, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00], profileID: .nagaV2Pro)?.kind, .default)
         // Synapse remaps the button to DPI-stage cycling as the class-0x06 form.
         XCTAssertEqual(ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 14, functionBlock: [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00], profileID: .nagaV2Pro)?.kind, .dpiCycle)
-        XCTAssertNil(ButtonBindingSupport.defaultUSBFunctionBlock(for: 14, profileID: .nagaPro))
+    }
+
+    func testNagaProProfileButtonSharesTheFamilyProfileCycleBlock() {
+        // The Naga Pro's unassigned banks hold the same `07 01 04` profile-cycle block, and the slot
+        // round-trips writes on the receiver, so it ships editable with the family Default.
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 14, profileID: .nagaPro), [0x07, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00])
+        XCTAssertTrue(ButtonBindingSupport.supportsDefaultRestore(for: 14, profileID: .nagaPro))
+        XCTAssertEqual(ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 14, functionBlock: [0x07, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00], profileID: .nagaPro)?.kind, .default)
+        XCTAssertNotNil(ButtonBindingSupport.completeDefaultUSBFunctionBlocks(for: DeviceProfiles.nagaProUSBWritableSlots, profileID: .nagaPro))
     }
 
     func testNagaV2ProIsNotPartOfBasiliskV3FamilyDPIClutchSupport() {

@@ -105,21 +105,29 @@ That is exactly the 30 slots `nagaProUSBButtonSlots` / `nagaProUSBWritableSlots`
 shipped profile needs no change. The Naga V3 Pro's list is 33 slots, adding the pinky button (`57`)
 and both scroll-wheel buttons (`106`, `128`).
 
-### Slot 14 is the underside profile button, not a scroll-mode toggle
+### Slot 14 is the editable underside profile button, not a scroll-mode toggle
 
-`nagaProUSBDocumentedReadOnlySlots` used to label slot `14` as `Scroll Mode Toggle`, which the app
-showed as a row for this device. That was wrong. The device owner (who is also the contributor behind
-the original Naga Pro profile work) confirmed that the button on the bottom of every Naga is the
-profile button that cycles the saved onboard profiles, and that no Naga here changes the wheel
-between free-spinning and notched. The Naga V2 Pro and Naga V3 Pro both carry that button at slot
-`14` with the same `07 01 04` profile-cycle factory block, so the three profiles now agree.
+`nagaProUSBDocumentedReadOnlySlots` used to label slot `14` as `Scroll Mode Toggle` and ship it
+read-only, which the app showed as a row for this device. Both parts were wrong, and the 2026-10-17
+session settled it on the receiver (`1532:0090`):
 
-Still to verify on a woken receiver, recorded here rather than assumed:
+| Check | Observed |
+| --- | --- |
+| Device inventory | reports slot `14` among its 30 mappable slots |
+| Unassigned banks (profiles `3`, `4`, `5`) | `06 01 06` is absent there; they hold `07 01 04`, the family profile-cycle block |
+| Live layers (profiles `0`, `1`, `2`) | `06 01 06` — this unit's button was remapped away from the factory block |
+| Same-value write of `06 01 06` | applied and read back on both the live and persistent layers |
 
-- Read slot `14`'s factory block and confirm it is `07 01 04`. The receiver idled out before that
-  read landed: the 30-slot inventory answered while the mouse was awake and does list slot `14`, but
-  by the time slot `14` was read every slot, including slot `1`, returned `read_failed`.
-- Press the underside button with slot `14` bound to a keyboard key to confirm the slot is that
-  button.
-- Decide whether the slot should be editable like the Naga V2 Pro's, which requires a same-value
-  write and readback on a woken device.
+So the hardware button is the profile button (`07 01 04` cycles the saved onboard profiles), the slot
+accepts remaps, and the Naga V2 Pro and Naga V3 Pro ship the same button at the same slot with the
+same factory block. The profile now exposes slot `14` as an editable `Profile Button` whose `Default`
+restores `07 01 04`, and the shared default-block rule covers the whole Naga family.
+
+`06 01 06` is what the app's parser maps to DPI-stage cycling, which is why this unit's bottom button
+may not cycle profiles today: it is a remap, not the factory binding. Selecting `Default` for that row
+restores the profile cycle.
+
+Note for future work: the device owner reported that the bottom button is the profile button on every
+Naga, and that none of these mice switch the wheel between free-spinning and notched — the
+`Scroll Mode Toggle` label was borrowed from the Basilisk family, where that slot genuinely is the
+scroll-mode toggle and where `supportsScrollModeControls` is true.
