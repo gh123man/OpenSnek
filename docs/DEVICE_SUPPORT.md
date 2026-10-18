@@ -228,7 +228,9 @@ sleep-timeout, and per-zone brightness writes; see
 [the wired capture](../captures/usb/2026-10-18-naga-v3-pro-wired/README.md).
 The [Bluetooth capture](../captures/ble/2026-10-18-naga-v3-pro/README.md) records
 stage/power/lighting read-write-restore, button remap/Default, eight visually checked effects,
-and off/on plus finite idle/wake recovery. Bluetooth poll rate and profile CRUD remain hidden.
+and off/on plus finite idle/wake recovery. The [gap follow-up](../captures/ble/2026-10-18-naga-v3-pro/follow-up/README.md)
+adds all 33 slots on both BLE targets, direct six-button label validation, and one isolated power-cycle
+check: DPI/sleep timeout/brightness persisted; live static color reverted. Bluetooth poll rate and profile CRUD remain hidden.
 
 | Feature Area | USB | BT | Notes |
 |---|---|---|---|
@@ -239,8 +241,8 @@ and off/on plus finite idle/wake recovery. Bluetooth poll rate and profile CRUD 
 | Poll rate | `Contributor validated` | `Not shipped` | USB 1000 → 500 → 1000 Hz read/write/restore. No Bluetooth poll-rate command is claimed |
 | Battery + power | `Contributor validated` | `Contributor validated` | USB level/charging and sleep-timeout writes; BLE byte-scaled vendor battery and sleep timeout. BLE charging status is unreliable and stays unknown without USB fallback |
 | Lighting: brightness + effects | `Contributor validated` | `Contributor validated` | Scroll wheel `01`, logo `04`, side panel `05`; per-zone brightness and static writes restored. All eight effects visually checked over BLE. The 6-/2-button plates have no lighting |
-| Button remap: shipped editable slots | `Contributor validated` | `Contributor validated` | Shared 33-slot layout. USB every slot same-value write/readback; BLE body-default reads plus rear-scroll changed writes/restore on live and persistent targets, with UI key/Default physically checked. Not an exhaustive BLE slot sweep |
-| Button remap: physical labels | `Contributor validated` | `Contributor validated` | Shared physical front/rear labels and IDs: index `11/12`, scroll `106/128`, underside profile `14`, pinky `57`; original physical mapping established on USB |
+| Button remap: shipped editable slots | `Contributor validated` | `Contributor validated` | Shared 33-slot layout. USB every slot same-value write/readback; BLE all 33 shipped slots changed-write/readback/restore on both live and persistent targets, with all 66 originals verified afterward; UI rear-scroll key/Default physically checked |
+| Button remap: physical labels | `Contributor validated` | `Contributor validated` | Shared physical front/rear labels and IDs: index `11/12`, scroll `106/128`, underside profile `14`, pinky `57`; six-button printed labels `1...6` directly press-validated over BLE as slots `80...85` |
 | Button inventory cross-check | `Contributor validated` | `Inherited layout` | USB `02:84` reports 33 slots. No independent BLE inventory sweep is claimed |
 | Scroll wheel mode button | `Contributor validated` | `Profile mapped` | Front scroll button `106` factory block `12 01 01` cycles wheel mode; rear `128` factory block `00 01 00` does nothing. Both defaults read over BLE; rear changed remap/Default physically checked over BLE; front cycle restore physically checked over USB |
 | Scroll controls (wheel mode / acceleration / smart reel) | `Not shipped` | `Not shipped` | No identified setting readout/control; USB scroll-mode query rejects with status `05`. Use the front button's factory action or Synapse |
@@ -250,7 +252,9 @@ Plate note: the owner has all three plates. Press validation on the 2-button pla
 reversed mapping the Naga Pro family uses — the forward button is slot `5` and the rear button is slot
 `4` — and the same test on a Naga Pro (`0x0090`) receiver produced the identical result, so the family
 agrees. The plate has no printed labels, so the app uses "Panel Button (front/rear)" names following physical
-position. The 6-button plate matches the Naga V2 Pro layout, and **neither the 6- nor the 2-button
+position. The 6-button plate's printed labels `1...6` were directly press-validated on this V3 Pro
+(output `123456` in label order), confirming slots `80...85` and the same physical wrapping as the
+Naga V2 Pro. **Neither the 6- nor the 2-button
 plate has any lighting**, so LED `0x05` only lights the 12-button plate. The firmware does not report
 which plate is fitted.
 

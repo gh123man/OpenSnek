@@ -109,7 +109,7 @@ The owner has all three plates.
   the Naga Pro family's reversed mapping (forward = slot `05`, rear = slot `04`). The same test on a
   Naga Pro receiver (`0x0090`, 2-button plate) produced the identical `kj` result, and that device's
   own inventory matches its shipped profile, so the family mapping is consistent.
-- **6-button plate** matches the Naga V2 Pro layout (labels 1-6 → slots `80`-`85`).
+- **6-button plate — press-validated in the [2026-10-18 BLE follow-up](../../ble/2026-10-18-naga-v3-pro/follow-up/README.md).** Labels 1-6 → slots `80`-`85`; the owner pressed printed labels in order and produced `123456`, confirming the same wrapping as the Naga V2 Pro.
 - **Lighting:** neither the 6-button nor the 2-button plate has any lighting, so the side-panel LED
   `0x05` zone only lights the 12-button plate.
 
@@ -135,8 +135,6 @@ unplug/replug recovery, and approximately two-minute idle/wake check.
 
 ## Gaps
 
-- The 6-button plate's label order is inherited from the Naga V2 Pro rather than press-validated on
-  this device; the owner confirms the layout matches.
 - Onboard profile metadata reads are rejected, so profile name/owner/UUID round-tripping and
   profile create/delete remain unvalidated. Stored-bank DPI, stage, and brightness writes do work.
 - Software lighting custom frames (`0f:03`) were not exercised on this device.

@@ -89,10 +89,18 @@ notify header inside a probe payload. The baseline was restored; the final effec
 and button captures were made with both app processes stopped, not by adding
 command retries. Do not run two BLE configuration clients against this mouse at once.
 
-The new profile reuses the USB 33-slot button table; only the named body-button
-reads and rear-button changed writes were repeated over BLE, not an exhaustive
-33-slot BLE sweep. Poll rate, onboard profile CRUD, scroll-wheel mode/responsiveness
-readout/control, and software-lighting custom frames remain unexposed. Power-cycle
-persistence of changed Bluetooth settings was not established; restore-on-connect
-remains available when persistence is needed. Wired/receiver findings are separate
-captures, not proof of Bluetooth feature support.
+The initial pass reused the USB 33-slot layout and repeated only body-default
+reads and rear-button changed writes. The [same-day gap follow-up](follow-up/README.md)
+subsequently verified changed writes and exact restoration on **all 33 shipped slots
+on both BLE targets**, with a final 66-block snapshot matching the originals. It also
+physically verified the six-button plate's printed label order.
+
+The follow-up power-cycle check, with the app/service stopped, found changed DPI
+stages, sleep timeout, and wheel brightness persisted; live wheel static color
+reverted to its previous value. All originals were restored afterward. This is
+setting-specific evidence from one cycle, not universal persistence.
+
+Poll rate, onboard profile CRUD, scroll-wheel setting readout/control, and
+software-lighting custom frames remain unexposed. Restore-on-connect is available
+for live color that needs reapplying. Wired/receiver findings are separate captures,
+not proof of Bluetooth feature support.

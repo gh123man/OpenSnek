@@ -970,15 +970,20 @@ the existing vendor GATT service. All exchanges remain serialized without comman
 - Button reads use the interleaved 16-byte Naga layout; writes use the seven-byte
   USB-style function block wrapped with target/slot/layer. Front scroll `106` factory
   block is `12 01 01`; rear `128` is `00 01 00`. Rear remap/restore was read back
-  on targets `00` and `01` and physically checked through the app. The shared 33-slot
-  layout is inherited from USB, not an exhaustive BLE write sweep.
+  on targets `00` and `01` and physically checked through the app. The
+  [gap follow-up](../../captures/ble/2026-10-18-naga-v3-pro/follow-up/README.md) then
+  verified changed writes/readback and exact restore for all 33 shipped slots on
+  both targets, with a final 66-block snapshot matching the original. Six-button
+  printed labels `1...6` were physically verified as slots `80...85`.
 - Battery `05 81 00 01` is byte-scaled. Status `05 80 00 01` returned `01` with
   the cable unplugged, so it does not prove charging. Sleep timeout is little-endian
   through `05 84 00 00` / `05 04 00 00` and changed read/write/restore passed.
 - The owner confirmed off/on recovery and approximately two-minute idle/wake
-  stability. This does not claim long-duration reliability or power-cycle persistence
-  of changed BLE settings. Poll rate, profile CRUD, scroll-wheel setting control,
-  and custom software-lighting frames stay unexposed.
+  stability. An isolated one-cycle follow-up with app/service stopped found changed
+  DPI stages, sleep timeout, and wheel brightness persisted; live wheel static color
+  reverted to its prior value. All baselines were restored. This is setting-specific
+  evidence, not universal persistence or long-duration reliability. Poll rate, profile
+  CRUD, scroll-wheel setting control, and custom software-lighting frames stay unexposed.
 
 ## 8. Feature Semantics Used by OpenSnek
 
