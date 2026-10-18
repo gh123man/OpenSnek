@@ -10,9 +10,10 @@ Behavior:
 - Rebuild only when requested via --rebuild or when bundle is missing.
 
 Usage:
-  run_macos_app.sh [--rebuild] [--configuration <debug|release>] [--sign-identity <value>]
+  run_macos_app.sh [--show-window] [--rebuild] [--configuration <debug|release>] [--sign-identity <value>]
 
 Options:
+  --show-window                   Launch a fresh foreground app and verify its visible main window
   --rebuild                       Force rebuild before opening
   --configuration <debug|release> Build configuration when rebuilding (default: debug)
   --sign-identity <value>         Passed through to build_macos_app.sh (default: auto)
@@ -25,11 +26,16 @@ PACKAGE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP_BUNDLE="$PACKAGE_DIR/.dist/OpenSnek.app"
 
 REBUILD=false
+SHOW_WINDOW=false
 CONFIGURATION="debug"
 SIGN_IDENTITY="auto"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --show-window)
+      SHOW_WINDOW=true
+      shift
+      ;;
     --rebuild)
       REBUILD=true
       shift
@@ -64,7 +70,15 @@ if [[ "$REBUILD" == true || ! -d "$APP_BUNDLE" ]]; then
     --configuration "$CONFIGURATION" \
     --sign-identity "$SIGN_IDENTITY"
 else
-  echo "[open-snek] Using existing app bundle (no rebuild): $APP_BUNDLE"
+  echo "[open-snek] Launching staged app bundle: $APP_BUNDLE"
 fi
 
-open "$APP_BUNDLE"
+if [[ "$SHOW_WINDOW" == true ]]; then
+  RECEIPT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/open-snek-launch.XXXXXX")"
+  trap 'rm -rf "$RECEIPT_DIR"' EXIT
+  open -n "$APP_BUNDLE" --args --launch-receipt "$RECEIPT_DIR/visible-window.json"
+  python3 "$SCRIPT_DIR/wait_for_app_window.py" "$RECEIPT_DIR/visible-window.json" "$APP_BUNDLE"
+else
+  open "$APP_BUNDLE"
+  echo "[open-snek] Launch requested; main-window visibility was not verified (use --show-window)."
+fi

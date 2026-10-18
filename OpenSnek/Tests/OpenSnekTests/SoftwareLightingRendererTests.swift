@@ -8,10 +8,8 @@ final class SoftwareLightingRendererTests: XCTestCase {
         XCTAssertEqual(layout.cellCount, 14)
         XCTAssertEqual(
             layout.cells.map(\.id),
-            [
-                "logo", "scroll_wheel", "underglow_left_front", "underglow_left_2", "underglow_left_3", "underglow_left_4", "underglow_left_rear", "underglow_right_rear", "underglow_right_2", "underglow_right_3", "underglow_right_middle", "underglow_right_front", "underglow_tail_1",
-                "underglow_tail_2"
-            ])
+            ["logo", "scroll_wheel", "underglow_left_front", "underglow_left_2", "underglow_left_3", "underglow_left_4", "underglow_left_rear", "underglow_right_rear", "underglow_right_2", "underglow_right_3", "underglow_right_middle", "underglow_right_front", "underglow_tail_1", "underglow_tail_2"]
+        )
     }
 
     func testNagaV2ProLayoutMatchesSingleLogoCell() {

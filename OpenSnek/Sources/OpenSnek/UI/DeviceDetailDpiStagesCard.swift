@@ -161,11 +161,13 @@ private struct DpiStageXYToggleButton: View {
     let tint: Color
     let action: () -> Void
 
+    private var foregroundColor: Color { isExpanded ? tint : .white.opacity(0.78) }
+    private var backgroundColor: Color { isExpanded ? tint.opacity(0.18) : .white.opacity(0.06) }
+    private var borderColor: Color { isExpanded ? tint.opacity(0.95) : .white.opacity(0.14) }
+
     var body: some View {
-        Button(action: action) {
-            Text("X/Y").font(.system(size: 10, weight: .black, design: .monospaced)).foregroundStyle(isExpanded ? tint : .white.opacity(0.78)).padding(.horizontal, 8).padding(.vertical, 6).background(Capsule().fill(isExpanded ? tint.opacity(0.18) : Color.white.opacity(0.06))).overlay(
-                Capsule().stroke(isExpanded ? tint.opacity(0.95) : Color.white.opacity(0.14), lineWidth: 1))
-        }.buttonStyle(.plain)
+        Button(action: action) { Text("X/Y").font(.system(size: 10, weight: .black, design: .monospaced)).foregroundStyle(foregroundColor).padding(.horizontal, 8).padding(.vertical, 6).background(Capsule().fill(backgroundColor)).overlay(Capsule().stroke(borderColor, lineWidth: 1)) }.buttonStyle(
+            .plain)
     }
 }
 

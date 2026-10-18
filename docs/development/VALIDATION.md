@@ -31,8 +31,21 @@ The hook runs the same command expected before publishing code:
 ./OpenSnek/scripts/pre_push_checks.sh
 ```
 
-That guard runs Swift format, SwiftLint, and `swift test --package-path OpenSnek`, which catches
-SwiftFormat warnings such as `RemoveLine` before a branch is pushed.
+That guard runs strict Swift format, SwiftLint, developer-tool tests, the Swift unit suite,
+and the code-backed device evidence manifest check. Formatter findings such as `RemoveLine`
+are errors. `checked_command.sh` also rejects compiler long-body warnings even if Swift exits
+successfully, while preserving unrelated diagnostics and the original command failure.
+
+Fresh checks are the default. The installed hook uses `--reuse` only when the same source,
+toolchain, and relevant environment passed within one hour; changed inputs run fresh checks.
+CI and hardware runs never reuse receipts. See [Review](REVIEW.md#validate-once-publish-safely)
+for scope/limitations; no successful receipt is written if files change during validation.
+
+For focused compile/test commands that must enforce long-body policy, use:
+
+```bash
+./OpenSnek/scripts/checked_command.sh swift test --package-path OpenSnek --filter BLEVendorProtocolTests
+```
 
 ## Protocol Implementation Guardrails
 
@@ -52,15 +65,48 @@ assuming every successful command has the same ACK/readback shape.
   identify an active stage by DPI value only when that value maps to exactly one
   configured stage; duplicate values require a direct fast stage read.
 
-## Hardware Gates
+## Safe hardware validation
 
-Required for BLE DPI/stage changes when supported hardware is connected:
+Required for BLE DPI/stage changes when supported hardware is connected, but always opt-in.
+Stop both app/service and other BLE control clients first. Keep the mouse awake. The manual
+BLE probe lease fails fast on running OpenSnek processes or another probe; it never retries a
+command or changes normal app connection ownership. Disconnect other matching Bluetooth models
+so name-based routing is unambiguous.
+
+Both mutating hardware unit tests (`HardwareDpiReliabilityTests`, `HardwareUSBButtonRemapTests`)
+require an exact discovered device ID and a new absolute journal path. They no longer select the
+first Bluetooth/USB device. Read-only discovery can use `usb-info` or candidate IDs printed by
+`bt-profile-hid-watch --name "NAME" --duration 1`; do not confuse a product ID with the full ID.
 
 ```bash
+export OPEN_SNEK_HW_DEVICE_ID='<exact-discovered-device-id>'
+export OPEN_SNEK_HW_JOURNAL="$HOME/opensnek-hardware-check.json"  # must not already exist
 OPEN_SNEK_HW=1 swift test --package-path OpenSnek --filter HardwareDpiReliabilityTests
+# Or select HardwareUSBButtonRemapTests with the exact USB device ID and a different journal.
 ```
 
-Report the result explicitly as `pass`, `fail`, or `skipped`.
+The test captures the full original state, writes a private recovery journal before mutation,
+and restores/verifies the original even if an operation throws. DPI restores use the captured
+raw stage bytes rather than rebuilding defaults or clamping a high-DPI tail stage. USB remap
+restoration preserves distinct persistent/live blocks, restoring live last. Incomplete baseline
+reads abort before testing. Never delete a failed/unrecovered journal or substitute factory defaults.
+
+If unplug/sleep/process interruption prevents restore, reconnect the **same** device, stop competing
+clients, then run recovery only with the matching test (DPI versus USB button):
+
+```bash
+OPEN_SNEK_HW=1 OPEN_SNEK_HW_RECOVER_JOURNAL="$HOME/opensnek-hardware-check.json" \
+  swift test --package-path OpenSnek --filter HardwareDpiReliabilityTests
+```
+
+The same `OPEN_SNEK_HW_DEVICE_ID` is required. Recovery rejects mismatched device/schema/payload,
+then restores and reads back once; no command-level retries. Keep the journal until its phase is
+`restored`, then archive it before another run. A hard kill cannot run cleanup; the on-disk journal
+is the recovery mechanism, not a guarantee that disconnected hardware can be restored immediately.
+
+Report the result as `pass`, `fail`, or `skipped` with the actual scope. A passing software-only
+restore-adapter test is not physical hardware validation. Persistence checks power-cycle with the
+app/service stopped, read every changed setting before restoring any, and report per-setting results.
 
 ## Validation Labels
 
@@ -131,10 +177,14 @@ python3 tools/python/razer_poc.py --force-ble
 
 ## App / Xcode Flows
 
-Use these only when the task needs them:
+Use these only when the task needs them. Root `run.sh` builds incrementally and requires the
+foreground app to acknowledge a visible main window. It does not treat a service PID or successful
+`open` request as sufficient. Receipt verification does not need Accessibility permission. A timeout
+fails clearly; inspect the app log instead of claiming the window opened. Only `--no-build` skips
+the root build; the launcher saying "staged app bundle" is not evidence that the build was skipped.
 
 ```bash
-./run.sh
+./run.sh --show-window
 swift run --package-path OpenSnek OpenSnek
 ./OpenSnek/scripts/run_macos_app.sh
 ./OpenSnek/scripts/generate_xcodeproj.sh

@@ -263,8 +263,8 @@ struct MultiDeviceTestIdentity {
 func makeTestDevice(id: String, productName: String, identity: MultiDeviceTestIdentity, profile: DeviceProfileID, productID: Int? = nil) -> MouseDevice {
     let resolvedProductID = productID ?? (identity.transport == .bluetooth ? 0x00BA : 0x00AB)
     return MouseDevice(
-        id: id, vendor_id: 0x1532, product_id: resolvedProductID, product_name: productName, transport: identity.transport, path_b64: "", serial: identity.serial, firmware: "1.0.0", location_id: identity.locationID, profile_id: profile,
-        supports_advanced_lighting_effects: true, onboard_profile_count: 1)
+        id: id, vendor_id: 0x1532, product_id: resolvedProductID, product_name: productName, transport: identity.transport, path_b64: "", serial: identity.serial, firmware: "1.0.0", location_id: identity.locationID, profile_id: profile, supports_advanced_lighting_effects: true,
+        onboard_profile_count: 1)
 }
 
 func makeTestState(device: MouseDevice, connection: String, batteryPercent: Int, dpiValues: [Int], activeStage: Int) -> MouseState {

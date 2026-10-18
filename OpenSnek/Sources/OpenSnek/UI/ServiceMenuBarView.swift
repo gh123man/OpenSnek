@@ -114,9 +114,7 @@ struct ServiceMenuBarView: View {
     private var showsDevicePicker: Bool { deviceStore.devices.count > 1 }
 
     /// Renders menu message text that wraps to multiple lines instead of truncating inside the panel.
-    private func menuMessage(_ message: String, weight: Font.Weight = .medium) -> some View {
-        Text(message).font(.system(size: 11, weight: weight, design: .rounded)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-    }
+    private func menuMessage(_ message: String, weight: Font.Weight = .medium) -> some View { Text(message).font(.system(size: 11, weight: weight, design: .rounded)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {

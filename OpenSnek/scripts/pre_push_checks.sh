@@ -5,11 +5,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 cd "$REPO_ROOT"
-
+export OPEN_SNEK_HW="${OPEN_SNEK_HW:-0}"
+MODE="${1:---fresh}"
+if [[ $# -gt 1 || ( "$MODE" != "--fresh" && "$MODE" != "--reuse" ) ]]; then
+  echo "Usage: pre_push_checks.sh [--fresh|--reuse]" >&2
+  exit 2
+fi
+if [[ "$MODE" == "--reuse" ]] && python3 "$SCRIPT_DIR/validation_receipt.py" verify; then
+  echo "[open-snek] Reusing recent full-check success for identical source, toolchain and environment."
+  exit 0
+fi
+# A known failed fresh run must not leave an older success eligible for reuse.
+python3 "$SCRIPT_DIR/validation_receipt.py" invalidate
+BEFORE="$(python3 "$SCRIPT_DIR/validation_receipt.py" fingerprint)"
 "$SCRIPT_DIR/check_swift_format.sh"
 
 echo "[open-snek] Running SwiftLint..."
 swift package --disable-keychain --package-path OpenSnek plugin --allow-writing-to-package-directory swiftlint
 
 echo "[open-snek] Running Swift package tests..."
-OPEN_SNEK_HW="${OPEN_SNEK_HW:-0}" swift test --disable-keychain --package-path OpenSnek
+python3 -m unittest discover -s "$SCRIPT_DIR/tests"
+OPEN_SNEK_HW="${OPEN_SNEK_HW:-0}" "$SCRIPT_DIR/checked_command.sh" swift test --disable-keychain --package-path OpenSnek
+"$SCRIPT_DIR/check_device_validation.sh"
+python3 "$SCRIPT_DIR/validation_receipt.py" record --before "$BEFORE"

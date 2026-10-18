@@ -64,6 +64,18 @@ The protocol is request/notify based, but OpenSnek treats it as strictly seriali
 
 Do not pipeline requests on a single connection. The only correlation token is the one-byte request ID, and out-of-order notify interleaving is easy to create if you overlap commands.
 
+### Manual probe isolation
+
+The app/service and an independent probe can receive each other's vendor notifications, so
+per-client serialization alone is not sufficient for an isolated capture. `OpenSnekProbe` now
+acquires a per-user BLE probe lease and checks that bundled OpenSnek app/service processes are
+stopped before each vendor exchange. Another probe or running app causes a clear error and
+nonzero exit status before commands are sent. Offline `support-catalog` does not acquire the
+lease or open Bluetooth. The lease is advisory, conservatively covers all BLE probes for this
+user, and is released by the kernel on process exit; it does not change normal app reconnect
+logic or coordinate arbitrary third-party clients. See
+[the safe hardware workflow](../development/VALIDATION.md#safe-hardware-validation).
+
 ### 3.2 Request ID
 
 - Byte 0 of every request is a caller-chosen request ID (`req`).

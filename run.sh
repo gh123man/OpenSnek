@@ -5,14 +5,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   cat <<'USAGE'
-Incrementally build and launch OpenSnek from the repo root.
+Incrementally build OpenSnek, then show and verify its foreground main window.
 
 Usage:
-  ./run.sh [--clean] [--no-build]
+  ./run.sh [--clean] [--no-build] [--show-window]
 
 Options:
   --clean       Do a clean rebuild before launch
-  --no-build    Launch the existing app bundle without rebuilding
+  --no-build    Launch the staged app bundle without rebuilding
+  --show-window Show and verify the foreground main window (the default)
   -h, --help    Show this help
 USAGE
 }
@@ -56,6 +57,9 @@ while [[ $# -gt 0 ]]; do
       CLEAN_BUILD=true
       shift
       ;;
+    --show-window)
+      shift
+      ;;
     --no-build)
       SKIP_BUILD=true
       shift
@@ -80,7 +84,8 @@ if [[ "$SKIP_BUILD" == true ]]; then
   fi
 
   terminate_existing_opensnek
-  exec "$SCRIPT_DIR/OpenSnek/scripts/run_macos_app.sh"
+  echo "[open-snek] Build explicitly skipped (--no-build)."
+  exec "$SCRIPT_DIR/OpenSnek/scripts/run_macos_app.sh" --show-window
 fi
 
 terminate_existing_opensnek
@@ -93,4 +98,4 @@ if [[ ${#BUILD_ARGS[@]} -gt 0 ]]; then
 else
   "$SCRIPT_DIR/OpenSnek/scripts/build_macos_app.sh"
 fi
-exec "$SCRIPT_DIR/OpenSnek/scripts/run_macos_app.sh"
+exec "$SCRIPT_DIR/OpenSnek/scripts/run_macos_app.sh" --show-window

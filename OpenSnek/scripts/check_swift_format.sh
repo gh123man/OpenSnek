@@ -20,4 +20,4 @@ if [[ $# -eq 0 ]]; then
 fi
 
 echo "[open-snek] Checking Swift format..."
-xcrun swift-format lint --configuration "$CONFIG_FILE" --recursive "$@"
+xcrun swift-format lint --strict --configuration "$CONFIG_FILE" --recursive "$@"

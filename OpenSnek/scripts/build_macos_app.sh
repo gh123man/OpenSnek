@@ -330,7 +330,7 @@ build_with_swiftpm() {
   mkdir -p "$swift_cache_path" "$swift_config_path" "$swift_security_path" "$module_cache_path"
 
   echo "[open-snek] Full Xcode unavailable; building $PRODUCT_NAME ($CONFIGURATION) with SwiftPM..."
-  "${swift_environment[@]}" "$swift_command" build "${swift_arguments[@]}" --product "$PRODUCT_NAME"
+  "$SCRIPT_DIR/checked_command.sh" "${swift_environment[@]}" "$swift_command" build "${swift_arguments[@]}" --product "$PRODUCT_NAME"
 
   local swift_bin_path
   swift_bin_path="$("${swift_environment[@]}" "$swift_command" build "${swift_arguments[@]}" --show-bin-path)"
@@ -423,6 +423,7 @@ if has_full_xcode; then
     exit 1
   fi
 
+  python3 "$SCRIPT_DIR/check_swift_diagnostics.py" "$XCODEBUILD_LOG"
   BUILT_APP="$DERIVED_DATA_PATH/Build/Products/$XCODE_CONFIGURATION/OpenSnek.app"
   if [[ ! -d "$BUILT_APP" ]]; then
     echo "Built app not found: $BUILT_APP" >&2

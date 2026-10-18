@@ -584,8 +584,8 @@ extension FeatureSweep.Configuration {
         absentCards: ["onboard-profile-pill-button", "scroll-controls-card"], features: [.dpiStageSelection, .dpiValue, .lightingBrightness, .pollRate, .sleepTimeout, .lowBatteryThreshold, .buttonMapping], assertUSBPollRateCommand: true, buttonTurboCandidateSlots: [1, 2, 3, 4, 5, 9, 10, 96])
 
     static let v3XBluetooth = FeatureSweep.Configuration(
-        appReadyDeadline: 15, actionDeadline: 5, expectedSelectedDeviceName: nil, expectedCards: ["dpi-stages-card", "lighting-card", "power-management-card", "button-mapping-card"],
-        absentCards: ["onboard-profile-pill-button", "poll-rate-card", "low-battery-threshold-card", "scroll-controls-card"], features: [.dpiValue, .lightingBrightness, .sleepTimeout, .buttonMapping], assertUSBPollRateCommand: false, buttonTurboCandidateSlots: [1, 2, 3, 4, 5, 9, 10, 96])
+        appReadyDeadline: 15, actionDeadline: 5, expectedSelectedDeviceName: nil, expectedCards: ["dpi-stages-card", "lighting-card", "power-management-card", "button-mapping-card"], absentCards: ["onboard-profile-pill-button", "poll-rate-card", "low-battery-threshold-card", "scroll-controls-card"],
+        features: [.dpiValue, .lightingBrightness, .sleepTimeout, .buttonMapping], assertUSBPollRateCommand: false, buttonTurboCandidateSlots: [1, 2, 3, 4, 5, 9, 10, 96])
 
     static let v3ProUSB = FeatureSweep.Configuration(
         appReadyDeadline: 10, actionDeadline: 3, expectedSelectedDeviceName: "Razer Basilisk V3 Pro",

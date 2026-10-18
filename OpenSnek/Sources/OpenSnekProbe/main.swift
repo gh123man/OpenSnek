@@ -231,6 +231,14 @@ enum OpenSnekProbe {
     }
 
     private static func dispatchCommand(_ command: String, commandArgs: [String]) async throws {
+        if command == "support-catalog" {
+            guard commandArgs.isEmpty else { throw ProbeError.usage("support-catalog takes no arguments and never opens hardware") }
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(DeviceValidationCatalog())
+            FileHandle.standardOutput.write(data + Data([0x0A]))
+            return
+        }
         if command.hasPrefix("bt-") { try await runBluetoothCommand(command, commandArgs: commandArgs) } else if command.hasPrefix("usb-") { try await runUSBCommand(command, commandArgs: commandArgs) } else { try await runDPICommand(command, commandArgs: commandArgs) }
     }
 
@@ -263,4 +271,7 @@ enum OpenSnekProbe {
 do {
     try await OpenSnekProbe.run()
     Foundation.exit(EXIT_SUCCESS)
-} catch { fputs("error: \(error.localizedDescription)\n", stderr) }
+} catch {
+    fputs("error: \(error.localizedDescription)\n", stderr)
+    Foundation.exit(EXIT_FAILURE)
+}

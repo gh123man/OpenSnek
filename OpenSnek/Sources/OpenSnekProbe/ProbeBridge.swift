@@ -8,6 +8,13 @@ import OpenSnekProtocols
 actor ProbeBridge {
     private let vendor = BLEVendorTransportClient()
     private var reqID: UInt8 = 0x30
+    private var probeSession: BLEProbeSession?
+
+    private func runVendor(writes: [Data], timeout: TimeInterval, preferredPeripheralName: String? = nil) async throws -> [Data] {
+        if probeSession == nil { probeSession = try BLEProbeSession() }
+        try probeSession?.checkAppIsStopped()
+        return try await vendor.run(writes: writes, timeout: timeout, preferredPeripheralName: preferredPeripheralName)
+    }
 
     private func nextReq() -> UInt8 {
         defer { reqID = reqID &+ 1 }
@@ -114,7 +121,7 @@ actor ProbeBridge {
         guard key.count == 4 else { throw ProbeError.usage("BT raw read key must be exactly 4 bytes") }
         let req = nextReq()
         let header = BLEVendorProtocol.buildReadHeader(req: req, key: BLEVendorProtocol.Key(b0: key[0], b1: key[1], b2: key[2], b3: key[3]))
-        let notifies = try await vendor.run(writes: [header], timeout: timeout, preferredPeripheralName: preferredPeripheralName)
+        let notifies = try await runVendor(writes: [header], timeout: timeout, preferredPeripheralName: preferredPeripheralName)
         let payload = BLEVendorProtocol.parsePayloadFrames(notifies: notifies, req: req)
         return BTRawReadResult(req: req, notifies: notifies, payload: payload)
     }
@@ -132,7 +139,7 @@ actor ProbeBridge {
                 offset = nextOffset
             }
         }
-        let notifies = try await vendor.run(writes: writes, timeout: timeout, preferredPeripheralName: preferredPeripheralName)
+        let notifies = try await runVendor(writes: writes, timeout: timeout, preferredPeripheralName: preferredPeripheralName)
         let ack = notifies.compactMap { BLEVendorProtocol.NotifyHeader(data: $0) }.first(where: { $0.req == req })
         return BTRawWriteResult(req: req, notifies: notifies, ack: ack)
     }
@@ -140,7 +147,7 @@ actor ProbeBridge {
     func readDpi() async throws -> DpiSnapshot {
         let req = nextReq()
         let header = BLEVendorProtocol.buildReadHeader(req: req, key: .dpiStagesGet)
-        let notifies = try await vendor.run(writes: [header], timeout: 1.2)
+        let notifies = try await runVendor(writes: [header], timeout: 1.2)
         if let payload = BLEVendorProtocol.parsePayloadFrames(notifies: notifies, req: req), let parsed = BLEVendorProtocol.parseDpiStageSnapshot(blob: payload) { return DpiSnapshot(active: parsed.active, count: parsed.count, slots: parsed.slots, stageIDs: parsed.stageIDs, marker: parsed.marker) }
         throw ProbeError.protocolError("Failed to parse DPI payload")
     }
@@ -154,7 +161,7 @@ actor ProbeBridge {
 
         let req = nextReq()
         let header = BLEVendorProtocol.buildWriteHeader(req: req, payloadLength: 0x26, key: .dpiStagesSet)
-        let notifies = try await vendor.run(writes: [header, payload.prefix(20), payload.suffix(from: 20)], timeout: 1.0)
+        let notifies = try await runVendor(writes: [header, payload.prefix(20), payload.suffix(from: 20)], timeout: 1.0)
         guard let ack = notifies.compactMap({ BLEVendorProtocol.NotifyHeader(data: $0) }).first(where: { $0.req == req }), ack.status == 0x02 else { throw ProbeError.protocolError("DPI set did not return success ACK") }
 
         let readback = try await readDpi()

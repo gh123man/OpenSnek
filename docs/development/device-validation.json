@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "devices": [
+    {
+      "profile_id": "basilisk_v3_pro_35k",
+      "transport": "bluetooth",
+      "product_ids": ["0x00D8"],
+      "features": {
+        "dpi_stages": {
+          "status": "contributor_validated",
+          "source": "https://github.com/PLus123456",
+          "evidence": ["captures/ble/2026-10-13-basilisk-v3-pro-35k/README.md"]
+        },
+        "button_remap": {
+          "status": "contributor_validated",
+          "source": "https://github.com/PLus123456",
+          "evidence": ["captures/ble/2026-10-13-basilisk-v3-pro-35k/README.md"]
+        },
+        "lighting_brightness": {
+          "status": "contributor_validated",
+          "source": "https://github.com/PLus123456",
+          "evidence": ["captures/ble/2026-10-13-basilisk-v3-pro-35k/README.md"]
+        },
+        "poll_rate": {"status": "unsupported"},
+        "onboard_profiles": {"status": "unsupported"}
+      },
+      "limitations": [
+        "This capture validates Bluetooth only, not USB identities.",
+        "Profile metadata reads are rejected; profile CRUD stays hidden.",
+        "Live Bluetooth settings reset on power cycle; restore-on-connect reapplies them."
+      ]
+    }
+  ]
+}

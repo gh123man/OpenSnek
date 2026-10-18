@@ -7,6 +7,7 @@ extension OpenSnekProbe {
     static var usageText: String {
         """
         Usage:
+          OpenSnekProbe support-catalog  # Offline JSON: identities and capabilities; no hardware access
           OpenSnekProbe dpi-read
           OpenSnekProbe dpi-set --values 1600,6400 [--active 1]
           OpenSnekProbe dpi-cycle --sequence 800,6400;1600,6400 --loops 10 [--active 1] [--sleep-ms 120]

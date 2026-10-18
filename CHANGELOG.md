@@ -5,8 +5,13 @@ All notable changes to this project are documented in this file.
 ## [1.4.1-rc.1]
 
 ### Added
+- Added `OpenSnekProbe support-catalog`, an offline JSON export of shipped device identities and capabilities for checking device-support evidence without accessing hardware.
 - Added an off-by-default “Include release candidates” setting for update suggestions on any build. RC builds automatically receive suggestions for newer RCs and stable releases.
 - Added contributor-validated Bluetooth support for the Razer Basilisk V3 Pro 35K Phantom Green Edition (`0x00D8`): DPI stages up to 35,000, battery, sleep timeout, button remapping, and static lighting on its two zones (scroll wheel and underglow; this edition has no logo LED). Onboard profile management stays hidden because the mouse rejects profile metadata reads, and Bluetooth changes reset when the mouse powers off, so use a local profile with restore-on-connect to keep them. Bluetooth commands follow device selection when both a V3 Pro and a 35K are connected, and wait for the selected model if it disconnects.
+
+### Changed
+- BLE vendor-control probe commands now require OpenSnek's app and background service to be stopped and reject concurrent probe sessions before sending commands. Probe command errors now return a nonzero exit status.
+- The repository's `run.sh` now shows and verifies a foreground main window instead of treating a running service or a successful launch request as proof the app opened.
 
 ### Fixed
 - Fixed battery readings staying cached while software lighting runs, including after mouse wake, with periodic battery reads and renewed sampling after reconnect. Added diagnostics for remaining stale-battery reports.
