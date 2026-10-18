@@ -45,7 +45,7 @@ Support is transport-specific. A device may be supported over USB, Bluetooth, or
 | Huntsman Mini | Contributor validated | No | Keyboard: contributor validated backlight lighting and brightness. First non-mouse profile; key remap not supported |
 | Tartarus Pro | Contributor validated | No | Keypad: contributor validated backlight lighting and brightness. Analog actuation and key remap have no public protocol |
 | Mouse Dock | Contributor validated | No | Accessory: one logo LED with static color, brightness, and spectrum/pulse writes. No DPI, buttons, battery, or onboard profiles |
-| Mouse Dock Pro | Contributor validated | No | Accessory: one logo LED with brightness, static color, wave, spectrum, and breathing. Answers only transaction ID `0xFF` and reads brightness at a different address than it writes; per-cell custom frames are not mapped yet |
+| Mouse Dock Pro | Contributor validated | No | Accessory: one logo LED with brightness, static color, wave, spectrum, and breathing. Answers only transaction ID `0xFF` and reads brightness at a different address than it writes; per-cell custom frames are not mapped yet, so it has no software presets or Battery Meter (unlike the original Mouse Dock) |
 
 Status key:
 - `Validated` = supported and locally capture/test validated in OpenSnek

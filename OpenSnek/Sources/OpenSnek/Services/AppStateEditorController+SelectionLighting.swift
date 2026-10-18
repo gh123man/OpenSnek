@@ -302,11 +302,10 @@ import OpenSnekCore
         let resolvedZoneID: String
         if let selectedDevice = deviceStore.selectedDevice {
             let normalizedZoneID = normalizedLightingZoneID(for: selectedDevice, preferredZoneID: zoneID)
-            if editorStore.editableLightingEffect == .staticColor, editorStore.visibleUSBLightingZones.count > 1, normalizedZoneID == "all" {
-                resolvedZoneID = defaultEditableStaticLightingZoneID(for: selectedDevice)
-            } else {
-                resolvedZoneID = normalizedLightingZoneID(for: selectedDevice, preferredZoneID: zoneID)
-            }
+            // An explicit All Zones choice must survive: it used to be rewritten to a single default
+            // zone for multi-zone devices, so the card could never actually scope a static edit to
+            // every zone and "Off then Static" only relit the last touched zone.
+            resolvedZoneID = normalizedZoneID
             if editorStore.editableLightingEffect == .staticColor, let profileColor = onboardProfileLightingColorsByDeviceID[selectedDevice.id]?[resolvedZoneID] {
                 editorStore.editableColor = profileColor
             } else if editorStore.editableLightingEffect == .staticColor, let persistedColor = loadPersistedLightingColor(device: selectedDevice, zoneID: resolvedZoneID) {

@@ -37,6 +37,28 @@ final class AppStateLightingCharacterizationTests: XCTestCase {
         XCTAssertEqual(applyCount, 0)
     }
 
+    func testExplicitAllZonesSelectionSurvivesForMultiZoneStaticLighting() async throws {
+        let device = makeRefactorMultiZoneUSBLightingDevice(id: "usb-all-zones-selection-device", serial: "USB-ALL-ZONES-\(UUID().uuidString)")
+        defer { clearRefactorPreferences(for: device) }
+        let backend = AppStateRefactorStubBackend(devices: [], stateByDeviceID: [:])
+        let appState = await MainActor.run { AppState(launchRole: .app, backend: backend, autoStart: false) }
+        await MainActor.run { _ = appState.deviceController.applyDeviceList([device], source: "refresh") }
+
+        await MainActor.run {
+            appState.editorStore.editableLightingEffect = .staticColor
+            appState.editorStore.updateUSBLightingZoneID("logo")
+        }
+        let singleZone = await MainActor.run { appState.editorStore.editableUSBLightingZoneID }
+        XCTAssertEqual(singleZone, "logo")
+
+        // Regression: for multi-zone devices an explicit "All Zones" choice used to be rewritten to a
+        // single default zone, so a static apply could never target every LED. That made switching
+        // Off -> Static relight only the last touched zone.
+        await MainActor.run { appState.editorStore.updateUSBLightingZoneID("all") }
+        let allZones = await MainActor.run { appState.editorStore.editableUSBLightingZoneID }
+        XCTAssertEqual(allZones, "all")
+    }
+
     func testLightingGradientUsesActualZoneColorsInVisibleOrder() async throws {
         let device = makeRefactorMultiZoneUSBLightingDevice(id: "usb-lighting-gradient-zones-device", serial: "USB-GRADIENT-ZONES-\(UUID().uuidString)")
         let wheelColor = RGBColor(r: 255, g: 0, b: 0)

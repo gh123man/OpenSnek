@@ -131,3 +131,19 @@ Note for future work: the device owner reported that the bottom button is the pr
 Naga, and that none of these mice switch the wheel between free-spinning and notched — the
 `Scroll Mode Toggle` label was borrowed from the Basilisk family, where that slot genuinely is the
 scroll-mode toggle and where `supportsScrollModeControls` is true.
+
+### DPI button slots 11/12 (2026-10-18)
+
+The profile listed slots `11` and `12` as visible `DPI Down` / `DPI Up` buttons but kept them out of
+the writable set, so the app showed them read-only. They are mappable and writable:
+
+| Check | Observed |
+| --- | --- |
+| Device inventory | reports slots `11` and `12` among its 30 mappable slots |
+| Unassigned banks (profiles `3`-`5`) | slot `11` = `06 01 01`, slot `12` = `06 01 02` (the same factory blocks the Naga V3 Pro ships for its front/rear index buttons) |
+| Live layers | carry the owner's media-key remaps (`02 02 00 e6` / `02 02 00 e4`) |
+| Write + readback | a write to each slot applied and read back on both the live and persistent layers |
+
+Both slots are now editable with those factory blocks as `Default`, so full button-profile reset covers
+all 30 of the device's mappable slots. (The write test initially clobbered the two live remaps with a
+malformed block; they were restored to `02 02 00 e6` / `02 02 00 e4` and verified on both layers.)

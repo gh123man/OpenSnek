@@ -529,10 +529,11 @@ public enum DeviceProfiles {
         ButtonSlotDescriptor(slot: 74, friendlyName: "Side Button 11", defaultKind: .keyboardSimple, group: "12-Button Panel"), ButtonSlotDescriptor(slot: 75, friendlyName: "Side Button 12", defaultKind: .keyboardSimple, group: "12-Button Panel")
     ]
 
-    public static let nagaProUSBWritableSlots: [Int] = [1, 2, 3, 4, 5, 9, 10, 14, 52, 53, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82, 83, 84, 85]
+    public static let nagaProUSBWritableSlots: [Int] = [1, 2, 3, 4, 5, 9, 10, 11, 12, 14, 52, 53, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82, 83, 84, 85]
 
-    // Every mappable Naga Pro slot is editable: the device's own inventory reports 30 slots and each
-    // one round-trips a same-value write, including the underside profile button at slot 14.
+    // Every mappable Naga Pro slot is editable: the device's own inventory reports these 30 slots and
+    // each one round-trips a write, including the DPI buttons (slots 11/12) and the underside profile
+    // button (slot 14). The DPI buttons' factory blocks come from the unassigned banks.
     public static let nagaProUSBDocumentedReadOnlySlots: [DocumentedButtonSlot] = []
 
     public static let nagaProUSBLightingZones: [USBLightingZoneDescriptor] = [USBLightingZoneDescriptor(id: "scroll_wheel", label: "Scroll Wheel", ledIDs: [0x01]), USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x04])]

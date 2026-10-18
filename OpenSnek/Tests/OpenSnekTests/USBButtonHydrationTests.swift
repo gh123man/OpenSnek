@@ -218,6 +218,10 @@ final class USBButtonHydrationTests: XCTestCase {
 
     func testNagaProFullProfileResetHasCompleteNativeDefaults() {
         XCTAssertNotNil(ButtonBindingSupport.completeDefaultUSBFunctionBlocks(for: DeviceProfiles.nagaProUSBWritableSlots, profileID: .nagaPro))
+        // The DPI buttons are mappable on the device and their factory blocks came from the
+        // unassigned banks, so they are editable with a working Default restore.
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 11, profileID: .nagaPro), [0x06, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00])
+        XCTAssertEqual(ButtonBindingSupport.defaultUSBFunctionBlock(for: 12, profileID: .nagaPro), [0x06, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00])
         XCTAssertNotNil(ButtonBindingSupport.completeDefaultUSBFunctionBlocks(for: [1, 2, 3, 4, 5, 9, 10, 52, 53], profileID: .nagaPro))
         XCTAssertNotNil(ButtonBindingSupport.completeDefaultUSBFunctionBlocks(for: [80, 81, 82, 83, 84, 85], profileID: .nagaPro))
     }
