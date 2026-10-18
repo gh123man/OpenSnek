@@ -107,6 +107,8 @@ public enum ButtonBindingSupport {
     // the same turbo-capable form as the Basilisk family, which the attached device round-trips.
     private static func supportsTurboHorizontalScrollBlocks(_ profileID: DeviceProfileID?) -> Bool { isBasiliskV3Family(profileID) || isNagaFamily(profileID) }
 
+    private static func usesNativeNagaHorizontalScrollDefaults(_ profileID: DeviceProfileID?) -> Bool { profileID == .nagaV2Pro || profileID == .nagaV3Pro }
+
     private static func isNagaFamily(_ profileID: DeviceProfileID?) -> Bool {
         switch profileID {
         case .nagaPro, .nagaV2Pro, .nagaV3Pro: return true
@@ -339,12 +341,12 @@ public enum ButtonBindingSupport {
         // Pro's firmware-native length-0x01 form.
         case 52 where profileID == .nagaPro: return basiliskV3FamilyHorizontalScrollBlock(buttonID: nagaProHorizontalScrollLeftButtonID, turboRate: defaultTurboRate)
         case 53 where profileID == .nagaPro: return basiliskV3FamilyHorizontalScrollBlock(buttonID: nagaProHorizontalScrollRightButtonID, turboRate: defaultTurboRate)
-        case 52 where profileID == .nagaV2Pro || profileID == .nagaV3Pro: return nagaFamilyNativeHorizontalScrollBlock(buttonID: horizontalScrollLeftButtonID)
-        case 53 where profileID == .nagaV2Pro || profileID == .nagaV3Pro: return nagaFamilyNativeHorizontalScrollBlock(buttonID: horizontalScrollRightButtonID)
+        case 52 where usesNativeNagaHorizontalScrollDefaults(profileID): return nagaFamilyNativeHorizontalScrollBlock(buttonID: horizontalScrollLeftButtonID)
+        case 53 where usesNativeNagaHorizontalScrollDefaults(profileID): return nagaFamilyNativeHorizontalScrollBlock(buttonID: horizontalScrollRightButtonID)
         // Bottom button factory block; cycles onboard profiles. Synapse rewrites the class-0x06
         // `06 01 06` form when the button is remapped to DPI-stage cycling. Both Naga families ship
         // this button at slot 14; the Naga Pro's unassigned banks hold the same `07 01 04` block.
-        case 14 where profileID == .nagaV2Pro || profileID == .nagaV3Pro || profileID == .nagaPro: return [0x07, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00]
+        case 14 where isNagaFamily(profileID): return [0x07, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00]
         // The Naga Pro's DPI buttons share the V3 Pro's factory blocks; both were read from the
         // device's unassigned banks, and both slots round-trip writes on the receiver.
         case 11 where profileID == .nagaPro: return [0x06, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00]

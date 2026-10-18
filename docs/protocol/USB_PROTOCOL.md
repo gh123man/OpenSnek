@@ -1029,7 +1029,7 @@ The app's initial-read and reconnect telemetry check requires DPI and poll-rate 
 | Modern wired (2020+) | `0x3F` |
 | Older devices | `0xFF` |
 
-Shipped per-profile IDs: all current USB profiles use `0x1F` (`DeviceProfile.usbTransactionID`). Contributor hardware validation on the Basilisk (2017), Lancehead Tournament Edition, Huntsman Mini, and Tartarus Pro showed `0x1F` works for every validated command on all four devices, including the commands where OpenRazer uses other IDs (Lancehead TE DPI stages `0xFF`, Tartarus Pro breathing `0x3F`, Huntsman Mini device mode `0xFF`) - the transaction byte appears to be an echo tag rather than a routing requirement on these devices. The mice also answered `0x3F` in ad-hoc testing.
+Shipped per-profile IDs (`DeviceProfile.usbTransactionID`): Mouse Dock Pro (`0x00A4`) requires `0xFF`; all other current USB profiles use `0x1F`. The dock rejects `0x1F` and `0x3F`, so do not treat its transaction ID as interchangeable. Contributor hardware validation on the Basilisk (2017), Lancehead Tournament Edition, Huntsman Mini, and Tartarus Pro showed `0x1F` works for every validated command on all four devices, including the commands where OpenRazer uses other IDs (Lancehead TE DPI stages `0xFF`, Tartarus Pro breathing `0x3F`, Huntsman Mini device mode `0xFF`) - the transaction byte appears to be an echo tag rather than a routing requirement on these devices. The mice also answered `0x3F` in ad-hoc testing.
 
 ---
 
