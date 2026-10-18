@@ -115,4 +115,3 @@ notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
 notify[1] len=8 req=0x30 status=0x02 len=10 30 0a 00 00 00 00 00 02
 notify[2] len=10 req=0x01 status=0x00 len=0 01 00 00 01 00 ff 00 00 00 00
 payload[10]: 01 00 00 01 00 ff 00 00 00 00
-
