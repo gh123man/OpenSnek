@@ -9,11 +9,11 @@ import Observation
     var serviceStatusMessage: String?
     var hidAccessStatus: HIDAccessStatus = .unknown()
     var permissionStatusMessage: String?
-    var isResettingPermissions = false
+    var isResettingPermissions: Bool = false
     var localStorageResetMessage: String?
-    var isResettingLocalStorage = false
+    var isResettingLocalStorage: Bool = false
     var statusItemTransientDpi: Int?
-    var openSettingsRequestCount = 0
+    var openSettingsRequestCount: Int = 0
     @ObservationIgnored let statusItemDpiDisplayDuration: TimeInterval
 
     @ObservationIgnored private weak var runtimeControllerStorage: AppStateRuntimeController?

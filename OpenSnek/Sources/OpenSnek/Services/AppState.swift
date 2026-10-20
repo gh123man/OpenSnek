@@ -21,8 +21,12 @@ private struct AppEnvironmentConfiguration {
     init(environment: AppEnvironment, statusItemDpiDisplayDuration: TimeInterval) {
         device = DeviceStore(environment: environment)
         editor = EditorStore(deviceStore: device)
+        runtime = Self.makeRuntimeStore(environment: environment, statusItemDpiDisplayDuration: statusItemDpiDisplayDuration)
+    }
+
+    private static func makeRuntimeStore(environment: AppEnvironment, statusItemDpiDisplayDuration: TimeInterval) -> RuntimeStore {
         let coordinator = environment.serviceCoordinator
-        runtime = RuntimeStore(environment: environment, backgroundServiceEnabled: coordinator.backgroundServiceEnabled, launchAtStartupEnabled: coordinator.launchAtStartupEnabled, statusItemDpiDisplayDuration: statusItemDpiDisplayDuration)
+        return RuntimeStore(environment: environment, backgroundServiceEnabled: coordinator.backgroundServiceEnabled, launchAtStartupEnabled: coordinator.launchAtStartupEnabled, statusItemDpiDisplayDuration: statusItemDpiDisplayDuration)
     }
 }
 
