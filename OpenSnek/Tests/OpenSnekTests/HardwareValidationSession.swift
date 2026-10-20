@@ -14,13 +14,14 @@ enum HardwareDPIBaseline {
 
 /// Requires explicit hardware identity and a named recovery journal before destructive tests.
 struct HardwareValidationScope {
-    let deviceID: String
+    let deviceID: String?
     let journalURL: URL
     let isRecovery: Bool
 
     init(environment: [String: String]) throws {
-        guard let deviceID = environment["OPEN_SNEK_HW_DEVICE_ID"], !deviceID.isEmpty else { throw HardwareValidationSession.failure("Set OPEN_SNEK_HW_DEVICE_ID to an exact discovered device ID; choosing the first device is forbidden.") }
+        let deviceID = environment["OPEN_SNEK_HW_DEVICE_ID"]
         let recovery = environment["OPEN_SNEK_HW_RECOVER_JOURNAL"]
+        guard recovery != nil || deviceID?.isEmpty == false else { throw HardwareValidationSession.failure("Set OPEN_SNEK_HW_DEVICE_ID to an exact discovered device ID; choosing the first device is forbidden.") }
         guard let path = recovery ?? environment["OPEN_SNEK_HW_JOURNAL"], !path.isEmpty else { throw HardwareValidationSession.failure("Set OPEN_SNEK_HW_JOURNAL to a new absolute recovery-journal path.") }
         guard path.hasPrefix("/") else { throw HardwareValidationSession.failure("The hardware journal path must be absolute") }
         self.deviceID = deviceID

@@ -17,20 +17,29 @@ import OpenSnekProtocols
         guard environment["OPEN_SNEK_HW"] == "1" else { throw XCTSkip("Set OPEN_SNEK_HW=1 to run hardware reliability tests.") }
         let scope = try HardwareValidationScope(environment: environment)
         let isolation = try BLEProbeSession()
-        let client = BridgeClient()
-        let device = try scope.select(from: await client.listDevices(), transport: .bluetooth)
-        guard await client.prepareBluetoothControlConnection(preferredPeripheralName: device.product_name) else { throw HardwareValidationSession.failure("Cannot prepare the explicitly selected Bluetooth device") }
-        let peripherals = await client.btVendorClient.connectedPeripheralSummaries() ?? []
-        let matchingNames = peripherals.filter { BluetoothNameMatcher.looselyMatches($0.name, device.product_name) }
-        guard matchingNames.count == 1 else { throw HardwareValidationSession.failure("Disconnect other matching Bluetooth models before hardware validation; name-based routing is ambiguous") }
-        print("[hardware-validation] journal=\(scope.journalURL.path) recovery=\(scope.isRecovery)")
+        let target = try await selectTarget(scope: scope)
+        let device = target.device
+        // All nested apply/readState exchanges share this immutable transport pin.
+        let client = BridgeClient(startHIDMonitoring: false, requiredBluetoothPeripheralIdentifier: target.peripheralIdentifier)
+        let read = { try await HardwareBluetoothSnapshot(target: target, payload: self.readSnapshot(client: client, device: device, isolation: isolation)) }
+        let restore = { (snapshot: HardwareBluetoothSnapshot) in
+            guard snapshot.target == target else { throw HardwareValidationSession.failure("Recovery target changed; no writes sent") }
+            try await self.restore(snapshot.payload, client: client, device: device, isolation: isolation)
+        }
+        print("[hardware-validation] peripheral=\(target.peripheralIdentifier) journal=\(scope.journalURL.path) recovery=\(scope.isRecovery)")
         if scope.isRecovery {
-            try await HardwareValidationSession.recover(deviceID: device.id, journalURL: scope.journalURL, read: { try await self.readSnapshot(client: client, device: device, isolation: isolation) }, restore: { try await self.restore($0, client: client, device: device, isolation: isolation) })
+            try await HardwareValidationSession.recover(deviceID: target.peripheralIdentifier.uuidString, journalURL: scope.journalURL, read: read, restore: restore)
             return
         }
-        try await HardwareValidationSession.run(
-            deviceID: device.id, journalURL: scope.journalURL, read: { try await self.readSnapshot(client: client, device: device, isolation: isolation) }, restore: { try await self.restore($0, client: client, device: device, isolation: isolation) },
-            operation: { try await self.exerciseSequence(client: client, device: device, isolation: isolation) })
+        try await HardwareValidationSession.run(deviceID: target.peripheralIdentifier.uuidString, journalURL: scope.journalURL, read: read, restore: restore, operation: { try await self.exerciseSequence(client: client, device: device, isolation: isolation) })
+    }
+
+    private func selectTarget(scope: HardwareValidationScope) async throws -> HardwareBluetoothTarget {
+        if scope.isRecovery { return try HardwareBluetoothTarget.recover(from: scope.journalURL) }
+        let discovery = BridgeClient(startHIDMonitoring: false)
+        let device = try scope.select(from: await discovery.listDevices(), transport: .bluetooth)
+        guard await discovery.prepareBluetoothControlConnection(preferredPeripheralName: device.product_name) else { throw HardwareValidationSession.failure("Cannot prepare the explicitly selected Bluetooth device") }
+        return try await HardwareBluetoothTarget.capture(device: device, peripherals: discovery.btVendorClient.connectedPeripheralSummaries() ?? [])
     }
 
     private func exerciseSequence(client: BridgeClient, device: MouseDevice, isolation: BLEProbeSession) async throws {

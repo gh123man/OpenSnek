@@ -108,7 +108,7 @@ actor BridgeClient {
     var btDpiSnapshotByDeviceID: [String: BLEVendorProtocol.DpiStageSnapshot] = [:]
     var btExpectedDpiByDeviceID: [String: BluetoothExpectedDpiState] = [:]
     var usbLogicalOnboardDPIByDeviceID: [String: [Int: OnboardDPIProfileSnapshot]] = [:]
-    let btVendorClient = BLEVendorTransportClient()
+    let btVendorClient: BLEVendorTransportClient
     let hidDevicePresenceMonitor = HIDDevicePresenceMonitor()
     let passiveDpiMonitor = PassiveDPIEventMonitor()
     var btExchangeLocked = false
@@ -126,7 +126,8 @@ actor BridgeClient {
     private var lastLoggedHIDManagerAccessDenied: Bool?
     private var lastEmptyHIDManagerRefreshAt: Date?
 
-    init(startHIDMonitoring: Bool = true) {
+    init(startHIDMonitoring: Bool = true, requiredBluetoothPeripheralIdentifier: UUID? = nil) {
+        btVendorClient = BLEVendorTransportClient(requiredPeripheralIdentifier: requiredBluetoothPeripheralIdentifier)
         hidDevicePresenceMonitor.onChange = { [weak self] event in Task { await self?.handleHIDDevicePresenceEvent(event) } }
         passiveDpiMonitor.onEvent = { [weak self] event in Task { await self?.handlePassiveDpiEvent(event) } }
         passiveDpiMonitor.onHeartbeat = { [weak self] event in Task { await self?.handlePassiveDpiHeartbeat(event) } }

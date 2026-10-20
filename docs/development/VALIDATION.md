@@ -73,9 +73,11 @@ Required for BLE DPI/stage changes when supported hardware is connected, but alw
 Stop both app/service and other BLE control clients first. Keep the mouse awake. The manual
 BLE probe lease fails fast on running OpenSnek processes or another probe; it never retries a
 command or changes normal app connection ownership. Disconnect other matching Bluetooth models
-so name-based routing is unambiguous.
+for initial target selection. The DPI test then captures the CoreBluetooth peripheral UUID and
+pins a dedicated client to it for every baseline read, apply, verification, and restore. If it
+disappears, the test fails safely instead of falling back to another mouse with the same name.
 
-Both mutating hardware unit tests (`HardwareDpiReliabilityTests`, `HardwareUSBButtonRemapTests`)
+New runs of both mutating hardware unit tests (`HardwareDpiReliabilityTests`, `HardwareUSBButtonRemapTests`)
 require an exact discovered device ID and a new absolute journal path. They no longer select the
 first Bluetooth/USB device. Read-only discovery can use `usb-info` or candidate IDs printed by
 `bt-profile-hid-watch --name "NAME" --duration 1`; do not confuse a product ID with the full ID.
@@ -101,14 +103,29 @@ OPEN_SNEK_HW=1 OPEN_SNEK_HW_RECOVER_JOURNAL="$HOME/opensnek-hardware-check.json"
   swift test --package-path OpenSnek --filter HardwareDpiReliabilityTests
 ```
 
-The same `OPEN_SNEK_HW_DEVICE_ID` is required. Recovery rejects mismatched device/schema/payload,
-then restores and reads back once; no command-level retries. Keep the journal until its phase is
+Bluetooth recovery loads the peripheral UUID and device metadata from the journal; it does not
+require `OPEN_SNEK_HW_DEVICE_ID`, whose generated value can change between processes. Only that
+UUID can receive recovery writes. If absent, recovery fails and the journal stays pending until
+that device returns. USB recovery still requires the same `OPEN_SNEK_HW_DEVICE_ID`.
+Recovery rejects mismatched device/schema/payload, then restores and reads back once; no
+command-level retries. Old Bluetooth journals without a UUID are rejected before any writes;
+retain them for manual recovery rather than guessing an identity from a name or generated ID. Keep the journal until its phase is
 `restored`, then archive it before another run. A hard kill cannot run cleanup; the on-disk journal
 is the recovery mechanism, not a guarantee that disconnected hardware can be restored immediately.
 
 Report the result as `pass`, `fail`, or `skipped` with the actual scope. A passing software-only
 restore-adapter test is not physical hardware validation. Persistence checks power-cycle with the
 app/service stopped, read every changed setting before restoring any, and report per-setting results.
+
+### Opt-in Bluetooth disconnect/recovery check
+
+With a scoped mouse A, run the DPI gate above and disconnect A after the journal is created.
+Bring up another mouse B of the same model. The run must fail and leave the original journal
+unrestored; B must retain its settings. Recovery with only B connected must also fail. Reconnect
+A and run recovery in a new process: A must receive its original stage bytes, readback must match,
+and only then may the journal become `restored`. Keep both mice awake during recovery. The
+software regression suite simulates this sequence and counts writes to B; this manual check
+validates the actual CoreBluetooth path. Do not claim a physical pass from the simulator alone.
 
 ## Validation Labels
 

@@ -35,6 +35,11 @@ Out of scope:
 - Hypershift/Boss-clutch remap path beyond the currently mapped button-bind family
 - Media/macro/system button action taxonomy beyond the payloads listed here
 
+Hardware validation uses an opt-in, immutable CoreBluetooth peripheral UUID on its transport
+client. Every exchange, including reconnect and journal recovery, is restricted to that UUID;
+an absent target fails without selecting a same-name peripheral. Normal app name-based routing
+is unchanged. See [hardware validation](../development/VALIDATION.md#safe-hardware-validation).
+
 ## 2. GATT Endpoints
 
 | Item | UUID | Access | Notes |

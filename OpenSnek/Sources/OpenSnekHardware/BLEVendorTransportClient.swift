@@ -47,6 +47,14 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
 
     private static let responseIdleInterval: TimeInterval = 0.12
 
+    // Immutable for the lifetime of a hardware-validation client, including reconnects.
+    let requiredPeripheralIdentifier: UUID?
+
+    public init(requiredPeripheralIdentifier: UUID? = nil) {
+        self.requiredPeripheralIdentifier = requiredPeripheralIdentifier
+        super.init()
+    }
+
     private let queue = DispatchQueue(label: "open.snek.bt.vendor")
 
     private var central: CBCentralManager?
@@ -122,6 +130,13 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
     }
 
     private func sendNextWriteIfReady() {
+        if let requiredPeripheralIdentifier {
+            guard completion != nil else { return }
+            guard peripheral?.identifier == requiredPeripheralIdentifier, peripheral?.state == .connected else {
+                fail("Required Bluetooth peripheral disconnected; no fallback is allowed")
+                return
+            }
+        }
         guard isNotifyReady, let peripheral, let writeChar, !writeQueue.isEmpty else {
             scheduleFinishIfIdle()
             return
@@ -146,13 +161,16 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
         let peripherals = central.retrieveConnectedPeripherals(withServices: [CBUUID(nsuuid: BLEVendorProtocol.serviceUUID)])
         let summaries = peripherals.map { ConnectedPeripheralSummary(name: $0.name, identifier: $0.identifier) }
         let ready = isNotifyReady && peripheral?.state == .connected && writeChar != nil && notifyChar != nil
-        let selection = Self.connectionSelection(from: summaries, preferredName: preferredPeripheralName, currentIdentifier: peripheral?.identifier, isReady: ready)
+        let selection = selectConnection(from: summaries, preferredName: preferredPeripheralName, currentIdentifier: peripheral?.identifier, isReady: ready)
         let selectedIdentifier: UUID
         switch selection {
         case .reuse:
             sendNextWriteIfReady()
             return
         case .connect(let identifier): selectedIdentifier = identifier
+        case .unavailable:
+            fail("Required Bluetooth peripheral is absent; reconnect that exact device")
+            return
         case .wait:
             queue.asyncAfter(deadline: .now() + 0.2) { [weak self] in
                 guard let self, self.completion != nil else { return }
@@ -174,9 +192,18 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
 
     /// Selects a transport action before any queued command can reuse the cached connection.
     enum ConnectionSelection: Equatable {
+        case unavailable
         case wait
         case reuse
         case connect(UUID)
+    }
+
+    func selectConnection(from peripherals: [ConnectedPeripheralSummary], preferredName: String?, currentIdentifier: UUID?, isReady: Bool) -> ConnectionSelection {
+        if let requiredPeripheralIdentifier {
+            guard peripherals.contains(where: { $0.identifier == requiredPeripheralIdentifier }) else { return .unavailable }
+            return isReady && currentIdentifier == requiredPeripheralIdentifier ? .reuse : .connect(requiredPeripheralIdentifier)
+        }
+        return Self.connectionSelection(from: peripherals, preferredName: preferredName, currentIdentifier: currentIdentifier, isReady: isReady)
     }
 
     static func connectionSelection(from peripherals: [ConnectedPeripheralSummary], preferredName: String?, currentIdentifier: UUID?, isReady: Bool) -> ConnectionSelection {
@@ -231,6 +258,7 @@ extension BLEVendorTransportClient: CBCentralManagerDelegate, CBPeripheralDelega
         writeChar = nil
         notifyChar = nil
         if self.peripheral?.identifier == peripheral.identifier { self.peripheral = nil }
+        if requiredPeripheralIdentifier == peripheral.identifier { fail("Required Bluetooth peripheral disconnected; retain the recovery journal") }
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
