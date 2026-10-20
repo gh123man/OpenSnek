@@ -12,6 +12,35 @@ private struct AppEnvironmentConfiguration {
     let serviceCoordinator: BackgroundServiceCoordinator
 }
 
+/// Builds the stores before the controllers that depend on them.
+@MainActor private struct AppStateStores {
+    let device: DeviceStore
+    let editor: EditorStore
+    let runtime: RuntimeStore
+
+    init(environment: AppEnvironment, statusItemDpiDisplayDuration: TimeInterval) {
+        device = DeviceStore(environment: environment)
+        editor = EditorStore(deviceStore: device)
+        let coordinator = environment.serviceCoordinator
+        runtime = RuntimeStore(environment: environment, backgroundServiceEnabled: coordinator.backgroundServiceEnabled, launchAtStartupEnabled: coordinator.launchAtStartupEnabled, statusItemDpiDisplayDuration: statusItemDpiDisplayDuration)
+    }
+}
+
+/// Builds the controllers against the same store instances before graph wiring.
+@MainActor private struct AppStateControllers {
+    let device: AppStateDeviceController
+    let editor: AppStateEditorController
+    let apply: AppStateApplyController
+    let runtime: AppStateRuntimeController
+
+    init(environment: AppEnvironment, stores: AppStateStores) {
+        device = AppStateDeviceController(environment: environment, deviceStore: stores.device)
+        editor = AppStateEditorController(environment: environment, deviceStore: stores.device, editorStore: stores.editor, buttonSlots: ButtonSlotDescriptor.defaults)
+        apply = AppStateApplyController(environment: environment, deviceStore: stores.device, editorStore: stores.editor, runtimeStore: stores.runtime)
+        runtime = AppStateRuntimeController(environment: environment, deviceStore: stores.device, runtimeStore: stores.runtime)
+    }
+}
+
 /// Coordinates app state behavior.
 @MainActor final class AppState {
     let environment: AppEnvironment
@@ -38,16 +67,16 @@ private struct AppEnvironmentConfiguration {
     }
 
     private init(environment: AppEnvironment, backendWasInjected: Bool, autoStart: Bool, statusItemDpiDisplayDuration: TimeInterval) {
-        let serviceCoordinator = environment.serviceCoordinator
-        let buttonSlots: [ButtonSlotDescriptor] = ButtonSlotDescriptor.defaults
+        let stores = AppStateStores(environment: environment, statusItemDpiDisplayDuration: statusItemDpiDisplayDuration)
+        let controllers = AppStateControllers(environment: environment, stores: stores)
         self.environment = environment
-        self.deviceStore = DeviceStore(environment: environment)
-        self.editorStore = EditorStore(deviceStore: deviceStore)
-        self.runtimeStore = Self.makeRuntimeStore(environment: environment, serviceCoordinator: serviceCoordinator, statusItemDpiDisplayDuration: statusItemDpiDisplayDuration)
-        self.deviceController = AppStateDeviceController(environment: environment, deviceStore: deviceStore)
-        self.editorController = AppStateEditorController(environment: environment, deviceStore: deviceStore, editorStore: editorStore, buttonSlots: buttonSlots)
-        self.applyController = AppStateApplyController(environment: environment, deviceStore: deviceStore, editorStore: editorStore, runtimeStore: runtimeStore)
-        self.runtimeController = AppStateRuntimeController(environment: environment, deviceStore: deviceStore, runtimeStore: runtimeStore)
+        self.deviceStore = stores.device
+        self.editorStore = stores.editor
+        self.runtimeStore = stores.runtime
+        self.deviceController = controllers.device
+        self.editorController = controllers.editor
+        self.applyController = controllers.apply
+        self.runtimeController = controllers.runtime
 
         wireGraph(backendWasInjected: backendWasInjected, autoStart: autoStart)
     }
@@ -64,10 +93,6 @@ private struct AppEnvironmentConfiguration {
         AppEnvironment(
             launchRole: configuration.launchRole, releaseUpdateChecker: configuration.releaseUpdateChecker, currentAppVersion: configuration.currentAppVersion, shouldCheckForReleaseUpdates: configuration.shouldCheckForReleaseUpdates, backend: configuration.backend,
             serviceCoordinator: configuration.serviceCoordinator, softwareUpdateInstaller: configuration.softwareUpdateInstaller)
-    }
-
-    private static func makeRuntimeStore(environment: AppEnvironment, serviceCoordinator: BackgroundServiceCoordinator, statusItemDpiDisplayDuration: TimeInterval) -> RuntimeStore {
-        RuntimeStore(environment: environment, backgroundServiceEnabled: serviceCoordinator.backgroundServiceEnabled, launchAtStartupEnabled: serviceCoordinator.launchAtStartupEnabled, statusItemDpiDisplayDuration: statusItemDpiDisplayDuration)
     }
 
     deinit {
