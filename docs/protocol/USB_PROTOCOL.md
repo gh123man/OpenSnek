@@ -523,7 +523,7 @@ Args:     [0] = storage/profile ID, [1] = enabled (0x00/0x01)
 
 ### Class 0x0F - Scroll LED Brightness and Effects
 
-Validated on Basilisk V3 X HyperSpeed (`0x00B9`), Basilisk V3 Pro (`0x00AB`), and Basilisk V3 35K (`0x00CB`) over USB. The Naga V2 Pro, Tartarus Pro, and Mouse Dock also use this class with device-specific read addressing; see the client note below.
+Validated on Basilisk V3 X HyperSpeed (`0x00B9`), Basilisk V3 Pro (`0x00AB`), and Basilisk V3 35K (`0x00CB`) over USB. The Naga V2 Pro, Naga V3 Pro, Tartarus Pro, Mouse Dock, and Mouse Dock Pro also use this class with device-specific read addressing; see the client notes below.
 
 #### Get/Set Scroll LED Brightness
 ```
@@ -554,6 +554,8 @@ Client note:
 Client note (read vs write addressing):
 - The whole-device write address is not always readable. The Naga V2 Pro addresses brightness writes at LED `0x00`, but `0F:84` reads at `0x00` return status `0x03` while logo LED `0x04` returns status `0x02` (brightness `0x58`). Never assume a write target can be reused as a read target.
 - Other profiles that override the brightness write target are safe as-is: the Tartarus Pro keeps LED `0x00` for both because `0x00` and `0x05` alias the same register, and the Mouse Dock does not answer `0F:84` at all but sets `supportsLightingStateReads: false` so the missing value is expected.
+- The Mouse Dock Pro answers `0F:84` with status `0x02` at both LED `0x00` and LED `0x0F`, but only LED `0x0F` reports the stored value; LED `0x00` always reports `00` and would make a fully lit dock look dark. Writes still target LED `0x00`, so its profile splits `usbBrightnessLEDIDs` from `usbBrightnessReadLEDIDs`. Its effect-state read (`0F:82`) echoes LED `0x0F` regardless of the requested LED, so associate the response with the requested LED rather than the echo.
+- Transaction IDs are per-device, not per-family. Every Basilisk and Naga profile answers `0x1F`, but the Mouse Dock Pro answers only `0xFF` and treats `0x1F`/`0x3F` as timeouts (status `0x04`). Keep the ID on the device profile rather than assuming a shared value.
 - OpenSnek splits the addresses per profile in `OpenSnekCore/DeviceSupport.swift`: `usbBrightnessLEDIDs` is the write target, and the optional `usbBrightnessReadLEDIDs` overrides the read target (defaulting to the write target). Missing brightness telemetry on an otherwise responsive USB device is treated as incomplete telemetry, not a disconnect. If a device cycles Connected/Reconnecting while DPI reads succeed, probe which LED answers `0F:84` before changing recovery logic; `docs/development/VALIDATION.md` has the log greps and probe command.
 
 #### Get/Set Scroll LED Effects
@@ -1027,7 +1029,7 @@ The app's initial-read and reconnect telemetry check requires DPI and poll-rate 
 | Modern wired (2020+) | `0x3F` |
 | Older devices | `0xFF` |
 
-Shipped per-profile IDs: all current USB profiles use `0x1F` (`DeviceProfile.usbTransactionID`). Contributor hardware validation on the Basilisk (2017), Lancehead Tournament Edition, Huntsman Mini, and Tartarus Pro showed `0x1F` works for every validated command on all four devices, including the commands where OpenRazer uses other IDs (Lancehead TE DPI stages `0xFF`, Tartarus Pro breathing `0x3F`, Huntsman Mini device mode `0xFF`) - the transaction byte appears to be an echo tag rather than a routing requirement on these devices. The mice also answered `0x3F` in ad-hoc testing.
+Shipped per-profile IDs (`DeviceProfile.usbTransactionID`): Mouse Dock Pro (`0x00A4`) requires `0xFF`; all other current USB profiles use `0x1F`. The dock rejects `0x1F` and `0x3F`, so do not treat its transaction ID as interchangeable. Contributor hardware validation on the Basilisk (2017), Lancehead Tournament Edition, Huntsman Mini, and Tartarus Pro showed `0x1F` works for every validated command on all four devices, including the commands where OpenRazer uses other IDs (Lancehead TE DPI stages `0xFF`, Tartarus Pro breathing `0x3F`, Huntsman Mini device mode `0xFF`) - the transaction byte appears to be an echo tag rather than a routing requirement on these devices. The mice also answered `0x3F` in ad-hoc testing.
 
 ---
 
@@ -1055,3 +1057,49 @@ Shipped per-profile IDs: all current USB profiles use `0x1F` (`DeviceProfile.usb
 ### Battery telemetry during software lighting
 
 Software effects retain cached settings to avoid a full settings sweep competing with frame writes. Battery telemetry is read independently with serialized `07:80` and `07:84` commands every 30 seconds while a battery-capable USB device runs an effect. A USB availability transition or physical reconnect makes the next scheduled sample due immediately. Battery reads preserve the latest DPI and lighting state and publish the resulting battery state to service clients. Failed commands are not retried; a later scheduled sample or reconnect provides the next opportunity. Maintainer hardware validation of natural mouse sleep/wake with effects running remains pending.
+
+### Razer Naga V3 Pro (0x00E7 wired, 0x00E8 receiver)
+
+| Setting | Value |
+|---------|-------|
+| USB VID:PID | `1532:00E7` (wired), `1532:00E8` (2.4 GHz receiver); wired firmware response bytes `01 01 00 00` |
+| Transaction ID | `0x1F` |
+| Max DPI | 50000 (Focus Pro 50K Optical Sensor Gen-3). The firmware echoes any stored value without clamping, so the published ceiling is the authoritative limit |
+| DPI stages | `04:86` -> active token `0x03`, count `5`, stages `400/800/1600/3200/6400`; `04:05`/`04:85` scalar and stage writes round-trip, including independent X/Y (`800x1600` reads back as `03 20 06 40`) |
+| Onboard Profiles | `05:80` -> `01`, `05:81` -> `05 01` (max `5`, assigned `1`), `05:84` -> active `01`. Metadata reads `05:88` answer status `0x03` at every offset, so mapped profile CRUD is not exposed. Stored-bank DPI, stage, and brightness writes do round-trip |
+| Active profile select | `05:04` accepts only assigned profile IDs; targeting an unassigned bank is rejected |
+| Poll rate | `00:85` -> `01` (1000 Hz); `00:05` write/readback validated |
+| Battery | level via `07:80` (observed `00 a4`); charging via `07:84` |
+| Idle time | `07:83` -> `01 2c` (300 s); `07:03` write/readback validated |
+| Scroll mode | `02:94` returns status `0x05` (not supported); scroll acceleration `02:96` and smart reel `02:97` answer `00`. These are wire observations only: OpenSnek ships no scroll-wheel adjustment for this profile (`supportsScrollModeControls` is false), and the wheel mode has no readout, so only slot `6A`'s factory action changes it |
+| Lighting zones | scroll wheel `0x01`, palm logo `0x04`, and side panel `0x05`, matching Razer's "Logo, Scroll Wheel and 12 button side plate". LEDs `0x00` and `0x06`-`0xFF` are rejected. Brightness reads and writes (`0F:84`/`0F:04`) succeed per zone; no separate whole-device write address is needed |
+| Validated lighting effects | off/static/spectrum/wave/reactive/breathing via extended matrix `0F:02`. Off, static, spectrum, wave, reactive, and pulse single were visually confirmed; the remaining pulse modes were ACK-verified |
+| Button slots | `01`-`05`, `09`, `0A`, `0B` (front index), `0C` (rear index), `0E` (profile), `34`/`35` (wheel tilt), `39` (pinky), `40`-`4B` (12-button plate), `50`-`55` (6-button plate), `6A` (front scroll-wheel button), `80` (rear scroll-wheel button). Every slot round-tripped a same-value write on both the live (`00`) and persistent (`01`) layers |
+| Button inventory | `02:84` returns a count byte followed by one slot ID per mappable button. The Naga V3 Pro reports `33` slots: `1,2,11,12,14,3,52,53,106,57,128,66,65,64,69,68,67,72,71,70,75,74,73,80,81,82,83,84,85,5,4,9,10`. Prefer this over a read sweep when building a profile, because a slot can answer writes while a read sweep misses it |
+| Scroll-wheel buttons | Slot `6A`/`106` (front) ships the class-`12` action `12 01 01`, which cycles the wheel between tactile, free-spin, and smart-reel modes. Slot `80`/`128` (rear) ships the class-`00` no-action form `00 01 00` and does nothing by default. Both are mappable; writing `12 01 01` or `00 01 00` back restores the respective factory behavior. The wheel mode is not readable or writable through the scroll-mode pair: `02:94` returns status `0x05` |
+| 2-button plate | Press validation: the forward button is slot `05` and the rear button is slot `04`, matching the Naga Pro family's reversed mapping. The plate has no printed labels. Neither the 2- nor the 6-button plate has lighting |
+
+Button reads return the layer flag at byte 10 and the 7-byte function block at bytes `11..17`, matching the shared non-Basilisk read layout.
+
+The [wired follow-up](../../captures/usb/2026-10-18-naga-v3-pro-wired/README.md) confirmed the
+same 33-slot inventory and body-button defaults, three-zone lighting reads, charging telemetry,
+and changed-value poll-rate, X/Y DPI, sleep-timeout, and brightness write/readback/restore.
+A same-value stage write preserved the complete table and stage IDs. Wired metadata `05:88`
+(slot 1, offset 0) also returned `0x03`; scroll mode `02:94` returned `0x05`. Receiver-only
+observations above (such as the exhaustive stored-bank checks) are not repeated wired claims.
+
+### Razer Mouse Dock Pro (0x00A4)
+
+| Setting | Value |
+|---------|-------|
+| USB VID:PID | `1532:00A4`; firmware `0x02010201`, serial `632616U44201307` |
+| Transaction ID | `0xFF` only. `0x1F` and `0x3F` are treated as timeouts (status `0x04`) |
+| Role | Charging dock and 2.4 GHz receiver; exposure is limited to its own lighting surface |
+| Lighting zones | logo LED `0x00` only; LEDs `0x01`-`0x08` return status `0x03` |
+| Brightness | `0F:04` args `01 00 <value>` is accepted with visual confirmation. `0F:84` reads answer at LED `0x0F` (`200` -> `c8`, `64` -> `40`, `255` -> `ff`, `0` -> `00`); the same read at LED `0x00` always returns `00` |
+| Effect state | `0F:82` round-trips (static color reads back as `01 00 00 01 <R G B>`), but the LED echo always returns `0x0f` regardless of the requested LED |
+| Effects | off, static, spectrum, wave (both directions), reactive, and breath random/single/dual answer `status 0x02`. Static, wave, and breathing were visually confirmed; `reactive` is not in OpenRazer's method list for this device |
+| Matrix | OpenRazer declares `MATRIX_DIMS = [1, 8]`; `0F:03` ACKs 1-, 4-, and 8-cell row writes. Per-cell rendering is not yet mapped, so no software-lighting frame layout is exposed |
+| Target addressing | OpenRazer uses `ZERO_LED` for every mouse-dock-pro request, matching the observed LED `0x00` |
+
+Wire-level note: after unplug/replug the dock answers normally, but a stale HID session can make `IOHIDDeviceSetReport` fail with `kIOReturnTimeout` (`0xE00002D6`) on every report ID while `IOHIDDeviceOpen` and `IOHIDDeviceGetReport` still succeed. Removing Razer Synapse alone did not clear that state; the replug did. Treat it as a stale session rather than a protocol difference.

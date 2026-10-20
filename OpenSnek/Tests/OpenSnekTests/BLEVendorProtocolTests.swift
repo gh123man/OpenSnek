@@ -143,6 +143,16 @@ final class BLEVendorProtocolTests: XCTestCase {
         XCTAssertEqual(parsed?.pairs, [DpiPair(x: 1600, y: 2000), DpiPair(x: 3200, y: 3600)])
     }
 
+    func testNagaV3ProDpiStagesPreserve50KAndStageIDs() {
+        let pairs = [DpiPair(x: 400, y: 400), DpiPair(x: 800, y: 800), DpiPair(x: 1700, y: 1800), DpiPair(x: 3200, y: 3200), DpiPair(x: 50_000, y: 50_000)]
+        let merged = BLEVendorProtocol.mergedStagePairs(currentPairs: pairs, requestedCount: 5, requestedPairs: pairs, profileID: .nagaV3Pro)
+        let payload = BLEVendorProtocol.buildDpiStagePayload(active: 2, count: 5, pairs: merged, marker: 0, stageIDs: [1, 2, 3, 4, 5], profileID: .nagaV3Pro)
+        let parsed = BLEVendorProtocol.parseDpiStageSnapshot(blob: payload)
+        XCTAssertEqual(parsed?.pairs, pairs)
+        XCTAssertEqual(parsed?.active, 2)
+        XCTAssertEqual(parsed?.stageIDs, [1, 2, 3, 4, 5])
+    }
+
     func testMergedStageSlotsSingleModeMirrors() {
         let merged = BLEVendorProtocol.mergedStageSlots(currentSlots: [400, 800, 1600, 3200, 6400], requestedCount: 1, requestedValues: [1800])
         XCTAssertEqual(merged, [1800, 1800, 1800, 1800, 1800])
@@ -258,6 +268,26 @@ final class BLEVendorProtocolTests: XCTestCase {
         XCTAssertEqual(Array(tiltLeft), [0x01, 0x34, 0x00, 0x0E, 0x03, 0x68, 0x00, 0x14, 0x00, 0x00])
         XCTAssertEqual(Array(tiltRight), [0x01, 0x35, 0x00, 0x0E, 0x03, 0x69, 0x00, 0x14, 0x00, 0x00])
         XCTAssertEqual(Array(keyboard), [0x01, 0x40, 0x00, 0x02, 0x02, 0x00, 0x1D, 0x00, 0x00, 0x00])
+    }
+
+    func testNagaV3ProBluetoothZoneEffectsMatchCapturedPayloads() {
+        let primary = RGBPatch(r: 0, g: 0, b: 255)
+        let secondary = RGBPatch(r: 255, g: 0, b: 0)
+        let expected: [LightingEffectKind: [UInt8]] = [
+            .off: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], .staticColor: [1, 0, 0, 1, 0, 0, 255, 0, 0, 0], .spectrum: [3, 0, 0, 0, 0, 0, 0, 0, 0, 0], .wave: [4, 1, 40, 0, 0, 0, 0, 0, 0, 0], .reactive: [5, 0, 2, 1, 0, 0, 255, 0, 0, 0], .pulseRandom: [2, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            .pulseSingle: [2, 1, 0, 1, 0, 0, 255, 0, 0, 0], .pulseDual: [2, 2, 0, 2, 0, 0, 255, 255, 0, 0]
+        ]
+        for (kind, payload) in expected {
+            let effect = LightingEffectPatch(kind: kind, primary: primary, secondary: secondary, waveDirection: .left, reactiveSpeed: 2)
+            XCTAssertEqual(Array(BLEVendorProtocol.buildBluetoothZoneEffectPayload(effect: effect)), payload, "\(kind)")
+        }
+    }
+
+    func testNagaV3ProBluetoothRestoresBothScrollButtonFactoryBlocks() {
+        let front = BLEVendorProtocol.buildButtonPayload(slot: 106, kind: .default, hidKey: nil, profileID: .nagaV3Pro)
+        let rear = BLEVendorProtocol.buildButtonPayload(slot: 128, kind: .default, hidKey: nil, profileID: .nagaV3Pro)
+        XCTAssertEqual(Array(front), [0x01, 0x6A, 0x00, 0x12, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00])
+        XCTAssertEqual(Array(rear), [0x01, 0x80, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00])
     }
 
     func testNagaV2ProBluetoothTopButtonReadDecodesLiveLane() {

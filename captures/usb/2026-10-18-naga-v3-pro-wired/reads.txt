@@ -1,0 +1,118 @@
+$ OpenSnekProbe usb-raw --class 0x00 --cmd 0x81 --size 0x04 --pid 0x00e7 --txn 0x1f
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00e7:02141000:usb pid=0x00e7
+response[90]: 02 1f 00 00 00 04 00 81 01 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 85 00
+exit=0
+
+$ OpenSnekProbe usb-raw --class 0x00 --cmd 0x85 --size 0x01 --pid 0x00e7 --txn 0x1f
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00e7:02141000:usb pid=0x00e7
+response[90]: 02 1f 00 00 00 01 00 85 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 85 00
+exit=0
+
+$ OpenSnekProbe usb-raw --class 0x04 --cmd 0x85 --size 0x07 --args 01,00,00,00,00,00,00 --pid 0x00e7 --txn 0x1f
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00e7:02141000:usb pid=0x00e7
+response[90]: 02 1f 00 00 00 07 04 85 01 06 40 06 40 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 87 00
+exit=0
+
+$ OpenSnekProbe usb-raw --class 0x04 --cmd 0x86 --size 0x26 --args 01,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00 --pid 0x00e7 --txn 0x1f
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00e7:02141000:usb pid=0x00e7
+response[90]: 02 1f 00 00 00 26 04 86 01 03 05 01 01 90 01 90 00 00 02 03 20 03 20 00 00 03 06 40 06 40 00 00 04 0c 80 0c 80 00 00 05 c3 50 c3 50 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 a2 00
+exit=0
+
+$ OpenSnekProbe usb-battery-read --pid 0x00e7
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00e7:02141000:usb pid=0x00e7
+battery charging=yes raw=0x94 percent=58
+exit=0
+
+$ OpenSnekProbe usb-button-inventory --pid 0x00e7
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00e7:02141000:usb pid=0x00e7
+button-inventory class=02 cmd=84 count=33 slots=[1,2,11,12,14,3,52,53,106,57,128,66,65,64,69,68,67,72,71,70,75,74,73,80,81,82,83,84,85,5,4,9,10]
+exit=0
+
+$ OpenSnekProbe usb-raw --class 0x07 --cmd 0x83 --size 0x02 --pid 0x00e7 --txn 0x1f
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00e7:02141000:usb pid=0x00e7
+response[90]: 02 1f 00 00 00 02 07 83 00 3c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ba 00
+exit=0
+
+$ OpenSnekProbe usb-raw --class 0x02 --cmd 0x94 --size 0x02 --pid 0x00e7 --txn 0x1f
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00e7:02141000:usb pid=0x00e7
+response[90]: 05 1f 00 00 00 02 02 94 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 94 00
+exit=0
+
+$ OpenSnekProbe usb-raw --class 0x0f --cmd 0x84 --size 0x03 --args 01,01,00 --pid 0x00e7 --txn 0x1f
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00e7:02141000:usb pid=0x00e7
+response[90]: 02 1f 00 00 00 03 0f 84 01 01 55 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 dd 00
+exit=0
+
+$ OpenSnekProbe usb-raw --class 0x0f --cmd 0x82 --size 0x0c --args 01,01,00,00,00,00,00,00,00,00,00,00 --pid 0x00e7 --txn 0x1f
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00e7:02141000:usb pid=0x00e7
+response[90]: 02 1f 00 00 00 0c 0f 82 00 01 01 00 00 01 00 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 7f 00
+exit=0
+
+$ OpenSnekProbe usb-raw --class 0x0f --cmd 0x84 --size 0x03 --args 01,04,00 --pid 0x00e7 --txn 0x1f
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00e7:02141000:usb pid=0x00e7
+response[90]: 02 1f 00 00 00 03 0f 84 01 04 55 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 d8 00
+exit=0
+
+$ OpenSnekProbe usb-raw --class 0x0f --cmd 0x82 --size 0x0c --args 01,04,00,00,00,00,00,00,00,00,00,00 --pid 0x00e7 --txn 0x1f
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00e7:02141000:usb pid=0x00e7
+response[90]: 02 1f 00 00 00 0c 0f 82 00 04 01 00 00 01 00 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 7a 00
+exit=0
+
+$ OpenSnekProbe usb-raw --class 0x0f --cmd 0x84 --size 0x03 --args 01,05,00 --pid 0x00e7 --txn 0x1f
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00e7:02141000:usb pid=0x00e7
+response[90]: 02 1f 00 00 00 03 0f 84 01 05 55 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 d9 00
+exit=0
+
+$ OpenSnekProbe usb-raw --class 0x0f --cmd 0x82 --size 0x0c --args 01,05,00,00,00,00,00,00,00,00,00,00 --pid 0x00e7 --txn 0x1f
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00e7:02141000:usb pid=0x00e7
+response[90]: 02 1f 00 00 00 0c 0f 82 00 05 01 00 00 01 00 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 7b 00
+exit=0
+
+$ OpenSnekProbe usb-button-read --slot 11 --profile both --pid 0x00e7
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00e7:02141000:usb pid=0x00e7
+profile=1 slot=11 hypershift=0 block=06010100000000 class=0x06 len=1 data=01
+profile=0 slot=11 hypershift=0 block=06010100000000 class=0x06 len=1 data=01
+exit=0
+
+$ OpenSnekProbe usb-button-read --slot 12 --profile both --pid 0x00e7
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00e7:02141000:usb pid=0x00e7
+profile=1 slot=12 hypershift=0 block=06010200000000 class=0x06 len=1 data=02
+profile=0 slot=12 hypershift=0 block=06010200000000 class=0x06 len=1 data=02
+exit=0
+
+$ OpenSnekProbe usb-button-read --slot 14 --profile both --pid 0x00e7
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00e7:02141000:usb pid=0x00e7
+profile=1 slot=14 hypershift=0 block=07010400000000 class=0x07 len=1 data=04
+profile=0 slot=14 hypershift=0 block=07010400000000 class=0x07 len=1 data=04
+exit=0
+
+$ OpenSnekProbe usb-button-read --slot 106 --profile both --pid 0x00e7
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00e7:02141000:usb pid=0x00e7
+profile=1 slot=106 hypershift=0 block=12010100000000 class=0x12 len=1 data=01
+profile=0 slot=106 hypershift=0 block=12010100000000 class=0x12 len=1 data=01
+exit=0
+
+$ OpenSnekProbe usb-button-read --slot 128 --profile both --pid 0x00e7
+warning: IOHIDManagerOpen failed (-536870203); continuing best-effort discovery
+usb 1532:00e7:02141000:usb pid=0x00e7
+profile=1 slot=128 hypershift=0 block=00010000000000 class=0x00 len=1 data=00
+profile=0 slot=128 hypershift=0 block=00010000000000 class=0x00 len=1 data=00
+exit=0

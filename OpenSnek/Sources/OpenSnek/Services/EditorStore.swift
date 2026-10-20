@@ -614,6 +614,8 @@ import OpenSnekCore
 
     func updateConnectBehavior(_ behavior: DeviceConnectBehavior) { editorController.updateConnectBehavior(behavior) }
 
+    func updateLightingZoneEditMode(_ mode: LightingZoneEditMode) { editorController.updateLightingZoneEditMode(mode) }
+
     func updateUSBLightingZoneID(_ zoneID: String) { editorController.updateUSBLightingZoneID(zoneID) }
 
     func updateUSBButtonProfile(_ profile: Int) { editorController.updateUSBButtonProfile(profile) }

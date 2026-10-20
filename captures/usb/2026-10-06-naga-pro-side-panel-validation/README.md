@@ -66,3 +66,84 @@ available. This session covers:
 - `02-slot64-default-write-app-path.txt` - app `Default` write path on slot `64`
 - `03-6-button-native-default-writes.txt` - staged 6-button defaults and readbacks
 - `04-restore-originals.txt` - restore writes and final readback for slots `64-75` and `80-85`
+
+---
+
+## Addendum: 2-button panel press validation (2026-10-17)
+
+The original session validated the 12- and 6-button panels because only the 2-button panel was
+available before; this addendum closes the reverse gap on the same unit (still `1532:0090`), during
+the Naga V3 Pro bring-up.
+
+Method: `usb-button-set` bound slot `4` to keyboard `j` (`0x0D`) and slot `5` to keyboard `k`
+(`0x0E`) on both the persistent and direct profiles. The owner pressed the 2-button panel's forward
+button and then its rear button in a blank TextEdit document.
+
+| Physical button | Typed | Slot | Factory block |
+| --- | --- | --- | --- |
+| Forward (front) | `k` | `5` | `01 01 05` (mouse button 5 / forward) |
+| Rear | `j` | `4` | `01 01 04` (mouse button 4 / back) |
+
+So the 2-button panel really is reversed relative to physical order, which is what the shipped
+profile's `Panel Button 1` = slot `5` / `Panel Button 2` = slot `4` naming already encodes. Both
+slots were restored to their factory blocks and read back on both profiles.
+
+The Naga V3 Pro was pressed through the same test in
+[captures/usb/2026-10-17-naga-v3-pro/](../2026-10-17-naga-v3-pro/) and produced the identical
+mapping, so the whole Naga Pro family agrees here.
+
+### Inventory cross-check
+
+`OpenSnekProbe usb-button-inventory` (new, reads `02:84`) reports the Naga Pro's own mappable-button
+list as 30 slots:
+
+```
+count=30 slots=[1,2,3,52,53,14,11,12,64,65,66,67,68,69,70,71,72,73,74,75,80,81,82,83,84,85,5,4,9,10]
+```
+
+That is exactly the 30 slots `nagaProUSBButtonSlots` / `nagaProUSBWritableSlots` already ship, so the
+shipped profile needs no change. The Naga V3 Pro's list is 33 slots, adding the pinky button (`57`)
+and both scroll-wheel buttons (`106`, `128`).
+
+### Slot 14 is the editable underside profile button, not a scroll-mode toggle
+
+`nagaProUSBDocumentedReadOnlySlots` used to label slot `14` as `Scroll Mode Toggle` and ship it
+read-only, which the app showed as a row for this device. Both parts were wrong, and the 2026-10-17
+session settled it on the receiver (`1532:0090`):
+
+| Check | Observed |
+| --- | --- |
+| Device inventory | reports slot `14` among its 30 mappable slots |
+| Unassigned banks (profiles `3`, `4`, `5`) | `06 01 06` is absent there; they hold `07 01 04`, the family profile-cycle block |
+| Live layers (profiles `0`, `1`, `2`) | `06 01 06` — this unit's button was remapped away from the factory block |
+| Same-value write of `06 01 06` | applied and read back on both the live and persistent layers |
+
+So the hardware button is the profile button (`07 01 04` cycles the saved onboard profiles), the slot
+accepts remaps, and the Naga V2 Pro and Naga V3 Pro ship the same button at the same slot with the
+same factory block. The profile now exposes slot `14` as an editable `Profile Button` whose `Default`
+restores `07 01 04`, and the shared default-block rule covers the whole Naga family.
+
+`06 01 06` is what the app's parser maps to DPI-stage cycling, which is why this unit's bottom button
+may not cycle profiles today: it is a remap, not the factory binding. Selecting `Default` for that row
+restores the profile cycle.
+
+Note for future work: the device owner reported that the bottom button is the profile button on every
+Naga, and that none of these mice switch the wheel between free-spinning and notched — the
+`Scroll Mode Toggle` label was borrowed from the Basilisk family, where that slot genuinely is the
+scroll-mode toggle and where `supportsScrollModeControls` is true.
+
+### DPI button slots 11/12 (2026-10-18)
+
+The profile listed slots `11` and `12` as visible `DPI Down` / `DPI Up` buttons but kept them out of
+the writable set, so the app showed them read-only. They are mappable and writable:
+
+| Check | Observed |
+| --- | --- |
+| Device inventory | reports slots `11` and `12` among its 30 mappable slots |
+| Unassigned banks (profiles `3`-`5`) | slot `11` = `06 01 01`, slot `12` = `06 01 02` (the same factory blocks the Naga V3 Pro ships for its front/rear index buttons) |
+| Live layers | carry the owner's media-key remaps (`02 02 00 e6` / `02 02 00 e4`) |
+| Write + readback | a write to each slot applied and read back on both the live and persistent layers |
+
+Both slots are now editable with those factory blocks as `Default`, so full button-profile reset covers
+all 30 of the device's mappable slots. (The write test initially clobbered the two live remaps with a
+malformed block; they were restored to `02 02 00 e6` / `02 02 00 e4` and verified on both layers.)

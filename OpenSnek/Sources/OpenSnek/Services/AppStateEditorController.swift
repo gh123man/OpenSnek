@@ -301,10 +301,7 @@ import OpenSnekCore
 
     func telemetryWarning(for state: MouseState, device: MouseDevice) -> String? {
         guard device.transport == .usb else { return nil }
-        var missing: [String] = []
-        if state.dpi_stages.values == nil { missing.append("DPI stages") }
-        if state.poll_rate == nil { missing.append("poll rate") }
-        if state.led_value == nil { missing.append("lighting") }
+        let missing = USBTelemetryExpectation.missingTelemetry(state: state, profile: DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport))
         guard !missing.isEmpty else { return nil }
         return "USB telemetry is incomplete (missing \(missing.joined(separator: ", "))). " + "Controls stay visible, but values may be stale until readback succeeds."
     }

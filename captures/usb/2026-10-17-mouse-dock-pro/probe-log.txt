@@ -1,0 +1,48 @@
+# Mouse Dock Pro (0x00A4) probe log — 2026-10-17
+# Device enumerates as 'Razer Mouse Dock Pro' 1532:00A4, bcdDevice 0x0101, serial 632616U44201307
+# NOTE: this dock answers ONLY transaction ID 0xFF. Requests sent with 0x1F or 0x3F return status 0x04 (timeout).
+# A stale HID session made every request fail with kIOReturnTimeout at the macOS layer until the dock was replugged.
+
+## Identity
+
+$ OpenSnekProbe usb-raw --class 0x00 --cmd 0x82 --size 0x16 --pid 0x00a4
+usb 1532:00a4:02141000:usb pid=0x00a4
+response[90]: 02 ff 00 00 00 16 00 82 36 33 32 36 31 36 55 34 34 32 30 31 33 30 37 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 c0 00
+
+$ OpenSnekProbe usb-raw --class 0x00 --cmd 0x81 --size 0x02 --pid 0x00a4
+usb 1532:00a4:02141000:usb pid=0x00a4
+response[90]: 02 ff 00 00 00 02 00 81 02 01 02 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 83 00
+
+$ OpenSnekProbe usb-raw --class 0x00 --cmd 0x84 --size 0x02 --args 00,00 --pid 0x00a4
+usb 1532:00a4:02141000:usb pid=0x00a4
+response[90]: 02 ff 00 00 00 02 00 84 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 86 00
+
+## Profile-driven commands (probe applies the profile's transaction ID 0xFF automatically)
+
+$ OpenSnekProbe usb-lighting-info --pid 0x00a4
+usb 1532:00a4:02141000:usb pid=0x00a4
+supported-effects=off,static,wave,spectrum,pulse_random,pulse_single,pulse_dual
+zone id=logo label="Logo" ledIDs=[0x00]
+brightness zone=logo label="Logo" led=0x00 value=0
+
+$ OpenSnekProbe usb-lighting-read --pid 0x00a4
+usb 1532:00a4:02141000:usb pid=0x00a4
+brightness zone=logo label="Logo" led=0x00 value=0
+
+### Mouse Dock Pro brightness read addressing (the fix): write LED 0x00, read LED 0x0F
+write 200 (0xc8) -> status=02 payload=01 00 c8 00 00 00 
+  read LED 0x0F  -> status=02 payload=01 0f c8 00 00 00 
+  read LED 0x00  -> status=02 payload=01 00 00 00 00 00 
+write 64  (0x40) -> status=02 payload=01 00 40 00 00 00 
+  read LED 0x0F  -> status=02 payload=01 0f 40 00 00 00 
+  read LED 0x00  -> status=02 payload=01 00 00 00 00 00 
+write 255 (0xff) -> status=02 payload=01 00 ff 00 00 00 
+  read LED 0x0F  -> status=02 payload=01 0f ff 00 00 00 
+  read LED 0x00  -> status=02 payload=01 00 00 00 00 00 
+write 0   (0x00) -> status=02 payload=01 00 00 00 00 00 
+  read LED 0x0F  -> status=02 payload=01 0f 00 00 00 00 
+  read LED 0x00  -> status=02 payload=01 00 00 00 00 00 
+effect read LED 0x0F -> status=02 payload=01 0f 03 00 00 00 
+effect read LED 0x00 -> status=02 payload=01 0f 03 00 00 00 
+restore brightness 255 -> status=02 payload=01 00 ff 00 00 00 
+restore spectrum        -> status=02 payload=01 00 03 00 00 00 

@@ -435,7 +435,7 @@ private struct RefreshStateReadContext {
         // supported controls should keep a present device in recovery, and some
         // accessories (the Mouse Dock) cannot read their effect/brightness state at
         // all, so a missing led value is not a transport failure for them.
-        return (profile.supportsDPIControls && state.dpi_stages.values == nil) || (profile.supportsPollRateControls && state.poll_rate == nil) || (profile.supportsLightingStateReads && state.led_value == nil)
+        return !USBTelemetryExpectation.missingTelemetry(state: state, profile: profile).isEmpty
     }
 
     static func usbTelemetryUnavailableError() -> NSError { NSError(domain: "OpenSnek.AppStateDeviceController", code: 1, userInfo: [NSLocalizedDescriptionKey: usbTelemetryUnavailableMessage]) }

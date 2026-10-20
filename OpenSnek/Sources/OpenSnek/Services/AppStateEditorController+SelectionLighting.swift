@@ -204,8 +204,7 @@ import OpenSnekCore
 
     func currentUSBLightingZoneLEDIDs() -> [UInt8]? {
         guard editorStore.editableLightingEffect == .staticColor else { return nil }
-        guard editorStore.editableUSBLightingZoneID != "all" else { return nil }
-        return editorStore.visibleUSBLightingZones.first(where: { $0.id == editorStore.editableUSBLightingZoneID })?.ledIDs
+        return LightingZoneEditMode.staticColorLEDIDs(zoneID: editorStore.editableUSBLightingZoneID, zones: editorStore.visibleUSBLightingZones)
     }
 
     func lightingGradientDisplayColors() -> [RGBColor] {
@@ -227,7 +226,9 @@ import OpenSnekCore
 
         let visibleZoneIDs = Set(editorStore.visibleUSBLightingZones.map(\.id))
         let currentZoneID = editorStore.editableUSBLightingZoneID
-        guard currentZoneID == "all" || !visibleZoneIDs.contains(currentZoneID) else { return }
+        // All Zones is a valid static scope, including after an effect change or hydration.
+        // Only repair stale zone IDs; narrowing "all" here silently drops LEDs from the apply.
+        guard currentZoneID != "all", !visibleZoneIDs.contains(currentZoneID) else { return }
 
         if let selectedDevice = deviceStore.selectedDevice {
             updateUSBLightingZoneID(defaultEditableStaticLightingZoneID(for: selectedDevice))
@@ -299,15 +300,26 @@ import OpenSnekCore
         if kind != .staticColor { editorStore.editableUSBLightingZoneID = "all" } else { ensureEditableStaticLightingZoneSelection() }
     }
 
+    func updateLightingZoneEditMode(_ mode: LightingZoneEditMode) {
+        guard editorStore.editableLightingEffect == .staticColor else { return }
+        let zoneIDs = editorStore.visibleUSBLightingZones.map(\.id)
+        let zoneID = mode.resolvedZoneID(currentZoneID: editorStore.editableUSBLightingZoneID, availableZoneIDs: zoneIDs)
+        guard zoneID != editorStore.editableUSBLightingZoneID else { return }
+        // Resolve before changing scope so the first zone keeps its current displayed color,
+        // including an in-flight edit. Never seed All Zones from the last-edited lower zone.
+        if mode == .allZones, let firstZoneColor = lightingGradientDisplayColors().first { editorStore.editableColor = firstZoneColor }
+        editorStore.editableUSBLightingZoneID = zoneID
+        if mode == .allZones { applyController.scheduleAutoApplyCurrentStaticColorToAllZones() }
+    }
+
     func updateUSBLightingZoneID(_ zoneID: String) {
         let resolvedZoneID: String
         if let selectedDevice = deviceStore.selectedDevice {
             let normalizedZoneID = normalizedLightingZoneID(for: selectedDevice, preferredZoneID: zoneID)
-            if editorStore.editableLightingEffect == .staticColor, editorStore.visibleUSBLightingZones.count > 1, normalizedZoneID == "all" {
-                resolvedZoneID = defaultEditableStaticLightingZoneID(for: selectedDevice)
-            } else {
-                resolvedZoneID = normalizedLightingZoneID(for: selectedDevice, preferredZoneID: zoneID)
-            }
+            // An explicit All Zones choice must survive: it used to be rewritten to a single default
+            // zone for multi-zone devices, so the card could never actually scope a static edit to
+            // every zone and "Off then Static" only relit the last touched zone.
+            resolvedZoneID = normalizedZoneID
             if editorStore.editableLightingEffect == .staticColor, let profileColor = onboardProfileLightingColorsByDeviceID[selectedDevice.id]?[resolvedZoneID] {
                 editorStore.editableColor = profileColor
             } else if editorStore.editableLightingEffect == .staticColor, let persistedColor = loadPersistedLightingColor(device: selectedDevice, zoneID: resolvedZoneID) {

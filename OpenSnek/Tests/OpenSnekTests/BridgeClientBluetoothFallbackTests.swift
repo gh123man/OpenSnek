@@ -44,6 +44,22 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
         XCTAssertFalse(v3X)
     }
 
+    func testNagaV3ProBluetoothUsesZoneStateLighting() async {
+        let client = BridgeClient(startHIDMonitoring: false)
+        let device = makeBluetoothDevice(productID: 0x00E9, profileID: .nagaV3Pro)
+        let usesZoneState = await client.usesBluetoothZoneStateLighting(device)
+        XCTAssertTrue(usesZoneState)
+    }
+
+    func testNagaV3ProBluetoothBatteryIgnoresUnreliableChargingStatus() {
+        let device = makeBluetoothDevice(productID: 0x00E9, profileID: .nagaV3Pro)
+        let resolved = BridgeClient.resolveBluetoothBatteryState(device: device, vendorRaw: 0xC7, vendorStatus: 1, usbFallback: nil)
+        XCTAssertEqual(resolved.percent, 78)
+        XCTAssertNil(resolved.charging, "The unplugged mouse reported vendor status 1; it is not evidence of charging")
+        let lowRaw = BridgeClient.resolveBluetoothBatteryState(device: device, vendorRaw: 90, vendorStatus: 1, usbFallback: nil)
+        XCTAssertEqual(lowRaw.percent, 35)
+    }
+
     func testResolveBluetoothBatteryStateScalesNagaV2ProByteRaw() {
         let resolved = BridgeClient.resolveBluetoothBatteryState(device: makeBluetoothDevice(productID: 0x00A9, profileID: .nagaV2Pro), vendorRaw: 0x45, vendorStatus: 1, usbFallback: nil)
 

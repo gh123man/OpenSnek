@@ -1,0 +1,21 @@
+{
+  "baseline": {
+    "dpi_stages": "030501900190010000022003200300000340064006000004800c800c00000550c350c300",
+    "sleep_timeout": "3c00",
+    "wheel_brightness": "55",
+    "wheel_color": "0100000100ff00000000"
+  },
+  "changed": {
+    "dpi_stages": "0305019001900100000220032003000003a4060807000004800c800c00000550c350c300",
+    "sleep_timeout": "7800",
+    "wheel_brightness": "56",
+    "wheel_color": "01000001112233000000"
+  },
+  "phase": "baseline_restored_and_verified",
+  "post_cycle": {
+    "dpi_stages": "0305019001900100000220032003000003a4060807000004800c800c00000550c350c300",
+    "sleep_timeout": "7800",
+    "wheel_brightness": "56",
+    "wheel_color": "0100000100ff00000000"
+  }
+}

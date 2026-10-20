@@ -18,6 +18,7 @@ Supported device baseline:
 - Basilisk V3 X HyperSpeed Bluetooth (`VID=0x068E`, `PID=0x00BA`)
 - Basilisk V3 Pro Bluetooth (`VID=0x068E`, `PID=0x00AC`)
 - Basilisk V3 Pro 35K Phantom Green Edition Bluetooth (`VID=0x068E`, `PID=0x00D8`, contributor validated)
+- Naga V3 Pro Bluetooth (`VID=0x068E`, `PID=0x00E9`, contributor validated)
 
 Document goal:
 - A new reader should be able to build a client that implements the current OpenSnek Bluetooth feature set from scratch:
@@ -955,6 +956,47 @@ Example: slot `0x02` -> keyboard shortcut `Command + [` (modifier `0x08`, HID `0
 01 02 00 02 02 08 2F 00 00 00
 ```
 
+### Naga V3 Pro Bluetooth (`068E:00E9`)
+
+Contributor validation by [jpagh](https://github.com/jpagh), captured in
+[`captures/ble/2026-10-18-naga-v3-pro/`](../../captures/ble/2026-10-18-naga-v3-pro/).
+The device name is `Naga V3 Pro`; eight-byte headers and continuation payloads use
+the existing vendor GATT service. All exchanges remain serialized without command retries.
+
+- DPI: `0B 84 01 00` / `0B 04 01 00`, preserving IDs and active token. The read is
+  36 bytes; the existing 38-byte write includes final marker/padding bytes. Changed
+  `1700x1800` read/write/restore and the real multi/single-stage hardware gate passed.
+  Both merge and write builders now take an optional profile ID, retaining the default
+  30,000 ceiling while allowing this profile's 50,000-DPI stage. App and probe pass
+  the selected/connected profile, rather than silently clamping an unchanged tail stage.
+- Lighting inventory: `10 80 00 01` returns `04 01 05`; app presentation stays wheel,
+  logo, side panel. Static state/color uses `10 83 00 <LED>` / `10 03 00 <LED>`;
+  brightness uses `10 85 01 <LED>` / `10 05 01 <LED>`.
+- All eight USB-style effect bodies work through `10 03 00 <LED>`, after omitting
+  USB's storage/LED prefix and padding the body to ten bytes. Off is `00` plus
+  padding, Spectrum is `03` plus padding, Wave is `04 <direction> 28 00` plus
+  padding; static/reactive/pulse retain their color-count/RGB fields. All modes
+  matched readback and the owner confirmed rendering in the full app. Off does not
+  zero brightness. Individual static patches retain their LED filter; advanced
+  effects apply across the device, matching the existing effect-picker semantics.
+- Button reads use the interleaved 16-byte Naga layout; writes use the seven-byte
+  USB-style function block wrapped with target/slot/layer. Front scroll `106` factory
+  block is `12 01 01`; rear `128` is `00 01 00`. Rear remap/restore was read back
+  on targets `00` and `01` and physically checked through the app. The
+  [gap follow-up](../../captures/ble/2026-10-18-naga-v3-pro/follow-up/README.md) then
+  verified changed writes/readback and exact restore for all 33 shipped slots on
+  both targets, with a final 66-block snapshot matching the original. Six-button
+  printed labels `1...6` were physically verified as slots `80...85`.
+- Battery `05 81 00 01` is byte-scaled. Status `05 80 00 01` returned `01` with
+  the cable unplugged, so it does not prove charging. Sleep timeout is little-endian
+  through `05 84 00 00` / `05 04 00 00` and changed read/write/restore passed.
+- The owner confirmed off/on recovery and approximately two-minute idle/wake
+  stability. An isolated one-cycle follow-up with app/service stopped found changed
+  DPI stages, sleep timeout, and wheel brightness persisted; live wheel static color
+  reverted to its prior value. All baselines were restored. This is setting-specific
+  evidence, not universal persistence or long-duration reliability. Poll rate, profile
+  CRUD, scroll-wheel setting control, and custom software-lighting frames stay unexposed.
+
 ## 8. Feature Semantics Used by OpenSnek
 
 These behaviors are not pure wire-format rules, but they are part of what you need if you want a client that behaves like the current app.
@@ -966,7 +1008,7 @@ OpenSnek:
 - rejects parsed DPI results if:
   - the value list is empty
   - active index is out of range
-  - any visible value is outside `100...30000`
+  - any visible value is outside the resolved profile's DPI range (default `100...30000`; Naga V3 Pro supports `100...50000`)
 - after a successful DPI write, temporarily masks a small number of stale readbacks if they do not match the just-written state
 
 Those stale-read masks are bounded and expire quickly; they are meant to hide transient firmware lag, not permanent mismatches.
@@ -979,7 +1021,8 @@ Current Swift interpretation:
   - else scale `0...255` to `0...100`
   - exception: on Basilisk V3 X HyperSpeed Bluetooth (`0x00BA`), always scale `0...255` to `0...100`, because that device reports values at or below 100 on the same `0...255` scale (observed raw `0x52` = 82 while the standard BLE Battery Service `0x2A19` and macOS reported 32%)
   - exception: on Basilisk V3 Pro 35K Phantom Green Edition Bluetooth (`0x00D8`), always scale `0...255` to `0...100`; the device reported raw `0x7B`, so values at or below 100 are on the same scale
-- on Basilisk V3 Pro Bluetooth (`0x00AC`) and the Basilisk V3 Pro 35K Phantom Green Edition (`0x00D8`), OpenSnek currently ignores `batteryStatus` for charging UI because the status bit does not reliably mean `charging`; charging only comes from an available USB fallback session
+- Naga V2 Pro (`0x00A9`) and Naga V3 Pro (`0x00E9`) use the `0...255` scale even below 100, with USB-compatible truncation; the V3 Pro capture observed `0xC7`. Percentage calibration was not independently measured in that pass
+- on Basilisk V3 Pro Bluetooth (`0x00AC`), the Basilisk V3 Pro 35K Phantom Green Edition (`0x00D8`), Naga V2 Pro (`0x00A9`), and Naga V3 Pro (`0x00E9`), OpenSnek currently ignores `batteryStatus` for charging UI because the status bit does not reliably mean `charging`; charging only comes from an available USB fallback session
 - on Basilisk V3 X HyperSpeed Bluetooth (`0x00BA`), OpenSnek ignores `batteryStatus` for charging UI and reports `not charging` because that device is AA-powered
 
 Those semantics are client policy inferred from observed behavior, not a fully decoded vendor spec.

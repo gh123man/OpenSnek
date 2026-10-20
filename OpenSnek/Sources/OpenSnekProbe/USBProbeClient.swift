@@ -48,7 +48,18 @@ final class USBProbeClient: @unchecked Sendable {
 
     func readLightingBrightness(zoneID: String? = nil) throws -> [USBLightingReadResult]? {
         guard let targets = lightingTargets(zoneID: zoneID) else { return nil }
-        return try targets.map { target in USBLightingReadResult(target: target, brightness: try readLightingBrightness(ledID: target.ledID)) }
+        let readLEDIDs = brightnessReadLEDIDs(for: targets)
+        return try targets.enumerated().map { index, target in USBLightingReadResult(target: target, brightness: try readLightingBrightness(ledID: readLEDIDs[index])) }
+    }
+
+    /// Brightness reads do not always answer at the light's own LED: the Naga V2 Pro reads at its
+    /// logo LED and the Mouse Dock Pro reads at LED 0x0F while both write elsewhere. Fall back to
+    /// each target's own LED when the profile declares no separate read address.
+    private func brightnessReadLEDIDs(for targets: [USBLightingTargetDescriptor]) -> [UInt8] {
+        guard let profile, profile.usbBrightnessReadLEDIDs != nil else { return targets.map(\.ledID) }
+        let readLEDIDs = profile.allUSBBrightnessReadLEDIDs
+        guard readLEDIDs.count == targets.count else { return targets.map(\.ledID) }
+        return readLEDIDs
     }
 
     func writeLightingBrightness(value: Int, zoneID: String? = nil) throws -> [USBLightingWriteResult]? {
@@ -222,9 +233,9 @@ final class USBProbeClient: @unchecked Sendable {
     }
 
     func readBattery() throws -> USBBatteryReadResult? {
-        guard let response = try session.perform(classID: 0x07, cmdID: 0x80, size: 0x02, args: []), let percent = USBHIDProtocol.parseBatteryLevelPercent(response) else { return nil }
+        guard let response = try perform(classID: 0x07, cmdID: 0x80, size: 0x02, args: []), let percent = USBHIDProtocol.parseBatteryLevelPercent(response) else { return nil }
 
-        let chargingResponse = try session.perform(classID: 0x07, cmdID: 0x84, size: 0x02, args: [])
+        let chargingResponse = try perform(classID: 0x07, cmdID: 0x84, size: 0x02, args: [])
         return USBBatteryReadResult(charging: chargingResponse.flatMap(USBHIDProtocol.parseChargingStatus), rawLevel: response[9], percent: percent)
     }
 
@@ -353,7 +364,7 @@ final class USBProbeClient: @unchecked Sendable {
     func readButtonFunction(profile: UInt8, slot: UInt8, hypershift: UInt8 = 0x00) throws -> [UInt8]? {
         var args: [UInt8] = [profile, slot, hypershift]
         args.append(contentsOf: [UInt8](repeating: 0x00, count: 7))
-        guard let response = try session.perform(classID: 0x02, cmdID: 0x8C, size: UInt8(args.count), args: args, responseAttempts: 12, responseDelayUs: 40_000), response[0] == 0x02 else { return nil }
+        guard let response = try perform(classID: 0x02, cmdID: 0x8C, size: UInt8(args.count), args: args, responseAttempts: 12, responseDelayUs: 40_000), response[0] == 0x02 else { return nil }
 
         return ButtonBindingSupport.extractUSBFunctionBlock(response: response, profile: profile, slot: slot, hypershift: hypershift, profileID: profileID)
     }
@@ -361,7 +372,7 @@ final class USBProbeClient: @unchecked Sendable {
     func writeButtonFunction(profile: UInt8, slot: UInt8, hypershift: UInt8 = 0x00, functionBlock: [UInt8]) throws -> Bool {
         guard functionBlock.count == 7 else { throw ProbeError.usage("Function block must be exactly 7 bytes") }
         let args = [profile, slot, hypershift] + functionBlock
-        guard let response = try session.perform(classID: 0x02, cmdID: 0x0C, size: UInt8(args.count), args: args, responseAttempts: 12, responseDelayUs: 40_000) else { return false }
+        guard let response = try perform(classID: 0x02, cmdID: 0x0C, size: UInt8(args.count), args: args, responseAttempts: 12, responseDelayUs: 40_000) else { return false }
         return response[0] == 0x02
     }
 
@@ -374,18 +385,37 @@ final class USBProbeClient: @unchecked Sendable {
         return wroteAny
     }
 
-    func rawCommand(classID: UInt8, cmdID: UInt8, size: UInt8, args: [UInt8], responseAttempts: Int = 12, responseDelayUs: useconds_t = 40_000) throws -> [UInt8]? {
-        try session.perform(classID: classID, cmdID: cmdID, size: size, args: args, responseAttempts: responseAttempts, responseDelayUs: responseDelayUs)
+    func rawCommand(classID: UInt8, cmdID: UInt8, size: UInt8, args: [UInt8], transactionID: UInt8? = nil, responseAttempts: Int = 12, responseDelayUs: useconds_t = 40_000) throws -> [UInt8]? {
+        try session.perform(classID: classID, cmdID: cmdID, size: size, args: args, transactionID: transactionID ?? preferredTransactionID, responseAttempts: responseAttempts, responseDelayUs: responseDelayUs)
+    }
+
+    /// The Mouse Dock Pro only answers transaction ID 0xFF while the rest of the supported USB
+    /// devices answer 0x1F, so every probe command inherits the resolved profile's value.
+    private var preferredTransactionID: UInt8? { profile?.usbTransactionID }
+
+    private func perform(classID: UInt8, cmdID: UInt8, size: UInt8, args: [UInt8], responseAttempts: Int = 6, responseDelayUs: useconds_t = 35_000) throws -> [UInt8]? {
+        try session.perform(classID: classID, cmdID: cmdID, size: size, args: args, transactionID: preferredTransactionID, responseAttempts: responseAttempts, responseDelayUs: responseDelayUs)
+    }
+
+    /// Reads the device's own mappable-button inventory (`02:84`). The response is a count byte
+    /// followed by one slot ID per mappable button, which lets a profile be cross-checked against
+    /// the firmware instead of relying on a hand-built slot table.
+    func readButtonInventory() throws -> [UInt8]? {
+        guard let response = try perform(classID: 0x02, cmdID: 0x84, size: 0x05, args: [0x00, 0x00, 0x00, 0x00, 0x00]), response[0] == 0x02, response.count >= 88 else { return nil }
+        let payload = Array(response[8..<88])
+        guard let count = payload.first, count > 0 else { return nil }
+        let slots = Array(payload.dropFirst().prefix(Int(count)))
+        return slots.isEmpty ? nil : slots
     }
 
     private func readLightingBrightness(ledID: UInt8) throws -> Int? {
         let args: [UInt8] = [0x01, ledID, 0x00]
-        guard let response = try session.perform(classID: 0x0F, cmdID: 0x84, size: 0x03, args: args), response[0] == 0x02, response.count > 10 else { return nil }
+        guard let response = try perform(classID: 0x0F, cmdID: 0x84, size: 0x03, args: args), response[0] == 0x02, response.count > 10 else { return nil }
         return Int(response[10])
     }
 
     private func writeLightingCommand(cmdID: UInt8, args: [UInt8], responseAttempts: Int = 6, responseDelayUs: useconds_t = 35_000) throws -> Bool {
-        guard let response = try session.perform(classID: 0x0F, cmdID: cmdID, size: UInt8(max(0, min(255, args.count))), args: args, responseAttempts: responseAttempts, responseDelayUs: responseDelayUs) else { return false }
+        guard let response = try perform(classID: 0x0F, cmdID: cmdID, size: UInt8(max(0, min(255, args.count))), args: args, responseAttempts: responseAttempts, responseDelayUs: responseDelayUs) else { return false }
         return response[0] == 0x02
     }
 

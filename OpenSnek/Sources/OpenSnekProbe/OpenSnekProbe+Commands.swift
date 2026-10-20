@@ -346,6 +346,10 @@ extension OpenSnekProbe {
                 print(String(format: "[+%.3fs] candidate[%d] deviceUsage=%@ element=%@ reportID=%d value=%d", event.elapsedSeconds, event.candidateIndex, event.deviceUsageLabel, event.elementUsageLabel, event.reportID, event.integerValue))
             }
             print("usb-input-values complete events=\(eventCount)")
+        case "usb-button-inventory":
+            let usb = try USBProbeClient(productID: try parseOptionalUSBPID(commandArgs))
+            print("usb \(usb.describe())")
+            if let slots = try usb.readButtonInventory() { print("button-inventory class=02 cmd=84 count=\(slots.count) slots=[\(slots.map(String.init).joined(separator: ","))]") } else { print("button-inventory class=02 cmd=84 read_failed") }
         case "usb-button-read":
             let parsed = try parseUSBButtonReadArgs(commandArgs)
             let usb = try USBProbeClient(productID: parsed.productID)
@@ -379,7 +383,7 @@ extension OpenSnekProbe {
             let parsed = try parseUSBRawArgs(commandArgs)
             let usb = try USBProbeClient(productID: parsed.productID)
             print("usb \(usb.describe())")
-            let response = try usb.rawCommand(classID: parsed.classID, cmdID: parsed.cmdID, size: parsed.size, args: parsed.args, responseAttempts: parsed.responseAttempts, responseDelayUs: parsed.responseDelayUs)
+            let response = try usb.rawCommand(classID: parsed.classID, cmdID: parsed.cmdID, size: parsed.size, args: parsed.args, transactionID: parsed.transactionID, responseAttempts: parsed.responseAttempts, responseDelayUs: parsed.responseDelayUs)
             if let response {
                 let hex = response.map { String(format: "%02x", $0) }.joined(separator: " ")
                 print("response[\(response.count)]: \(hex)")

@@ -43,13 +43,15 @@ Button remap keyboard actions support modifier chords on shipped USB and Bluetoo
 | Basilisk V3 35K | `Validated` | `No transport` | Shares the Basilisk V3 USB family configuration with mapped onboard profile CRUD; no Bluetooth transport |
 | Basilisk V3 Pro 35K Phantom Green Edition | `Not shipped` | `Contributor validated` | Bluetooth reuses the Basilisk V3 Pro vendor keys with a `35,000` DPI ceiling and two lighting zones (no logo LED); profile CRUD stays hidden because the device rejects metadata reads, and live changes reset on power cycle |
 | Orochi V2 | `Not shipped` | `Contributor validated` | Contributor validated Bluetooth DPI stages, battery, and no-RGB behavior; button remap is profile-mapped pending hardware readback validation |
-| Naga Pro | `Contributor validated` | `Contributor validated` | Core controls and known-safe side-panel slots ship with captured native defaults; 12- and 6-button panel press validation remains pending |
+| Naga Pro | `Contributor validated` | `Contributor validated` | Core controls and known-safe side-panel slots ship with captured native defaults; all three side panels have been physically press-validated (12- and 6-button in PR #121, 2-button in the 2026-10-17 capture addendum), and the shipped slot table was cross-checked against the device's own mappable-button inventory |
 | Naga V2 Pro | `Contributor validated` | `Contributor validated` | Wired `0x00A7`, 2.4 GHz receiver `0x00A8`, and Bluetooth `0x00A9` share DPI stages, battery, side-panel remapping, and logo + 12-button side-panel lighting; side-panel label order is press-validated, the bottom button is remappable, and the two top DPI buttons stay preserved read-only |
+| Naga V3 Pro | `Contributor validated` | `Contributor validated` | Wired USB `0x00E7`, 2.4 GHz receiver `0x00E8`, and Bluetooth `0x00E9`; ships DPI up to the published `50,000` ceiling with independent X/Y, three lighting zones (scroll wheel, logo, side panel), the full 2/6/12-button plate slot table, and press-validated body buttons including both scroll-wheel buttons. Onboard profile CRUD stays hidden because the device rejects metadata reads, and the wheel's tactile/free-spin/smart-reel mode has no readout, so it is only changeable with the front scroll button's factory action |
 | Basilisk (2017) | `Contributor validated` | `No transport` | Contributor validated DPI (scalar, independent X/Y, live 5-stage table), poll-rate reads, and logo/scroll lighting with restore-verified writes; button remap and onboard profiles are not mapped |
 | Lancehead Tournament Edition | `Contributor validated` | `No transport` | Contributor validated DPI (scalar, independent X/Y, live 5-stage table read without OpenRazer's `0xFF` stage transaction), poll-rate reads, and all four lighting zones; button remap is not mapped |
 | Huntsman Mini | `Contributor validated` | `No transport` | Keyboard: contributor validated backlight lighting, brightness, and that poll-rate reads return `status 0x05` (unsupported). No DPI hardware; key remap is not mapped |
 | Tartarus Pro | `Contributor validated` | `No transport` | Keypad: contributor validated backlight lighting and brightness (LED `0x00` and `0x05` alias the same register). Analog actuation and key remap have no public protocol; OpenSnek never switches this device into driver mode |
 | Mouse Dock | `Contributor validated` | `No transport` | Accessory: contributor validated single logo-LED static color, brightness, and spectrum/pulse writes over USB. No DPI, buttons, battery, or onboard profiles |
+| Mouse Dock Pro | `Contributor validated` | `No transport` | Accessory: contributor validated logo-LED brightness, static color, wave, spectrum, and breathing writes over USB, with working brightness telemetry. Answers only transaction ID `0xFF` and reads brightness at LED `0x0F` instead of the `0x00` write address; per-cell custom-frame mapping is still unmapped |
 
 ## Basilisk V3 USB Family Assumptions
 
@@ -182,7 +184,7 @@ Bluetooth PID `0x0095`; 2.4 GHz HyperSpeed dongle path not yet shipped.
 
 USB PIDs `0x008F` (wired) / `0x0090` (2.4 GHz receiver), Bluetooth PID `0x0092`.
 
-Support is based on hardware validation reported by [varunyellina in PR #106](https://github.com/gh123man/OpenSnek/pull/106), with side-panel defaults and physical press validation contributed by [jpagh in PR #121](https://github.com/gh123man/OpenSnek/pull/121); OpenSnek maintainers do not currently possess this device.
+Support is based on hardware validation reported by [varunyellina in PR #106](https://github.com/gh123man/OpenSnek/pull/106), with side-panel defaults and physical press validation contributed by [jpagh in PR #121](https://github.com/gh123man/OpenSnek/pull/121); OpenSnek maintainers do not currently possess this device. A later contributor session on a `0x0090` receiver added 2-button-panel press validation, an inventory cross-check, and the underside profile button's factory block, which made slot `14` editable; see the [2026-10-17 addendum](../captures/usb/2026-10-06-naga-pro-side-panel-validation/README.md).
 
 | Feature Area | USB | BT | Notes |
 |---|---|---|---|
@@ -190,9 +192,10 @@ Support is based on hardware validation reported by [varunyellina in PR #106](ht
 | DPI stages + active stage | `Contributor validated` | `Contributor validated` | Scalar DPI is capped at `20,000` |
 | Independent X/Y DPI | `Scalar only` | `Scalar only` | The Naga Pro profile intentionally does not advertise independent X/Y editing |
 | Lighting: brightness + static color | `Contributor validated` | `Contributor validated` | OpenSnek exposes scroll-wheel `0x01` and logo `0x04` zones; advanced effects are not claimed |
-| Button remap: shipped editable slots | `Limited` | `Limited` | Body/2-button-panel slots `1-5`, `9`, `10`, `52`, `53`; 12-button panel slots `64-75`; and 6-button panel slots `80-85` are editable with captured native `Default` blocks |
-| Button remap: preserved slots | `Limited` | `Limited` | Only the scroll-mode toggle (slot `14`) is preserved read-only; every side-panel slot now accepts remaps |
-| Onboard hardware profiles | `Limited` | `Limited` | Five-slot mapped core profile workflows ship, and full button-profile reset now uses captured native side-panel defaults. The 12- and 6-button panels were physically press-validated in [PR #121](https://github.com/gh123man/OpenSnek/pull/121) |
+| Button remap: shipped editable slots | `Limited` | `Limited` | Body/2-button-panel slots `1-5`, `9`, `10`, `11`, `12`, `14`, `52`, `53`; 12-button panel slots `64-75`; and 6-button panel slots `80-85` are editable with captured native `Default` blocks. Slots `11`/`12` are the DPI buttons and slot `14` the underside profile button. The 2-button panel is press-validated: forward = slot `5` (mouse button 5), rear = slot `4` (mouse button 4) |
+| Button remap: preserved slots | None | None | Every mappable slot is editable. The underside profile button (slot `14`) cycles the saved onboard profiles; its unassigned banks hold the factory `07 01 04` block, which `Default` restores, and the slot round-trips remaps |
+| Onboard hardware profiles | `Limited` | `Limited` | Five-slot mapped core profile workflows ship, and full button-profile reset now uses captured native side-panel defaults. The 12- and 6-button panels were physically press-validated in [PR #121](https://github.com/gh123man/OpenSnek/pull/121), and the 2-button panel on 2026-10-17 |
+| Button inventory cross-check | `Contributor validated` | `No transport` | `02:84` reports 30 mappable slots, exactly matching the shipped `nagaProUSBButtonSlots` table, so the profile has no missing slots |
 
 The remaining device-dependent work is tracked in [issue #56](https://github.com/gh123man/OpenSnek/issues/56).
 
@@ -212,7 +215,52 @@ USB PIDs `0x00A7` (wired) / `0x00A8` (2.4 GHz receiver), Bluetooth vendor `0x068
 | Button remap: shipped editable slots | `Contributor validated` | `Contributor validated` | Body slots `1-5`, `9`, `10`, `14`, `52`, `53` and side-panel slots `64-75` (12-button) and `80-85` (6-button) are editable; writes round-trip on the receiver, wired, and Bluetooth |
 | Button remap: preserved slots | `Contributor validated` | `Contributor validated` | Top buttons `0x60` (DPI stage down) and `0x6D` (DPI stage up) answer reads and accept writes but stay read-only until a dedicated DPI-stage binding kind ships |
 | Onboard hardware profiles | `Limited` | `Not exposed` | Five-slot mapped core profile workflows ship over USB; the full-reset path covers every writable slot. Bluetooth profile CRUD stays hidden because create/delete writes are not validated yet |
+| Scroll controls (wheel mode / acceleration / smart reel) | `Not shipped` | `Not shipped` | `supportsScrollModeControls` is false, so OpenSnek never reads or writes wheel mode, scroll acceleration, or smart reel on this device and hides those controls. The device rejects the scroll-mode pair (`02:94` returns `0x05`), and the mouse has no free-spin wheel, so there is nothing for the app to adjust |
 | Side-panel physical labels | `Contributor validated` | `Contributor validated` | Press validation confirmed 12-button labels `1-12` → slots `64-75` and 6-button labels `1-6` → slots `80-85` on the receiver and Bluetooth |
+## Naga V3 Pro
+
+USB PIDs `0x00E7` (wired) and `0x00E8` (2.4 GHz receiver); Bluetooth `068E:00E9`.
+Support is based on hardware validation by
+[jpagh](https://github.com/jpagh); the profile carries `isLocallyValidated: false` because it has not
+been validated on maintainer hardware. The wired follow-up confirmed the same transaction ID,
+button inventory/defaults, and three lighting zones, with reversible poll-rate, X/Y DPI,
+sleep-timeout, and per-zone brightness writes; see
+[the wired capture](../captures/usb/2026-10-18-naga-v3-pro-wired/README.md).
+The [Bluetooth capture](../captures/ble/2026-10-18-naga-v3-pro/README.md) records
+stage/power/lighting read-write-restore, button remap/Default, eight visually checked effects,
+and off/on plus finite idle/wake recovery. The [gap follow-up](../captures/ble/2026-10-18-naga-v3-pro/follow-up/README.md)
+adds all 33 slots on both BLE targets, direct six-button label validation, and one isolated power-cycle
+check: DPI/sleep timeout/brightness persisted; live static color reverted. Bluetooth poll rate and profile CRUD remain hidden.
+
+| Feature Area | USB | BT | Notes |
+|---|---|---|---|
+| Overall transport status | `Contributor validated` | `Contributor validated` | USB uses transaction ID `0x1F`; BLE `00E9` uses the vendor GATT service and eight-byte notify headers |
+| DPI stages + active stage | `Contributor validated` | `Contributor validated` | Five stages, preserving stage IDs and active token. The latest wired/BLE baseline includes a 50,000-DPI fifth stage; BLE hardware multi/single-stage stability sequence passed with baseline restored |
+| Independent X/Y DPI | `Contributor validated` | `Contributor validated` | USB `800x1600` and BLE `1700x1800` changed writes read back and restore; both profile paths enable independent X/Y |
+| DPI ceiling | `Contributor validated` | `Contributor validated` | Published Focus Pro 50K ceiling `50,000`; BLE merge/write paths use the profile ceiling rather than a hard-coded 30,000 clamp |
+| Poll rate | `Contributor validated` | `Not shipped` | USB 1000 → 500 → 1000 Hz read/write/restore. No Bluetooth poll-rate command is claimed |
+| Battery + power | `Contributor validated` | `Contributor validated` | USB level/charging and sleep-timeout writes; BLE byte-scaled vendor battery and sleep timeout. BLE charging status is unreliable and stays unknown without USB fallback |
+| Lighting: brightness + effects | `Contributor validated` | `Contributor validated` | Scroll wheel `01`, logo `04`, side panel `05`; per-zone brightness and static writes restored. All eight effects visually checked over BLE. The 6-/2-button plates have no lighting |
+| Button remap: shipped editable slots | `Contributor validated` | `Contributor validated` | Shared 33-slot layout. USB every slot same-value write/readback; BLE all 33 shipped slots changed-write/readback/restore on both live and persistent targets, with all 66 originals verified afterward; UI rear-scroll key/Default physically checked |
+| Button remap: physical labels | `Contributor validated` | `Contributor validated` | Shared physical front/rear labels and IDs: index `11/12`, scroll `106/128`, underside profile `14`, pinky `57`; six-button printed labels `1...6` directly press-validated over BLE as slots `80...85` |
+| Button inventory cross-check | `Contributor validated` | `Inherited layout` | USB `02:84` reports 33 slots. No independent BLE inventory sweep is claimed |
+| Scroll wheel mode button | `Contributor validated` | `Profile mapped` | Front scroll button `106` factory block `12 01 01` cycles wheel mode; rear `128` factory block `00 01 00` does nothing. Both defaults read over BLE; rear changed remap/Default physically checked over BLE; front cycle restore physically checked over USB |
+| Scroll controls (wheel mode / acceleration / smart reel) | `Not shipped` | `Not shipped` | No identified setting readout/control; USB scroll-mode query rejects with status `05`. Use the front button's factory action or Synapse |
+| Onboard hardware profiles | `Hidden` | `Hidden` | USB metadata reads reject; BLE profile CRUD not validated. Stored-bank USB findings are not claims about BLE profile support |
+
+Plate note: the owner has all three plates. Press validation on the 2-button plate confirmed the same
+reversed mapping the Naga Pro family uses — the forward button is slot `5` and the rear button is slot
+`4` — and the same test on a Naga Pro (`0x0090`) receiver produced the identical result, so the family
+agrees. The plate has no printed labels, so the app uses "Panel Button (front/rear)" names following physical
+position. The 6-button plate's printed labels `1...6` were directly press-validated on this V3 Pro
+(output `123456` in label order), confirming slots `80...85` and the same physical wrapping as the
+Naga V2 Pro. **Neither the 6- nor the 2-button
+plate has any lighting**, so LED `0x05` only lights the 12-button plate. The firmware does not report
+which plate is fitted.
+
+Bring-up note: prefer `OpenSnekProbe usb-button-inventory` over a hand-built slot table when adding a
+new device. The inventory is what caught slot `128` here.
+
 ## Basilisk (2017)
 
 Support for this device and the Lancehead Tournament Edition below is based on hardware validation reported by [johnhenry in PR #114](https://github.com/gh123man/OpenSnek/pull/114).
@@ -332,6 +380,42 @@ USB PID `0x007E`, no Bluetooth transport. Lighting-only accessory (`formFactor =
 | Onboard hardware profiles | `Single slot` | `No transport` | Profile ships with `onboardProfileCount = 1` |
 
 Readback note: the dock does not answer the effect-state (`0x0F:0x82`) or brightness (`0x0F:0x84`) reads, so OpenSnek reports effect state and brightness as unavailable after reconnect. Writes are still accepted and take effect immediately.
+
+## Razer Mouse Dock Pro
+
+USB PID `0x00A4`, no Bluetooth transport. Lighting-only accessory (`formFactor = .accessory`) with
+a single logo LED (`0x00`) driven by the extended-matrix effect family (`0x0F:0x02`) and brightness
+(`0x0F:0x04`). Support is based on hardware validation by [jpagh](https://github.com/jpagh) and has
+not been validated on maintainer hardware.
+
+This dock is **not** interchangeable with the original Mouse Dock: it answers only transaction ID
+`0xFF` (OpenRazer sets the same value), and every request sent with `0x1F` or `0x3F` returns status
+`0x04`. The shipped profile pins `usbTransactionID: 0xFF`.
+
+| Feature Area | USB | BT | Notes |
+|---|---|---|---|
+| Overall transport status | `Contributor validated` | `No transport` | Lighting-only profile; contributor hardware validated with visual confirmation of static color, wave, and breathing, and ACK-verified spectrum and pulse effects |
+| DPI stages + active stage | `Not shipped` | `No transport` | No DPI hardware; `supportsDPIControls` is false |
+| Independent X/Y DPI | `Not shipped` | `No transport` | No DPI hardware |
+| Poll rate | `Not shipped` | `No transport` | Not a mouse; `supportsPollRateControls` is false |
+| Sleep timeout | `Not shipped` | `No transport` | Charging accessory; no power management |
+| Low battery threshold | `Not shipped` | `No transport` | The dock reports no battery |
+| Battery telemetry | `Not shipped` | `No transport` | A docked mouse keeps reporting its own battery through its own transport |
+| Lighting: brightness + static color | `Contributor validated` | `No transport` | One zone: logo LED `0x00`. Brightness writes and reads were both validated with restore; reads use LED `0x0F` while writes use `0x00`, so the profile splits the write and read addresses |
+| Lighting: extra effects | `Contributor validated` | `No transport` | `off`, `static`, `spectrum`, `wave`, and the pulse set ship. Wave is supported here (unlike the original Mouse Dock) with both directions, and breathing was visually confirmed. `reactive` is not in OpenRazer's method list for this device and is not exposed |
+| Lighting: software presets | `Not shipped` | `No transport` | OpenRazer declares a `1x8` matrix and the dock ACKs 1-, 4-, and 8-cell row writes, but per-cell rendering is not mapped yet, so no frame layout ships. As a result this dock has **no Battery Meter preset and no animated software presets**, unlike the original Mouse Dock, which is a visible difference the owner called out |
+| Button remap: shipped editable slots | `Not shipped` | `No transport` | The dock has no buttons; the profile ships an empty button layout |
+| Scroll controls | `Not shipped` | `No transport` | Not applicable to a dock |
+| Onboard hardware profiles | `Single slot` | `No transport` | Profile ships with `onboardProfileCount = 1` |
+
+Service note: if the dock opens cleanly but every write fails with `kIOReturnTimeout`
+(`0xE00002D6`) across all report IDs and both feature and output report types, treat it as a stale
+HID session and replug the dock before changing protocol logic. Removing Razer Synapse alone did not
+clear that state during this pass; the replug did.
+
+Addressing note: `0F:84` reads at LED `0x00` always answer `00`, which looks like a dark dock even at
+full brightness. The stored value is readable at LED `0x0F`, and `0F:82` echoes LED `0x0F` no matter
+which LED was requested, so associate effect responses with the requested LED rather than that echo.
 
 ## References
 
