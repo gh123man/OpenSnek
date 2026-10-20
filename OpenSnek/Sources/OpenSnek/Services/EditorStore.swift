@@ -5,7 +5,7 @@ import OpenSnekCore
 
 /// Coordinates persisted editor state.
 @MainActor @Observable final class EditorStore {
-    private static let preferredExpandedDPIStageValues: [Int] = [800, 1600, 3200, 6400, 12000]
+    private static let preferredExpandedDPIStageValues = [800, 1600, 3200, 6400, 12000]
 
     @ObservationIgnored let deviceStore: DeviceStore
     var editableStageValues: [Int] = [800, 1600, 3200, 6400, 12000] {
@@ -22,64 +22,64 @@ import OpenSnekCore
             isSyncingEditableStageRepresentations = false
         }
     }
-    var editableStageCount: Int = 3
-    var editableActiveStage: Int = 1 {
+    var editableStageCount = 3
+    var editableActiveStage = 1 {
         didSet {
             guard oldValue != editableActiveStage else { return }
             logEditableActiveStageMutation(oldValue: oldValue, newValue: editableActiveStage)
         }
     }
     var expandedXYStageIndices: Set<Int> = []
-    var editablePollRate: Int = 1000
-    var editableSleepTimeout: Int = 300
-    var editableDeviceMode: Int = 0x00
-    var editableLowBatteryThresholdRaw: Int = 0x26
-    var editableScrollMode: Int = 0 {
+    var editablePollRate = 1000
+    var editableSleepTimeout = 300
+    var editableDeviceMode = 0x00
+    var editableLowBatteryThresholdRaw = 0x26
+    var editableScrollMode = 0 {
         didSet {
             guard oldValue != editableScrollMode else { return }
             logEditableScrollMutation(field: "mode", oldValue: String(oldValue), newValue: String(editableScrollMode))
         }
     }
-    var editableScrollAcceleration: Bool = false {
+    var editableScrollAcceleration = false {
         didSet {
             guard oldValue != editableScrollAcceleration else { return }
             logEditableScrollMutation(field: "accel", oldValue: String(oldValue), newValue: String(editableScrollAcceleration))
         }
     }
-    var editableScrollSmartReel: Bool = false {
+    var editableScrollSmartReel = false {
         didSet {
             guard oldValue != editableScrollSmartReel else { return }
             logEditableScrollMutation(field: "smart", oldValue: String(oldValue), newValue: String(editableScrollSmartReel))
         }
     }
-    var editableLedBrightness: Int = 64
+    var editableLedBrightness = 64
     var editableLightingEffect: LightingEffectKind = .staticColor
     var editableSoftwareLightingPreset: SoftwareLightingPresetID = .flame
-    var editableSoftwareLightingSpeed: Double = SoftwareLightingPresetID.flame.defaultSpeed
-    var editableSoftwareLightingBrightness: Double = 1.0
-    var editableSoftwareLightingBatteryLowThreshold: Int = SoftwareLightingEffectRequest.defaultBatteryLowThreshold
-    var editableSoftwareLightingBatteryMediumThreshold: Int = SoftwareLightingEffectRequest.defaultBatteryMediumThreshold
+    var editableSoftwareLightingSpeed = SoftwareLightingPresetID.flame.defaultSpeed
+    var editableSoftwareLightingBrightness = 1.0
+    var editableSoftwareLightingBatteryLowThreshold = SoftwareLightingEffectRequest.defaultBatteryLowThreshold
+    var editableSoftwareLightingBatteryMediumThreshold = SoftwareLightingEffectRequest.defaultBatteryMediumThreshold
     var editableSoftwareLightingBatterySourceDeviceID: String?
     var editableSoftwareLightingPalettes: [SoftwareLightingPresetID: [RGBColor]] = [:]
-    var editableSoftwareLightingApplyOnConnect: Bool = false
+    var editableSoftwareLightingApplyOnConnect = false
     var editableUSBLightingZoneID: String = "all"
-    var editableUSBButtonProfile: Int = 1
+    var editableUSBButtonProfile = 1
     var editableLightingWaveDirection: LightingWaveDirection = .left
-    var editableLightingReactiveSpeed: Int = 2
-    var editableColor: RGBColor = RGBColor(r: 0, g: 255, b: 0)
-    var editableSecondaryColor: RGBColor = RGBColor(r: 0, g: 170, b: 255)
+    var editableLightingReactiveSpeed = 2
+    var editableColor = RGBColor(r: 0, g: 255, b: 0)
+    var editableSecondaryColor = RGBColor(r: 0, g: 170, b: 255)
     var editableButtonBindings: [Int: ButtonBindingDraft] = [:]
     var lightingGradientRevision: UInt64 = 0
-    var isEditingDpiControl: Bool = false
-    var isButtonProfileOperationInFlight: Bool = false
+    var isEditingDpiControl = false
+    var isButtonProfileOperationInFlight = false
     var buttonProfileOperationStatusText: String?
-    var isOnboardProfileRefreshInFlight: Bool = false
+    var isOnboardProfileRefreshInFlight = false
     var onboardProfileRefreshErrorMessage: String?
-    var isOnboardProfileLoadInFlight: Bool = false
+    var isOnboardProfileLoadInFlight = false
     var onboardProfileLoadStatusText: String?
-    var usbButtonProfilesRevision: Int = 0
-    var onboardProfilesRevision: Int = 0
-    var connectBehaviorRevision: Int = 0
+    var usbButtonProfilesRevision = 0
+    var onboardProfilesRevision = 0
+    var connectBehaviorRevision = 0
 
     @ObservationIgnored private weak var editorControllerStorage: AppStateEditorController?
     @ObservationIgnored private weak var applyControllerStorage: AppStateApplyController?
@@ -89,7 +89,7 @@ import OpenSnekCore
     @ObservationIgnored private var onboardProfileLoadOperationIDs: Set<UUID> = []
     @ObservationIgnored private var onboardProfileLoadOperationOrder: [UUID] = []
     @ObservationIgnored private var onboardProfileLoadOperationStatusByID: [UUID: String] = [:]
-    @ObservationIgnored private var isSyncingEditableStageRepresentations: Bool = false
+    @ObservationIgnored private var isSyncingEditableStageRepresentations = false
     @ObservationIgnored private var editableActiveStageMutationSource: String?
 
     init(deviceStore: DeviceStore) {

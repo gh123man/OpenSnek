@@ -33,15 +33,17 @@ The hook runs the same command expected before publishing code:
 
 That guard runs strict Swift format, SwiftLint, developer-tool tests, the Swift unit suite,
 and the code-backed device evidence manifest check. Formatter findings such as `RemoveLine`
-are errors. `checked_command.sh` also rejects compiler long-body warnings even if Swift exits
-successfully, while preserving unrelated diagnostics and the original command failure.
+are errors. `checked_command.sh` retains and summarizes compiler-time warnings as advisory
+diagnostics while preserving the command exit code. Investigate reproducible compiler slowdowns;
+a runner-dependent 200 ms warning alone does not fail validation. Build errors, formatting/lint
+errors, test failures, and evidence-manifest failures remain blocking.
 
 Fresh checks are the default. The installed hook uses `--reuse` only when the same source,
 toolchain, and relevant environment passed within one hour; changed inputs run fresh checks.
 CI and hardware runs never reuse receipts. See [Review](REVIEW.md#validate-once-publish-safely)
 for scope/limitations; no successful receipt is written if files change during validation.
 
-For focused compile/test commands that must enforce long-body policy, use:
+For focused compile/test commands with captured logs and compiler-time summaries, use:
 
 ```bash
 ./OpenSnek/scripts/checked_command.sh swift test --package-path OpenSnek --filter BLEVendorProtocolTests

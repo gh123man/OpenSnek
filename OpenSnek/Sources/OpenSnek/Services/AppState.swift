@@ -12,39 +12,6 @@ private struct AppEnvironmentConfiguration {
     let serviceCoordinator: BackgroundServiceCoordinator
 }
 
-/// Builds the stores before the controllers that depend on them.
-@MainActor private struct AppStateStores {
-    let device: DeviceStore
-    let editor: EditorStore
-    let runtime: RuntimeStore
-
-    init(environment: AppEnvironment, statusItemDpiDisplayDuration: TimeInterval) {
-        device = DeviceStore(environment: environment)
-        editor = EditorStore(deviceStore: device)
-        runtime = Self.makeRuntimeStore(environment: environment, statusItemDpiDisplayDuration: statusItemDpiDisplayDuration)
-    }
-
-    private static func makeRuntimeStore(environment: AppEnvironment, statusItemDpiDisplayDuration: TimeInterval) -> RuntimeStore {
-        let coordinator = environment.serviceCoordinator
-        return RuntimeStore(environment: environment, backgroundServiceEnabled: coordinator.backgroundServiceEnabled, launchAtStartupEnabled: coordinator.launchAtStartupEnabled, statusItemDpiDisplayDuration: statusItemDpiDisplayDuration)
-    }
-}
-
-/// Builds the controllers against the same store instances before graph wiring.
-@MainActor private struct AppStateControllers {
-    let device: AppStateDeviceController
-    let editor: AppStateEditorController
-    let apply: AppStateApplyController
-    let runtime: AppStateRuntimeController
-
-    init(environment: AppEnvironment, stores: AppStateStores) {
-        device = AppStateDeviceController(environment: environment, deviceStore: stores.device)
-        editor = AppStateEditorController(environment: environment, deviceStore: stores.device, editorStore: stores.editor, buttonSlots: ButtonSlotDescriptor.defaults)
-        apply = AppStateApplyController(environment: environment, deviceStore: stores.device, editorStore: stores.editor, runtimeStore: stores.runtime)
-        runtime = AppStateRuntimeController(environment: environment, deviceStore: stores.device, runtimeStore: stores.runtime)
-    }
-}
-
 /// Coordinates app state behavior.
 @MainActor final class AppState {
     let environment: AppEnvironment
@@ -57,7 +24,7 @@ private struct AppEnvironmentConfiguration {
     let runtimeController: AppStateRuntimeController
     private var autoStartRuntimeTask: Task<Void, Never>?
 
-    convenience init(
+    init(
         launchRole: OpenSnekProcessRole = .current, backend: (any DeviceBackend)? = nil, releaseUpdateChecker: (any ReleaseUpdateChecking)? = nil, currentAppVersion: String? = ReleaseUpdateChecker.currentAppVersion(), shouldCheckForReleaseUpdates: Bool = ReleaseUpdateChecker.shouldCheckForUpdates(),
         serviceCoordinator: BackgroundServiceCoordinator = .shared, softwareUpdateInstaller: (any SoftwareUpdateInstalling)? = nil, autoStart: Bool = true, statusItemDpiDisplayDuration: TimeInterval = 3.0
     ) {
@@ -67,22 +34,17 @@ private struct AppEnvironmentConfiguration {
         let environmentConfiguration = AppEnvironmentConfiguration(
             launchRole: launchRole, releaseUpdateChecker: updateChecker, softwareUpdateInstaller: updateInstaller, currentAppVersion: currentAppVersion, shouldCheckForReleaseUpdates: shouldCheckForReleaseUpdates, backend: initialBackend, serviceCoordinator: serviceCoordinator)
         let environment = Self.makeEnvironment(environmentConfiguration)
-        self.init(environment: environment, backendWasInjected: backend != nil, autoStart: autoStart, statusItemDpiDisplayDuration: statusItemDpiDisplayDuration)
-    }
-
-    private init(environment: AppEnvironment, backendWasInjected: Bool, autoStart: Bool, statusItemDpiDisplayDuration: TimeInterval) {
-        let stores = AppStateStores(environment: environment, statusItemDpiDisplayDuration: statusItemDpiDisplayDuration)
-        let controllers = AppStateControllers(environment: environment, stores: stores)
+        let buttonSlots: [ButtonSlotDescriptor] = ButtonSlotDescriptor.defaults
         self.environment = environment
-        self.deviceStore = stores.device
-        self.editorStore = stores.editor
-        self.runtimeStore = stores.runtime
-        self.deviceController = controllers.device
-        self.editorController = controllers.editor
-        self.applyController = controllers.apply
-        self.runtimeController = controllers.runtime
+        self.deviceStore = DeviceStore(environment: environment)
+        self.editorStore = EditorStore(deviceStore: deviceStore)
+        self.runtimeStore = Self.makeRuntimeStore(environment: environment, serviceCoordinator: serviceCoordinator, statusItemDpiDisplayDuration: statusItemDpiDisplayDuration)
+        self.deviceController = AppStateDeviceController(environment: environment, deviceStore: deviceStore)
+        self.editorController = AppStateEditorController(environment: environment, deviceStore: deviceStore, editorStore: editorStore, buttonSlots: buttonSlots)
+        self.applyController = AppStateApplyController(environment: environment, deviceStore: deviceStore, editorStore: editorStore, runtimeStore: runtimeStore)
+        self.runtimeController = AppStateRuntimeController(environment: environment, deviceStore: deviceStore, runtimeStore: runtimeStore)
 
-        wireGraph(backendWasInjected: backendWasInjected, autoStart: autoStart)
+        wireGraph(backendWasInjected: backend != nil, autoStart: autoStart)
     }
 
     private static func initialBackend(launchRole: OpenSnekProcessRole, serviceCoordinator: BackgroundServiceCoordinator) -> any DeviceBackend {
@@ -97,6 +59,10 @@ private struct AppEnvironmentConfiguration {
         AppEnvironment(
             launchRole: configuration.launchRole, releaseUpdateChecker: configuration.releaseUpdateChecker, currentAppVersion: configuration.currentAppVersion, shouldCheckForReleaseUpdates: configuration.shouldCheckForReleaseUpdates, backend: configuration.backend,
             serviceCoordinator: configuration.serviceCoordinator, softwareUpdateInstaller: configuration.softwareUpdateInstaller)
+    }
+
+    private static func makeRuntimeStore(environment: AppEnvironment, serviceCoordinator: BackgroundServiceCoordinator, statusItemDpiDisplayDuration: TimeInterval) -> RuntimeStore {
+        RuntimeStore(environment: environment, backgroundServiceEnabled: serviceCoordinator.backgroundServiceEnabled, launchAtStartupEnabled: serviceCoordinator.launchAtStartupEnabled, statusItemDpiDisplayDuration: statusItemDpiDisplayDuration)
     }
 
     deinit {

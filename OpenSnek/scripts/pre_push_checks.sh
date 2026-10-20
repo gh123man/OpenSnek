@@ -25,7 +25,6 @@ swift package --disable-keychain --package-path OpenSnek plugin --allow-writing-
 
 echo "[open-snek] Running Swift package tests..."
 python3 -m unittest discover -s "$SCRIPT_DIR/tests"
-# Bound compiler contention so the 200 ms diagnostic gate is useful on cold builds.
-OPEN_SNEK_HW="${OPEN_SNEK_HW:-0}" "$SCRIPT_DIR/checked_command.sh" swift test --jobs 2 --disable-keychain --package-path OpenSnek
+OPEN_SNEK_HW="${OPEN_SNEK_HW:-0}" "$SCRIPT_DIR/checked_command.sh" swift test --disable-keychain --package-path OpenSnek
 "$SCRIPT_DIR/check_device_validation.sh"
 python3 "$SCRIPT_DIR/validation_receipt.py" record --before "$BEFORE"

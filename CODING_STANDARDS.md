@@ -1,12 +1,16 @@
 # Review Standards
 
 Review these judgement calls against the requested scope and surrounding code. Mechanical
-formatting, lint, declaration comments, and compiler diagnostic policy belong to the existing
+formatting, lint, and declaration comments belong to the existing
 checks, not repeated reviewer instructions. Run the focused checks listed in
 [Validation](docs/development/VALIDATION.md); use the pinned packet workflow in
 [Review](docs/development/REVIEW.md).
 
 ## Swift design
+
+- Compiler-time warnings are review signals. Investigate reproducible slowdowns; do not split
+  trivial methods merely to satisfy runner-dependent timing. Build errors, lint/format errors,
+  and test failures remain blocking.
 
 - Keep each method/closure focused. Split phases and validation branches into meaningful helpers
   rather than accumulating setup, nested conditionals, or local lint suppressions.

@@ -17,13 +17,13 @@ import SwiftUI
     var usbControlAvailabilityByDeviceID: [String: USBControlAvailability] = [:]
     var availableUpdate: ReleaseAvailability?
     var updateInstallState: SoftwareUpdateInstallState = .idle
-    var isLoading: Bool = false
-    var isApplying: Bool = false
-    var isRefreshingState: Bool = false
+    var isLoading = false
+    var isApplying = false
+    var isRefreshingState = false
     var errorMessage: String?
     var warningMessage: String?
     var lastUpdated: Date?
-    var connectionDiagnosticsRevision: Int = 0
+    var connectionDiagnosticsRevision = 0
     var softwareLightingStatusByDeviceID: [String: SoftwareLightingEngineStatus] = [:]
 
     @ObservationIgnored private weak var deviceControllerStorage: AppStateDeviceController?

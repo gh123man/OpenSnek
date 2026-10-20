@@ -44,6 +44,8 @@ For deeper routing use `docs/development/REPO_MAP.md`. SourceKit-LSP setup lives
 - Install the tracked hook with `./OpenSnek/scripts/install_git_hooks.sh`. Before publishing,
   run `./OpenSnek/scripts/pre_push_checks.sh`. It performs fresh checks by default; the hook
   may reuse a recent exact-input success. Hardware runs and CI are never reused.
+- Compiler-time warnings are advisory: investigate reproducible slowdowns and simplify costly
+  expressions, but do not fail validation solely on a runner-dependent 200 ms timing threshold.
 - Run the app with `./run.sh` (foreground window verified). Use `--no-build` only when intentionally
   launching the staged bundle; ordinary launch already builds incrementally.
 - `OpenSnek/project.yml` is the Xcode source of truth. Generate the project when needed; leave

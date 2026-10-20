@@ -9,7 +9,7 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parents[1]
 
 
-class DiagnosticGateTests(unittest.TestCase):
+class DiagnosticReportTests(unittest.TestCase):
     def check_log(self, text):
         with tempfile.TemporaryDirectory() as directory:
             log = Path(directory) / "build.log"
@@ -19,18 +19,20 @@ class DiagnosticGateTests(unittest.TestCase):
                 capture_output=True, text=True,
             )
 
-    def test_long_body_warning_fails_even_when_compiler_succeeds(self):
+    def test_long_body_warning_is_reported_without_failing(self):
         result = self.check_log("File.swift:1: warning: getter for property 'body' took 212ms to type-check (limit: 200ms)\n")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("long-body", result.stderr)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("Advisory", result.stderr)
+        self.assertIn("212ms", result.stderr)
 
     def test_unrelated_warning_is_not_promoted(self):
         result = self.check_log("File.swift:1: warning: unrelated deprecated API\nBuild complete!\n")
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_ansi_colored_long_body_warning_fails(self):
+    def test_ansi_colored_long_body_warning_is_reported(self):
         result = self.check_log("\033[33mwarning: \033[0mbody took 201ms to type-check (limit: 200ms)\n")
-        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("201ms", result.stderr)
 
     def test_missing_log_fails_closed(self):
         result = subprocess.run([sys.executable, str(SCRIPTS / "check_swift_diagnostics.py"), "/missing/build.log"], capture_output=True)
@@ -42,10 +44,16 @@ class CheckedCommandTests(unittest.TestCase):
         result = subprocess.run(["bash", str(SCRIPTS / "checked_command.sh"), "bash", "-c", "exit 17"], capture_output=True)
         self.assertEqual(result.returncode, 17)
 
-    def test_successful_command_with_prohibited_warning_fails(self):
+    def test_successful_command_with_timing_warning_succeeds(self):
         result = subprocess.run(["bash", str(SCRIPTS / "checked_command.sh"), "printf",
             "warning: body took 222ms to type-check (limit: 200ms)\\n"], capture_output=True)
-        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn(b"222ms", result.stdout)
+
+    def test_command_failure_with_timing_warning_still_fails(self):
+        result = subprocess.run(["bash", str(SCRIPTS / "checked_command.sh"), "bash", "-c",
+            "echo 'warning: body took 222ms to type-check (limit: 200ms)'; exit 17"], capture_output=True)
+        self.assertEqual(result.returncode, 17)
 
 
 class WindowReceiptTests(unittest.TestCase):

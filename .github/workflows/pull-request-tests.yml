@@ -41,7 +41,7 @@ jobs:
       - name: Run Swift package tests
         env:
           OPEN_SNEK_HW: "0"
-        run: ./OpenSnek/scripts/checked_command.sh swift test --jobs 2 --package-path OpenSnek
+        run: ./OpenSnek/scripts/checked_command.sh swift test --package-path OpenSnek
 
       - name: Validate device evidence manifest
         run: ./OpenSnek/scripts/check_device_validation.sh

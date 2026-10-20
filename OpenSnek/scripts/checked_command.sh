@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Preserve the command's exit code and enforce diagnostic policy even on successful builds.
+# Preserve the command's exit code and report advisory compiler-time warnings.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ $# -eq 0 ]]; then
