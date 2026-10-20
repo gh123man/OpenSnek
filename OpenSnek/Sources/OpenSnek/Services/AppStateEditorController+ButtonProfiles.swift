@@ -23,9 +23,9 @@ import OpenSnekCore
 
     private func hydrateOpenSnekEditableBindings(device: MouseDevice, bindings: [Int: ButtonBindingDraft]) {
         guard !shouldPreserveLocalButtonWorkspace(device: device) else { return }
-        if hydratedButtonBindingsKey != nil {
-            let matchesCurrentBindings = bindingsEqual(editorStore.editableButtonBindings, bindings, device: device)
-            if matchesCurrentBindings { return }
+        if case .some = hydratedButtonBindingsKey {
+            let currentBindings: [Int: ButtonBindingDraft] = editorStore.editableButtonBindings
+            if bindingsEqual(currentBindings, bindings, device: device) { return }
         }
         editorStore.editableButtonBindings = bindings
     }

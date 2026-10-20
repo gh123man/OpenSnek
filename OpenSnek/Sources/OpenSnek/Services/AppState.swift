@@ -24,7 +24,7 @@ private struct AppEnvironmentConfiguration {
     let runtimeController: AppStateRuntimeController
     private var autoStartRuntimeTask: Task<Void, Never>?
 
-    init(
+    convenience init(
         launchRole: OpenSnekProcessRole = .current, backend: (any DeviceBackend)? = nil, releaseUpdateChecker: (any ReleaseUpdateChecking)? = nil, currentAppVersion: String? = ReleaseUpdateChecker.currentAppVersion(), shouldCheckForReleaseUpdates: Bool = ReleaseUpdateChecker.shouldCheckForUpdates(),
         serviceCoordinator: BackgroundServiceCoordinator = .shared, softwareUpdateInstaller: (any SoftwareUpdateInstalling)? = nil, autoStart: Bool = true, statusItemDpiDisplayDuration: TimeInterval = 3.0
     ) {
@@ -34,6 +34,11 @@ private struct AppEnvironmentConfiguration {
         let environmentConfiguration = AppEnvironmentConfiguration(
             launchRole: launchRole, releaseUpdateChecker: updateChecker, softwareUpdateInstaller: updateInstaller, currentAppVersion: currentAppVersion, shouldCheckForReleaseUpdates: shouldCheckForReleaseUpdates, backend: initialBackend, serviceCoordinator: serviceCoordinator)
         let environment = Self.makeEnvironment(environmentConfiguration)
+        self.init(environment: environment, backendWasInjected: backend != nil, autoStart: autoStart, statusItemDpiDisplayDuration: statusItemDpiDisplayDuration)
+    }
+
+    private init(environment: AppEnvironment, backendWasInjected: Bool, autoStart: Bool, statusItemDpiDisplayDuration: TimeInterval) {
+        let serviceCoordinator = environment.serviceCoordinator
         let buttonSlots: [ButtonSlotDescriptor] = ButtonSlotDescriptor.defaults
         self.environment = environment
         self.deviceStore = DeviceStore(environment: environment)
@@ -44,7 +49,7 @@ private struct AppEnvironmentConfiguration {
         self.applyController = AppStateApplyController(environment: environment, deviceStore: deviceStore, editorStore: editorStore, runtimeStore: runtimeStore)
         self.runtimeController = AppStateRuntimeController(environment: environment, deviceStore: deviceStore, runtimeStore: runtimeStore)
 
-        wireGraph(backendWasInjected: backend != nil, autoStart: autoStart)
+        wireGraph(backendWasInjected: backendWasInjected, autoStart: autoStart)
     }
 
     private static func initialBackend(launchRole: OpenSnekProcessRole, serviceCoordinator: BackgroundServiceCoordinator) -> any DeviceBackend {
