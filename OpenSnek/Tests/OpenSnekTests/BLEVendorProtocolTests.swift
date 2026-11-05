@@ -320,9 +320,42 @@ final class BLEVendorProtocolTests: XCTestCase {
         XCTAssertEqual(Array(payload), [0x01, 0x04, 0x00, 0x01, 0x01, 0x05, 0x00, 0x00, 0x00, 0x00])
     }
 
-    func testButtonPayloadRightClickTurbo() {
+    func testButtonPayloadRightClickTurboMatchesCapturedBlock() {
+        // captures/ble/right-click-turbo.pcapng payload: 01 02 00 0e 03 01 00 3e 00 00
         let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x02, kind: .rightClick, hidKey: nil, turboEnabled: true, turboRate: 0x003E)
-        XCTAssertEqual(Array(payload), [0x01, 0x02, 0x00, 0x0E, 0x03, 0x01, 0x3E, 0x00, 0x00, 0x00])
+        XCTAssertEqual(Array(payload), [0x01, 0x02, 0x00, 0x0E, 0x03, 0x01, 0x00, 0x3E, 0x00, 0x00])
+    }
+
+    func testButtonPayloadScrollTurboUsesRawWheelTargets() {
+        // Wheel up/down keep their raw wheel action ids (0x09/0x0A) as the `0x0E` turbo target, the
+        // same way wheel tilt keeps 0x68/0x69. Only body buttons use the 0-based `button_id - 1`.
+        let scrollUp = BLEVendorProtocol.buildButtonPayload(slot: 0x09, kind: .scrollUp, hidKey: nil, turboEnabled: true, turboRate: 0x003E)
+        let scrollDown = BLEVendorProtocol.buildButtonPayload(slot: 0x0A, kind: .scrollDown, hidKey: nil, turboEnabled: true, turboRate: 0x003E)
+
+        XCTAssertEqual(Array(scrollUp), [0x01, 0x09, 0x00, 0x0E, 0x03, 0x09, 0x00, 0x3E, 0x00, 0x00])
+        XCTAssertEqual(Array(scrollDown), [0x01, 0x0A, 0x00, 0x0E, 0x03, 0x0A, 0x00, 0x3E, 0x00, 0x00])
+    }
+
+    func testSwappedScrollTurboWritesRoundTripThroughWheelTargets() {
+        // Regression: Scroll Up -> Scroll Down and Scroll Down -> Scroll Up with Turbo at 9 presses per
+        // second used to write target 0x08 to slot 0x0A. 0x08 is not a valid wheel target, so the
+        // firmware left the wheel-down direction inert while wheel-up still resolved 0x09 = scroll up.
+        let rate = ButtonBindingSupport.turboPressesPerSecondToRaw(9)
+        XCTAssertEqual(rate, 0x94)
+
+        let wheelUpSlot = BLEVendorProtocol.buildButtonPayload(slot: 0x09, kind: .scrollDown, hidKey: nil, turboEnabled: true, turboRate: UInt16(rate))
+        let wheelDownSlot = BLEVendorProtocol.buildButtonPayload(slot: 0x0A, kind: .scrollUp, hidKey: nil, turboEnabled: true, turboRate: UInt16(rate))
+
+        XCTAssertEqual(Array(wheelUpSlot), [0x01, 0x09, 0x00, 0x0E, 0x03, 0x0A, 0x00, 0x94, 0x00, 0x00])
+        XCTAssertEqual(Array(wheelDownSlot), [0x01, 0x0A, 0x00, 0x0E, 0x03, 0x09, 0x00, 0x94, 0x00, 0x00])
+
+        let block = BLEVendorProtocol.extractBluetoothFunctionBlock(payload: wheelDownSlot, target: 0x01, slot: 0x0A)
+        let draft = block.flatMap { ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 0x0A, functionBlock: $0) }
+
+        XCTAssertEqual(block, [0x0E, 0x03, 0x09, 0x00, 0x94, 0x00, 0x00])
+        XCTAssertEqual(draft?.kind, .scrollUp)
+        XCTAssertEqual(draft?.turboEnabled, true)
+        XCTAssertEqual(draft?.turboRate, 0x94)
     }
 
     func testButtonPayloadDefaultSlot2UsesExplicitRightClickRestore() {
