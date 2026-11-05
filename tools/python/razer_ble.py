@@ -589,13 +589,18 @@ class RazerMouse:
 
     @staticmethod
     def _build_button_payload_mouse_turbo(slot: int, mouse_button_id: int, turbo_rate_u16: int) -> bytes:
-        # right-click-turbo.pcapng confirms:
-        #   action=0x0e, p0=0x0103 for right click (button id 0x02), p1=rate, p2=0x0000.
+        # right-click-turbo.pcapng confirms the firmware block layout:
+        #   block = [0x0E][0x03][target][rate_hi][rate_lo][0x00][0x00]
+        #   right click (id 0x02) at rate 0x008E -> 0e 03 01 00 8e 00 00
+        # Body buttons use the 0-based button index (id - 1); wheel actions (scroll up/down
+        # 0x09/0x0A and wheel tilt 0x68/0x69) keep their raw action id, like the USB block.
+        # The rate is big-endian here, so it lands in bytes 3-4 of the function block.
         btn = int(mouse_button_id) & 0xFF
         rate = max(1, min(0x00FF, int(turbo_rate_u16)))
-        idx = max(0, btn - 1) & 0xFF
-        p0 = (idx << 8) | 0x03
-        return RazerMouse._build_button_payload_action(slot, 0x0E, p0, rate, 0x0000, layer=0x00)
+        target = (max(0, btn - 1) if btn <= 0x05 else btn) & 0xFF
+        p0 = (target << 8) | 0x03
+        p1 = ((rate & 0xFF) << 8) | ((rate >> 8) & 0xFF)
+        return RazerMouse._build_button_payload_action(slot, 0x0E, p0, p1, 0x0000, layer=0x00)
 
     @staticmethod
     def _build_button_payload_keyboard_turbo(slot: int, hid_key: int, turbo_rate_u16: int) -> bytes:

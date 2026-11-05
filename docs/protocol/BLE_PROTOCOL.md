@@ -567,9 +567,11 @@ Field meanings:
 | `0x02` | simple keyboard action | function data is `modifier byte, HID key` |
 | `0x06` | DPI action | `p0 = 0x0601` for slot `0x60` DPI-cycle default; `p0 = 0x0505`, `p1/p2 = dpi_be16` for Basilisk V3 Pro Bluetooth slot `0x0F` DPI clutch |
 | `0x0D` | keyboard turbo action | function data is `modifier byte, HID key, turbo rate` |
-| `0x0E` | mouse turbo action | `p0 = ((button_id - 1) << 8) | 0x0003`, `p1 = turbo rate` |
+| `0x0E` | mouse turbo action | function block `0E 03 <target> <rate_hi> <rate_lo> 00 00`; `target` is the 0-based `button_id - 1` for body buttons (`0x00` left click … `0x04` forward) but stays the raw wheel action id for wheel tilt (`0x68`/`0x69`) and wheel up/down (`0x09`/`0x0A`) |
 
 Bluetooth button-binding payloads wrap the same 7-byte function block used by USB. For keyboard actions, OpenSnek writes the Basilisk-family keyboard modifier byte at the same position used by USB captures: `0x01` left Ctrl, `0x02` left Shift, `0x04` left Alt/Option, `0x08` left GUI/Command, `0x10` right Ctrl, `0x20` right Shift, `0x40` right Alt/Option, `0x80` right GUI/Command.
+
+The `0x0E` turbo rate is stored big-endian in function-block bytes 3-4, exactly like the USB block: `captures/ble/right-click-turbo.pcapng` writes `01 02 00 0E 03 01 00 8E 00 00` for slot `0x02` at rate `0x008E` and `01 02 00 0E 03 01 00 3E 00 00` at rate `0x003E`, and the tilt read-backs (`0E 03 68 00 14 00 00`) carry the rate in byte 4 as well. Do not move the rate to bytes 5-6 or emit `rate_lo, rate_hi`; the firmware then receives `rate << 8`. Wheel up/down are wheel functions rather than HID buttons, so their turbo `target` keeps the raw wheel action id (`0x09`/`0x0A`); subtracting one (which is correct for body buttons, e.g. right click `0x02` -> `0x01`) writes the invalid target `0x08` for wheel-down and leaves that wheel direction inert. See `captures/ble/scroll-up-down-rebind.pcapng` for the non-turbo wheel bindings.
 
 Observed Basilisk V3 Pro Bluetooth button-read format:
 - read key family: `08 84 01 <slot>`
@@ -946,7 +948,13 @@ ACK header:
 Example: slot `0x02` -> right-click turbo with rate `0x003E`
 
 ```text
-01 02 00 0E 03 01 3E 00 00 00
+01 02 00 0E 03 01 00 3E 00 00
+```
+
+Example: slot `0x0A` (Scroll Down) -> Scroll Up turbo with rate `0x0094`
+
+```text
+01 0A 00 0E 03 09 00 94 00 00
 ```
 
 Example: slot `0x03` -> keyboard key `0x08` with turbo rate `0x008E`

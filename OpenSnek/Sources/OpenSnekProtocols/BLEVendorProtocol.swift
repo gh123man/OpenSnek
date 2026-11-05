@@ -421,12 +421,15 @@ public enum BLEVendorProtocol {
                 let key = hidKey ?? 0x04
                 return Data([0x01, slot, 0x00, 0x0D, 0x04, hidModifiers, key, 0x00, UInt8(clampedTurboRate & 0xFF), UInt8((clampedTurboRate >> 8) & 0xFF)])
             }
-            if let buttonID = horizontalScrollButtonID(for: kind) { return buildRawFunctionBlockPayload(slot: slot, functionBlock: [0x0E, 0x03, buttonID, 0x00, UInt8(clampedTurboRate & 0xFF), 0x00, 0x00]) }
-            if let buttonID = mouseButtonID(for: kind) {
-                let index = UInt16(max(0, Int(buttonID) - 1))
-                let p0 = UInt16((index << 8) | 0x0003)
-                return Data([0x01, slot, 0x00, 0x0E, UInt8(p0 & 0xFF), UInt8((p0 >> 8) & 0xFF), UInt8(clampedTurboRate & 0xFF), UInt8((clampedTurboRate >> 8) & 0xFF), 0x00, 0x00])
-            }
+            if let buttonID = horizontalScrollButtonID(for: kind) { return buildTurboMousePayload(slot: slot, target: buttonID, turboRate: clampedTurboRate) }
+            // Wheel up/down are wheel functions rather than HID buttons: the firmware's `0x0E` target
+            // byte keeps the raw wheel action id, the same way wheel tilt keeps `0x68`/`0x69`. Treating
+            // them as body buttons writes `0x08` for wheel-down, which is not a valid target and leaves
+            // that wheel direction inert. See captures/ble/right-click-turbo.pcapng (body buttons use
+            // the 0-based `button_id - 1`) and the tilt read-back in
+            // captures/ble/windows/2026-06-15-224531-profile-synapse-startup-takeover-pass-1/summary.md.
+            if let wheelButtonID = wheelScrollButtonID(for: kind) { return buildTurboMousePayload(slot: slot, target: wheelButtonID, turboRate: clampedTurboRate) }
+            if let buttonID = mouseButtonID(for: kind) { return buildTurboMousePayload(slot: slot, target: UInt8(max(0, Int(buttonID) - 1)), turboRate: clampedTurboRate) }
         }
 
         switch kind {
@@ -530,10 +533,26 @@ public enum BLEVendorProtocol {
 
     private static func buildRawFunctionBlockPayload(slot: UInt8, functionBlock: [UInt8]) -> Data { Data([0x01, slot, 0x00] + functionBlock) }
 
+    /// Builds the `0x0E` mouse-turbo payload with the same block layout Synapse writes on Bluetooth:
+    /// `[class=0x0E][len=0x03][target][rate_hi][rate_lo][0x00][0x00]`, i.e. the rate stays big-endian
+    /// in function-block bytes 3-4. `captures/ble/right-click-turbo.pcapng` shows
+    /// `01 02 00 0e 03 01 00 8e 00 00` for slot `0x02` at rate `0x008E`; the earlier encoder emitted
+    /// the rate as `rate_lo, rate_hi` (`... 03 01 8e 00 ...`), so the device read `0x8E00`.
+    private static func buildTurboMousePayload(slot: UInt8, target: UInt8, turboRate: UInt16) -> Data { buildRawFunctionBlockPayload(slot: slot, functionBlock: [0x0E, 0x03, target, UInt8((turboRate >> 8) & 0xFF), UInt8(turboRate & 0xFF), 0x00, 0x00]) }
+
     private static func horizontalScrollButtonID(for kind: ButtonBindingKind) -> UInt8? {
         switch kind {
         case .scrollLeft: return 0x68
         case .scrollRight: return 0x69
+        default: return nil
+        }
+    }
+
+    /// Returns the raw wheel-action id used as the `0x0E` turbo target for wheel up/down.
+    private static func wheelScrollButtonID(for kind: ButtonBindingKind) -> UInt8? {
+        switch kind {
+        case .scrollUp: return 0x09
+        case .scrollDown: return 0x0A
         default: return nil
         }
     }
