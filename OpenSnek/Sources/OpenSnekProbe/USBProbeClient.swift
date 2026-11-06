@@ -275,8 +275,8 @@ final class USBProbeClient: @unchecked Sendable {
     }
 
     func writeProfileDPIScalar(profile: UInt8, pair: DpiPair) throws -> Bool {
-        let dpiX = max(100, min(30_000, pair.x))
-        let dpiY = max(100, min(30_000, pair.y))
+        let dpiX = DeviceProfiles.clampDPI(pair.x, profileID: profileID)
+        let dpiY = DeviceProfiles.clampDPI(pair.y, profileID: profileID)
         let args: [UInt8] = [profile, UInt8((dpiX >> 8) & 0xFF), UInt8(dpiX & 0xFF), UInt8((dpiY >> 8) & 0xFF), UInt8(dpiY & 0xFF), 0x00, 0x00]
         guard let response = try rawCommand(classID: 0x04, cmdID: 0x05, size: 0x07, args: args) else { return false }
         return writeEchoMatches(response: response, classID: 0x04, cmdID: 0x05, args: args)

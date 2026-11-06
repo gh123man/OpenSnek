@@ -910,6 +910,25 @@ reliable on the local USB stack.
 | Validated matrix LEDs | `0x01` scroll wheel, `0x04` logo, `0x0A` underglow |
 | Extra validated button slots | `0x0E` scroll mode (protocol-read-only), `0x0F` sensitivity clutch / DPI clutch (editable; default `06 01 05 01 90 01 90`), `0x34` wheel tilt left, `0x35` wheel tilt right, `0x60` DPI button, `0x6A` profile button (protocol-read-only; report-4 `0x50`) |
 
+### Razer Basilisk V3 Pro 35K Phantom Green Edition (0x00D6 / 0x00D7)
+
+**Mapped only; awaiting hardware validation on both cable and receiver.** IDs and
+control families are based on [OpenRazer](https://github.com/openrazer/openrazer/blob/master/daemon/openrazer_daemon/hardware/mouse.py).
+OpenSnek reuses the Basilisk USB transaction ID `0x1F`, DPI stage/scalar commands
+with a 35,000 ceiling and independent X/Y, poll rate, power controls, button map,
+scroll mode/acceleration/smart-reel, and built-in off/static/spectrum/wave effects.
+Brightness and effects target only scroll wheel `0x01` and underglow `0x0A`.
+The factory button blocks captured over Bluetooth are reused as a mapping, not
+USB validation. The regular Pro 35K IDs `0x00CC`/`0x00CD` remain unclaimed.
+
+Custom frames stay disabled: OpenRazer lists a 1x12 matrix with no logo LED, and
+we have no Phantom cell-order capture. The normal Basilisk 14-cell layout must
+not be used. Onboard profile CRUD stays disabled until USB metadata and guarded
+write/readback/restore are verified; Bluetooth's metadata rejection alone says
+nothing about USB. No USB persistence, physical response, disconnect/reconnect,
+or sleep/wake behavior has been validated. Follow the hardware journal and
+restore workflow before promoting either transport identity from mapped status.
+
 ### Razer Basilisk V3 Pro (0x00AA / 0x00AB)
 
 | Setting | Value |

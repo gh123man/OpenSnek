@@ -473,6 +473,15 @@ public enum DeviceProfiles {
     // though the firmware still lists LED 0x04.
     public static let basiliskV3Pro35KPhantomGreenLightingZones: [USBLightingZoneDescriptor] = [USBLightingZoneDescriptor(id: "scroll_wheel", label: "Scroll Wheel", ledIDs: [0x01]), USBLightingZoneDescriptor(id: "underglow", label: "Underglow", ledIDs: [0x0A])]
 
+    // USB identities and controls are mapped from OpenRazer and the shared Basilisk backend, not
+    // hardware validated. Keep custom frames off: the Phantom's 1x12 matrix is not our 14-cell layout.
+    // USB profile metadata/CRUD also needs its own evidence; the Bluetooth rejection is not USB proof.
+    public static let basiliskV3Pro35KPhantomGreenUSB = DeviceProfile(
+        id: .basiliskV3Pro35K, productName: "Basilisk V3 Pro 35K Phantom Green Edition", transport: .usb, supportedProducts: [0x00D6, 0x00D7], usbTransactionID: basiliskV3USBFamilyTransactionID,
+        buttonLayout: ButtonSlotLayout(visibleSlots: basiliskV3FamilyButtonSlots, writableSlots: basiliskV3FamilyButtonSlots.map(\.slot), documentedSlots: basiliskV3USBFamilyDocumentedReadOnlySlots), supportsAdvancedLightingEffects: true, supportedLightingEffects: basiliskV335KUSBLightingEffects,
+        usbLightingLEDIDs: [0x01, 0x0A], usbLightingZones: basiliskV3Pro35KPhantomGreenLightingZones, passiveDPIInput: PassiveDPIInputDescriptor(usagePage: 0x01, usage: 0x06, reportID: 0x05, subtype: 0x02, minInputReportSize: 5, maximumDPI: 35_000), supportsIndependentXYDPI: true,
+        supportsScrollModeControls: true, supportsLightingBrightnessControls: true, isLocallyValidated: false)
+
     // Advertises as "BSKV3P 35K"; contributor validated against the Basilisk V3 Pro Bluetooth vendor surface.
     // Onboard profile CRUD stays off: the tested unit rejects every `03 84` metadata read with status 0x03,
     // so DPI, lighting, and button edits use the live keys instead of the stored-profile transaction.
@@ -807,8 +816,8 @@ public enum DeviceProfiles {
         usbBrightnessLEDIDs: [0x00], usbBrightnessReadLEDIDs: mouseDockProUSBBrightnessReadLEDIDs, isLocallyValidated: false)
 
     public static let all: [DeviceProfile] = [
-        basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, basiliskV3Pro35KPhantomGreenBluetooth, orochiV2Bluetooth, nagaProUSB, nagaProBluetooth, nagaV2ProUSB, nagaV2ProBluetooth, nagaV3ProUSB, nagaV3ProBluetooth, basiliskUSB,
-        lanceheadTEUSB, huntsmanMiniUSB, tartarusProUSB, mouseDockUSB, mouseDockProUSB
+        basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3Pro35KPhantomGreenUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, basiliskV3Pro35KPhantomGreenBluetooth, orochiV2Bluetooth, nagaProUSB, nagaProBluetooth, nagaV2ProUSB, nagaV2ProBluetooth, nagaV3ProUSB,
+        nagaV3ProBluetooth, basiliskUSB, lanceheadTEUSB, huntsmanMiniUSB, tartarusProUSB, mouseDockUSB, mouseDockProUSB
     ]
 
     public static func resolve(vendorID: Int, productID: Int, transport: DeviceTransportKind) -> DeviceProfile? { all.first(where: { $0.matches(vendorID: vendorID, productID: productID, transport: transport) }) }
