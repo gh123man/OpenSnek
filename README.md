@@ -24,7 +24,7 @@ OpenSnek is an open source native macOS app for configuring supported Razer mice
 
 ## Supported Devices
 
-**✅ Supported · 🧪 Mapped, awaiting hardware validation · `-` Unsupported**
+**✅ Supported · 🧪 Mapped, awaiting hardware validation · ❌ Not implemented · `-` Not supported by hardware**
 
 ### Mice
 
@@ -34,8 +34,8 @@ OpenSnek is an open source native macOS app for configuring supported Razer mice
 | Basilisk V3 | 🧪 | - | Awaiting hardware validation |
 | Basilisk V3 Pro | ✅ | ✅ | Bluetooth lighting: static only |
 | Basilisk V3 35K | ✅ | - | |
-| Basilisk V3 Pro 35K Phantom Green Edition | - | ✅ | Use restore-on-connect; no onboard profile management |
-| Orochi V2 | - | ✅ | Button remapping awaits validation; no RGB hardware |
+| Basilisk V3 Pro 35K Phantom Green Edition | ❌ | ✅ | Use restore-on-connect; no onboard profile management |
+| Orochi V2 | ❌ | ✅ | Button remapping awaits validation; no RGB hardware |
 | Naga Pro | ✅ | ✅ | No scroll-wheel settings |
 | Naga V2 Pro | ✅ | ✅ | No scroll-wheel settings; top DPI buttons read-only |
 | Naga V3 Pro | ✅ | ✅ | No scroll-wheel settings or onboard profile management |
