@@ -30,24 +30,23 @@ import SwiftUI
     }
 
     private var mainWindow: some View {
-        VStack(spacing: 0) {
-            windowTitleBar
-            // NavigationSplitView's sidebar material is supplied by WindowServer
-            // and becomes blank in cacheDisplay. Use its actual child views.
-            HStack(spacing: 0) {
-                DeviceSidebarView(deviceStore: app.deviceStore).frame(width: 260)
-                if let selected = app.deviceStore.selectedDevice, let state = app.deviceStore.state {
-                    DeviceDetailView(deviceStore: app.deviceStore, editorStore: app.editorStore, selected: selected, state: state).background(LinearGradient(colors: [Color(hex: 0x0E1218), Color(hex: 0x121D15)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                }
-            }.frame(width: 1250, height: 850)
-        }.frame(width: 1250).clipShape(RoundedRectangle(cornerRadius: 12)).overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.white.opacity(0.24), lineWidth: 0.5)).shadow(color: .black.opacity(0.48), radius: 30, x: 0, y: 18)
+        // Match the live macOS 26 NavigationSplitView: an inset, rounded sidebar
+        // with controls inside it, and detail content extending behind the toolbar.
+        // WindowServer supplies that shape in the app but not in cacheDisplay.
+        HStack(spacing: 0) {
+            DeviceSidebarView(deviceStore: app.deviceStore).safeAreaInset(edge: .top, spacing: 0) { sidebarWindowControls }.frame(width: 260).clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous)).padding(8)
+            if let selected = app.deviceStore.selectedDevice, let state = app.deviceStore.state { DeviceDetailView(deviceStore: app.deviceStore, editorStore: app.editorStore, selected: selected, state: state).padding(.top, 44) }
+        }.frame(width: 1250, height: 880).background(LinearGradient(colors: [Color(hex: 0x0E1218), Color(hex: 0x121D15)], startPoint: .topLeading, endPoint: .bottomTrailing)).clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous)).overlay(
+            RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(.white.opacity(0.24), lineWidth: 0.5)
+        ).shadow(color: .black.opacity(0.48), radius: 30, x: 0, y: 18)
     }
 
-    private var windowTitleBar: some View {
+    private var sidebarWindowControls: some View {
         HStack(spacing: 8) {
-            ForEach([UInt32(0xFF5F57), 0xFEBC2E, 0x28C840], id: \.self) { color in Circle().fill(Color(hex: color)).overlay(Circle().strokeBorder(.black.opacity(0.15), lineWidth: 0.5)).frame(width: 12, height: 12) }
+            ForEach([UInt32(0xFF5F57), 0xFEBC2E, 0x28C840], id: \.self) { color in Circle().fill(Color(hex: color)).overlay(Circle().strokeBorder(.black.opacity(0.15), lineWidth: 0.5)).frame(width: 14, height: 14) }
             Spacer()
-        }.padding(.leading, 14).frame(height: 30).background(LinearGradient(colors: [Color(hex: 0x152934), Color(hex: 0x111A18)], startPoint: .leading, endPoint: .trailing))
+            Image(systemName: "sidebar.left").font(.system(size: 17)).foregroundStyle(.white.opacity(0.45))
+        }.padding(.horizontal, 12).frame(height: 44)
     }
 
     private var menuBar: some View {

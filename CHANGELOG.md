@@ -8,6 +8,9 @@ All notable changes to this project are documented in this file.
 - Added mapped USB support for the Basilisk V3 Pro 35K Phantom Green Edition over cable (`0x00D6`) and receiver (`0x00D7`), awaiting hardware validation: DPI stages up to 35,000 with independent X/Y, poll rate, power controls, button remapping, scroll settings, and built-in lighting on the scroll wheel and underglow. Custom software lighting and onboard profile management stay hidden pending device-specific evidence. The USB probe now clamps scalar DPI writes to the selected device’s ceiling instead of 30,000.
 - Added `./run.sh --screenshots` to regenerate the README desktop screenshot from the native UI with isolated sample data, plus `--check` to verify source and image checksums. Release preparation refreshes the screenshot, release preflight rejects stale images, and GitHub releases include a fresh render from the release app.
 
+### Fixed
+- Corrected README screenshot window chrome to match the macOS 26 app: a rounded, inset sidebar with integrated window controls and a continuous detail background instead of a separate title bar.
+
 ## [1.4.1-rc.2]
 
 ### Added

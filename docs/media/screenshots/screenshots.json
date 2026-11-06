@@ -16,7 +16,7 @@
     "OpenSnek/Package.swift": "19c04708390b48a3aa3e0b2def18cacd5ae21322fb26a4790ae7462fcb9930b1",
     "OpenSnek/Sources/OpenSnek/AppLaunchReceipt.swift": "72dfac4d4930767a0538190f93c65bb6bb2867cfff8bbddabac7406a6d36ee6f",
     "OpenSnek/Sources/OpenSnek/AppLifecycleDelegate.swift": "f2b7260df01b5b592b7ddeb73feb96120227845edd4aba651eff84706ae2797d",
-    "OpenSnek/Sources/OpenSnek/DesktopScreenshot.swift": "20409ca4aabf45adb7542803747482fedb0fd0d613db4f8380b3fc849e46fa0d",
+    "OpenSnek/Sources/OpenSnek/DesktopScreenshot.swift": "7b91eb570231a9872b662976bb1bcf920e665b7be1aa35756cb5d0e2a5e31678",
     "OpenSnek/Sources/OpenSnek/OpenSnekApp.swift": "76ba24ab12489ea2c95fa9c9bc260eee70d899052d6bb1afe6c85deecfdf9454",
     "OpenSnek/Sources/OpenSnek/OpenSnekEntryPoint.swift": "8b5ca32c3ccf007ee13ca5679786eb06ddd4d15f29f07e510c7b9c95952c76d0",
     "OpenSnek/Sources/OpenSnek/ScreenshotControls.swift": "20a4e71b57de9deac0998f15751b1030c6f58a731659bd5fe22160a57f949462",
@@ -104,6 +104,6 @@
     "run.sh": "0f9e3531ede3d530321c3ec9f5dfeb88093e74cb0e3d3e9e3cc95b68b13e05f0"
   },
   "images": {
-    "desktop.png": "3939b1941f81fab5b30448f6dfc8139cd5bd756a88ef5d652c794ca9c4bcd004"
+    "desktop.png": "a993278e4b06fd44ed6fad2178c1db181bda36898f4e77b4d69952de28fb7fc4"
   }
 }
