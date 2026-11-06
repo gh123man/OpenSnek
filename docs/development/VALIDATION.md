@@ -317,3 +317,31 @@ swift run --package-path OpenSnek OpenSnekProbe usb-raw --class 0x0f --cmd 0x84 
 ```
 
 Byte 0 is the status: `0x02` success (value in byte 10), `0x03` failure, `0x04` timeout. On the Naga V2 Pro, args `01 00 00` return `0x03` while `01 04 00` return `0x02`; the profile fixes that with `usbBrightnessReadLEDIDs` in `DeviceSupport.swift` instead of weakening the telemetry check. A `0x04` timeout can simply mean the mouse is asleep; wake it before treating a read as a rejection.
+
+## README screenshots
+
+Following qeq's native screenshot workflow, render the real SwiftUI views at 2×
+with fixed illustrative device/profile data:
+
+```bash
+./run.sh --screenshots
+./run.sh --screenshots --check
+```
+
+The renderer uses an isolated preferences suite and an inert backend. It starts
+before the normal app delegate, suppresses view lifecycle I/O, and does not
+connect to hardware, launch/stop the background service, or capture the desktop.
+The desktop scene places the real app window contents to the left and the real
+menu bar controls to the right, with an illustrated wallpaper, menu bar, and
+window chrome, as in qeq. It illustrates supported controls, not hardware-validation
+evidence. Review `docs/media/screenshots/desktop.png` after regeneration.
+
+`--output <directory>` writes a separate review set. `--skip-build` intentionally
+uses the staged bundle and should only follow a build of the current source.
+`--app <path.app>` instead renders an existing app bundle without rebuilding; the
+release workflow uses the notarized export.
+`cut_release.sh --prepare` regenerates the committed README screenshot before
+release changes are committed, and tag preflight rejects a stale manifest.
+`--check` compares source and PNG SHA-256 hashes with `screenshots.json` without
+launching the app. Fonts and native controls can vary with the macOS/SDK version;
+this is provenance checking, not a cross-machine pixel-equality test.

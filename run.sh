@@ -9,8 +9,10 @@ Incrementally build OpenSnek, then show and verify its foreground main window.
 
 Usage:
   ./run.sh [--clean] [--no-build] [--show-window]
+  ./run.sh --screenshots [--check|--skip-build] [--output <dir>]
 
 Options:
+  --screenshots Render README images with isolated sample data (no hardware access)
   --clean       Do a clean rebuild before launch
   --no-build    Launch the staged app bundle without rebuilding
   --show-window Show and verify the foreground main window (the default)
@@ -46,6 +48,11 @@ terminate_existing_opensnek() {
   echo "[open-snek] Forcing OpenSnek shutdown"
   pkill -9 -x OpenSnek >/dev/null 2>&1 || true
 }
+
+if [[ "${1:-}" == "--screenshots" ]]; then
+  shift
+  exec python3 "$SCRIPT_DIR/OpenSnek/scripts/screenshots.py" "$@"
+fi
 
 BUILD_ARGS=()
 SKIP_BUILD=false

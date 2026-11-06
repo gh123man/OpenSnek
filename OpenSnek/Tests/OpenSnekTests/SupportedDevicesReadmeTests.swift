@@ -6,7 +6,7 @@ import OpenSnekCore
 /// The table is the first thing a prospective user reads, and it has gone stale before: the Naga and
 /// Mouse Dock families shipped without being listed. This checks one direction only, that every
 /// shipped profile has a row, because a row may legitimately name a device whose other transport is
-/// still `Not yet` or `No`.
+/// unsupported.
 final class SupportedDevicesReadmeTests: XCTestCase {
     func testReadmeSupportedDevicesTableCoversEveryShippedProfile() throws {
         let readme = try String(contentsOf: repoRoot.appendingPathComponent("README.md"), encoding: .utf8)
@@ -20,21 +20,40 @@ final class SupportedDevicesReadmeTests: XCTestCase {
         }
     }
 
-    /// Returns the device column of the `## Supported Devices` table, excluding its header row.
+    func testSupportTablesIncludeSubsectionsButExcludeOtherSections() {
+        let readme = """
+            ## Supported Devices
+            ### Mice
+            | Device | USB | Bluetooth |
+            |---|:---:|:---:|
+            | Basilisk V3 Pro | ✅ | ✅ |
+
+            ### Lighting-only devices
+            | Device | USB | Bluetooth |
+            |---|:---:|:---:|
+            | Mouse Dock | ✅ | - |
+
+            ## Other devices
+            | Device | USB |
+            |---|---|
+            | Unrelated device | - |
+            """
+        XCTAssertEqual(Self.supportedDeviceNames(in: readme), ["Basilisk V3 Pro", "Mouse Dock"])
+    }
+
+    /// Returns device columns from all tables in `## Supported Devices`, excluding header rows.
     private static func supportedDeviceNames(in readme: String) -> [String] {
         var names: [String] = []
-        var insideTable = false
+        var insideSection = false
         for line in readme.split(separator: "\n", omittingEmptySubsequences: false) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed == "## Supported Devices" {
-                insideTable = true
+                insideSection = true
                 continue
             }
-            guard insideTable else { continue }
-            guard trimmed.hasPrefix("|") else {
-                if !names.isEmpty { break }
-                continue
-            }
+            guard insideSection else { continue }
+            if trimmed.hasPrefix("## ") { break }
+            guard trimmed.hasPrefix("|") else { continue }
             let cells = trimmed.split(separator: "|", omittingEmptySubsequences: false).map { $0.trimmingCharacters(in: .whitespaces) }
             guard cells.count > 1 else { continue }
             let device = cells[1]

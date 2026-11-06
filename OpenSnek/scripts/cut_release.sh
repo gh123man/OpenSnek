@@ -6,9 +6,11 @@ usage() {
 Cut a tagged OpenSnek release from main.
 
 Usage:
+  cut_release.sh --prepare
   cut_release.sh --version <semver> [--skip-tests]
 
 Options:
+  --prepare           Rebuild and refresh README screenshots before committing.
   --version <semver>   Release version without leading v (required).
                        Use a prerelease suffix for beta builds, e.g. 1.2.3-beta.1.
   --skip-tests         Skip swift test preflight
@@ -18,9 +20,14 @@ USAGE
 
 VERSION=""
 SKIP_TESTS=false
+PREPARE=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --prepare)
+      PREPARE=true
+      shift
+      ;;
     --version)
       VERSION="${2:-}"
       shift 2
@@ -41,6 +48,20 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PACKAGE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$PACKAGE_DIR/.." && pwd)"
+
+if [[ "$PREPARE" == true ]]; then
+  if [[ -n "$VERSION" || "$SKIP_TESTS" == true ]]; then
+    echo "--prepare cannot be combined with --version or --skip-tests." >&2
+    exit 1
+  fi
+  python3 "$SCRIPT_DIR/screenshots.py"
+  echo "Screenshots refreshed. Review and commit them with the release changes before cutting the tag."
+  exit 0
+fi
+
 if [[ -z "$VERSION" ]]; then
   echo "--version is required" >&2
   usage
@@ -57,9 +78,6 @@ if [[ ! "$VERSION" =~ ^[0-9]+(\.[0-9]+){2}(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$ ]];
   exit 1
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PACKAGE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-REPO_ROOT="$(cd "$PACKAGE_DIR/.." && pwd)"
 TAG="v$VERSION"
 RELEASE_KIND="release"
 if [[ "$VERSION" == *-* ]]; then
@@ -79,6 +97,10 @@ if git -C "$REPO_ROOT" rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
   echo "Tag already exists: $TAG" >&2
   exit 1
 fi
+
+# Verify the committed images after main has been fast-forwarded. Refreshing
+# after tagging cannot update the README belonging to that immutable release.
+python3 "$SCRIPT_DIR/screenshots.py" --check
 
 if [[ "$SKIP_TESTS" == false ]]; then
   swift test --package-path "$PACKAGE_DIR"

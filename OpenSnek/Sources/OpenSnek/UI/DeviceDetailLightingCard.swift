@@ -18,6 +18,7 @@ struct LightingSwatch: Identifiable, Hashable {
 
 /// Renders the lighting card UI.
 struct LightingCard: View {
+    @Environment(\.isDocumentationPreview) private var isDocumentationPreview
     let editorStore: EditorStore
     let selected: MouseDevice
     let swatches: [LightingSwatch]
@@ -375,7 +376,10 @@ struct LightingCard: View {
                     if activeTab == .advanced { advancedLightingControls() } else { onboardControls() }
                 }
             }
-        }.background(RoundedRectangle(cornerRadius: 14).fill(LinearGradient(colors: lightingCardGradientColors, startPoint: .topLeading, endPoint: .bottomTrailing))).onAppear { selectedTab = preferredLightingTab }.onChange(of: selected.id) {
+        }.background(RoundedRectangle(cornerRadius: 14).fill(LinearGradient(colors: lightingCardGradientColors, startPoint: .topLeading, endPoint: .bottomTrailing))).onAppear {
+            selectedTab = preferredLightingTab
+            if isDocumentationPreview { isExpanded = true }
+        }.onChange(of: selected.id) {
             selectedTab = preferredLightingTab
             isExpanded = false
         }.onChange(of: editorStore.editableSoftwareLightingApplyOnConnect) { _, enabled in if enabled && selected.supportsSoftwareLightingEffects { selectedTab = .advanced } }

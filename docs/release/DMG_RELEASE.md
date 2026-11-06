@@ -99,7 +99,17 @@ OpenSnek/.release/logs/
 
 The workflow lives at `.github/workflows/release-dmg.yml`.
 
-Preferred release entrypoint:
+Before committing the release changes, refresh the README screenshot from the
+current UI and review `docs/media/screenshots/desktop.png`:
+
+```bash
+./OpenSnek/scripts/cut_release.sh --prepare
+```
+
+Commit the generated PNG and `screenshots.json` with the release changes. This
+preparation mode does not switch branches, create tags, or push commits.
+
+Preferred release entrypoint (after those changes are merged to `main`):
 
 ```bash
 ./OpenSnek/scripts/cut_release.sh --version <version>
@@ -113,9 +123,16 @@ Beta release entrypoint:
 
 That script:
 - fetches and fast-forwards `main`
+- verifies that the committed screenshot matches the current source and image checksums
 - runs `swift test --package-path OpenSnek`
 - creates an annotated `v<version>` tag
 - pushes `main` and the tag
+
+The screenshot check also runs with `--skip-tests` and in GitHub Actions for
+manually pushed tags. If it reports stale images, run `--prepare`, review and
+commit the refreshed images, and merge them before tagging. The release workflow
+retains its fresh render and manifest as artifacts; it never edits the tagged
+source or pushes an automatic README commit.
 
 Versions with a prerelease suffix, such as `1.2.0-beta.1`, are published by the GitHub Actions workflow as GitHub prereleases with `latest=false`. Stable builds use GitHub's latest full release endpoint by default. RC builds automatically consider newer RC and stable releases; Settings → Updates → Include release candidates opts other builds in (default off). Other prereleases, drafts, and releases missing update artifacts are excluded. Candidates are compared by semantic version, and the installer uses the selected release's appcast.
 
@@ -129,15 +146,15 @@ git push origin v<version>
 The workflow will:
 
 1. verify the tagged commit is reachable from `main`
-2. run `swift test --package-path OpenSnek`
+2. verify the committed README screenshot, then run `swift test --package-path OpenSnek`
 3. import the Developer ID certificate into a temporary keychain
 4. archive/export the app with Xcode
 5. notarize and staple the `.app`
 6. create a Sparkle update ZIP from the notarized `.app`
 7. create a styled drag-install DMG, then sign, notarize, and staple it
-8. generate a signed `appcast.xml` that points at the GitHub Release ZIP asset
+8. render a fresh desktop screenshot from the notarized release app, then generate a signed `appcast.xml` that points at the GitHub Release ZIP asset
 9. publish the latest top section from `CHANGELOG.md` as the GitHub Release notes
-10. upload `OpenSnek-<version>.dmg`, `OpenSnek-<version>.zip`, and `appcast.xml` to the matching GitHub Release
+10. upload `OpenSnek-<version>.dmg`, `OpenSnek-<version>.zip`, `appcast.xml`, `desktop.png`, and `screenshots.json` to the matching GitHub Release
 11. mark prerelease-suffix tags as GitHub prereleases instead of latest full releases
 
 OpenSnek uses GitHub Releases as the Sparkle backend. The app feed URL is:
