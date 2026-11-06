@@ -101,6 +101,7 @@ enum ServiceMenuBarPresentation {
 
 /// Renders the service menu bar view UI.
 struct ServiceMenuBarView: View {
+    @Environment(\.isDocumentationPreview) private var isDocumentationPreview
     private static let menuActionRowHeight: CGFloat = 34
 
     let deviceStore: DeviceStore
@@ -147,12 +148,14 @@ struct ServiceMenuBarView: View {
             toggleRow("Start at login", systemImage: "checkmark.circle", isOn: Binding(get: { runtimeStore.launchAtStartupEnabled }, set: { runtimeStore.setLaunchAtStartupEnabled($0) }))
             actionRow("Quit", systemImage: "power") { runtimeStore.terminateServiceProcess() }
         }.padding(16).frame(width: 320).task {
+            guard !isDocumentationPreview else { return }
             await runtimeStore.start()
             await refreshCompactMenuDiagnostics()
         }.task(id: deviceStore.selectedDeviceID) { await refreshCompactMenuDiagnostics() }.onAppear {
+            guard !isDocumentationPreview else { return }
             runtimeStore.setCompactMenuPresented(true)
             Task { await refreshCompactMenuDiagnostics() }
-        }.onDisappear { runtimeStore.setCompactMenuPresented(false) }
+        }.onDisappear { if !isDocumentationPreview { runtimeStore.setCompactMenuPresented(false) } }
     }
 
     private var header: some View {
@@ -313,6 +316,7 @@ struct ServiceMenuBarView: View {
     }
 
     private func refreshCompactMenuDiagnostics() async {
+        guard !isDocumentationPreview else { return }
         // Reopening the compact menu should not tear down the shared HID discovery
         // manager; that can interrupt a passive stream when polling is disabled.
         await runtimeStore.refreshHIDAccessStatus(forceRefresh: false)
@@ -323,11 +327,18 @@ struct ServiceMenuBarView: View {
 
 /// Renders the compact stage picker button UI.
 private struct CompactStagePickerButton: View {
+    @Environment(\.isDocumentationPreview) private var isDocumentationPreview
     let title: String
     let isSelected: Bool
     let action: () -> Void
 
-    var body: some View { Button(action: action) { stageLabel }.buttonStyle(.plain) }
+    var body: some View {
+        Button(action: action) {
+            // cacheDisplay leaves vertical fragments beside the capsule's curved
+            // border. Flatten this SwiftUI-only label before offscreen capture.
+            if isDocumentationPreview { stageLabel.drawingGroup() } else { stageLabel }
+        }.buttonStyle(.plain)
+    }
 
     private var stageLabel: some View {
         Text(title).font(.system(size: 11, weight: .black, design: .rounded)).lineLimit(1).minimumScaleFactor(0.7).foregroundStyle(isSelected ? Color.accentColor : .primary).frame(maxWidth: .infinity, minHeight: 34).background(stageBackground).overlay(stageBorder).contentShape(Capsule())

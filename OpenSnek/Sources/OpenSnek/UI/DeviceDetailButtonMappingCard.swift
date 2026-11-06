@@ -128,6 +128,7 @@ private func onboardProfileSlotColor(_ profileID: Int) -> Color {
 
 /// Renders the profile picker popover UI.
 struct ProfilePickerPopover: View {
+    @Environment(\.isDocumentationPreview) private var isDocumentationPreview
     let editorStore: EditorStore
 
     var body: some View {
@@ -136,6 +137,7 @@ struct ProfilePickerPopover: View {
 
             ProfilePickerPanel(editorStore: editorStore)
         }.padding(14).frame(width: 680, alignment: .leading).fixedSize(horizontal: false, vertical: true).background(RoundedRectangle(cornerRadius: 12).fill(Color(hex: 0x111820)).overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.16), lineWidth: 1))).task {
+            guard !isDocumentationPreview else { return }
             await editorStore.refreshOnboardProfiles()
         }
     }

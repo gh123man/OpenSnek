@@ -62,6 +62,9 @@ jobs:
           git fetch origin main
           git merge-base --is-ancestor "$TAG_COMMIT" origin/main
 
+      - name: Verify committed README screenshot
+        run: python3 OpenSnek/scripts/screenshots.py --check
+
       - name: Run Swift package tests
         timeout-minutes: 30
         env:
@@ -139,6 +142,12 @@ jobs:
             --notary-key-id "$OPEN_SNEK_NOTARY_KEY_ID" \
             --notary-issuer-id "$OPEN_SNEK_NOTARY_ISSUER_ID"
 
+      - name: Render desktop screenshot from the release app
+        run: >-
+          python3 OpenSnek/scripts/screenshots.py
+          --app OpenSnek/.release/export/OpenSnek.app
+          --output OpenSnek/.release/screenshots
+
       - name: Generate Sparkle appcast
         shell: bash
         env:
@@ -187,6 +196,8 @@ jobs:
           path: |
             OpenSnek/.release/artifacts
             OpenSnek/.release/logs
+            OpenSnek/.release/screenshots
+            OpenSnek/.release/screenshot-render.sample.txt
           if-no-files-found: warn
           include-hidden-files: true
 
@@ -228,4 +239,4 @@ jobs:
             fi
             gh release create "${create_args[@]}"
           fi
-          gh release upload "$RELEASE_REF_NAME" "$DMG_PATH" "$SPARKLE_ZIP_PATH" "$APPCAST_PATH" --clobber
+          gh release upload "$RELEASE_REF_NAME" "$DMG_PATH" "$SPARKLE_ZIP_PATH" "$APPCAST_PATH" OpenSnek/.release/screenshots/desktop.png OpenSnek/.release/screenshots/screenshots.json --clobber

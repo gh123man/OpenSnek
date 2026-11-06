@@ -1,5 +1,6 @@
 import Foundation
 import OpenSnekCore
+import OpenSnekAppSupport
 
 /// Groups dependencies used to build the app environment.
 private struct AppEnvironmentConfiguration {
@@ -26,7 +27,7 @@ private struct AppEnvironmentConfiguration {
 
     init(
         launchRole: OpenSnekProcessRole = .current, backend: (any DeviceBackend)? = nil, releaseUpdateChecker: (any ReleaseUpdateChecking)? = nil, currentAppVersion: String? = ReleaseUpdateChecker.currentAppVersion(), shouldCheckForReleaseUpdates: Bool = ReleaseUpdateChecker.shouldCheckForUpdates(),
-        serviceCoordinator: BackgroundServiceCoordinator = .shared, softwareUpdateInstaller: (any SoftwareUpdateInstalling)? = nil, autoStart: Bool = true, statusItemDpiDisplayDuration: TimeInterval = 3.0
+        serviceCoordinator: BackgroundServiceCoordinator = .shared, softwareUpdateInstaller: (any SoftwareUpdateInstalling)? = nil, autoStart: Bool = true, preferenceStore: DevicePreferenceStore = DevicePreferenceStore(), statusItemDpiDisplayDuration: TimeInterval = 3.0
     ) {
         let initialBackend: any DeviceBackend = backend ?? Self.initialBackend(launchRole: launchRole, serviceCoordinator: serviceCoordinator)
         let updateChecker: any ReleaseUpdateChecking = releaseUpdateChecker ?? ReleaseUpdateChecker()
@@ -40,7 +41,7 @@ private struct AppEnvironmentConfiguration {
         self.editorStore = EditorStore(deviceStore: deviceStore)
         self.runtimeStore = Self.makeRuntimeStore(environment: environment, serviceCoordinator: serviceCoordinator, statusItemDpiDisplayDuration: statusItemDpiDisplayDuration)
         self.deviceController = AppStateDeviceController(environment: environment, deviceStore: deviceStore)
-        self.editorController = AppStateEditorController(environment: environment, deviceStore: deviceStore, editorStore: editorStore, buttonSlots: buttonSlots)
+        self.editorController = AppStateEditorController(environment: environment, deviceStore: deviceStore, editorStore: editorStore, buttonSlots: buttonSlots, preferenceStore: preferenceStore)
         self.applyController = AppStateApplyController(environment: environment, deviceStore: deviceStore, editorStore: editorStore, runtimeStore: runtimeStore)
         self.runtimeController = AppStateRuntimeController(environment: environment, deviceStore: deviceStore, runtimeStore: runtimeStore)
 

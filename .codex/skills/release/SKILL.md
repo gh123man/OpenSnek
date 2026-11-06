@@ -29,10 +29,11 @@ If the user does not provide an exact target version, inspect the latest tag plu
    - if the changelog is ambiguous, say so and default to the smallest defensible bump
    - ask the user which bump they want: `major`, `minor`, or `patch`
    - compute the concrete bare semver from the latest tag after the user answers
-5. Before cutting the tag, ensure the latest `CHANGELOG.md` section header matches the target version, for example `## [1.2.0]` for release `1.2.0`, and that the release notes are user-facing. Release notes should summarize major features and notable fixes; omit non-functional/internal-only work such as linting, formatting, developer environment setup, CI/release automation, dependency/tooling churn, docs-only work, and internal refactors unless they directly change user-facing app/probe behavior.
-6. Use `./OpenSnek/scripts/cut_release.sh --version <semver>` as the default release command. For beta builds, pass the full prerelease version, for example `./OpenSnek/scripts/cut_release.sh --version 1.2.0-beta.1`.
-7. Let the script handle the preflight: clean worktree check, fetch/fast-forward of `main`, full `swift test --package-path OpenSnek`, annotated `v<semver>` tag creation, and push of both `main` and the tag.
-8. Report the pushed tag and remind the user that `.github/workflows/release-dmg.yml` publishes the release from that tag. For prerelease tags, remind them the GitHub Release is marked prerelease and not latest.
+5. Before committing release changes, run `./OpenSnek/scripts/cut_release.sh --prepare` to rebuild and regenerate `docs/media/screenshots/desktop.png` and `screenshots.json`. Review the image, include both generated files in the release changes, and merge them to `main` before tagging. Tag preflight and GitHub Actions reject stale screenshots. The Actions workflow also renders and publishes a fresh screenshot from the notarized release app.
+6. Before cutting the tag, ensure the latest `CHANGELOG.md` section header matches the target version, for example `## [1.2.0]` for release `1.2.0`, and that the release notes are user-facing. Release notes should summarize major features and notable fixes; omit non-functional/internal-only work such as linting, formatting, developer environment setup, CI/release automation, dependency/tooling churn, docs-only work, and internal refactors unless they directly change user-facing app/probe behavior.
+7. Use `./OpenSnek/scripts/cut_release.sh --version <semver>` as the default release command. For beta builds, pass the full prerelease version, for example `./OpenSnek/scripts/cut_release.sh --version 1.2.0-beta.1`.
+8. Let the script handle the preflight: clean worktree check, fetch/fast-forward of `main`, committed screenshot verification, full `swift test --package-path OpenSnek`, annotated `v<semver>` tag creation, and push of both `main` and the tag.
+9. Report the pushed tag and remind the user that `.github/workflows/release-dmg.yml` publishes the release from that tag. For prerelease tags, remind them the GitHub Release is marked prerelease and not latest.
 
 ## Guardrails
 

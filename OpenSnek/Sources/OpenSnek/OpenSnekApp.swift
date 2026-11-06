@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Stores OpenSnek app data.
-@main struct OpenSnekApp: App {
+struct OpenSnekApp: App {
     private static let minimumMainWindowWidth: CGFloat = 900
     private static let minimumMainWindowHeight: CGFloat = 600
     private static let defaultMainWindowWidth: CGFloat = 1250

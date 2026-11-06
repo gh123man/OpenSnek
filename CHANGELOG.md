@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Added
+- Added `./run.sh --screenshots` to regenerate the README desktop screenshot from the native UI with isolated sample data, plus `--check` to verify source and image checksums. Release preparation refreshes the screenshot, release preflight rejects stale images, and GitHub releases include a fresh render from the release app.
+
 ## [1.4.1-rc.2]
 
 ### Added

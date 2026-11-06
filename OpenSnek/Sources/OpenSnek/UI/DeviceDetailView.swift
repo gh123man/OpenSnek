@@ -5,6 +5,7 @@ import OpenSnekCore
 
 /// Renders the device detail view UI.
 struct DeviceDetailView: View {
+    @Environment(\.isDocumentationPreview) private var isDocumentationPreview
     let deviceStore: DeviceStore
     let editorStore: EditorStore
     let selected: MouseDevice
@@ -24,7 +25,7 @@ struct DeviceDetailView: View {
     private func detailScrollView(width: CGFloat) -> some View {
         let isBusy = editorStore.isButtonProfileOperationInFlight || editorStore.isOnboardProfileLoadInFlight
         let statusText = editorStore.buttonProfileOperationStatusText ?? editorStore.onboardProfileLoadStatusText
-        return detailScrollViewBase(width: width).loadingScrim(isPresented: isBusy, label: statusText).task(id: selected.id) { await deviceStore.refreshConnectionDiagnostics(for: selected) }
+        return detailScrollViewBase(width: width).loadingScrim(isPresented: isBusy, label: statusText).task(id: selected.id) { if !isDocumentationPreview { await deviceStore.refreshConnectionDiagnostics(for: selected) } }
     }
 
     private func detailScrollViewBase(width: CGFloat) -> some View { ScrollView(.vertical) { detailContent(width: detailContentWidth(for: width)) }.accessibilityIdentifier("device-detail-scroll-view").frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top).background(WindowDragBlocker()) }
@@ -178,6 +179,7 @@ private struct DetailColumnsLayout: Layout {
 
 /// Stores device overview bar data.
 struct DeviceOverviewBar: View {
+    @Environment(\.isDocumentationPreview) private var isDocumentationPreview
     let deviceStore: DeviceStore
     let editorStore: EditorStore
     let selected: MouseDevice
@@ -218,7 +220,7 @@ struct DeviceOverviewBar: View {
 
             Rectangle().fill(Color.white.opacity(0.14)).frame(height: 1)
         }.task(id: selected.id) {
-            guard editorStore.supportsProfilePicker else { return }
+            guard !isDocumentationPreview, editorStore.supportsProfilePicker else { return }
             await editorStore.refreshOnboardProfiles()
         }.onChange(of: selected.id) { _, _ in isProfilePickerPresented = false }.zIndex(6)
     }
