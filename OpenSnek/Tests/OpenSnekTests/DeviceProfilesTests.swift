@@ -289,10 +289,9 @@ final class DeviceProfilesTests: XCTestCase {
         XCTAssertEqual(baseline.onboardProfileCount, 5)
     }
 
-    func testBasiliskV3Pro35KUSBIdentitiesAreNotShippedYet() {
-        // Only the Phantom Green Edition Bluetooth path is hardware validated; its USB IDs (0x00D6/0x00D7)
-        // and the regular 35K's (0x00CC/0x00CD) stay unclaimed until they are validated.
-        for productID in [0x00CC, 0x00CD, 0x00D6, 0x00D7, 0x00D8] { XCTAssertNil(DeviceProfiles.resolve(vendorID: 0x1532, productID: productID, transport: .usb), String(format: "0x%04X", productID)) }
+    func testRegularBasiliskV3Pro35KAndBluetoothIdentitiesStayUnclaimedOnUSB() {
+        // Mapping the Phantom USB edition must not claim the regular Pro 35K or its Bluetooth PID.
+        for productID in [0x00CC, 0x00CD, 0x00D8] { XCTAssertNil(DeviceProfiles.resolve(vendorID: 0x1532, productID: productID, transport: .usb), String(format: "0x%04X", productID)) }
     }
 
     func testBasiliskV3Pro35KButtonDefaultsMatchFactoryReadback() {

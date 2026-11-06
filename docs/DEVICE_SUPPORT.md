@@ -41,7 +41,7 @@ Button remap keyboard actions support modifier chords on shipped USB and Bluetoo
 | Basilisk V3 | `Mapped` | `No transport` | Shares the Basilisk V3 USB family configuration, but remains unvalidated on local hardware |
 | Basilisk V3 Pro | `Validated` | `Validated` | Ships mapped onboard profile CRUD on USB and Bluetooth; Bluetooth keeps lighting static-only, hides poll-rate and threshold controls, and does not ship clutch/profile-button remap |
 | Basilisk V3 35K | `Validated` | `No transport` | Shares the Basilisk V3 USB family configuration with mapped onboard profile CRUD; no Bluetooth transport |
-| Basilisk V3 Pro 35K Phantom Green Edition | `Not shipped` | `Contributor validated` | Bluetooth reuses the Basilisk V3 Pro vendor keys with a `35,000` DPI ceiling and two lighting zones (no logo LED); profile CRUD stays hidden because the device rejects metadata reads, and live changes reset on power cycle |
+| Basilisk V3 Pro 35K Phantom Green Edition | `Mapped` | `Contributor validated` | USB cable and receiver await hardware validation; USB software lighting and onboard profile management stay hidden. Bluetooth live changes reset on power cycle |
 | Orochi V2 | `Not shipped` | `Contributor validated` | Contributor validated Bluetooth DPI stages, battery, and no-RGB behavior; button remap is profile-mapped pending hardware readback validation |
 | Naga Pro | `Contributor validated` | `Contributor validated` | Core controls and known-safe side-panel slots ship with captured native defaults; all three side panels have been physically press-validated (12- and 6-button in PR #121, 2-button in the 2026-10-17 capture addendum), and the shipped slot table was cross-checked against the device's own mappable-button inventory |
 | Naga V2 Pro | `Contributor validated` | `Contributor validated` | Wired `0x00A7`, 2.4 GHz receiver `0x00A8`, and Bluetooth `0x00A9` share DPI stages, battery, side-panel remapping, and logo + 12-button side-panel lighting; side-panel label order is press-validated, the bottom button is remappable, and the two top DPI buttons stay preserved read-only |
@@ -59,6 +59,7 @@ For future USB feature work, treat the wired Basilisk V3 (`0x0099`), Basilisk V3
 
 - USB lighting effect work should start from the assumption that all three share the same `0x0F` zone-effect set and the same three public zones: scroll wheel `0x01`, logo `0x04`, and underglow `0x0A`.
 - USB onboard-profile work uses the same mapped core profile API shape documented in [USB_PROFILE_CRUD_SPEC.md](./protocol/USB_PROFILE_CRUD_SPEC.md) across the family; keep device-specific exceptions out of the implementation unless hardware validation proves one.
+- The Phantom Green Edition (`0x00D6`/`0x00D7`) reuses the basic USB commands as an unvalidated mapping, but has no logo LED. Its custom-frame layout and onboard profile CRUD remain disabled pending evidence.
 - The Basilisk V3 X HyperSpeed is not part of this family assumption; it has its own simpler USB/Bluetooth profile shape.
 
 ## Basilisk V3 X HyperSpeed
@@ -143,22 +144,27 @@ USB PID `0x00CB`, no Bluetooth transport
 
 ## Basilisk V3 Pro 35K Phantom Green Edition
 
-Bluetooth vendor `0x068E` / PID `0x00D8` (advertised as `BSKV3P 35K`). OpenRazer lists this edition's USB IDs as `0x00D6` (wired) / `0x00D7` (receiver), but OpenSnek does not claim USB yet. Support is based on hardware validation by [PLus123456](https://github.com/PLus123456); evidence lives in [captures/ble/2026-10-13-basilisk-v3-pro-35k](../captures/ble/2026-10-13-basilisk-v3-pro-35k/README.md).
+USB vendor `0x1532`, wired PID `0x00D6` and receiver PID `0x00D7`, are **mapped, awaiting hardware validation**. The identities and basic control surface come from [OpenRazer's device definitions](https://github.com/openrazer/openrazer/blob/master/daemon/openrazer_daemon/hardware/mouse.py); commands reuse the Basilisk USB backend. No Phantom USB reads, writes, restore, physical behavior, reconnect, or persistence have been verified.
+
+Bluetooth vendor `0x068E` / PID `0x00D8` (advertised as `BSKV3P 35K`) remains contributor validated by [PLus123456](https://github.com/PLus123456); evidence lives in [captures/ble/2026-10-13-basilisk-v3-pro-35k](../captures/ble/2026-10-13-basilisk-v3-pro-35k/README.md). This evidence does not validate USB.
 
 | Feature Area | USB | BT | Notes |
 |---|---|---|---|
-| Overall transport status | `Not shipped` | `Contributor validated` | Bluetooth was exercised on physical hardware with `OpenSnekProbe` and the app |
-| DPI stages + active stage | `Not shipped` | `Contributor validated` | Live table `0B 84 01 00` read/write; passive HID reports follow the DPI button through written stages. Ceiling `35,000` |
-| Independent X/Y DPI | `Not shipped` | `Mapped` | Inherits the Basilisk V3 Pro Bluetooth X/Y pair encoding |
-| Poll rate | `Not shipped` | `Hidden` | Same as the Basilisk V3 Pro Bluetooth path |
-| Sleep timeout | `Not shipped` | `Contributor validated` | `05 84 00 00` read `300 s` |
-| Battery telemetry | `Not shipped` | `Contributor validated` | Vendor raw `05 81 00 01` is always read on its 0-255 scale (`0x7B` = 48%); charging is only trusted from a USB fallback session |
-| Lighting: brightness + static color | `Not shipped` | `Contributor validated` | Two zones: scroll wheel `0x01` and underglow `0x0A`. The firmware still lists LED `0x04`, but this edition has no logo LED |
-| Lighting: extra effects | `Not shipped` | `Limited` | Static color only, like the Basilisk V3 Pro Bluetooth path |
-| Button remap: shipped editable slots | `Not shipped` | `Contributor validated` | Basilisk V3 family slots `1-5`, `9`, `10`, `15`, `52`, `53`, `96`; keyboard and turbo writes on slots `4`/`5` were acknowledged. Slot `15` defaults to the compact clutch block `06 01 05 01 90 01 90` read from the factory banks |
-| Button remap: unsupported slots | `Not shipped` | `Hidden` | Profile button `106` stays a read-only footnote, as on the Basilisk V3 Pro Bluetooth path |
-| Onboard hardware profiles | `Not shipped` | `Single slot` | `03 84` metadata reads return status `0x03` on every target, so mapped profile CRUD is off; edits use the live keys |
-| Persistence | `Not shipped` | `Limited` | A power cycle restores the mouse's own lighting and DPI table; use an OpenSnek local profile with restore-on-connect to re-apply settings |
+| Overall transport status | `Mapped` | `Contributor validated` | Both cable and receiver need hardware validation |
+| DPI stages + active stage | `Mapped` | `Contributor validated` | Ceiling `35,000`; USB uses the shared stage encoding and passive HID parser. Bluetooth live table and passive reports were exercised |
+| Independent X/Y DPI | `Mapped` | `Mapped` | Shared transport-specific pair encodings |
+| Poll rate | `Mapped` | `Hidden` | Shared USB poll-rate path |
+| Sleep timeout | `Mapped` | `Contributor validated` | Bluetooth `05 84 00 00` read `300 s`; USB uses the shared power path |
+| Low battery threshold | `Mapped` | `Hidden` | Shared USB threshold path |
+| Battery telemetry | `Mapped` | `Contributor validated` | USB uses the shared battery path; Bluetooth raw `0x7B` = 48% on the 0-255 scale, and charging is trusted only from USB fallback |
+| Lighting: brightness + static color | `Mapped` | `Contributor validated` | Scroll wheel `0x01` and underglow `0x0A` only; no physical logo LED |
+| Lighting: extra effects | `Mapped` | `Limited` | USB exposes off, static, spectrum, and wave; Bluetooth static only |
+| Software lighting frames | `Hidden` | `Hidden` | OpenRazer lists a 1x12 Phantom matrix; cell ordering has not been mapped. Do not reuse the normal Basilisk 14-cell frame |
+| Button remap: editable slots | `Mapped` | `Contributor validated` | Family slots `1-5`, `9`, `10`, `15`, `52`, `53`, `96`; Bluetooth keyboard/turbo writes on `4`/`5` were acknowledged and slot `15` default `06 01 05 01 90 01 90` was read from factory banks. USB reuses these defaults, pending readback/press validation |
+| Button remap: unsupported slots | `Hidden` | `Hidden` | Slots `14` and `106` remain read-only footnotes |
+| Scroll controls | `Mapped` | `Hidden` | Shared USB mode, acceleration, and smart-reel commands |
+| Onboard hardware profiles | `Hidden` | `Single slot` | USB metadata/CRUD is unverified. Bluetooth rejects `03 84` metadata reads with status `0x03`; this is not evidence of USB rejection |
+| Persistence | `Not tested` | `Limited` | USB persistence is unknown. Bluetooth resets on power cycle; use a local profile with restore-on-connect |
 
 ## Orochi V2
 

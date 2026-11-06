@@ -29,6 +29,53 @@
         "Profile metadata reads are rejected; profile CRUD stays hidden.",
         "Live Bluetooth settings reset on power cycle; restore-on-connect reapplies them."
       ]
+    },
+    {
+      "profile_id": "basilisk_v3_pro_35k",
+      "transport": "usb",
+      "product_ids": [
+        "0x00D6",
+        "0x00D7"
+      ],
+      "features": {
+        "dpi_stages": {
+          "status": "mapped"
+        },
+        "independent_xy": {
+          "status": "mapped"
+        },
+        "poll_rate": {
+          "status": "mapped"
+        },
+        "power_management": {
+          "status": "mapped"
+        },
+        "button_remap": {
+          "status": "mapped"
+        },
+        "lighting_brightness": {
+          "status": "mapped"
+        },
+        "advanced_lighting_effects": {
+          "status": "mapped"
+        },
+        "scroll_controls": {
+          "status": "mapped"
+        },
+        "software_lighting": {
+          "status": "unsupported"
+        },
+        "onboard_profiles": {
+          "status": "unsupported"
+        }
+      },
+      "limitations": [
+        "Mapped from OpenRazer identities and the existing Basilisk USB backend; neither cable nor receiver has hardware validation.",
+        "Button defaults reuse Bluetooth captures and need USB readback and physical confirmation.",
+        "Custom frames are disabled until the Phantom-specific cell ordering is mapped.",
+        "USB onboard profile metadata and CRUD are unverified; Bluetooth rejection is not USB evidence.",
+        "Read/write/readback/restore, persistence, unplug/replug, and sleep/wake validation remain pending."
+      ]
     }
   ]
 }
