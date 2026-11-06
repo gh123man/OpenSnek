@@ -333,7 +333,11 @@ before the normal app delegate, suppresses view lifecycle I/O, and does not
 connect to hardware, launch/stop the background service, or capture the desktop.
 The desktop scene places the real app window contents to the left and the real
 menu bar controls to the right, with an illustrated wallpaper, menu bar, and
-window chrome, as in qeq. It illustrates supported controls, not hardware-validation
+window chrome, as in qeq. The chrome follows the live macOS 26 window: an inset
+rounded sidebar with its window controls, continuous detail background, and no
+separate full-width title bar. Compare against the live window when updating the
+macOS design; offscreen bitmap rendering cannot capture WindowServer materials.
+It illustrates supported controls, not hardware-validation
 evidence. Review `docs/media/screenshots/desktop.png` after regeneration.
 
 `--output <directory>` writes a separate review set. `--skip-build` intentionally
