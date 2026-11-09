@@ -256,7 +256,8 @@ bytes and hidden stages, then verifies authoritative readback without command
 retries. The app and probe use the same preserving builder. Button reads use the
 current (even) lane of the interleaved payload; Default writes the captured native
 block. Brightness-only presentation and restore filtering prevent unvalidated
-color writes. Effect, physical-button-label, profile-CRUD, poll-rate, scroll-mode,
+color writes. Extra-button labels are receiver press-correlated; Bluetooth press
+checks remain pending. Effect, profile-CRUD, poll-rate, scroll-mode,
 persistence and physical lifecycle gaps remain explicit. Receiver support is
 documented separately below.
 
@@ -266,7 +267,8 @@ Locally validated changed-write/readback/restore: DPI X/Y and stage transitions,
 33K boundary, 125/500/1000 Hz through `00:8E/0E`, brightness through separate
 read/write LED IDs, six built-in effect bodies, sleep, threshold and all twelve remap
 slots. The app exposes all twelve slots with native Default and exact original
-restore checks; special physical positions remain unconfirmed. App commands require authoritative readback. Profile CRUD, wheel
+restore checks. Guided presses identify slot 128 as Front Side Button, 57 as Thumb
+Paddle and 14 as Underside Button. App commands require authoritative readback. Profile CRUD, wheel
 settings and custom frames stay hidden; cable `00EB` remains unregistered.
-Physical rendering, persistence and connection lifecycle were not tested.
+Physical lighting rendering, persistence and connection lifecycle were not tested.
 [Report and evidence](../research/BASILISK_V4_HYPERSPEED_USB.md).

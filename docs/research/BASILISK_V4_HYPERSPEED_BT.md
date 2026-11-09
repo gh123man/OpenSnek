@@ -235,3 +235,13 @@ and exact original restore for all twelve slots on both read targets;
 Early attempts exposed empty successful exchanges after ATT acknowledgements;
 the transport now waits for the first vendor notification before idle completion.
 The capture README preserves those failures and successful journal recoveries.
+
+## Physical labels established on the receiver
+
+A later guided receiver press session identified the front small side button as
+slot 128, the larger thumb paddle as slot 57, and the underside button as slot 14.
+The shared layout now uses Front Side Button, Thumb Paddle, and Underside Button,
+with unchanged native Default blocks. See the
+[receiver press evidence](../../captures/usb/2026-11-08-basilisk-v4-hyperspeed/README.md#guided-physical-button-identification).
+The earlier inferred action names above are historical. These physical checks
+have not been repeated over Bluetooth.

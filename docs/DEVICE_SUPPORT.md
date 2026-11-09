@@ -62,11 +62,14 @@ spectrum and random/single/dual breathing), and all 12 advertised button/wheel a
 The brightness read LED is `0A`; writes/effects use `00`. Writes verify changed
 register state. Original settings were journaled and restored byte-for-byte.
 
-Primary clicks and the Profile, Hypershift and AI Prompt Master buttons are editable.
-Special-button names are inferred from captured native actions and Razer's documented
-controls; physical press correlation/rendering, power-cycle persistence, sleep/wake
-and unplug/replug remain untested. Default restores the native vendor action, not
-Synapse host software; AI Prompt Master does not launch an AI app on macOS. Profile CRUD, wheel-mode settings and software lighting remain hidden.
+Primary clicks and all three extra controls are editable. Guided receiver press
+checks identified Front Side Button (slot 128), Thumb Paddle (57), and Underside
+Button (14), using three press/release pairs per control and exact binding restore.
+The front side button was previously labeled AI Prompt Master after Razer's default
+software assignment; OpenSnek uses its physical position instead. Default restores
+the native vendor action. Physical lighting rendering, power-cycle persistence,
+sleep/wake and unplug/replug remain untested. Profile CRUD, wheel-mode settings
+and software lighting remain hidden.
 Cable PID `00EB` is not registered. Like Bluetooth, a newly started app needs to
 observe all five DPI stages before it can safely preserve hidden rows during edits.
 See the [receiver report](research/BASILISK_V4_HYPERSPEED_USB.md).
@@ -79,7 +82,7 @@ validated USB profile above.
 
 - Validated protocol operations: DPI X/Y, stage count and active stage; sleep
   timeout; underglow brightness; all 12 button/wheel actions, including primary
-  clicks, middle, back/forward, tilt, vertical scroll and Profile/Hypershift/AI.
+  clicks, middle, back/forward, tilt, vertical scroll, front side button, thumb paddle, and underside button.
 - Shipped DPI edits preserve the raw stage IDs, hidden slots, and opaque trailing
   bytes. Both merge and encoding use the published 33,000-DPI ceiling. A session
   must first observe the five-stage table; starting with fewer stages refuses DPI
@@ -88,8 +91,8 @@ validated USB profile above.
   brightness only because effect writes did not produce changed readback.
 - All advertised button slots are editable with native Default restoration. Both
   read targets are validated after changed/default writes in the app hardware gate.
-  The three special labels are inferred from native actions and official control
-  names; physical press correlation remains pending.
+  The three extra controls use position-based labels established by receiver press
+  checks. Their physical correlation has not been repeated over Bluetooth.
 - Profile CRUD, polling, scroll-mode controls, effects and software lighting are
   unavailable. No physical sleep/wake, power-cycle persistence, or button-press
   validation is claimed by the finite protocol probes.

@@ -56,3 +56,42 @@ immediate original restore. Both layers were read after changed/default writes;
 all originals were verified again by the journal helper. Private journal:
 `/tmp/opensnek-bskv4-all-buttons-app-journal.json`, phase `restored`. Recovery uses
 that same test filter and `OPEN_SNEK_HW_RECOVER_JOURNAL` with the exact USB device ID.
+
+## Guided physical button identification
+
+On 2026-11-08 (America/New_York), the maintainer pressed each requested physical
+control three times while a receiver-only HID listener recorded input reports.
+Exact device scope was `1532:00ea:01100000:usb`; the app/service were stopped for
+all mutations. Both stored/live originals for slots 14, 57 and 128 were journaled
+before changes, and every marker write was read back on both targets.
+
+| Physical control | Slot | Temporary function | Three press times (seconds into capture) | Evidence |
+|---|---|---|---|---|
+| Frontmost of the three small thumb-side buttons | 128 (`80`) | Left click, `01010100000000` | 23.995, 24.604, 25.397 | [front-side-presses.txt](front-side-presses.txt) |
+| Larger thumb paddle/trigger | 57 (`39`) | Middle click, `01010300000000` | 207.381, 207.931, 208.537 | [thumb-paddle-presses.txt](thumb-paddle-presses.txt) |
+| Small underside profile button | 14 (`0E`) | Right click, `01010200000000` | 148.667, 149.145, 149.577 | [underside-presses.txt](underside-presses.txt) |
+
+The corresponding input masks were `01`, `04`, and `02`, each followed by release
+`00`. Later left clicks used to reply in the chat are retained in the filtered
+transcripts but are not part of the three-press sequences. These transcripts keep
+button-state changes and omit motion-only reports. The side-button instruction
+explicitly excluded the larger paddle, and the underside instruction excluded the
+power/connection slider. The maintainer confirmed completion of each sequence.
+
+A first passive pass detected the reference wheel click but no front-side event.
+An initial F18/F19/F20 marker pass had successful register readback but no observed
+keyboard marker events; it did **not** establish a physical mapping or working
+keyboard behavior. Its originals were restored before switching to mouse markers.
+No conclusion about the cause of absent keyboard reports is made here.
+
+Both marker passes saved originals before any write, restored stored before live,
+and verified all six complete original payloads after restoring. Their final
+journals are [keyboard-marker-journal.json](keyboard-marker-journal.json) and
+[mouse-marker-journal.json](mouse-marker-journal.json), both `restored`. No command
+retry was used. The helper also had a ten-minute automatic restore; this pass was
+ended explicitly before that timeout.
+
+The UI now uses Front Side Button, Thumb Paddle and Underside Button. Their
+captured native Default blocks are unchanged. Receiver press correlation does not
+claim Bluetooth press validation, native Hypershift/profile behavior, keyboard
+remap behavior, persistence, or validation of every other physical control.
