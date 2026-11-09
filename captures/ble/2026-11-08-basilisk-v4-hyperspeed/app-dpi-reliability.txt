@@ -1,0 +1,31 @@
+[0/1] Planning build
+[1/1] Compiling plugin SwiftFormatBuildToolPlugin
+[2/2] Compiling plugin SwiftLintCommandPlugin
+[3/3] Compiling plugin SwiftLintBuildToolPlugin
+Building for debugging...
+[3/10] Write sources
+[4/10] Write swift-version--58304C5D6DBC2206.txt
+[6/10] Compiling OpenSnek AppStateApplyController+LocalProfiles.swift
+[7/10] Emitting module OpenSnek
+[7/12] Write Objects.LinkFileList
+[8/12] Linking OpenSnek
+[9/12] Applying OpenSnek
+[11/13] Emitting module OpenSnekTests
+[11/13] Write Objects.LinkFileList
+[12/13] Linking OpenSnekPackageTests
+Build complete! (6.72s)
+Test Suite 'Selected tests' started at 2026-11-08 18:57:47.148.
+Test Suite 'OpenSnekPackageTests.xctest' started at 2026-11-08 18:57:47.149.
+Test Suite 'HardwareDpiReliabilityTests' started at 2026-11-08 18:57:47.149.
+Test Case '-[OpenSnekTests.HardwareDpiReliabilityTests testBluetoothDpiStageApplyIsStableAcrossSequence]' started.
+Test Case '-[OpenSnekTests.HardwareDpiReliabilityTests testBluetoothDpiStageApplyIsStableAcrossSequence]' passed (17.178 seconds).
+Test Suite 'HardwareDpiReliabilityTests' passed at 2026-11-08 18:58:04.327.
+	 Executed 1 test, with 0 failures (0 unexpected) in 17.178 (17.178) seconds
+Test Suite 'OpenSnekPackageTests.xctest' passed at 2026-11-08 18:58:04.327.
+	 Executed 1 test, with 0 failures (0 unexpected) in 17.178 (17.178) seconds
+Test Suite 'Selected tests' passed at 2026-11-08 18:58:04.327.
+	 Executed 1 test, with 0 failures (0 unexpected) in 17.178 (17.179) seconds
+􀟈  Test run started.
+􀄵  Testing Library Version: 1501
+􀄵  Target Platform: arm64e-apple-macos14.0
+􁁛  Test run with 0 tests in 0 suites passed after 0.001 seconds.

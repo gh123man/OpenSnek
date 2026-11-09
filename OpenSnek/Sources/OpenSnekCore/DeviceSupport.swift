@@ -360,6 +360,8 @@ public extension MouseDevice {
         return resolvedProfile?.supportsScrollModeControls ?? false
     }
 
+    var supportsLightingColorControls: Bool { !(resolvedProfile?.supportedLightingEffects.isEmpty ?? false) }
+
     var supportsLightingBrightnessControls: Bool {
         guard showsLightingControls else { return false }
         return resolvedProfile?.supportsLightingBrightnessControls ?? false
@@ -465,6 +467,27 @@ public enum DeviceProfiles {
         buttonLayout: ButtonSlotLayout(visibleSlots: basiliskV3XButtonSlots, writableSlots: basiliskV3XButtonSlots.map(\.slot), documentedSlots: basiliskV3XDocumentedReadOnlySlots), supportsAdvancedLightingEffects: false, supportedLightingEffects: [.staticColor], usbLightingLEDIDs: [0x01],
         usbLightingZones: basiliskV3XUSBLightingZones, passiveDPIInput: PassiveDPIInputDescriptor(usagePage: 0x01, usage: 0x02, reportID: 0x05, subtype: 0x02, heartbeatSubtype: 0x10, minInputReportSize: 7, maxFeatureReportSize: 1, maximumDPI: 18_000), supportsLightingBrightnessControls: true,
         onboardProfileCount: 1)
+
+    // V4 native action names match the documented controls; physical press correlation remains untested.
+    public static let basiliskV4ButtonSlots: [ButtonSlotDescriptor] = [
+        ButtonSlotDescriptor(slot: 1, friendlyName: "Left Click", defaultKind: .leftClick), ButtonSlotDescriptor(slot: 2, friendlyName: "Right Click", defaultKind: .rightClick), ButtonSlotDescriptor(slot: 3, friendlyName: "Middle Click", defaultKind: .middleClick),
+        ButtonSlotDescriptor(slot: 4, friendlyName: "Back Button", defaultKind: .mouseBack), ButtonSlotDescriptor(slot: 5, friendlyName: "Forward Button", defaultKind: .mouseForward), ButtonSlotDescriptor(slot: 52, friendlyName: "Scroll Left", defaultKind: .default),
+        ButtonSlotDescriptor(slot: 53, friendlyName: "Scroll Right", defaultKind: .default), ButtonSlotDescriptor(slot: 9, friendlyName: "Scroll Up", defaultKind: .scrollUp), ButtonSlotDescriptor(slot: 10, friendlyName: "Scroll Down", defaultKind: .scrollDown),
+        ButtonSlotDescriptor(slot: 57, friendlyName: "Hypershift Button", defaultKind: .default), ButtonSlotDescriptor(slot: 128, friendlyName: "AI Prompt Master Button", defaultKind: .default), ButtonSlotDescriptor(slot: 14, friendlyName: "Profile Button", defaultKind: .default)
+    ]
+
+    // Scoped local read/write/restore evidence: captures/ble/2026-11-08-basilisk-v4-hyperspeed/.
+    // Effect ACKs did not change authoritative state, so lighting is brightness-only.
+    public static let basiliskV4HyperspeedBluetooth = DeviceProfile(
+        id: .basiliskV4Hyperspeed, productName: "Basilisk V4 HyperSpeed", transport: .bluetooth, supportedProducts: [0x00EC], buttonLayout: ButtonSlotLayout(visibleSlots: basiliskV4ButtonSlots, writableSlots: basiliskV4ButtonSlots.map(\.slot)), supportsAdvancedLightingEffects: false,
+        supportedLightingEffects: [], usbLightingLEDIDs: [0x0A], usbLightingZones: [USBLightingZoneDescriptor(id: "underglow", label: "Underglow", ledIDs: [0x0A])], supportsIndependentXYDPI: true, supportsLightingBrightnessControls: true, supportsLightingStateReads: false,
+        supportsPollRateControls: false)
+
+    // Receiver only: the cable PID 00EB remains unvalidated.
+    public static let basiliskV4HyperspeedUSB = DeviceProfile(
+        id: .basiliskV4Hyperspeed, productName: "Basilisk V4 HyperSpeed", transport: .usb, supportedProducts: [0x00EA], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: basiliskV4ButtonSlots, writableSlots: basiliskV4ButtonSlots.map(\.slot)),
+        supportsAdvancedLightingEffects: true, supportedLightingEffects: [.off, .staticColor, .spectrum, .pulseRandom, .pulseSingle, .pulseDual], usbLightingLEDIDs: [0x00], usbLightingZones: [USBLightingZoneDescriptor(id: "underglow", label: "Underglow", ledIDs: [0x00])],
+        supportsIndependentXYDPI: true, supportsLightingBrightnessControls: true, usbBrightnessLEDIDs: [0x00], usbBrightnessReadLEDIDs: [0x0A])
 
     public static let basiliskV3ProBluetooth = basiliskV3ProBluetoothFamilyProfile(id: .basiliskV3Pro, productName: "Basilisk V3 Pro", supportedProducts: [0x00AC], maximumDPI: 30_000)
 
@@ -817,7 +840,7 @@ public enum DeviceProfiles {
 
     public static let all: [DeviceProfile] = [
         basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3Pro35KPhantomGreenUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, basiliskV3Pro35KPhantomGreenBluetooth, orochiV2Bluetooth, nagaProUSB, nagaProBluetooth, nagaV2ProUSB, nagaV2ProBluetooth, nagaV3ProUSB,
-        nagaV3ProBluetooth, basiliskUSB, lanceheadTEUSB, huntsmanMiniUSB, tartarusProUSB, mouseDockUSB, mouseDockProUSB
+        nagaV3ProBluetooth, basiliskV4HyperspeedBluetooth, basiliskV4HyperspeedUSB, basiliskUSB, lanceheadTEUSB, huntsmanMiniUSB, tartarusProUSB, mouseDockUSB, mouseDockProUSB
     ]
 
     public static func resolve(vendorID: Int, productID: Int, transport: DeviceTransportKind) -> DeviceProfile? { all.first(where: { $0.matches(vendorID: vendorID, productID: productID, transport: transport) }) }
@@ -830,6 +853,7 @@ public enum DeviceProfiles {
 
     public static func maximumDPI(for profileID: DeviceProfileID?) -> Int {
         switch profileID {
+        case .basiliskV4Hyperspeed: return 33_000
         case .basiliskV3XHyperspeed: return 18_000
         case .basiliskV3: return 26_000
         case .basiliskV3Pro: return 30_000
@@ -951,7 +975,7 @@ public enum DeviceProfiles {
 
     public static func supportsIndependentXYDPI(for profileID: DeviceProfileID?) -> Bool {
         switch profileID {
-        case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3Pro35K, .nagaV3Pro, .basilisk, .lanceheadTournamentEdition: return true
+        case .basiliskV4Hyperspeed, .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3Pro35K, .nagaV3Pro, .basilisk, .lanceheadTournamentEdition: return true
         case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro, nil: return false
         }
     }

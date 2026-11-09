@@ -1,0 +1,22 @@
+[0/1] Planning build
+[1/1] Compiling plugin SwiftFormatBuildToolPlugin
+[2/2] Compiling plugin SwiftLintCommandPlugin
+[3/3] Compiling plugin SwiftLintBuildToolPlugin
+Building for debugging...
+[3/9] Write swift-version--58304C5D6DBC2206.txt
+Build complete! (3.96s)
+Test Suite 'Selected tests' started at 2026-11-08 19:42:28.136.
+Test Suite 'OpenSnekPackageTests.xctest' started at 2026-11-08 19:42:28.137.
+Test Suite 'HardwareBasiliskV4BluetoothButtonTests' started at 2026-11-08 19:42:28.137.
+Test Case '-[OpenSnekTests.HardwareBasiliskV4BluetoothButtonTests testAllButtonsAndNativeDefaults]' started.
+Test Case '-[OpenSnekTests.HardwareBasiliskV4BluetoothButtonTests testAllButtonsAndNativeDefaults]' passed (9.541 seconds).
+Test Suite 'HardwareBasiliskV4BluetoothButtonTests' passed at 2026-11-08 19:42:37.677.
+	 Executed 1 test, with 0 failures (0 unexpected) in 9.541 (9.541) seconds
+Test Suite 'OpenSnekPackageTests.xctest' passed at 2026-11-08 19:42:37.678.
+	 Executed 1 test, with 0 failures (0 unexpected) in 9.541 (9.541) seconds
+Test Suite 'Selected tests' passed at 2026-11-08 19:42:37.678.
+	 Executed 1 test, with 0 failures (0 unexpected) in 9.541 (9.542) seconds
+􀟈  Test run started.
+􀄵  Testing Library Version: 1501
+􀄵  Target Platform: arm64e-apple-macos14.0
+􁁛  Test run with 0 tests in 0 suites passed after 0.001 seconds.

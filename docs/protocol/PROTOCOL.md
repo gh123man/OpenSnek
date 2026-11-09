@@ -14,6 +14,7 @@ For clarity, documentation is now split:
 - [USB/BLE Parity](./PARITY.md)
 - [BLE Reverse Engineering Notes](../research/BLE_REVERSE_ENGINEERING.md)
 - [Basilisk V3 Pro BT Extended Notes](../research/BASILISK_V3_PRO_BT_EXTENDED.md)
+- [Basilisk V4 HyperSpeed BT Bring-up and Support Limits](../research/BASILISK_V4_HYPERSPEED_BT.md)
 - [OpenSnek App/Probe Guide](../../OpenSnek/README.md)
 
 Agent fast-path:
@@ -23,3 +24,5 @@ Agent fast-path:
 - support matrix / shipped-status change: open `PARITY.md`
 - reverse-engineering context only when needed: open `BLE_REVERSE_ENGINEERING.md`
 - V3 Pro Bluetooth profile work: also open `BLE_PROFILE_CRUD_SPEC.md` and `BASILISK_V3_PRO_BT_EXTENDED.md`
+
+- [Basilisk V4 HyperSpeed USB receiver mapping](../research/BASILISK_V4_HYPERSPEED_USB.md)

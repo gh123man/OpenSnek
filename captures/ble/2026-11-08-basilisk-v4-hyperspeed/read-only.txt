@@ -1,0 +1,56 @@
+bt-raw-read req=0x30 key=0b 84 01 00 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=36 30 24 00 00 00 00 00 02
+notify[1] len=20 req=0x03 status=0x90 len=5 03 05 01 90 01 90 01 90 01 02 20 03 20 03 20 03 03 40 06 40
+notify[2] len=16 req=0x06 status=0x0c len=64 06 40 06 04 80 0c 80 0c 80 0c 05 00 19 00 19 00
+payload[36]: 03 05 01 90 01 90 01 90 01 02 20 03 20 03 20 03 03 40 06 40 06 40 06 04 80 0c 80 0c 80 0c 05 00 19 00 19 00
+
+bt-raw-read req=0x30 key=10 80 00 01 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02
+notify[1] len=1 0a
+payload[1]: 0a
+
+bt-raw-read req=0x30 key=10 85 01 0a name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02
+notify[1] len=1 55
+payload[1]: 55
+
+bt-raw-read req=0x30 key=10 83 00 0a name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=10 30 0a 00 00 00 00 00 02
+notify[1] len=10 req=0x03 status=0x00 len=1 03 01 28 01 00 ff 00 00 ff 00
+payload[10]: 03 01 28 01 00 ff 00 00 ff 00
+
+bt-raw-read req=0x30 key=05 81 00 01 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02
+notify[1] len=1 69
+payload[1]: 69
+
+bt-raw-read req=0x30 key=05 80 00 01 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02
+notify[1] len=1 01
+payload[1]: 01
+
+bt-raw-read req=0x30 key=05 84 00 00 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=2 30 02 00 00 00 00 00 02
+notify[1] len=2 2c 01
+payload[2]: 2c 01
+
+bt-raw-read req=0x30 key=03 80 00 00 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02
+notify[1] len=1 01
+payload[1]: 01
+
+bt-raw-read req=0x30 key=03 82 00 00 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02
+notify[1] len=1 01
+payload[1]: 01
+
+bt-raw-read req=0x30 key=08 80 00 00 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=12 30 0c 00 00 00 00 00 02
+notify[1] len=12 req=0x01 status=0x0e len=2 01 02 03 04 05 34 35 0e 39 80 09 0a
+payload[12]: 01 02 03 04 05 34 35 0e 39 80 09 0a
+
+bt-raw-read req=0x30 key=08 80 01 00 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=12 30 0c 00 00 00 00 00 02
+notify[1] len=12 req=0x01 status=0x0e len=2 01 02 03 04 05 34 35 0e 39 80 09 0a
+payload[12]: 01 02 03 04 05 34 35 0e 39 80 09 0a
+

@@ -1,0 +1,110 @@
+[0/1] Planning build
+[1/1] Compiling plugin SwiftFormatBuildToolPlugin
+[2/2] Compiling plugin SwiftLintCommandPlugin
+[3/3] Compiling plugin SwiftLintBuildToolPlugin
+Building for debugging...
+[3/12] Write sources
+[5/12] Write swift-version--58304C5D6DBC2206.txt
+[7/14] Compiling OpenSnekCore DeviceSupport.swift
+[8/14] Emitting module OpenSnekCore
+[9/19] Compiling OpenSnekCore DevicePatch+USBControls.swift
+[10/19] Compiling OpenSnekCore OnboardProfiles.swift
+[11/19] Compiling OpenSnekCore DeviceValidationCatalog.swift
+[12/19] Compiling OpenSnekCore ButtonBindingSupport.swift
+[13/19] Compiling OpenSnekCore Models.swift
+[14/24] Emitting module OpenSnekProtocols
+[15/24] Compiling OpenSnekProtocols BLEVendorProtocol.swift
+[16/24] Compiling OpenSnekProtocols USBHIDProtocol+BasiliskV4.swift
+[17/27] Compiling OpenSnekHardware USBPassiveDPIEventMonitor.swift
+[18/27] Compiling OpenSnekHardware BLEVendorTransportClient.swift
+[19/27] Emitting module OpenSnekHardware
+[20/34] Compiling OpenSnekAppSupport DevicePreferenceStore.swift
+[21/34] Emitting module OpenSnekAppSupport
+[22/34] Compiling OpenSnekProbe OpenSnekProbe+ParseCommon.swift
+[23/34] Compiling OpenSnekProbe ProbeTransport.swift
+[24/34] Compiling OpenSnekProbe ProbeBridge.swift
+[25/34] Emitting module OpenSnekProbe
+[26/34] Compiling OpenSnekProbe USBProbeClient.swift
+[26/34] Write Objects.LinkFileList
+[27/61] Linking OpenSnekProbe
+[28/61] Applying OpenSnekProbe
+[30/61] Compiling OpenSnek AppStateEditorController+ButtonProfiles.swift
+[31/61] Compiling OpenSnek AppStateEditorController+LocalProfiles.swift
+[32/61] Compiling OpenSnek AppStateEditorController+OnboardProfileContent.swift
+[33/63] Compiling OpenSnek AppStateApplyController+LocalProfiles.swift
+[34/63] Compiling OpenSnek AppStateApplyController.swift
+[35/63] Compiling OpenSnek AppStateDeviceController+DeviceListSelection.swift
+[36/63] Compiling OpenSnek AppStateEditorController+OnboardProfiles.swift
+[37/63] Compiling OpenSnek AppStateEditorController+SelectionLighting.swift
+[38/63] Compiling OpenSnek AppStateEditorController.swift
+[39/63] Compiling OpenSnek BridgeClient+OnboardProfilesUSB.swift
+[40/63] Compiling OpenSnek BridgeClient+PassiveDpiTracker.swift
+[41/63] Compiling OpenSnek BridgeClient+USB.swift
+[42/63] Compiling OpenSnek BridgeClient.swift
+[43/63] Compiling OpenSnek ScreenshotFixtures.swift
+[44/63] Compiling OpenSnek AppStateApplyController+ButtonProfiles.swift
+[45/63] Emitting module OpenSnek
+[46/63] Compiling OpenSnek DeviceStore.swift
+[47/63] Compiling OpenSnek EditorStore.swift
+[48/63] Compiling OpenSnek LocalBridgeBackend.swift
+[49/63] Compiling OpenSnek ContentView.swift
+[50/63] Compiling OpenSnek DeviceDetailButtonMappingCard.swift
+[51/63] Compiling OpenSnek DeviceDetailDpiStagesCard.swift
+[52/63] Compiling OpenSnek BridgeClient+Apply.swift
+[53/63] Compiling OpenSnek BridgeClient+Bluetooth.swift
+[54/63] Compiling OpenSnek BridgeClient+OnboardProfilesBluetooth.swift
+[55/63] Compiling OpenSnek DeviceDetailLightingCard.swift
+[56/63] Compiling OpenSnek DeviceDetailView.swift
+[57/63] Compiling OpenSnek ServiceMenuBarView.swift
+[58/63] Compiling OpenSnek UIPrimitives.swift
+[58/63] Write Objects.LinkFileList
+[59/63] Linking OpenSnek
+[60/63] Applying OpenSnek
+[62/90] Compiling OpenSnekTests USBButtonHydrationTests.swift
+[63/90] Compiling OpenSnekTests USBPassiveDPIParserMergeTests.swift
+[64/90] Compiling OpenSnekTests AppLocalStorageResetterTests.swift
+[65/90] Compiling OpenSnekTests AppStateApplyAndDPICharacterizationTests.swift
+[66/90] Compiling OpenSnekTests AppStateFreshLocalProfileTests.swift
+[67/90] Emitting module OpenSnekTests
+[68/92] Compiling OpenSnekTests USBTelemetryExpectationTests.swift
+[69/92] Compiling OpenSnekTests UnsupportedDeviceHandlingTests.swift
+[70/92] Compiling OpenSnekTests HardwareUSBButtonRemapTests.swift
+[71/92] Compiling OpenSnekTests HardwareValidationSession.swift
+[72/92] Compiling OpenSnekTests PhantomUSBProfileTests.swift
+[73/92] Compiling OpenSnekTests SoftwareLightingRendererTests.swift
+[74/92] Compiling OpenSnekTests SupportedDevicePresentationTests.swift
+[75/92] Compiling OpenSnekTests SupportedDevicesReadmeTests.swift
+[76/92] Compiling OpenSnekTests BasiliskV4USBTests.swift
+[77/92] Compiling OpenSnekTests BridgeClientBluetoothFallbackTests.swift
+[78/92] Compiling OpenSnekTests ContentNoticePresentationTests.swift
+[79/92] Compiling OpenSnekTests AppStateRefactorCharacterizationTests.swift
+[80/92] Compiling OpenSnekTests AppStateWiredMouseRestoreTests.swift
+[81/92] Compiling OpenSnekTests BasiliskV4BluetoothTests.swift
+[82/92] Compiling OpenSnekTests DeviceDiagnosticsFormatterTests.swift
+[83/92] Compiling OpenSnekTests DevicePatchUSBCapabilityTests.swift
+[84/92] Compiling OpenSnekTests DevicePreferenceStoreTests.swift
+[85/92] Compiling OpenSnekTests DeviceProfilesTests.swift
+[86/92] Compiling OpenSnekTests DeviceValidationCatalogTests.swift
+[87/92] Compiling OpenSnekTests HardwareBasiliskV4BluetoothButtonTests.swift
+[88/92] Compiling OpenSnekTests HardwareBasiliskV4USBTests.swift
+[89/92] Compiling OpenSnekTests HardwareBluetoothTarget.swift
+[90/92] Compiling OpenSnekTests HardwareDpiReliabilityTests.swift
+[90/92] Write Objects.LinkFileList
+[91/92] Linking OpenSnekPackageTests
+Build complete! (12.06s)
+Test Suite 'Selected tests' started at 2026-11-08 19:38:12.752.
+Test Suite 'OpenSnekPackageTests.xctest' started at 2026-11-08 19:38:12.752.
+Test Suite 'HardwareBasiliskV4BluetoothButtonTests' started at 2026-11-08 19:38:12.752.
+Test Case '-[OpenSnekTests.HardwareBasiliskV4BluetoothButtonTests testAllButtonsAndNativeDefaults]' started.
+/Users/brian/.codex/worktrees/1086/open-snek/OpenSnek/Tests/OpenSnekTests/HardwareValidationSession.swift:75: error: -[OpenSnekTests.HardwareBasiliskV4BluetoothButtonTests testAllButtonsAndNativeDefaults] : failed: caught error: "Error Domain=HardwareValidation Code=1 "Restoration failed; retain /tmp/opensnek-bskv4-bt-all-buttons-app.json. Operation: Failed to set Bluetooth button binding. Restore: Button command rejected" UserInfo={NSLocalizedDescription=Restoration failed; retain /tmp/opensnek-bskv4-bt-all-buttons-app.json. Operation: Failed to set Bluetooth button binding. Restore: Button command rejected}"
+Test Case '-[OpenSnekTests.HardwareBasiliskV4BluetoothButtonTests testAllButtonsAndNativeDefaults]' failed (28.204 seconds).
+Test Suite 'HardwareBasiliskV4BluetoothButtonTests' failed at 2026-11-08 19:38:40.957.
+	 Executed 1 test, with 1 failure (1 unexpected) in 28.204 (28.204) seconds
+Test Suite 'OpenSnekPackageTests.xctest' failed at 2026-11-08 19:38:40.957.
+	 Executed 1 test, with 1 failure (1 unexpected) in 28.204 (28.204) seconds
+Test Suite 'Selected tests' failed at 2026-11-08 19:38:40.957.
+	 Executed 1 test, with 1 failure (1 unexpected) in 28.204 (28.205) seconds
+􀟈  Test run started.
+􀄵  Testing Library Version: 1501
+􀄵  Target Platform: arm64e-apple-macos14.0
+􁁛  Test run with 0 tests in 0 suites passed after 0.001 seconds.

@@ -1,0 +1,13 @@
+service Battery
+service Device Information
+service 52401523-F97C-7F90-0E7F-6C6F4E36DB1C
+characteristic service=Battery uuid=Battery Level properties=18
+characteristic service=Device Information uuid=Model Number String properties=2
+characteristic service=Device Information uuid=Manufacturer Name String properties=2
+characteristic service=Device Information uuid=PnP ID properties=2
+characteristic service=52401523-F97C-7F90-0E7F-6C6F4E36DB1C uuid=52401524-F97C-7F90-0E7F-6C6F4E36DB1C properties=12
+characteristic service=52401523-F97C-7F90-0E7F-6C6F4E36DB1C uuid=52401525-F97C-7F90-0E7F-6C6F4E36DB1C properties=18
+characteristic service=52401523-F97C-7F90-0E7F-6C6F4E36DB1C uuid=52401526-F97C-7F90-0E7F-6C6F4E36DB1C properties=18
+read Battery Level data=29
+read PnP ID data=028e06ec000001
+PASS standard GATT survey complete (no settings written)

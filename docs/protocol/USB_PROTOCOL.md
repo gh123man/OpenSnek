@@ -882,6 +882,13 @@ reliable on the local USB stack.
 
 ## Device-Specific Notes
 
+### Basilisk V4 HyperSpeed receiver
+
+`1532:00EA` uses `00:8E/0E` polling, LED `0A` brightness reads and LED `00` lighting
+writes. DPI reads zero-fill hidden rows, requiring a retained full baseline.
+See the [scoped mapping and limits](../research/BASILISK_V4_HYPERSPEED_USB.md).
+
+
 ### Razer Basilisk V3 X HyperSpeed (0x00B9)
 
 | Setting | Value |

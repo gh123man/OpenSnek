@@ -8,6 +8,7 @@ import OpenSnekProtocols
 actor ProbeBridge {
     private let vendor = BLEVendorTransportClient()
     private var reqID: UInt8 = 0x30
+    private var rawDpiBaseline: Data?
     private var probeSession: BLEProbeSession?
 
     private func runVendor(writes: [Data], timeout: TimeInterval, preferredPeripheralName: String? = nil) async throws -> [Data] {
@@ -148,7 +149,10 @@ actor ProbeBridge {
         let req = nextReq()
         let header = BLEVendorProtocol.buildReadHeader(req: req, key: .dpiStagesGet)
         let notifies = try await runVendor(writes: [header], timeout: 1.2)
-        if let payload = BLEVendorProtocol.parsePayloadFrames(notifies: notifies, req: req), let parsed = BLEVendorProtocol.parseDpiStageSnapshot(blob: payload) { return DpiSnapshot(active: parsed.active, count: parsed.count, slots: parsed.slots, stageIDs: parsed.stageIDs, marker: parsed.marker) }
+        if let payload = BLEVendorProtocol.parsePayloadFrames(notifies: notifies, req: req), let parsed = BLEVendorProtocol.parseDpiStageSnapshot(blob: payload) {
+            rawDpiBaseline = BLEVendorProtocol.preservingDpiWriteBaseline(parsed, previous: rawDpiBaseline).writeBaseline
+            return DpiSnapshot(active: parsed.active, count: parsed.count, slots: parsed.slots, stageIDs: parsed.stageIDs, marker: parsed.marker)
+        }
         throw ProbeError.protocolError("Failed to parse DPI payload")
     }
 
@@ -159,13 +163,22 @@ actor ProbeBridge {
         let count = DeviceProfiles.clampDpiStageCount(values.count)
         let mergedSlots = BLEVendorProtocol.mergedStageSlots(currentSlots: current.slots, requestedCount: count, requestedValues: values, profileID: profileID)
         let expected = DpiSnapshot(active: max(0, min(count - 1, active)), count: count, slots: mergedSlots, stageIDs: current.stageIDs, marker: current.marker)
-        let payload = BLEVendorProtocol.buildDpiStagePayload(active: expected.active, count: expected.count, slots: expected.slots, marker: expected.marker, stageIDs: expected.stageIDs, profileID: profileID)
+        let payload: Data
+        if profileID == .basiliskV4Hyperspeed {
+            guard let baseline = rawDpiBaseline, let preserved = BLEVendorProtocol.buildPreservingDpiStagePayload(baseline: baseline, active: expected.active, count: count, pairs: values.map { DpiPair(x: $0, y: $0) }, profileID: .basiliskV4Hyperspeed) else {
+                throw ProbeError.protocolError("A complete V4 DPI baseline is required")
+            }
+            payload = preserved
+        } else {
+            payload = BLEVendorProtocol.buildDpiStagePayload(active: expected.active, count: expected.count, slots: expected.slots, marker: expected.marker, stageIDs: expected.stageIDs, profileID: profileID)
+        }
 
         let req = nextReq()
         let header = BLEVendorProtocol.buildWriteHeader(req: req, payloadLength: 0x26, key: .dpiStagesSet)
         let notifies = try await runVendor(writes: [header, payload.prefix(20), payload.suffix(from: 20)], timeout: 1.0)
         guard let ack = notifies.compactMap({ BLEVendorProtocol.NotifyHeader(data: $0) }).first(where: { $0.req == req }), ack.status == 0x02 else { throw ProbeError.protocolError("DPI set did not return success ACK") }
 
+        if profileID == .basiliskV4Hyperspeed { rawDpiBaseline = payload }
         let readback = try await readDpi()
         if readback.active == expected.active && readback.values == expected.values { return readback }
         throw ProbeError.protocolError("Readback mismatch after DPI set")

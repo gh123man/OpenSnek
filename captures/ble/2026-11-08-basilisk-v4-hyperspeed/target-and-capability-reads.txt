@@ -1,0 +1,90 @@
+bt-raw-read req=0x30 key=10 83 01 0a name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=10 30 0a 00 00 00 00 00 02
+notify[1] len=10 req=0x03 status=0x00 len=1 03 01 28 01 00 ff 00 00 ff 00
+payload[10]: 03 01 28 01 00 ff 00 00 ff 00
+
+bt-raw-read req=0x30 key=10 83 01 00 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=10 30 0a 00 00 00 00 00 02
+notify[1] len=10 req=0x03 status=0x00 len=1 03 01 28 01 00 ff 00 00 ff 00
+payload[10]: 03 01 28 01 00 ff 00 00 ff 00
+
+bt-raw-read req=0x30 key=10 85 00 0a name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02
+notify[1] len=1 55
+payload[1]: 55
+
+bt-raw-read req=0x30 key=10 82 01 0a name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=6 30 06 00 00 00 00 00 02
+notify[1] len=6 00 01 02 03 05 08
+payload[6]: 00 01 02 03 05 08
+
+bt-raw-read req=0x30 key=10 82 00 0a name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=6 30 06 00 00 00 00 00 02
+notify[1] len=6 00 01 02 03 05 08
+payload[6]: 00 01 02 03 05 08
+
+bt-raw-read req=0x30 key=10 82 00 00 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=6 30 06 00 00 00 00 00 02
+notify[1] len=6 00 01 02 03 05 08
+payload[6]: 00 01 02 03 05 08
+
+bt-raw-read req=0x30 key=01 82 00 00 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=2 30 02 00 00 00 00 00 02
+notify[1] len=2 00 00
+payload[2]: 00 00
+
+bt-raw-read req=0x30 key=01 86 00 00 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=3 30 03 00 00 00 00 00 02
+notify[1] len=3 00 00 00
+payload[3]: 00 00 00
+
+bt-raw-read req=0x30 key=00 81 00 00 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=4 30 04 00 00 00 00 00 02
+notify[1] len=4 01 00 10 00
+payload[4]: 01 00 10 00
+
+bt-raw-read req=0x30 key=00 80 00 00 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=3 30 03 00 00 00 00 00 02
+notify[1] len=3 40 41 43
+payload[3]: 40 41 43
+
+bt-raw-read req=0x30 key=00 80 00 01 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=5 30 05 00 00 00 00 00 02
+notify[1] len=5 00 01 05 06 08
+payload[5]: 00 01 05 06 08
+
+bt-raw-read req=0x30 key=00 8e 00 00 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x05 len=0 30 00 00 00 00 00 00 05
+payload: nil
+
+bt-raw-read req=0x30 key=00 8e 01 00 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x05 len=0 30 00 00 00 00 00 00 05
+payload: nil
+
+bt-raw-read req=0x30 key=01 8c 01 00 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02
+notify[1] len=1 08
+payload[1]: 08
+
+bt-raw-read req=0x30 key=01 8c 02 00 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02
+notify[1] len=1 08
+payload[1]: 08
+
+bt-raw-read req=0x30 key=0b 84 02 00 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=36 30 24 00 00 00 00 00 02
+notify[1] len=20 req=0x03 status=0x90 len=5 03 05 01 90 01 90 01 90 01 02 20 03 20 03 20 03 03 40 06 40
+notify[2] len=16 req=0x06 status=0x0c len=64 06 40 06 04 80 0c 80 0c 80 0c 05 00 19 00 19 00
+payload[36]: 03 05 01 90 01 90 01 90 01 02 20 03 20 03 20 03 03 40 06 40 06 40 06 04 80 0c 80 0c 80 0c 05 00 19 00 19 00
+
+bt-raw-read req=0x30 key=10 83 02 0a name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=10 30 0a 00 00 00 00 00 02
+notify[1] len=10 req=0x03 status=0x00 len=1 03 01 28 01 00 ff 00 00 ff 00
+payload[10]: 03 01 28 01 00 ff 00 00 ff 00
+
+bt-raw-read req=0x30 key=08 84 02 04 name="BSK V4 HS"
+notify[0] len=8 req=0x30 status=0x02 len=16 30 10 00 00 00 00 00 02
+notify[1] len=16 req=0x04 status=0x04 len=0 04 00 01 01 01 01 04 04 00 00 00 00 00 00 00 00
+payload[16]: 04 00 01 01 01 01 04 04 00 00 00 00 00 00 00 00
+decoded-button-function[7]: 01 01 04 00 00 00 00
+

@@ -2,14 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [1.5.0-rc.1]
 
 ### Added
+- Added scoped Basilisk V4 HyperSpeed support over Bluetooth (`0x00EC`) and the USB receiver (`0x00EA`): 33K X/Y DPI, battery, sleep, brightness and verified button remaps, including native Default restore for Profile, Hypershift and AI Prompt Master. All 12 button/wheel actions are editable on both transports, with changed-write and native-Default readback checks. USB adds 125/500/1000 Hz polling and six built-in lighting effects. Physical button positions, profile management, wheel settings and cable USB remain unvalidated; Bluetooth lighting is brightness-only. DPI edits preserve raw stage data and require a complete baseline from the current session.
 - Added mapped USB support for the Basilisk V3 Pro 35K Phantom Green Edition over cable (`0x00D6`) and receiver (`0x00D7`), awaiting hardware validation: DPI stages up to 35,000 with independent X/Y, poll rate, power controls, button remapping, scroll settings, and built-in lighting on the scroll wheel and underglow. Custom software lighting and onboard profile management stay hidden pending device-specific evidence. The USB probe now clamps scalar DPI writes to the selected device’s ceiling instead of 30,000.
-- Added `./run.sh --screenshots` to regenerate the README desktop screenshot from the native UI with isolated sample data, plus `--check` to verify source and image checksums. Release preparation refreshes the screenshot, release preflight rejects stale images, and GitHub releases include a fresh render from the release app.
 
 ### Fixed
-- Corrected README screenshot window chrome to match the macOS 26 app: a rounded, inset sidebar with integrated window controls and a continuous detail background instead of a separate title bar.
+
+- Bluetooth vendor exchanges now wait for the first response notification before starting idle completion, preventing a delayed reply from being treated as an empty successful exchange.
 
 ## [1.4.1-rc.2]
 

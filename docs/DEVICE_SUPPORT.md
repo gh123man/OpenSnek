@@ -37,6 +37,7 @@ Button remap keyboard actions support modifier chords on shipped USB and Bluetoo
 
 | Device | USB | BT | Biggest Gaps |
 |---|---|---|---|
+| Basilisk V4 HyperSpeed | `Validated` receiver (scoped) | `Validated` (scoped) | Receiver polling/effects/all 12 button actions; Bluetooth brightness/all 12 button actions; cable unvalidated |
 | Basilisk V3 X HyperSpeed | `Validated` | `Validated` | Bluetooth keeps lighting to static color, hides poll-rate and threshold controls, and leaves the Hypershift/sniper path read-only |
 | Basilisk V3 | `Mapped` | `No transport` | Shares the Basilisk V3 USB family configuration, but remains unvalidated on local hardware |
 | Basilisk V3 Pro | `Validated` | `Validated` | Ships mapped onboard profile CRUD on USB and Bluetooth; Bluetooth keeps lighting static-only, hides poll-rate and threshold controls, and does not ship clutch/profile-button remap |
@@ -52,6 +53,46 @@ Button remap keyboard actions support modifier chords on shipped USB and Bluetoo
 | Tartarus Pro | `Contributor validated` | `No transport` | Keypad: contributor validated backlight lighting and brightness (LED `0x00` and `0x05` alias the same register). Analog actuation and key remap have no public protocol; OpenSnek never switches this device into driver mode |
 | Mouse Dock | `Contributor validated` | `No transport` | Accessory: contributor validated single logo-LED static color, brightness, and spectrum/pulse writes over USB. No DPI, buttons, battery, or onboard profiles |
 | Mouse Dock Pro | `Contributor validated` | `No transport` | Accessory: contributor validated logo-LED brightness, static color, wave, spectrum, and breathing writes over USB, with working brightness telemetry. Answers only transaction ID `0xFF` and reads brightness at LED `0x0F` instead of the `0x00` write address; per-cell custom-frame mapping is still unmapped |
+
+## Basilisk V4 HyperSpeed USB receiver
+
+`1532:00EA` is locally validated for DPI X/Y and stages up to 33K, 125/500/1000 Hz,
+battery reads, sleep and brightness, six built-in lighting effects (off, static,
+spectrum and random/single/dual breathing), and all 12 advertised button/wheel actions.
+The brightness read LED is `0A`; writes/effects use `00`. Writes verify changed
+register state. Original settings were journaled and restored byte-for-byte.
+
+Primary clicks and the Profile, Hypershift and AI Prompt Master buttons are editable.
+Special-button names are inferred from captured native actions and Razer's documented
+controls; physical press correlation/rendering, power-cycle persistence, sleep/wake
+and unplug/replug remain untested. Default restores the native vendor action, not
+Synapse host software; AI Prompt Master does not launch an AI app on macOS. Profile CRUD, wheel-mode settings and software lighting remain hidden.
+Cable PID `00EB` is not registered. Like Bluetooth, a newly started app needs to
+observe all five DPI stages before it can safely preserve hidden rows during edits.
+See the [receiver report](research/BASILISK_V4_HYPERSPEED_USB.md).
+
+## Basilisk V4 HyperSpeed Bluetooth
+
+Bluetooth `068E:00EC`, advertised as `BSK V4 HS`. The local probe evidence is in
+[the V4 bring-up report](research/BASILISK_V4_HYPERSPEED_BT.md). Receiver support uses the separately
+validated USB profile above.
+
+- Validated protocol operations: DPI X/Y, stage count and active stage; sleep
+  timeout; underglow brightness; all 12 button/wheel actions, including primary
+  clicks, middle, back/forward, tilt, vertical scroll and Profile/Hypershift/AI.
+- Shipped DPI edits preserve the raw stage IDs, hidden slots, and opaque trailing
+  bytes. Both merge and encoding use the published 33,000-DPI ceiling. A session
+  must first observe the five-stage table; starting with fewer stages refuses DPI
+  writes because the firmware omits hidden-stage bytes.
+- Battery uses the 0–255 vendor scale; charging remains unknown. Lighting exposes
+  brightness only because effect writes did not produce changed readback.
+- All advertised button slots are editable with native Default restoration. Both
+  read targets are validated after changed/default writes in the app hardware gate.
+  The three special labels are inferred from native actions and official control
+  names; physical press correlation remains pending.
+- Profile CRUD, polling, scroll-mode controls, effects and software lighting are
+  unavailable. No physical sleep/wake, power-cycle persistence, or button-press
+  validation is claimed by the finite protocol probes.
 
 ## Basilisk V3 USB Family Assumptions
 

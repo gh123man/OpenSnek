@@ -1,0 +1,27 @@
+[0/1] Planning build
+[1/1] Compiling plugin SwiftFormatBuildToolPlugin
+[2/2] Compiling plugin SwiftLintCommandPlugin
+[3/3] Compiling plugin SwiftLintBuildToolPlugin
+Building for debugging...
+[3/11] Write sources
+[4/11] Write swift-version--58304C5D6DBC2206.txt
+[6/9] Emitting module OpenSnekTests
+[7/9] Compiling OpenSnekTests HardwareBasiliskV4USBTests.swift
+[7/9] Write Objects.LinkFileList
+[8/9] Linking OpenSnekPackageTests
+Build complete! (5.54s)
+Test Suite 'Selected tests' started at 2026-11-08 19:14:35.108.
+Test Suite 'OpenSnekPackageTests.xctest' started at 2026-11-08 19:14:35.109.
+Test Suite 'HardwareBasiliskV4USBTests' started at 2026-11-08 19:14:35.109.
+Test Case '-[OpenSnekTests.HardwareBasiliskV4USBTests testReceiverApplyAndRestore]' started.
+Test Case '-[OpenSnekTests.HardwareBasiliskV4USBTests testReceiverApplyAndRestore]' passed (12.070 seconds).
+Test Suite 'HardwareBasiliskV4USBTests' passed at 2026-11-08 19:14:47.179.
+	 Executed 1 test, with 0 failures (0 unexpected) in 12.070 (12.070) seconds
+Test Suite 'OpenSnekPackageTests.xctest' passed at 2026-11-08 19:14:47.179.
+	 Executed 1 test, with 0 failures (0 unexpected) in 12.070 (12.071) seconds
+Test Suite 'Selected tests' passed at 2026-11-08 19:14:47.179.
+	 Executed 1 test, with 0 failures (0 unexpected) in 12.070 (12.071) seconds
+􀟈  Test run started.
+􀄵  Testing Library Version: 1501
+􀄵  Target Platform: arm64e-apple-macos14.0
+􁁛  Test run with 0 tests in 0 suites passed after 0.001 seconds.

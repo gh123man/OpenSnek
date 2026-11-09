@@ -30,6 +30,7 @@ OpenSnek is an open source native macOS app for configuring supported Razer mice
 
 | Device | USB / receiver | Bluetooth | Main limitations |
 |---|:---:|:---:|---|
+| Basilisk V4 HyperSpeed | ✅ Receiver | ✅ | DPI, battery, sleep, brightness and all 12 button/wheel actions on USB/BT; USB polling/effects. Cable pending |
 | Basilisk V3 X HyperSpeed | ✅ | ✅ | Bluetooth lighting: static only |
 | Basilisk V3 | 🧪 | - | Awaiting hardware validation |
 | Basilisk V3 Pro | ✅ | ✅ | Bluetooth lighting: static only |

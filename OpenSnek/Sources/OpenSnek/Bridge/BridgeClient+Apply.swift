@@ -25,9 +25,9 @@ extension BridgeClient {
 
         if let brightness = patch.ledBrightness, device.supportsLightingBrightnessControls { guard try await btSetLightingValue(device: device, value: brightness) else { throw BridgeError.commandFailed("Failed to set Bluetooth lighting value") } }
 
-        if let rgb = patch.ledRGB { guard try await btSetLightingRGB(device: device, r: rgb.r, g: rgb.g, b: rgb.b, ledIDs: patch.usbLightingZoneLEDIDs) else { throw BridgeError.commandFailed("Failed to set Bluetooth RGB") } }
+        if let rgb = patch.ledRGB, device.supportsLightingColorControls { guard try await btSetLightingRGB(device: device, r: rgb.r, g: rgb.g, b: rgb.b, ledIDs: patch.usbLightingZoneLEDIDs) else { throw BridgeError.commandFailed("Failed to set Bluetooth RGB") } }
 
-        if let effect = patch.lightingEffect {
+        if let effect = patch.lightingEffect, device.supportsLightingColorControls {
             let ledIDs = effect.kind == .staticColor ? patch.usbLightingZoneLEDIDs : nil
             let applied = try await btApplyLightingEffectFallback(device: device, effect: effect, ledIDs: ledIDs)
             if !applied { AppLog.debug("Bridge", "lighting effect fallback unavailable kind=\(effect.kind.rawValue) transport=\(device.transport.rawValue)") }
@@ -175,7 +175,9 @@ extension BridgeClient {
         let livePair = resolvedStagePairs[activeClamped]
         logUSBDpiApply(USBDpiApplyLogContext(device: device, patch: patch, cachedDpiStages: cachedDpiStages, current: current, activeClamped: activeClamped, livePair: livePair, stages: stages))
 
-        if patch.isActiveStageOnly { return try await applyUSBActiveDpiOnly(USBActiveDpiOnlyApplyContext(device: device, patch: patch, cachedState: cachedState, activeClamped: activeClamped, livePair: livePair), runUSBWrite: runUSBWrite, readUSBCurrentDpi: readUSBCurrentDpi) }
+        if patch.isActiveStageOnly, device.profile_id != .basiliskV4Hyperspeed {
+            return try await applyUSBActiveDpiOnly(USBActiveDpiOnlyApplyContext(device: device, patch: patch, cachedState: cachedState, activeClamped: activeClamped, livePair: livePair), runUSBWrite: runUSBWrite, readUSBCurrentDpi: readUSBCurrentDpi)
+        }
 
         try applyUSBResolvedDpiStages(
             USBResolvedDpiStagesApplyContext(device: device, stages: stages, activeClamped: activeClamped, livePair: livePair, resolvedStagePairs: resolvedStagePairs, stageIDs: current?.stageIDs, usesProjectedReadback: device.usesProjectedDPIStageWriteReadback), runUSBWrite: runUSBWrite,
@@ -233,7 +235,7 @@ extension BridgeClient {
     private func applyUSBResolvedDpiStages(_ context: USBResolvedDpiStagesApplyContext, runUSBWrite: ((USBHIDControlSession) throws -> Bool) throws -> Bool, readUSBCurrentDpiStages: () throws -> USBDpiStageSnapshot?, readUSBCurrentDpi: () throws -> (Int, Int)?) throws {
         let device = context.device
         let livePair = context.livePair
-        if context.stages.count == 1 {
+        if context.stages.count == 1, device.profile_id != .basiliskV4Hyperspeed {
             try applyUSBSingleDpiStage(device: device, livePair: livePair, stageIDs: context.stageIDs, runUSBWrite: runUSBWrite, readUSBCurrentDpi: readUSBCurrentDpi)
             return
         }

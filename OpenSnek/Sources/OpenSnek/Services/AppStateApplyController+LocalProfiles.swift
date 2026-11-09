@@ -101,7 +101,7 @@ import OpenSnekCore
     }
 
     private func localProfileLightingPatch(_ content: OpenSnekLocalProfileContent, device: MouseDevice) -> LocalProfileLightingPatch {
-        guard device.showsLightingControls else { return LocalProfileLightingPatch(rgb: nil, effect: nil, ledIDs: nil) }
+        guard device.showsLightingControls, device.supportsLightingColorControls else { return LocalProfileLightingPatch(rgb: nil, effect: nil, ledIDs: nil) }
         if let effect = content.lightingEffect, device.supports_advanced_lighting_effects { return LocalProfileLightingPatch(rgb: nil, effect: effect, ledIDs: nil) }
         let rgb = content.staticColorByLEDID.sorted(by: { $0.key < $1.key }).first?.value
         return LocalProfileLightingPatch(rgb: rgb, effect: nil, ledIDs: nil)

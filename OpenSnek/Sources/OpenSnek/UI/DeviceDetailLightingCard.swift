@@ -117,9 +117,9 @@ struct LightingCard: View {
 
     private var softwareLightingIsRunning: Bool { softwareLightingStatus?.state == .running }
 
-    private var lightingSummaryTitle: String { lightingSummaryPresentation.title }
+    private var lightingSummaryTitle: String { selected.supportsLightingColorControls ? lightingSummaryPresentation.title : "Brightness" }
 
-    private var lightingSummarySwatches: [RGBColor] { lightingSummaryPresentation.swatches }
+    private var lightingSummarySwatches: [RGBColor] { selected.supportsLightingColorControls ? lightingSummaryPresentation.swatches : [] }
 
     private var lightingSummaryPresentation: LightingSummaryPresentation {
         LightingSummaryPresentation.make(
@@ -352,13 +352,15 @@ struct LightingCard: View {
     }
 
     @ViewBuilder private func onboardControls(includePresetPicker: Bool = true) -> some View {
-        lightingNotice(systemImage: "memorychip.fill", iconColor: actionAccent, text: "Onboard lighting is stored on the device and survives restart and reconnect.")
+        if selected.supportsLightingColorControls { lightingNotice(systemImage: "memorychip.fill", iconColor: actionAccent, text: "Onboard lighting is stored on the device and survives restart and reconnect.") }
 
         if selected.supportsLightingBrightnessControls { brightnessControls().padding(.vertical, 2) }
 
-        if includePresetPicker { onboardPresetPicker() }
-        onboardEffectOptions()
-        onboardColorControls()
+        if selected.supportsLightingColorControls {
+            if includePresetPicker { onboardPresetPicker() }
+            onboardEffectOptions()
+            onboardColorControls()
+        }
     }
 
     var body: some View {

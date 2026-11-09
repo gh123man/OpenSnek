@@ -15,6 +15,7 @@ Source-of-truth rule:
 - Python tooling under `tools/python/` may contain older mappings or compatibility experiments; do not treat it as canonical when this document disagrees.
 
 Supported device baseline:
+- Basilisk V4 HyperSpeed Bluetooth (`VID=0x068E`, `PID=0x00EC`; scoped DPI/power/brightness/button support, see bring-up notes)
 - Basilisk V3 X HyperSpeed Bluetooth (`VID=0x068E`, `PID=0x00BA`)
 - Basilisk V3 Pro Bluetooth (`VID=0x068E`, `PID=0x00AC`)
 - Basilisk V3 Pro 35K Phantom Green Edition Bluetooth (`VID=0x068E`, `PID=0x00D8`, contributor validated)
@@ -66,6 +67,8 @@ The protocol is request/notify based, but OpenSnek treats it as strictly seriali
 - enable notifications first
 - send one logical exchange at a time
 - wait for its notify header and any payload frames
+- start response-idle completion only after receiving a notification; an ATT write
+  acknowledgement alone must not return an empty successful exchange
 - only then start the next exchange
 
 Do not pipeline requests on a single connection. The only correlation token is the one-byte request ID, and out-of-order notify interleaving is easy to create if you overlap commands.
@@ -102,7 +105,8 @@ If you are implementing a compatible client, use write-with-response unless you 
 ### 3.4 End of Exchange
 
 OpenSnek considers an exchange complete after:
-- all queued writes have been acknowledged at the ATT layer, and
+- all queued writes have been acknowledged at the ATT layer,
+- at least one response notification has arrived (except connection-only warmup), and
 - no more notify frames arrive for a short idle window
 
 That idle window is a client policy, not an on-wire field. Your client can instead finish as soon as it has:
@@ -1091,6 +1095,7 @@ The app may still expose richer lighting on USB HID, but this BLE document only 
 
 ## 11. Cross-References
 
+- [Basilisk V4 HyperSpeed Bluetooth bring-up](../research/BASILISK_V4_HYPERSPEED_BT.md): local `068E:00EC` read/write/restore research, including DPI, power, button inventory, and ACK-without-changed-readback lighting limitations; the scoped Bluetooth profile now exposes DPI, power, brightness, and all twelve button/wheel slots with app-path remap, native Default, and original-state restore checks.
 - [Protocol Index](./PROTOCOL.md)
 - [USB Protocol](./USB_PROTOCOL.md)
 - [USB/BLE Parity](./PARITY.md)

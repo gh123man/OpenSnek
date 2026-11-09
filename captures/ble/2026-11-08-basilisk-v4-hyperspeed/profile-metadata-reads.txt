@@ -1,0 +1,12 @@
+metadata GET key=03840000 request offset=0 length=76; contents intentionally omitted
+notify[0] len=8 req=0x30 status=0x03 len=0 30 00 00 00 00 00 00 03
+ack status=0x03 payloadLength=0
+
+metadata GET key=03840100 request offset=0 length=76; contents intentionally omitted
+notify[0] len=8 req=0x30 status=0x03 len=0 30 00 00 00 00 00 00 03
+ack status=0x03 payloadLength=0
+
+metadata GET key=03840200 request offset=0 length=76; contents intentionally omitted
+notify[0] len=8 req=0x30 status=0x03 len=0 30 00 00 00 00 00 00 03
+ack status=0x03 payloadLength=0
+
