@@ -30,15 +30,26 @@ public enum BLEVendorProtocol {
         public let pairs: [DpiPair]
         public let stageIDs: [UInt8]
         public let marker: UInt8
+        public let sourcePayload: Data?
+        public let writeBaseline: Data?
 
-        public init(active: Int, count: Int, slots: [Int], pairs: [DpiPair], stageIDs: [UInt8] = [], marker: UInt8 = 0x03) {
+        public init(active: Int, count: Int, slots: [Int], pairs: [DpiPair], stageIDs: [UInt8] = [], marker: UInt8 = 0x03, sourcePayload: Data? = nil, writeBaseline: Data? = nil) {
             self.active = active
             self.count = count
             self.slots = slots
             self.pairs = pairs
             self.stageIDs = stageIDs
             self.marker = marker
+            self.sourcePayload = sourcePayload
+            self.writeBaseline = writeBaseline ?? sourcePayload.flatMap { $0.count >= 36 ? $0 : nil }
         }
+    }
+
+    /// Short V4 reads omit hidden stages. Retain only previously observed bytes, never synthesize them.
+    public static func preservingDpiWriteBaseline(_ snapshot: DpiStageSnapshot, previous: Data?) -> DpiStageSnapshot {
+        guard let raw = snapshot.sourcePayload, raw.count == 1 + snapshot.count * 7, raw.count < 36, var baseline = previous, (36...38).contains(baseline.count) else { return snapshot }
+        baseline.replaceSubrange(0..<raw.count, with: raw)
+        return DpiStageSnapshot(active: snapshot.active, count: snapshot.count, slots: snapshot.slots, pairs: snapshot.pairs, stageIDs: snapshot.stageIDs, marker: snapshot.marker, sourcePayload: raw, writeBaseline: baseline)
     }
 
     /// Stores DPI stages read data.
@@ -261,6 +272,7 @@ public enum BLEVendorProtocol {
             if tail.count >= 14 {
                 let evenLane = Array(tail.enumerated().compactMap { index, byte in index.isMultiple(of: 2) ? byte : nil }.prefix(7))
                 let oddLane = Array(tail.enumerated().compactMap { index, byte in index.isMultiple(of: 2) ? nil : byte }.prefix(7))
+                if profileID == .basiliskV4Hyperspeed { return evenLane }
                 let lanes = [evenLane, oddLane]
                 if let parsed = lanes.first(where: { ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: Int(slot), functionBlock: $0, profileID: profileID) != nil }) { return parsed }
                 return evenLane
@@ -311,7 +323,8 @@ public enum BLEVendorProtocol {
             let count = min(declaredCount, slots.count)
             let visibleIDs = Array(stageIDs.prefix(count))
             let active = resolveActiveStage(activeRaw: activeRaw, stageIDs: visibleIDs, count: count)
-            return DpiStageSnapshot(active: active, count: count, slots: Array(slots.prefix(DeviceProfiles.maximumDpiStageCount)), pairs: Array(pairs.prefix(DeviceProfiles.maximumDpiStageCount)), stageIDs: Array(stageIDs.prefix(DeviceProfiles.maximumDpiStageCount)), marker: marker)
+            return DpiStageSnapshot(
+                active: active, count: count, slots: Array(slots.prefix(DeviceProfiles.maximumDpiStageCount)), pairs: Array(pairs.prefix(DeviceProfiles.maximumDpiStageCount)), stageIDs: Array(stageIDs.prefix(DeviceProfiles.maximumDpiStageCount)), marker: marker, sourcePayload: blob)
         }
 
         if blob.count >= 7 {
@@ -320,9 +333,11 @@ public enum BLEVendorProtocol {
             let value = Int(blob[3]) | (Int(blob[4]) << 8)
             let active = activeRaw >= 1 ? max(0, min(count - 1, activeRaw - 1)) : 0
             let sid = blob.count > 2 ? blob[2] : 0
-            let pair = DpiPair(x: value, y: value)
+            let y = Int(blob[5]) | (Int(blob[6]) << 8)
+            let pair = DpiPair(x: value, y: y)
             return DpiStageSnapshot(
-                active: active, count: count, slots: Array(repeating: value, count: DeviceProfiles.maximumDpiStageCount), pairs: Array(repeating: pair, count: DeviceProfiles.maximumDpiStageCount), stageIDs: Array(repeating: sid, count: DeviceProfiles.maximumDpiStageCount), marker: 0x03)
+                active: active, count: count, slots: Array(repeating: value, count: DeviceProfiles.maximumDpiStageCount), pairs: Array(repeating: pair, count: DeviceProfiles.maximumDpiStageCount), stageIDs: Array(repeating: sid, count: DeviceProfiles.maximumDpiStageCount), marker: 0x03,
+                sourcePayload: blob)
         }
 
         return nil
@@ -406,9 +421,38 @@ public enum BLEVendorProtocol {
         return out
     }
 
+    /// Edits the V4 table without rebuilding opaque per-stage bytes or hidden stages.
+    /// A complete baseline is mandatory; malformed reads cannot become writes of defaults.
+    public static func buildPreservingDpiStagePayload(baseline: Data, active: Int, count: Int, pairs: [DpiPair], profileID: DeviceProfileID) -> Data? {
+        guard (36...38).contains(baseline.count), (1...5).contains(Int(baseline[1])), (1...5).contains(count), pairs.count >= count, (0..<count).contains(active) else { return nil }
+        let ids = (0..<5).map { baseline[2 + $0 * 7] }
+        guard Set(ids).count == 5, ids.prefix(Int(baseline[1])).contains(baseline[0]) else { return nil }
+        let range = DeviceProfiles.dpiRange(for: profileID)
+        for index in 0..<5 {
+            let offset = 2 + index * 7
+            let x = Int(baseline[offset + 1]) | Int(baseline[offset + 2]) << 8
+            let y = Int(baseline[offset + 3]) | Int(baseline[offset + 4]) << 8
+            guard range.contains(x), range.contains(y) else { return nil }
+        }
+        var payload = baseline + Data(repeating: 0, count: 38 - baseline.count)
+        payload[0] = ids[active]
+        payload[1] = UInt8(count)
+        for index in 0..<count {
+            let offset = 2 + index * 7
+            let pair = pairs[index]
+            let x = DeviceProfiles.clampDPI(pair.x, profileID: profileID)
+            let y = DeviceProfiles.clampDPI(pair.y, profileID: profileID)
+            payload[offset + 1] = UInt8(x & 0xFF)
+            payload[offset + 2] = UInt8(x >> 8)
+            payload[offset + 3] = UInt8(y & 0xFF)
+            payload[offset + 4] = UInt8(y >> 8)
+        }
+        return payload
+    }
+
     public static func buildButtonPayload(slot: UInt8, kind: ButtonBindingKind, hidKey: UInt8?, hidModifiers: UInt8 = 0, turboEnabled: Bool = false, turboRate: UInt16? = nil, clutchDPI: Int? = nil, profileID: DeviceProfileID? = nil) -> Data {
         let clampedTurboRate = max(UInt16(1), min(UInt16(0x00FF), turboRate ?? 0x008E))
-        if profileID?.isNagaFamily == true {
+        if profileID?.isNagaFamily == true || profileID == .basiliskV4Hyperspeed {
             let draft = ButtonBindingDraft(kind: kind, hidKey: Int(hidKey ?? 0x04), hidModifiers: Int(hidModifiers), turboEnabled: turboEnabled, turboRate: Int(clampedTurboRate), clutchDPI: clutchDPI)
             return buildRawFunctionBlockPayload(slot: slot, functionBlock: ButtonBindingSupport.usbFunctionBlockForWrite(slot: Int(slot), draft: draft, profileID: profileID))
         }

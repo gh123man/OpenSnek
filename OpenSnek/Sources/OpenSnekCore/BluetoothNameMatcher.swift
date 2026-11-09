@@ -14,6 +14,7 @@ public enum BluetoothNameMatcher {
         let pieces = withoutRazerPrefix.lowercased().split { !$0.isLetter && !$0.isNumber }.map { token -> String in
             switch token {
             case "bsk": return "basilisk"
+            case "hs": return "hyperspeed"
             // The Basilisk V3 Pro 35K Phantom Green Edition advertises the run-together "BSKV3P 35K".
             case "bskv3p": return "basilisk v3 pro"
             default: return String(token)

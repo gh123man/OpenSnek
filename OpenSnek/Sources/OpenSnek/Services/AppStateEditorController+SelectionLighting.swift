@@ -147,7 +147,7 @@ import OpenSnekCore
         let patch = DevicePatch(
             pollRate: snapshot.pollRate, sleepTimeout: snapshot.sleepTimeout, lowBatteryThresholdRaw: snapshot.lowBatteryThresholdRaw, scrollMode: device.supportsScrollModeControls ? snapshot.scrollMode : nil, scrollAcceleration: device.supportsScrollModeControls ? snapshot.scrollAcceleration : nil,
             scrollSmartReel: device.supportsScrollModeControls ? snapshot.scrollSmartReel : nil, dpiStages: Array(snapshot.stageValues.prefix(snapshot.stageCount)), dpiStagePairs: Array(snapshot.stagePairs.prefix(snapshot.stageCount)),
-            ledBrightness: device.supportsLightingBrightnessControls ? snapshot.ledBrightness : nil, ledRGB: lightingEffect == nil ? snapshot.primaryLightingColor.map { RGBPatch(r: $0.r, g: $0.g, b: $0.b) } : nil, lightingEffect: lightingEffect,
+            ledBrightness: device.supportsLightingBrightnessControls ? snapshot.ledBrightness : nil, ledRGB: lightingEffect == nil && device.supportsLightingColorControls ? snapshot.primaryLightingColor.map { RGBPatch(r: $0.r, g: $0.g, b: $0.b) } : nil, lightingEffect: lightingEffect,
             usbLightingZoneLEDIDs: {
                 if let lightingEffect, lightingEffect.kind == .staticColor { return usbLightingZoneLEDIDs(for: device, zoneID: normalizedZoneID) }
                 if lightingEffect == nil { return usbLightingZoneLEDIDs(for: device, zoneID: normalizedZoneID) }

@@ -1,0 +1,58 @@
+[0/1] Planning build
+[1/1] Compiling plugin SwiftFormatBuildToolPlugin
+[2/2] Compiling plugin SwiftLintCommandPlugin
+[3/3] Compiling plugin SwiftLintBuildToolPlugin
+Building for debugging...
+[3/9] Write swift-version--58304C5D6DBC2206.txt
+Build complete! (3.94s)
+Test Suite 'Selected tests' started at 2026-11-08 19:44:58.442.
+Test Suite 'OpenSnekPackageTests.xctest' started at 2026-11-08 19:44:58.443.
+Test Suite 'HardwareBasiliskV4BluetoothButtonTests' started at 2026-11-08 19:44:58.443.
+Test Case '-[OpenSnekTests.HardwareBasiliskV4BluetoothButtonTests testAllButtonsAndNativeDefaults]' started.
+Test Case '-[OpenSnekTests.HardwareBasiliskV4BluetoothButtonTests testAllButtonsAndNativeDefaults]' passed (38.547 seconds).
+Test Suite 'HardwareBasiliskV4BluetoothButtonTests' passed at 2026-11-08 19:45:36.990.
+	 Executed 1 test, with 0 failures (0 unexpected) in 38.547 (38.547) seconds
+Test Suite 'OpenSnekPackageTests.xctest' passed at 2026-11-08 19:45:36.990.
+	 Executed 1 test, with 0 failures (0 unexpected) in 38.547 (38.548) seconds
+Test Suite 'Selected tests' passed at 2026-11-08 19:45:36.991.
+	 Executed 1 test, with 0 failures (0 unexpected) in 38.547 (38.548) seconds
+TEST button 1 changed mapping
+TEST button 1 native Default
+PASS button 1 changed, Default and exact original restore
+TEST button 2 changed mapping
+TEST button 2 native Default
+PASS button 2 changed, Default and exact original restore
+TEST button 3 changed mapping
+TEST button 3 native Default
+PASS button 3 changed, Default and exact original restore
+TEST button 4 changed mapping
+TEST button 4 native Default
+PASS button 4 changed, Default and exact original restore
+TEST button 5 changed mapping
+TEST button 5 native Default
+PASS button 5 changed, Default and exact original restore
+TEST button 9 changed mapping
+TEST button 9 native Default
+PASS button 9 changed, Default and exact original restore
+TEST button 10 changed mapping
+TEST button 10 native Default
+PASS button 10 changed, Default and exact original restore
+TEST button 14 changed mapping
+TEST button 14 native Default
+PASS button 14 changed, Default and exact original restore
+TEST button 52 changed mapping
+TEST button 52 native Default
+PASS button 52 changed, Default and exact original restore
+TEST button 53 changed mapping
+TEST button 53 native Default
+PASS button 53 changed, Default and exact original restore
+TEST button 57 changed mapping
+TEST button 57 native Default
+PASS button 57 changed, Default and exact original restore
+TEST button 128 changed mapping
+TEST button 128 native Default
+PASS button 128 changed, Default and exact original restore
+􀟈  Test run started.
+􀄵  Testing Library Version: 1501
+􀄵  Target Platform: arm64e-apple-macos14.0
+􁁛  Test run with 0 tests in 0 suites passed after 0.001 seconds.

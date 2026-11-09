@@ -30,6 +30,7 @@ public enum DeviceTransportKind: String, CaseIterable, Codable, Hashable, Sendab
 
 /// Defines device profile ID values.
 public enum DeviceProfileID: String, Codable, Hashable, Sendable {
+    case basiliskV4Hyperspeed = "basilisk_v4_hyperspeed"
     case basiliskV3XHyperspeed = "basilisk_v3_x_hyperspeed"
     case basiliskV3 = "basilisk_v3"
     case basiliskV3Pro = "basilisk_v3_pro"
@@ -60,7 +61,7 @@ extension DeviceProfileID {
     /// Per-zone BLE lighting uses state keys instead of the legacy single-frame color key.
     public var usesBluetoothZoneStateLighting: Bool {
         switch self {
-        case .basiliskV3Pro, .basiliskV3Pro35K, .nagaV2Pro, .nagaV3Pro: return true
+        case .basiliskV4Hyperspeed, .basiliskV3Pro, .basiliskV3Pro35K, .nagaV2Pro, .nagaV3Pro: return true
         default: return false
         }
     }
@@ -78,7 +79,7 @@ extension DeviceProfileID {
     public var isBasiliskV3ProFamily: Bool {
         switch self {
         case .basiliskV3Pro, .basiliskV3Pro35K: return true
-        case .basiliskV3XHyperspeed, .basiliskV3, .basiliskV335K, .orochiV2, .nagaPro, .nagaV2Pro, .nagaV3Pro, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro: return false
+        case .basiliskV4Hyperspeed, .basiliskV3XHyperspeed, .basiliskV3, .basiliskV335K, .orochiV2, .nagaPro, .nagaV2Pro, .nagaV3Pro, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro: return false
         }
     }
 }

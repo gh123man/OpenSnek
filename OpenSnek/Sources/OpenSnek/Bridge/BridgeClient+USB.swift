@@ -234,6 +234,10 @@ extension BridgeClient {
 
     func getDPIStageSnapshot(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> USBDpiStageSnapshot? {
         guard let r = try perform(session, device, classID: 0x04, cmdID: 0x86, size: 0x26), let snapshot = parseUSBDpiStageSnapshotResponse(r, device: device) else { return nil }
+        if device.profile_id == .basiliskV4Hyperspeed {
+            let key = USBHIDSupport.deviceIdentityToken(session.device)
+            usbV4DPIBaselinesByHandle[key] = USBHIDProtocol.basiliskV4DPIBaseline(payload: Array(r[8..<46]), previous: usbV4DPIBaselinesByHandle[key])
+        }
         return snapshot
     }
 
@@ -328,10 +332,22 @@ extension BridgeClient {
 
     func setDPIStages(_ session: USBHIDControlSession, _ device: MouseDevice, stages: [Int], activeStage: Int, stagePairs: [DpiPair]? = nil, stageIDs: [UInt8]? = nil) throws -> Bool {
         let pairs = stagePairs ?? stages.map { DpiPair(x: $0, y: $0) }
+        if device.profile_id == .basiliskV4Hyperspeed { return try setBasiliskV4USBStages(session, device, active: activeStage, pairs: pairs) }
         guard let args = Self.usbDPIStageWriteArgs(profileID: 0x01, activeStage: activeStage, pairs: pairs, stageIDs: stageIDs, device: device) else { return false }
 
         guard let r = try perform(session, device, classID: 0x04, cmdID: 0x06, size: 0x26, args: args) else { return false }
         return r[0] == 0x02
+    }
+
+    private func setBasiliskV4USBStages(_ session: USBHIDControlSession, _ device: MouseDevice, active: Int, pairs: [DpiPair]) throws -> Bool {
+        let key = USBHIDSupport.deviceIdentityToken(session.device)
+        guard let read = try perform(session, device, classID: 4, cmdID: 0x86, size: 38, args: [1]), read[0] == 2, let baseline = USBHIDProtocol.basiliskV4DPIBaseline(payload: Array(read[8..<46]), previous: usbV4DPIBaselinesByHandle[key]),
+            let args = USBHIDProtocol.basiliskV4DPIWriteArgs(baseline: baseline, active: active, pairs: pairs)
+        else { throw BridgeError.commandFailed("A complete USB DPI baseline is required before changing this device") }
+        guard let reply = try perform(session, device, classID: 4, cmdID: 6, size: 38, args: args), reply[0] == 2 else { return false }
+        usbV4DPIBaselinesByHandle[key] = args
+        guard let readback = try perform(session, device, classID: 4, cmdID: 0x86, size: 38, args: [1]), readback[0] == 2 else { return false }
+        return Array(readback[8..<(11 + pairs.count * 7)]) == Array(args.prefix(3 + pairs.count * 7))
     }
 
     func parseUSBDpiStageSnapshotResponse(_ response: [UInt8], device: MouseDevice? = nil) -> USBDpiStageSnapshot? {
@@ -373,8 +389,10 @@ extension BridgeClient {
     }
 
     func getPollRate(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> Int? {
-        guard let r = try perform(session, device, classID: 0x00, cmdID: 0x85, size: 0x01), r[0] == 0x02 else { return nil }
-        switch r[8] {
+        let isV4 = device.profile_id == .basiliskV4Hyperspeed
+        guard let r = try perform(session, device, classID: 0, cmdID: isV4 ? 0x8E : 0x85, size: isV4 ? 2 : 1, args: isV4 ? [1] : []), r[0] == 2 else { return nil }
+        if isV4 && r[8] != 1 { return nil }
+        switch r[isV4 ? 9 : 8] {
         case 0x01: return 1000
         case 0x02: return 500
         case 0x08: return 125
@@ -390,8 +408,9 @@ extension BridgeClient {
         case 125: raw = 0x08
         default: return false
         }
-        guard let r = try perform(session, device, classID: 0x00, cmdID: 0x05, size: 0x01, args: [raw]) else { return false }
-        return r[0] == 0x02
+        let isV4 = device.profile_id == .basiliskV4Hyperspeed
+        guard let r = try perform(session, device, classID: 0, cmdID: isV4 ? 0x0E : 0x05, size: isV4 ? 2 : 1, args: isV4 ? [1, raw] : [raw]), r[0] == 2 else { return false }
+        return isV4 ? try getPollRate(session, device) == value : true
     }
 
     func getIdleTime(_ session: USBHIDControlSession, _ device: MouseDevice) throws -> Int? {
@@ -402,8 +421,8 @@ extension BridgeClient {
     func setIdleTime(_ session: USBHIDControlSession, _ device: MouseDevice, seconds: Int) throws -> Bool {
         let clamped = max(60, min(900, seconds))
         let args: [UInt8] = [UInt8((clamped >> 8) & 0xFF), UInt8(clamped & 0xFF)]
-        guard let r = try perform(session, device, classID: 0x07, cmdID: 0x03, size: 0x02, args: args) else { return false }
-        return r[0] == 0x02
+        guard let r = try perform(session, device, classID: 0x07, cmdID: 0x03, size: 0x02, args: args), r[0] == 2 else { return false }
+        return device.profile_id == .basiliskV4Hyperspeed ? try getIdleTime(session, device) == clamped : true
     }
 
     func readUSBBattery(device: MouseDevice) async throws -> BatteryTelemetry? {
@@ -474,8 +493,8 @@ extension BridgeClient {
 
     func setLowBatteryThreshold(_ session: USBHIDControlSession, _ device: MouseDevice, thresholdRaw: Int) throws -> Bool {
         let clamped = UInt8(max(0x0C, min(0x3F, thresholdRaw)))
-        guard let r = try perform(session, device, classID: 0x07, cmdID: 0x01, size: 0x01, args: [clamped]) else { return false }
-        return r[0] == 0x02
+        guard let r = try perform(session, device, classID: 0x07, cmdID: 0x01, size: 0x01, args: [clamped]), r[0] == 2 else { return false }
+        return device.profile_id == .basiliskV4Hyperspeed ? try getLowBatteryThreshold(session, device) == Int(clamped) : true
     }
 
     func getScrollMode(_ session: USBHIDControlSession, _ device: MouseDevice, profileID: Int = 1) throws -> Int? {
@@ -571,10 +590,12 @@ extension BridgeClient {
             guard let r = try perform(session, device, classID: 0x0F, cmdID: 0x04, size: 0x03, args: args), r[0] == 0x02 else { return false }
             wroteAny = true
         }
+        if wroteAny, device.profile_id == .basiliskV4Hyperspeed { return try getScrollLEDBrightness(session, device) == Int(v) }
         return wroteAny
     }
 
     func setScrollLEDEffect(_ session: USBHIDControlSession, _ device: MouseDevice, effect: LightingEffectPatch, ledIDs: [UInt8]? = nil) throws -> Bool {
+        if device.profile_id == .basiliskV4Hyperspeed, !DeviceProfiles.basiliskV4HyperspeedUSB.supportedLightingEffects.contains(effect.kind) { return false }
         var wroteAny = false
         let targets = usbLightingLEDIDs(for: device, override: ledIDs)
         AppLog.debug("Bridge", "setScrollLEDEffect device=\(device.id) kind=\(effect.kind.rawValue) requested=\(ledIDs.map { $0.map(String.init).joined(separator: ",") } ?? "nil") targets=\(targets.map(String.init).joined(separator: ","))")
@@ -584,6 +605,7 @@ extension BridgeClient {
                 AppLog.debug("Bridge", "setScrollLEDEffect led=0x\(String(format: "%02x", ledID)) FAILED args=\(args.map { String(format: "%02x", $0) }.joined(separator: " "))")
                 return false
             }
+            if device.profile_id == .basiliskV4Hyperspeed { guard let readback = try perform(session, device, classID: 15, cmdID: 0x82, size: 12, args: [1, 0]), USBHIDProtocol.basiliskV4LightingWriteMatches(response: readback, args: args) else { return false } }
             AppLog.debug("Bridge", "setScrollLEDEffect led=0x\(String(format: "%02x", ledID)) ok")
             wroteAny = true
         }
@@ -691,10 +713,13 @@ extension BridgeClient {
         guard request.functionBlock.count == 7 else { return false }
         let args = [request.profile, request.slot, request.hypershift] + request.functionBlock
         guard let r = try perform(session, device, classID: 0x02, cmdID: 0x0C, size: UInt8(args.count), args: args, responseAttempts: 12, responseDelayUs: 40_000) else { return false }
-        return r[0] == 0x02
+        guard r[0] == 2 else { return false }
+        if device.profile_id == .basiliskV4Hyperspeed { return try getButtonBindingUSBRaw(session, device, profile: request.profile, slot: request.slot, hypershift: request.hypershift) == request.functionBlock }
+        return true
     }
 
     func setButtonBindingUSB(_ session: USBHIDControlSession, _ device: MouseDevice, request: USBButtonBindingWrite) throws -> Bool {
+        if device.profile_id == .basiliskV4Hyperspeed, !DeviceProfiles.basiliskV4HyperspeedUSB.buttonLayout.isEditable(request.slot) { return false }
         guard let bindingKind = ButtonBindingKind(rawValue: request.kind) else { return false }
         guard bindingKind != .default || ButtonBindingSupport.supportsDefaultRestore(for: request.slot, profileID: device.profile_id) else { return false }
         let draft = ButtonBindingDraft(kind: bindingKind, hidKey: request.hidKey, hidModifiers: request.hidModifiers, turboEnabled: request.turboEnabled && bindingKind.supportsTurbo, turboRate: request.turboRate, clutchDPI: request.clutchDPI)

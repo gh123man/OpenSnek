@@ -1,0 +1,55 @@
+[0/1] Planning build
+[1/1] Compiling plugin SwiftFormatBuildToolPlugin
+[2/2] Compiling plugin SwiftLintCommandPlugin
+[3/3] Compiling plugin SwiftLintBuildToolPlugin
+Building for debugging...
+[3/11] Write sources
+[5/11] Write swift-version--58304C5D6DBC2206.txt
+[7/11] Emitting module OpenSnek
+[8/11] Compiling OpenSnek BridgeClient+Bluetooth.swift
+[8/12] Write Objects.LinkFileList
+[9/12] Linking OpenSnek
+[10/12] Applying OpenSnek
+[12/14] Compiling OpenSnekTests HardwareBasiliskV4BluetoothButtonTests.swift
+[13/14] Emitting module OpenSnekTests
+[13/15] Write Objects.LinkFileList
+[14/15] Linking OpenSnekPackageTests
+Build complete! (6.75s)
+Test Suite 'Selected tests' started at 2026-11-08 19:41:14.915.
+Test Suite 'OpenSnekPackageTests.xctest' started at 2026-11-08 19:41:14.916.
+Test Suite 'HardwareBasiliskV4BluetoothButtonTests' started at 2026-11-08 19:41:14.916.
+Test Case '-[OpenSnekTests.HardwareBasiliskV4BluetoothButtonTests testAllButtonsAndNativeDefaults]' started.
+/Users/brian/.codex/worktrees/1086/open-snek/OpenSnek/Tests/OpenSnekTests/HardwareValidationSession.swift:75: error: -[OpenSnekTests.HardwareBasiliskV4BluetoothButtonTests testAllButtonsAndNativeDefaults] : failed: caught error: "Error Domain=HardwareValidation Code=1 "Restoration failed; retain /tmp/opensnek-bskv4-bt-all-buttons-diagnostic.json. Operation: Button command rejected req=176 key=[8, 132, 1, 14] frames=[]. Restore: Button command rejected req=177 key=[8, 4, 1, 1] frames=["b19a0120dc230001", "019a0120dc230001"]" UserInfo={NSLocalizedDescription=Restoration failed; retain /tmp/opensnek-bskv4-bt-all-buttons-diagnostic.json. Operation: Button command rejected req=176 key=[8, 132, 1, 14] frames=[]. Restore: Button command rejected req=177 key=[8, 4, 1, 1] frames=["b19a0120dc230001", "019a0120dc230001"]}"
+Test Case '-[OpenSnekTests.HardwareBasiliskV4BluetoothButtonTests testAllButtonsAndNativeDefaults]' failed (20.898 seconds).
+Test Suite 'HardwareBasiliskV4BluetoothButtonTests' failed at 2026-11-08 19:41:35.814.
+	 Executed 1 test, with 1 failure (1 unexpected) in 20.898 (20.898) seconds
+Test Suite 'OpenSnekPackageTests.xctest' failed at 2026-11-08 19:41:35.814.
+	 Executed 1 test, with 1 failure (1 unexpected) in 20.898 (20.898) seconds
+Test Suite 'Selected tests' failed at 2026-11-08 19:41:35.814.
+	 Executed 1 test, with 1 failure (1 unexpected) in 20.898 (20.898) seconds
+TEST button 1 changed mapping
+TEST button 1 native Default
+PASS button 1 changed, Default and exact original restore
+TEST button 2 changed mapping
+TEST button 2 native Default
+PASS button 2 changed, Default and exact original restore
+TEST button 3 changed mapping
+TEST button 3 native Default
+PASS button 3 changed, Default and exact original restore
+TEST button 4 changed mapping
+TEST button 4 native Default
+PASS button 4 changed, Default and exact original restore
+TEST button 5 changed mapping
+TEST button 5 native Default
+PASS button 5 changed, Default and exact original restore
+TEST button 9 changed mapping
+TEST button 9 native Default
+PASS button 9 changed, Default and exact original restore
+TEST button 10 changed mapping
+TEST button 10 native Default
+PASS button 10 changed, Default and exact original restore
+TEST button 14 changed mapping
+􀟈  Test run started.
+􀄵  Testing Library Version: 1501
+􀄵  Target Platform: arm64e-apple-macos14.0
+􁁛  Test run with 0 tests in 0 suites passed after 0.001 seconds.

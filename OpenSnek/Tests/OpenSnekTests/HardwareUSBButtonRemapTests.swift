@@ -35,19 +35,63 @@ import OpenSnekHardware
             })
     }
 
+    func testBasiliskV4AllButtonsAndNativeDefaults() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["OPEN_SNEK_HW"] == "1" else { throw XCTSkip("Set OPEN_SNEK_HW=1 for receiver button validation") }
+        let scope = try HardwareValidationScope(environment: environment)
+        let client = BridgeClient()
+        let device = try scope.select(from: await client.listDevices(), transport: .usb)
+        guard device.product_id == 0x00EA, device.profile_id == .basiliskV4Hyperspeed else { throw HardwareValidationSession.failure("Select the Basilisk V4 receiver") }
+        let slots = DeviceProfiles.basiliskV4HyperspeedUSB.buttonLayout.writableSlots
+        let read = {
+            var snapshots: [Snapshot] = []
+            for slot in slots { snapshots.append(try await self.readSnapshot(client: client, device: device, slot: slot)) }
+            return snapshots
+        }
+        let restore = { (snapshots: [Snapshot]) in
+            guard snapshots.map(\.slot).sorted() == slots.sorted() else { throw HardwareValidationSession.failure("Incomplete button journal") }
+            for snapshot in snapshots { try await self.restore(snapshot, client: client, device: device) }
+        }
+        if scope.isRecovery {
+            try await HardwareValidationSession.recover(deviceID: device.id, journalURL: scope.journalURL, read: read, restore: restore)
+            return
+        }
+        let originals = try await read()
+        try await HardwareValidationSession.run(
+            deviceID: device.id, journalURL: scope.journalURL, read: read, restore: restore,
+            operation: {
+                for original in originals {
+                    try self.requireAppStopped()
+                    let slot = original.slot
+                    let kind: ButtonBindingKind = original.persistent == [1, 1, 2, 0, 0, 0, 0] ? .middleClick : .rightClick
+                    let expectedChanged: [UInt8] = [1, 1, kind == .middleClick ? 3 : 2, 0, 0, 0, 0]
+                    _ = try await client.apply(device: device, patch: DevicePatch(buttonBinding: ButtonBindingPatch(slot: slot, kind: kind, hidKey: nil)))
+                    let changed = try await self.readSnapshot(client: client, device: device, slot: slot)
+                    guard changed.persistent == expectedChanged, changed.live == changed.persistent else { throw HardwareValidationSession.failure("Changed button mismatch") }
+                    _ = try await client.apply(device: device, patch: DevicePatch(buttonBinding: ButtonBindingPatch(slot: slot, kind: .default, hidKey: nil)))
+                    let restoredDefault = try await self.readSnapshot(client: client, device: device, slot: slot)
+                    let expected = ButtonBindingSupport.defaultUSBFunctionBlock(for: slot, profileID: device.profile_id)
+                    guard restoredDefault.persistent == expected, restoredDefault.live == expected else { throw HardwareValidationSession.failure("Default button mismatch") }
+                    try await self.restore(original, client: client, device: device)
+                }
+            })
+    }
+
     private func requireAppStopped() throws { guard BLEProbeSession.runningAppProcessIDs().isEmpty else { throw HardwareValidationSession.failure("Stop the app/service before USB hardware validation") } }
 
-    private func readSnapshot(client: BridgeClient, device: MouseDevice) async throws -> Snapshot {
+    private func readSnapshot(client: BridgeClient, device: MouseDevice, slot: Int = backButtonSlot) async throws -> Snapshot {
         try requireAppStopped()
-        guard let persistent = try await client.debugUSBReadButtonBinding(device: device, slot: Self.backButtonSlot, profile: 1), let live = try await client.debugUSBReadButtonBinding(device: device, slot: Self.backButtonSlot, profile: 0), persistent.count == 7, live.count == 7 else {
+        guard let persistent = try await client.debugUSBReadButtonBinding(device: device, slot: slot, profile: 1), let live = try await client.debugUSBReadButtonBinding(device: device, slot: slot, profile: 0), persistent.count == 7, live.count == 7 else {
             throw HardwareValidationSession.failure("Both complete original USB button targets are required before testing")
         }
-        return Snapshot(slot: Self.backButtonSlot, persistent: persistent, live: live)
+        return Snapshot(slot: slot, persistent: persistent, live: live)
     }
 
     private func restore(_ snapshot: Snapshot, client: BridgeClient, device: MouseDevice) async throws {
         try requireAppStopped()
-        guard snapshot.slot == Self.backButtonSlot, snapshot.persistent.count == 7, snapshot.live.count == 7 else { throw HardwareValidationSession.failure("Invalid USB button journal") }
+        guard snapshot.slot == Self.backButtonSlot || (device.profile_id == .basiliskV4Hyperspeed && DeviceProfiles.basiliskV4HyperspeedUSB.buttonLayout.isEditable(snapshot.slot)), snapshot.persistent.count == 7, snapshot.live.count == 7 else {
+            throw HardwareValidationSession.failure("Invalid USB button journal")
+        }
         var failures: [String] = []
         // A persistent write may project into live, so always restore live last, even if the first restore fails.
         let persistentThenLive = [1, 0]

@@ -35,14 +35,43 @@ final class BLEVendorTransportClientTests: XCTestCase {
         XCTAssertEqual(BLEVendorTransportClient.connectionSelection(from: devices, preferredName: nil, currentIdentifier: nil, isReady: false), .connect(pro.identifier))
     }
 
+    func testConnectionOnlyWarmupCompletesWithoutACommandResponse() throws {
+        let scheduler = WorkItemRecorder()
+        let completions = LockedCounter()
+        let timer = BLEVendorResponseIdleTimer(scheduler: scheduler.record, onIdle: completions.increment)
+        timer.restart(responseExpected: false, hasResponse: false)
+        try scheduler.item(at: 0).perform()
+        XCTAssertEqual(completions.value, 1)
+        timer.restart(responseExpected: true, hasResponse: false)
+        XCTAssertEqual(scheduler.count, 1, "The following command must wait for its own response")
+        timer.restart(responseExpected: true, hasResponse: true)
+        try scheduler.item(at: 1).perform()
+        XCTAssertEqual(completions.value, 2)
+    }
+
+    func testWriteAcknowledgementWaitsForDelayedFirstVendorNotification() throws {
+        let scheduler = WorkItemRecorder()
+        let completions = LockedCounter()
+        let timer = BLEVendorResponseIdleTimer(scheduler: scheduler.record, onIdle: completions.increment)
+        // The device acknowledged ATT but has not sent its vendor response yet.
+        timer.restart(responseExpected: true, hasResponse: false)
+        XCTAssertEqual(scheduler.count, 0)
+        XCTAssertEqual(completions.value, 0)
+        // A response arriving after the old 120 ms empty-success window still completes normally.
+        timer.restart(responseExpected: true, hasResponse: true)
+        XCTAssertEqual(scheduler.count, 1)
+        try scheduler.item(at: 0).perform()
+        XCTAssertEqual(completions.value, 1)
+    }
+
     func testResponseIdleTimerCompletesOnlyAfterLatestActivityDeadline() throws {
         let scheduler = WorkItemRecorder()
         let completions = LockedCounter()
         let timer = BLEVendorResponseIdleTimer(scheduler: scheduler.record, onIdle: completions.increment)
 
-        timer.restart()
-        timer.restart()
-        timer.restart()
+        timer.restart(responseExpected: true, hasResponse: true)
+        timer.restart(responseExpected: true, hasResponse: true)
+        timer.restart(responseExpected: true, hasResponse: true)
 
         XCTAssertEqual(scheduler.count, 3)
         try scheduler.item(at: 0).perform()

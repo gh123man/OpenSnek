@@ -4,25 +4,37 @@
     {
       "profile_id": "basilisk_v3_pro_35k",
       "transport": "bluetooth",
-      "product_ids": ["0x00D8"],
+      "product_ids": [
+        "0x00D8"
+      ],
       "features": {
         "dpi_stages": {
           "status": "contributor_validated",
           "source": "https://github.com/PLus123456",
-          "evidence": ["captures/ble/2026-10-13-basilisk-v3-pro-35k/README.md"]
+          "evidence": [
+            "captures/ble/2026-10-13-basilisk-v3-pro-35k/README.md"
+          ]
         },
         "button_remap": {
           "status": "contributor_validated",
           "source": "https://github.com/PLus123456",
-          "evidence": ["captures/ble/2026-10-13-basilisk-v3-pro-35k/README.md"]
+          "evidence": [
+            "captures/ble/2026-10-13-basilisk-v3-pro-35k/README.md"
+          ]
         },
         "lighting_brightness": {
           "status": "contributor_validated",
           "source": "https://github.com/PLus123456",
-          "evidence": ["captures/ble/2026-10-13-basilisk-v3-pro-35k/README.md"]
+          "evidence": [
+            "captures/ble/2026-10-13-basilisk-v3-pro-35k/README.md"
+          ]
         },
-        "poll_rate": {"status": "unsupported"},
-        "onboard_profiles": {"status": "unsupported"}
+        "poll_rate": {
+          "status": "unsupported"
+        },
+        "onboard_profiles": {
+          "status": "unsupported"
+        }
       },
       "limitations": [
         "This capture validates Bluetooth only, not USB identities.",
@@ -75,6 +87,145 @@
         "Custom frames are disabled until the Phantom-specific cell ordering is mapped.",
         "USB onboard profile metadata and CRUD are unverified; Bluetooth rejection is not USB evidence.",
         "Read/write/readback/restore, persistence, unplug/replug, and sleep/wake validation remain pending."
+      ]
+    },
+    {
+      "profile_id": "basilisk_v4_hyperspeed",
+      "transport": "bluetooth",
+      "product_ids": [
+        "0x00EC"
+      ],
+      "features": {
+        "dpi_stages": {
+          "status": "maintainer_validated",
+          "source": "Local maintainer hardware probes, 2026-11-08",
+          "evidence": [
+            "captures/ble/2026-11-08-basilisk-v4-hyperspeed/README.md"
+          ]
+        },
+        "independent_xy": {
+          "status": "maintainer_validated",
+          "source": "Local maintainer hardware probes, 2026-11-08",
+          "evidence": [
+            "captures/ble/2026-11-08-basilisk-v4-hyperspeed/README.md"
+          ]
+        },
+        "power_management": {
+          "status": "maintainer_validated",
+          "source": "Local maintainer hardware probes, 2026-11-08",
+          "evidence": [
+            "captures/ble/2026-11-08-basilisk-v4-hyperspeed/README.md"
+          ]
+        },
+        "button_remap": {
+          "status": "maintainer_validated",
+          "source": "Local maintainer hardware probes, 2026-11-08",
+          "evidence": [
+            "captures/ble/2026-11-08-basilisk-v4-hyperspeed/README.md"
+          ]
+        },
+        "lighting_brightness": {
+          "status": "maintainer_validated",
+          "source": "Local maintainer hardware probes, 2026-11-08",
+          "evidence": [
+            "captures/ble/2026-11-08-basilisk-v4-hyperspeed/README.md"
+          ]
+        },
+        "poll_rate": {
+          "status": "unsupported"
+        },
+        "onboard_profiles": {
+          "status": "unsupported"
+        },
+        "advanced_lighting_effects": {
+          "status": "unsupported"
+        },
+        "scroll_controls": {
+          "status": "unsupported"
+        },
+        "software_lighting": {
+          "status": "unsupported"
+        }
+      },
+      "limitations": [
+        "Scoped changed-write/readback/restore validation; physical presses, rendering, persistence and sleep/wake remain untested.",
+        "All 12 button/wheel slots have changed-write/readback/restore evidence. Special control names are inferred; physical press correlation remains untested.",
+        "Lighting is brightness-only; four static-effect write addresses ACKed without changing readback.",
+        "Charging, profile CRUD, poll rate, scroll mode are not claimed for Bluetooth."
+      ]
+    },
+    {
+      "profile_id": "basilisk_v4_hyperspeed",
+      "transport": "usb",
+      "product_ids": [
+        "0x00EA"
+      ],
+      "features": {
+        "dpi_stages": {
+          "status": "maintainer_validated",
+          "source": "Local maintainer receiver hardware probes, 2026-11-08",
+          "evidence": [
+            "captures/usb/2026-11-08-basilisk-v4-hyperspeed/README.md"
+          ]
+        },
+        "independent_xy": {
+          "status": "maintainer_validated",
+          "source": "Local maintainer receiver hardware probes, 2026-11-08",
+          "evidence": [
+            "captures/usb/2026-11-08-basilisk-v4-hyperspeed/README.md"
+          ]
+        },
+        "poll_rate": {
+          "status": "maintainer_validated",
+          "source": "Local maintainer receiver hardware probes, 2026-11-08",
+          "evidence": [
+            "captures/usb/2026-11-08-basilisk-v4-hyperspeed/README.md"
+          ]
+        },
+        "power_management": {
+          "status": "maintainer_validated",
+          "source": "Local maintainer receiver hardware probes, 2026-11-08",
+          "evidence": [
+            "captures/usb/2026-11-08-basilisk-v4-hyperspeed/README.md"
+          ]
+        },
+        "button_remap": {
+          "status": "maintainer_validated",
+          "source": "Local maintainer receiver hardware probes, 2026-11-08",
+          "evidence": [
+            "captures/usb/2026-11-08-basilisk-v4-hyperspeed/README.md"
+          ]
+        },
+        "lighting_brightness": {
+          "status": "maintainer_validated",
+          "source": "Local maintainer receiver hardware probes, 2026-11-08",
+          "evidence": [
+            "captures/usb/2026-11-08-basilisk-v4-hyperspeed/README.md"
+          ]
+        },
+        "advanced_lighting_effects": {
+          "status": "maintainer_validated",
+          "source": "Local maintainer receiver hardware probes, 2026-11-08",
+          "evidence": [
+            "captures/usb/2026-11-08-basilisk-v4-hyperspeed/README.md"
+          ]
+        },
+        "onboard_profiles": {
+          "status": "unsupported"
+        },
+        "scroll_controls": {
+          "status": "unsupported"
+        },
+        "software_lighting": {
+          "status": "unsupported"
+        }
+      },
+      "limitations": [
+        "Receiver only; cable 00EB is not registered or validated.",
+        "Changed-write/readback/exact-restore validation, not physical rendering, presses, persistence or lifecycle validation.",
+        "All 12 button/wheel actions have changed-write/readback/restore evidence; special-control labels are inferred, not physically press-correlated.",
+        "DPI table edits require a complete five-stage baseline from the current HID handle.",
+        "Only off/static/spectrum/random/single/dual breathing effects exposed; no custom frames, profile CRUD or scroll-mode controls."
       ]
     }
   ]

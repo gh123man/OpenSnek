@@ -67,7 +67,10 @@ final class USBProbeClient: @unchecked Sendable {
         let brightness = UInt8(max(0, min(255, value)))
         return try targets.map { target in
             let args = [0x01, target.ledID, brightness]
-            return USBLightingWriteResult(target: target, args: args, succeeded: try writeLightingCommand(cmdID: 0x04, args: args))
+            let acknowledged = try writeLightingCommand(cmdID: 0x04, args: args)
+            let succeeded: Bool
+            if acknowledged, profileID == .basiliskV4Hyperspeed { succeeded = try readLightingBrightness(ledID: 0x0A) == Int(brightness) } else { succeeded = acknowledged }
+            return USBLightingWriteResult(target: target, args: args, succeeded: succeeded)
         }
     }
 
@@ -75,7 +78,15 @@ final class USBProbeClient: @unchecked Sendable {
         guard let targets = lightingTargets(zoneID: zoneID) else { return nil }
         return try targets.map { target in
             let args = BLEVendorProtocol.buildScrollLEDEffectArgs(effect: effect, ledID: target.ledID)
-            return USBLightingWriteResult(target: target, args: args, succeeded: try writeLightingCommand(cmdID: 0x02, args: args))
+            let acknowledged = try writeLightingCommand(cmdID: 0x02, args: args)
+            let succeeded: Bool
+            if acknowledged, profileID == .basiliskV4Hyperspeed {
+                let response = try rawCommand(classID: 15, cmdID: 0x82, size: 12, args: [1, 0])
+                succeeded = response.map { USBHIDProtocol.basiliskV4LightingWriteMatches(response: $0, args: args) } ?? false
+            } else {
+                succeeded = acknowledged
+            }
+            return USBLightingWriteResult(target: target, args: args, succeeded: succeeded)
         }
     }
 

@@ -117,6 +117,26 @@ Report the result as `pass`, `fail`, or `skipped` with the actual scope. A passi
 restore-adapter test is not physical hardware validation. Persistence checks power-cycle with the
 app/service stopped, read every changed setting before restoring any, and report per-setting results.
 
+### Basilisk V4 HyperSpeed Bluetooth buttons
+
+`HardwareBasiliskV4BluetoothButtonTests` exercises every advertised button through
+app apply: changed mapping, native Default, and exact original restore. It requires
+the normal opt-in/device/journal variables and a stopped app/service. The journal
+pins the peripheral UUID and saves both complete interleaved read targets. New runs
+require matching target 0/1 baselines; recovery loads the UUID from this test's own
+journal. Use this same test filter with `OPEN_SNEK_HW_RECOVER_JOURNAL` for recovery.
+Physical positions and behavior are not established by these register checks.
+
+### Basilisk V4 HyperSpeed receiver integration
+
+`HardwareBasiliskV4USBTests` uses the same explicit device/journal environment
+variables and recovery workflow above. It exercises the actual app apply path for
+DPI count/X/Y/active-stage transitions, polling, brightness, sleep, six supported
+effects, and Back-button remapping. It snapshots raw stored/live DPI, lighting and
+button registers plus polling/sleep, then restores stored before live and checks
+exact originals. Stop the app/service first. This gate targets receiver `00EA` only;
+it does not establish physical rendering, persistence or unplug/replug behavior.
+
 ### Opt-in Bluetooth disconnect/recovery check
 
 With a scoped mouse A, run the DPI gate above and disconnect A after the journal is created.

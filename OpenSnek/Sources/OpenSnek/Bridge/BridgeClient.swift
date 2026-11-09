@@ -105,6 +105,7 @@ actor BridgeClient {
     var passiveDpiTargetsByDeviceID: [String: [PassiveDPIEventMonitor.WatchTarget]] = [:]
     var passiveDpiUpgradeNotBeforeByDeviceID: [String: Date] = [:]
     var btReqID: UInt8 = 0x30
+    var usbV4DPIBaselinesByHandle: [String: [UInt8]] = [:]
     var btDpiSnapshotByDeviceID: [String: BLEVendorProtocol.DpiStageSnapshot] = [:]
     var btExpectedDpiByDeviceID: [String: BluetoothExpectedDpiState] = [:]
     var usbLogicalOnboardDPIByDeviceID: [String: [Int: OnboardDPIProfileSnapshot]] = [:]
@@ -601,6 +602,12 @@ actor BridgeClient {
     }
 
     func readLightingColor(device: MouseDevice) async throws -> RGBPatch? {
+        if device.transport == .usb, device.profile_id == .basiliskV4Hyperspeed, let session = sessionFor(device: device) {
+            return try session.withExclusiveDeviceAccess {
+                guard let response = try perform(session, device, classID: 0x0F, cmdID: 0x82, size: 12, args: [1, 0]) else { return nil }
+                return USBHIDProtocol.profileLightingEffectState(from: response, expectedLEDID: 0x0A)?.staticColor
+            }
+        }
         guard device.transport == .bluetooth else { return nil }
         if usesBluetoothZoneStateLighting(device) {
             let ledIDs = bluetoothLightingLEDIDs(device: device)

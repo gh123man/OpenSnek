@@ -19,8 +19,14 @@ final class BLEVendorResponseIdleTimer: @unchecked Sendable {
         self.onIdle = onIdle
     }
 
-    func restart() {
+    func restart(responseExpected: Bool, hasResponse: Bool) {
         workItem?.cancel()
+        // ATT write acknowledgement is not a vendor response. Keep the overall exchange
+        // deadline active until a notification arrives instead of returning an empty success.
+        guard !responseExpected || hasResponse else {
+            workItem = nil
+            return
+        }
         let item = DispatchWorkItem(block: onIdle)
         workItem = item
         scheduler(item)
@@ -64,6 +70,7 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
 
     private var notifications: [Data] = []
     private var writeQueue: [Data] = []
+    private var expectsVendorResponse = false
     private var completion: ((Result<[Data], any Error>) -> Void)?
     private var timeoutWorkItem: DispatchWorkItem?
     private var isNotifyReady = false
@@ -83,6 +90,7 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
 
                 self.notifications = []
                 self.writeQueue = writes
+                self.expectsVendorResponse = !writes.isEmpty
                 self.responseIdleTimer.cancel()
                 self.timeoutWorkItem?.cancel()
                 self.timeoutWorkItem = nil
@@ -149,7 +157,7 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
 
     private func scheduleFinishIfIdle() {
         guard writeQueue.isEmpty else { return }
-        responseIdleTimer.restart()
+        responseIdleTimer.restart(responseExpected: expectsVendorResponse, hasResponse: !notifications.isEmpty)
     }
 
     private func fail(_ message: String) { finish(.failure(BridgeError.commandFailed("BT vendor: \(message)"))) }
