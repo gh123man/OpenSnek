@@ -149,7 +149,7 @@
       },
       "limitations": [
         "Scoped changed-write/readback/restore validation; physical presses, rendering, persistence and sleep/wake remain untested.",
-        "All 12 button/wheel slots have changed-write/readback/restore evidence. Special control names are inferred; physical press correlation remains untested.",
+        "All 12 button/wheel slots have changed-write/readback/restore evidence. Extra-button positions were press-correlated on the receiver; Bluetooth press correlation remains untested.",
         "Lighting is brightness-only; four static-effect write addresses ACKed without changing readback.",
         "Charging, profile CRUD, poll rate, scroll mode are not claimed for Bluetooth."
       ]
@@ -222,8 +222,8 @@
       },
       "limitations": [
         "Receiver only; cable 00EB is not registered or validated.",
-        "Changed-write/readback/exact-restore validation, not physical rendering, presses, persistence or lifecycle validation.",
-        "All 12 button/wheel actions have changed-write/readback/restore evidence; special-control labels are inferred, not physically press-correlated.",
+        "Changed-write/readback/exact-restore validation plus guided press correlation for the three extra buttons; physical rendering, persistence and lifecycle validation remain untested.",
+        "All 12 button/wheel actions have changed-write/readback/restore evidence. Receiver press checks identify slot 128 as Front Side Button, 57 as Thumb Paddle, and 14 as Underside Button.",
         "DPI table edits require a complete five-stage baseline from the current HID handle.",
         "Only off/static/spectrum/random/single/dual breathing effects exposed; no custom frames, profile CRUD or scroll-mode controls."
       ]

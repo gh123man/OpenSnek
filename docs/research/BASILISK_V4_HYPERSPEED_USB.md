@@ -53,15 +53,17 @@ Changed right-click writes and exact restores passed for slots
 `03 04 05 34 35 0E 39 80 09 0A`, with stored writes projecting into target 0.
 A subsequent primary-button pass changed left and right click to middle click,
 verified targets 1/0, and restored each immediately. All 12 advertised button/wheel
-actions are now editable. Slots `0E`, `39`, `80` expose Profile, Hypershift and
-AI Prompt Master with their exact captured Default blocks `07010400000000`,
-`0c013900000000` and `00010000000000` respectively.
+actions are now editable. Guided receiver press checks subsequently identified
+slots `0E`, `39`, `80` as Underside Button, Thumb Paddle, and Front Side Button.
+Each produced three press/release pairs with a distinct temporary mouse-click
+mapping; all original stored/live payloads were then restored exactly. See the
+[press evidence](../../captures/usb/2026-11-08-basilisk-v4-hyperspeed/README.md#guided-physical-button-identification).
 
-Those special names are an **inference**, using native actions plus the
-[official Razer device layout](https://mysupport.razer.com/app/answers/detail/a_id/21065)
-and [product FAQ](https://www.razer.com/gaming-mice/razer-basilisk-v4-hyperspeed).
-Physical button-to-slot correlation is still untested. The AI default is the captured
-host-managed no-action block; OpenSnek does not implement Synapse's AI launcher.
+The earlier Profile/Hypershift/AI Prompt Master names came from native actions and
+the [official Razer device layout](https://mysupport.razer.com/app/answers/detail/a_id/21065).
+The UI now uses physical names, preserving native Default blocks `07010400000000`,
+`0c013900000000` and `00010000000000` respectively. Restoring the front side
+button's host-managed block does not implement Synapse's AI launcher.
 The mechanical scroll-mode toggle is absent from the button inventory and remains
 outside this remap surface.
 

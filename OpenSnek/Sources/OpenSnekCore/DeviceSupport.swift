@@ -468,12 +468,12 @@ public enum DeviceProfiles {
         usbLightingZones: basiliskV3XUSBLightingZones, passiveDPIInput: PassiveDPIInputDescriptor(usagePage: 0x01, usage: 0x02, reportID: 0x05, subtype: 0x02, heartbeatSubtype: 0x10, minInputReportSize: 7, maxFeatureReportSize: 1, maximumDPI: 18_000), supportsLightingBrightnessControls: true,
         onboardProfileCount: 1)
 
-    // V4 native action names match the documented controls; physical press correlation remains untested.
+    // V4 extra-button positions were press-correlated on the receiver; native defaults are preserved.
     public static let basiliskV4ButtonSlots: [ButtonSlotDescriptor] = [
         ButtonSlotDescriptor(slot: 1, friendlyName: "Left Click", defaultKind: .leftClick), ButtonSlotDescriptor(slot: 2, friendlyName: "Right Click", defaultKind: .rightClick), ButtonSlotDescriptor(slot: 3, friendlyName: "Middle Click", defaultKind: .middleClick),
         ButtonSlotDescriptor(slot: 4, friendlyName: "Back Button", defaultKind: .mouseBack), ButtonSlotDescriptor(slot: 5, friendlyName: "Forward Button", defaultKind: .mouseForward), ButtonSlotDescriptor(slot: 52, friendlyName: "Scroll Left", defaultKind: .default),
         ButtonSlotDescriptor(slot: 53, friendlyName: "Scroll Right", defaultKind: .default), ButtonSlotDescriptor(slot: 9, friendlyName: "Scroll Up", defaultKind: .scrollUp), ButtonSlotDescriptor(slot: 10, friendlyName: "Scroll Down", defaultKind: .scrollDown),
-        ButtonSlotDescriptor(slot: 57, friendlyName: "Hypershift Button", defaultKind: .default), ButtonSlotDescriptor(slot: 128, friendlyName: "AI Prompt Master Button", defaultKind: .default), ButtonSlotDescriptor(slot: 14, friendlyName: "Profile Button", defaultKind: .default)
+        ButtonSlotDescriptor(slot: 57, friendlyName: "Thumb Paddle", defaultKind: .default), ButtonSlotDescriptor(slot: 128, friendlyName: "Front Side Button", defaultKind: .default), ButtonSlotDescriptor(slot: 14, friendlyName: "Underside Button", defaultKind: .default)
     ]
 
     // Scoped local read/write/restore evidence: captures/ble/2026-11-08-basilisk-v4-hyperspeed/.

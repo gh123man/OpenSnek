@@ -1,0 +1,10 @@
+# Button-state transitions only; motion-only reports omitted. All complete raw reports remain in the local /tmp capture.
+[+145.842s] candidate[1] usage=0x01:0x02 input=8 feature=0 report[8]=00 00 00 00 01 00 00 00
+[+148.667s] candidate[1] usage=0x01:0x02 input=8 feature=0 report[8]=02 00 00 00 00 00 00 00
+[+148.881s] candidate[1] usage=0x01:0x02 input=8 feature=0 report[8]=00 00 00 00 00 00 00 00
+[+149.145s] candidate[1] usage=0x01:0x02 input=8 feature=0 report[8]=02 00 00 00 00 00 00 00
+[+149.326s] candidate[1] usage=0x01:0x02 input=8 feature=0 report[8]=00 00 00 00 00 00 00 00
+[+149.577s] candidate[1] usage=0x01:0x02 input=8 feature=0 report[8]=02 00 00 00 00 00 00 00
+[+149.742s] candidate[1] usage=0x01:0x02 input=8 feature=0 report[8]=00 00 00 00 00 00 00 00
+[+150.665s] candidate[1] usage=0x01:0x02 input=8 feature=0 report[8]=01 00 00 00 00 00 00 00
+[+150.763s] candidate[1] usage=0x01:0x02 input=8 feature=0 report[8]=00 00 00 00 00 00 00 00

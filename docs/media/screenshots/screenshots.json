@@ -92,7 +92,7 @@
     "OpenSnek/Sources/OpenSnekCore/DeviceDiagnosticsFormatter.swift": "d4e122091f3c1b89acfc5800b9bab989a8ae60f5cf827b2fb2e736f6689db05e",
     "OpenSnek/Sources/OpenSnekCore/DevicePatch+USBControls.swift": "4827cfc266bdcefe539702586506c60b19a636a2a0a7f3eab88ac2b20bc166ff",
     "OpenSnek/Sources/OpenSnekCore/DevicePersistenceKeys.swift": "001071c4cf6ab733636051b29ec86beb4bf49a629d40d76f0494869fedfd4a93",
-    "OpenSnek/Sources/OpenSnekCore/DeviceSupport.swift": "56126d8aab1c18befb35fe0aa60ce40d07de2d6773d18770735e72a2761c5775",
+    "OpenSnek/Sources/OpenSnekCore/DeviceSupport.swift": "6a5b17cd6ff90f27f4dd857fccc4a248e1c138c6f4fd0770397779ba1e771a61",
     "OpenSnek/Sources/OpenSnekCore/DeviceValidationCatalog.swift": "0695925bd2bf12d068f2ddf22f30b8590aa70da589f513e4a004b7251d02b8fe",
     "OpenSnek/Sources/OpenSnekCore/IssueReportFormatter.swift": "d5737129d93b1a8d34b561244ad4be9d389e392bc167ed07f0a2913324170761",
     "OpenSnek/Sources/OpenSnekCore/Models.swift": "148b4325b7d97ecc1da3f0bdbafbb921f66cfa6243350558b71e0c8cd04469df",

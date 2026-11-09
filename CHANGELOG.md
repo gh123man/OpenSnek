@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.5.0-rc.2]
+
+### Changed
+- Renamed the Basilisk V4 HyperSpeed extra controls to Front Side Button, Thumb Paddle, and Underside Button after physical press checks on the receiver. Both USB and Bluetooth show these position-based names; native Default bindings are preserved.
+
 ## [1.5.0-rc.1]
 
 ### Added
