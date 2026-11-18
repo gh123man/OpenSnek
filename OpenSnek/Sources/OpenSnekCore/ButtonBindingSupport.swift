@@ -219,13 +219,11 @@ public enum ButtonBindingSupport {
             // keyboard `1`, so fall back to byte 3 when the declared length omits the key.
             // See captures/usb/2026-10-06-naga-v2-pro-wireless/ and
             // captures/usb/2026-10-05-naga-pro-native-default-banks/.
-            let hidModifiers = Int(data[0])
-            let hidKey = data.count >= 2 ? Int(data[1]) : Int(functionBlock[3])
+            let (hidKey, hidModifiers) = keyboardBinding(wireModifiers: data[0], wireKey: data.count >= 2 ? data[1] : functionBlock[3])
             return ButtonBindingDraft(kind: .keyboardSimple, hidKey: max(4, min(231, hidKey)), hidModifiers: max(0, min(255, hidModifiers)), turboEnabled: false, turboRate: defaultTurboRate)
         case 0x0D:
             guard data.count >= 4 else { return nil }
-            let hidModifiers = Int(data[0])
-            let hidKey = Int(data[1])
+            let (hidKey, hidModifiers) = keyboardBinding(wireModifiers: data[0], wireKey: data[1])
             let rawRate = (Int(data[2]) << 8) | Int(data[3])
             return ButtonBindingDraft(kind: .keyboardSimple, hidKey: max(4, min(231, hidKey)), hidModifiers: max(0, min(255, hidModifiers)), turboEnabled: true, turboRate: clampTurboRate(rawRate))
         case 0x0E:
@@ -303,8 +301,7 @@ public enum ButtonBindingSupport {
     }
 
     public static func buildUSBFunctionBlock(slot: Int, kind: ButtonBindingKind, hidKey: Int, hidModifiers: Int = 0, turboEnabled: Bool, turboRate: Int, clutchDPI: Int? = nil, profileID: DeviceProfileID? = nil) -> [UInt8] {
-        let clampedKey = UInt8(max(0, min(255, hidKey)))
-        let clampedModifiers = UInt8(max(0, min(255, hidModifiers)))
+        let (clampedModifiers, clampedKey) = keyboardWireBytes(hidKey: hidKey, hidModifiers: hidModifiers)
         let turbo = UInt16(clampTurboRate(turboRate))
         let turboHi = UInt8((turbo >> 8) & 0xFF)
         let turboLo = UInt8(turbo & 0xFF)
@@ -328,6 +325,32 @@ public enum ButtonBindingSupport {
             }
             return [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
         }
+    }
+
+    /// Modifier and key bytes for a keyboard function block. A modifier key bound on its own
+    /// (usage `0xE0`-`0xE7`) is written as its modifier-byte bit with an empty key: with the bare
+    /// usage in the key byte the firmware reports it only in the input report's key array, which
+    /// macOS does not apply as a held modifier.
+    public static func keyboardWireBytes(hidKey: Int, hidModifiers: Int) -> (modifiers: UInt8, key: UInt8) {
+        let modifiers = UInt8(max(0, min(255, hidModifiers)))
+        guard let modifierBit = hidModifierBit(forUsage: hidKey) else { return (modifiers, UInt8(max(0, min(255, hidKey)))) }
+        return (modifiers | modifierBit, 0x00)
+    }
+
+    /// Inverse of `keyboardWireBytes` for readback: an empty key with modifier bits set decodes
+    /// to the lowest modifier as the key, so a modifier bound on its own round-trips.
+    static func keyboardBinding(wireModifiers: UInt8, wireKey: UInt8) -> (hidKey: Int, hidModifiers: Int) {
+        guard wireKey == 0x00, wireModifiers != 0 else { return (Int(wireKey), Int(wireModifiers)) }
+        let lowestModifier = wireModifiers.trailingZeroBitCount
+        return (hidModifierUsageBase + lowestModifier, Int(wireModifiers & ~(UInt8(1) << lowestModifier)))
+    }
+
+    private static let hidModifierUsageBase = 0xE0
+
+    /// HID modifier-byte bit for a modifier key usage (`0xE0` Left Control ... `0xE7` Right GUI).
+    static func hidModifierBit(forUsage hidKey: Int) -> UInt8? {
+        guard (hidModifierUsageBase...hidModifierUsageBase + 7).contains(hidKey) else { return nil }
+        return UInt8(1) << (hidKey - hidModifierUsageBase)
     }
 
     public static func defaultUSBFunctionBlock(for slot: Int, profileID: DeviceProfileID? = nil) -> [UInt8]? {

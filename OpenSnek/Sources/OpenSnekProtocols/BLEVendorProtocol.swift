@@ -460,11 +460,9 @@ public enum BLEVendorProtocol {
             let clamped = UInt16(DeviceProfiles.clampDPI(clutchDPI ?? ButtonBindingSupport.defaultBasiliskDPIClutchDPI, profileID: profileID ?? .basiliskV3Pro))
             return (UInt8((clamped >> 8) & 0xFF), UInt8(clamped & 0xFF))
         }
+        let keyboard = ButtonBindingSupport.keyboardWireBytes(hidKey: Int(hidKey ?? 0x04), hidModifiers: Int(hidModifiers))
         if turboEnabled {
-            if kind == .keyboardSimple {
-                let key = hidKey ?? 0x04
-                return Data([0x01, slot, 0x00, 0x0D, 0x04, hidModifiers, key, 0x00, UInt8(clampedTurboRate & 0xFF), UInt8((clampedTurboRate >> 8) & 0xFF)])
-            }
+            if kind == .keyboardSimple { return Data([0x01, slot, 0x00, 0x0D, 0x04, keyboard.modifiers, keyboard.key, 0x00, UInt8(clampedTurboRate & 0xFF), UInt8((clampedTurboRate >> 8) & 0xFF)]) }
             if let buttonID = horizontalScrollButtonID(for: kind) { return buildTurboMousePayload(slot: slot, target: buttonID, turboRate: clampedTurboRate) }
             // Wheel up/down are wheel functions rather than HID buttons: the firmware's `0x0E` target
             // byte keeps the raw wheel action id, the same way wheel tilt keeps `0x68`/`0x69`. Treating
@@ -495,7 +493,7 @@ public enum BLEVendorProtocol {
         case .scrollRight: return buildRawFunctionBlockPayload(slot: slot, functionBlock: [0x0E, 0x03, 0x69, 0x00, basiliskV3FamilyHorizontalScrollTurboRate, 0x00, 0x00])
         case .mouseBack: return Data([0x01, slot, 0x00, 0x01, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00])
         case .mouseForward: return Data([0x01, slot, 0x00, 0x01, 0x01, 0x05, 0x00, 0x00, 0x00, 0x00])
-        case .keyboardSimple: return Data([0x01, slot, 0x00, 0x02, 0x02, hidModifiers, hidKey ?? 0x04, 0x00, 0x00, 0x00])
+        case .keyboardSimple: return Data([0x01, slot, 0x00, 0x02, 0x02, keyboard.modifiers, keyboard.key, 0x00, 0x00, 0x00])
         case .clearLayer: return Data([0x01, slot, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
         }
     }

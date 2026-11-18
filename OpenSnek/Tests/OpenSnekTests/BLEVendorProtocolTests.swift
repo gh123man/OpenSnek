@@ -168,6 +168,18 @@ final class BLEVendorProtocolTests: XCTestCase {
         XCTAssertEqual(Array(payload), [0x01, 0x02, 0x00, 0x02, 0x02, 0x00, 0x2C, 0x00, 0x00, 0x00])
     }
 
+    func testButtonPayloadModifierKeyAloneUsesModifierByte() {
+        // A bare modifier usage in the key byte reaches the host only in the key array, which
+        // macOS does not apply as a held modifier, so Left Option alone is sent as its bit.
+        let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x02, kind: .keyboardSimple, hidKey: 0xE2)
+        XCTAssertEqual(Array(payload), [0x01, 0x02, 0x00, 0x02, 0x02, 0x04, 0x00, 0x00, 0x00, 0x00])
+    }
+
+    func testNagaButtonPayloadModifierKeyAloneUsesModifierByte() {
+        let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x39, kind: .keyboardSimple, hidKey: 0xE1, profileID: .nagaV3Pro)
+        XCTAssertEqual(Array(payload), [0x01, 0x39, 0x00, 0x02, 0x02, 0x02, 0x00, 0x00, 0x00, 0x00])
+    }
+
     func testRetargetButtonPayloadForStoredProfileTargets() {
         let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x05, kind: .keyboardSimple, hidKey: 0x09)
         let storedTargetPayload = BLEVendorProtocol.retargetButtonPayload(payload, target: 0x05, slot: 0x05)

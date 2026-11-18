@@ -35,6 +35,25 @@ final class USBButtonHydrationTests: XCTestCase {
         XCTAssertEqual(draft?.turboEnabled, false)
     }
 
+    func testModifierKeyAloneRoundTripsThroughModifierByte() {
+        let block = ButtonBindingSupport.buildUSBFunctionBlock(slot: 4, kind: .keyboardSimple, hidKey: 0xE2, turboEnabled: false, turboRate: 0x8E)
+        XCTAssertEqual(block, [0x02, 0x02, 0x04, 0x00, 0x00, 0x00, 0x00])
+
+        let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 4, functionBlock: block)
+        XCTAssertEqual(draft?.kind, .keyboardSimple)
+        XCTAssertEqual(draft?.hidKey, 0xE2)
+        XCTAssertEqual(draft?.hidModifiers, 0)
+    }
+
+    func testModifierKeyWithModifierRoundTripsThroughModifierByte() {
+        let block = ButtonBindingSupport.buildUSBFunctionBlock(slot: 4, kind: .keyboardSimple, hidKey: 0xE1, hidModifiers: 0x08, turboEnabled: false, turboRate: 0x8E)
+        XCTAssertEqual(block, [0x02, 0x02, 0x0A, 0x00, 0x00, 0x00, 0x00])
+
+        let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 4, functionBlock: block)
+        XCTAssertEqual(draft?.hidKey, 0xE1)
+        XCTAssertEqual(draft?.hidModifiers, 0x08)
+    }
+
     func testKeyboardTurboBlockMapsToTurboKeyboardKind() {
         let block: [UInt8] = [0x0D, 0x04, 0x00, 0x04, 0x00, 0x8E, 0x00]
         let draft = ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 4, functionBlock: block)

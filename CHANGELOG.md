@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Binding a modifier key on its own (Ctrl, Shift, Option or Command, left or right) to a mouse button now writes it as a modifier, so holding the button acts as a held modifier on macOS. Previously the bare key usage was written, which the mouse reported only as an ordinary key that macOS ignored as a modifier. Validated on the Naga V3 Pro over Bluetooth with Left Option, Left Shift and Right Shift; other devices and USB use the same function block but are not hardware-checked for this change.
+
 ## [1.5.0-rc.2]
 
 ### Changed
