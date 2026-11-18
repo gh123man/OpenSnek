@@ -270,7 +270,7 @@ import OpenSnekCore
         return editorController.supportsProfilePicker(device: selectedDevice)
     }
 
-    var isOnboardProfilePillLoading: Bool { supportsOnboardProfileCRUD && isOnboardProfileRefreshInFlight }
+    var isOnboardProfilePillLoading: Bool { supportsOnboardProfileCRUD && isOnboardProfileRefreshInFlight && onboardProfileSummaries.first(where: { $0.profileID == activeOnboardProfile })?.metadata == nil }
 
     var onboardProfileSummaries: [OnboardProfileSummary] {
         _ = onboardProfilesRevision
@@ -364,6 +364,18 @@ import OpenSnekCore
 
     func refreshButtonProfilePresentation() { editorController.refreshButtonProfilePresentation() }
 
+    @ObservationIgnored var preloadedProfilePickerDeviceID: String?
+
+    func prepareProfilePickerForDisplay() async {
+        let preparedID = preloadedProfilePickerDeviceID
+        preloadedProfilePickerDeviceID = nil
+        if let device = deviceStore.selectedDevice, device.id == preparedID, editorController.currentSelectedOnboardProfileSnapshot(device: device) != nil {
+            editorController.repairEmptyLocalProfilesForSelectedDevice(device: device)
+            return
+        }
+        await refreshOnboardProfiles()
+    }
+
     func refreshOnboardProfiles() async {
         if !supportsOnboardProfileCRUD {
             if let selectedDevice = deviceStore.selectedDevice {
@@ -371,6 +383,11 @@ import OpenSnekCore
                 editorController.repairEmptyLocalProfilesForSelectedDevice(device: selectedDevice)
             }
             return
+        }
+        let requestedDeviceID = deviceStore.selectedDeviceID
+        if let requestedDeviceID, let activeLoad = editorController.activeOnboardProfileLoadTasksByDeviceID[requestedDeviceID] {
+            await activeLoad.value
+            guard deviceStore.selectedDeviceID == requestedDeviceID else { return }
         }
         let ownsRefreshPresentation = !isOnboardProfileRefreshInFlight
         if ownsRefreshPresentation {

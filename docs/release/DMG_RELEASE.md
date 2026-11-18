@@ -214,7 +214,7 @@ callback; a successful cycle callback during shutdown must not restart the servi
 
 Validate a signed update (or a dev-signed dry-run update) locally:
 
-1. Enable the menu bar service, close the main window, then reopen it. This leaves
+1. Enable the menu bar service, quit the foreground app with Command-Q, then reopen it from the menu bar. This leaves
    the service older than the UI, matching the production failure.
 2. Start an update. Confirm the `Update` log reports that other processes exited
    before Sparkle starts. Install and restart; verify the new version opens a main

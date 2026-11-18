@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Stores OpenSnek app data.
 struct OpenSnekApp: App {
+    static let mainWindowID = "opensnek-editor"
     private static let minimumMainWindowWidth: CGFloat = 900
     private static let minimumMainWindowHeight: CGFloat = 600
     private static let defaultMainWindowWidth: CGFloat = 1250
@@ -20,7 +21,14 @@ struct OpenSnekApp: App {
             isUITestRun = false
         #endif
 
-        let initialAppState = AppState(launchRole: launchRole, shouldCheckForReleaseUpdates: isUITestRun ? false : ReleaseUpdateChecker.shouldCheckForUpdates())
+        let coordinator = BackgroundServiceCoordinator.shared
+        let presentation = launchRole.isService || isUITestRun ? nil : ServiceLaunchPresentation.decode(ProcessInfo.processInfo.environment[ServiceLaunchPresentation.environmentKey], servicePID: coordinator.serviceProcessIdentifier)
+        let backend = presentation.flatMap { _ in coordinator.publishedServiceBackend() }
+        let initialAppState = AppState(launchRole: launchRole, backend: backend, shouldCheckForReleaseUpdates: isUITestRun ? false : ReleaseUpdateChecker.shouldCheckForUpdates())
+        if let presentation, backend != nil {
+            initialAppState.runtimeStore.hidAccessStatus = presentation.hidAccessStatus
+            initialAppState.deviceController.applyLaunchPresentation(presentation)
+        }
         _appState = State(initialValue: initialAppState)
 
         #if DEBUG
@@ -34,13 +42,14 @@ struct OpenSnekApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("") {
+        WindowGroup("", id: Self.mainWindowID) {
             Group {
                 if appState.runtimeStore.isServiceProcess {
                     ServiceWindowSuppressorView()
                 } else {
-                    ContentView(deviceStore: appState.deviceStore, editorStore: appState.editorStore, runtimeStore: appState.runtimeStore).frame(minWidth: Self.minimumMainWindowWidth, minHeight: Self.minimumMainWindowHeight).background(WindowChromeConfigurator().frame(width: 0, height: 0))
-                        .background(SettingsOpenBridgeView(runtimeStore: appState.runtimeStore).frame(width: 0, height: 0))
+                    ContentView(deviceStore: appState.deviceStore, editorStore: appState.editorStore, runtimeStore: appState.runtimeStore).frame(minWidth: Self.minimumMainWindowWidth, minHeight: Self.minimumMainWindowHeight).background(
+                        WindowChromeConfigurator(keepWindowForReopen: appState.runtimeController.keepLastWindowForReopen).frame(width: 0, height: 0)
+                    ).background(SettingsOpenBridgeView(runtimeStore: appState.runtimeStore, runtimeController: appState.runtimeController, lifecycle: appLifecycle).frame(width: 0, height: 0))
                 }
             }.openSnekFixedAppearance()
         }.defaultSize(width: Self.defaultMainWindowWidth, height: Self.defaultMainWindowHeight)
@@ -102,20 +111,25 @@ private struct ServiceWindowSuppressorView: NSViewRepresentable {
 private struct SettingsOpenBridgeView: View {
     let runtimeStore: RuntimeStore
 
+    let runtimeController: AppStateRuntimeController
+    let lifecycle: AppLifecycleDelegate
+    @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
-    @State private var didHandleLaunchSettingsRequest = false
 
     var body: some View {
-        Color.clear.frame(width: 0, height: 0).onAppear { handleLaunchSettingsRequestIfNeeded() }.onChange(of: runtimeStore.openSettingsRequestCount) { _, count in
+        Color.clear.frame(width: 0, height: 0).onAppear {
+            lifecycle.runtimeController = runtimeController
+            runtimeController.openEditorWindow = { [openWindow] in openWindow(id: OpenSnekApp.mainWindowID) }
+            handleLaunchSettingsRequestIfNeeded()
+        }.onChange(of: runtimeStore.openSettingsRequestCount) { _, count in
             guard count > 0 else { return }
             openSettings()
         }
     }
 
     private func handleLaunchSettingsRequestIfNeeded() {
-        guard !didHandleLaunchSettingsRequest else { return }
-        guard ProcessInfo.processInfo.arguments.contains("--open-settings") else { return }
-        didHandleLaunchSettingsRequest = true
+        guard runtimeStore.openSettingsOnWindowAppearance else { return }
+        runtimeStore.openSettingsOnWindowAppearance = false
         DispatchQueue.main.async { openSettings() }
     }
 }

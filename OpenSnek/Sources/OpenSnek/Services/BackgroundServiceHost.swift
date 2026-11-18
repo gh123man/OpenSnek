@@ -117,12 +117,14 @@ private actor BackgroundServiceSubscriberSession {
     private let connection: NWConnection
     private let sourceProcessID: Int32
     private let initialSelectedDeviceID: String?
+    nonisolated let supportsWindowReopen: Bool
     private let onPresenceUpdate: @Sendable (CrossProcessClientPresence) async -> Void
     private let onDisconnect: @Sendable (Int32) async -> Void
     private var didHandleDisconnect = false
 
     init(connection: NWConnection, subscription: StreamSubscriptionRequest, onPresenceUpdate: @escaping @Sendable (CrossProcessClientPresence) async -> Void, onDisconnect: @escaping @Sendable (Int32) async -> Void) {
         self.connection = connection
+        supportsWindowReopen = subscription.supportsWindowReopen == true
         sourceProcessID = subscription.sourceProcessID
         initialSelectedDeviceID = subscription.selectedDeviceID
         self.onPresenceUpdate = onPresenceUpdate
@@ -149,6 +151,8 @@ private actor BackgroundServiceSubscriberSession {
     }
 
     func sendStateUpdate(_ update: BackendStateUpdate) async throws { try await send(BackgroundServiceStreamServerEnvelope(event: .stateUpdate, payload: try BackendCodec.encode(update))) }
+
+    func sendOpenMainWindowRequested() async throws { try await send(BackgroundServiceStreamServerEnvelope(event: .openMainWindowRequested, payload: nil)) }
 
     func sendOpenSettingsRequested() async throws { try await send(BackgroundServiceStreamServerEnvelope(event: .openSettingsRequested, payload: nil)) }
 
@@ -192,6 +196,19 @@ private actor BackgroundServiceSubscriberRegistry {
                 await session.stop()
             }
         }
+    }
+
+    func requestOpenMainWindow() async -> Bool {
+        for (id, session) in sessions where session.supportsWindowReopen {
+            do {
+                try await session.sendOpenMainWindowRequested()
+                return true
+            } catch {
+                sessions.removeValue(forKey: id)
+                await session.stop()
+            }
+        }
+        return false
     }
 
     func requestOpenSettings() async -> Bool {
@@ -256,6 +273,8 @@ final class BackgroundServiceHost: @unchecked Sendable {
         listener.cancel()
     }
 
+    func requestOpenMainWindow() async -> Bool { await subscribers.requestOpenMainWindow() }
+
     func requestOpenSettingsForConnectedClients() async -> Bool { await subscribers.requestOpenSettings() }
 
     private func accept(_ connection: NWConnection) {
@@ -285,9 +304,11 @@ final class BackgroundServiceHost: @unchecked Sendable {
                     guard let payload = request.payload else { throw BackgroundServiceTransportError.missingPayload }
                     let subscription = try BackendCodec.decode(StreamSubscriptionRequest.self, from: payload)
                     let session = BackgroundServiceSubscriberSession(connection: connection, subscription: subscription, onPresenceUpdate: remoteClientPresenceHandler, onDisconnect: remoteClientDisconnectHandler)
-                    await subscribers.add(session)
-                    let response = BackgroundServiceResponseEnvelope(payload: try BackendCodec.encode(true), error: nil)
+                    let response = BackgroundServiceResponseEnvelope(supportsWindowReopen: true, payload: try BackendCodec.encode(true), error: nil)
                     try await BackgroundServiceTransport.sendFrame(try BackendCodec.encode(response), over: connection)
+                    // A state event must never overtake the subscription acknowledgment.
+                    await subscribers.add(session)
+                    if let local = backend as? LocalBridgeBackend { await local.publishSnapshotIfService() }
                     await session.run()
                     await subscribers.remove(id: session.id)
                     return

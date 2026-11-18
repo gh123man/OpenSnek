@@ -73,7 +73,8 @@ import OpenSnekCore
         guard shouldFollowActive, activeChanged || reloadRequired || shouldLoadMissingActiveSnapshot else { return }
         onboardProfileReloadRequiredDeviceIDs.remove(device.id)
 
-        applyController.cancelPendingLocalEditsForSelectionChange()
+        if !activeChanged, !reloadRequired, activeOnboardProfileLoadTasksByDeviceID[device.id] != nil { return }
+        if activeChanged || reloadRequired { applyController.cancelPendingLocalEditsForSelectionChange() }
         logDPITrace("activeProfile scheduling load", device: device, state: state, extra: "profile=\(active)")
         scheduleActiveOnboardProfileLoad(device: device, profileID: active)
     }
@@ -98,7 +99,7 @@ import OpenSnekCore
                 editorStore.endOnboardProfileLoad(operationID)
                 if self.activeOnboardProfileLoadOperationIDsByDeviceID[device.id] == operationID { self.activeOnboardProfileLoadOperationIDsByDeviceID.removeValue(forKey: device.id) }
             }
-            await self.selectOnboardProfile(profileID)
+            await self.selectOnboardProfile(profileID, followingHardware: true)
             self.logDPITrace("activeProfile load task end", device: device, extra: "profile=\(profileID)")
         }
     }
@@ -145,6 +146,12 @@ import OpenSnekCore
             "onboard profile snapshot stored source=\(source) device=\(device.id) profile=\(storedSnapshot.profileID) priorName=\"\(priorName)\" snapshotName=\"\(storedSnapshot.metadata.name)\" storedName=\"\(storedName)\" projected=\(projectMetadataForRefresh)"
                 + " dpiCount=\(storedSnapshot.dpi?.stageCount ?? 0) dpiValues=\(storedSnapshot.dpi?.values.map(String.init).joined(separator: ",") ?? "<none>")")
         return storedSnapshot
+    }
+
+    func seedLaunchProfile(_ snapshot: OnboardProfileSnapshot, device: MouseDevice) {
+        let profile = snapshotPreservingExistingLocalProfileDPI(snapshot, device: device, expectedDPIReadback: nil)
+        currentOnboardProfileSnapshotByDeviceID[device.id] = profile
+        buttonBindingsCacheByHydrationKey[buttonBindingsHydrationKey(device: device, profile: profile.profileID)] = profile.buttonBindings
     }
 
     private func snapshotPreservingExistingLocalProfileDPI(_ snapshot: OnboardProfileSnapshot, device: MouseDevice, expectedDPIReadback: OnboardDPIProfileSnapshot?) -> OnboardProfileSnapshot {
@@ -326,16 +333,7 @@ import OpenSnekCore
     // slot without a cached name needs one lightweight metadata-only fetch to show up correctly without requiring
     // the user to individually activate each slot first. Fetched sequentially: BLE only supports one exchange at a time.
     private func fillingMissingOnboardProfileNames(_ inventory: OnboardProfileInventory, device: MouseDevice) async -> OnboardProfileInventory {
-        let profileIDsNeedingNames = inventory.assignedProfileIDs.filter { inventory.summary(for: $0)?.metadata == nil }
-        guard !profileIDsNeedingNames.isEmpty else { return inventory }
-        var summaries = inventory.profiles
-        for profileID in profileIDsNeedingNames {
-            guard let metadata = try? await environment.backend.readOnboardProfileMetadata(device: device, profileID: profileID) else { continue }
-            guard let index = summaries.firstIndex(where: { $0.profileID == profileID }) else { continue }
-            let existing = summaries[index]
-            summaries[index] = OnboardProfileSummary(profileID: existing.profileID, metadata: metadata, isAssigned: existing.isAssigned, isActive: existing.isActive, isBaseProfile: existing.isBaseProfile)
-        }
-        return OnboardProfileInventory(activeProfileID: inventory.activeProfileID, maxProfileID: inventory.maxProfileID, assignedProfileIDs: inventory.assignedProfileIDs, profiles: summaries)
+        await inventory.fillingMissingNames { [backend = environment.backend] profileID in try await backend.readOnboardProfileMetadata(device: device, profileID: profileID) }
     }
 
     private func hydrateSelectedOnboardProfileAfterRefreshIfNeeded(device: MouseDevice, selectedAfterRefresh: Int, inventory: OnboardProfileInventory, hydrateSelectedProfile: Bool) async throws {
@@ -351,7 +349,7 @@ import OpenSnekCore
         if shouldHydrateEditable { hydrateEditable(from: snapshot, device: device) } else { AppLog.debug("AppState", "refresh onboard profiles skipped selected snapshot hydration pending local edit device=\(device.id) profile=\(selectedAfterRefresh)") }
     }
 
-    func selectOnboardProfile(_ profileID: Int) async {
+    func selectOnboardProfile(_ profileID: Int, followingHardware: Bool = false) async {
         guard !isTearingDown, let device = deviceStore.selectedDevice else { return }
         guard supportsOnboardProfileCRUD(device: device) else {
             guard supportsProfilePicker(device: device), profileID == 1 else { return }
@@ -360,7 +358,12 @@ import OpenSnekCore
             bumpOnboardProfilesRevision()
             return
         }
-        applyController.cancelPendingLocalEditsForSelectionChange()
+        if followingHardware {
+            guard applyController.shouldHydrateEditable(for: device) else { return }
+        } else {
+            cancelActiveOnboardProfileLoad(deviceID: device.id)
+            applyController.cancelPendingLocalEditsForSelectionChange()
+        }
         clearButtonWorkspaceEditMarkers(deviceID: device.id)
         cancelSelectedMouseSlotHydration(deviceID: device.id)
         cancelOnboardProfileButtonHydration(deviceID: device.id)
@@ -374,6 +377,7 @@ import OpenSnekCore
                 await refreshOnboardProfiles(hydrateSelectedProfile: false)
                 inventory = onboardProfileInventoryByDeviceID[device.id]
             }
+            guard !Task.isCancelled, deviceStore.selectedDeviceID == device.id else { return }
             guard let inventory, profileID >= 1, profileID <= inventory.maxProfileID else {
                 deviceStore.errorMessage = "Profile \(profileID) is outside the supported profile range."
                 return
@@ -388,10 +392,12 @@ import OpenSnekCore
             }
             guard isOnboardProfileActive(deviceID: device.id, profileID: profileID) else {
                 logDPITrace("selectOnboardProfile activating", device: device, extra: "profile=\(profileID)")
-                await activateOnboardProfile(profileID)
+                if !followingHardware { await activateOnboardProfile(profileID) }
                 return
             }
             let snapshot = snapshotWithCachedButtonBindings(try await readLatestOnboardProfileCoreSnapshot(device: device, profileID: profileID), device: device)
+            guard !Task.isCancelled, deviceStore.selectedDeviceID == device.id else { return }
+            if followingHardware, lastHardwareActiveOnboardProfileIDByDeviceID[device.id] != profileID || !applyController.shouldHydrateEditable(for: device) { return }
             let storedSnapshot = storeCurrentOnboardProfileSnapshot(snapshot, device: device, source: "readOnboardProfileCore")
             selectedOnboardProfileIDByDeviceID[device.id] = profileID
             logDPITrace("selectOnboardProfile snapshot stored", device: device, snapshot: storedSnapshot, extra: "profile=\(profileID)")

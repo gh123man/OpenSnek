@@ -29,6 +29,7 @@ import Network
     private let fileManager: FileManager
     private let launchAgentsDirectoryURL: URL?
     private var serviceHost: BackgroundServiceHost?
+    var launchPresentationProvider: (() async -> ServiceLaunchPresentation?)?
 
     init(defaults: UserDefaults = .standard, defaultsDomainName: String? = Bundle.main.bundleIdentifier, preferencesNotificationCenter: NotificationCenter = DistributedNotificationCenter.default(), fileManager: FileManager = .default, launchAgentsDirectoryURL: URL? = nil) {
         self.defaults = defaults
@@ -124,16 +125,24 @@ import Network
         throw NSError(domain: "OpenSnek.Service", code: 1, userInfo: [NSLocalizedDescriptionKey: "Background service did not start in time"])
     }
 
+    func publishedServiceBackend() -> IPCDeviceBackend? {
+        guard isServiceProcessAlive, let value = UInt16(exactly: defaults.integer(forKey: Self.portDefaultsKey)), value > 0, let port = NWEndpoint.Port(rawValue: value) else { return nil }
+        return IPCDeviceBackend(port: port)
+    }
+
     func connectToRunningService() async throws -> IPCDeviceBackend? {
-        guard isServiceProcessAlive else {
-            defaults.removeObject(forKey: Self.endpointDefaultsKey)
-            defaults.removeObject(forKey: Self.portDefaultsKey)
-            defaults.removeObject(forKey: Self.pidDefaultsKey)
+        // The host publishes the port before its PID. Leave an in-progress registration alone.
+        guard let publishedPID = serviceProcessIdentifier else { return nil }
+        if !isServiceProcessAlive {
+            if serviceProcessIdentifier == publishedPID {
+                defaults.removeObject(forKey: Self.endpointDefaultsKey)
+                defaults.removeObject(forKey: Self.portDefaultsKey)
+                defaults.removeObject(forKey: Self.pidDefaultsKey)
+            }
             return nil
         }
+        guard let backend = publishedServiceBackend() else { return nil }
         let portValue = defaults.integer(forKey: Self.portDefaultsKey)
-        guard let port = NWEndpoint.Port(rawValue: UInt16(portValue)), portValue > 0 else { return nil }
-        let backend = IPCDeviceBackend(port: port)
         guard await backend.ping() else {
             AppLog.warning("Service", "background service ping failed pid=\(serviceProcessIdentifier ?? 0) port=\(portValue)")
             return nil
@@ -154,19 +163,23 @@ import Network
         try process.run()
     }
 
-    func launchFullAppProcess(arguments: [String] = []) {
+    func launchFullAppProcess(arguments: [String] = []) async {
         if let existingApp = existingForegroundAppInstance() {
             _ = existingApp.unhide()
             _ = existingApp.activate(options: [.activateAllWindows])
             return
         }
 
+        if await serviceHost?.requestOpenMainWindow() == true { return }
+
+        let presentation = await launchPresentationProvider?()
         let bundleURL = Bundle.main.bundleURL
         if bundleURL.pathExtension == "app" {
             let configuration = NSWorkspace.OpenConfiguration()
             configuration.activates = true
             configuration.createsNewApplicationInstance = true
             configuration.arguments = arguments
+            if let encoded = presentation?.encoded { configuration.environment = [ServiceLaunchPresentation.environmentKey: encoded] }
             NSWorkspace.shared.openApplication(at: bundleURL, configuration: configuration) { _, error in if let error { AppLog.error("Service", "launchFullAppProcess failed: \(error.localizedDescription)") } }
             return
         }
@@ -174,6 +187,7 @@ import Network
         let process = Process()
         process.executableURL = executableURL
         process.arguments = arguments
+        if let encoded = presentation?.encoded { process.environment = ProcessInfo.processInfo.environment.merging([ServiceLaunchPresentation.environmentKey: encoded]) { _, new in new } }
         process.currentDirectoryURL = Bundle.main.bundleURL.deletingLastPathComponent()
         do { try process.run() } catch { AppLog.error("Service", "launchFullAppProcess failed: \(error.localizedDescription)") }
     }

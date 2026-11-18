@@ -14,6 +14,7 @@ import Observation
     var isResettingLocalStorage = false
     var statusItemTransientDpi: Int?
     var openSettingsRequestCount = 0
+    var openSettingsOnWindowAppearance = ProcessInfo.processInfo.arguments.contains("--open-settings")
     @ObservationIgnored let statusItemDpiDisplayDuration: TimeInterval
 
     @ObservationIgnored private weak var runtimeControllerStorage: AppStateRuntimeController?
@@ -58,7 +59,7 @@ import Observation
 
     func resetAllLocalStorage() async -> Bool { await runtimeController.resetAllLocalStorage() }
 
-    func openFullAppFromService() { runtimeController.openFullAppFromService() }
+    func openFullAppFromService() { Task { await runtimeController.openFullAppFromService() } }
 
     func openSettingsFromService() { Task { await runtimeController.openSettingsFromService() } }
 

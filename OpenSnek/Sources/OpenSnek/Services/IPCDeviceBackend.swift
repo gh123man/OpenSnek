@@ -44,6 +44,8 @@ final actor IPCDeviceBackend: HIDAccessRefreshControllingBackend, ApplyOptionsSu
         return await remoteSubscription.makeStream()
     }
 
+    var supportsWindowReopen: Bool { get async { await remoteSubscription?.supportsWindowReopen == true } }
+
     func updateRemoteClientPresence(_ presence: CrossProcessClientPresence) async {
         latestRemoteClientPresence = presence
         guard let remoteSubscription else { return }
@@ -129,6 +131,7 @@ private actor BackgroundServiceClientSubscription {
     private let port: NWEndpoint.Port
     private var latestPresence: CrossProcessClientPresence
     private var connection: NWConnection?
+    private(set) var supportsWindowReopen = false
     private var isReady = false
     private var readinessWaiters: [CheckedContinuation<Void, Never>] = []
 
@@ -178,12 +181,13 @@ private actor BackgroundServiceClientSubscription {
         do {
             try await BackgroundServiceTransport.awaitReady(connection: connection)
 
-            let subscribeRequest = BackgroundServiceRequestEnvelope(method: .subscribeStateUpdates, payload: try BackendCodec.encode(StreamSubscriptionRequest(sourceProcessID: latestPresence.sourceProcessID, selectedDeviceID: latestPresence.selectedDeviceID)))
+            let subscribeRequest = BackgroundServiceRequestEnvelope(method: .subscribeStateUpdates, payload: try BackendCodec.encode(StreamSubscriptionRequest(supportsWindowReopen: true, sourceProcessID: latestPresence.sourceProcessID, selectedDeviceID: latestPresence.selectedDeviceID)))
             try await BackgroundServiceTransport.sendFrame(try BackendCodec.encode(subscribeRequest), over: connection)
 
             let responseData = try await BackgroundServiceTransport.receiveFrame(from: connection)
             let response = try BackendCodec.decode(BackgroundServiceResponseEnvelope.self, from: responseData)
             if let error = response.error { throw NSError(domain: "OpenSnek.Service", code: 2, userInfo: [NSLocalizedDescriptionKey: error]) }
+            supportsWindowReopen = response.supportsWindowReopen == true
             isReady = true
             resumeReadinessWaiters()
 
@@ -194,6 +198,7 @@ private actor BackgroundServiceClientSubscription {
                 case .stateUpdate:
                     guard let payload = envelope.payload else { throw BackgroundServiceTransportError.missingPayload }
                     continuation.yield(try BackendCodec.decode(BackendStateUpdate.self, from: payload))
+                case .openMainWindowRequested: continuation.yield(.openMainWindowRequested)
                 case .openSettingsRequested: continuation.yield(.openSettingsRequested)
                 }
             }

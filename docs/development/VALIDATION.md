@@ -11,7 +11,7 @@ Prefer the smallest useful command first. Expand only when the change crosses bo
 | Device profile / lighting zone / button-layout changes | `swift test --package-path OpenSnek --filter DeviceProfilesTests` | add probe readback |
 | App-state hydration / persistence / auto-apply | `swift test --package-path OpenSnek --filter AppStateRefactorCharacterizationTests` | add `AppStateMultiDeviceTests` |
 | Background service / backend transport | `swift test --package-path OpenSnek --filter BackgroundServiceTransportTests` | add `RemoteServiceSnapshotTests` or `ServiceModeTests` |
-| Lifecycle / startup / menu bar | `swift test --package-path OpenSnek --filter AppLifecycleDelegateTests` | add `ServiceMenuBarPresentationTests` |
+| Lifecycle / startup / menu bar | `swift test --package-path OpenSnek --filter AppLifecycleDelegateTests` | add `ServiceMenuBarPresentationTests` and `ServiceLaunchPresentationTests` |
 | USB button remap behavior | `swift test --package-path OpenSnek --filter USBButtonHydrationTests` | use `usb-button-read` / `usb-button-set` probe commands |
 | BLE DPI stage behavior | `swift test --package-path OpenSnek --filter BLEVendorProtocolTests` | run hardware gate below when a supported device is connected |
 
@@ -231,6 +231,13 @@ swift run --package-path OpenSnek OpenSnek
 ./OpenSnek/scripts/xcodebuild_generated.sh -scheme OpenSnek -destination 'platform=macOS' test
 ./OpenSnek/scripts/xcodebuild_generated.sh -scheme OpenSnekProbe -destination 'platform=macOS' build
 ```
+
+To check menu-bar launches, enable the service and note the selected device, active profile,
+and DPI. Close the main window with Command-W, then choose **Show OpenSnek**. Check that the
+same editor returns with those controls ready on its first frame. Repeat after changing the
+selection in the menu. Quit the foreground app with Command-Q and choose **Show OpenSnek**
+again to exercise a fresh process using the service’s prepared settings. A disconnected
+mouse should retain its offline status when the window opens.
 
 `OpenSnek/OpenSnek.xcodeproj` is generated from `OpenSnek/project.yml` on demand and is not committed.
 
