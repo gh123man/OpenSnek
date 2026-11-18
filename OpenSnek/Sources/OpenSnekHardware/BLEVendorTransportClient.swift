@@ -1,5 +1,6 @@
 import Foundation
 import CoreBluetooth
+import IOKit.hid
 import OpenSnekCore
 import OpenSnekProtocols
 
@@ -138,8 +139,8 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
     }
 
     private func sendNextWriteIfReady() {
+        guard completion != nil else { return }
         if let requiredPeripheralIdentifier {
-            guard completion != nil else { return }
             guard peripheral?.identifier == requiredPeripheralIdentifier, peripheral?.state == .connected else {
                 fail("Required Bluetooth peripheral disconnected; no fallback is allowed")
                 return
@@ -163,7 +164,7 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
     private func fail(_ message: String) { finish(.failure(BridgeError.commandFailed("BT vendor: \(message)"))) }
 
     private func ensureConnectedAndReady() {
-        guard let central else { return }
+        guard completion != nil, let central else { return }
         guard central.state == .poweredOn else { return }
 
         let peripherals = central.retrieveConnectedPeripherals(withServices: [CBUUID(nsuuid: BLEVendorProtocol.serviceUUID)])
@@ -206,12 +207,27 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
         case connect(UUID)
     }
 
-    func selectConnection(from peripherals: [ConnectedPeripheralSummary], preferredName: String?, currentIdentifier: UUID?, isReady: Bool) -> ConnectionSelection {
+    func selectConnection(from peripherals: [ConnectedPeripheralSummary], preferredName: String?, currentIdentifier: UUID?, isReady: Bool, mouseHIDIsPublished: (UUID) -> Bool = BLEVendorTransportClient.mouseHIDIsPublished) -> ConnectionSelection {
         if let requiredPeripheralIdentifier {
             guard peripherals.contains(where: { $0.identifier == requiredPeripheralIdentifier }) else { return .unavailable }
             return isReady && currentIdentifier == requiredPeripheralIdentifier ? .reuse : .connect(requiredPeripheralIdentifier)
         }
-        return Self.connectionSelection(from: peripherals, preferredName: preferredName, currentIdentifier: currentIdentifier, isReady: isReady)
+        // Bluetooth Settings can hold the vendor service open before macOS has attached HID.
+        // This also covers permission-denied discovery, which has no preferred mouse name.
+        let eligible = peripherals.filter { peripheral in
+            guard BluetoothNameMatcher.normalized(peripheral.name) == nil || DeviceProfiles.resolveBluetoothFallback(name: peripheral.name)?.id == .basiliskV3Pro else { return true }
+            return mouseHIDIsPublished(peripheral.identifier)
+        }
+        return Self.connectionSelection(from: eligible, preferredName: preferredName, currentIdentifier: currentIdentifier, isReady: isReady)
+    }
+
+    static func mouseHIDIsPublished(_ identifier: UUID) -> Bool {
+        guard let matching = IOServiceMatching(kIOHIDDeviceKey) as NSMutableDictionary? else { return false }
+        matching[kIOPropertyMatchKey] = [kIOHIDPhysicalDeviceUniqueIDKey: identifier.uuidString, kIOHIDPrimaryUsagePageKey: kHIDPage_GenericDesktop, kIOHIDPrimaryUsageKey: kHIDUsage_GD_Mouse]
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, matching)
+        guard service != IO_OBJECT_NULL else { return false }
+        IOObjectRelease(service)
+        return true
     }
 
     static func connectionSelection(from peripherals: [ConnectedPeripheralSummary], preferredName: String?, currentIdentifier: UUID?, isReady: Bool) -> ConnectionSelection {
@@ -234,6 +250,7 @@ public final class BLEVendorTransportClient: NSObject, @unchecked Sendable {
     private func finish(_ output: Result<[Data], Error>) {
         guard let completion else { return }
         self.completion = nil
+        if case .failure = output, let peripheral, peripheral.state == .connecting { central?.cancelPeripheralConnection(peripheral) }
         responseIdleTimer.cancel()
         timeoutWorkItem?.cancel()
         timeoutWorkItem = nil
@@ -254,30 +271,37 @@ extension BLEVendorTransportClient: CBCentralManagerDelegate, CBPeripheralDelega
         }
     }
 
-    public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) { peripheral.discoverServices([CBUUID(nsuuid: BLEVendorProtocol.serviceUUID)]) }
+    public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        guard completion != nil, self.peripheral === peripheral else { return }
+        peripheral.discoverServices([CBUUID(nsuuid: BLEVendorProtocol.serviceUUID)])
+    }
 
     public func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        guard self.peripheral === peripheral else { return }
         isNotifyReady = false
         fail("Failed to connect: \(error?.localizedDescription ?? "unknown")")
     }
 
     public func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        guard self.peripheral === peripheral else { return }
         isNotifyReady = false
         writeChar = nil
         notifyChar = nil
-        if self.peripheral?.identifier == peripheral.identifier { self.peripheral = nil }
+        self.peripheral = nil
         if requiredPeripheralIdentifier == peripheral.identifier { fail("Required Bluetooth peripheral disconnected; retain the recovery journal") }
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+        guard completion != nil, self.peripheral === peripheral else { return }
         if let error {
             fail("Service discovery failed: \(error.localizedDescription)")
             return
         }
-        for service in peripheral.services ?? [] { peripheral.discoverCharacteristics(nil, for: service) }
+        for service in peripheral.services ?? [] where service.uuid == CBUUID(nsuuid: BLEVendorProtocol.serviceUUID) { peripheral.discoverCharacteristics([CBUUID(nsuuid: BLEVendorProtocol.writeUUID), CBUUID(nsuuid: BLEVendorProtocol.notifyUUID)], for: service) }
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+        guard completion != nil, self.peripheral === peripheral, service.uuid == CBUUID(nsuuid: BLEVendorProtocol.serviceUUID) else { return }
         if let error {
             fail("Characteristic discovery failed: \(error.localizedDescription)")
             return
@@ -292,6 +316,7 @@ extension BLEVendorTransportClient: CBCentralManagerDelegate, CBPeripheralDelega
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
+        guard self.peripheral === peripheral, characteristic === notifyChar else { return }
         if let error {
             fail("Enable notify failed: \(error.localizedDescription)")
             return
@@ -303,6 +328,7 @@ extension BLEVendorTransportClient: CBCentralManagerDelegate, CBPeripheralDelega
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+        guard self.peripheral === peripheral, characteristic === writeChar else { return }
         if let error {
             fail("Write failed: \(error.localizedDescription)")
             return
@@ -311,6 +337,7 @@ extension BLEVendorTransportClient: CBCentralManagerDelegate, CBPeripheralDelega
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+        guard completion != nil, self.peripheral === peripheral, characteristic === notifyChar else { return }
         if let error {
             fail("Notify update failed: \(error.localizedDescription)")
             return

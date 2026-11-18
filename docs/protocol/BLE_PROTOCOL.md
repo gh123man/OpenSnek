@@ -43,6 +43,20 @@ is unchanged. See [hardware validation](../development/VALIDATION.md#safe-hardwa
 
 ## 2. GATT Endpoints
 
+During pairing, Bluetooth Settings can expose the vendor service before macOS publishes
+the mouse HID interface. For the Basilisk V3 Pro, OpenSnek waits for a Generic Desktop
+Mouse in IORegistry whose `PhysicalDeviceUniqueID` matches the CoreBluetooth peripheral
+UUID. This check also applies to unnamed fallback candidates. It reads registry properties
+without opening the HID interface. Vendor discovery requests only the service and the two
+characteristics listed below.
+
+In a local forget-and-re-pair check on macOS 26.5.2, both the installed
+1.4.1-rc.2 and the updated build recovered. With the updated app and background
+service running, Bluetooth Settings cancelled its own connection 54 ms after pairing.
+The mouse remained registered with HID, and OpenSnek resumed vendor reads.
+The immediate disconnect reported on macOS 26.6.1 remains unconfirmed locally.
+See [issue #147](https://github.com/gh123man/OpenSnek/issues/147).
+
 | Item | UUID | Access | Notes |
 |---|---|---|---|
 | Vendor service | `52401523-F97C-7F90-0E7F-6C6F4E36DB1C` | Service | Required |

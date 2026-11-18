@@ -4,6 +4,32 @@ import XCTest
 
 /// Exercises BLE vendor transport routing and completion timing.
 final class BLEVendorTransportClientTests: XCTestCase {
+    func testBasiliskVendorConnectionFollowsMouseHIDThroughPairingAndReconnect() {
+        let client = BLEVendorTransportClient()
+        let mouse = BLEVendorTransportClient.ConnectedPeripheralSummary(name: "BSK V3 PRO", identifier: UUID())
+        let otherMouse = UUID()
+        var published = Set([otherMouse])
+        for name in [mouse.name, nil] {
+            func selection(ready: Bool) -> BLEVendorTransportClient.ConnectionSelection { client.selectConnection(from: [mouse], preferredName: name, currentIdentifier: mouse.identifier, isReady: ready, mouseHIDIsPublished: published.contains) }
+
+            XCTAssertEqual(selection(ready: false), .wait)
+            published.insert(mouse.identifier)
+            XCTAssertEqual(selection(ready: false), .connect(mouse.identifier))
+            XCTAssertEqual(selection(ready: true), .reuse)
+            published.remove(mouse.identifier)
+            XCTAssertEqual(selection(ready: true), .wait)
+        }
+    }
+
+    func testUnnamedFallbackWaitsForItsOwnMouseHIDAndOtherKnownProfilesStayDiscoverable() {
+        let client = BLEVendorTransportClient()
+        let unnamed = BLEVendorTransportClient.ConnectedPeripheralSummary(name: nil, identifier: UUID())
+        let other = BLEVendorTransportClient.ConnectedPeripheralSummary(name: "BSKV3P 35K", identifier: UUID())
+        XCTAssertEqual(client.selectConnection(from: [unnamed], preferredName: nil, currentIdentifier: nil, isReady: false, mouseHIDIsPublished: { $0 == other.identifier }), .wait)
+        XCTAssertEqual(client.selectConnection(from: [unnamed], preferredName: nil, currentIdentifier: nil, isReady: false, mouseHIDIsPublished: { $0 == unnamed.identifier }), .connect(unnamed.identifier))
+        XCTAssertEqual(client.selectConnection(from: [unnamed, other], preferredName: nil, currentIdentifier: nil, isReady: false, mouseHIDIsPublished: { _ in false }), .connect(other.identifier))
+    }
+
     func testReadyConnectionSwitchesBetweenBasiliskModelsInBothDirections() {
         let pro = BLEVendorTransportClient.ConnectedPeripheralSummary(name: "BSK V3 PRO", identifier: UUID())
         let pro35K = BLEVendorTransportClient.ConnectedPeripheralSummary(name: "BSKV3P 35K", identifier: UUID())
