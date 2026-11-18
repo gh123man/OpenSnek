@@ -219,7 +219,7 @@ actor SoftwareLightingEngine {
     }
 
     func updateWirelessCharging(device: MouseDevice, charging: Bool, observedAt: Date, fromInputReport: Bool) {
-        guard device.supportsWirelessChargingReports, let key = deviceKeyByDeviceID[device.id], deviceIDByDeviceKey[key] == device.id, statusByDeviceKey[key]?.state == .running else { return }
+        guard device.usesDockChargingLightingOverride, let key = deviceKeyByDeviceID[device.id], deviceIDByDeviceKey[key] == device.id, statusByDeviceKey[key]?.state == .running else { return }
         let previous = chargingByDeviceKey[key]
         guard previous.map({ $0.observedAt <= observedAt }) ?? true else { return }
         var frameOverride = previous?.frameOverride

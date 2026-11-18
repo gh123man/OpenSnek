@@ -341,6 +341,11 @@ public struct DeviceProfile: Hashable, Sendable {
 public extension MouseDevice {
     private var resolvedProfile: DeviceProfile? { DeviceProfiles.resolve(vendorID: vendor_id, productID: product_id, transport: transport) }
 
+    var hasRechargeableBattery: Bool { resolvedProfile?.id.hasRechargeableBattery == true }
+
+    /// Only these receiver profiles stream custom frames and can yield their LEDs to a charging dock.
+    var usesDockChargingLightingOverride: Bool { transport == .usb && supportsSoftwareLightingEffects && [0x00AB, 0x00A8].contains(product_id) }
+
     var supportsSoftwareLightingEffects: Bool {
         guard transport == .usb, let profile = resolvedProfile else { return false }
         return profile.softwareLightingFrameLayout != nil && !profile.supportedSoftwareLightingPresets.isEmpty

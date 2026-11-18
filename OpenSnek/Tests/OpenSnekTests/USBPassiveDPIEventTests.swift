@@ -72,6 +72,8 @@ actor PassiveUpdateStubBackend: DeviceBackend {
 
     func fastReadCount() -> Int { fastReadCounter }
 
+    func emitCharging(deviceID: String, charging: Bool) { stateUpdateStreamPair.continuation.yield(.chargingChanged(deviceID: deviceID, charging: charging, updatedAt: Date())) }
+
     func readStateCount() -> Int { readStateCounter }
 
     func emitTransportStatusUpdate(deviceID: String, status: DpiUpdateTransportStatus, updatedAt: Date = Date()) { stateUpdateStreamPair.continuation.yield(.dpiTransportStatus(deviceID: deviceID, status: status, updatedAt: updatedAt)) }

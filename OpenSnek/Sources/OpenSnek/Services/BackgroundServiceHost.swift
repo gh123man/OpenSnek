@@ -190,6 +190,8 @@ private actor BackgroundServiceSubscriberRegistry {
     }
 
     func broadcast(_ update: BackendStateUpdate) async {
+        // Remote clients already receive the charging flag in the accompanying snapshot.
+        if case .chargingChanged = update { return }
         for (id, session) in sessions {
             do { try await session.sendStateUpdate(update) } catch {
                 sessions.removeValue(forKey: id)

@@ -22,6 +22,9 @@ For deeper routing use `docs/development/REPO_MAP.md`. SourceKit-LSP setup lives
 
 ## Safety and behavior
 
+- For a shared protocol or support fix, check the full device catalog across wired USB, receiver,
+  and Bluetooth. Apply the fix to every compatible profile through a shared capability. Cover
+  eligible profiles and known exceptions in tests and record which transports were hardware-validated.
 - Swift and protocol docs are canonical. Python protocol tools may lag.
 - Serialize BLE vendor exchanges. Command failures surface without command-level retries;
   connection recovery alone may retry real connection errors.

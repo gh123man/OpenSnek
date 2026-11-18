@@ -147,6 +147,52 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
         XCTAssertTrue(BridgeClient.shouldPollBluetoothGenericTelemetryForReadState(supportsMappedOnboardProfiles: false))
     }
 
+    private var rechargeableBluetoothProductIDs: [Int] { DeviceProfiles.all.filter { $0.transport == .bluetooth && $0.id.hasRechargeableBattery }.flatMap(\.supportedProducts) }
+
+    func testRechargeableBluetoothBatterySamplesAcrossSupportedProducts() async {
+        let bridge = BridgeClient(startHIDMonitoring: false)
+        for productID in rechargeableBluetoothProductIDs {
+            let device = makeBluetoothDevice(productID: productID, profileID: nil)
+            let now = Date()
+            let initial = await bridge.rechargeableBluetoothBattery(device: device, now: now) { (240, true) }
+            await bridge.recordBluetoothCharging(false, deviceID: device.id, observedAt: now.addingTimeInterval(1))
+            let cached = await bridge.rechargeableBluetoothBattery(device: device, now: now.addingTimeInterval(2)) {
+                XCTFail("A profile refresh must reuse the battery sample")
+                return (nil, nil)
+            }
+            let missing = await bridge.rechargeableBluetoothBattery(device: device, now: now.addingTimeInterval(30)) { (nil, nil) }
+            let refreshed = await bridge.rechargeableBluetoothBattery(device: device, now: now.addingTimeInterval(60)) { (232, true) }
+            XCTAssertEqual(initial?.raw, 240)
+            XCTAssertEqual(initial?.charging, true)
+            XCTAssertEqual(cached?.raw, initial?.raw)
+            XCTAssertEqual(cached?.charging, false)
+            XCTAssertEqual(missing?.raw, initial?.raw)
+            XCTAssertEqual(missing?.charging, false)
+            XCTAssertEqual(refreshed?.raw, 232)
+            XCTAssertEqual(refreshed?.charging, true)
+        }
+    }
+
+    func testChargingRegisterRequiresOneBinaryByte() {
+        XCTAssertEqual(BLEVendorProtocol.Key.chargingStatus.bytes, [0x05, 0x85, 0x00, 0x01])
+        XCTAssertEqual(BLEVendorProtocol.parseChargingStatus(Data([0])), false)
+        XCTAssertEqual(BLEVendorProtocol.parseChargingStatus(Data([1])), true)
+        for payload: Data? in [nil, Data(), Data([0xFF]), Data([1, 0])] { XCTAssertNil(BLEVendorProtocol.parseChargingStatus(payload)) }
+    }
+
+    func testMissingChargingKeyPreservesLevelWithoutInventingACharge() async {
+        let bridge = BridgeClient(startHIDMonitoring: false)
+        for productID in rechargeableBluetoothProductIDs {
+            let device = makeBluetoothDevice(productID: productID, profileID: nil)
+            let sample = await bridge.rechargeableBluetoothBattery(device: device) { (255, nil) }
+            let battery = BridgeClient.resolveBluetoothBatteryState(device: device, vendorRaw: sample?.raw, vendorStatus: 1, usbFallback: nil)
+            XCTAssertEqual(battery.percent, 100)
+            XCTAssertNil(sample?.charging)
+            XCTAssertNil(battery.charging)
+            XCTAssertEqual(BridgeClient.resolveBluetoothBatteryState(device: device, vendorRaw: sample?.raw, vendorStatus: 1, usbFallback: (80, false)).charging, false)
+        }
+    }
+
     func testCompleteBluetoothOnboardProfileMetadataRequiresAllIdentityFields() throws {
         let identifier = try XCTUnwrap(UUID(uuidString: "01234567-89ab-4cde-8f01-23456789abcd"))
         let owner = "5ed8944a85a9763fd315852f448cb7de36c5e928e13b3be427f98f7dc455f141"

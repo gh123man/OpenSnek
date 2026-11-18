@@ -7,6 +7,26 @@ import OpenSnekProtocols
 
 /// Exercises USB passive DPI bridge behavior behavior.
 final class USBPassiveDPIBridgeBehaviorTests: XCTestCase {
+    func testChargingReportsMatchRechargeableDevicesAndTheirInputInterfaces() {
+        func device(_ productID: Int, _ transport: DeviceTransportKind) -> MouseDevice { MouseDevice(id: "mouse", vendor_id: transport == .usb ? 0x1532 : 0x068E, product_id: productID, product_name: "Mouse", transport: transport, path_b64: "", serial: nil, firmware: nil) }
+        for productID in [0x00AA, 0x00AB, 0x00D6, 0x00D7, 0x00EA, 0x008F, 0x0090, 0x00A7, 0x00A8, 0x00E7, 0x00E8] {
+            let mouse = device(productID, .usb)
+            XCTAssertEqual(BridgeClient.chargingReportTransport(for: mouse, usagePage: 1, usage: 6, maxInput: 16, maxFeature: 1), .usb)
+            XCTAssertNil(BridgeClient.chargingReportTransport(for: mouse, usagePage: 1, usage: 2, maxInput: 9, maxFeature: 1))
+            XCTAssertEqual(mouse.usesDockChargingLightingOverride, [0x00AB, 0x00A8].contains(productID))
+        }
+        for productID in [0x00AC, 0x00D8, 0x00EC, 0x0092, 0x00A9, 0x00E9] {
+            let mouse = device(productID, .bluetooth)
+            XCTAssertEqual(BridgeClient.chargingReportTransport(for: mouse, usagePage: 1, usage: 2, maxInput: 9, maxFeature: 1), .bluetooth)
+            XCTAssertNil(BridgeClient.chargingReportTransport(for: mouse, usagePage: 1, usage: 2, maxInput: 9, maxFeature: 0))
+        }
+        for mouse in [device(0x00BA, .bluetooth), device(0x0095, .bluetooth), device(0x00B9, .usb), device(0x007E, .usb), device(0xFFFF, .usb)] {
+            XCTAssertFalse(mouse.hasRechargeableBattery)
+            XCTAssertNil(BridgeClient.chargingReportTransport(for: mouse, usagePage: 1, usage: 2, maxInput: 9, maxFeature: 1))
+            XCTAssertNil(BridgeClient.chargingReportTransport(for: mouse, usagePage: 1, usage: 6, maxInput: 16, maxFeature: 1))
+        }
+    }
+
     func testPassiveUSBMonitorReplaceTargetsReturnsForEmptyList() async throws {
         let monitor = PassiveDPIEventMonitor()
 

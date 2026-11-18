@@ -35,6 +35,7 @@ final class USBHIDProtocolTests: XCTestCase {
         failure[0] = 0x03
 
         XCTAssertNil(USBHIDProtocol.parseChargingStatus(failure))
+        XCTAssertNil(USBHIDProtocol.parseChargingStatus(batteryResponse(cmd: 0x84, args: [0x00, 0xFF])))
         XCTAssertNil(USBHIDProtocol.parseChargingStatus([0x02, 0x1F]))
         XCTAssertNil(USBHIDProtocol.parseBatteryLevelPercent([0x02, 0x1F]))
     }

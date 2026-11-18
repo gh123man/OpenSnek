@@ -11,6 +11,20 @@ extension BridgeClient {
         let charging: Bool?
     }
 
+    /// Independent timestamps keep a slow vendor read from undoing a newer cable event.
+    struct BluetoothBatterySample: Sendable {
+        var attemptedAt = Date.distantPast
+        var raw: Int?
+        var charging: Bool?
+        private var chargingObservedAt = Date.distantPast
+
+        mutating func observeCharging(_ value: Bool?, at date: Date) {
+            guard let value, date >= chargingObservedAt else { return }
+            charging = value
+            chargingObservedAt = date
+        }
+    }
+
     /// Whether this Bluetooth device uses the per-zone state lighting surface (`10 83`/`10 03`
     /// color, `10 85`/`10 05` brightness) instead of the legacy single-frame lighting keys.
     func usesBluetoothZoneStateLighting(_ device: MouseDevice) -> Bool {
@@ -60,10 +74,8 @@ extension BridgeClient {
             charging = false
         } else if device.transport == .bluetooth, device.profile_id == .orochiV2 || device.product_id == 0x0095 {
             charging = false
-        } else if isBasiliskV3ProFamilyBluetooth(device) {
-            charging = usbFallback?.1
-        } else if usesNagaBattery || isV4Bluetooth {
-            // The vendor status bit is unreliable on this family; only trust a USB fallback session.
+        } else if device.hasRechargeableBattery {
+            // The legacy status key also returns 1 on battery power. A separate charging read takes precedence at the call site.
             charging = usbFallback?.1
         } else {
             charging = vendorStatus.map { $0 == 1 } ?? usbFallback?.1
@@ -125,19 +137,29 @@ extension BridgeClient {
         }
         let shouldPollGenericTelemetry = Self.shouldPollBluetoothGenericTelemetryForReadState(supportsMappedOnboardProfiles: supportsMappedOnboardProfiles)
         let batteryRaw: Int?
+        var cableCharging: Bool?
         let batteryStatus: Int?
         let lighting: Int?
         let sleepTimeout: Int?
-        if !shouldPollGenericTelemetry {
-            batteryRaw = nil
+        if device.hasRechargeableBattery {
+            let sample = await rechargeableBluetoothBattery(device: device) {
+                let raw = try? await self.btGetScalar(device: device, key: .batteryRaw, size: 1)
+                let payload = try? await self.btReadPayload(device: device, key: .chargingStatus)
+                return (raw, BLEVendorProtocol.parseChargingStatus(payload))
+            }
+            batteryRaw = sample?.raw
+            cableCharging = sample?.charging
             batteryStatus = nil
-            lighting = nil
-            sleepTimeout = nil
         } else {
             batteryRaw = (try? await btGetScalar(device: device, key: .batteryRaw, size: 1)) ?? nil
             batteryStatus = (try? await btGetScalar(device: device, key: .batteryStatus, size: 1)) ?? nil
+        }
+        if shouldPollGenericTelemetry {
             lighting = supportsLighting ? (try? await btGetLightingValue(device: device)) : nil
             sleepTimeout = (try? await btGetScalar(device: device, key: .powerTimeoutGet, size: 2)) ?? nil
+        } else {
+            lighting = nil
+            sleepTimeout = nil
         }
         let activeOnboardProfile = profile?.supportsMappedOnboardProfileCRUD == true ? (try? await btReadActiveOnboardProfileID(device: device)) ?? nil : nil
 
@@ -145,7 +167,7 @@ extension BridgeClient {
         let batteryState = Self.resolveBluetoothBatteryState(device: device, vendorRaw: batteryRaw, vendorStatus: batteryStatus, usbFallback: usbBatteryFallback)
 
         return MouseState(
-            device: DeviceSummary(id: device.id, product_name: device.product_name, serial: device.serial, transport: device.transport, firmware: nil), connection: "Bluetooth", battery_percent: batteryState.percent, charging: batteryState.charging,
+            device: DeviceSummary(id: device.id, product_name: device.product_name, serial: device.serial, transport: device.transport, firmware: nil), connection: "Bluetooth", battery_percent: batteryState.percent, charging: cableCharging ?? batteryState.charging,
             dpi: {
                 guard let active = btStages?.active, let values = btStages?.values, active >= 0, active < values.count else { return nil }
                 if let pairs = btStages?.pairs, active < pairs.count { return pairs[active] }
@@ -156,6 +178,24 @@ extension BridgeClient {
     }
 
     nonisolated static func shouldPollBluetoothGenericTelemetryForReadState(supportsMappedOnboardProfiles: Bool) -> Bool { !supportsMappedOnboardProfiles }
+
+    /// Battery telemetry is device-wide and has a separate cadence from profile and settings reads.
+    func rechargeableBluetoothBattery(device: MouseDevice, now: Date = Date(), read: () async -> (raw: Int?, charging: Bool?)) async -> BluetoothBatterySample? {
+        guard device.transport == .bluetooth, device.hasRechargeableBattery else { return nil }
+        if let sample = rechargeableBluetoothBatteryByDeviceID[device.id], now.timeIntervalSince(sample.attemptedAt) < 30 { return sample }
+        rechargeableBluetoothBatteryByDeviceID[device.id, default: BluetoothBatterySample()].attemptedAt = now
+        let result = await read()
+        guard var sample = rechargeableBluetoothBatteryByDeviceID[device.id], sample.attemptedAt == now else { return rechargeableBluetoothBatteryByDeviceID[device.id] }
+        if let raw = result.raw { sample.raw = raw }
+        sample.observeCharging(result.charging, at: now)
+        rechargeableBluetoothBatteryByDeviceID[device.id] = sample
+        return sample
+    }
+
+    func recordBluetoothCharging(_ charging: Bool, deviceID: String, observedAt: Date) {
+        rechargeableBluetoothBatteryByDeviceID[deviceID, default: BluetoothBatterySample()].observeCharging(charging, at: observedAt)
+        lastStateByDeviceID[deviceID]?.charging = rechargeableBluetoothBatteryByDeviceID[deviceID]?.charging
+    }
 
     func buildBluetoothDeltaState(device: MouseDevice, includeDpi: Bool, includeLighting: Bool, includePower: Bool) async throws -> MouseState {
         let supportsLighting = device.showsLightingControls

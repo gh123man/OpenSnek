@@ -3,6 +3,18 @@ import OpenSnekCore
 
 /// Defines BLE vendor protocol values.
 public enum BLEVendorProtocol {
+    /// The charging register has a single binary payload byte when supported.
+    public static func parseChargingStatus(_ payload: Data?) -> Bool? {
+        guard let payload, payload.count == 1, let byte = payload.first, byte <= 1 else { return nil }
+        return byte == 1
+    }
+
+    /// Cable power transitions on the Bluetooth HID mouse interface.
+    public static func cableChargingState(report: [UInt8]) -> Bool? {
+        guard report.count == 9, report.starts(with: [0x05, 0x05, 0x0C]), report[3] <= 1 else { return nil }
+        return report[3] == 1
+    }
+
     public static let serviceUUID = UUID(uuidString: "52401523-F97C-7F90-0E7F-6C6F4E36DB1C")!
     public static let writeUUID = UUID(uuidString: "52401524-F97C-7F90-0E7F-6C6F4E36DB1C")!
     public static let notifyUUID = UUID(uuidString: "52401525-F97C-7F90-0E7F-6C6F4E36DB1C")!
@@ -97,6 +109,7 @@ public enum BLEVendorProtocol {
         public static let powerTimeoutSet = Key(b0: 0x05, b1: 0x04, b2: 0x00, b3: 0x00)
         public static let batteryRaw = Key(b0: 0x05, b1: 0x81, b2: 0x00, b3: 0x01)
         public static let batteryStatus = Key(b0: 0x05, b1: 0x80, b2: 0x00, b3: 0x01)
+        public static let chargingStatus = Key(b0: 0x05, b1: 0x85, b2: 0x00, b3: 0x01)
 
         public static func buttonBind(slot: UInt8) -> Key { Key(b0: 0x08, b1: 0x04, b2: 0x01, b3: slot) }
 

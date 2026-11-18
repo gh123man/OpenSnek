@@ -288,6 +288,7 @@ struct CrossProcessClientPresence: Codable, Sendable {
 enum BackendStateUpdate: Codable, Sendable {
     case deviceList([MouseDevice], updatedAt: Date)
     case deviceState(deviceID: String, state: MouseState, updatedAt: Date)
+    case chargingChanged(deviceID: String, charging: Bool, updatedAt: Date)
     case dpiTransportStatus(deviceID: String, status: DpiUpdateTransportStatus, updatedAt: Date)
     case softwareLightingStatus(deviceID: String, status: SoftwareLightingEngineStatus?, updatedAt: Date)
     case usbControlAvailability(deviceID: String, availability: USBControlAvailability, updatedAt: Date)

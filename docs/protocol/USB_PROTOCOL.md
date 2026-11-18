@@ -1087,6 +1087,8 @@ The Basilisk V3 Pro receiver (`1532:00AB`) also emits a 16-byte input report
 on usage page `0x01`, usage `0x06`. The observed prefix was `05 0C 01` on
 docking and `05 0C 00` on lifting the mouse. Both reports had 13 trailing
 zero bytes. The charging register (`07:84`) agreed even at 100% battery.
+All registered rechargeable mice can update the charging flag in the main window and menu bar when they emit this report on the matching interface. Other models await physical verification of the report. Devices without this report use the normal `07:84` read.
+The report carries no battery percentage, so the UI keeps the last measured level.
 OpenSnek leaves the LEDs to the firmware while charging and sends the current
 software frame on lift, including when its colors match the last frame sent.
 This was verified on the receiver with Battery Meter at 100%. If the Mac

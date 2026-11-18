@@ -91,12 +91,13 @@ actor BridgeClient {
     var deviceSessions: [String: USBHIDControlSession] = [:]
     var deviceSessionCandidates: [String: [USBHIDControlSession]] = [:]
     var lastStateByDeviceID: [String: MouseState] = [:]
+    var rechargeableBluetoothBatteryByDeviceID: [String: BluetoothBatterySample] = [:]
     var usbReconnectSettleUntilByDeviceID: [String: Date] = [:]
     let devicePresenceEvents = BroadcastStream<HIDDevicePresenceEvent>()
     let passiveDpiEvents = BroadcastStream<PassiveDPIEvent>()
     let passiveDpiHeartbeatEvents = BroadcastStream<PassiveDPIHeartbeatEvent>()
     let passiveProfileSwitchEvents = BroadcastStream<PassiveProfileSwitchEvent>()
-    let wirelessChargingEvents = BroadcastStream<WirelessChargingEvent>()
+    let passiveChargingEvents = BroadcastStream<PassiveChargingEvent>()
     var passiveDpiArmedDeviceIDs: Set<String> = []
     var passiveDpiHeartbeatDeviceIDs: Set<String> = []
     var passiveDpiObservedDeviceIDs: Set<String> = []
@@ -134,7 +135,7 @@ actor BridgeClient {
         passiveDpiMonitor.onEvent = { [weak self] event in Task { await self?.handlePassiveDpiEvent(event) } }
         passiveDpiMonitor.onHeartbeat = { [weak self] event in Task { await self?.handlePassiveDpiHeartbeat(event) } }
         passiveDpiMonitor.onProfileSwitch = { [weak self] event in Task { await self?.handlePassiveProfileSwitch(event) } }
-        passiveDpiMonitor.onWirelessCharging = { [wirelessChargingEvents] event in wirelessChargingEvents.yield(event) }
+        passiveDpiMonitor.onCharging = { [passiveChargingEvents] event in passiveChargingEvents.yield(event) }
         if startHIDMonitoring { hidDevicePresenceMonitor.start() }
     }
 
@@ -151,6 +152,7 @@ actor BridgeClient {
         deviceSessions.removeValue(forKey: deviceID)
         deviceSessionCandidates.removeValue(forKey: deviceID)
         lastStateByDeviceID.removeValue(forKey: deviceID)
+        rechargeableBluetoothBatteryByDeviceID.removeValue(forKey: deviceID)
         passiveDpiArmedDeviceIDs.remove(deviceID)
         passiveDpiHeartbeatDeviceIDs.remove(deviceID)
         passiveDpiLastHeartbeatAtByDeviceID.removeValue(forKey: deviceID)

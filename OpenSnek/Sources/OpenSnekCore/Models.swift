@@ -50,6 +50,13 @@ public enum DeviceProfileID: String, Codable, Hashable, Sendable {
 
 /// Groups profile IDs that share protocol behavior; per-device capabilities remain on the profile.
 extension DeviceProfileID {
+    public var hasRechargeableBattery: Bool {
+        switch self {
+        case .basiliskV3Pro, .basiliskV3Pro35K, .basiliskV4Hyperspeed, .nagaPro, .nagaV2Pro, .nagaV3Pro: return true
+        case .basiliskV3XHyperspeed, .orochiV2, .basiliskV3, .basiliskV335K, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro: return false
+        }
+    }
+
     /// Naga button writes preserve the firmware's raw USB-style function blocks over BLE.
     public var isNagaFamily: Bool {
         switch self {
@@ -152,8 +159,6 @@ public struct MouseDevice: Codable, Identifiable, Hashable, Sendable {
 
     public var identity: DeviceIdentity { DeviceIdentity(vendorID: vendor_id, productID: product_id, locationID: location_id, transport: transport) }
 
-    /// The Basilisk V3 Pro receiver reports wireless charger transitions on its vendor input interface.
-    public var supportsWirelessChargingReports: Bool { transport == .usb && vendor_id == 0x1532 && product_id == 0x00AB }
 }
 
 /// Stores DPI pair data.
@@ -213,7 +218,7 @@ public struct MouseState: Codable, Hashable, Sendable {
     public let device: DeviceSummary
     public let connection: String
     public let battery_percent: Int?
-    public let charging: Bool?
+    public var charging: Bool?
     public let dpi: DpiPair?
     public let dpi_stages: DpiStages
     public let poll_rate: Int?

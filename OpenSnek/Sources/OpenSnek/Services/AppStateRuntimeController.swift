@@ -365,6 +365,7 @@ import OpenSnekCore
         case .softwareLightingStatus(let deviceID, let status, let updatedAt): deviceController.applyBackendSoftwareLightingStatusUpdate(deviceID: deviceID, status: status, updatedAt: updatedAt)
         case .usbControlAvailability(let deviceID, let availability, let updatedAt): deviceController.applyBackendUSBControlAvailabilityUpdate(deviceID: deviceID, availability: availability, updatedAt: updatedAt)
         case .deviceState(let deviceID, let updatedState, let updatedAt): deviceController.applyBackendDeviceStateUpdate(deviceID: deviceID, state: updatedState, updatedAt: updatedAt)
+        case .chargingChanged(let deviceID, let charging, let updatedAt): deviceController.applyChargingUpdate(deviceID: deviceID, charging: charging, updatedAt: updatedAt)
         case .openMainWindowRequested: _ = reopenEditorIfClosed()
         case .openSettingsRequested:
             guard environment.usesRemoteServiceTransport else { return }

@@ -242,6 +242,14 @@ import OpenSnekHardware
         return deviceIDs.contains { stateRefreshSuppressedUntilByDeviceID[$0] != nil && (refreshFailureCountByDeviceID[$0] ?? 0) > 0 }
     }
 
+    func applyChargingUpdate(deviceID: String, charging: Bool, updatedAt: Date) {
+        guard let device = deviceStore.devices.first(where: { $0.id == deviceID }), device.hasRechargeableBattery, var state = stateCacheByDeviceID[deviceID] else { return }
+        if let latest = lastUpdatedByDeviceID[deviceID], latest > updatedAt { return }
+        state.charging = charging
+        cacheState(state, sourceDeviceID: deviceID, presentationDeviceID: deviceID, updatedAt: updatedAt)
+        if deviceStore.selectedDeviceID == deviceID { deviceStore.state?.charging = charging }
+    }
+
     func applyBackendDeviceStateUpdate(deviceID: String, state updatedState: MouseState, updatedAt: Date) {
         guard !isTearingDown else { return }
         guard let sourceDevice = deviceStore.devices.first(where: { $0.id == deviceID }), let presentationDevice = presentationDevice(for: sourceDevice) else { return }

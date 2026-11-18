@@ -183,7 +183,7 @@ public enum USBHIDProtocol {
     /// charging. Charging is a separate command from the battery level: the level response's first
     /// argument does not carry the flag. OpenRazer reads the same argument.
     public static func parseChargingStatus(_ response: [UInt8]) -> Bool? {
-        guard response.count > 9, response[0] == 0x02 else { return nil }
+        guard response.count > 9, response[0] == 0x02, response[9] <= 1 else { return nil }
         return response[9] == 0x01
     }
 

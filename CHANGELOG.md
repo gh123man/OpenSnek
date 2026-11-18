@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.5.0]
+
+### Added
+
+- Basilisk V4 HyperSpeed support over Bluetooth and the USB receiver includes independent X/Y DPI up to 33,000, battery level, sleep timeout, brightness, and remapping for all 12 button and wheel actions. The receiver also supports polling-rate changes and six built-in lighting effects.
+- Naga V3 Pro support covers wired USB, the receiver, and Bluetooth. Contributors verified 50,000 DPI, remapping across all three side plates, and three-zone lighting.
+- Basilisk V3 Pro 35K Phantom Green Edition support includes contributor-verified Bluetooth controls and mapped USB cable and receiver support. Mouse Dock Pro gains contributor-verified USB brightness, color, and lighting effects.
+- Update settings now let you opt into release candidates.
+
+### Fixed
+
+- Restored Bluetooth battery percentages during onboard profile reads on the Basilisk V3 Pro and Naga Pro. All six rechargeable models, including the Basilisk V4 HyperSpeed, now check charging at startup and update the window and menu bar when a recognized charging report arrives. Cable transitions over Bluetooth and dock transitions on the receiver were verified on the original Basilisk V3 Pro. The other five models await physical charging checks.
+- Advanced lighting resumes when the Basilisk V3 Pro leaves its wireless charger. Battery readings also refresh while software effects run and after reconnecting.
+- Improved Basilisk V3 Pro Bluetooth pairing and reconnection, and fixed delayed Bluetooth replies being treated as empty.
+- Fixed standalone modifier-key bindings and Bluetooth Turbo wheel remaps. The Naga Pro’s underside profile button and DPI buttons can now be remapped and restored to their defaults.
+- Fixed applying static lighting to all USB zones and the zone picker shifting while brightness changes.
+- Reopening the window from the menu bar restores the selected device and settings. In-app updates relaunch OpenSnek when the background service is running.
+
 ## [1.5.0-rc.3]
 
 ### Fixed

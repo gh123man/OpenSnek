@@ -43,7 +43,7 @@ Legend:
 | DPI XY | `04:85/05` | passive HID read/listen; live apply via vendor stage writes | both scripts | PARTIAL | direct BT HID `set_dpi` is not reliable on validated stack, but OpenSnek now uses validated passive BT HID reports for immediate on-device DPI-change updates |
 | DPI stages + active stage | `04:86/06` | `0B84`/`0B04`, `op=0x26` | both scripts | DONE | OpenSnek normalizes active-stage via stage IDs and preserves USB stage IDs on writes to avoid off-by-one stage mapping. |
 | Poll rate | `00:85/05` | HID fallback only | both scripts | PARTIAL | Need BLE vendor equivalent |
-| Battery level | `07:80` | Battery Service + observed vendor read | both scripts | PARTIAL | Charging-state parity still incomplete on BLE |
+| Battery level | `07:80` | Battery Service + observed vendor read | both scripts | PARTIAL | Swift reads charging separately on rechargeable mice (`07:84` USB, `05 85 00 01` BLE). Bluetooth charging has been physically verified on the original Basilisk V3 Pro. |
 | Idle time | `07:83/03` | `05 84 00 00` / `05 04 00 00` | both scripts | DONE | BT vendor fallback implemented |
 | Low battery threshold | `07:81/01` | `05 82 00 00` / `05 02 00 00` | both scripts | DONE | BT vendor fallback implemented. OpenSnek supports read/write on USB + BT, and hides USB control when unsupported. |
 | Scroll mode | `02:94/14` | unknown vendor key | both scripts (HID path) | PARTIAL | USB profile-scoped semantics use the first command argument as storage/profile ID. OpenSnek reads/writes on USB and hides the control when unsupported. |

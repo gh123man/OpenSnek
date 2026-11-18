@@ -5,6 +5,14 @@ import OpenSnekHardware
 
 /// Adds scoped helpers for `LocalBridgeBackend`.
 extension LocalBridgeBackend {
+    nonisolated static func preservingNewerChargingReport(in state: MouseState, readStartedAt: Date, report: PassiveChargingEvent?) -> MouseState {
+        // Bluetooth percentage reads have no charging flag. Keep the last HID observation for this connection.
+        guard let report, report.observedAt >= readStartedAt || (state.device.transport == .bluetooth && state.charging == nil) else { return state }
+        var updated = state
+        updated.charging = report.charging
+        return updated
+    }
+
     nonisolated static func mergedApplyState(_ state: MouseState, previous: MouseState?) -> MouseState { state.merged(with: previous) }
 
     nonisolated static func shouldReuseCachedStateForRead(device: MouseDevice, cachedAt: Date, now: Date, shouldUseFastDPIPolling: Bool) -> Bool {

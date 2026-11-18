@@ -16,6 +16,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     private let softwareLightingEngine: SoftwareLightingEngine
     private let softwareLightingBatterySampler = SoftwareLightingBatterySampler()
     private var batteryConnectionGenerationByDeviceID: [String: UInt64] = [:]
+    private var lastChargingReportByDeviceID: [String: PassiveChargingEvent] = [:]
     private var cachedDevices: [MouseDevice] = []
     private var cachedDevicesAt: Date?
     private var cachedStateByDeviceID: [String: MouseState] = [:]
@@ -57,8 +58,8 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
             let stream = await self.client.passiveProfileSwitchEventStream()
             for await event in stream { await self.handlePassiveProfileSwitch(event) }
         }
-        let chargingEvents = client.wirelessChargingEvents.makeStream()
-        Task { [weak self] in for await event in chargingEvents { await self?.handleWirelessCharging(event) } }
+        let chargingEvents = client.passiveChargingEvents.makeStream()
+        Task { [weak self] in for await event in chargingEvents { await self?.handleChargingReport(event) } }
         Task { [weak self] in
             guard let self else { return }
             let stream = await self.client.devicePresenceEventStream()
@@ -103,7 +104,8 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         if let cached = try await softwareLightingCachedReadState(device: device, cachedState: cachedStateBeforeRead, readStartedAt: readStartedAt) { return cached }
         let shouldUseFastPolling = device.transport == .bluetooth ? await client.shouldUseFastDPIPolling(device: device) : true
         if let cached = reusableCachedReadState(device: device, readStartedAt: readStartedAt, shouldUseFastPolling: shouldUseFastPolling) { return cached }
-        let state = try await freshReadState(device: device)
+        let read = try await freshReadState(device: device)
+        let state = Self.preservingNewerChargingReport(in: read, readStartedAt: readStartedAt, report: lastChargingReportByDeviceID[device.id])
         return finalizeReadState(device: device, state: state, cachedStateBeforeRead: cachedStateBeforeRead, readStartedAt: readStartedAt, shouldUseFastPolling: shouldUseFastPolling)
     }
 
@@ -126,13 +128,25 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         let battery = try await softwareLightingBatterySampler.sample(device: device, connectionGeneration: generation, now: now) { [client] device in try await client.readUSBBattery(device: device) }
         guard let battery, batteryConnectionGenerationByDeviceID[device.id, default: 0] == generation, let latest = cachedStateByDeviceID[device.id] else { return }
         // Preserve changes received while awaiting the battery read, especially live DPI.
-        storeReadState(battery.applying(to: latest), deviceID: device.id)
-        if device.supportsWirelessChargingReports, let charging = battery.charging { await softwareLightingEngine.updateWirelessCharging(device: device, charging: charging, observedAt: now, fromInputReport: false) }
+        let updated = Self.preservingNewerChargingReport(in: battery.applying(to: latest), readStartedAt: now, report: lastChargingReportByDeviceID[device.id])
+        storeReadState(updated, deviceID: device.id)
+        if device.usesDockChargingLightingOverride, let charging = battery.charging { await softwareLightingEngine.updateWirelessCharging(device: device, charging: charging, observedAt: now, fromInputReport: false) }
     }
 
-    private func handleWirelessCharging(_ event: WirelessChargingEvent) async {
-        guard let device = cachedDevices.first(where: { $0.id == event.deviceID }) else { return }
-        await softwareLightingEngine.updateWirelessCharging(device: device, charging: event.charging, observedAt: event.observedAt, fromInputReport: true)
+    private func handleChargingReport(_ event: PassiveChargingEvent) async {
+        guard let device = cachedDevices.first(where: { $0.id == event.deviceID }), device.hasRechargeableBattery else { return }
+        if let previous = lastChargingReportByDeviceID[device.id], previous.observedAt > event.observedAt { return }
+        lastChargingReportByDeviceID[device.id] = event
+        if var state = cachedStateByDeviceID[device.id], state.charging != event.charging {
+            state.charging = event.charging
+            let updatedAt = Date()
+            storeReadState(state, deviceID: device.id, updatedAt: updatedAt)
+            publishStateUpdate(.chargingChanged(deviceID: device.id, charging: event.charging, updatedAt: updatedAt))
+        }
+        switch device.transport {
+        case .bluetooth: await client.recordBluetoothCharging(event.charging, deviceID: device.id, observedAt: event.observedAt)
+        case .usb: await softwareLightingEngine.updateWirelessCharging(device: device, charging: event.charging, observedAt: event.observedAt, fromInputReport: true)
+        }
     }
 
     private func reusableCachedReadState(device: MouseDevice, readStartedAt: Date, shouldUseFastPolling: Bool) -> MouseState? {
@@ -200,9 +214,9 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         return state
     }
 
-    private func storeReadState(_ state: MouseState, deviceID: String) {
+    private func storeReadState(_ state: MouseState, deviceID: String, updatedAt: Date = Date()) {
         cachedStateByDeviceID[deviceID] = state
-        cachedStateAtByDeviceID[deviceID] = Date()
+        cachedStateAtByDeviceID[deviceID] = updatedAt
         reconnectSeedStateByDeviceID[deviceID] = state
         updateSoftwareLightingBatteryPercent(deviceID: deviceID, from: state)
         publishSnapshotIfService()
@@ -289,7 +303,8 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
             #endif
             throw error
         }
-        let merged = Self.mergedApplyState(state, previous: cachedStateByDeviceID[device.id] ?? reconnectSeedStateByDeviceID[device.id])
+        let current = Self.preservingNewerChargingReport(in: state, readStartedAt: startedAt, report: lastChargingReportByDeviceID[device.id])
+        let merged = Self.mergedApplyState(current, previous: cachedStateByDeviceID[device.id] ?? reconnectSeedStateByDeviceID[device.id])
         let now = Date()
         cachedStateByDeviceID[device.id] = merged
         cachedStateAtByDeviceID[device.id] = now
@@ -699,7 +714,8 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     }
 
     @discardableResult private func cacheAndPublishState(_ state: MouseState, for deviceID: String, updatedAt: Date) -> MouseState {
-        let merged = Self.mergedApplyState(state, previous: cachedStateByDeviceID[deviceID] ?? reconnectSeedStateByDeviceID[deviceID])
+        let current = Self.preservingNewerChargingReport(in: state, readStartedAt: updatedAt, report: lastChargingReportByDeviceID[deviceID])
+        let merged = Self.mergedApplyState(current, previous: cachedStateByDeviceID[deviceID] ?? reconnectSeedStateByDeviceID[deviceID])
         cachedStateByDeviceID[deviceID] = merged
         cachedStateAtByDeviceID[deviceID] = updatedAt
         reconnectSeedStateByDeviceID[deviceID] = merged
@@ -834,6 +850,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     }
 
     private func invalidateCachedTelemetry(for deviceID: String) {
+        lastChargingReportByDeviceID.removeValue(forKey: deviceID)
         batteryConnectionGenerationByDeviceID[deviceID, default: 0] &+= 1
         if let cached = cachedStateByDeviceID[deviceID] { reconnectSeedStateByDeviceID[deviceID] = cached }
         cachedDevicesAt = nil
@@ -861,6 +878,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     private func purgeCaches(forRemovedDeviceIDs removedDeviceIDs: Set<String>) {
         guard !removedDeviceIDs.isEmpty else { return }
         for deviceID in removedDeviceIDs {
+            lastChargingReportByDeviceID.removeValue(forKey: deviceID)
             launchProfile.invalidate(deviceID: deviceID)
             batteryConnectionGenerationByDeviceID[deviceID, default: 0] &+= 1
             cachedStateByDeviceID.removeValue(forKey: deviceID)

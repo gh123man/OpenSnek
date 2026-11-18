@@ -7,6 +7,59 @@ import OpenSnekProtocols
 
 /// Exercises USB passive DPI app state behavior.
 final class USBPassiveDPIAppStateTests: XCTestCase {
+    @MainActor func testDockAndLiftUpdateBatteryIconWithoutPolling() async throws {
+        let device = makePassiveTestDevice(id: "usb-charging", transport: .usb)
+        let initial = makePassiveTestState(device: device, dpiValues: [800, 1600], activeStage: 0, dpiValue: 800)
+        let backend = PassiveUpdateStubBackend(devices: [device], stateByDeviceID: [device.id: initial], shouldUseFastPolling: false)
+        let app = AppState(launchRole: .service, backend: backend, autoStart: false)
+        await app.runtimeController.ensureBackendStateUpdatesStarted()
+        await app.deviceStore.refreshDevices()
+        let baseline = try XCTUnwrap(app.deviceStore.stateByDeviceID[device.id])
+        let reads = await backend.readStateCount()
+        for charging in [true, false] {
+            await backend.emitCharging(deviceID: device.id, charging: charging)
+            try await waitUntil { await app.deviceStore.state?.charging == charging }
+            var expected = baseline
+            expected.charging = charging
+            XCTAssertEqual(app.deviceStore.stateByDeviceID[device.id], expected)
+            let visible = try XCTUnwrap(app.deviceStore.state)
+            let icon = ServiceMenuBarPresentation.batteryIcon(percent: try XCTUnwrap(visible.battery_percent), charging: visible.charging)
+            XCTAssertEqual(icon.symbolName, charging ? "battery.100percent.bolt" : "battery.75percent")
+        }
+        let finalReads = await backend.readStateCount()
+        XCTAssertEqual(finalReads, reads)
+    }
+
+    func testInFlightBatteryReadUsesNewerDockReportUntilNextFreshPoll() {
+        let device = makePassiveTestDevice(id: "usb-charging", transport: .usb)
+        let read = makePassiveTestState(device: device, dpiValues: [800], activeStage: 0, dpiValue: 800)
+        let dockTime = Date()
+        let report = PassiveChargingEvent(deviceID: device.id, charging: true, observedAt: dockTime)
+        var docked = read
+        docked.charging = true
+        XCTAssertEqual(LocalBridgeBackend.preservingNewerChargingReport(in: read, readStartedAt: dockTime.addingTimeInterval(-1), report: report), docked)
+        XCTAssertEqual(LocalBridgeBackend.preservingNewerChargingReport(in: read, readStartedAt: dockTime.addingTimeInterval(1), report: report), read)
+    }
+
+    func testBluetoothCableReportsSurviveLaterPercentageReads() throws {
+        let device = MouseDevice(id: "bt-pro", vendor_id: 0x068E, product_id: 0x00AC, product_name: "BSK V3 PRO", transport: .bluetooth, path_b64: "", serial: nil, firmware: nil, location_id: 1, profile_id: .basiliskV3Pro)
+        XCTAssertTrue(device.hasRechargeableBattery)
+        XCTAssertFalse(makePassiveTestDevice(id: "bt-v3x", transport: .bluetooth).hasRechargeableBattery)
+        var battery = makePassiveTestState(device: device, dpiValues: [800], activeStage: 0, dpiValue: 800)
+        battery.charging = nil
+        let now = Date()
+        for byte: UInt8 in [1, 0] {
+            let charging = try XCTUnwrap(BLEVendorProtocol.cableChargingState(report: [5, 5, 12, byte, 0, 0, 0, 0, 0]))
+            let event = PassiveChargingEvent(deviceID: device.id, charging: charging, observedAt: now)
+            let updated = LocalBridgeBackend.preservingNewerChargingReport(in: battery, readStartedAt: now.addingTimeInterval(5), report: event)
+            XCTAssertEqual(updated.charging, byte == 1)
+            XCTAssertEqual(updated.battery_percent, battery.battery_percent)
+        }
+        XCTAssertNil(BLEVendorProtocol.cableChargingState(report: [5, 5, 12, 2, 0, 0, 0, 0, 0]))
+        XCTAssertNil(BLEVendorProtocol.cableChargingState(report: [5, 5, 49, 222, 1, 1, 1, 0, 0]))
+        XCTAssertNil(BLEVendorProtocol.cableChargingState(report: [5, 5, 12]))
+    }
+
     func testAppStateAppliesBackendStateUpdatesWithoutWaitingForPolling() async {
         let device = makePassiveTestDevice(id: "usb-passive-live", transport: .usb)
         let backend = PassiveUpdateStubBackend(devices: [device], stateByDeviceID: [device.id: makePassiveTestState(device: device, dpiValues: [800, 1600, 3200], activeStage: 0, dpiValue: 800)], shouldUseFastPolling: false)

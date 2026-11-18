@@ -54,6 +54,20 @@ Button remap keyboard actions support modifier chords on shipped USB and Bluetoo
 | Mouse Dock | `Contributor validated` | `No transport` | Accessory: contributor validated single logo-LED static color, brightness, and spectrum/pulse writes over USB. No DPI, buttons, battery, or onboard profiles |
 | Mouse Dock Pro | `Contributor validated` | `No transport` | Accessory: contributor validated logo-LED brightness, static color, wave, spectrum, and breathing writes over USB, with working brightness telemetry. Answers only transaction ID `0xFF` and reads brightness at LED `0x0F` instead of the `0x00` write address; per-cell custom-frame mapping is still unmapped |
 
+## Rechargeable mouse batteries
+
+The Basilisk V3 Pro, Basilisk V3 Pro 35K Phantom Green Edition, Basilisk V4 HyperSpeed,
+Naga Pro, Naga V2 Pro, and Naga V3 Pro share charging telemetry on their registered transports.
+USB reads battery level and charging separately. Bluetooth reads both at startup and on
+subsequent battery polls. A recognized HID charging report updates the window and menu bar
+between polls. A mouse can report a percentage even when its charging status is unknown.
+
+Both the Bluetooth cable transitions and USB receiver dock transitions were physically
+verified on the original Basilisk V3 Pro. The other five models use the shared mapping and
+await physical charging checks. The V4 HyperSpeed is covered over Bluetooth and its receiver.
+Its direct USB cable identity remains unregistered. The Basilisk V3 X HyperSpeed and Orochi V2
+use replaceable batteries.
+
 ## Basilisk V4 HyperSpeed USB receiver
 
 `1532:00EA` is locally validated for DPI X/Y and stages up to 33K, 125/500/1000 Hz,
@@ -87,7 +101,7 @@ validated USB profile above.
   bytes. Both merge and encoding use the published 33,000-DPI ceiling. A session
   must first observe the five-stage table; starting with fewer stages refuses DPI
   writes because the firmware omits hidden-stage bytes.
-- Battery uses the 0–255 vendor scale; charging remains unknown. Lighting exposes
+- Battery uses the 0–255 vendor scale. Charging uses the shared rechargeable mapping. Lighting exposes
   brightness only because effect writes did not produce changed readback.
 - All advertised button slots are editable with native Default restoration. Both
   read targets are validated after changed/default writes in the app hardware gate.
@@ -158,7 +172,7 @@ USB PIDs `0x00AA` / `0x00AB`, Bluetooth PID `0x00AC`
 | Poll rate | `Shipped` | `Hidden` | USB uses the shared `getPollRate` / `setPollRate` path; BT hard-codes `poll_rate: nil` and `capabilities.poll_rate: false` |
 | Sleep timeout | `Shipped` | `Shipped` | USB reads idle time; BT reads `powerTimeoutGet` and exposes the same power-management card |
 | Low battery threshold | `Shipped` | `Hidden` | USB reads and writes threshold values; BT does not populate `low_battery_threshold_raw`, so the current app never shows the threshold card there |
-| Battery telemetry | `Shipped` | `Shipped` | BT state publishes battery percent; BT charging is only surfaced when a USB fallback session can verify it |
+| Battery telemetry | `Shipped` | `Shipped` | Bluetooth reads battery percentage and cable charging state at startup. Plugging or unplugging the cable updates the charging indicator immediately. |
 | Lighting: brightness + static color | `Shipped` | `Shipped` | USB ships three onboard zones; BT ships per-zone brightness and per-zone static color on `0x01`, `0x04`, and `0x0A`. The V3 USB family is modeled with 14 individually addressable Custom Frame cells (1 logo + 1 scroll wheel + 12 underglow/tail cells) via `Class 0x0F Cmd 0x03`, which OpenSnek uses for volatile USB Advanced software lighting while the app/service is running; see [docs/research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md](./research/BASILISK_V3_PRO_PERLED_UNDERGLOW.md). OpenSnek's onboard model remains the shipped three-zone subset. |
 | Lighting: extra effects | `Shipped` | `Limited` | USB advertises the shared onboard Basilisk V3 USB family set: `off`, `static`, `spectrum`, and `wave`. V3 Pro USB also exposes Advanced software presets, including the Battery Meter underglow progress bar gated to this profile because it is the shipped device with both the light strip and battery telemetry. BT is static-only because the BT profile advertises only `.staticColor` |
 | Button remap: shipped editable slots | `Shipped` | `Shipped` | USB writable slots are `1-5`, `9`, `10`, `15`, `52`, `53`, and `96`; BT writable slots are `1-5`, `9`, `10`, `52`, `53` |
@@ -200,7 +214,7 @@ Bluetooth vendor `0x068E` / PID `0x00D8` (advertised as `BSKV3P 35K`) remains co
 | Poll rate | `Mapped` | `Hidden` | Shared USB poll-rate path |
 | Sleep timeout | `Mapped` | `Contributor validated` | Bluetooth `05 84 00 00` read `300 s`; USB uses the shared power path |
 | Low battery threshold | `Mapped` | `Hidden` | Shared USB threshold path |
-| Battery telemetry | `Mapped` | `Contributor validated` | USB uses the shared battery path; Bluetooth raw `0x7B` = 48% on the 0-255 scale, and charging is trusted only from USB fallback |
+| Battery telemetry | `Mapped` | `Contributor validated` | USB uses the shared battery path; Bluetooth raw `0x7B` = 48% on the 0-255 scale, and Bluetooth charging uses the shared mapping pending a physical check |
 | Lighting: brightness + static color | `Mapped` | `Contributor validated` | Scroll wheel `0x01` and underglow `0x0A` only; no physical logo LED |
 | Lighting: extra effects | `Mapped` | `Limited` | USB exposes off, static, spectrum, and wave; Bluetooth static only |
 | Software lighting frames | `Hidden` | `Hidden` | OpenRazer lists a 1x12 Phantom matrix; cell ordering has not been mapped. Do not reuse the normal Basilisk 14-cell frame |
@@ -240,6 +254,7 @@ Support is based on hardware validation reported by [varunyellina in PR #106](ht
 |---|---|---|---|
 | Overall transport status | `Contributor validated` | `Contributor validated` | The contributor exercised wired, receiver, and Bluetooth paths on physical hardware |
 | DPI stages + active stage | `Contributor validated` | `Contributor validated` | Scalar DPI is capped at `20,000` |
+| Battery telemetry | `Mapped` | `Mapped` | Device-wide battery reads run independently of onboard profile reads. Physical charging checks are pending. |
 | Independent X/Y DPI | `Scalar only` | `Scalar only` | The Naga Pro profile intentionally does not advertise independent X/Y editing |
 | Lighting: brightness + static color | `Contributor validated` | `Contributor validated` | OpenSnek exposes scroll-wheel `0x01` and logo `0x04` zones; advanced effects are not claimed |
 | Button remap: shipped editable slots | `Limited` | `Limited` | Body/2-button-panel slots `1-5`, `9`, `10`, `11`, `12`, `14`, `52`, `53`; 12-button panel slots `64-75`; and 6-button panel slots `80-85` are editable with captured native `Default` blocks. Slots `11`/`12` are the DPI buttons and slot `14` the underside profile button. The 2-button panel is press-validated: forward = slot `5` (mouse button 5), rear = slot `4` (mouse button 4) |
@@ -259,7 +274,7 @@ USB PIDs `0x00A7` (wired) / `0x00A8` (2.4 GHz receiver), Bluetooth vendor `0x068
 | DPI stages + active stage | `Contributor validated` | `Contributor validated` | Scalar DPI is capped at `30,000`; the live table and scalar write/readback were validated |
 | Independent X/Y DPI | `Scalar only` | `Scalar only` | The profile does not advertise independent X/Y editing |
 | Poll rate | `Contributor validated` | `Not exposed` | `1,000 Hz` read; a `500 Hz` write/readback with restore was validated over USB. No Bluetooth vendor key is mapped yet |
-| Battery + power | `Contributor validated` | `Contributor validated` | USB reads `07:80`; Bluetooth uses vendor keys `05 81 00 01` / `05 80 00 01`. Both report `0x45` = 27%, matching Synapse; the standard HID battery characteristic reports a stale 100% |
+| Battery + power | `Contributor validated` | `Contributor validated` | USB and Bluetooth battery reads both report `0x45` = 27%, matching Synapse. Bluetooth charging uses the shared mapping pending a physical check |
 | Lighting: brightness + effects | `Contributor validated` | `Contributor validated` | Two zones: palm logo `0x04` and the 12-button side panel `0x05`, with whole-device brightness on LED `0x00`. The 6- and 2-button plates have no lighting. Bluetooth exposes static color only |
 | Lighting: software presets | `Contributor validated` | `Not exposed` | Custom frames (`0F:03`) render the animated OpenSnek presets to the logo over USB |
 | Button remap: shipped editable slots | `Contributor validated` | `Contributor validated` | Body slots `1-5`, `9`, `10`, `14`, `52`, `53` and side-panel slots `64-75` (12-button) and `80-85` (6-button) are editable; writes round-trip on the receiver, wired, and Bluetooth |
@@ -289,7 +304,7 @@ check: DPI/sleep timeout/brightness persisted; live static color reverted. Bluet
 | Independent X/Y DPI | `Contributor validated` | `Contributor validated` | USB `800x1600` and BLE `1700x1800` changed writes read back and restore; both profile paths enable independent X/Y |
 | DPI ceiling | `Contributor validated` | `Contributor validated` | Published Focus Pro 50K ceiling `50,000`; BLE merge/write paths use the profile ceiling rather than a hard-coded 30,000 clamp |
 | Poll rate | `Contributor validated` | `Not shipped` | USB 1000 → 500 → 1000 Hz read/write/restore. No Bluetooth poll-rate command is claimed |
-| Battery + power | `Contributor validated` | `Contributor validated` | USB level/charging and sleep-timeout writes; BLE byte-scaled vendor battery and sleep timeout. BLE charging status is unreliable and stays unknown without USB fallback |
+| Battery + power | `Contributor validated` | `Contributor validated` | USB level/charging and sleep-timeout writes; BLE byte-scaled vendor battery and sleep timeout. Bluetooth charging uses the shared mapping pending a physical check |
 | Lighting: brightness + effects | `Contributor validated` | `Contributor validated` | Scroll wheel `01`, logo `04`, side panel `05`; per-zone brightness and static writes restored. All eight effects visually checked over BLE. The 6-/2-button plates have no lighting |
 | Button remap: shipped editable slots | `Contributor validated` | `Contributor validated` | Shared 33-slot layout. USB every slot same-value write/readback; BLE all 33 shipped slots changed-write/readback/restore on both live and persistent targets, with all 66 originals verified afterward; UI rear-scroll key/Default physically checked |
 | Button remap: physical labels | `Contributor validated` | `Contributor validated` | Shared physical front/rear labels and IDs: index `11/12`, scroll `106/128`, underside profile `14`, pinky `57`; six-button printed labels `1...6` directly press-validated over BLE as slots `80...85` |

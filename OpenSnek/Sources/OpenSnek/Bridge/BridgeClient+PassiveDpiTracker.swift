@@ -94,7 +94,9 @@ extension BridgeClient {
     }
 
     func maybeUpgradeUSBPassiveDpiFromPolling(device: MouseDevice, reason: String) async {
-        guard Self.shouldAttemptPassiveDpiUpgrade(device: device, targetAvailable: passiveDpiTargetsByDeviceID[device.id]?.isEmpty == false, observedPassiveDpiDeviceIDs: passiveDpiObservedDeviceIDs, retryNotBefore: passiveDpiUpgradeNotBeforeByDeviceID[device.id], now: Date()) else { return }
+        guard
+            Self.shouldAttemptPassiveDpiUpgrade(device: device, targetAvailable: passiveDpiTargetsByDeviceID[device.id]?.contains { $0.descriptor != nil } == true, observedPassiveDpiDeviceIDs: passiveDpiObservedDeviceIDs, retryNotBefore: passiveDpiUpgradeNotBeforeByDeviceID[device.id], now: Date())
+        else { return }
 
         let now = Date()
         passiveDpiUpgradeNotBeforeByDeviceID[device.id] = now.addingTimeInterval(1.5)
@@ -118,19 +120,27 @@ extension BridgeClient {
     }
 
     func passiveDpiWatchTarget(for device: IOHIDDevice, model: MouseDevice, profile: DeviceProfile?) -> PassiveDPIEventMonitor.WatchTarget? {
-        guard model.transport.supportsHIDBackedControls, let descriptor = profile?.passiveDPIInput else { return nil }
+        guard model.transport.supportsHIDBackedControls, let profile, profile.passiveDPIInput != nil || model.hasRechargeableBattery else { return nil }
 
         let usagePage = USBHIDSupport.intProperty(device, key: kIOHIDPrimaryUsagePageKey as CFString) ?? -1
         let usage = USBHIDSupport.intProperty(device, key: kIOHIDPrimaryUsageKey as CFString) ?? -1
         let maxInput = USBHIDSupport.intProperty(device, key: kIOHIDMaxInputReportSizeKey as CFString) ?? 0
         let maxFeature = USBHIDSupport.intProperty(device, key: kIOHIDMaxFeatureReportSizeKey as CFString) ?? 0
 
-        guard usagePage == descriptor.usagePage, usage == descriptor.usage, maxInput >= descriptor.minInputReportSize else { return nil }
-        if let expectedMaxFeature = descriptor.maxFeatureReportSize, expectedMaxFeature != maxFeature { return nil }
-
+        let descriptor = profile.passiveDPIInput.flatMap { descriptor in usagePage == descriptor.usagePage && usage == descriptor.usage && maxInput >= descriptor.minInputReportSize && (descriptor.maxFeatureReportSize == nil || maxFeature == descriptor.maxFeatureReportSize) ? descriptor : nil }
+        let chargingTransport = Self.chargingReportTransport(for: model, usagePage: usagePage, usage: usage, maxInput: maxInput, maxFeature: maxFeature)
+        guard descriptor != nil || chargingTransport != nil else { return nil }
         let targetID = Self.passiveDpiTargetID(usagePage: usagePage, usage: usage, maxInput: maxInput, maxFeature: maxFeature)
+        return PassiveDPIEventMonitor.WatchTarget(deviceID: model.id, targetID: targetID, device: device, deviceIdentityToken: USBHIDSupport.deviceIdentityToken(device), descriptor: descriptor, chargingReportTransport: chargingTransport)
+    }
 
-        return PassiveDPIEventMonitor.WatchTarget(deviceID: model.id, targetID: targetID, device: device, deviceIdentityToken: USBHIDSupport.deviceIdentityToken(device), descriptor: descriptor, supportsWirelessChargingReports: model.supportsWirelessChargingReports)
+    nonisolated static func chargingReportTransport(for device: MouseDevice, usagePage: Int, usage: Int, maxInput: Int, maxFeature: Int) -> DeviceTransportKind? {
+        guard device.hasRechargeableBattery else { return nil }
+        switch (device.transport, usagePage, usage, maxInput, maxFeature) {
+        case (.usb, 1, 6, 16, 1): return .usb
+        case (.bluetooth, 1, 2, 9, 1): return .bluetooth
+        default: return nil
+        }
     }
 
     nonisolated static func shouldUseFastDPIPolling(device: MouseDevice, armedPassiveDpiDeviceIDs: Set<String>, observedPassiveDpiDeviceIDs: Set<String>) -> Bool {
@@ -206,7 +216,7 @@ extension BridgeClient {
 
     nonisolated static func passiveDpiTargetIDsByDeviceID(targets: [PassiveDPIEventMonitor.WatchTarget]) -> [String: Set<String>] {
         var targetIDsByDeviceID: [String: Set<String>] = [:]
-        for target in targets { targetIDsByDeviceID[target.deviceID, default: []].insert(target.targetID) }
+        for target in targets where target.descriptor != nil { targetIDsByDeviceID[target.deviceID, default: []].insert(target.targetID) }
         return targetIDsByDeviceID
     }
 

@@ -63,6 +63,13 @@ Hide unproven features. Use `Contributor validated` with a credited source for c
 hardware, `Validated` only for maintainer/local hardware, and distinguish mapped/untested/unsupported.
 Use profile capabilities/shared semantic helpers rather than scattered raw-PID conditions.
 
+When changing an existing protocol or support path, enumerate the registered profiles and
+transports that use it. Route compatible devices through the shared implementation. Keep a
+device-specific exception when a capture or documented hardware difference warrants it.
+Exercise the shared behavior with catalog-driven tests, cover exceptions explicitly, and
+record which devices were physically checked. Classify each new profile’s battery in
+`DeviceProfileID.hasRechargeableBattery` so eligible devices inherit charging updates.
+
 ## 4. Record machine-checkable claims
 
 Add an entry to [device-validation.json](device-validation.json) for each newly validated transport.
