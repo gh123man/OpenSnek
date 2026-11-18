@@ -117,8 +117,8 @@ extension BridgeClient {
         passiveDpiTargetIDsByDeviceID = nextTargetIDsByDeviceID.filter { passiveDpiArmedDeviceIDs.contains($0.key) }
     }
 
-    func passiveDpiWatchTarget(for device: IOHIDDevice, deviceID: String, profile: DeviceProfile?, transport: DeviceTransportKind) -> PassiveDPIEventMonitor.WatchTarget? {
-        guard transport.supportsHIDBackedControls, let descriptor = profile?.passiveDPIInput else { return nil }
+    func passiveDpiWatchTarget(for device: IOHIDDevice, model: MouseDevice, profile: DeviceProfile?) -> PassiveDPIEventMonitor.WatchTarget? {
+        guard model.transport.supportsHIDBackedControls, let descriptor = profile?.passiveDPIInput else { return nil }
 
         let usagePage = USBHIDSupport.intProperty(device, key: kIOHIDPrimaryUsagePageKey as CFString) ?? -1
         let usage = USBHIDSupport.intProperty(device, key: kIOHIDPrimaryUsageKey as CFString) ?? -1
@@ -130,7 +130,7 @@ extension BridgeClient {
 
         let targetID = Self.passiveDpiTargetID(usagePage: usagePage, usage: usage, maxInput: maxInput, maxFeature: maxFeature)
 
-        return PassiveDPIEventMonitor.WatchTarget(deviceID: deviceID, targetID: targetID, device: device, deviceIdentityToken: USBHIDSupport.deviceIdentityToken(device), descriptor: descriptor)
+        return PassiveDPIEventMonitor.WatchTarget(deviceID: model.id, targetID: targetID, device: device, deviceIdentityToken: USBHIDSupport.deviceIdentityToken(device), descriptor: descriptor, supportsWirelessChargingReports: model.supportsWirelessChargingReports)
     }
 
     nonisolated static func shouldUseFastDPIPolling(device: MouseDevice, armedPassiveDpiDeviceIDs: Set<String>, observedPassiveDpiDeviceIDs: Set<String>) -> Bool {

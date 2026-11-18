@@ -66,7 +66,14 @@ actor SoftwareLightingEngine {
 
     private var tasksByDeviceKey: [String: Task<Void, Never>] = [:]
     private var desiredRequestByDeviceKey: [String: SoftwareLightingEffectRequest] = [:]
-    private var deviceByDeviceKey: [String: MouseDevice] = [:]
+    /// Tracks firmware ownership of the physical LEDs across a wireless charging cycle.
+    private enum ChargingOverride { case charging, restoreFrame }
+    /// A battery read may finish after a newer passive dock or lift event.
+    private struct ChargingObservation {
+        var frameOverride: ChargingOverride?
+        let observedAt: Date
+    }
+    private var chargingByDeviceKey: [String: ChargingObservation] = [:]
     private var deviceKeyByDeviceID: [String: String] = [:]
     private var deviceIDByDeviceKey: [String: String] = [:]
     private var statusByDeviceKey: [String: SoftwareLightingEngineStatus] = [:]
@@ -100,13 +107,13 @@ actor SoftwareLightingEngine {
         }
         guard generationByDeviceKey[deviceKey] == generation else { return supersededStatus(deviceID: device.id, deviceKey: deviceKey) }
         if let previousDeviceID = deviceIDByDeviceKey[deviceKey], previousDeviceID != device.id {
+            chargingByDeviceKey.removeValue(forKey: deviceKey)
             deviceKeyByDeviceID.removeValue(forKey: previousDeviceID)
             let stopped = SoftwareLightingEngineStatus(deviceID: previousDeviceID, state: .stopped, request: nil, message: nil)
             statusByDeviceID[previousDeviceID] = stopped
             statusUpdates.yield(stopped)
         }
         desiredRequestByDeviceKey[deviceKey] = request
-        deviceByDeviceKey[deviceKey] = device
         deviceKeyByDeviceID[device.id] = deviceKey
         deviceIDByDeviceKey[deviceKey] = device.id
 
@@ -128,7 +135,7 @@ actor SoftwareLightingEngine {
         guard generationByDeviceKey[deviceKey] == generation else { return supersededStatus(deviceID: deviceID, deviceKey: deviceKey) }
         let statusDeviceID = deviceIDByDeviceKey[deviceKey] ?? deviceID
         desiredRequestByDeviceKey.removeValue(forKey: deviceKey)
-        deviceByDeviceKey.removeValue(forKey: deviceKey)
+        chargingByDeviceKey.removeValue(forKey: deviceKey)
         statusByDeviceKey.removeValue(forKey: deviceKey)
         deviceIDByDeviceKey.removeValue(forKey: deviceKey)
         batteryPercentByDeviceKey.removeValue(forKey: deviceKey)
@@ -164,7 +171,7 @@ actor SoftwareLightingEngine {
             let aliasDeviceIDs = Set(deviceKeyByDeviceID.filter { $0.value == deviceKey }.map(\.key) + [statusDeviceID])
 
             desiredRequestByDeviceKey.removeValue(forKey: deviceKey)
-            deviceByDeviceKey.removeValue(forKey: deviceKey)
+            chargingByDeviceKey.removeValue(forKey: deviceKey)
             statusByDeviceKey.removeValue(forKey: deviceKey)
             deviceIDByDeviceKey.removeValue(forKey: deviceKey)
             batteryPercentByDeviceKey.removeValue(forKey: deviceKey)
@@ -188,7 +195,7 @@ actor SoftwareLightingEngine {
             await previousTask.value
         }
         guard generationByDeviceKey[deviceKey] == generation else { return supersededStatus(deviceID: deviceID, deviceKey: deviceKey) }
-        deviceByDeviceKey.removeValue(forKey: deviceKey)
+        chargingByDeviceKey.removeValue(forKey: deviceKey)
         tasksByDeviceKey.removeValue(forKey: deviceKey)
         let statusDeviceID = deviceIDByDeviceKey[deviceKey] ?? deviceID
         let status = SoftwareLightingEngineStatus(deviceID: statusDeviceID, state: .suspended, request: request, message: message)
@@ -211,6 +218,17 @@ actor SoftwareLightingEngine {
         return try await start(device: device, request: request, batteryPercent: batteryPercent)
     }
 
+    func updateWirelessCharging(device: MouseDevice, charging: Bool, observedAt: Date, fromInputReport: Bool) {
+        guard device.supportsWirelessChargingReports, let key = deviceKeyByDeviceID[device.id], deviceIDByDeviceKey[key] == device.id, statusByDeviceKey[key]?.state == .running else { return }
+        let previous = chargingByDeviceKey[key]
+        guard previous.map({ $0.observedAt <= observedAt }) ?? true else { return }
+        var frameOverride = previous?.frameOverride
+        if charging { frameOverride = .charging } else if fromInputReport || frameOverride == .charging { frameOverride = .restoreFrame }
+        chargingByDeviceKey[key] = ChargingObservation(frameOverride: frameOverride, observedAt: observedAt)
+        guard frameOverride != previous?.frameOverride else { return }
+        AppLog.debug("SoftwareLighting", "wireless charging device=\(device.id) charging=\(charging)")
+    }
+
     func updateBatteryPercent(deviceID: String, batteryPercent: Int?) {
         let deviceKey = deviceKeyByDeviceID[deviceID] ?? deviceID
         guard let batteryPercent else {
@@ -231,7 +249,7 @@ actor SoftwareLightingEngine {
         var consecutiveFailures = 0
         var lastWrittenFrame: USBLightingFramePatch?
 
-        if request.presetID == .batteryMeter {
+        if request.presetID == .batteryMeter, chargingByDeviceKey[deviceKey]?.frameOverride != .charging {
             let clearFrame = SoftwareLightingRenderer.render(request: request, layout: layout, elapsedTime: 0.0, batteryPercent: nil)
             do {
                 try await frameWriter.writeSoftwareLightingFrame(device: device, frame: clearFrame)
@@ -254,7 +272,11 @@ actor SoftwareLightingEngine {
             let frameStartedAt = Date()
             let elapsed = frameStartedAt.timeIntervalSince(startedAt)
             let frame = SoftwareLightingRenderer.render(request: request, layout: layout, elapsedTime: elapsed, batteryPercent: batteryPercentByDeviceKey[deviceKey])
-            guard frame != lastWrittenFrame else {
+            if chargingByDeviceKey[deviceKey]?.frameOverride == .restoreFrame {
+                lastWrittenFrame = nil
+                chargingByDeviceKey[deviceKey]?.frameOverride = nil
+            }
+            guard chargingByDeviceKey[deviceKey]?.frameOverride != .charging, frame != lastWrittenFrame else {
                 let elapsedThisFrame = Date().timeIntervalSince(frameStartedAt)
                 let sleepInterval = max(0.0, frameInterval - elapsedThisFrame)
                 do { try await Task.sleep(nanoseconds: UInt64(sleepInterval * 1_000_000_000)) } catch { return }
@@ -292,7 +314,7 @@ actor SoftwareLightingEngine {
     private func suspendCurrentRun(deviceID: String, deviceKey: String, generation: UInt64, request: SoftwareLightingEffectRequest, message: String) {
         guard isCurrent(deviceKey: deviceKey, generation: generation) else { return }
         tasksByDeviceKey.removeValue(forKey: deviceKey)?.cancel()
-        deviceByDeviceKey.removeValue(forKey: deviceKey)
+        chargingByDeviceKey.removeValue(forKey: deviceKey)
         let status = SoftwareLightingEngineStatus(deviceID: deviceID, state: .suspended, request: request, message: message)
         publish(status, deviceKey: deviceKey)
     }
@@ -301,7 +323,7 @@ actor SoftwareLightingEngine {
         guard isCurrent(deviceKey: deviceKey, generation: generation) else { return }
         tasksByDeviceKey.removeValue(forKey: deviceKey)?.cancel()
         desiredRequestByDeviceKey.removeValue(forKey: deviceKey)
-        deviceByDeviceKey.removeValue(forKey: deviceKey)
+        chargingByDeviceKey.removeValue(forKey: deviceKey)
         deviceIDByDeviceKey.removeValue(forKey: deviceKey)
         batteryPercentByDeviceKey.removeValue(forKey: deviceKey)
         removeAliases(for: deviceKey)

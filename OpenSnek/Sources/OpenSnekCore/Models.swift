@@ -151,6 +151,9 @@ public struct MouseDevice: Codable, Identifiable, Hashable, Sendable {
     }
 
     public var identity: DeviceIdentity { DeviceIdentity(vendorID: vendor_id, productID: product_id, locationID: location_id, transport: transport) }
+
+    /// The Basilisk V3 Pro receiver reports wireless charger transitions on its vendor input interface.
+    public var supportsWirelessChargingReports: Bool { transport == .usb && vendor_id == 0x1532 && product_id == 0x00AB }
 }
 
 /// Stores DPI pair data.

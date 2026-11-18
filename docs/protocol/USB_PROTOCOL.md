@@ -1083,6 +1083,16 @@ Shipped per-profile IDs (`DeviceProfile.usbTransactionID`): Mouse Dock Pro (`0x0
 
 ### Battery telemetry during software lighting
 
+The Basilisk V3 Pro receiver (`1532:00AB`) also emits a 16-byte input report
+on usage page `0x01`, usage `0x06`. The observed prefix was `05 0C 01` on
+docking and `05 0C 00` on lifting the mouse. Both reports had 13 trailing
+zero bytes. The charging register (`07:84`) agreed even at 100% battery.
+OpenSnek leaves the LEDs to the firmware while charging and sends the current
+software frame on lift, including when its colors match the last frame sent.
+This was verified on the receiver with Battery Meter at 100%. If the Mac
+misses the lift report during sleep, a fresh charging-register read after
+wake can clear a previously observed dock state and restore the frame.
+
 Software effects retain cached settings to avoid a full settings sweep competing with frame writes. Battery telemetry is read independently with serialized `07:80` and `07:84` commands every 30 seconds while a battery-capable USB device runs an effect. A USB availability transition or physical reconnect makes the next scheduled sample due immediately. Battery reads preserve the latest DPI and lighting state and publish the resulting battery state to service clients. Failed commands are not retried; a later scheduled sample or reconnect provides the next opportunity. Maintainer hardware validation of natural mouse sleep/wake with effects running remains pending.
 
 ### Razer Naga V3 Pro (0x00E7 wired, 0x00E8 receiver)

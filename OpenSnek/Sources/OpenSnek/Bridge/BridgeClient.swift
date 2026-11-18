@@ -96,6 +96,7 @@ actor BridgeClient {
     let passiveDpiEvents = BroadcastStream<PassiveDPIEvent>()
     let passiveDpiHeartbeatEvents = BroadcastStream<PassiveDPIHeartbeatEvent>()
     let passiveProfileSwitchEvents = BroadcastStream<PassiveProfileSwitchEvent>()
+    let wirelessChargingEvents = BroadcastStream<WirelessChargingEvent>()
     var passiveDpiArmedDeviceIDs: Set<String> = []
     var passiveDpiHeartbeatDeviceIDs: Set<String> = []
     var passiveDpiObservedDeviceIDs: Set<String> = []
@@ -133,6 +134,7 @@ actor BridgeClient {
         passiveDpiMonitor.onEvent = { [weak self] event in Task { await self?.handlePassiveDpiEvent(event) } }
         passiveDpiMonitor.onHeartbeat = { [weak self] event in Task { await self?.handlePassiveDpiHeartbeat(event) } }
         passiveDpiMonitor.onProfileSwitch = { [weak self] event in Task { await self?.handlePassiveProfileSwitch(event) } }
+        passiveDpiMonitor.onWirelessCharging = { [wirelessChargingEvents] event in wirelessChargingEvents.yield(event) }
         if startHIDMonitoring { hidDevicePresenceMonitor.start() }
     }
 
@@ -326,7 +328,7 @@ actor BridgeClient {
                 supports_advanced_lighting_effects: profile?.supportsAdvancedLightingEffects ?? false, onboard_profile_count: profile?.onboardProfileCount ?? 1)
             if modelsByID[id] == nil { modelsByID[id] = model }
 
-            if let passiveTarget = passiveDpiWatchTarget(for: device, deviceID: id, profile: profile, transport: transport) { passiveDpiTargets.append(passiveTarget) }
+            if let passiveTarget = passiveDpiWatchTarget(for: device, model: model, profile: profile) { passiveDpiTargets.append(passiveTarget) }
 
             let score = USBHIDSupport.handlePreferenceScore(device: device)
             sessionsByID[id, default: []].append((score: score, session: USBHIDControlSession(device: device, deviceID: id)))

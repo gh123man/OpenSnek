@@ -3,6 +3,12 @@ import OpenSnekCore
 
 /// Defines USB HID protocol values.
 public enum USBHIDProtocol {
+    /// Basilisk V3 Pro receiver input report 05 0c carries the wireless charger state.
+    public static func wirelessChargingState(report: [UInt8]) -> Bool? {
+        guard report.count == 16, report[0] == 0x05, report[1] == 0x0C, report[2] <= 1 else { return nil }
+        return report[2] == 1
+    }
+
     /// Stores onboard profile metadata.
     public struct OnboardProfileMetadata: Equatable, Sendable {
         public let identifier: UUID?

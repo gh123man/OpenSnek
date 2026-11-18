@@ -1,10 +1,64 @@
 import Foundation
 import XCTest
 import OpenSnekCore
+import OpenSnekProtocols
 @testable import OpenSnek
 
 /// Exercises software lighting engine behavior.
 final class SoftwareLightingEngineTests: XCTestCase {
+    func testUndockRestoresUnchangedBatteryMeterOnReceiver() async throws {
+        let writer = RecordingSoftwareLightingFrameWriter()
+        let engine = SoftwareLightingEngine(frameWriter: writer)
+        let device = makeSoftwareLightingTestDevice()
+        let request = SoftwareLightingEffectRequest(presetID: .batteryMeter, framesPerSecond: 30)
+        _ = try await engine.start(device: device, request: request, batteryPercent: 100)
+        try await waitUntil { await writer.frameCount() == 2 }
+        let initialFrame = await writer.recordedFrames().last
+
+        let padding = Array(repeating: UInt8(0), count: 13)
+        let docked = try XCTUnwrap(USBHIDProtocol.wirelessChargingState(report: [0x05, 0x0C, 0x01] + padding))
+        let undocked = try XCTUnwrap(USBHIDProtocol.wirelessChargingState(report: [0x05, 0x0C, 0x00] + padding))
+        XCTAssertNil(USBHIDProtocol.wirelessChargingState(report: [0x05, 0x31, 0x00] + padding))
+        XCTAssertNil(USBHIDProtocol.wirelessChargingState(report: [0x05, 0x0C, 0x02] + padding))
+        XCTAssertNil(USBHIDProtocol.wirelessChargingState(report: [0x05, 0x0C]))
+        let dockTime = Date()
+        await engine.updateWirelessCharging(device: device, charging: docked, observedAt: dockTime, fromInputReport: true)
+        await engine.updateWirelessCharging(device: device, charging: false, observedAt: dockTime.addingTimeInterval(-1), fromInputReport: false)
+        await engine.updateBatteryPercent(deviceID: device.id, batteryPercent: 25)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        let dockedCount = await writer.frameCount()
+        XCTAssertEqual(dockedCount, 2)
+        await engine.updateBatteryPercent(deviceID: device.id, batteryPercent: 100)
+        await engine.updateWirelessCharging(device: device, charging: undocked, observedAt: Date(), fromInputReport: true)
+        try await waitUntil { await writer.frameCount() == 3 }
+        let restored = await writer.recordedFrames().last
+        XCTAssertEqual(restored, initialFrame)
+        await engine.updateWirelessCharging(device: device, charging: false, observedAt: Date(), fromInputReport: false)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        let finalCount = await writer.frameCount()
+        XCTAssertEqual(finalCount, 3)
+        await engine.stop(deviceID: device.id)
+    }
+
+    func testBatterySamplesCanRestoreLightingAndUndockingKeepsStoppedEffectStopped() async throws {
+        let writer = RecordingSoftwareLightingFrameWriter()
+        let engine = SoftwareLightingEngine(frameWriter: writer)
+        let device = makeSoftwareLightingTestDevice()
+        _ = try await engine.start(device: device, request: SoftwareLightingEffectRequest(presetID: .batteryMeter, framesPerSecond: 30), batteryPercent: 100)
+        try await waitUntil { await writer.frameCount() == 2 }
+        await engine.updateWirelessCharging(device: device, charging: true, observedAt: Date(), fromInputReport: false)
+        await engine.updateWirelessCharging(device: device, charging: false, observedAt: Date(), fromInputReport: false)
+        try await waitUntil { await writer.frameCount() == 3 }
+
+        await engine.updateWirelessCharging(device: device, charging: true, observedAt: Date(), fromInputReport: true)
+        await engine.stop(deviceID: device.id)
+        await engine.updateWirelessCharging(device: device, charging: false, observedAt: Date(), fromInputReport: true)
+        let status = await engine.status(deviceID: device.id)
+        XCTAssertEqual(status?.state, .stopped)
+        let count = await writer.frameCount()
+        XCTAssertEqual(count, 3)
+    }
+
     func testStartWritesFramesAndPublishesRunningStatus() async throws {
         let writer = RecordingSoftwareLightingFrameWriter()
         let engine = SoftwareLightingEngine(frameWriter: writer, minimumFrameInterval: 0.005, failureLimit: 3)

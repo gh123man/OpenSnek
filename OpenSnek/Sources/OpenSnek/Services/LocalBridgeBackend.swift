@@ -55,6 +55,8 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
             let stream = await self.client.passiveProfileSwitchEventStream()
             for await event in stream { await self.handlePassiveProfileSwitch(event) }
         }
+        let chargingEvents = client.wirelessChargingEvents.makeStream()
+        Task { [weak self] in for await event in chargingEvents { await self?.handleWirelessCharging(event) } }
         Task { [weak self] in
             guard let self else { return }
             let stream = await self.client.devicePresenceEventStream()
@@ -123,6 +125,12 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         guard let battery, batteryConnectionGenerationByDeviceID[device.id, default: 0] == generation, let latest = cachedStateByDeviceID[device.id] else { return }
         // Preserve changes received while awaiting the battery read, especially live DPI.
         storeReadState(battery.applying(to: latest), deviceID: device.id)
+        if device.supportsWirelessChargingReports, let charging = battery.charging { await softwareLightingEngine.updateWirelessCharging(device: device, charging: charging, observedAt: now, fromInputReport: false) }
+    }
+
+    private func handleWirelessCharging(_ event: WirelessChargingEvent) async {
+        guard let device = cachedDevices.first(where: { $0.id == event.deviceID }) else { return }
+        await softwareLightingEngine.updateWirelessCharging(device: device, charging: event.charging, observedAt: event.observedAt, fromInputReport: true)
     }
 
     private func reusableCachedReadState(device: MouseDevice, readStartedAt: Date, shouldUseFastPolling: Bool) -> MouseState? {

@@ -1,6 +1,7 @@
 @preconcurrency import Foundation
 import IOKit.hid
 import OpenSnekCore
+import OpenSnekProtocols
 
 /// Stores passive DPI reading data.
 public struct PassiveDPIReading: Hashable, Codable, Sendable {
@@ -48,6 +49,13 @@ public struct PassiveProfileSwitchEvent: Sendable {
         self.deviceID = deviceID
         self.observedAt = observedAt
     }
+}
+
+/// Identifies a USB receiver charging transition and when the input report arrived.
+public struct WirelessChargingEvent: Sendable {
+    public let deviceID: String
+    public let charging: Bool
+    public let observedAt: Date
 }
 
 /// Defines passive DPI input classification values.
@@ -125,7 +133,10 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         public let deviceIdentityToken: String
         public let descriptor: PassiveDPIInputDescriptor
 
-        public init(deviceID: String, targetID: String, device: IOHIDDevice, deviceIdentityToken: String, descriptor: PassiveDPIInputDescriptor) {
+        let supportsWirelessChargingReports: Bool
+
+        public init(deviceID: String, targetID: String, device: IOHIDDevice, deviceIdentityToken: String, descriptor: PassiveDPIInputDescriptor, supportsWirelessChargingReports: Bool = false) {
+            self.supportsWirelessChargingReports = supportsWirelessChargingReports
             self.deviceID = deviceID
             self.targetID = targetID
             self.device = device
@@ -142,6 +153,7 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         let emitHeartbeat: @Sendable (PassiveDPIHeartbeatEvent) -> Void
         let emitProfileSwitch: @Sendable (PassiveProfileSwitchEvent) -> Void
         var lastProfileSwitchPreludeAt: Date?
+        var emitWirelessCharging: (@Sendable (WirelessChargingEvent) -> Void)?
 
         init(deviceID: String, descriptor: PassiveDPIInputDescriptor, emit: @escaping @Sendable (PassiveDPIEvent) -> Void, emitHeartbeat: @escaping @Sendable (PassiveDPIHeartbeatEvent) -> Void, emitProfileSwitch: @escaping @Sendable (PassiveProfileSwitchEvent) -> Void) {
             self.deviceID = deviceID
@@ -187,6 +199,7 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
     public var onEvent: (@Sendable (PassiveDPIEvent) -> Void)?
     public var onHeartbeat: (@Sendable (PassiveDPIHeartbeatEvent) -> Void)?
     public var onProfileSwitch: (@Sendable (PassiveProfileSwitchEvent) -> Void)?
+    public var onWirelessCharging: (@Sendable (WirelessChargingEvent) -> Void)?
     private static let profileSwitchPreludeWindow: TimeInterval = 0.5
     private let queue = DispatchQueue(label: "open.snek.hid.passive-dpi")
     private let runLoopStateLock = NSLock()
@@ -300,6 +313,7 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         } emitProfileSwitch: { [weak self] event in
             self?.onProfileSwitch?(event)
         }
+        if target.supportsWirelessChargingReports { contextBox.emitWirelessCharging = onWirelessCharging }
         let context = UnsafeMutableRawPointer(Unmanaged.passRetained(contextBox).toOpaque())
 
         IOHIDDeviceScheduleWithRunLoop(registrationDevice, CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
@@ -327,6 +341,7 @@ public final class PassiveDPIEventMonitor: @unchecked Sendable {
         let callbackContext = Unmanaged<CallbackContext>.fromOpaque(context).takeUnretainedValue()
         let bytes = Array(UnsafeBufferPointer(start: report, count: max(0, reportLength)))
         let observedAt = Date()
+        if let emit = callbackContext.emitWirelessCharging, let charging = USBHIDProtocol.wirelessChargingState(report: bytes) { emit(WirelessChargingEvent(deviceID: callbackContext.deviceID, charging: charging, observedAt: observedAt)) }
         if PassiveDPIParser.matchesProfileSwitchPrelude(report: bytes, descriptor: callbackContext.descriptor) {
             callbackContext.lastProfileSwitchPreludeAt = observedAt
             return
