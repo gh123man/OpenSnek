@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- Closing the main window keeps the editor ready while the menu bar service is running. Reopening it restores the live settings immediately. The first launch from the menu bar also uses the service’s selected device and settings. On mice with onboard profiles, the service prepares the active profile and button mappings while the window is closed.
 - Advanced lighting resumes when the Basilisk V3 Pro is lifted from a wireless charger while connected through its USB receiver, including when Battery Meter shows the same percentage as before charging.
 - OpenSnek waits for macOS to register the Basilisk V3 Pro as a Bluetooth mouse before opening its vendor controls during pairing or reconnection.
 - Binding a modifier key on its own (Ctrl, Shift, Option or Command, left or right) to a mouse button now writes it as a modifier, so holding the button acts as a held modifier on macOS. Previously the bare key usage was written, which the mouse reported only as an ordinary key that macOS ignored as a modifier. Validated on the Naga V3 Pro over Bluetooth with Left Option, Left Shift and Right Shift; other devices and USB use the same function block but are not hardware-checked for this change.

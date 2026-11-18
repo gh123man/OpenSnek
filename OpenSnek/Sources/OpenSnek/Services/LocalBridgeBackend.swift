@@ -11,6 +11,8 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     private static let softwareLightingUSBHeartbeatInterval: TimeInterval = 2.0
 
     private let client = BridgeClient()
+    private var launchProfile = ServiceProfilePreparation()
+    private var profileMutationCount = 0
     private let softwareLightingEngine: SoftwareLightingEngine
     private let softwareLightingBatterySampler = SoftwareLightingBatterySampler()
     private var batteryConnectionGenerationByDeviceID: [String: UInt64] = [:]
@@ -280,7 +282,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         defer { activeApplyCount -= 1 }
 
         let state: MouseState
-        do { state = try await client.apply(device: device, patch: patch, options: options) } catch {
+        do { state = try await withProfileMutation(device) { try await client.apply(device: device, patch: patch, options: options) } } catch {
             #if DEBUG
                 OpenSnekUITestSupport.recordApplyError(
                     UITestApplyEvent(device: device, patch: patch, state: nil, activeApplyCount: activeApplyCount, maxConcurrentApplyCount: maxConcurrentApplyCount, elapsed: Date().timeIntervalSince(startedAt), readbackPolicy: options.readbackPolicy.rawValue, error: error))
@@ -325,19 +327,19 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     func readOnboardProfileButtonBindings(device: MouseDevice, profileID: Int) async throws -> [Int: ButtonBindingDraft] { try await client.readOnboardProfileButtonBindings(device: device, profileID: profileID) }
 
     func createOnboardProfile(device: MouseDevice, mutation: OnboardProfileMutation, targetProfileID: Int?, replaceAssignedProfile: Bool) async throws -> OnboardProfileSnapshot {
-        try await client.createOnboardProfile(device: device, mutation: mutation, targetProfileID: targetProfileID, replaceAssignedProfile: replaceAssignedProfile)
+        return try await withProfileMutation(device) { try await client.createOnboardProfile(device: device, mutation: mutation, targetProfileID: targetProfileID, replaceAssignedProfile: replaceAssignedProfile) }
     }
 
-    func renameOnboardProfile(device: MouseDevice, profileID: Int, name: String) async throws -> OnboardProfileSnapshot { try await client.renameOnboardProfile(device: device, profileID: profileID, name: name) }
+    func renameOnboardProfile(device: MouseDevice, profileID: Int, name: String) async throws -> OnboardProfileSnapshot { return try await withProfileMutation(device) { try await client.renameOnboardProfile(device: device, profileID: profileID, name: name) } }
 
-    func updateOnboardProfile(device: MouseDevice, profileID: Int, mutation: OnboardProfileMutation) async throws -> OnboardProfileSnapshot { try await client.updateOnboardProfile(device: device, profileID: profileID, mutation: mutation) }
+    func updateOnboardProfile(device: MouseDevice, profileID: Int, mutation: OnboardProfileMutation) async throws -> OnboardProfileSnapshot { return try await withProfileMutation(device) { try await client.updateOnboardProfile(device: device, profileID: profileID, mutation: mutation) } }
 
     func projectOnboardProfileDPIToActiveLayer(device: MouseDevice, profileID: Int, dpi: OnboardDPIProfileSnapshot) async throws -> Bool { try await client.projectOnboardProfileDPIToActiveLayer(device: device, profileID: profileID, dpi: dpi) }
 
-    func deleteOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileInventory { try await client.deleteOnboardProfile(device: device, profileID: profileID) }
+    func deleteOnboardProfile(device: MouseDevice, profileID: Int) async throws -> OnboardProfileInventory { return try await withProfileMutation(device) { try await client.deleteOnboardProfile(device: device, profileID: profileID) } }
 
     func activateOnboardProfile(device: MouseDevice, profileID: Int) async throws -> MouseState {
-        let state = try await client.activateOnboardProfile(device: device, profileID: profileID)
+        let state = try await withProfileMutation(device) { try await client.activateOnboardProfile(device: device, profileID: profileID) }
         let merged = cacheAndPublishState(state, for: device.id, updatedAt: Date())
         return merged
     }
@@ -428,6 +430,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     func debugUSBReadButtonBinding(device: MouseDevice, slot: Int, profile: Int) async throws -> [UInt8]? { try await client.debugUSBReadButtonBinding(device: device, slot: slot, profile: profile) }
 
     private func handleDevicePresenceEvent(_ event: HIDDevicePresenceEvent) {
+        launchProfile.invalidate(deviceID: event.deviceID)
         if event.transport == .usb {
             if event.change == .connected {
                 pendingUSBDisconnectRefreshTasks.removeValue(forKey: event.deviceID)?.cancel()
@@ -594,6 +597,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     }
 
     private func handlePassiveProfileSwitch(_ event: PassiveProfileSwitchEvent) async {
+        launchProfile.invalidate(deviceID: event.deviceID)
         guard let device = cachedDevices.first(where: { $0.id == event.deviceID }) else { return }
         do {
             AppLog.warning("DPITrace", "backend passiveProfileSwitch refresh start device=\(event.deviceID)")
@@ -772,6 +776,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
             if publishSnapshot { publishSnapshotIfService() }
             return
         }
+        launchProfile.invalidate(deviceID: deviceID)
         usbControlAvailabilityByDeviceID[deviceID] = availability
         batteryConnectionGenerationByDeviceID[deviceID, default: 0] &+= 1
         AppLog.debug("Backend", "usbControlAvailability device=\(deviceID) availability=\(availability.rawValue)")
@@ -856,6 +861,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     private func purgeCaches(forRemovedDeviceIDs removedDeviceIDs: Set<String>) {
         guard !removedDeviceIDs.isEmpty else { return }
         for deviceID in removedDeviceIDs {
+            launchProfile.invalidate(deviceID: deviceID)
             batteryConnectionGenerationByDeviceID[deviceID, default: 0] &+= 1
             cachedStateByDeviceID.removeValue(forKey: deviceID)
             cachedStateAtByDeviceID.removeValue(forKey: deviceID)
@@ -874,6 +880,35 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         Task { [softwareLightingEngine] in for input in recoveryInputs { _ = try? await softwareLightingEngine.resumeIfNeeded(device: input.device, batteryPercent: input.batteryPercent) } }
     }
 
+    private func withProfileMutation<T: Sendable>(_ device: MouseDevice, operation: () async throws -> T) async rethrows -> T {
+        launchProfile.invalidate(deviceID: device.id)
+        profileMutationCount += 1
+        defer { profileMutationCount -= 1 }
+        return try await operation()
+    }
+
+    func clearLaunchProfile() { launchProfile = ServiceProfilePreparation() }
+
+    func prepareLaunchProfile(device: MouseDevice, profileID: Int, retryFailed: Bool = false) {
+        guard profileMutationCount == 0, let token = launchProfile.begin(device: device, profileID: profileID, retryFailed: retryFailed) else { return }
+        Task { [client] in
+            defer { launchProfile.end(token: token) }
+            do {
+                let inventory = try await client.listOnboardProfiles(device: device)
+                guard inventory.activeProfileID == profileID, launchProfile.token == token else { return }
+                let profile = try await client.readOnboardProfile(device: device, profileID: profileID)
+                guard launchProfile.token == token else { return }
+                let named = await inventory.fillingMissingNames { slot in
+                    if slot == profileID { return profile.metadata }
+                    return try await client.readOnboardProfileMetadata(device: device, profileID: slot)
+                }
+                launchProfile.finish(token: token, inventory: named, profile: profile)
+            } catch { AppLog.debug("Service", "Launch profile unavailable device=\(device.id) error=\(error.localizedDescription)") }
+        }
+    }
+
+    func preparedLaunchProfile() -> ServiceProfilePreparation { launchProfile }
+
     func updateServiceSelectedDeviceID(_ deviceID: String?, acknowledgedSelections: [Int32: UUID]) async {
         guard OpenSnekProcessRole.current.isService else { return }
         guard serviceSelectedDeviceID != deviceID || self.acknowledgedSelections != acknowledgedSelections else { return }
@@ -882,7 +917,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         publishSnapshotIfService()
     }
 
-    private func publishSnapshotIfService() {
+    func publishSnapshotIfService() {
         guard OpenSnekProcessRole.current.isService else { return }
         let liveIDs = Set(cachedDevices.map(\.id))
         publishStateUpdate(

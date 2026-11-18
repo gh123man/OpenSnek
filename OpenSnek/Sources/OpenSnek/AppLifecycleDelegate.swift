@@ -2,6 +2,8 @@ import AppKit
 
 /// Coordinates app lifecycle delegate behavior.
 @MainActor final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
+    weak var runtimeController: AppStateRuntimeController?
+
     /// Defines reopen behavior values.
     enum ReopenBehavior: Equatable {
         case launchFullApp
@@ -66,10 +68,11 @@ import AppKit
     func applicationDidBecomeActive(_ notification: Notification) { if OpenSnekProcessRole.current.isService { NSApp.setActivationPolicy(.accessory) } }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if runtimeController?.reopenEditorIfClosed() == true { return false }
         switch Self.reopenBehavior(launchRole: OpenSnekProcessRole.current, hasVisibleWindows: flag) {
         case .launchFullApp:
             sender.setActivationPolicy(.accessory)
-            BackgroundServiceCoordinator.shared.launchFullAppProcess()
+            Task { await BackgroundServiceCoordinator.shared.launchFullAppProcess() }
             return false
         case .reopenWindows:
             sender.windows.forEach {
@@ -81,7 +84,7 @@ import AppKit
         }
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { !OpenSnekProcessRole.current.isService }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { !OpenSnekProcessRole.current.isService && runtimeController?.keepEditorForReopen() != true }
 
     func applicationWillTerminate(_ notification: Notification) { BackgroundServiceCoordinator.shared.stopCurrentServiceHostIfNeeded() }
 }

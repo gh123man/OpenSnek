@@ -221,7 +221,7 @@ struct DeviceOverviewBar: View {
             Rectangle().fill(Color.white.opacity(0.14)).frame(height: 1)
         }.task(id: selected.id) {
             guard !isDocumentationPreview, editorStore.supportsProfilePicker else { return }
-            await editorStore.refreshOnboardProfiles()
+            await editorStore.prepareProfilePickerForDisplay()
         }.onChange(of: selected.id) { _, _ in isProfilePickerPresented = false }.zIndex(6)
     }
 

@@ -7,7 +7,9 @@ struct WindowChromeConfigurator: NSViewRepresentable {
     nonisolated static let mainWindowFrameAutosaveName = "OpenSnekMainWindow"
     nonisolated static let framePersistenceKeyPrefix = "windowFrame."
 
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    var keepWindowForReopen: (@MainActor (NSWindow) -> Bool)?
+
+    func makeCoordinator() -> Coordinator { Coordinator(keepWindowForReopen: keepWindowForReopen) }
 
     func makeNSView(context: Context) -> TrackingView {
         let view = TrackingView(frame: .zero)
@@ -94,9 +96,33 @@ struct WindowChromeConfigurator: NSViewRepresentable {
 
     nonisolated static func currentVisibleScreenFrames() -> [NSRect] { NSScreen.screens.map(\.visibleFrame) }
 
-    /// Coordinates coordinator behavior.
+    /// Keep SwiftUI's delegate in charge of all window behavior except closing the last live editor.
+    nonisolated final class CloseDelegate: NSObject, NSWindowDelegate {
+        weak var original: (any NSWindowDelegate)?
+        let keepWindow: @MainActor (NSWindow) -> Bool
+
+        init(original: (any NSWindowDelegate)?, keepWindow: @escaping @MainActor (NSWindow) -> Bool) {
+            self.original = original
+            self.keepWindow = keepWindow
+        }
+
+        @MainActor func windowShouldClose(_ sender: NSWindow) -> Bool {
+            guard original?.windowShouldClose?(sender) != false else { return false }
+            return !keepWindow(sender)
+        }
+
+        override nonisolated func responds(to selector: Selector!) -> Bool { super.responds(to: selector) || original?.responds(to: selector) == true }
+
+        override nonisolated func forwardingTarget(for selector: Selector!) -> Any? { original }
+    }
+
+    /// Coordinates window chrome and frame persistence.
     final class Coordinator: @unchecked Sendable {
+        private let keepWindowForReopen: (@MainActor (NSWindow) -> Bool)?
+        private var closeDelegate: CloseDelegate?
         private weak var window: NSWindow?
+
+        init(keepWindowForReopen: (@MainActor (NSWindow) -> Bool)? = nil) { self.keepWindowForReopen = keepWindowForReopen }
         private var observerTokens: [NSObjectProtocol] = []
         private var hasShownWindow = false
         private var lastStableFrame: NSRect?
@@ -108,6 +134,11 @@ struct WindowChromeConfigurator: NSViewRepresentable {
 
             detach()
             self.window = window
+            if let keepWindowForReopen {
+                let delegate = CloseDelegate(original: window.delegate, keepWindow: keepWindowForReopen)
+                closeDelegate = delegate
+                window.delegate = delegate
+            }
             hasShownWindow = window.isVisible
             lastStableFrame = nil
             MainActor.assumeIsolated { WindowChromeConfigurator.configure(window) }
@@ -129,6 +160,8 @@ struct WindowChromeConfigurator: NSViewRepresentable {
         }
 
         @MainActor func detach() {
+            if let closeDelegate, window?.delegate === closeDelegate { window?.delegate = closeDelegate.original }
+            closeDelegate = nil
             observerTokens.forEach(NotificationCenter.default.removeObserver)
             observerTokens.removeAll()
             hasShownWindow = false

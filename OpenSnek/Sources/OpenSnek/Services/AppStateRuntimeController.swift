@@ -19,6 +19,10 @@ import OpenSnekCore
     @WeakBound("AppStateRuntimeController", dependency: "deviceController") private var deviceController: AppStateDeviceController
 
     private var runtimeTask: Task<Void, Never>?
+    var openEditorWindow: (() -> Void)?
+    private var canReopenViaService = false
+    private weak var retainedEditorWindow: NSWindow?
+    private var editorWindowClosed = false
     private var didStartRuntime = false
     private var compactMenuPresented = false
     private var compactInteractionUntil: Date?
@@ -324,13 +328,18 @@ import OpenSnekCore
     func restartBackendStateUpdates() async {
         guard !isTearingDown else { return }
         backendStateUpdatesTask?.cancel()
-        let stream = await environment.backend.stateUpdates()
+        let backend = environment.backend
+        let stream = await backend.stateUpdates()
+        canReopenViaService = await (backend as? IPCDeviceBackend)?.supportsWindowReopen == true
         backendStateUpdatesTask = Task { [weak self] in
             for await update in stream {
                 guard !Task.isCancelled else { break }
                 guard let self, !self.isTearingDown else { break }
                 await self.handleBackendStateUpdate(update)
             }
+            guard !Task.isCancelled, let self, environment.backend === backend else { return }
+            canReopenViaService = false
+            if editorWindowClosed { NSApp.terminate(nil) }
         }
     }
 
@@ -356,8 +365,11 @@ import OpenSnekCore
         case .softwareLightingStatus(let deviceID, let status, let updatedAt): deviceController.applyBackendSoftwareLightingStatusUpdate(deviceID: deviceID, status: status, updatedAt: updatedAt)
         case .usbControlAvailability(let deviceID, let availability, let updatedAt): deviceController.applyBackendUSBControlAvailabilityUpdate(deviceID: deviceID, availability: availability, updatedAt: updatedAt)
         case .deviceState(let deviceID, let updatedState, let updatedAt): deviceController.applyBackendDeviceStateUpdate(deviceID: deviceID, state: updatedState, updatedAt: updatedAt)
+        case .openMainWindowRequested: _ = reopenEditorIfClosed()
         case .openSettingsRequested:
             guard environment.usesRemoteServiceTransport else { return }
+            if editorWindowClosed, retainedEditorWindow == nil { runtimeStore.openSettingsOnWindowAppearance = true }
+            _ = reopenEditorIfClosed()
             runtimeStore.openSettingsRequestCount &+= 1
         }
     }
@@ -399,11 +411,19 @@ import OpenSnekCore
         if shouldSynchronizeLaunchAgent { do { try environment.serviceCoordinator.synchronizeLaunchAgentIfNeeded() } catch { AppLog.warning("Service", "launch agent sync failed: \(error.localizedDescription)") } }
 
         if environment.launchRole.isService {
+            environment.serviceCoordinator.launchPresentationProvider = { [weak self] in
+                guard let self, powerState == .active else { return nil }
+                let prepared = await (environment.backend as? LocalBridgeBackend)?.preparedLaunchProfile() ?? ServiceProfilePreparation()
+                return deviceController.makeLaunchPresentation(prepared: prepared, hidAccess: runtimeStore.hidAccessStatus)
+            }
             do {
                 try await environment.serviceCoordinator.registerServiceHostIfNeeded(
                     backend: LocalBridgeBackend.shared, remoteClientPresenceHandler: { [weak self] presence in await MainActor.run { self?.recordRemoteClientPresence(presence) } },
                     remoteClientDisconnectHandler: { [weak self] processID in await MainActor.run { self?.clearRemoteClientPresence(processID: processID) } })
             } catch { runtimeStore.serviceStatusMessage = "Service host failed: \(error.localizedDescription)" }
+            isBackendReady = true
+        } else if let backend = environment.backend as? IPCDeviceBackend, await backend.ping() {
+            // The menu handoff already attached the live subscription before the window appeared.
             isBackendReady = true
         } else {
             await configureBackendForCurrentPreferences()
@@ -419,6 +439,11 @@ import OpenSnekCore
         }
         if !environment.launchRole.isService { await checkForUpdates(now: Date()) }
 
+        startRuntimePolling()
+    }
+
+    private func startRuntimePolling() {
+        guard !editorWindowClosed, runtimeTask == nil else { return }
         runtimeTask = Task { [weak self] in
             while let self, !Task.isCancelled {
                 await self.pollRuntimeOnce()
@@ -434,7 +459,10 @@ import OpenSnekCore
         compactMenuPresented = isPresented
         if isPresented {
             compactInteractionUntil = Date().addingTimeInterval(3.0)
-            if presentationChanged { requestImmediateRuntimePoll(resetPollingDeadlines: true) }
+            if presentationChanged {
+                requestImmediateRuntimePoll(resetPollingDeadlines: true)
+                Task { await prepareMenuLaunchProfile(retryFailed: true) }
+            }
         }
     }
 
@@ -496,14 +524,56 @@ import OpenSnekCore
         }
     }
 
-    func openFullAppFromService() { environment.serviceCoordinator.launchFullAppProcess() }
+    private func prepareMenuLaunchProfile(retryFailed: Bool = false) async {
+        guard environment.launchRole.isService, powerState == .active, !hasActiveRemoteClients(at: Date()), let backend = environment.backend as? LocalBridgeBackend, let device = deviceStore.selectedDevice, deviceController.connectionState(for: device) == .connected,
+            deviceController.editorController.supportsOnboardProfileCRUD(device: device), let active = deviceStore.state?.active_onboard_profile
+        else { return }
+        await backend.prepareLaunchProfile(device: device, profileID: active, retryFailed: retryFailed)
+    }
+
+    func keepLastWindowForReopen(_ window: NSWindow) -> Bool {
+        guard !NSApp.windows.contains(where: { $0 !== window && $0.canBecomeMain && ($0.isVisible || $0.isMiniaturized) }), keepEditorForReopen() else { return false }
+        retainedEditorWindow = window
+        return true
+    }
+
+    func keepEditorForReopen() -> Bool {
+        guard canReopenViaService, openEditorWindow != nil, environment.usesRemoteServiceTransport, runtimeStore.backgroundServiceEnabled, !isInstallingUpdate else { return false }
+        editorWindowClosed = true
+        runtimeTask?.cancel()
+        runtimeTask = nil
+        AppLog.debug("App", "Closed editor window, keeping live service subscription")
+        NSApp.hide(nil)
+        NSApp.setActivationPolicy(.accessory)
+        return true
+    }
+
+    @discardableResult func reopenEditorIfClosed() -> Bool {
+        guard editorWindowClosed, let openEditorWindow else { return false }
+        editorWindowClosed = false
+        AppLog.debug("App", "Reopening resident editor window")
+        startRuntimePolling()
+        NSApp.setActivationPolicy(.regular)
+        NSApp.unhide(nil)
+        if let window = retainedEditorWindow {
+            window.makeKeyAndOrderFront(nil)
+            retainedEditorWindow = nil
+        } else {
+            openEditorWindow()
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        sendRemoteClientPresence()
+        return true
+    }
+
+    func openFullAppFromService() async { await environment.serviceCoordinator.launchFullAppProcess() }
 
     func openSettingsFromService() async {
         if environment.launchRole.isService, await environment.serviceCoordinator.requestOpenSettingsForConnectedClients() {
-            environment.serviceCoordinator.launchFullAppProcess()
+            await environment.serviceCoordinator.launchFullAppProcess()
             return
         }
-        environment.serviceCoordinator.launchFullAppProcess(arguments: ["--open-settings"])
+        await environment.serviceCoordinator.launchFullAppProcess(arguments: ["--open-settings"])
     }
 
     func prepareForCurrentServiceProcessTermination() { environment.serviceCoordinator.stopCurrentServiceHostIfNeeded() }
@@ -519,7 +589,7 @@ import OpenSnekCore
     }
 
     func sendRemoteClientPresence(explicit: Bool = false) {
-        guard environment.usesRemoteServiceTransport else { return }
+        guard environment.usesRemoteServiceTransport, !editorWindowClosed else { return }
         lastRemoteClientPresencePingAt = Date()
         let presence = remoteClientPresence(explicit: explicit)
         Task { await environment.backend.updateRemoteClientPresence(presence) }
@@ -528,6 +598,7 @@ import OpenSnekCore
     func handleSystemWillSleep(now: Date = Date()) {
         guard powerState != .sleeping else { return }
         powerState = .sleeping
+        if environment.launchRole.isService, let backend = environment.backend as? LocalBridgeBackend { Task { await backend.clearLaunchProfile() } }
         compactMenuPresented = false
         compactInteractionUntil = nil
         remoteClientPresenceByProcessID.removeAll()
@@ -654,7 +725,7 @@ import OpenSnekCore
     func pollRuntimeOnce(now: Date = Date()) async {
         guard !isInstallingUpdate else { return }
         guard !isTearingDown else { return }
-        guard powerState == .active else { return }
+        guard powerState == .active, !editorWindowClosed else { return }
         let profile = pollingProfile(at: now)
         let effectiveDevicePresenceInterval = effectiveDevicePresenceInterval(at: now, profile: profile)
         let effectiveRefreshStateInterval = effectiveRefreshStateInterval(at: now, profile: profile)
@@ -701,6 +772,7 @@ import OpenSnekCore
             }
         }
 
+        await prepareMenuLaunchProfile()
         clearTransientStatusIfExpired(now: now)
     }
 

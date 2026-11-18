@@ -172,6 +172,38 @@ final class BackgroundServiceTransportTests: XCTestCase {
         }
     }
 
+    @MainActor func testClientLeavesPartialHostRegistrationIntact() async throws {
+        let suite = "BackgroundServiceTransportTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(61333, forKey: BackgroundServiceCoordinator.portDefaultsKey)
+        let coordinator = BackgroundServiceCoordinator(defaults: defaults)
+        let backend = try await coordinator.connectToRunningService()
+        XCTAssertNil(backend)
+        XCTAssertEqual(defaults.integer(forKey: BackgroundServiceCoordinator.portDefaultsKey), 61333)
+    }
+
+    func testHostNegotiatesAndDeliversWindowReopenOverTCPStream() async throws {
+        let suiteName = "BackgroundServiceTransportTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let recorder = RemotePresenceRecorder()
+        let host = try BackgroundServiceHost(backend: StubServiceBackend(), defaults: defaults, remoteClientPresenceHandler: { presence in await recorder.record(presence) })
+        try await host.start()
+        defer { host.stop() }
+        let coordinator = await MainActor.run { BackgroundServiceCoordinator(defaults: UserDefaults(suiteName: suiteName)!) }
+        let connected = try await coordinator.connectToRunningService()
+        let backend = try XCTUnwrap(connected)
+        let stream = await backend.stateUpdates()
+        let supported = await backend.supportsWindowReopen
+        XCTAssertTrue(supported)
+        try await waitUntil { await recorder.hasPresence(for: Int32(ProcessInfo.processInfo.processIdentifier)) }
+        let delivered = await host.requestOpenMainWindow()
+        XCTAssertTrue(delivered)
+        guard delivered else { return }
+        guard case .openMainWindowRequested = await Self.firstUpdate(from: stream) else { return XCTFail("Expected a main window reopen request") }
+    }
+
     func testRemoteHIDAccessStatusCanReuseServiceHIDManager() async throws {
         let suiteName = "BackgroundServiceTransportTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

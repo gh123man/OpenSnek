@@ -80,6 +80,7 @@ struct OnboardProfileDPIProjectionRequest: Codable, Sendable {
 
 /// Carries stream subscription request data.
 struct StreamSubscriptionRequest: Codable, Sendable {
+    var supportsWindowReopen: Bool?
     let sourceProcessID: Int32
     let selectedDeviceID: String?
 }
@@ -96,6 +97,7 @@ struct BackgroundServiceStreamClientEnvelope: Codable, Sendable {
 /// Defines background service stream server event values.
 enum BackgroundServiceStreamServerEvent: String, Codable, Sendable {
     case stateUpdate
+    case openMainWindowRequested
     case openSettingsRequested
 }
 
@@ -155,6 +157,7 @@ struct BackgroundServiceRequestEnvelope: Codable, Sendable {
 
 /// Wraps background service response payload data.
 struct BackgroundServiceResponseEnvelope: Codable, Sendable {
+    var supportsWindowReopen: Bool?
     let payload: Data?
     let error: String?
 }

@@ -292,6 +292,7 @@ enum BackendStateUpdate: Codable, Sendable {
     case softwareLightingStatus(deviceID: String, status: SoftwareLightingEngineStatus?, updatedAt: Date)
     case usbControlAvailability(deviceID: String, availability: USBControlAvailability, updatedAt: Date)
     case snapshot(SharedServiceSnapshot)
+    case openMainWindowRequested
     case openSettingsRequested
 }
 
