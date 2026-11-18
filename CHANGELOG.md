@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [1.5.0-rc.3]
 
 ### Fixed
 - Closing the main window keeps the editor ready while the menu bar service is running. Reopening it restores the live settings immediately. The first launch from the menu bar also uses the service’s selected device and settings. On mice with onboard profiles, the service prepares the active profile and button mappings while the window is closed.
