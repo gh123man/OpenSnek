@@ -16,6 +16,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     private let softwareLightingEngine: SoftwareLightingEngine
     private let softwareLightingBatterySampler = SoftwareLightingBatterySampler()
     private var batteryConnectionGenerationByDeviceID: [String: UInt64] = [:]
+    private var batteryRuntimeEstimator = BatteryRuntimeEstimator()
     private var lastChargingReportByDeviceID: [String: PassiveChargingEvent] = [:]
     private var cachedDevices: [MouseDevice] = []
     private var cachedDevicesAt: Date?
@@ -104,9 +105,16 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         if let cached = try await softwareLightingCachedReadState(device: device, cachedState: cachedStateBeforeRead, readStartedAt: readStartedAt) { return cached }
         let shouldUseFastPolling = device.transport == .bluetooth ? await client.shouldUseFastDPIPolling(device: device) : true
         if let cached = reusableCachedReadState(device: device, readStartedAt: readStartedAt, shouldUseFastPolling: shouldUseFastPolling) { return cached }
+        let generation = batteryConnectionGenerationByDeviceID[device.id, default: 0]
         let read = try await freshReadState(device: device)
         let state = Self.preservingNewerChargingReport(in: read, readStartedAt: readStartedAt, report: lastChargingReportByDeviceID[device.id])
+        if generation == batteryConnectionGenerationByDeviceID[device.id, default: 0] { observeBattery(device, state: state, readStartedAt: readStartedAt) }
         return finalizeReadState(device: device, state: state, cachedStateBeforeRead: cachedStateBeforeRead, readStartedAt: readStartedAt, shouldUseFastPolling: shouldUseFastPolling)
+    }
+
+    private func observeBattery(_ device: MouseDevice, state: MouseState, readStartedAt: Date) {
+        if let report = lastChargingReportByDeviceID[device.id], report.observedAt > readStartedAt { return }
+        batteryRuntimeEstimator.observe(device, percent: state.battery_percent, charging: state.charging, at: readStartedAt)
     }
 
     private func softwareLightingCachedReadState(device: MouseDevice, cachedState: MouseState?, readStartedAt: Date) async throws -> MouseState? {
@@ -129,6 +137,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         guard let battery, batteryConnectionGenerationByDeviceID[device.id, default: 0] == generation, let latest = cachedStateByDeviceID[device.id] else { return }
         // Preserve changes received while awaiting the battery read, especially live DPI.
         let updated = Self.preservingNewerChargingReport(in: battery.applying(to: latest), readStartedAt: now, report: lastChargingReportByDeviceID[device.id])
+        observeBattery(device, state: updated, readStartedAt: now)
         storeReadState(updated, deviceID: device.id)
         if device.usesDockChargingLightingOverride, let charging = battery.charging { await softwareLightingEngine.updateWirelessCharging(device: device, charging: charging, observedAt: now, fromInputReport: false) }
     }
@@ -136,6 +145,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
     private func handleChargingReport(_ event: PassiveChargingEvent) async {
         guard let device = cachedDevices.first(where: { $0.id == event.deviceID }), device.hasRechargeableBattery else { return }
         if let previous = lastChargingReportByDeviceID[device.id], previous.observedAt > event.observedAt { return }
+        if event.charging || lastChargingReportByDeviceID[device.id]?.charging == true { batteryRuntimeEstimator.interrupt(deviceID: device.id) }
         lastChargingReportByDeviceID[device.id] = event
         if var state = cachedStateByDeviceID[device.id], state.charging != event.charging {
             state.charging = event.charging
@@ -794,6 +804,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         }
         launchProfile.invalidate(deviceID: deviceID)
         usbControlAvailabilityByDeviceID[deviceID] = availability
+        if availability.blocksUSBControlInteraction { batteryRuntimeEstimator.interrupt(deviceID: deviceID) }
         batteryConnectionGenerationByDeviceID[deviceID, default: 0] &+= 1
         AppLog.debug("Backend", "usbControlAvailability device=\(deviceID) availability=\(availability.rawValue)")
         publishStateUpdate(.usbControlAvailability(deviceID: deviceID, availability: availability, updatedAt: updatedAt))
@@ -851,6 +862,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
 
     private func invalidateCachedTelemetry(for deviceID: String) {
         lastChargingReportByDeviceID.removeValue(forKey: deviceID)
+        batteryRuntimeEstimator.interrupt(deviceID: deviceID)
         batteryConnectionGenerationByDeviceID[deviceID, default: 0] &+= 1
         if let cached = cachedStateByDeviceID[deviceID] { reconnectSeedStateByDeviceID[deviceID] = cached }
         cachedDevicesAt = nil
@@ -879,6 +891,7 @@ final actor LocalBridgeBackend: HIDAccessRefreshControllingBackend, ApplyOptions
         guard !removedDeviceIDs.isEmpty else { return }
         for deviceID in removedDeviceIDs {
             lastChargingReportByDeviceID.removeValue(forKey: deviceID)
+            batteryRuntimeEstimator.interrupt(deviceID: deviceID)
             launchProfile.invalidate(deviceID: deviceID)
             batteryConnectionGenerationByDeviceID[deviceID, default: 0] &+= 1
             cachedStateByDeviceID.removeValue(forKey: deviceID)

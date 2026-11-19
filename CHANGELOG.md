@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Charging battery icons cycle from empty to full below 100% and show a steady lightning bolt at 100% while on power. Hover over the battery to see estimated time remaining once OpenSnek has learned the discharge rate for that rechargeable device and connection.
+
 ### Changed
 
 - Connection messages and profile controls now use “device” for all supported hardware, including keyboards, keypads, and accessories.

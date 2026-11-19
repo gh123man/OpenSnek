@@ -411,9 +411,10 @@ struct LightingCard: View {
             HStack(spacing: -3) { ForEach(Array(lightingSummarySwatches.enumerated()), id: \.offset) { _, color in Circle().fill(Color(rgb: color)).frame(width: 15, height: 15).overlay(Circle().stroke(Color.white.opacity(0.62), lineWidth: 1)) } }.padding(.horizontal, 3).accessibilityHidden(true)
         case let .level(batteryIcon, percent):
             HStack(spacing: 6) {
-                Image(systemName: batteryIcon.symbolName, variableValue: batteryIcon.variableValue)
+                BatteryIconView(icon: batteryIcon)
                 Text("\(percent)%").font(.system(size: 13, weight: .black, design: .monospaced)).foregroundStyle(.white.opacity(0.82))
-            }.font(.system(size: 17, weight: .bold)).foregroundStyle(batteryIcon.accent == .low ? BatteryPresentation.lowBatteryColor : .white.opacity(0.82)).frame(height: 18).accessibilityLabel("Battery Meter").accessibilityIdentifier("lighting-card-summary-battery-icon")
+            }.font(.system(size: 17, weight: .bold)).foregroundStyle(batteryIcon.accent == .low ? BatteryPresentation.lowBatteryColor : .white.opacity(0.82)).frame(height: 18).help(batteryMeterHelp(percent: percent)).accessibilityLabel("Battery Meter").accessibilityIdentifier(
+                "lighting-card-summary-battery-icon")
         case .unavailable:
             HStack(spacing: 6) {
                 Image(systemName: "battery.0percent")
@@ -537,6 +538,12 @@ struct LightingCard: View {
             BatteryMeterSourceSelectionInput(
                 deviceID: selected.id, ownState: editorStore.deviceStore.state, explicitSourceDeviceID: editorStore.editableSoftwareLightingBatterySourceDeviceID, candidateDeviceIDs: editorStore.deviceStore.devices.map(\.id),
                 unavailableSourceDeviceIDs: editorStore.deviceStore.usbUnavailableDeviceIDs, stateByDeviceID: editorStore.deviceStore.stateByDeviceID))
+    }
+
+    private func batteryMeterHelp(percent: Int) -> String {
+        let source = batteryMeterSourceState
+        let device = editorStore.deviceStore.devices.first { $0.id == source?.device.id }
+        return editorStore.deviceStore.batteryHelp(for: device, percent: percent, charging: source?.charging)
     }
 
     private func batterySourceLabel(_ device: MouseDevice) -> String {

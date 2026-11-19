@@ -68,6 +68,14 @@ await physical charging checks. The V4 HyperSpeed is covered over Bluetooth and 
 Its direct USB cable identity remains unregistered. The Basilisk V3 X HyperSpeed and Orochi V2
 use replaceable batteries.
 
+On rechargeable devices, the battery icon cycles from empty to full while charging below 100%.
+At 100%, it shows a steady lightning bolt while the device reports external power. Hover over the
+battery level to see the estimated time remaining on the current charge. OpenSnek learns
+from the time it takes that device to lose at least three percentage points over at least
+15 minutes. It saves a smoothed rate locally for each device and transport. Charging, a rise
+in level, a disconnect, or a gap of more than ten minutes starts a new observation interval.
+Replaceable-battery devices show the reported percentage only.
+
 ## Basilisk V4 HyperSpeed USB receiver
 
 `1532:00EA` is locally validated for DPI X/Y and stages up to 33K, 125/500/1000 Hz,

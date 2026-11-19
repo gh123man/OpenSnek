@@ -198,11 +198,11 @@ struct DeviceOverviewBar: View {
 
                 VStack(alignment: .trailing, spacing: 8) {
                     if let battery = state.battery_percent {
-                        let batteryIcon = BatteryPresentation.icon(percent: battery, charging: state.charging, thresholdRaw: state.low_battery_threshold_raw)
+                        let batteryIcon = BatteryPresentation.icon(percent: battery, charging: deviceStore.selectedDeviceControlsEnabled ? state.charging : nil, thresholdRaw: state.low_battery_threshold_raw)
                         HStack(spacing: 8) {
-                            Image(systemName: batteryIcon.symbolName, variableValue: batteryIcon.variableValue)
+                            BatteryIconView(icon: batteryIcon)
                             Text("\(battery)%")
-                        }.font(.system(size: 24, weight: .black, design: .rounded)).foregroundStyle(batteryIcon.accent == .low ? BatteryPresentation.lowBatteryColor : .white)
+                        }.font(.system(size: 24, weight: .black, design: .rounded)).foregroundStyle(batteryIcon.accent == .low ? BatteryPresentation.lowBatteryColor : .white).help(deviceStore.batteryHelp(for: selected, percent: battery, charging: state.charging))
                     }
                 }
             }

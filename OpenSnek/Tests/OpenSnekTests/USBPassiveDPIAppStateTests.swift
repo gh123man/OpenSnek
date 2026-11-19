@@ -24,7 +24,8 @@ final class USBPassiveDPIAppStateTests: XCTestCase {
             XCTAssertEqual(app.deviceStore.stateByDeviceID[device.id], expected)
             let visible = try XCTUnwrap(app.deviceStore.state)
             let icon = ServiceMenuBarPresentation.batteryIcon(percent: try XCTUnwrap(visible.battery_percent), charging: visible.charging)
-            XCTAssertEqual(icon.symbolName, charging ? "battery.100percent.bolt" : "battery.75percent")
+            XCTAssertEqual(icon.isCharging, charging)
+            XCTAssertEqual(icon.symbolName, "battery.75percent")
         }
         let finalReads = await backend.readStateCount()
         XCTAssertEqual(finalReads, reads)

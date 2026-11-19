@@ -10,44 +10,45 @@ struct BatteryIconPresentation: Equatable {
         case low
     }
 
-    let symbolName: String
-    let variableValue: Double
+    let percent: Int
+    let isCharging: Bool
     let accent: Accent
+
+    var tier: Int { ((percent + 12) / 25) * 25 }
+    var animatesCharging: Bool { isCharging && percent < 100 }
+    var symbolName: String { isCharging && percent == 100 ? "battery.100percent.bolt" : "battery.\(tier)percent" }
+}
+
+/// Renders only the charging symbol on a periodic timeline. The percentage label always shows telemetry.
+struct BatteryIconView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let icon: BatteryIconPresentation
+
+    var body: some View { if icon.animatesCharging && !reduceMotion { ChargingBatteryIcon().accessibilityLabel("Charging") } else { Image(systemName: icon.symbolName).accessibilityLabel(icon.isCharging ? "Charging" : "Battery") } }
+}
+
+/// Starts a new empty-to-full cycle each time charging becomes visible.
+private struct ChargingBatteryIcon: View {
+    @State private var start = Date()
+
+    var body: some View { TimelineView(.periodic(from: start, by: BatteryPresentation.frameInterval)) { context in Image(systemName: BatteryPresentation.chargingSymbol(elapsed: context.date.timeIntervalSince(start))) } }
 }
 
 /// Defines battery presentation values.
 enum BatteryPresentation {
     static let lowBatteryNSColor = NSColor(calibratedRed: 1.0, green: 0.36, blue: 0.39, alpha: 1.0)
     static let lowBatteryColor = Color(nsColor: lowBatteryNSColor)
+    static let frameInterval: TimeInterval = 0.5
+
+    static func chargingSymbol(elapsed: TimeInterval) -> String {
+        let frame = Int(max(0, elapsed) / frameInterval) % 5
+        return "battery.\(frame * 25)percent"
+    }
 
     static func icon(percent: Int, charging: Bool?, thresholdRaw: Int? = nil) -> BatteryIconPresentation {
-        let clampedPercent = max(0, min(100, percent))
-        let isLow = isLowBattery(percent: clampedPercent, charging: charging, thresholdRaw: thresholdRaw)
-        return BatteryIconPresentation(symbolName: symbolName(percent: clampedPercent, charging: charging), variableValue: tieredBatteryValue(percent: clampedPercent, charging: charging), accent: isLow ? .low : .normal)
-    }
-
-    static func symbolName(percent: Int, charging: Bool?) -> String {
-        if charging == true { return "battery.100percent.bolt" }
-
-        switch percent {
-        case ..<13: return "battery.0percent"
-        case ..<38: return "battery.25percent"
-        case ..<63: return "battery.50percent"
-        case ..<88: return "battery.75percent"
-        default: return "battery.100percent"
-        }
-    }
-
-    static func tieredBatteryValue(percent: Int, charging: Bool?) -> Double {
-        if charging == true { return Double(max(0, min(100, percent))) / 100.0 }
-
-        switch percent {
-        case ..<13: return 0.0
-        case ..<38: return 0.25
-        case ..<63: return 0.50
-        case ..<88: return 0.75
-        default: return 1.0
-        }
+        let clamped = max(0, min(100, percent))
+        let isLow = isLowBattery(percent: clamped, charging: charging, thresholdRaw: thresholdRaw)
+        return BatteryIconPresentation(percent: clamped, isCharging: charging == true, accent: isLow ? .low : .normal)
     }
 
     static func isLowBattery(percent: Int, charging: Bool?, thresholdRaw: Int?) -> Bool {
@@ -197,11 +198,11 @@ struct ServiceMenuBarView: View {
             Spacer()
 
             if let battery = deviceStore.state?.battery_percent {
-                let batteryIcon = ServiceMenuBarPresentation.batteryIcon(percent: battery, charging: deviceStore.state?.charging, thresholdRaw: deviceStore.state?.low_battery_threshold_raw)
+                let batteryIcon = ServiceMenuBarPresentation.batteryIcon(percent: battery, charging: controlsEnabled ? deviceStore.state?.charging : nil, thresholdRaw: deviceStore.state?.low_battery_threshold_raw)
                 HStack(spacing: 4) {
-                    Image(systemName: batteryIcon.symbolName, variableValue: batteryIcon.variableValue)
+                    BatteryIconView(icon: batteryIcon)
                     Text("\(battery)%")
-                }.font(.system(size: 11, weight: .bold, design: .monospaced)).foregroundStyle(batteryIcon.accent == .low ? BatteryPresentation.lowBatteryColor : .secondary)
+                }.font(.system(size: 11, weight: .bold, design: .monospaced)).foregroundStyle(batteryIcon.accent == .low ? BatteryPresentation.lowBatteryColor : .secondary).help(deviceStore.batteryHelp(for: deviceStore.selectedDevice, percent: battery, charging: deviceStore.state?.charging))
             }
         }
     }
@@ -388,9 +389,10 @@ struct ServiceMenuBarStatusItemLabel: View {
     }
 
     private var helpText: String {
-        if let device = deviceStore.selectedDevice, let currentDpi { return "\(device.product_name), \(currentDpi) DPI" }
-        if let device = deviceStore.selectedDevice { return device.product_name }
-        return "OpenSnek"
+        guard let device = deviceStore.selectedDevice else { return "OpenSnek" }
+        let title = currentDpi.map { "\(device.product_name), \($0) DPI" } ?? device.product_name
+        guard let percent = deviceStore.state?.battery_percent else { return title }
+        return title + "\n" + deviceStore.batteryHelp(for: device, percent: percent, charging: deviceStore.state?.charging)
     }
 }
 

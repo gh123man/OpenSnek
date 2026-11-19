@@ -15,7 +15,6 @@ final class LightingSummaryPresentationTests: XCTestCase {
         XCTAssertEqual(presentation.swatches, [])
         guard case let .level(batteryIcon, percent) = presentation.batteryIndicator else { return XCTFail("expected a battery level indicator") }
         XCTAssertEqual(batteryIcon.symbolName, "battery.75percent")
-        XCTAssertEqual(batteryIcon.variableValue, 0.75)
         XCTAssertEqual(percent, 74)
     }
 

@@ -24,15 +24,36 @@ final class ServiceMenuBarPresentationTests: XCTestCase {
         let compactMenu = ServiceMenuBarPresentation.batteryIcon(percent: 33, charging: true)
 
         XCTAssertEqual(shared, compactMenu)
-        XCTAssertEqual(shared.symbolName, "battery.100percent.bolt")
-        XCTAssertEqual(shared.variableValue, 0.33, accuracy: 0.001)
+        XCTAssertTrue(shared.isCharging)
+        XCTAssertEqual(shared.symbolName, "battery.25percent")
         XCTAssertEqual(shared.accent, .normal)
     }
 
-    func testBatteryIconClampsVariableValueToPercentBounds() {
-        XCTAssertEqual(BatteryPresentation.icon(percent: -10, charging: false).variableValue, 0.0, accuracy: 0.001)
-        XCTAssertEqual(BatteryPresentation.icon(percent: 58, charging: nil).variableValue, 0.50, accuracy: 0.001)
-        XCTAssertEqual(BatteryPresentation.icon(percent: 120, charging: false).variableValue, 1.0, accuracy: 0.001)
+    func testChargingAnimationCyclesThroughAllFiveExistingSymbols() {
+        let symbols = (0...5).map { BatteryPresentation.chargingSymbol(elapsed: Double($0) * BatteryPresentation.frameInterval) }
+        XCTAssertEqual(symbols, ["battery.0percent", "battery.25percent", "battery.50percent", "battery.75percent", "battery.100percent", "battery.0percent"])
+    }
+
+    func testFullBatteryShowsStaticBoltOnlyWhileOnPower() {
+        let almostFull = BatteryPresentation.icon(percent: 99, charging: true)
+        XCTAssertTrue(almostFull.animatesCharging)
+        XCTAssertEqual(almostFull.symbolName, "battery.100percent")
+
+        let full = BatteryPresentation.icon(percent: 100, charging: true)
+        XCTAssertFalse(full.animatesCharging)
+        XCTAssertEqual(full.symbolName, "battery.100percent.bolt")
+
+        for charging in [false, nil] as [Bool?] {
+            let full = BatteryPresentation.icon(percent: 100, charging: charging)
+            XCTAssertFalse(full.animatesCharging)
+            XCTAssertEqual(full.symbolName, "battery.100percent")
+        }
+    }
+
+    func testBatteryIconClampsTierToPercentBounds() {
+        XCTAssertEqual(BatteryPresentation.icon(percent: -10, charging: false).tier, 0)
+        XCTAssertEqual(BatteryPresentation.icon(percent: 58, charging: nil).tier, 50)
+        XCTAssertEqual(BatteryPresentation.icon(percent: 120, charging: false).tier, 100)
         XCTAssertEqual(BatteryPresentation.icon(percent: 58, charging: nil).symbolName, "battery.50percent")
     }
 
@@ -54,7 +75,7 @@ final class ServiceMenuBarPresentationTests: XCTestCase {
     func testBatteryIconDoesNotUseLowAccentWhileCharging() {
         let icon = BatteryPresentation.icon(percent: 20, charging: true, thresholdRaw: 0x3F)
 
-        XCTAssertEqual(icon.symbolName, "battery.100percent.bolt")
+        XCTAssertTrue(icon.isCharging)
         XCTAssertEqual(icon.accent, .normal)
     }
 
