@@ -5,14 +5,14 @@
 <h1 align="center">OpenSnek</h1>
 
 <p align="center">
-  Configure supported Razer mice on macOS without Synapse, Windows, or vendor lock-in.
+  Configure supported Razer devices on macOS without Synapse, Windows, or vendor lock-in.
 </p>
 
 <h2 align="center"><a href="https://github.com/gh123man/OpenSnek/releases">Download</a></h2>
 
 ![OpenSnek window and menu bar DPI controls on a macOS desktop](docs/media/screenshots/desktop.png)
 
-OpenSnek is an open source native macOS app for configuring supported Razer mice over USB or Bluetooth, with early lighting-only support for select Razer keyboards, keypads, and charging accessories.
+OpenSnek is an open source native macOS app for configuring supported Razer devices over USB or Bluetooth. It supports a range of mice and offers early lighting-only support for select keyboards, keypads, and charging accessories.
 
 ## Highlights
 
@@ -20,7 +20,7 @@ OpenSnek is an open source native macOS app for configuring supported Razer mice
 - Very low idle and background overhead, so it stays out of the way when you are not using it
 - Optional menu bar control for quick, on-the-fly DPI adjustments
 - Manage onboard profiles on supported devices
-- Rebind all supported mouse buttons and write to onboard storage
+- Rebind supported buttons and save their mappings to onboard storage
 
 ## Supported Devices
 
@@ -63,7 +63,7 @@ contributor credits are in the full feature matrix.
 
 Razer does not support the Basilisk V3 X HyperSpeed on macOS at all, so this project started by reverse engineering the BLE protocol from Windows traffic between the mouse and Synapse.
 
-The goal is simple: make supported Razer mice configurable on macOS without needing Synapse, Windows, or a second machine just to change settings.
+The goal is to make supported Razer devices configurable on macOS without needing Synapse, Windows, or a second machine just to change settings.
 
 More device support is welcome, whether that comes from new hardware captures or pull requests. For USB protocol reference work, this project also builds on the excellent documentation and reverse-engineering effort from [OpenRazer](https://github.com/openrazer/openrazer).
 

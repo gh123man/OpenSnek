@@ -261,7 +261,7 @@ struct GenericDeviceDetailView: View {
 
     private var resolvedProfile: DeviceProfile? { DeviceProfiles.resolve(vendorID: selected.vendor_id, productID: selected.product_id, transport: selected.transport) }
 
-    private var primaryMessage: String { "This mouse is not fully supported yet." }
+    private var primaryMessage: String { "This device is not fully supported yet." }
 
     private var secondaryMessage: String { "OpenSnek will show the controls it can verify safely. Use Diagnostics in bug reports so unsupported devices are easier to map." }
 

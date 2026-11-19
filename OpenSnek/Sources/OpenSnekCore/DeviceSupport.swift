@@ -34,7 +34,7 @@ public enum ButtonSlotAccess: String, Codable, Hashable, Sendable {
         switch self {
         case .editable: return nil
         case .protocolReadOnly: return "OpenSnek can see this button, but it cannot change it yet."
-        case .softwareReadOnly: return "OpenSnek can detect this button, but this mouse does not expose remapping for it yet."
+        case .softwareReadOnly: return "OpenSnek can detect this button, but this device does not expose remapping for it yet."
         }
     }
 }
@@ -434,7 +434,7 @@ public enum DeviceProfiles {
     ]
 
     public static let basiliskV3USBFamilyDocumentedReadOnlySlots: [DocumentedButtonSlot] = [
-        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 14, friendlyName: "Scroll Mode Toggle", defaultKind: .default), access: .protocolReadOnly, note: "OpenSnek can see this button, but the mouse does not let apps remap it yet."),
+        DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 14, friendlyName: "Scroll Mode Toggle", defaultKind: .default), access: .protocolReadOnly, note: "OpenSnek can see this button, but the device does not let apps remap it yet."),
         DocumentedButtonSlot(descriptor: ButtonSlotDescriptor(slot: 106, friendlyName: "Profile Button", defaultKind: .default), access: .protocolReadOnly, note: "OpenSnek can see this button, but profile-button remap ACK/readback is not stable enough to expose yet.")
     ]
 

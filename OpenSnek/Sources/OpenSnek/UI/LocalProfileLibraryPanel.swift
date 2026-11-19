@@ -92,7 +92,7 @@ struct LocalProfileLibraryPanel: View {
                 }.buttonStyle(.borderedProminent).disabled(newProfileNameIsEmpty).accessibilityIdentifier("local-profile-start-fresh-button")
 
                 Menu {
-                    if canCreateFromMouse { Button("Current Mouse") { createNewLocalProfileFromMouse() } }
+                    if canCreateFromMouse { Button("Current Device") { createNewLocalProfileFromMouse() } }
                     if canCreateFromMouse && !copySourceProfiles.isEmpty { Divider() }
                     if copySourceProfiles.isEmpty { Text("No profiles") } else { ForEach(copySourceProfiles) { profile in Button(profile.name) { createCopiedLocalProfileAndAssign(copying: profile.id) } } }
                 } label: {

@@ -140,7 +140,7 @@ struct ServiceMenuBarView: View {
                     if let message = runtimeStore.compactStatusMessage { menuMessage(message, weight: .bold) }
                 }
             } else {
-                menuMessage("Connect a supported mouse to edit DPI from the menu bar.")
+                menuMessage("Connect a device with adjustable DPI to use these controls.")
             }
             Divider()
             actionRow("Show OpenSnek", systemImage: "rectangle.on.rectangle") { runtimeStore.openFullAppFromService() }
@@ -186,7 +186,7 @@ struct ServiceMenuBarView: View {
             } else {
                 Text(deviceStore.selectedDevice?.product_name ?? "No device connected").font(.system(size: 15, weight: .black, design: .rounded))
             }
-            Text(deviceStore.selectedDevice?.connectionLabel ?? "Waiting for a supported mouse").font(.system(size: 11, weight: .bold, design: .rounded)).foregroundStyle(.secondary)
+            Text(deviceStore.selectedDevice?.connectionLabel ?? "Waiting for a supported device").font(.system(size: 11, weight: .bold, design: .rounded)).foregroundStyle(.secondary)
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
 

@@ -337,7 +337,7 @@ private struct ProfilePickerPanel: View {
             Text("On Connect").font(.system(size: 11, weight: .black, design: .rounded)).foregroundStyle(.white.opacity(0.74))
 
             Picker("On Connect Behavior", selection: connectBehaviorBinding) {
-                Text("Use Mouse Settings").tag(DeviceConnectBehavior.useMouseSettings)
+                Text("Use Device Settings").tag(DeviceConnectBehavior.useMouseSettings)
                 Text("Restore Last Profile").tag(DeviceConnectBehavior.restoreOpenSnekSettings)
             }.labelsHidden().pickerStyle(.segmented).disabled(isBusy).accessibilityIdentifier("profile-on-connect-picker")
 
@@ -348,7 +348,7 @@ private struct ProfilePickerPanel: View {
     private var singleSlotSynapseWarning: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 12, weight: .bold)).foregroundStyle(Color(hex: 0xFFD166)).frame(width: 14, height: 14)
-            Text("Synapse can overwrite this profile when OpenSnek uses mouse settings on connect.").font(.system(size: 10, weight: .semibold, design: .rounded)).foregroundStyle(Color(hex: 0xFFD166).opacity(0.92)).frame(maxWidth: .infinity, alignment: .leading).fixedSize(
+            Text("Synapse can overwrite this profile when OpenSnek uses device settings on connect.").font(.system(size: 10, weight: .semibold, design: .rounded)).foregroundStyle(Color(hex: 0xFFD166).opacity(0.92)).frame(maxWidth: .infinity, alignment: .leading).fixedSize(
                 horizontal: false, vertical: true)
         }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 10).padding(.vertical, 8).background(RoundedRectangle(cornerRadius: 7).fill(Color(hex: 0xFFD166).opacity(0.10))).overlay(RoundedRectangle(cornerRadius: 7).stroke(Color(hex: 0xFFD166).opacity(0.22), lineWidth: 1))
             .accessibilityIdentifier("single-slot-synapse-warning")

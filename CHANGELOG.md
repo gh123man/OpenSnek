@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- Connection messages and profile controls now use “device” for all supported hardware, including keyboards, keypads, and accessories.
+
 ## [1.5.0]
 
 ### Added

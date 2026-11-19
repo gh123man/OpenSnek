@@ -70,7 +70,7 @@ struct ServiceLaunchPresentation: Codable {
     }
 }
 
-/// Keeps a single read-only preparation for the selected mouse. Invalidations discard in-flight results too.
+/// Keeps a single read-only preparation for the selected device. Invalidations discard in-flight results too.
 struct ServiceProfilePreparation: Sendable {
     private(set) var device: MouseDevice?
     private var profileID: Int?

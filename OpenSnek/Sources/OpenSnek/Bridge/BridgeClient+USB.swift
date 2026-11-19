@@ -176,7 +176,7 @@ extension BridgeClient {
 
         deviceSessions[device.id]?.invalidateCachedTransaction()
         if await usbDeviceIsAbsentAfterDiscoveryRefresh(device: device, operation: "usb-control-availability") { return .receiverAbsent }
-        if let firstError, !Self.isUSBTelemetryUnavailableError(firstError) { AppLog.debug("Bridge", "usbControlAvailability treating feature-report failure as mouse unavailable " + "device=\(device.id): \(firstError.localizedDescription)") }
+        if let firstError, !Self.isUSBTelemetryUnavailableError(firstError) { AppLog.debug("Bridge", "usbControlAvailability treating feature-report failure as device unavailable " + "device=\(device.id): \(firstError.localizedDescription)") }
         return .receiverPresentMouseUnavailable
     }
 

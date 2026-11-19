@@ -64,8 +64,8 @@ import OpenSnekCore
             bumpUSBButtonProfilesRevision()
             return profile
         } catch {
-            AppLog.error("AppState", "create local profile from mouse failed device=\(device.id): \(error.localizedDescription)")
-            deviceStore.errorMessage = "Failed to create profile from mouse: \(error.localizedDescription)"
+            AppLog.error("AppState", "create local profile from device failed device=\(device.id): \(error.localizedDescription)")
+            deviceStore.errorMessage = "Failed to create profile from the device: \(error.localizedDescription)"
             return nil
         }
     }
@@ -165,9 +165,9 @@ import OpenSnekCore
 
     func markSingleSlotPersistedSettingsPresentedForRestore(snapshot: PersistedDeviceSettingsSnapshot, device: MouseDevice) {
         // Single-slot/non-CRUD devices cannot prove which local profile is currently on
-        // the mouse. Only Restore Last Profile is allowed to present a known local profile:
+        // the device. Only Restore Last Profile is allowed to present a known local profile:
         // either the user's saved selection, or a unique local profile whose adapted
-        // content matches the restored snapshot. Use Mouse Settings clears the session
+        // content matches the restored snapshot. Use Device Settings clears the session
         // name so the UI presents Base Profile instead of inventing an active mapping.
         guard supportsProfilePicker(device: device), !supportsOnboardProfileCRUD(device: device), shouldRestorePersistedSettingsOnConnect(for: device), let profile = selectedOrMatchingSingleSlotLocalProfile(snapshot: snapshot, device: device) else {
             clearCurrentSessionSingleSlotProfileName(device: device)
@@ -199,8 +199,8 @@ import OpenSnekCore
             try await hydrateSingleSlotProfileFromMouse(device: device)
             deviceStore.errorMessage = nil
         } catch {
-            AppLog.error("AppState", "load single-slot profile from mouse failed device=\(device.id): \(error.localizedDescription)")
-            deviceStore.errorMessage = "Failed to load profile from mouse: \(error.localizedDescription)"
+            AppLog.error("AppState", "load single-slot profile from device failed device=\(device.id): \(error.localizedDescription)")
+            deviceStore.errorMessage = "Failed to load profile from the device: \(error.localizedDescription)"
         }
     }
 

@@ -169,7 +169,7 @@ actor BridgeClient {
         guard device.transport == .usb else { return false }
 
         // Stale IOHIDDevice handles can report telemetry failures after a dongle is pulled.
-        // Always re-run discovery before calling that a sleeping/off mouse; absence means the
+        // Always re-run discovery before calling that a sleeping/off device; absence means the
         // receiver itself is gone and the UI must leave the dongle-only state on replug.
         clearManagedHIDManager()
         do {
@@ -316,7 +316,7 @@ actor BridgeClient {
         for device in devices {
             guard let vendor = USBHIDSupport.intProperty(device, key: kIOHIDVendorIDKey as CFString), vendor == usbVID || vendor == btVID, let product = USBHIDSupport.intProperty(device, key: kIOHIDProductIDKey as CFString) else { continue }
 
-            let name = USBHIDSupport.stringProperty(device, key: kIOHIDProductKey as CFString) ?? "Razer Mouse"
+            let name = USBHIDSupport.stringProperty(device, key: kIOHIDProductKey as CFString) ?? "Razer Device"
             let serial = USBHIDSupport.stringProperty(device, key: kIOHIDSerialNumberKey as CFString)
             let transportRaw = (USBHIDSupport.stringProperty(device, key: kIOHIDTransportKey as CFString) ?? "").lowercased()
             let transport: DeviceTransportKind = transportRaw.contains("bluetooth") || vendor == btVID ? .bluetooth : .usb
@@ -520,7 +520,7 @@ actor BridgeClient {
         }
         // A device with HID interfaces but no 90-byte feature-report channel (e.g. a
         // headset exposing only consumer controls) can never answer Razer commands;
-        // fail with a distinct error instead of masquerading as a sleeping mouse.
+        // fail with a distinct error instead of masquerading as a sleeping device.
         guard sessions.contains(where: \.supportsControlReports) else { throw BridgeError.usbNoControlInterface }
 
         var firstError: Error?

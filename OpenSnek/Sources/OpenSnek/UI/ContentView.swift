@@ -157,7 +157,7 @@ struct ContentView: View {
 
             notices.append(
                 NoticeItem(
-                    title: isInputMonitoringError(deviceStore.errorMessage) ? "Allow Input Monitoring" : usbCalloutTitle, message: isInputMonitoringError(deviceStore.errorMessage) ? "OpenSnek needs one more macOS permission before it can read all USB settings from this mouse." : usbCalloutMessage,
+                    title: isInputMonitoringError(deviceStore.errorMessage) ? "Allow Input Monitoring" : usbCalloutTitle, message: isInputMonitoringError(deviceStore.errorMessage) ? "OpenSnek needs one more macOS permission before it can read all USB settings from this device." : usbCalloutMessage,
                     detailLines: detailLines, tone: isInputMonitoringError(deviceStore.errorMessage) ? .permission : .warning, actions: actions))
         }
 

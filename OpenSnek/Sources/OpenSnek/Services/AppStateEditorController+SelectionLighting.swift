@@ -371,7 +371,7 @@ import OpenSnekCore
             var bindings = cachedButtonBindings(device: selectedDevice, profile: clamped)
             if !hasKnownButtonBindingsSnapshot(device: selectedDevice, profile: clamped) {
                 guard let fromDevice = await loadUSBButtonBindingsFromDevice(device: selectedDevice, profile: clamped) else {
-                    deviceStore.errorMessage = "Could not read button profile \(clamped) from the mouse."
+                    deviceStore.errorMessage = "Could not read button profile \(clamped) from the device."
                     return
                 }
                 bindings = fromDevice

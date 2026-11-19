@@ -55,7 +55,7 @@ The preferred workflow is:
    - Do not duplicate transport helpers in `OpenSnekProbe` or app code.
 
 5. Only add new UI when the device truly exposes a new feature family.
-   - If the device is just another mouse with the same capabilities, the app should work from profile metadata alone.
+   - If the device has the same capabilities as a supported model, the app should work from profile metadata alone.
    - If you find yourself branching the UI on raw PID/transport strings, stop and move that logic into profile capabilities instead.
 
 6. Add tests with the code change.

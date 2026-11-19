@@ -243,7 +243,7 @@ tccutil reset Bluetooth io.opensnek.OpenSnek
 
 ## Probe CLI
 
-When multiple Razer USB mice are attached, target the intended device explicitly:
+When multiple Razer USB devices are attached, select the target by product ID.
 
 ```bash
 swift run --package-path OpenSnek OpenSnekProbe usb-info --pid 0x00ab
@@ -345,7 +345,7 @@ across multiple consecutive reads for each step.
 
 ## Stage Selection Validation (Manual + CLI)
 
-Use this when debugging UI-stage selection mismatch against mouse stage-button cycling.
+Use this check when the stage highlighted in the app differs from the active DPI stage on the device.
 
 ```bash
 swift run --package-path OpenSnek OpenSnekProbe dpi-set --values 1000,2000,3000 --active 1
@@ -357,8 +357,8 @@ Expected final readback: `active=3 count=3 values=[1000, 2000, 3000]`.
 
 Then validate in app:
 - set 3 unique stage values
-- press mouse stage button repeatedly
-- verify highlighted stage in UI matches the stage value currently applied on mouse
+- press the device’s DPI stage button repeatedly
+- verify the highlighted stage matches the active stage on the device
 - verify wraparound stage 3 -> stage 1 is correct
 
 ## UI Validation Checklist

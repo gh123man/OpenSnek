@@ -442,7 +442,7 @@ import OpenSnekCore
 
     func replaceSelectedProfile(with localProfileID: UUID) async { await withButtonProfileOperation(statusText: "Replacing profile...") { [self] in await self.editorController.replaceSelectedProfile(with: localProfileID) } }
 
-    func loadSelectedSingleSlotProfileFromMouse() async { await withButtonProfileOperation(statusText: "Loading from mouse...") { [self] in await self.editorController.loadSelectedSingleSlotProfileFromMouse() } }
+    func loadSelectedSingleSlotProfileFromMouse() async { await withButtonProfileOperation(statusText: "Loading from device...") { [self] in await self.editorController.loadSelectedSingleSlotProfileFromMouse() } }
 
     func applyLastSyncedSingleSlotProfile() async { await withButtonProfileOperation(statusText: "Applying profile...") { [self] in await self.editorController.applyLastSyncedSingleSlotProfile() } }
 

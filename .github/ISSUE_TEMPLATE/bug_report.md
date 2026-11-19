@@ -35,6 +35,6 @@ Paste the copied payload here.
 
 ## Extra Notes
 
-- Does reconnecting the mouse change the behavior?
+- Does reconnecting the device change the behavior?
 - Does the same problem happen over both USB and Bluetooth, if the device supports both?
-- If the bug is device-specific, include the exact mouse model and transport you used.
+- If the bug is device-specific, include the exact device model and transport you used.

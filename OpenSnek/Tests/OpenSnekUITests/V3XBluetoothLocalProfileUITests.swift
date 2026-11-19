@@ -148,7 +148,7 @@ class V3XLocalProfileUITestSupport: OpenSnekHardwareUITestCase {
         let restoreProfile = try recordTemporaryProfile(named: restoreName, isRestoreProfile: true)
         try switchToLocalProfile(restoreProfile)
 
-        try selectOnConnectOption(named: "Use Mouse Settings")
+        try selectOnConnectOption(named: "Use Device Settings")
         try assertSelectedProfile(named: "Base Profile")
 
         try selectOnConnectOption(named: "Restore Last Profile")
@@ -195,7 +195,7 @@ class V3XLocalProfileUITestSupport: OpenSnekHardwareUITestCase {
         XCTAssertTrue(try requireElement("local-profile-replace-section", timeout: 2).exists)
         XCTAssertTrue(app.staticTexts["Onboard Profiles"].waitForExistence(timeout: 1))
         XCTAssertTrue(app.staticTexts["Replace Selected Profile With"].waitForExistence(timeout: 1))
-        XCTAssertNotNil(onConnectOption(named: "Use Mouse Settings"))
+        XCTAssertNotNil(onConnectOption(named: "Use Device Settings"))
         XCTAssertNotNil(onConnectOption(named: "Restore Last Profile"))
         XCTAssertFalse(app.buttons["Load From Mouse"].waitForExistence(timeout: 0.5))
         XCTAssertFalse(app.buttons["Apply Last Profile"].waitForExistence(timeout: 0.5))
@@ -214,14 +214,14 @@ class V3XLocalProfileUITestSupport: OpenSnekHardwareUITestCase {
     private func assertSynapseWarningMatchesSelectedConnectBehavior(file: StaticString = #filePath, line: UInt = #line) {
         let warning = app.descendants(matching: .any)["single-slot-synapse-warning"]
         switch selectedOnConnectOptionName() {
-        case "Use Mouse Settings": XCTAssertTrue(warning.waitForExistence(timeout: 1), "Synapse warning should show when OpenSnek uses mouse settings on connect", file: file, line: line)
+        case "Use Device Settings": XCTAssertTrue(warning.waitForExistence(timeout: 1), "Synapse warning should show when OpenSnek uses device settings on connect", file: file, line: line)
         case "Restore Last Profile": XCTAssertFalse(warning.waitForExistence(timeout: 0.5), "Synapse warning should hide when OpenSnek restores the last profile on connect", file: file, line: line)
         default: break
         }
     }
 
     private func selectedOnConnectOptionName() -> String? {
-        ["Use Mouse Settings", "Restore Last Profile"].first { name in
+        ["Use Device Settings", "Restore Last Profile"].first { name in
             guard let option = onConnectOption(named: name) else { return false }
             if option.isSelected { return true }
             let value = option.value as? String
@@ -239,7 +239,7 @@ class V3XLocalProfileUITestSupport: OpenSnekHardwareUITestCase {
     private func onConnectPresentationMatchesSelectedOption(_ name: String) -> Bool {
         let warning = app.descendants(matching: .any)["single-slot-synapse-warning"]
         switch name {
-        case "Use Mouse Settings": return warning.exists
+        case "Use Device Settings": return warning.exists
         case "Restore Last Profile": return !warning.exists
         default: return false
         }
@@ -250,9 +250,9 @@ class V3XLocalProfileUITestSupport: OpenSnekHardwareUITestCase {
         try replaceText(in: try requireElement("local-profile-new-name-field", timeout: 2), with: name)
         let menu = try requireElement("local-profile-copy-source-picker", timeout: 2)
         clickElement(menu)
-        let option = firstExistingElement(in: [app.menuItems["Current Mouse"], app.buttons["Current Mouse"], app.staticTexts["Current Mouse"], app.descendants(matching: .any)["Current Mouse"]], timeout: 2)
-        clickElement(try XCTUnwrap(option, "Current Mouse copy source did not appear"))
-        XCTAssertTrue(waitForLocalProfile(named: name, enabled: true, timeout: actionTimeout), "Current Mouse local profile \(name) did not appear enabled")
+        let option = firstExistingElement(in: [app.menuItems["Current Device"], app.buttons["Current Device"], app.staticTexts["Current Device"], app.descendants(matching: .any)["Current Device"]], timeout: 2)
+        clickElement(try XCTUnwrap(option, "Current Device copy source did not appear"))
+        XCTAssertTrue(waitForLocalProfile(named: name, enabled: true, timeout: actionTimeout), "Current Device local profile \(name) did not appear enabled")
     }
 
     private func createSnapshotProfile(named name: String) throws -> TemporaryLocalProfile {

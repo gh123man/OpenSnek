@@ -213,7 +213,7 @@ import OpenSnekCore
         case .openSnekProfile(let id): return preferenceStore.loadOpenSnekButtonProfiles().first(where: { $0.id == id })?.name ?? "Deleted Profile"
         case .mouseSlot(let slot):
             if editorStore.supportsMultipleOnboardProfiles { return slot == 1 ? "Current Buttons" : "Stored Slot \(slot)" }
-            return "This Mouse"
+            return "This Device"
         }
     }
 

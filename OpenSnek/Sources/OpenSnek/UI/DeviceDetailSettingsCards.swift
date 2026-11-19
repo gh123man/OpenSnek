@@ -12,8 +12,8 @@ struct OnConnectBehaviorCard: View {
 
     private var selectedDescription: String {
         switch editorStore.connectBehavior {
-        case .useMouseSettings: return "OpenSnek reads the current settings from the mouse when it connects and does not rewrite them automatically."
-        case .restoreOpenSnekSettings: return "OpenSnek reapplies the last profile you changed here when this mouse connects."
+        case .useMouseSettings: return "OpenSnek reads the current settings from the device when it connects and does not rewrite them automatically."
+        case .restoreOpenSnekSettings: return "OpenSnek reapplies the last profile you changed here when this device connects."
         }
     }
 
@@ -21,7 +21,7 @@ struct OnConnectBehaviorCard: View {
         Card(title: "On Connect", accessibilityIdentifier: "on-connect-card") {
             VStack(alignment: .leading, spacing: 12) {
                 Picker("On Connect Behavior", selection: connectBehaviorBinding) {
-                    Text("Use Mouse Settings").tag(DeviceConnectBehavior.useMouseSettings)
+                    Text("Use Device Settings").tag(DeviceConnectBehavior.useMouseSettings)
                     Text("Restore Last Profile").tag(DeviceConnectBehavior.restoreOpenSnekSettings)
                 }.labelsHidden().pickerStyle(.segmented).accessibilityIdentifier("on-connect-picker")
 
@@ -35,7 +35,7 @@ struct OnConnectBehaviorCard: View {
                     }.buttonStyle(.plain).accessibilityLabel(showsExpandedInfo ? "Hide on connect details" : "Show on connect details").accessibilityIdentifier("on-connect-details-button")
                 }
 
-                if showsExpandedInfo { Text("Choose Restore Last Profile if you use this mouse with another computer or with Synapse. Vendor software can overwrite the live settings on reconnect, and this restores your OpenSnek setup.").hintTextStyle() }
+                if showsExpandedInfo { Text("Choose Restore Last Profile if you use this device with another computer or with Synapse. Vendor software can overwrite the live settings on reconnect, and this restores your OpenSnek setup.").hintTextStyle() }
             }
         }
     }

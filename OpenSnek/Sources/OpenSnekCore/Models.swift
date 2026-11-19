@@ -114,7 +114,7 @@ public struct DeviceIdentity: Codable, Hashable, Sendable {
     }
 }
 
-/// Stores mouse device data.
+/// Stores device identity and capabilities.
 public struct MouseDevice: Codable, Identifiable, Hashable, Sendable {
     public let id: String
     public let vendor_id: Int
@@ -213,7 +213,7 @@ public struct Capabilities: Codable, Hashable, Sendable {
     }
 }
 
-/// Stores mouse state.
+/// Stores device state.
 public struct MouseState: Codable, Hashable, Sendable {
     public let device: DeviceSummary
     public let connection: String
