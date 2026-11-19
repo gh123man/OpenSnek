@@ -121,7 +121,7 @@ struct ServiceMenuBarView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             header
-            statusRow
+            statusRow.zIndex(1)
             if showsDeviceControls {
                 VStack(alignment: .leading, spacing: 10) {
                     if !controlsEnabled, let message = deviceStore.selectedDeviceInteractionMessage { menuMessage(message, weight: .bold) }
@@ -202,7 +202,8 @@ struct ServiceMenuBarView: View {
                 HStack(spacing: 4) {
                     BatteryIconView(icon: batteryIcon)
                     Text("\(battery)%")
-                }.font(.system(size: 11, weight: .bold, design: .monospaced)).foregroundStyle(batteryIcon.accent == .low ? BatteryPresentation.lowBatteryColor : .secondary).help(deviceStore.batteryHelp(for: deviceStore.selectedDevice, percent: battery, charging: deviceStore.state?.charging))
+                }.font(.system(size: 11, weight: .bold, design: .monospaced)).foregroundStyle(batteryIcon.accent == .low ? BatteryPresentation.lowBatteryColor : .secondary).batteryHoverTooltip(
+                    deviceStore.batteryHelp(for: deviceStore.selectedDevice, percent: battery, charging: deviceStore.state?.charging), yOffset: 20)
             }
         }
     }
@@ -375,7 +376,7 @@ struct ServiceMenuBarStatusItemLabel: View {
                 // FB10185325, orchetect/MenuBarExtraAccess#1). Suppress it.
                 SpuriousStatusItemSuppressor()
             }
-        }.help(helpText).accessibilityLabel(helpText)
+        }.help(helpText).accessibilityLabel(helpText).accessibilityValue(deviceStore.state?.battery_percent.map { "Battery \($0)%" } ?? "")
     }
 
     private var serviceLabel: some View {
@@ -391,8 +392,8 @@ struct ServiceMenuBarStatusItemLabel: View {
     private var helpText: String {
         guard let device = deviceStore.selectedDevice else { return "OpenSnek" }
         let title = currentDpi.map { "\(device.product_name), \($0) DPI" } ?? device.product_name
-        guard let percent = deviceStore.state?.battery_percent else { return title }
-        return title + "\n" + deviceStore.batteryHelp(for: device, percent: percent, charging: deviceStore.state?.charging)
+        guard let percent = deviceStore.state?.battery_percent, let batteryHelp = deviceStore.batteryHelp(for: device, percent: percent, charging: deviceStore.state?.charging) else { return title }
+        return title + "\n" + batteryHelp
     }
 }
 

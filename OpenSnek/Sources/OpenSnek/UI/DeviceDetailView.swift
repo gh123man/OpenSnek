@@ -65,7 +65,7 @@ struct DeviceDetailView: View {
         switch section {
         case .dpiStages: DpiStagesCard(editorStore: editorStore)
         case .onConnect: OnConnectBehaviorCard(editorStore: editorStore)
-        case .lighting: LightingCard(editorStore: editorStore, selected: selected, swatches: swatches, isLightingOnly: isLightingOnlyDevice)
+        case .lighting: LightingCard(editorStore: editorStore, selected: selected, swatches: swatches, isLightingOnly: isLightingOnlyDevice).zIndex(1)
         case .pollRate: PollRateCard(editorStore: editorStore)
         case .powerManagement: SleepTimeoutCard(editorStore: editorStore)
         case .lowBatteryThreshold: LowBatteryThresholdCard(editorStore: editorStore)
@@ -202,10 +202,10 @@ struct DeviceOverviewBar: View {
                         HStack(spacing: 8) {
                             BatteryIconView(icon: batteryIcon)
                             Text("\(battery)%")
-                        }.font(.system(size: 24, weight: .black, design: .rounded)).foregroundStyle(batteryIcon.accent == .low ? BatteryPresentation.lowBatteryColor : .white).help(deviceStore.batteryHelp(for: selected, percent: battery, charging: state.charging))
+                        }.font(.system(size: 24, weight: .black, design: .rounded)).foregroundStyle(batteryIcon.accent == .low ? BatteryPresentation.lowBatteryColor : .white).batteryHoverTooltip(deviceStore.batteryHelp(for: selected, percent: battery, charging: state.charging), yOffset: 34)
                     }
                 }
-            }
+            }.zIndex(1)
 
             HStack(spacing: 10) {
                 Pill(text: state.connection, color: selected.transport == .bluetooth ? Color(hex: 0x66D9FF) : Color(hex: 0xA8F46A)).accessibilityIdentifier("selected-device-connection")

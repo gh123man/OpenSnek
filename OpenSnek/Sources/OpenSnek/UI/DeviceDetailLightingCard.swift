@@ -365,7 +365,7 @@ struct LightingCard: View {
 
     var body: some View {
         Card(title: "Lighting", accessibilityIdentifier: "lighting-card") {
-            lightingSummaryRow()
+            lightingSummaryRow().zIndex(1)
 
             if effectiveExpanded {
                 Rectangle().fill(Color.white.opacity(0.12)).frame(height: 1).padding(.vertical, 2)
@@ -413,8 +413,8 @@ struct LightingCard: View {
             HStack(spacing: 6) {
                 BatteryIconView(icon: batteryIcon)
                 Text("\(percent)%").font(.system(size: 13, weight: .black, design: .monospaced)).foregroundStyle(.white.opacity(0.82))
-            }.font(.system(size: 17, weight: .bold)).foregroundStyle(batteryIcon.accent == .low ? BatteryPresentation.lowBatteryColor : .white.opacity(0.82)).frame(height: 18).help(batteryMeterHelp(percent: percent)).accessibilityLabel("Battery Meter").accessibilityIdentifier(
-                "lighting-card-summary-battery-icon")
+            }.font(.system(size: 17, weight: .bold)).foregroundStyle(batteryIcon.accent == .low ? BatteryPresentation.lowBatteryColor : .white.opacity(0.82)).frame(height: 18).batteryHoverTooltip(batteryMeterHelp(percent: percent), yOffset: 24).accessibilityLabel("Battery Meter")
+                .accessibilityIdentifier("lighting-card-summary-battery-icon")
         case .unavailable:
             HStack(spacing: 6) {
                 Image(systemName: "battery.0percent")
@@ -540,7 +540,7 @@ struct LightingCard: View {
                 unavailableSourceDeviceIDs: editorStore.deviceStore.usbUnavailableDeviceIDs, stateByDeviceID: editorStore.deviceStore.stateByDeviceID))
     }
 
-    private func batteryMeterHelp(percent: Int) -> String {
+    private func batteryMeterHelp(percent: Int) -> String? {
         let source = batteryMeterSourceState
         let device = editorStore.deviceStore.devices.first { $0.id == source?.device.id }
         return editorStore.deviceStore.batteryHelp(for: device, percent: percent, charging: source?.charging)

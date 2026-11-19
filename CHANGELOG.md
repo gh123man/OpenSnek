@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- Hovering over a battery percentage in the device window or menu bar panel now shows just the time remaining as soon as the pointer enters, once an estimate is available.
+
 ## [1.5.1-rc.1]
 
 ### Added

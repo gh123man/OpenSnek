@@ -54,7 +54,9 @@ extension View {
 
     func loadingScrim(isPresented: Bool, label: String?) -> some View { modifier(LoadingScrimModifier(isPresented: isPresented, label: label)) }
 
-    func hoverTooltip(_ helpText: String?, xOffset: CGFloat = 6, yOffset: CGFloat = 34, maxWidth: CGFloat = 360) -> some View { modifier(HoverTooltipModifier(helpText: helpText, xOffset: xOffset, yOffset: yOffset, maxWidth: maxWidth)) }
+    func batteryHoverTooltip(_ text: String?, yOffset: CGFloat) -> some View { contentShape(Rectangle()).hoverTooltip(text, alignment: .topTrailing, xOffset: 0, yOffset: yOffset).accessibilityHint(text ?? "") }
+
+    func hoverTooltip(_ helpText: String?, alignment: Alignment = .topLeading, xOffset: CGFloat = 6, yOffset: CGFloat = 34, maxWidth: CGFloat = 360) -> some View { modifier(HoverTooltipModifier(helpText: helpText, alignment: alignment, xOffset: xOffset, yOffset: yOffset, maxWidth: maxWidth)) }
 }
 
 /// Stores window drag blocker data.
@@ -116,13 +118,14 @@ private struct LoadingScrimOverlay: View {
 /// Stores hover tooltip modifier data.
 private struct HoverTooltipModifier: ViewModifier {
     let helpText: String?
+    let alignment: Alignment
     let xOffset: CGFloat
     let yOffset: CGFloat
     let maxWidth: CGFloat
     @State private var isHovering = false
 
     func body(content: Content) -> some View {
-        content.overlay(alignment: .topLeading) { if let helpText, !helpText.isEmpty, isHovering { HoverTooltipBubble(text: helpText, maxWidth: maxWidth).offset(x: xOffset, y: yOffset).allowsHitTesting(false).transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading))) } }.zIndex(
+        content.overlay(alignment: alignment) { if let helpText, !helpText.isEmpty, isHovering { HoverTooltipBubble(text: helpText, maxWidth: maxWidth).offset(x: xOffset, y: yOffset).allowsHitTesting(false).transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading))) } }.zIndex(
             isHovering ? 8 : 0
         ).onHover { hovering in
             guard let helpText, !helpText.isEmpty else {
