@@ -16,7 +16,8 @@ permissions:
 
 jobs:
   release-dmg:
-    runs-on: macos-26
+    environment: macbook-ci
+    runs-on: ${{ vars.MACBOOK_CI == 'enabled' && format('macbook-{0}-{1}', github.run_id, github.run_attempt) || 'macos-26' }}
     env:
       SPARKLE_VERSION: 2.9.3
 

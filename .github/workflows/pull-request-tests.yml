@@ -1,14 +1,19 @@
 name: Pull Request Tests
 
 on:
+  workflow_dispatch:
   pull_request:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   swift-unit-tests:
     name: Swift Unit Tests
-    runs-on: macos-26
+    environment: macbook-ci
+    runs-on: ${{ vars.MACBOOK_CI == 'enabled' && format('macbook-{0}-{1}', github.run_id, github.run_attempt) || 'macos-26' }}
     timeout-minutes: 30
 
     steps:
