@@ -12,7 +12,13 @@ permissions:
 jobs:
   swift-unit-tests:
     name: Swift Unit Tests
-    environment: macbook-ci
+    environment: >-
+      ${{ github.actor_id == '959778' && github.triggering_actor == 'gh123man' &&
+          (github.event_name == 'pull_request' &&
+            (github.event.action == 'opened' || github.event.action == 'synchronize') &&
+            github.event.pull_request.user.id == 959778 &&
+            github.event.pull_request.head.repo.id == github.event.repository.id) &&
+          'macbook-ci-owner' || 'macbook-ci' }}
     runs-on: ${{ vars.MACBOOK_CI == 'enabled' && format('macbook-{0}-{1}', github.run_id, github.run_attempt) || 'macos-26' }}
     timeout-minutes: 30
 
