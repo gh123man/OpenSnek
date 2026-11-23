@@ -42,7 +42,7 @@ Button remap keyboard actions support modifier chords on shipped USB and Bluetoo
 | Basilisk V3 | `Mapped` | `No transport` | Shares the Basilisk V3 USB family configuration, but remains unvalidated on local hardware |
 | Basilisk V3 Pro | `Validated` | `Validated` | Ships mapped onboard profile CRUD on USB and Bluetooth; Bluetooth keeps lighting static-only, hides poll-rate and threshold controls, and does not ship clutch/profile-button remap |
 | Basilisk V3 35K | `Validated` | `No transport` | Shares the Basilisk V3 USB family configuration with mapped onboard profile CRUD; no Bluetooth transport |
-| Basilisk Mobile | `Contributor validated` (cable) | `Contributor validated` (scoped) | Ten-slot button remap, DPI (independent X/Y, 18K), sleep, battery and charging, logo lighting with all eight effects and brightness on both connections; cable adds poll rate. Bluetooth brightness is live-only. Onboard profile management is not exposed; the HyperSpeed receiver `00D4` is not registered |
+| Basilisk Mobile | `Contributor validated` (cable, receiver) | `Contributor validated` (scoped) | Ten-slot button remap, DPI (independent X/Y, 18K), sleep, battery and charging, logo lighting with seven effects (no wave) and brightness on both connections; USB adds poll rate. Bluetooth brightness is live-only. Onboard profile management is not exposed |
 | Basilisk V3 Pro 35K Phantom Green Edition | `Mapped` | `Contributor validated` | USB cable and receiver await hardware validation; USB software lighting and onboard profile management stay hidden. Bluetooth live changes reset on power cycle |
 | Orochi V2 | `Not shipped` | `Contributor validated` | Contributor validated Bluetooth DPI stages, battery, and no-RGB behavior; button remap is profile-mapped pending hardware readback validation |
 | Naga Pro | `Contributor validated` | `Contributor validated` | Core controls and known-safe side-panel slots ship with captured native defaults; all three side panels have been physically press-validated (12- and 6-button in PR #121, 2-button in the 2026-10-17 capture addendum), and the shipped slot table was cross-checked against the device's own mappable-button inventory |
@@ -128,7 +128,8 @@ Bluetooth `068E:00D5`; Razer's guide names it `BSK MOBILE`. Contributor-validate
 - Lighting: one zone, the logo (LED `0x04`), through the V3 Pro zone-state keys. All eight
   effects (off, static, spectrum, wave, reactive, random/single/dual breathing) use the
   Naga V3 Pro effect bodies; each was written, read back exactly, and seen on hardware.
-  Wave shows as a fast colour cycle on the single LED.
+  Wave shows as a fast colour cycle on the single LED and its direction does nothing, so it
+  duplicates Spectrum and is not offered.
 - Persistence: live lighting writes reset on power cycle. The profile mirrors every colour
   and effect write to onboard target 1, which the firmware loads at boot; static red and
   breathing green were visually confirmed after a power cycle.
@@ -167,8 +168,12 @@ Bluetooth `068E:00D5`; Razer's guide names it `BSK MOBILE`. Contributor-validate
 - USB cable (`1532:00D3`): standard transaction `0x1F` commands for logo LED `0x04` lighting and
   brightness, DPI (shared table with Bluetooth), poll rate, sleep, battery and the same ten
   button slots; evidence in [captures/usb/2026-11-23-basilisk-mobile/](../captures/usb/2026-11-23-basilisk-mobile/).
-  Only static colour was tested among the USB effects. The HyperSpeed receiver (`00D4`) is not
-  registered.
+  Only static colour was tested among the USB effects.
+- HyperSpeed receiver (`1532:00D4`): forwards the same transaction `0x1F` commands and shares the
+  cable profile. Brightness read, static colour, poll rate (1000 Hz), battery and the ten-slot
+  inventory answered; the colour change landed after a short delay. While the mouse sleeps,
+  mouse-side requests time out with status `0x04`. The receiver battery read returned `ff`
+  (100%) after a cable charge; whether that is current or stale is not established.
 
 ## Basilisk V3 USB Family Assumptions
 

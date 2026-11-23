@@ -12,10 +12,12 @@ final class BasiliskMobileBluetoothTests: XCTestCase {
         XCTAssertEqual(profile.id, .basiliskMobile)
         XCTAssertEqual(profile.productName, "Basilisk Mobile")
         XCTAssertFalse(profile.isLocallyValidated)
-        // The cable (00D3) is registered; the HyperSpeed receiver (00D4) is not validated.
+        // The cable (00D3) and HyperSpeed receiver (00D4) share one USB profile.
         let cable = try XCTUnwrap(DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00D3, transport: .usb))
         XCTAssertEqual(cable.id, .basiliskMobile)
-        XCTAssertNil(DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00D4, transport: .usb))
+        let receiver = try XCTUnwrap(DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00D4, transport: .usb))
+        XCTAssertEqual(receiver.id, .basiliskMobile)
+        XCTAssertEqual(receiver.usbTransactionID, 0x1F)
         XCTAssertNil(DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00D5, transport: .usb))
     }
 
@@ -29,7 +31,7 @@ final class BasiliskMobileBluetoothTests: XCTestCase {
         let profile = try XCTUnwrap(DeviceProfiles.resolve(vendorID: 0x068E, productID: 0x00D5, transport: .bluetooth))
         XCTAssertEqual(profile.lightingLEDIDs(), [0x04])
         XCTAssertEqual(profile.usbLightingZones.map(\.id), ["logo"])
-        XCTAssertEqual(profile.supportedLightingEffects, LightingEffectKind.allCases)
+        XCTAssertEqual(profile.supportedLightingEffects, [.off, .staticColor, .spectrum, .reactive, .pulseRandom, .pulseSingle, .pulseDual])
         XCTAssertTrue(profile.supportsAdvancedLightingEffects)
         XCTAssertTrue(profile.supportsDPIControls)
         XCTAssertTrue(profile.supportsIndependentXYDPI)
@@ -166,7 +168,7 @@ final class BasiliskMobileBluetoothTests: XCTestCase {
         let profile = try XCTUnwrap(DeviceProfiles.resolve(vendorID: 0x1532, productID: 0x00D3, transport: .usb))
         XCTAssertEqual(profile.usbTransactionID, 0x1F)
         XCTAssertEqual(profile.lightingLEDIDs(), [0x04])
-        XCTAssertEqual(profile.supportedLightingEffects, LightingEffectKind.allCases)
+        XCTAssertEqual(profile.supportedLightingEffects, [.off, .staticColor, .spectrum, .reactive, .pulseRandom, .pulseSingle, .pulseDual])
         XCTAssertTrue(profile.supportsLightingBrightnessControls)
         XCTAssertTrue(profile.supportsDPIControls)
         XCTAssertTrue(profile.supportsIndependentXYDPI)

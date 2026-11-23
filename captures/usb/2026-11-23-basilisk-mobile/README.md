@@ -1,8 +1,9 @@
-# Basilisk Mobile USB cable mapping
+# Basilisk Mobile USB cable and receiver mapping
 
 Date: 2026-11-23. Device: Razer Basilisk Mobile (`RZ01-0431`), USB cable `1532:00D3`, slider
 in the off position. macOS host, OpenSnekProbe from the Basilisk Mobile Bluetooth branch.
-Contributor validation on owner hardware. The HyperSpeed receiver (`00D4`) was not tested.
+Contributor validation on owner hardware. The HyperSpeed receiver (`1532:00D4`) was probed the
+same day with the mouse in 2.4 GHz mode.
 
 | File | Evidence |
 |---|---|
@@ -28,6 +29,19 @@ Contributor validation on owner hardware. The HyperSpeed receiver (`00D4`) was n
 - Sleep `07 83` read `00 3c` (60 s, the value set earlier over Bluetooth); 120 s was written, read
   back and restored. USB sleep is big-endian; Bluetooth is little-endian.
 
+## Receiver (`00D4`)
+
+- Same transaction ID `0x1F`. Brightness `0F 84 01 04 00` read `ff` (status `0x02`).
+- Static orange via `0F 02 01 04 01 00 00 01 ff 80 00` was accepted and the logo changed after a
+  short delay, preceded by what looked like a white flash.
+- Poll rate `00 85` read `01` (1000 Hz).
+- Battery via `usb-battery-read` returned raw `ff` (100%) twice, including with the mouse awake,
+  after charging on the cable. Current or stale is not established.
+- Button inventory `02 84` timed out (status `0x04`) while the mouse was asleep (1 minute sleep
+  timeout), then returned the same ten slots as the cable once it was awake.
+- `usb-button-inventory` reports `read_failed` for an unregistered PID because the probe takes the
+  transaction ID from the profile; the raw read with `--txn 0x1F` succeeded.
+
 ## Not tested
 
-Effects other than static over USB, the receiver identity, and app-level use on the cable.
+Effects other than static over USB, and DPI, sleep and button writes through the receiver.

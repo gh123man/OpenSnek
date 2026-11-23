@@ -526,21 +526,27 @@ public enum DeviceProfiles {
         ButtonSlotDescriptor(slot: 10, friendlyName: "Scroll Down", defaultKind: .scrollDown)
     ]
 
+    // Wave renders but has nowhere to travel on the single logo LED: it is a fast colour cycle that
+    // duplicates Spectrum, and its direction does nothing, so it is not offered.
+    public static let basiliskMobileLightingEffects: [LightingEffectKind] = LightingEffectKind.allCases.filter { $0 != .wave }
+
     public static let basiliskMobileLightingZones: [USBLightingZoneDescriptor] = [USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x04])]
 
     public static let basiliskMobileBluetooth = DeviceProfile(
         id: .basiliskMobile, productName: "Basilisk Mobile", transport: .bluetooth, supportedProducts: [0x00D5], buttonLayout: ButtonSlotLayout(visibleSlots: basiliskMobileButtonSlots, writableSlots: basiliskMobileButtonSlots.map(\.slot)), supportsAdvancedLightingEffects: true,
-        supportedLightingEffects: LightingEffectKind.allCases, usbLightingLEDIDs: [0x04], usbLightingZones: basiliskMobileLightingZones, supportsIndependentXYDPI: true, supportsLightingBrightnessControls: true, supportsPollRateControls: false, bluetoothStoredLightingTarget: 0x01,
+        supportedLightingEffects: basiliskMobileLightingEffects, usbLightingLEDIDs: [0x04], usbLightingZones: basiliskMobileLightingZones, supportsIndependentXYDPI: true, supportsLightingBrightnessControls: true, supportsPollRateControls: false, bluetoothStoredLightingTarget: 0x01,
         minimumLightingBrightness: 1, isLocallyValidated: false)
 
-    // Cable only (1532:00D3, contributor-validated: captures/usb/2026-11-23-basilisk-mobile/). The
-    // HyperSpeed receiver (00D4) is not validated. Standard transaction 0x1F commands answer:
+    // Cable (1532:00D3) and HyperSpeed receiver (1532:00D4), contributor-validated:
+    // captures/usb/2026-11-23-basilisk-mobile/. Standard transaction 0x1F commands answer:
     // logo LED 0x04 effects and brightness, the 38-byte DPI table, poll rate, sleep, battery, and
     // the same ten-slot button inventory. Settings are shared with the Bluetooth connection.
     // Brightness 0 latches the LED off until an effect is re-sent, so writes are clamped to 1.
+    // The receiver forwards the same commands; requests time out (status 0x04) while the mouse sleeps.
     public static let basiliskMobileUSB = DeviceProfile(
-        id: .basiliskMobile, productName: "Basilisk Mobile", transport: .usb, supportedProducts: [0x00D3], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: basiliskMobileButtonSlots, writableSlots: basiliskMobileButtonSlots.map(\.slot)), supportsAdvancedLightingEffects: true,
-        supportedLightingEffects: LightingEffectKind.allCases, usbLightingLEDIDs: [0x04], usbLightingZones: basiliskMobileLightingZones, supportsIndependentXYDPI: true, supportsLightingBrightnessControls: true, minimumLightingBrightness: 1, isLocallyValidated: false)
+        id: .basiliskMobile, productName: "Basilisk Mobile", transport: .usb, supportedProducts: [0x00D3, 0x00D4], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: basiliskMobileButtonSlots, writableSlots: basiliskMobileButtonSlots.map(\.slot)),
+        supportsAdvancedLightingEffects: true, supportedLightingEffects: basiliskMobileLightingEffects, usbLightingLEDIDs: [0x04], usbLightingZones: basiliskMobileLightingZones, supportsIndependentXYDPI: true, supportsLightingBrightnessControls: true, minimumLightingBrightness: 1,
+        isLocallyValidated: false)
 
     public static let basiliskV3ProBluetooth = basiliskV3ProBluetoothFamilyProfile(id: .basiliskV3Pro, productName: "Basilisk V3 Pro", supportedProducts: [0x00AC], maximumDPI: 30_000)
 

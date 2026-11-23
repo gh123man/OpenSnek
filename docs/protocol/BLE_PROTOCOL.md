@@ -1045,7 +1045,7 @@ Razer's guide names the Bluetooth device `BSK MOBILE`.
   power cycle.
 - Effects: the eight Naga V3 Pro effect bodies (off `00`, spectrum `03`, wave `04 01 28 00`,
   random/single/dual breathing `02 …`, reactive `05 00 <speed> 01 RGB`) ACK and read back
-  unchanged on LED `0x04`; the owner saw each render. Wave shows as a fast colour cycle.
+  unchanged on LED `0x04`; the owner saw each render. Wave shows as a fast colour cycle, so OpenSnek does not offer it.
 - DPI: `0B 84 01 00` returns the shared 36-byte table (little-endian X/Y, seven bytes per
   stage, stage IDs 1-5); `0B 04 01 00` takes the 38-byte form. Independent X/Y was written
   and read back on stage 3 and on the scalar `0B 81 01 00`, then restored exactly; 18,000 on
