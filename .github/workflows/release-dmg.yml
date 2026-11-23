@@ -16,8 +16,15 @@ permissions:
 
 jobs:
   release-dmg:
-    environment: macbook-ci
-    runs-on: ${{ vars.MACBOOK_CI == 'enabled' && format('macbook-{0}-{1}', github.run_id, github.run_attempt) || 'macos-26' }}
+    name: release-dmg
+    # Owner releases can sign and publish on hosted macOS without a MacBook deployment review.
+    # Other release initiators still need the protected publishing environment.
+    strategy:
+      matrix:
+        environment:
+          - ${{ github.repository_owner_id == '959778' && github.triggering_actor == github.repository_owner && 'github-hosted-release' || 'macbook-ci' }}
+    environment: ${{ matrix.environment }}
+    runs-on: ${{ matrix.environment == 'macbook-ci' && vars.MACBOOK_CI == 'enabled' && format('macbook-{0}-{1}', github.run_id, github.run_attempt) || 'macos-26' }}
     env:
       SPARKLE_VERSION: 2.9.3
 
