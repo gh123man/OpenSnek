@@ -14,21 +14,22 @@ permissions:
 
 jobs:
   swift-unit-tests:
-    name: Swift Unit Tests
+    name: ${{ matrix.name }}
     # Only request a VM for events the MacBook controller admits automatically.
     # Fork PRs use GitHub's contributor approval and then run on hosted macOS.
     strategy:
       matrix:
-        runner:
-          - >-
-            ${{ vars.MACBOOK_CI == 'enabled' &&
-                github.actor_id == '959778' && github.triggering_actor == 'gh123man' &&
-                ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-                 (github.event_name == 'pull_request' &&
-                  (github.event.action == 'opened' || github.event.action == 'synchronize') &&
-                  github.event.pull_request.user.id == 959778 &&
-                  github.event.pull_request.head.repo.id == github.event.repository.id)) &&
-                format('macbook-{0}-{1}', github.run_id, github.run_attempt) || 'macos-26' }}
+        include:
+          - name: Swift Unit Tests
+            runner: >-
+              ${{ vars.MACBOOK_CI == 'enabled' &&
+                  github.actor_id == '959778' && github.triggering_actor == 'gh123man' &&
+                  ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+                   (github.event_name == 'pull_request' &&
+                    (github.event.action == 'opened' || github.event.action == 'synchronize') &&
+                    github.event.pull_request.user.id == 959778 &&
+                    github.event.pull_request.head.repo.id == github.event.repository.id)) &&
+                  format('macbook-{0}-{1}', github.run_id, github.run_attempt) || 'macos-26' }}
     environment: ${{ matrix.runner == 'macos-26' && 'github-hosted-ci' || 'macbook-ci-owner' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
