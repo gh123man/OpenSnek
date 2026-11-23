@@ -88,8 +88,27 @@ struct SettingsView: View {
 
     private var updatesSection: some View {
         Section("Updates") {
-            Toggle("Include release candidates", isOn: $includeReleaseCandidates).onChange(of: includeReleaseCandidates) { _, _ in runtimeStore.updatePreferencesDidChange() }
+            HStack {
+                Button("Check for Updates") { Task { await deviceStore.checkForUpdates() } }
+                Button("Install Update") { deviceStore.installAvailableUpdate() }.disabled(deviceStore.availableUpdate == nil)
+                if deviceStore.updateCheckState == .checking || deviceStore.isInstallingUpdate { ProgressView().controlSize(.small) }
+            }.disabled(deviceStore.updateCheckState == .checking || deviceStore.isInstallingUpdate)
+            if let updateStatus { Text(updateStatus).font(.callout).foregroundStyle(.secondary) }
+            Toggle("Include release candidates", isOn: $includeReleaseCandidates).disabled(deviceStore.isInstallingUpdate).onChange(of: includeReleaseCandidates) { _, _ in runtimeStore.updatePreferencesDidChange() }
             Text("Receive suggestions for newer release candidates as well as stable releases. RC builds always receive newer RC suggestions.").font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
+        }
+    }
+
+    private var updateStatus: String? {
+        if case .failed(let message) = deviceStore.updateInstallState { return message }
+        if deviceStore.isInstallingUpdate { return "Updating OpenSnek…" }
+        switch deviceStore.updateCheckState {
+        case .checking: return "Checking for updates…"
+        case .upToDate: return "OpenSnek is up to date."
+        case .failed(let message): return "Couldn’t check for updates. \(message)"
+        case .idle:
+            guard let release = deviceStore.availableUpdate else { return nil }
+            return release.isDryRun ? "Update preview for OpenSnek \(release.latestVersion)." : "OpenSnek \(release.latestVersion) is available."
         }
     }
 

@@ -31,7 +31,8 @@ import OpenSnekCore
     private var lastFastDpiPollAt: Date = .distantPast
     private var transientStatusUntil: Date?
     private(set) var isBackendReady = false
-    private(set) var isInstallingUpdate = false
+    var isInstallingUpdate: Bool { deviceStore.isInstallingUpdate }
+    private var releaseCheckID = UUID()
     private var backendStateUpdatesBootstrapTask: Task<Void, Never>?
     private var backendStateUpdatesTask: Task<Void, Never>?
     private var remoteClientPresenceByProcessID: [Int32: RemoteClientPresenceState] = [:]
@@ -667,30 +668,41 @@ import OpenSnekCore
         environment.backend = backend
     }
 
-    private func checkForUpdates(now: Date = Date(), force: Bool = false) async {
-        guard force || ReleaseUpdateChecker.isPeriodicCheckDue(lastCheckedAt: environment.lastReleaseUpdateCheckAt, now: now) else { return }
+    func checkForUpdates(now: Date = Date(), userInitiated: Bool = false) async {
+        guard !environment.launchRole.isService, !isInstallingUpdate, deviceStore.updateCheckState != .checking else { return }
+        guard userInitiated || ReleaseUpdateChecker.isPeriodicCheckDue(lastCheckedAt: environment.lastReleaseUpdateCheckAt, now: now) else { return }
         environment.lastReleaseUpdateCheckAt = now
 
         let usesDryRun = Self.usesReleaseUpdateDryRun()
         let includesReleaseCandidates = ReleaseUpdateChecker.includesReleaseCandidates()
-        guard environment.shouldCheckForReleaseUpdates || usesDryRun || includesReleaseCandidates else {
-            deviceStore.availableUpdate = nil
+        guard userInitiated || environment.shouldCheckForReleaseUpdates || usesDryRun || includesReleaseCandidates else { return }
+
+        guard let currentVersion = environment.currentAppVersion, usesDryRun || ReleaseVersion.parse(currentVersion) != nil else {
+            deviceStore.updateCheckState = .failed("The installed OpenSnek version is unavailable.")
             return
         }
-
-        guard let currentVersion = environment.currentAppVersion else { return }
         let checkMode = ReleaseUpdateChecker.checkMode(currentVersion: currentVersion, includeReleaseCandidates: includesReleaseCandidates, usesDryRun: usesDryRun)
+        let checkID = releaseCheckID
+        deviceStore.updateCheckState = .checking
+        if case .failed = deviceStore.updateInstallState { deviceStore.resetUpdateInstallState() }
 
         do {
-            deviceStore.availableUpdate = try await environment.releaseUpdateChecker.checkForUpdate(currentVersion: currentVersion, mode: checkMode)
-            if let availableUpdate = deviceStore.availableUpdate { AppLog.event("AppState", "update available current=\(currentVersion) latest=\(availableUpdate.latestVersion)") }
-        } catch { AppLog.debug("AppState", "checkForUpdates failed: \(error.localizedDescription)") }
+            let release = try await environment.releaseUpdateChecker.checkForUpdate(currentVersion: currentVersion, mode: checkMode)
+            guard checkID == releaseCheckID else { return }
+            deviceStore.availableUpdate = release
+            deviceStore.updateCheckState = release == nil ? .upToDate : .idle
+            if let release { AppLog.event("AppState", "update available current=\(currentVersion) latest=\(release.latestVersion)") }
+        } catch {
+            guard checkID == releaseCheckID else { return }
+            deviceStore.updateCheckState = .failed(error.localizedDescription)
+            AppLog.debug("AppState", "checkForUpdates failed: \(error.localizedDescription)")
+        }
     }
 
     func installAvailableUpdate() async {
-        guard let release = deviceStore.availableUpdate, !isInstallingUpdate else { return }
-        isInstallingUpdate = true
-        defer { isInstallingUpdate = false }
+        guard let release = deviceStore.availableUpdate, deviceStore.updateCheckState != .checking, !isInstallingUpdate else { return }
+        deviceStore.isInstallingUpdate = true
+        defer { deviceStore.isInstallingUpdate = false }
         let shouldReconnectService = environment.usesRemoteServiceTransport
         do {
             deviceStore.updateInstallState = .checking
@@ -808,8 +820,12 @@ import OpenSnekCore
     }
 
     func updatePreferencesDidChange() async {
+        // A pending result from the previous release channel must not become installable.
+        releaseCheckID = UUID()
+        deviceStore.availableUpdate = nil
+        deviceStore.updateCheckState = .idle
         environment.lastReleaseUpdateCheckAt = nil
-        await checkForUpdates(force: true)
+        await checkForUpdates()
     }
 
     private func clearTransientStatusIfExpired(now: Date) {

@@ -16,6 +16,8 @@ import SwiftUI
     /// off the USB link without losing its last known state.
     var usbControlAvailabilityByDeviceID: [String: USBControlAvailability] = [:]
     var availableUpdate: ReleaseAvailability?
+    var updateCheckState: ReleaseUpdateCheckState = .idle
+    var isInstallingUpdate = false
     var updateInstallState: SoftwareUpdateInstallState = .idle
     var isLoading = false
     var isApplying = false
@@ -120,6 +122,8 @@ import SwiftUI
     }
 
     var currentBuildChannel: AppBuildChannel { ReleaseUpdateChecker.currentBuildChannel() }
+
+    func checkForUpdates() async { await runtimeController.checkForUpdates(userInitiated: true) }
 
     func installAvailableUpdate() { Task { await runtimeController.installAvailableUpdate() } }
 
