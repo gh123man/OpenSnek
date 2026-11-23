@@ -153,8 +153,8 @@ Bluetooth `068E:00D5`; Razer's guide names it `BSK MOBILE`. Contributor-validate
   Bluetooth was not tested for this. OpenSnek writes a minimum of 1 on both connections
   (barely visible); use the Off effect for a dark logo.
 - Battery: byte-scaled vendor battery `05 81 00 01`; OpenSnek and macOS agreed at 77%.
-  Shortly after power-on the firmware can report a stale `ff` (macOS also lagged at 100%) or a
-  transient `00`; `00` is treated as unknown. Charging `05 85 00 01` reads `00` on battery and
+  After power-on the firmware can report a stale `ff` for 30+ minutes (macOS also lagged at 100%)
+  or a transient `00`; both are treated as unknown, so no level shows instead of a false 100%. Charging `05 85 00 01` reads `00` on battery and
   `01` on the cable.
 - Hidden: onboard profile management (one slot, metadata unprobed).
 - Power-on: two red flashes appeared on several boots, including one with no preceding write.
@@ -172,8 +172,9 @@ Bluetooth `068E:00D5`; Razer's guide names it `BSK MOBILE`. Contributor-validate
 - HyperSpeed receiver (`1532:00D4`): forwards the same transaction `0x1F` commands and shares the
   cable profile. Brightness read, static colour, poll rate (1000 Hz), battery and the ten-slot
   inventory answered; the colour change landed after a short delay. While the mouse sleeps,
-  mouse-side requests time out with status `0x04`. The receiver battery read returned `ff`
-  (100%) after a cable charge; whether that is current or stale is not established.
+  mouse-side requests time out with status `0x04`. The mouse reports battery `ff` through the
+  receiver when it is not full (raw `07 80` with transaction `0x1F`), so `ff` there is treated as
+  unknown. The cable read the real level.
 
 ## Basilisk V3 USB Family Assumptions
 

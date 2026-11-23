@@ -90,3 +90,9 @@ $ OpenSnekProbe usb-raw --pid 0x00D4 --txn 0x1F --class 0x02 --cmd 0x84 --size 0
 
 $ (same, mouse awake)
 02 1f 00 00 00 05 02 84 0a 01 02 03 04 05 80 34 35 09 0a
+
+$ OpenSnekProbe usb-raw --pid 0x00D4 --txn 0x1F --class 0x07 --cmd 0x80 --size 0x02 --args 0x00,0x00
+04 1f 00 00 00 02 07 80   (timeout, mouse asleep)
+
+$ (same, mouse awake)
+02 1f 00 00 00 02 07 80 00 ff   (owner: battery not full)

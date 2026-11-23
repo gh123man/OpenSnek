@@ -97,7 +97,9 @@ final class BasiliskMobileBluetoothTests: XCTestCase {
 
     func testBatteryIsByteScaled() {
         // Byte scale: OpenSnek and macOS agreed at 77%; values at or below 100 must not be read as a percentage.
-        XCTAssertEqual(BridgeClient.resolveBluetoothBatteryState(device: device, vendorRaw: 0xFF, vendorStatus: nil, usbFallback: nil).percent, 100)
+        // 0xFF can stay stuck for 30+ minutes when the mouse is not full, so it is unknown, not 100%.
+        XCTAssertNil(BridgeClient.resolveBluetoothBatteryState(device: device, vendorRaw: 0xFF, vendorStatus: nil, usbFallback: nil).percent)
+        XCTAssertEqual(BridgeClient.resolveBluetoothBatteryState(device: device, vendorRaw: 0xFE, vendorStatus: nil, usbFallback: nil).percent, 99)
         XCTAssertEqual(BridgeClient.resolveBluetoothBatteryState(device: device, vendorRaw: 0xC4, vendorStatus: nil, usbFallback: nil).percent, 76)
         // A transient 0x00 from a mouse that is still answering is unknown, not empty.
         XCTAssertNil(BridgeClient.resolveBluetoothBatteryState(device: device, vendorRaw: 0x00, vendorStatus: nil, usbFallback: nil).percent)
@@ -178,6 +180,14 @@ final class BasiliskMobileBluetoothTests: XCTestCase {
         XCTAssertEqual(Set(profile.buttonLayout.writableSlots), [1, 2, 3, 4, 5, 9, 10, 52, 53, 128])
         XCTAssertNil(profile.bluetoothStoredLightingTarget)
         XCTAssertFalse(profile.isLocallyValidated)
+    }
+
+    func testFullBatteryReadingIsUntrustedOnWirelessOnly() {
+        let usb = { (pid: Int) in MouseDevice(id: "basilisk-mobile-usb-\(pid)", vendor_id: 0x1532, product_id: pid, product_name: "Razer Basilisk Mobile", transport: .usb, path_b64: "", serial: nil, firmware: nil) }
+        XCTAssertTrue(device.reportsUnreliableFullBattery)
+        XCTAssertTrue(usb(0x00D4).reportsUnreliableFullBattery)
+        // The cable read the real level (raw 0xDE), so a full reading there stays trusted.
+        XCTAssertFalse(usb(0x00D3).reportsUnreliableFullBattery)
     }
 
     func testBrightnessWritesNeverReachZero() {

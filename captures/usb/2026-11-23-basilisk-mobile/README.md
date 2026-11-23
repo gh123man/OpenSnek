@@ -35,8 +35,10 @@ same day with the mouse in 2.4 GHz mode.
 - Static orange via `0F 02 01 04 01 00 00 01 ff 80 00` was accepted and the logo changed after a
   short delay, preceded by what looked like a white flash.
 - Poll rate `00 85` read `01` (1000 Hz).
-- Battery via `usb-battery-read` returned raw `ff` (100%) twice, including with the mouse awake,
-  after charging on the cable. Current or stale is not established.
+- Battery via `usb-battery-read` returned raw `ff` (100%) twice, including with the mouse awake.
+  A raw `07 80` with `--txn 0x1F` also answered `ff` (after one `0x04` timeout while asleep), and
+  the owner confirmed the mouse was not full, so the stuck `ff` is the mouse's own report.
+  OpenSnek treats `ff` through the receiver as unknown.
 - Button inventory `02 84` timed out (status `0x04`) while the mouse was asleep (1 minute sleep
   timeout), then returned the same ten slots as the cable once it was awake.
 - `usb-button-inventory` reports `read_failed` for an unregistered PID because the probe takes the

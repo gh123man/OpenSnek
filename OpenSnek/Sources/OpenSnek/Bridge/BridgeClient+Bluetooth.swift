@@ -65,10 +65,11 @@ extension BridgeClient {
         // The V3 Pro 35K reported raw 0x7B over Bluetooth, so its byte is on the 0-255 scale even below 100.
         let isV3Pro35KBluetooth = device.transport == .bluetooth && (device.profile_id == .basiliskV3Pro35K || device.product_id == 0x00D8)
         let isV4Bluetooth = device.transport == .bluetooth && profileID == .basiliskV4Hyperspeed
-        // The Basilisk Mobile is byte-scaled (OpenSnek and macOS agreed at 77%). Shortly after power-on it
-        // can report a stale 0xFF or a transient 0x00 while still answering, so 0x00 is treated as unknown.
+        // The Basilisk Mobile is byte-scaled (OpenSnek and macOS agreed at 77%). After power-on it can report
+        // a stale 0xFF for 30+ minutes or a transient 0x00 while still answering; both are treated as unknown.
         let isBasiliskMobileBluetooth = device.transport == .bluetooth && profileID == .basiliskMobile
-        let trustedVendorRaw = isBasiliskMobileBluetooth && vendorRaw == 0 ? nil : vendorRaw
+        let isUntrustedFull = vendorRaw == 0xFF && device.reportsUnreliableFullBattery
+        let trustedVendorRaw = (isBasiliskMobileBluetooth && vendorRaw == 0) || isUntrustedFull ? nil : vendorRaw
         let vendorPercent = trustedVendorRaw.map { raw in
             if isV3XBluetooth { return Int((Double(min(max(raw, 0), 255)) / 255.0 * 100.0).rounded()) }
             return (usesNagaBattery || isV3Pro35KBluetooth || isV4Bluetooth || isBasiliskMobileBluetooth || raw > 100) ? Int((Double(raw) / 255.0) * 100.0) : raw

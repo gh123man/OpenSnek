@@ -440,6 +440,8 @@ extension BridgeClient {
         let percent = response.flatMap(USBHIDProtocol.parseBatteryLevelPercent)
         logUSBPowerResponse(device: device, command: "07:80", response: response, value: percent.map(String.init))
         guard let percent else { return nil }
+        // Only raw 0xFF maps to 100%; for some wireless links that reading is stale, not full.
+        if percent == 100, device.reportsUnreliableFullBattery { return nil }
         let charging = try getChargingStatus(session, device)
         return (percent, charging)
     }
