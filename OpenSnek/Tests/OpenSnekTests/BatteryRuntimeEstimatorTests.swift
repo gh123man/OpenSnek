@@ -62,7 +62,7 @@ final class BatteryRuntimeEstimatorTests: XCTestCase {
     private func train(_ device: MouseDevice, estimator: inout BatteryRuntimeEstimator) { for (index, level) in [70, 69, 67].enumerated() { estimator.observe(device, percent: level, charging: false, at: start.addingTimeInterval(Double(index * 450))) } }
 
     func testEveryRegisteredProfileUsesItsBatteryCapability() {
-        let rechargeable: Set<DeviceProfileID> = [.basiliskV3Pro, .basiliskV3Pro35K, .basiliskV4Hyperspeed, .nagaPro, .nagaV2Pro, .nagaV3Pro]
+        let rechargeable: Set<DeviceProfileID> = [.basiliskV3Pro, .basiliskV3Pro35K, .basiliskV4Hyperspeed, .basiliskMobile, .nagaPro, .nagaV2Pro, .nagaV3Pro]
         var estimator = BatteryRuntimeEstimator(defaults: defaults)
         for profile in DeviceProfiles.all {
             let device = device(profile, id: "\(profile.id.rawValue)-\(profile.transport.rawValue)")

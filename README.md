@@ -35,6 +35,7 @@ OpenSnek is an open source native macOS app for configuring supported Razer devi
 | Basilisk V3 | 🧪 | - | Awaiting hardware validation |
 | Basilisk V3 Pro | ✅ | ✅ | Bluetooth lighting: static only |
 | Basilisk V3 35K | ✅ | - | |
+| Basilisk Mobile | ✅ Cable, receiver | ✅ | Bluetooth brightness resets at power-on |
 | Basilisk V3 Pro 35K Phantom Green Edition | 🧪 | ✅ | No onboard profiles or USB software lighting; Bluetooth: restore-on-connect |
 | Orochi V2 | ❌ | ✅ | Button remapping awaits validation; no RGB hardware |
 | Naga Pro | ✅ | ✅ | No scroll-wheel settings |

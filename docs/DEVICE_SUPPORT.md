@@ -42,6 +42,7 @@ Button remap keyboard actions support modifier chords on shipped USB and Bluetoo
 | Basilisk V3 | `Mapped` | `No transport` | Shares the Basilisk V3 USB family configuration, but remains unvalidated on local hardware |
 | Basilisk V3 Pro | `Validated` | `Validated` | Ships mapped onboard profile CRUD on USB and Bluetooth; Bluetooth keeps lighting static-only, hides poll-rate and threshold controls, and does not ship clutch/profile-button remap |
 | Basilisk V3 35K | `Validated` | `No transport` | Shares the Basilisk V3 USB family configuration with mapped onboard profile CRUD; no Bluetooth transport |
+| Basilisk Mobile | `Contributor validated` (cable, receiver) | `Contributor validated` (scoped) | Ten-slot button remap, DPI (independent X/Y, 18K), sleep, battery and charging, logo lighting with seven effects (no wave) and brightness on both connections; USB adds poll rate. Bluetooth brightness is live-only. Onboard profile management is not exposed |
 | Basilisk V3 Pro 35K Phantom Green Edition | `Mapped` | `Contributor validated` | USB cable and receiver await hardware validation; USB software lighting and onboard profile management stay hidden. Bluetooth live changes reset on power cycle |
 | Orochi V2 | `Not shipped` | `Contributor validated` | Contributor validated Bluetooth DPI stages, battery, and no-RGB behavior; button remap is profile-mapped pending hardware readback validation |
 | Naga Pro | `Contributor validated` | `Contributor validated` | Core controls and known-safe side-panel slots ship with captured native defaults; all three side panels have been physically press-validated (12- and 6-button in PR #121, 2-button in the 2026-10-17 capture addendum), and the shipped slot table was cross-checked against the device's own mappable-button inventory |
@@ -118,6 +119,62 @@ validated USB profile above.
 - Profile CRUD, polling, scroll-mode controls, effects and software lighting are
   unavailable. No physical sleep/wake, power-cycle persistence, or button-press
   validation is claimed by the finite protocol probes.
+
+## Basilisk Mobile Bluetooth
+
+Bluetooth `068E:00D5`; Razer's guide names it `BSK MOBILE`. Contributor-validated probe evidence is in
+[captures/ble/2026-11-22-basilisk-mobile/](../captures/ble/2026-11-22-basilisk-mobile/).
+
+- Lighting: one zone, the logo (LED `0x04`), through the V3 Pro zone-state keys. All eight
+  effects (off, static, spectrum, wave, reactive, random/single/dual breathing) use the
+  Naga V3 Pro effect bodies; each was written, read back exactly, and seen on hardware.
+  Wave shows as a fast colour cycle on the single LED and its direction does nothing, so it
+  duplicates Spectrum and is not offered.
+- Persistence: live lighting writes reset on power cycle. The profile mirrors every colour
+  and effect write to onboard target 1, which the firmware loads at boot; static red and
+  breathing green were visually confirmed after a power cycle.
+- DPI: shared 36-byte read / 38-byte write stage table, independent X/Y. A stage changed to
+  1700 x 1800, read back (including the scalar `0B 81 01 00`), and was restored exactly.
+  Stage 5 written as 18,000 x 18,000 read back exactly and was restored.
+- Sleep timeout: little-endian at `05 84 00 00` / `05 04 00 00`; 300 s read, 600 s written
+  and read back, then restored. 600 s survived a power cycle.
+- Buttons: slot inventory `08 80 00 00` lists 1-5, 9, 10, 52, 53 and 128; there is no
+  scroll-mode toggle slot (Synapse cannot remap that button either). Reads use the V4
+  interleaved layout (current lane, factory lane); writes are `[01, slot, 00]` plus a
+  seven-byte block and are verified by reading target 1. Factory blocks come from the factory
+  lane; slot 128 (AI Prompt Master) is `00 01 00`. Slot identities were confirmed from the
+  owner's Synapse remaps; every slot was remapped to right click in the app and press-checked,
+  and reversed scroll direction worked. The editor can read and restore the owner's captured
+  500-DPI clutch binding on slot 5.
+- Brightness: `10 05 01 04` / `10 85 01 04` dims the logo live, but resets at power-on;
+  `10 85 00 04` also returned to `ff` and `02`/`03` read `00`, so no stored brightness
+  target was found. The existing restore-on-connect behaviour can reapply it.
+- Brightness 0 (cable): the logo stays off after brightness is raised again, although the
+  firmware reports the effect and brightness unchanged; re-sending the effect relights it.
+  Bluetooth was not tested for this. OpenSnek writes a minimum of 1 on both connections
+  (barely visible); use the Off effect for a dark logo.
+- Battery: byte-scaled vendor battery `05 81 00 01`; OpenSnek and macOS agreed at 77%.
+  After a charge it reports `ff` (100%) for a while, as does macOS; both later read 90%. A
+  transient `00` after power-on is treated as unknown. Charging `05 85 00 01` reads `00` on battery and
+  `01` on the cable.
+- Hidden: onboard profile management (one slot, metadata unprobed).
+- Power-on: two red flashes appeared on several boots, including one with no preceding write.
+  The guide documents blinking red as critically low battery; the cause here is not
+  established.
+- App path: static colour, pulse (dual), spectrum, DPI stage edits, sleep timeout, button
+  remaps and brightness applied through OpenSnek. An app-set effect and a changed DPI stage
+  both survived a power cycle.
+- A fast off/on can leave the mouse unconnected to the Mac; a slower power cycle reconnected
+  normally. The cause is not established.
+- USB cable (`1532:00D3`): standard transaction `0x1F` commands for logo LED `0x04` lighting and
+  brightness, DPI (shared table with Bluetooth), poll rate, sleep, battery and the same ten
+  button slots; evidence in [captures/usb/2026-11-23-basilisk-mobile/](../captures/usb/2026-11-23-basilisk-mobile/).
+  Only static colour was tested among the USB effects.
+- HyperSpeed receiver (`1532:00D4`): forwards the same transaction `0x1F` commands and shares the
+  cable profile. Brightness read, static colour, poll rate (1000 Hz), battery and the ten-slot
+  inventory answered; the colour change landed after a short delay. While the mouse sleeps,
+  mouse-side requests time out with status `0x04`. Battery read `ff` (100%) after a cable
+  charge, a genuine full charge: macOS showed 100% over Bluetooth at the same time.
 
 ## Basilisk V3 USB Family Assumptions
 

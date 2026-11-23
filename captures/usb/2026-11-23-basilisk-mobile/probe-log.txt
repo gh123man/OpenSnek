@@ -1,0 +1,98 @@
+# Razer Basilisk Mobile, USB cable 1532:00D3, slider off, macOS, 2026-11-23
+# OpenSnek app stopped. Terminal lacked Input Monitoring, so each command printed
+# "IOHIDManagerOpen failed (-536870203); continuing best-effort discovery" (omitted below).
+# Responses are trimmed to the status, transaction, size, class, command and arguments.
+
+$ OpenSnekProbe usb-battery-read --pid 0x00d3
+usb 1532:00d3:02100000:usb pid=0x00d3
+battery charging=yes raw=0xde percent=87
+
+$ OpenSnekProbe usb-lighting-info --pid 0x00d3
+supported-effects=off,static,spectrum,wave,reactive,pulse_random,pulse_single,pulse_dual
+zones: all -> [0x01]
+brightness zone=led_01 label="LED 0x01" led=0x01 value=read_failed
+# No profile, so the probe guessed LED 0x01.
+
+$ OpenSnekProbe usb-button-inventory --pid 0x00d3
+button-inventory class=02 cmd=84 count=10 slots=[1,2,3,4,5,128,52,53,9,10]
+
+$ usb-raw --class 0x0F --cmd 0x84 --size 0x03 --args 01,04,00
+02 1f 00 00 00 03 0f 84 01 04 ff
+$ usb-raw --class 0x0F --cmd 0x84 --size 0x03 --args 01,00,00
+03 1f 00 00 00 03 0f 84 01 00 00
+$ usb-raw --class 0x04 --cmd 0x86 --size 0x26 --args 01
+02 1f 00 00 00 26 04 86 01 03 05 01 01 90 01 90 00 00 02 03 20 03 20 00 00 03 06 40 06 40 00 00 04 0c 80 0c 80 00 00 05 19 00 19 00 00 00
+$ usb-raw --class 0x04 --cmd 0x85 --size 0x07 --args 01
+02 1f 00 00 00 07 04 85 01 06 40 06 40
+$ usb-raw --class 0x07 --cmd 0x83 --size 0x02
+02 1f 00 00 00 02 07 83 00 3c
+
+$ usb-raw --class 0x0F --cmd 0x02 --size 0x09 --args 01,04,01,00,00,01,00,ff,00
+02 1f 00 00 00 09 0f 02 01 04 01 00 00 01 00 ff 00
+# Logo turned static green.
+
+$ usb-button-set --slot 5 --kind right_click --profile both
+# Front thumb button opened a context menu.
+$ usb-button-set-raw --slot 5 --hex 06050501f401f4 --profile both
+readback profile=1 slot=5 block=06050501f401f4 class=0x06 len=5 data=0501f401f4 dpi_clutch=500
+readback profile=0 slot=5 block=06050501f401f4 class=0x06 len=5 data=0501f401f4 dpi_clutch=500
+
+== poll
+02 1f 00 00 00 01 00 85 01
+== dpi write (stage 3 = 1700 x 1800)
+02 1f 00 00 00 26 04 06 01 03 05 01 01 90 01 90 00 00 02 03 20 03 20 00 00 03 06 a4 07 08 00 00 04 0c 80 0c 80 00 00 05 19 00
+02 1f 00 00 00 26 04 86 01 03 05 01 01 90 01 90 00 00 02 03 20 03 20 00 00 03 06 a4 07 08 00 00 04 0c 80 0c 80 00 00 05 19 00
+== restore
+02 1f 00 00 00 26 04 86 01 03 05 01 01 90 01 90 00 00 02 03 20 03 20 00 00 03 06 40 06 40 00 00 04 0c 80 0c 80 00 00 05 19 00
+
+== poll 500 (write, read, restore, read)
+02 1f 00 00 00 01 00 05 02
+02 1f 00 00 00 01 00 85 02
+02 1f 00 00 00 01 00 05 01
+02 1f 00 00 00 01 00 85 01
+== sleep 120
+02 1f 00 00 00 02 07 03 00 78
+02 1f 00 00 00 02 07 83 00 78
+02 1f 00 00 00 02 07 03 00 3c
+02 1f 00 00 00 02 07 83 00 3c
+== brightness 40
+02 1f 00 00 00 03 0f 04 01 04 40
+02 1f 00 00 00 03 0f 84 01 04 40
+02 1f 00 00 00 03 0f 04 01 04 ff
+02 1f 00 00 00 03 0f 84 01 04 ff
+
+# Receiver 1532:00D4, mouse in 2.4 GHz mode, macOS, 2026-11-23
+
+$ OpenSnekProbe usb-info --pid 0x00D4
+usb 1532:00d4:02100000:usb pid=0x00d4
+
+$ OpenSnekProbe usb-raw --pid 0x00D4 --txn 0x1F --class 0x0F --cmd 0x84 --args 0x01,0x04,0x00
+02 1f 00 00 00 03 0f 84 01 04 ff
+
+$ OpenSnekProbe usb-raw --pid 0x00D4 --txn 0x1F --class 0x0F --cmd 0x02 --args 0x01,0x04,0x01,0x00,0x00,0x01,0xff,0x80,0x00
+02 1f 00 00 00 09 0f 02 01 04 01 00 00 01 ff 80 00
+(logo turned orange after a short delay)
+
+$ OpenSnekProbe usb-battery-read --pid 0x00D4
+battery charging=no raw=0xff percent=100
+
+$ OpenSnekProbe usb-raw --pid 0x00D4 --txn 0x1F --class 0x00 --cmd 0x85 --args 0x00
+02 1f 00 00 00 01 00 85 01
+
+$ OpenSnekProbe usb-battery-read --pid 0x00D4   (mouse woken first)
+battery charging=no raw=0xff percent=100
+
+$ OpenSnekProbe usb-button-inventory --pid 0x00D4
+button-inventory class=02 cmd=84 read_failed   (no profile, so no 0x1F transaction ID)
+
+$ OpenSnekProbe usb-raw --pid 0x00D4 --txn 0x1F --class 0x02 --cmd 0x84 --size 0x05 --args 0x00,0x00,0x00,0x00,0x00
+04 1f 00 00 00 05 02 84   (timeout, mouse asleep)
+
+$ (same, mouse awake)
+02 1f 00 00 00 05 02 84 0a 01 02 03 04 05 80 34 35 09 0a
+
+$ OpenSnekProbe usb-raw --pid 0x00D4 --txn 0x1F --class 0x07 --cmd 0x80 --size 0x02 --args 0x00,0x00
+04 1f 00 00 00 02 07 80   (timeout, mouse asleep)
+
+$ (same, mouse awake)
+02 1f 00 00 00 02 07 80 00 ff   (full; macOS Bluetooth settings also showed 100%)

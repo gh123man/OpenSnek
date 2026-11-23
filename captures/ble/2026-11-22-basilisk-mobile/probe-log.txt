@@ -1,0 +1,214 @@
+# Razer Basilisk Mobile, Bluetooth 068E:00D5, macOS, 2026-11-22
+# OpenSnek app and background service stopped before every exchange.
+# Built with: swift run --package-path OpenSnek OpenSnekProbe <command>
+
+## 1. Lighting inventory (read-only, no profile registered)
+$ OpenSnekProbe bt-lighting-info
+bt profile="unknown" name=""
+supported-led-ids=0x04
+zone id=led_04 label="LED 0x04" ledIDs=[0x04]
+lighting zone=led_04 label="LED 0x04" led=0x04 brightness=255 color=read_failed
+# color=read_failed: without a profile the probe uses the legacy 10 84 00 00 frame key.
+
+## 2. Live zone state, LED 0x04 (read-only)
+$ OpenSnekProbe bt-raw-read --key 10830004
+bt-raw-read req=0x30 key=10 83 00 04 name=""
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=10 30 0a 00 00 00 00 00 02
+notify[2] len=10 req=0x03 status=0x00 len=0 03 00 00 00 01 00 00 00 00 00
+payload[10]: 03 00 00 00 01 00 00 00 00 00
+
+## 3. Live static red, LED 0x04 (write + readback)
+$ OpenSnekProbe bt-raw-write --key 10030004 --payload 01000001ff0000000000
+# (write ACK not retained in this log)
+$ OpenSnekProbe bt-raw-read --key 10830004
+bt-raw-read req=0x30 key=10 83 00 04 name=""
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=10 30 0a 00 00 00 00 00 02
+notify[2] len=10 req=0x01 status=0x00 len=0 01 00 00 01 ff 00 00 00 00 00
+payload[10]: 01 00 00 01 ff 00 00 00 00 00
+# Logo visibly changed to static red.
+
+## 4. Power cycle (slider off/on, Bluetooth mode)
+# Logo returned to the factory colour cycle. The Bluetooth link needed the pairing
+# combo (left + right + scroll-mode button, 3 s) before vendor reads answered again;
+# reads in the gap returned "BT vendor timeout".
+$ OpenSnekProbe bt-raw-read --key 10830004
+bt-raw-read req=0x30 key=10 83 00 04 name=""
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=10 30 0a 00 00 00 00 00 02
+notify[2] len=10 req=0x03 status=0x00 len=0 03 00 00 00 01 00 00 00 00 00
+payload[10]: 03 00 00 00 01 00 00 00 00 00
+# Live state reverted to the 03 (spectrum) effect payload.
+
+## 5. Stored target 1, LED 0x04 (read-only)
+$ OpenSnekProbe bt-raw-read --key 10830104
+bt-raw-read req=0x30 key=10 83 01 04 name=""
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=10 30 0a 00 00 00 00 00 02
+notify[2] len=10 req=0x03 status=0x00 len=0 03 00 00 00 01 00 00 00 00 00
+payload[10]: 03 00 00 00 01 00 00 00 00 00
+
+## 6. Stored target 1 static red (write + readback)
+$ OpenSnekProbe bt-raw-write --key 10030104 --payload 01000001ff0000000000
+bt-raw-write req=0x30 key=10 03 01 04 payload=01 00 00 01 ff 00 00 00 00 00 name=""
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=0 30 00 00 00 00 00 00 02
+ack status=0x02 payloadLength=0
+$ OpenSnekProbe bt-raw-read --key 10830104
+bt-raw-read req=0x30 key=10 83 01 04 name=""
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=10 30 0a 00 00 00 00 00 02
+notify[2] len=10 req=0x01 status=0x00 len=0 01 00 00 01 ff 00 00 00 00 00
+payload[10]: 01 00 00 01 ff 00 00 00 00 00
+
+## 7. Power cycle
+# Logo shows static blue (Bluetooth status) for a few seconds, then static red.
+# Stored target 1 is the boot lighting state.
+
+## 8. After a later power cycle (re-paired), live state and battery (read-only)
+$ OpenSnekProbe bt-raw-read --key 10830004
+payload[10]: 01 00 00 01 ff 00 00 00 00 00
+# Live state loaded static red from target 1 at boot.
+$ OpenSnekProbe bt-raw-read --key 05810001
+bt-raw-read req=0x30 key=05 81 00 01 name=""
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02
+notify[2] len=1 ff
+payload[1]: ff
+$ OpenSnekProbe bt-raw-read --key 05850001
+bt-raw-read req=0x30 key=05 85 00 01 name=""
+notify[0] len=8 req=0x01 status=0x03 len=0 01 00 00 00 00 00 00 03
+notify[1] len=8 req=0x30 status=0x02 len=1 30 01 00 00 00 00 00 02
+notify[2] len=1 00
+payload[1]: 00
+# Battery raw 0xFF (byte scale, full). Charging 00 on battery.
+
+## 9. App integration (branch build via ./run.sh)
+# Device view: lighting card (Static) and battery 100% only; no DPI, sleep or button cards.
+# Picked orange in the app, power-cycled slowly: logo returned orange after the status light.
+# (A blue test was inconclusive because the Bluetooth status light is also blue.)
+
+## 10. Live effect bodies, LED 0x04 (live key resets on power cycle)
+$ bt-raw-write --key 10030004 --payload 0201000100ff00000000   # breathing, single green
+ack status=0x02 payloadLength=0
+payload[10]: 02 01 00 01 00 ff 00 00 00 00
+# Owner: logo pulsing green.
+== off
+ack status=0x02 payloadLength=0
+payload[10]: 00 00 00 00 00 00 00 00 00 00
+== spectrum
+ack status=0x02 payloadLength=0
+payload[10]: 03 00 00 00 00 00 00 00 00 00
+== wave
+ack status=0x02 payloadLength=0
+payload[10]: 04 01 28 00 00 00 00 00 00 00
+== breathing-random
+ack status=0x02 payloadLength=0
+payload[10]: 02 00 00 00 00 00 00 00 00 00
+== breathing-dual-red-blue
+ack status=0x02 payloadLength=0
+payload[10]: 02 02 00 02 ff 00 00 00 00 ff
+== reactive-green
+ack status=0x02 payloadLength=0
+payload[10]: 05 00 02 01 00 ff 00 00 00 00
+# Owner: all rendered; wave appeared as a fast colour cycle.
+
+## 11. Stored target 1 effect
+$ bt-raw-write --key 10030104 --payload 0201000100ff00000000
+ack status=0x02 payloadLength=0
+payload[10]: 02 01 00 01 00 ff 00 00 00 00
+# Slow power cycle: static blue (status), then breathing green.
+
+## 12. DPI (write then exact restore)
+$ bt-raw-read --key 0b840100
+payload[36]: 03 05 01 90 01 90 01 00 00 02 20 03 20 03 00 00 03 40 06 40 06 00 00 04 80 0c 80 0c 00 00 05 00 19 00 19 00
+$ bt-raw-read --key 0b810100
+payload[6]: 40 06 40 06 00 00
+$ bt-raw-write --key 0b040100 --payload 0305019001900100000220032003000003a4060807000004800c800c00000500190019000000
+ack status=0x02 payloadLength=0
+payload[36]: 03 05 01 90 01 90 01 00 00 02 20 03 20 03 00 00 03 a4 06 08 07 00 00 04 80 0c 80 0c 00 00 05 00 19 00 19 00
+payload[6]: a4 06 08 07 00 00
+== restore
+$ bt-raw-write --key 0b040100 --payload 030501900190010000022003200300000340064006000004800c800c00000500190019000000
+ack status=0x02 payloadLength=0
+payload[36]: 03 05 01 90 01 90 01 00 00 02 20 03 20 03 00 00 03 40 06 40 06 00 00 04 80 0c 80 0c 00 00 05 00 19 00 19 00
+
+## 13. Sleep timeout (write then exact restore)
+$ bt-raw-read --key 05840000
+payload[2]: 2c 01
+$ bt-raw-write --key 05040000 --payload 5802
+ack status=0x02 payloadLength=0
+payload[2]: 58 02
+== restore
+$ bt-raw-write --key 05040000 --payload 2c01
+ack status=0x02 payloadLength=0
+payload[2]: 2c 01
+
+## 14. App integration with effects, DPI and sleep enabled
+# Cards: DPI stages (400/800/1600/3200/6400, stage 3 active, 18K scale, X/Y toggle),
+# Lighting (effect picker), Power Management (sleep 5m 00s); no Buttons card.
+# Pulse (Dual), Spectrum and a DPI stage change applied and were confirmed by the owner.
+# Slow power cycle: the app-set effect returned and the changed DPI stage was retained.
+
+## 15. Brightness (live key 10 05 01 04)
+$ bt-raw-write --key 10050104 --payload 40 ; read ; sleep 5 ; write ff ; read
+# Owner: logo dimmed, then returned to full.
+$ bt-raw-write --key 10050104 --payload 40
+ack status=0x02 payloadLength=0
+payload[1]: 40
+# Slow power cycle, then 10 85 01 04 -> ff (reset).
+$ bt-raw-read --key 10850004 / 10850204 / 10850304
+payload[1]: ff / 00 / 00
+$ bt-raw-write --key 10050004 --payload 40
+== target 00 payload[1]: 40
+== target 01 payload[1]: ff
+# Power cycles (two red flashes on boot), then 10 85 00 04 -> ff, 10 85 01 04 -> ff.
+# Lighting target 01 -> 03 00 00 00 00 00 00 00 00 00 (app-set spectrum).
+
+## 16. Sleep persistence
+$ bt-raw-write --key 05040000 --payload 5802
+ack status=0x02 payloadLength=0
+payload[2]: 58 02
+# Power cycle (two red flashes), then 05 84 00 00 -> 58 02.
+
+## 17. Battery and charging
+# On battery after resets: 05 81 00 01 -> 00, 05 85 00 01 -> 00.
+# Cable connected: 05 81 00 01 -> 00, 05 85 00 01 -> 01. Two minutes later: 05 81 00 01 -> ff.
+# macOS reported 100% throughout. Later, after hours of white at full brightness, OpenSnek
+# and macOS both reported 77% (OpenSnek had shown 100% until its reading updated).
+
+## 18. DPI ceiling
+$ bt-raw-write --key 0b040100 --payload 030501900190010000022003200300000340064006000004800c800c00000550465046000000
+ack status=0x02 payloadLength=0
+payload[36]: 03 05 01 90 01 90 01 00 00 02 20 03 20 03 00 00 03 40 06 40 06 00 00 04 80 0c 80 0c 00 00 05 50 46 50 46 00
+== restore
+ack status=0x02 payloadLength=0
+payload[36]: 03 05 01 90 01 90 01 00 00 02 20 03 20 03 00 00 03 40 06 40 06 00 00 04 80 0c 80 0c 00 00 05 00 19 00 19 00
+
+## 19. Buttons
+$ bt-raw-read --key 08800000 / 08800100
+payload[10]: 01 02 03 04 05 80 34 35 09 0a   (both targets)
+# 08 84 <target> <slot>, identical on targets 00 and 01 (owner's Synapse remaps in place):
+slot 01: 01 00 01 01 01 01 01 01 00 00 00 00 00 00 00 00
+slot 02: 02 00 01 01 01 01 02 02 00 00 00 00 00 00 00 00
+slot 03: 03 00 01 01 01 01 03 03 00 00 00 00 00 00 00 00
+slot 04: 04 00 01 01 01 01 05 04 00 00 00 00 00 00 00 00   (current forward, factory back)
+slot 05: 05 00 06 01 05 01 05 05 01 00 f4 00 01 00 f4 00   (current 500 DPI clutch, factory forward)
+slot 80: 80 00 01 00 01 01 04 00 00 00 00 00 00 00 00 00   (current back, factory 00 01 00)
+slot 34: 34 00 0e 0e 01 01 68 68 00 00 14 14 00 00 00 00
+slot 35: 35 00 0e 0e 01 01 69 69 00 00 14 14 00 00 00 00
+slot 09: 09 00 01 01 01 01 09 09 00 00 00 00 00 00 00 00
+slot 0a: 0a 00 01 01 01 01 0a 0a 00 00 00 00 00 00 00 00
+$ bt-raw-write --key 08040105 --payload 01050001010200000000
+ack status=0x02 payloadLength=0
+target 00: 05 00 01 01 01 01 02 05 00 00 00 00 00 00 00 00
+target 01: 05 00 01 01 01 01 02 05 00 00 00 00 00 00 00 00
+# Front thumb button opened a context menu. Factory lane still reads forward.
+$ bt-raw-write --key 08040105 --payload 01050006050501f401f4
+ack status=0x02 payloadLength=0
+target 00/01: 05 00 06 01 05 01 05 05 01 00 f4 00 01 00 f4 00
+
+## 20. App integration: buttons, brightness, sleep
+# Every slot remapped to right click and press-checked; reversed scroll direction worked.
+# Brightness slider dimmed the logo. Sleep timeout changes applied.

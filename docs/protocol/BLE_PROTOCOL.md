@@ -1028,6 +1028,45 @@ the existing vendor GATT service. All exchanges remain serialized without comman
   evidence, not universal persistence or long-duration reliability. Poll rate, profile
   CRUD, scroll-wheel setting control, and custom software-lighting frames stay unexposed.
 
+### Basilisk Mobile Bluetooth (`068E:00D5`)
+
+Contributor validation on owner hardware, captured in
+[`captures/ble/2026-11-22-basilisk-mobile/`](../../captures/ble/2026-11-22-basilisk-mobile/).
+Razer's guide names the Bluetooth device `BSK MOBILE`.
+
+- Lighting inventory: `10 80 00 01` lists only LED `0x04` (logo and status indicator).
+- Colour uses the V3 Pro zone-state keys: live `10 83 00 04` / `10 03 00 04`, stored
+  target 1 `10 83 01 04` / `10 03 01 04`. The static payload
+  `01 00 00 01 RR GG BB 00 00 00` reads back exactly on both.
+- Live colour reverts after a power cycle. Target 1 is loaded at boot (static red was
+  visually confirmed after power-cycling), so the profile sets
+  `bluetoothStoredLightingTarget = 0x01` and the bridge writes each colour and effect to
+  the live key and then to target 1. Breathing green written to target 1 also survived a
+  power cycle.
+- Effects: the eight Naga V3 Pro effect bodies (off `00`, spectrum `03`, wave `04 01 28 00`,
+  random/single/dual breathing `02 …`, reactive `05 00 <speed> 01 RGB`) ACK and read back
+  unchanged on LED `0x04`; the owner saw each render. Wave shows as a fast colour cycle, so OpenSnek does not offer it.
+- DPI: `0B 84 01 00` returns the shared 36-byte table (little-endian X/Y, seven bytes per
+  stage, stage IDs 1-5); `0B 04 01 00` takes the 38-byte form. Independent X/Y was written
+  and read back on stage 3 and on the scalar `0B 81 01 00`, then restored exactly; 18,000 on
+  stage 5 also read back exactly.
+- Sleep: `05 84 00 00` / `05 04 00 00`, little-endian seconds (`2c 01` = 300); survives a
+  power cycle.
+- Buttons: inventory `08 80 00/01 00` = `01 02 03 04 05 80 34 35 09 0a` on both targets.
+  `08 84 <target> <slot>` returns slot, layer, then the current and factory blocks interleaved
+  (the V4 layout); the factory lane is reported unchanged after remaps. `08 04 01 <slot>` with
+  `[01, slot, 00] + block` updates both targets. Factory blocks: 1-5, 9, 10 standard mouse
+  buttons; 52/53 `0E 01 68/69 00 14 00 00`; 128 `00 01 00`.
+- Factory state on both keys is `03 00 00 00 01 00 00 00 00 00`, the Spectrum effect body
+  with an undecoded byte 4.
+- Battery `05 81 00 01` is byte-scaled (OpenSnek and macOS agreed at 77%). After power-on it
+  can report a transient `00`, which OpenSnek treats as unknown; `ff` after a charge matched macOS
+  at 100%, and both later read 90%. Charging
+  `05 85 00 01` reads `00` on battery, `01` on the cable.
+- Brightness `10 05 01 04` / `10 85 01 04` is live only and resets at power-on; no stored
+  brightness target was found (`10 85 00 04` reverted to `ff`, targets `02`/`03` read `00`).
+- Profile metadata is not probed.
+
 ## 8. Feature Semantics Used by OpenSnek
 
 These behaviors are not pure wire-format rules, but they are part of what you need if you want a client that behaves like the current app.

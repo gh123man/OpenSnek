@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Basilisk Mobile support over Bluetooth covers button remapping for all ten buttons (including DPI clutch), independent X/Y DPI up to 18,000, sleep timeout, battery and charging, and logo lighting with seven effects (wave is left out on the single LED) and brightness. Lighting, button, DPI and sleep changes are saved to the mouse; brightness resets when the mouse powers on over Bluetooth. The USB cable and HyperSpeed receiver are also supported, with polling rate.
+
 ### Changed
 
 - Hovering over a battery percentage in the device window or menu bar panel now shows just the time remaining as soon as the pointer enters, once an estimate is available.
