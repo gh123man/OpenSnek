@@ -158,6 +158,18 @@ final class BasiliskMobileBluetoothTests: XCTestCase {
         XCTAssertEqual(BLEVendorProtocol.extractBluetoothFunctionBlock(payload: ai, target: 1, slot: 0x80, profileID: .basiliskMobile), [0x01, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00])
     }
 
+    func testCapturedDPIClutchIsSelectableAndRoundTrips() throws {
+        let block: [UInt8] = [0x06, 0x05, 0x05, 0x01, 0xF4, 0x01, 0xF4]
+        let profile = DeviceProfileID.basiliskMobile
+        XCTAssertTrue(ButtonBindingSupport.availableButtonBindingKinds(for: 5, profileID: profile).contains(.dpiClutch))
+        let draft = try XCTUnwrap(ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: 5, functionBlock: block, profileID: profile))
+        XCTAssertEqual(draft.kind, .dpiClutch)
+        XCTAssertEqual(draft.clutchDPI, 500)
+        XCTAssertEqual(ButtonBindingSupport.usbFunctionBlockForWrite(slot: 5, draft: draft, profileID: profile), block)
+        let payload = BLEVendorProtocol.buildButtonPayload(slot: 5, kind: draft.kind, hidKey: nil, clutchDPI: draft.clutchDPI, profileID: profile)
+        XCTAssertEqual(Array(payload), [1, 5, 0] + block)
+    }
+
     func testButtonWriteMatchesCapturedPayload() {
         // Written to 08 04 01 05, read back on both targets, and press-checked as right click.
         let payload = BLEVendorProtocol.buildButtonPayload(slot: 0x05, kind: .rightClick, hidKey: nil, profileID: .basiliskMobile)

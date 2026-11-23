@@ -144,7 +144,8 @@ Bluetooth `068E:00D5`; Razer's guide names it `BSK MOBILE`. Contributor-validate
   seven-byte block and are verified by reading target 1. Factory blocks come from the factory
   lane; slot 128 (AI Prompt Master) is `00 01 00`. Slot identities were confirmed from the
   owner's Synapse remaps; every slot was remapped to right click in the app and press-checked,
-  and reversed scroll direction worked.
+  and reversed scroll direction worked. The editor can read and restore the owner's captured
+  500-DPI clutch binding on slot 5.
 - Brightness: `10 05 01 04` / `10 85 01 04` dims the logo live, but resets at power-on;
   `10 85 00 04` also returned to `ff` and `02`/`03` read `00`, so no stored brightness
   target was found. The existing restore-on-connect behaviour can reapply it.

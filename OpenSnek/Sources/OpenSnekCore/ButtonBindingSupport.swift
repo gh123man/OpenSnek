@@ -132,12 +132,9 @@ public enum ButtonBindingSupport {
         }
     }
 
-    public static func defaultDPIClutchDPI(for profileID: DeviceProfileID?) -> Int? {
-        switch profileID {
-        case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3Pro35K: return defaultBasiliskDPIClutchDPI
-        case .basiliskV4Hyperspeed, .basiliskMobile, .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .nagaV3Pro, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro, .none: return nil
-        }
-    }
+    private static func supportsDPIClutch(_ profileID: DeviceProfileID?) -> Bool { isBasiliskV3Family(profileID) || profileID == .basiliskMobile }
+
+    public static func defaultDPIClutchDPI(for profileID: DeviceProfileID?) -> Int? { supportsDPIClutch(profileID) ? defaultBasiliskDPIClutchDPI : nil }
 
     public static func defaultButtonBinding(for slot: Int, profileID: DeviceProfileID? = nil) -> ButtonBindingDraft {
         let fallback = ButtonBindingDraft(kind: .default, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
@@ -207,7 +204,7 @@ public enum ButtonBindingSupport {
             return nil
         case 0x06:
             if functionBlock == [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00] { return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate) }
-            if let profileID, isBasiliskV3Family(profileID), let dpi = basiliskDPIClutchDPI(from: functionBlock, profileID: profileID) {
+            if let profileID, supportsDPIClutch(profileID), let dpi = basiliskDPIClutchDPI(from: functionBlock, profileID: profileID) {
                 return ButtonBindingDraft(kind: .dpiClutch, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate, clutchDPI: DeviceProfiles.clampDPI(dpi, profileID: profileID))
             }
             return nil
@@ -415,7 +412,7 @@ public enum ButtonBindingSupport {
     public static func availableButtonBindingKinds(profileID: DeviceProfileID?) -> [ButtonBindingKind] {
         ButtonBindingKind.allCases.filter { kind in
             switch kind {
-            case .dpiClutch: return isBasiliskV3Family(profileID)
+            case .dpiClutch: return supportsDPIClutch(profileID)
             default: return true
             }
         }
