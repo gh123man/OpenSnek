@@ -186,8 +186,7 @@ final class BridgeClientBluetoothFallbackTests: XCTestCase {
             let device = makeBluetoothDevice(productID: productID, profileID: nil)
             let sample = await bridge.rechargeableBluetoothBattery(device: device) { (255, nil) }
             let battery = BridgeClient.resolveBluetoothBatteryState(device: device, vendorRaw: sample?.raw, vendorStatus: 1, usbFallback: nil)
-            // A full reading is unknown on products whose firmware reports a stale 0xFF.
-            XCTAssertEqual(battery.percent, device.reportsUnreliableFullBattery ? nil : 100)
+            XCTAssertEqual(battery.percent, 100)
             XCTAssertNil(sample?.charging)
             XCTAssertNil(battery.charging)
             XCTAssertEqual(BridgeClient.resolveBluetoothBatteryState(device: device, vendorRaw: sample?.raw, vendorStatus: 1, usbFallback: (80, false)).charging, false)

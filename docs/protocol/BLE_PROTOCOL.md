@@ -1060,7 +1060,8 @@ Razer's guide names the Bluetooth device `BSK MOBILE`.
 - Factory state on both keys is `03 00 00 00 01 00 00 00 00 00`, the Spectrum effect body
   with an undecoded byte 4.
 - Battery `05 81 00 01` is byte-scaled (OpenSnek and macOS agreed at 77%). After power-on it
-  can report a stale `ff` for 30+ minutes, or `00`; OpenSnek treats both as unknown. Charging
+  can report a transient `00`, which OpenSnek treats as unknown; `ff` after a charge matched macOS
+  at 100%, and both later read 90%. Charging
   `05 85 00 01` reads `00` on battery, `01` on the cable.
 - Brightness `10 05 01 04` / `10 85 01 04` is live only and resets at power-on; no stored
   brightness target was found (`10 85 00 04` reverted to `ff`, targets `02`/`03` read `00`).

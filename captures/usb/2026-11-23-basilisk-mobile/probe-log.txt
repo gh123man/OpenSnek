@@ -95,4 +95,4 @@ $ OpenSnekProbe usb-raw --pid 0x00D4 --txn 0x1F --class 0x07 --cmd 0x80 --size 0
 04 1f 00 00 00 02 07 80   (timeout, mouse asleep)
 
 $ (same, mouse awake)
-02 1f 00 00 00 02 07 80 00 ff   (owner: battery not full)
+02 1f 00 00 00 02 07 80 00 ff   (full; macOS Bluetooth settings also showed 100%)

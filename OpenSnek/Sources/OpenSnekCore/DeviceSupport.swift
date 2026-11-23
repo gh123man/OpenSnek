@@ -264,9 +264,6 @@ public struct DeviceProfile: Hashable, Sendable {
     /// Lowest brightness OpenSnek writes. Some firmware latches the LED off at brightness 0 and
     /// ignores later brightness raises until an effect is re-sent.
     public let minimumLightingBrightness: Int
-    /// Products whose firmware can report a full battery (`0xFF`) for long stretches when it is not
-    /// full. That reading is treated as unknown rather than shown as 100%.
-    public let unreliableFullBatteryProducts: Set<Int>
     public let isLocallyValidated: Bool
 
     public init(
@@ -274,7 +271,7 @@ public struct DeviceProfile: Hashable, Sendable {
         usbLightingLEDIDs: [UInt8] = [], usbLightingZones: [USBLightingZoneDescriptor] = [], softwareLightingFrameLayout: SoftwareLightingFrameLayout? = nil, supportedSoftwareLightingPresets: [SoftwareLightingPresetID] = [], passiveDPIInput: PassiveDPIInputDescriptor? = nil,
         supportsIndependentXYDPI: Bool = false, supportsScrollModeControls: Bool = false, supportsLightingBrightnessControls: Bool = false, supportsLightingStateReads: Bool = true, usesProjectedDPIStageWriteReadback: Bool = false, onboardProfileSupport: OnboardProfileSupport = .unavailable,
         onboardProfileCount: Int = 1, formFactor: DeviceFormFactor = .mouse, supportsDPIControls: Bool = true, supportsPollRateControls: Bool = true, supportsPowerManagementControls: Bool = true, supportsButtonRemapControls: Bool = true, usbBrightnessLEDIDs: [UInt8]? = nil,
-        usbBrightnessReadLEDIDs: [UInt8]? = nil, bluetoothStoredLightingTarget: UInt8? = nil, minimumLightingBrightness: Int = 0, unreliableFullBatteryProducts: Set<Int> = [], isLocallyValidated: Bool = true
+        usbBrightnessReadLEDIDs: [UInt8]? = nil, bluetoothStoredLightingTarget: UInt8? = nil, minimumLightingBrightness: Int = 0, isLocallyValidated: Bool = true
     ) {
         self.id = id
         self.productName = productName
@@ -305,7 +302,6 @@ public struct DeviceProfile: Hashable, Sendable {
         self.usbBrightnessReadLEDIDs = usbBrightnessReadLEDIDs
         self.bluetoothStoredLightingTarget = bluetoothStoredLightingTarget
         self.minimumLightingBrightness = minimumLightingBrightness
-        self.unreliableFullBatteryProducts = unreliableFullBatteryProducts
         self.isLocallyValidated = isLocallyValidated
     }
 
@@ -385,8 +381,6 @@ public extension MouseDevice {
     }
 
     func clampedLightingBrightness(_ value: Int) -> Int { max(value, resolvedProfile?.minimumLightingBrightness ?? 0) }
-
-    var reportsUnreliableFullBattery: Bool { resolvedProfile?.unreliableFullBatteryProducts.contains(product_id) ?? false }
 
     var usesProjectedDPIStageWriteReadback: Bool { return resolvedProfile?.usesProjectedDPIStageWriteReadback ?? false }
 
@@ -541,7 +535,7 @@ public enum DeviceProfiles {
     public static let basiliskMobileBluetooth = DeviceProfile(
         id: .basiliskMobile, productName: "Basilisk Mobile", transport: .bluetooth, supportedProducts: [0x00D5], buttonLayout: ButtonSlotLayout(visibleSlots: basiliskMobileButtonSlots, writableSlots: basiliskMobileButtonSlots.map(\.slot)), supportsAdvancedLightingEffects: true,
         supportedLightingEffects: basiliskMobileLightingEffects, usbLightingLEDIDs: [0x04], usbLightingZones: basiliskMobileLightingZones, supportsIndependentXYDPI: true, supportsLightingBrightnessControls: true, supportsPollRateControls: false, bluetoothStoredLightingTarget: 0x01,
-        minimumLightingBrightness: 1, unreliableFullBatteryProducts: [0x00D5], isLocallyValidated: false)
+        minimumLightingBrightness: 1, isLocallyValidated: false)
 
     // Cable (1532:00D3) and HyperSpeed receiver (1532:00D4), contributor-validated:
     // captures/usb/2026-11-23-basilisk-mobile/. Standard transaction 0x1F commands answer:
@@ -552,7 +546,7 @@ public enum DeviceProfiles {
     public static let basiliskMobileUSB = DeviceProfile(
         id: .basiliskMobile, productName: "Basilisk Mobile", transport: .usb, supportedProducts: [0x00D3, 0x00D4], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: basiliskMobileButtonSlots, writableSlots: basiliskMobileButtonSlots.map(\.slot)),
         supportsAdvancedLightingEffects: true, supportedLightingEffects: basiliskMobileLightingEffects, usbLightingLEDIDs: [0x04], usbLightingZones: basiliskMobileLightingZones, supportsIndependentXYDPI: true, supportsLightingBrightnessControls: true, minimumLightingBrightness: 1,
-        unreliableFullBatteryProducts: [0x00D4], isLocallyValidated: false)
+        isLocallyValidated: false)
 
     public static let basiliskV3ProBluetooth = basiliskV3ProBluetoothFamilyProfile(id: .basiliskV3Pro, productName: "Basilisk V3 Pro", supportedProducts: [0x00AC], maximumDPI: 30_000)
 
