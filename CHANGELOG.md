@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- Settings → Updates now lets you check for updates immediately and install an available release.
+
 ## [1.5.1-rc.2]
 
 ### Added

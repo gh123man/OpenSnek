@@ -110,6 +110,12 @@ struct ReleaseAvailability: Equatable {
     var appcastURL: URL { ReleaseUpdateChecker.releasesPageURL.appendingPathComponent("download").appendingPathComponent("v\(latestVersion)").appendingPathComponent("appcast.xml") }
 }
 
+/// Describes the result of checking for an installable release.
+enum ReleaseUpdateCheckState: Equatable {
+    case idle, checking, upToDate
+    case failed(String)
+}
+
 /// Defines software update install lifecycle values.
 enum SoftwareUpdateInstallState: Equatable {
     case idle
@@ -166,7 +172,7 @@ struct ReleaseUpdateChecker: ReleaseUpdateChecking, Sendable {
         request.timeoutInterval = 8
 
         let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) else { return nil }
+        guard let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) else { throw URLError(.badServerResponse) }
 
         let releases = mode == .includingReleaseCandidates ? try JSONDecoder().decode([LatestReleaseResponse].self, from: data) : [try JSONDecoder().decode(LatestReleaseResponse.self, from: data)]
         return Self.selectUpdate(releases: releases, currentVersion: currentVersion, mode: mode)
