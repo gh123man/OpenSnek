@@ -52,6 +52,8 @@ public enum ButtonBindingSupport {
     // V4 native actions read and restored on both Bluetooth and the USB receiver. AI Prompt
     // Master's default is the host-managed no-action form; restoring it does not implement Synapse.
     private static let basiliskV4NativeBlockBySlot: [Int: [UInt8]] = [14: [0x07, 0x01, 0x04, 0, 0, 0, 0], 57: [0x0C, 0x01, 0x39, 0, 0, 0, 0], 128: [0x00, 0x01, 0x00, 0, 0, 0, 0]]
+    // Basilisk Mobile AI Prompt Master factory block, read from the factory lane of slot 0x80.
+    private static let basiliskMobileNativeBlockBySlot: [Int: [UInt8]] = [128: [0x00, 0x01, 0x00, 0, 0, 0, 0]]
 
     private static func horizontalScrollButtonID(for kind: ButtonBindingKind, profileID: DeviceProfileID?) -> UInt8? {
         switch kind {
@@ -109,16 +111,16 @@ public enum ButtonBindingSupport {
     // The Naga family writes wheel tilt as a class-0x0E horizontal-scroll block. The Naga V2 Pro
     // accepts both the firmware-native length-0x01 block and the turbo length-0x03 block; remaps use
     // the same turbo-capable form as the Basilisk family, which the attached device round-trips.
-    private static func supportsTurboHorizontalScrollBlocks(_ profileID: DeviceProfileID?) -> Bool { isBasiliskV3Family(profileID) || isNagaFamily(profileID) || profileID == .basiliskV4Hyperspeed }
+    private static func supportsTurboHorizontalScrollBlocks(_ profileID: DeviceProfileID?) -> Bool { isBasiliskV3Family(profileID) || isNagaFamily(profileID) || profileID?.usesBasiliskV4BluetoothButtonProtocol == true }
 
-    private static func usesNativeNagaHorizontalScrollDefaults(_ profileID: DeviceProfileID?) -> Bool { profileID == .nagaV2Pro || profileID == .nagaV3Pro || profileID == .basiliskV4Hyperspeed }
+    private static func usesNativeNagaHorizontalScrollDefaults(_ profileID: DeviceProfileID?) -> Bool { profileID == .nagaV2Pro || profileID == .nagaV3Pro || profileID?.usesBasiliskV4BluetoothButtonProtocol == true }
 
     private static func isNagaFamily(_ profileID: DeviceProfileID?) -> Bool { profileID?.isNagaFamily == true }
 
     private static func isBasiliskV3Family(_ profileID: DeviceProfileID?) -> Bool {
         switch profileID {
         case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3Pro35K: return true
-        case .basiliskV4Hyperspeed, .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .nagaV3Pro, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro, .none: return false
+        case .basiliskV4Hyperspeed, .basiliskMobile, .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .nagaV3Pro, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro, .none: return false
         }
     }
 
@@ -133,7 +135,7 @@ public enum ButtonBindingSupport {
     public static func defaultDPIClutchDPI(for profileID: DeviceProfileID?) -> Int? {
         switch profileID {
         case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3Pro35K: return defaultBasiliskDPIClutchDPI
-        case .basiliskV4Hyperspeed, .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .nagaV3Pro, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro, .none: return nil
+        case .basiliskV4Hyperspeed, .basiliskMobile, .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .nagaV3Pro, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro, .none: return nil
         }
     }
 
@@ -159,7 +161,7 @@ public enum ButtonBindingSupport {
         case 96:
             switch profileID {
             case .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3Pro35K, .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .basilisk, .lanceheadTournamentEdition, .none: return ButtonBindingDraft(kind: .dpiCycle, hidKey: 4, turboEnabled: false, turboRate: defaultTurboRate)
-            case .basiliskV4Hyperspeed, .nagaV3Pro, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro: return nil
+            case .basiliskV4Hyperspeed, .basiliskMobile, .nagaV3Pro, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro: return nil
             }
         default: return nil
         }
@@ -355,6 +357,7 @@ public enum ButtonBindingSupport {
 
     public static func defaultUSBFunctionBlock(for slot: Int, profileID: DeviceProfileID? = nil) -> [UInt8]? {
         if profileID == .basiliskV4Hyperspeed, let block = basiliskV4NativeBlockBySlot[slot] { return block }
+        if profileID == .basiliskMobile, let block = basiliskMobileNativeBlockBySlot[slot] { return block }
         switch slot {
         case 15 where usesCompactBasiliskDPIClutchDefault(profileID): return compactBasiliskDPIClutchDefaultBlock
         case 15 where profileID == .basiliskV3Pro: return basiliskDPIClutchBlock(profileID: .basiliskV3Pro)
@@ -379,7 +382,7 @@ public enum ButtonBindingSupport {
             case .basiliskV3, .basiliskV335K: return [0x04, 0x02, 0x0F, 0x7B, 0x00, 0x00, 0x00]
             case .basiliskV3Pro, .basiliskV3Pro35K: return [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
             case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .basilisk, .lanceheadTournamentEdition, .none: return [0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00]
-            case .basiliskV4Hyperspeed, .nagaV3Pro, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro: return nil
+            case .basiliskV4Hyperspeed, .basiliskMobile, .nagaV3Pro, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro: return nil
             }
         default: break
         }
@@ -428,6 +431,7 @@ public enum ButtonBindingSupport {
         case .nagaPro: return DeviceProfiles.nagaProUSBButtonSlots
         case .nagaV2Pro: return DeviceProfiles.nagaV2ProUSBButtonSlots
         case .basiliskV4Hyperspeed: return DeviceProfiles.basiliskV4ButtonSlots
+        case .basiliskMobile: return DeviceProfiles.basiliskMobileButtonSlots
         case .nagaV3Pro: return DeviceProfiles.nagaV3ProUSBButtonSlots
         case .basilisk, .lanceheadTournamentEdition: return ButtonSlotDescriptor.defaults
         case .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro: return []
@@ -443,7 +447,7 @@ public enum ButtonBindingSupport {
     private static func usesCompactBasiliskDPIClutchDefault(_ profileID: DeviceProfileID?) -> Bool {
         switch profileID {
         case .basiliskV3, .basiliskV335K, .basiliskV3Pro35K: return true
-        case .basiliskV4Hyperspeed, .basiliskV3Pro, .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .nagaV3Pro, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro, .none: return false
+        case .basiliskV4Hyperspeed, .basiliskMobile, .basiliskV3Pro, .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .nagaV3Pro, .basilisk, .lanceheadTournamentEdition, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro, .none: return false
         }
     }
 }

@@ -258,6 +258,12 @@ public struct DeviceProfile: Hashable, Sendable {
     public let usbBrightnessLEDIDs: [UInt8]?
     /// Separate read targets for devices whose whole-device write address cannot be read.
     public let usbBrightnessReadLEDIDs: [UInt8]?
+    /// Stored onboard target that also receives Bluetooth zone colour writes. Live zone writes
+    /// (target `0x00`) reset on power cycle; the stored target is what the firmware loads at boot.
+    public let bluetoothStoredLightingTarget: UInt8?
+    /// Lowest brightness OpenSnek writes. Some firmware latches the LED off at brightness 0 and
+    /// ignores later brightness raises until an effect is re-sent.
+    public let minimumLightingBrightness: Int
     public let isLocallyValidated: Bool
 
     public init(
@@ -265,7 +271,7 @@ public struct DeviceProfile: Hashable, Sendable {
         usbLightingLEDIDs: [UInt8] = [], usbLightingZones: [USBLightingZoneDescriptor] = [], softwareLightingFrameLayout: SoftwareLightingFrameLayout? = nil, supportedSoftwareLightingPresets: [SoftwareLightingPresetID] = [], passiveDPIInput: PassiveDPIInputDescriptor? = nil,
         supportsIndependentXYDPI: Bool = false, supportsScrollModeControls: Bool = false, supportsLightingBrightnessControls: Bool = false, supportsLightingStateReads: Bool = true, usesProjectedDPIStageWriteReadback: Bool = false, onboardProfileSupport: OnboardProfileSupport = .unavailable,
         onboardProfileCount: Int = 1, formFactor: DeviceFormFactor = .mouse, supportsDPIControls: Bool = true, supportsPollRateControls: Bool = true, supportsPowerManagementControls: Bool = true, supportsButtonRemapControls: Bool = true, usbBrightnessLEDIDs: [UInt8]? = nil,
-        usbBrightnessReadLEDIDs: [UInt8]? = nil, isLocallyValidated: Bool = true
+        usbBrightnessReadLEDIDs: [UInt8]? = nil, bluetoothStoredLightingTarget: UInt8? = nil, minimumLightingBrightness: Int = 0, isLocallyValidated: Bool = true
     ) {
         self.id = id
         self.productName = productName
@@ -294,6 +300,8 @@ public struct DeviceProfile: Hashable, Sendable {
         self.supportsButtonRemapControls = supportsButtonRemapControls
         self.usbBrightnessLEDIDs = usbBrightnessLEDIDs
         self.usbBrightnessReadLEDIDs = usbBrightnessReadLEDIDs
+        self.bluetoothStoredLightingTarget = bluetoothStoredLightingTarget
+        self.minimumLightingBrightness = minimumLightingBrightness
         self.isLocallyValidated = isLocallyValidated
     }
 
@@ -371,6 +379,8 @@ public extension MouseDevice {
         guard showsLightingControls else { return false }
         return resolvedProfile?.supportsLightingBrightnessControls ?? false
     }
+
+    func clampedLightingBrightness(_ value: Int) -> Int { max(value, resolvedProfile?.minimumLightingBrightness ?? 0) }
 
     var usesProjectedDPIStageWriteReadback: Bool { return resolvedProfile?.usesProjectedDPIStageWriteReadback ?? false }
 
@@ -493,6 +503,44 @@ public enum DeviceProfiles {
         id: .basiliskV4Hyperspeed, productName: "Basilisk V4 HyperSpeed", transport: .usb, supportedProducts: [0x00EA], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: basiliskV4ButtonSlots, writableSlots: basiliskV4ButtonSlots.map(\.slot)),
         supportsAdvancedLightingEffects: true, supportedLightingEffects: [.off, .staticColor, .spectrum, .pulseRandom, .pulseSingle, .pulseDual], usbLightingLEDIDs: [0x00], usbLightingZones: [USBLightingZoneDescriptor(id: "underglow", label: "Underglow", ledIDs: [0x00])],
         supportsIndependentXYDPI: true, supportsLightingBrightnessControls: true, usbBrightnessLEDIDs: [0x00], usbBrightnessReadLEDIDs: [0x0A])
+
+    // MARK: - Razer Basilisk Mobile (Bluetooth, 068E:00D5)
+
+    // Contributor-validated: captures/ble/2026-11-22-basilisk-mobile/.
+    // The firmware lists a single LED (0x04, the logo/status indicator) and answers the V3 Pro
+    // zone-state keys: 10 83/10 03 00 04 for live lighting and 10 83/10 03 01 04 for onboard
+    // target 1. Live writes reset on power cycle; target 1 is loaded at boot (static red and
+    // breathing green were visually confirmed after a power cycle), so writes are mirrored there.
+    // All eight Naga V3 Pro-style effect bodies ACK, read back and rendered; wave shows as a fast
+    // colour cycle on the single LED. DPI uses the shared 36-byte read / 38-byte write table with
+    // independent X/Y (Focus X 18K sensor). Sleep timeout is little-endian at 05 84/05 04 00 00.
+    // Button slots share the V4 Bluetooth path (even-lane readback, raw block writes, target 1
+    // verification); slot 0x05 was remapped to right click, press-checked, and restored.
+    // Brightness writes are live only (both 10 85 00/01 04 read ff again after a power cycle).
+    // Slot inventory 08 80 00 00 lists exactly these ten slots; no scroll-mode toggle slot is offered.
+    // Factory blocks come from the factory lane of each 08 84 <target> <slot> read.
+    public static let basiliskMobileButtonSlots: [ButtonSlotDescriptor] = [
+        ButtonSlotDescriptor(slot: 1, friendlyName: "Left Click", defaultKind: .leftClick), ButtonSlotDescriptor(slot: 2, friendlyName: "Right Click", defaultKind: .rightClick), ButtonSlotDescriptor(slot: 3, friendlyName: "Middle Click", defaultKind: .middleClick),
+        ButtonSlotDescriptor(slot: 4, friendlyName: "Back Button", defaultKind: .mouseBack), ButtonSlotDescriptor(slot: 5, friendlyName: "Forward Button", defaultKind: .mouseForward), ButtonSlotDescriptor(slot: 128, friendlyName: "AI Prompt Master", defaultKind: .default),
+        ButtonSlotDescriptor(slot: 52, friendlyName: "Scroll Left", defaultKind: .default), ButtonSlotDescriptor(slot: 53, friendlyName: "Scroll Right", defaultKind: .default), ButtonSlotDescriptor(slot: 9, friendlyName: "Scroll Up", defaultKind: .scrollUp),
+        ButtonSlotDescriptor(slot: 10, friendlyName: "Scroll Down", defaultKind: .scrollDown)
+    ]
+
+    public static let basiliskMobileLightingZones: [USBLightingZoneDescriptor] = [USBLightingZoneDescriptor(id: "logo", label: "Logo", ledIDs: [0x04])]
+
+    public static let basiliskMobileBluetooth = DeviceProfile(
+        id: .basiliskMobile, productName: "Basilisk Mobile", transport: .bluetooth, supportedProducts: [0x00D5], buttonLayout: ButtonSlotLayout(visibleSlots: basiliskMobileButtonSlots, writableSlots: basiliskMobileButtonSlots.map(\.slot)), supportsAdvancedLightingEffects: true,
+        supportedLightingEffects: LightingEffectKind.allCases, usbLightingLEDIDs: [0x04], usbLightingZones: basiliskMobileLightingZones, supportsIndependentXYDPI: true, supportsLightingBrightnessControls: true, supportsPollRateControls: false, bluetoothStoredLightingTarget: 0x01,
+        minimumLightingBrightness: 1, isLocallyValidated: false)
+
+    // Cable only (1532:00D3, contributor-validated: captures/usb/2026-11-23-basilisk-mobile/). The
+    // HyperSpeed receiver (00D4) is not validated. Standard transaction 0x1F commands answer:
+    // logo LED 0x04 effects and brightness, the 38-byte DPI table, poll rate, sleep, battery, and
+    // the same ten-slot button inventory. Settings are shared with the Bluetooth connection.
+    // Brightness 0 latches the LED off until an effect is re-sent, so writes are clamped to 1.
+    public static let basiliskMobileUSB = DeviceProfile(
+        id: .basiliskMobile, productName: "Basilisk Mobile", transport: .usb, supportedProducts: [0x00D3], usbTransactionID: 0x1F, buttonLayout: ButtonSlotLayout(visibleSlots: basiliskMobileButtonSlots, writableSlots: basiliskMobileButtonSlots.map(\.slot)), supportsAdvancedLightingEffects: true,
+        supportedLightingEffects: LightingEffectKind.allCases, usbLightingLEDIDs: [0x04], usbLightingZones: basiliskMobileLightingZones, supportsIndependentXYDPI: true, supportsLightingBrightnessControls: true, minimumLightingBrightness: 1, isLocallyValidated: false)
 
     public static let basiliskV3ProBluetooth = basiliskV3ProBluetoothFamilyProfile(id: .basiliskV3Pro, productName: "Basilisk V3 Pro", supportedProducts: [0x00AC], maximumDPI: 30_000)
 
@@ -845,7 +893,7 @@ public enum DeviceProfiles {
 
     public static let all: [DeviceProfile] = [
         basiliskV3XUSB, basiliskV3USB, basiliskV3ProUSB, basiliskV335KUSB, basiliskV3Pro35KPhantomGreenUSB, basiliskV3XBluetooth, basiliskV3ProBluetooth, basiliskV3Pro35KPhantomGreenBluetooth, orochiV2Bluetooth, nagaProUSB, nagaProBluetooth, nagaV2ProUSB, nagaV2ProBluetooth, nagaV3ProUSB,
-        nagaV3ProBluetooth, basiliskV4HyperspeedBluetooth, basiliskV4HyperspeedUSB, basiliskUSB, lanceheadTEUSB, huntsmanMiniUSB, tartarusProUSB, mouseDockUSB, mouseDockProUSB
+        nagaV3ProBluetooth, basiliskV4HyperspeedBluetooth, basiliskV4HyperspeedUSB, basiliskMobileBluetooth, basiliskMobileUSB, basiliskUSB, lanceheadTEUSB, huntsmanMiniUSB, tartarusProUSB, mouseDockUSB, mouseDockProUSB
     ]
 
     public static func resolve(vendorID: Int, productID: Int, transport: DeviceTransportKind) -> DeviceProfile? { all.first(where: { $0.matches(vendorID: vendorID, productID: productID, transport: transport) }) }
@@ -860,6 +908,8 @@ public enum DeviceProfiles {
         switch profileID {
         case .basiliskV4Hyperspeed: return 33_000
         case .basiliskV3XHyperspeed: return 18_000
+        // Focus X 18K optical sensor.
+        case .basiliskMobile: return 18_000
         case .basiliskV3: return 26_000
         case .basiliskV3Pro: return 30_000
         case .basiliskV335K: return 35_000
@@ -980,7 +1030,7 @@ public enum DeviceProfiles {
 
     public static func supportsIndependentXYDPI(for profileID: DeviceProfileID?) -> Bool {
         switch profileID {
-        case .basiliskV4Hyperspeed, .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3Pro35K, .nagaV3Pro, .basilisk, .lanceheadTournamentEdition: return true
+        case .basiliskV4Hyperspeed, .basiliskMobile, .basiliskV3, .basiliskV3Pro, .basiliskV335K, .basiliskV3Pro35K, .nagaV3Pro, .basilisk, .lanceheadTournamentEdition: return true
         case .basiliskV3XHyperspeed, .orochiV2, .nagaPro, .nagaV2Pro, .huntsmanMini, .tartarusPro, .mouseDock, .mouseDockPro, nil: return false
         }
     }

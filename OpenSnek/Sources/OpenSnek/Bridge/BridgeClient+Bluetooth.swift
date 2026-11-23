@@ -65,9 +65,13 @@ extension BridgeClient {
         // The V3 Pro 35K reported raw 0x7B over Bluetooth, so its byte is on the 0-255 scale even below 100.
         let isV3Pro35KBluetooth = device.transport == .bluetooth && (device.profile_id == .basiliskV3Pro35K || device.product_id == 0x00D8)
         let isV4Bluetooth = device.transport == .bluetooth && profileID == .basiliskV4Hyperspeed
-        let vendorPercent = vendorRaw.map { raw in
+        // The Basilisk Mobile is byte-scaled (OpenSnek and macOS agreed at 77%). Shortly after power-on it
+        // can report a stale 0xFF or a transient 0x00 while still answering, so 0x00 is treated as unknown.
+        let isBasiliskMobileBluetooth = device.transport == .bluetooth && profileID == .basiliskMobile
+        let trustedVendorRaw = isBasiliskMobileBluetooth && vendorRaw == 0 ? nil : vendorRaw
+        let vendorPercent = trustedVendorRaw.map { raw in
             if isV3XBluetooth { return Int((Double(min(max(raw, 0), 255)) / 255.0 * 100.0).rounded()) }
-            return (usesNagaBattery || isV3Pro35KBluetooth || isV4Bluetooth || raw > 100) ? Int((Double(raw) / 255.0) * 100.0) : raw
+            return (usesNagaBattery || isV3Pro35KBluetooth || isV4Bluetooth || isBasiliskMobileBluetooth || raw > 100) ? Int((Double(raw) / 255.0) * 100.0) : raw
         }
         let charging: Bool?
         if device.transport == .bluetooth, device.profile_id == .basiliskV3XHyperspeed || device.product_id == 0x00BA {
@@ -174,10 +178,24 @@ extension BridgeClient {
                 let value = values[active]
                 return DpiPair(x: value, y: value)
             }(), dpi_stages: DpiStages(active_stage: btStages?.active, values: btStages?.values, pairs: btStages?.pairs), poll_rate: nil, sleep_timeout: sleepTimeout, device_mode: nil, active_onboard_profile: activeOnboardProfile,
-            onboard_profile_count: profile?.supportsMappedOnboardProfileCRUD == true ? profile?.onboardProfileCount : nil, led_value: lighting, capabilities: Capabilities(dpi_stages: true, poll_rate: false, power_management: true, button_remap: true, lighting: supportsLighting))
+            onboard_profile_count: profile?.supportsMappedOnboardProfileCRUD == true ? profile?.onboardProfileCount : nil, led_value: lighting, capabilities: Self.resolvedBluetoothStateCapabilities(profile: profile, supportsLighting: supportsLighting))
     }
 
     nonisolated static func shouldPollBluetoothGenericTelemetryForReadState(supportsMappedOnboardProfiles: Bool) -> Bool { !supportsMappedOnboardProfiles }
+
+    /// Bluetooth never exposes poll rate. Profiles that disable DPI, power, or button controls hide
+    /// those cards; unprofiled devices keep the previous all-visible behaviour.
+    nonisolated static func resolvedBluetoothStateCapabilities(profile: DeviceProfile?, supportsLighting: Bool) -> Capabilities {
+        Capabilities(dpi_stages: profile?.supportsDPIControls ?? true, poll_rate: false, power_management: profile?.supportsPowerManagementControls ?? true, button_remap: profile?.supportsButtonRemapControls ?? true, lighting: supportsLighting)
+    }
+
+    /// Live zone-state key first, then the stored onboard target when the profile mirrors lighting
+    /// there so it survives a power cycle.
+    nonisolated static func bluetoothZoneStateWriteKeys(profile: DeviceProfile?, ledID: UInt8) -> [BLEVendorProtocol.Key] {
+        var keys: [BLEVendorProtocol.Key] = [.lightingZoneStateSet(ledID: ledID)]
+        if let target = profile?.bluetoothStoredLightingTarget { keys.append(.profileLightingZoneStateSet(target: target, ledID: ledID)) }
+        return keys
+    }
 
     /// Battery telemetry is device-wide and has a separate cadence from profile and settings reads.
     func rechargeableBluetoothBattery(device: MouseDevice, now: Date = Date(), read: () async -> (raw: Int?, charging: Bool?)) async -> BluetoothBatterySample? {
@@ -218,7 +236,7 @@ extension BridgeClient {
         return MouseState(
             device: DeviceSummary(id: device.id, product_name: device.product_name, serial: device.serial, transport: device.transport, firmware: nil), connection: "Bluetooth", battery_percent: nil, charging: nil, dpi: dpiPair,
             dpi_stages: DpiStages(active_stage: btStages?.active, values: btStages?.values, pairs: btStages?.pairs), poll_rate: nil, sleep_timeout: sleepTimeout, device_mode: nil, led_value: lighting,
-            capabilities: Capabilities(dpi_stages: true, poll_rate: false, power_management: true, button_remap: true, lighting: supportsLighting))
+            capabilities: Self.resolvedBluetoothStateCapabilities(profile: DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport), supportsLighting: supportsLighting))
     }
 
     func nextBTReq() -> UInt8 {
@@ -403,12 +421,15 @@ extension BridgeClient {
     func btSetLightingRGB(device: MouseDevice, r: Int, g: Int, b: Int, ledIDs: [UInt8]? = nil) async throws -> Bool {
         if usesBluetoothZoneStateLighting(device) {
             let payload = BLEVendorProtocol.buildV3ProLightingZoneStatePayload(r: r, g: g, b: b)
+            let profile = DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)
             var wroteAny = false
             for ledID in bluetoothLightingLEDIDs(device: device, override: ledIDs) {
-                let req = nextBTReq()
-                let header = BLEVendorProtocol.buildWriteHeader(req: req, payloadLength: UInt8(payload.count), key: .lightingZoneStateSet(ledID: ledID))
-                let notifies = try await btExchange([header, payload], timeout: 0.9, device: device)
-                guard btAckSuccess(notifies: notifies, req: req) else { return false }
+                for key in Self.bluetoothZoneStateWriteKeys(profile: profile, ledID: ledID) {
+                    let req = nextBTReq()
+                    let header = BLEVendorProtocol.buildWriteHeader(req: req, payloadLength: UInt8(payload.count), key: key)
+                    let notifies = try await btExchange([header, payload], timeout: 0.9, device: device)
+                    guard btAckSuccess(notifies: notifies, req: req) else { return false }
+                }
                 wroteAny = true
             }
             return wroteAny
@@ -422,7 +443,8 @@ extension BridgeClient {
     }
 
     func btApplyLightingEffectFallback(device: MouseDevice, effect: LightingEffectPatch, ledIDs: [UInt8]? = nil) async throws -> Bool {
-        if device.profile_id == .nagaV3Pro { return try await btSetZoneLightingEffect(device: device, effect: effect, ledIDs: ledIDs) }
+        let profileID = device.profile_id ?? DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)?.id
+        if profileID?.usesBluetoothZoneEffectBodies == true { return try await btSetZoneLightingEffect(device: device, effect: effect, ledIDs: ledIDs) }
         switch effect.kind {
         case .off: return try await btSetLightingValue(device: device, value: 0)
         case .staticColor: return try await btSetLightingRGB(device: device, r: effect.primary.r, g: effect.primary.g, b: effect.primary.b, ledIDs: ledIDs)
@@ -432,11 +454,14 @@ extension BridgeClient {
 
     private func btSetZoneLightingEffect(device: MouseDevice, effect: LightingEffectPatch, ledIDs: [UInt8]?) async throws -> Bool {
         let payload = BLEVendorProtocol.buildBluetoothZoneEffectPayload(effect: effect)
+        let profile = DeviceProfiles.resolve(vendorID: device.vendor_id, productID: device.product_id, transport: device.transport)
         for ledID in bluetoothLightingLEDIDs(device: device, override: ledIDs) {
-            let req = nextBTReq()
-            let header = BLEVendorProtocol.buildWriteHeader(req: req, payloadLength: UInt8(payload.count), key: .lightingZoneStateSet(ledID: ledID))
-            let notifies = try await btExchange([header, payload], timeout: 0.9, device: device)
-            guard btAckSuccess(notifies: notifies, req: req) else { throw BridgeError.commandFailed("Bluetooth lighting effect rejected for LED \(ledID)") }
+            for key in Self.bluetoothZoneStateWriteKeys(profile: profile, ledID: ledID) {
+                let req = nextBTReq()
+                let header = BLEVendorProtocol.buildWriteHeader(req: req, payloadLength: UInt8(payload.count), key: key)
+                let notifies = try await btExchange([header, payload], timeout: 0.9, device: device)
+                guard btAckSuccess(notifies: notifies, req: req) else { throw BridgeError.commandFailed("Bluetooth lighting effect rejected for LED \(ledID)") }
+            }
         }
         return true
     }
@@ -463,20 +488,22 @@ extension BridgeClient {
     }
 
     func btSetButtonBinding(_ request: BluetoothButtonBindingWrite) async throws -> Bool {
-        if request.device.profile_id == .basiliskV4Hyperspeed, !DeviceProfiles.basiliskV4HyperspeedBluetooth.buttonLayout.isEditable(Int(request.slot)) { return false }
+        let buttonProfile = DeviceProfiles.resolve(vendorID: request.device.vendor_id, productID: request.device.product_id, transport: request.device.transport)
+        let verifiesButtonWrites = buttonProfile?.id.usesBasiliskV4BluetoothButtonProtocol == true
+        if verifiesButtonWrites, buttonProfile?.buttonLayout.isEditable(Int(request.slot)) != true { return false }
         guard request.kind != .default || ButtonBindingSupport.supportsDefaultRestore(for: Int(request.slot), profileID: request.device.profile_id) else { return false }
         let payload = BLEVendorProtocol.buildButtonPayload(slot: request.slot, kind: request.kind, hidKey: request.hidKey, hidModifiers: request.hidModifiers, turboEnabled: request.turboEnabled, turboRate: request.turboRate, clutchDPI: request.clutchDPI, profileID: request.device.profile_id)
         let req = nextBTReq()
         let header = BLEVendorProtocol.buildWriteHeader(req: req, payloadLength: 0x0A, key: .buttonBind(slot: request.slot))
         let notifies = try await btExchange([header, payload], timeout: 0.9, device: request.device)
         guard btAckSuccess(notifies: notifies, req: req) else {
-            if request.device.profile_id == .basiliskV4Hyperspeed { throw BridgeError.commandFailed("Bluetooth button write rejected slot=\(request.slot) req=\(req) notifies=\(btNotifySummary(notifies))") }
+            if verifiesButtonWrites { throw BridgeError.commandFailed("Bluetooth button write rejected slot=\(request.slot) req=\(req) notifies=\(btNotifySummary(notifies))") }
             return false
         }
-        if request.device.profile_id == .basiliskV4Hyperspeed {
+        if verifiesButtonWrites {
             let read = nextBTReq()
             let frames = try await btExchange([BLEVendorProtocol.buildReadHeader(req: read, key: .buttonBindGet(target: 1, slot: request.slot))], timeout: 0.9, device: request.device)
-            guard let data = BLEVendorProtocol.parsePayloadFrames(notifies: frames, req: read), let block = BLEVendorProtocol.extractBluetoothFunctionBlock(payload: data, target: 1, slot: request.slot, profileID: .basiliskV4Hyperspeed) else {
+            guard let data = BLEVendorProtocol.parsePayloadFrames(notifies: frames, req: read), let block = BLEVendorProtocol.extractBluetoothFunctionBlock(payload: data, target: 1, slot: request.slot, profileID: buttonProfile?.id) else {
                 throw BridgeError.commandFailed("Bluetooth button readback missing slot=\(request.slot) req=\(read) notifies=\(btNotifySummary(frames))")
             }
             guard block == Array(payload.suffix(7)) else { throw BridgeError.commandFailed("Bluetooth button readback mismatch slot=\(request.slot) expected=\(btHex(payload.suffix(7))) actual=\(btHex(Data(block)))") }

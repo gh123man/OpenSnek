@@ -285,7 +285,7 @@ public enum BLEVendorProtocol {
             if tail.count >= 14 {
                 let evenLane = Array(tail.enumerated().compactMap { index, byte in index.isMultiple(of: 2) ? byte : nil }.prefix(7))
                 let oddLane = Array(tail.enumerated().compactMap { index, byte in index.isMultiple(of: 2) ? nil : byte }.prefix(7))
-                if profileID == .basiliskV4Hyperspeed { return evenLane }
+                if profileID?.usesBasiliskV4BluetoothButtonProtocol == true { return evenLane }
                 let lanes = [evenLane, oddLane]
                 if let parsed = lanes.first(where: { ButtonBindingSupport.buttonBindingDraftFromUSBFunctionBlock(slot: Int(slot), functionBlock: $0, profileID: profileID) != nil }) { return parsed }
                 return evenLane
@@ -465,7 +465,7 @@ public enum BLEVendorProtocol {
 
     public static func buildButtonPayload(slot: UInt8, kind: ButtonBindingKind, hidKey: UInt8?, hidModifiers: UInt8 = 0, turboEnabled: Bool = false, turboRate: UInt16? = nil, clutchDPI: Int? = nil, profileID: DeviceProfileID? = nil) -> Data {
         let clampedTurboRate = max(UInt16(1), min(UInt16(0x00FF), turboRate ?? 0x008E))
-        if profileID?.isNagaFamily == true || profileID == .basiliskV4Hyperspeed {
+        if profileID?.isNagaFamily == true || profileID?.usesBasiliskV4BluetoothButtonProtocol == true {
             let draft = ButtonBindingDraft(kind: kind, hidKey: Int(hidKey ?? 0x04), hidModifiers: Int(hidModifiers), turboEnabled: turboEnabled, turboRate: Int(clampedTurboRate), clutchDPI: clutchDPI)
             return buildRawFunctionBlockPayload(slot: slot, functionBlock: ButtonBindingSupport.usbFunctionBlockForWrite(slot: Int(slot), draft: draft, profileID: profileID))
         }

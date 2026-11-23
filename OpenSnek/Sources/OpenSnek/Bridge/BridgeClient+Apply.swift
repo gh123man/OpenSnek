@@ -23,7 +23,7 @@ extension BridgeClient {
             guard try await btSetDpiStages(device: device, active: resolved.active, values: resolved.stages, pairs: resolved.pairs) else { throw BridgeError.commandFailed("Failed to set Bluetooth DPI stages") }
         }
 
-        if let brightness = patch.ledBrightness, device.supportsLightingBrightnessControls { guard try await btSetLightingValue(device: device, value: brightness) else { throw BridgeError.commandFailed("Failed to set Bluetooth lighting value") } }
+        if let brightness = patch.ledBrightness, device.supportsLightingBrightnessControls { guard try await btSetLightingValue(device: device, value: device.clampedLightingBrightness(brightness)) else { throw BridgeError.commandFailed("Failed to set Bluetooth lighting value") } }
 
         if let rgb = patch.ledRGB, device.supportsLightingColorControls { guard try await btSetLightingRGB(device: device, r: rgb.r, g: rgb.g, b: rgb.b, ledIDs: patch.usbLightingZoneLEDIDs) else { throw BridgeError.commandFailed("Failed to set Bluetooth RGB") } }
 
@@ -89,7 +89,7 @@ extension BridgeClient {
 
         if let projected = try await applyUSBDpiPatchIfNeeded(device: device, patch: patch, runUSBWrite: runUSBWrite, readUSBCurrentDpiStages: readUSBCurrentDpiStages, readUSBCurrentDpi: readUSBCurrentDpi) { return projected }
 
-        if let brightness = patch.ledBrightness, device.supportsLightingBrightnessControls { guard try runUSBWrite({ try setScrollLEDBrightness($0, device, value: brightness) }) else { throw BridgeError.commandFailed("Failed to set LED brightness") } }
+        if let brightness = patch.ledBrightness, device.supportsLightingBrightnessControls { guard try runUSBWrite({ try setScrollLEDBrightness($0, device, value: device.clampedLightingBrightness(brightness)) }) else { throw BridgeError.commandFailed("Failed to set LED brightness") } }
 
         if let rgb = patch.ledRGB {
             let effect = LightingEffectPatch(kind: .staticColor, primary: RGBPatch(r: rgb.r, g: rgb.g, b: rgb.b))
